@@ -8,11 +8,11 @@ use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\Version;
 use Hypervel\Support\Facades\Artisan;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\Client;
 use Sentry\State\HubInterface;
 
-class AboutCommandIntegrationTest extends SentryTestCase
+class AboutCommandIntegrationTest extends TestCase
 {
     public function testAboutCommandContainsExpectedData(): void
     {
@@ -23,6 +23,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
         ]);
 
         $expectedData = [
+            'data_collection' => 'NOT SET',
             'environment' => 'testing',
             'release' => '1.2.3',
             'sample_rate_errors' => '100%',
@@ -39,6 +40,19 @@ class AboutCommandIntegrationTest extends SentryTestCase
             $this->assertArrayHasKey($key, $actualData);
             $this->assertEquals($value, $actualData[$key]);
         }
+    }
+
+    public function testAboutCommandShowsThatDataCollectionReplacesSendDefaultPii(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.send_default_pii' => true,
+            'sentry.data_collection' => [],
+        ]);
+
+        $actualData = $this->runArtisanAboutAndReturnSentryData();
+
+        $this->assertEquals('ENABLED', $actualData['data_collection'] ?? null);
+        $this->assertEquals('IGNORED', $actualData['send_default_pii'] ?? null);
     }
 
     public function testAboutCommandRecognizesCustomProfileSampler(): void
@@ -72,6 +86,9 @@ class AboutCommandIntegrationTest extends SentryTestCase
         }
     }
 
+    /**
+     * Run the `about` command and return its Sentry section.
+     */
     private function runArtisanAboutAndReturnSentryData(): array
     {
         $this->withoutMockingConsoleOutput();
@@ -80,7 +97,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
 
         $output = Artisan::output();
 
-        // Refresh to ensure the command didn't have side effects on the container
+        // This might seem like a weird thing to do, but it's necessary to make sure that the command didn't have any side effects on the container
         $this->reloadApplication();
 
         $aboutOutput = json_decode($output, true);

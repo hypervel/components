@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Routing\Route as RouteObject;
 use Hypervel\Routing\Router;
 
@@ -32,9 +31,6 @@ trait InteractsWithRouteMiddleware
      */
     protected function resolvedMiddlewareForRoute(string $routeName): array
     {
-        // Resolve the kernel so its constructor syncs middleware priority and aliases onto the router.
-        $this->app->make(HttpKernel::class);
-
         /** @var Router $router */
         $router = $this->app->make('router');
         $router->getRoutes()->refreshNameLookups();

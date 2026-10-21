@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
@@ -13,32 +15,174 @@ use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class DatabaseSchemaBuilderTest extends TestCase
 {
-    public function testCreateDatabase()
+    #[DataProvider('metadataMethods')]
+    public function testMetadataReadsUseTheOverridableWriterHook(string $method, array $arguments, string $compile, array $compileArguments, string $process): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(Grammar::class);
-        $grammar->shouldReceive('compileCreateDatabase')->andReturn('sql');
+        $processor = m::mock(Processor::class);
+        $rows = [(object) ['name' => 'id']];
+        $processed = [['name' => 'id']];
         $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('statement')->with('sql')->andReturnTrue();
+        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
+        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
+        $grammar->shouldReceive($compile)->once()->with(...$compileArguments)->andReturn('metadata sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('metadata sql')->andReturn($rows);
+        $processor->shouldReceive($process)->once()->with($rows)->andReturn($processed);
+        $builder = new DatabaseSchemaMetadataBuilder($connection);
+
+        $this->assertSame($method === 'hasColumn' ? true : $processed, $builder->{$method}(...$arguments));
+        $this->assertSame(['metadata sql'], $builder->metadataQueries);
+    }
+
+    public static function metadataMethods(): array
+    {
+        return [
+            'schemas' => ['getSchemas', [], 'compileSchemas', [], 'processSchemas'],
+            'tables' => ['getTables', ['public'], 'compileTables', ['public'], 'processTables'],
+            'views' => ['getViews', ['public'], 'compileViews', ['public'], 'processViews'],
+            'types' => ['getTypes', ['public'], 'compileTypes', ['public'], 'processTypes'],
+            'columns' => ['getColumns', ['public.users'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
+            'indexes' => ['getIndexes', ['public.users'], 'compileIndexes', ['public', 'prefix_users'], 'processIndexes'],
+            'foreign keys' => ['getForeignKeys', ['public.users'], 'compileForeignKeys', ['public', 'prefix_users'], 'processForeignKeys'],
+            'partitions' => ['getPartitions', ['public.users'], 'compilePartitions', ['public', 'prefix_users'], 'processPartitions'],
+            'derived column check' => ['hasColumn', ['public.users', 'ID'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
+        ];
+    }
+
+    #[DataProvider('tableExistenceResults')]
+    public function testTableExistenceUsesTheMetadataHookAndPreservesScalarValidation(array $rows, ?bool $expected): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
+        $grammar->shouldReceive('compileTableExists')->once()->with('public', 'prefix_users')->andReturn('exists sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('exists sql')->andReturn($rows);
+        $builder = new DatabaseSchemaMetadataBuilder($connection);
+
+        if ($expected === null) {
+            $this->expectException(MultipleColumnsSelectedException::class);
+        }
+
+        try {
+            $this->assertSame($expected, $builder->hasTable('public.users'));
+        } finally {
+            $this->assertSame(['exists sql'], $builder->metadataQueries);
+        }
+    }
+
+    public static function tableExistenceResults(): array
+    {
+        return [
+            'true object' => [[(object) ['exists' => 1]], true],
+            'false object' => [[(object) ['exists' => 0]], false],
+            'true array' => [[['exists' => 1]], true],
+            'first row only' => [[['exists' => 0], ['exists' => 1]], false],
+            'empty' => [[], false],
+            'null value' => [[['exists' => null]], false],
+            'invalid columns' => [[(object) ['exists' => 1, 'unexpected' => 2]], null],
+        ];
+    }
+
+    public function testCreateDatabase(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $grammar->expects('compileCreateDatabase')->andReturn('sql');
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with('sql')->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->createDatabase('foo'));
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(Grammar::class);
-        $grammar->shouldReceive('compileDropDatabaseIfExists')->andReturn('sql');
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('statement')->with('sql')->andReturnTrue();
+        $grammar->expects('compileDropDatabaseIfExists')->andReturn('sql');
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with('sql')->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
+    }
+
+    public function testTruncateTablesChecksWriteRowsAndSkipsEmptyTables(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(Grammar::class));
+
+        foreach (['public.populated' => true, 'public.empty' => false] as $name => $hasRows) {
+            $query = m::mock(QueryBuilder::class);
+            $connection->shouldReceive('table')->once()->with($name)->andReturn($query);
+            $query->shouldReceive('useWritePdo')->once()->andReturnSelf();
+            $query->shouldReceive('exists')->once()->andReturn($hasRows);
+
+            if ($hasRows) {
+                $query->shouldReceive('truncate')->once();
+            } else {
+                $query->shouldNotReceive('truncate');
+            }
+        }
+
+        (new Builder($connection))->truncateTables(['public.populated', 'public.empty']);
+    }
+
+    #[DataProvider('partitionSelections')]
+    public function testWithoutCoveredPartitionsKeepsOnlyPartitionsOfTablesOutsideTheSelection(array $tables, array $except, ?array $missingParents, array $links, array $expected): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+
+        if ($missingParents === null) {
+            $grammar->shouldNotReceive('compilePartitionAncestors');
+        } else {
+            $grammar->expects('compilePartitionAncestors')->with($missingParents)->andReturn('ancestors sql');
+            $connection->expects('selectFromWriteConnection')->with('ancestors sql')->andReturn($links);
+        }
+
+        $tables = array_map(fn (array $table): array => ['schema_qualified_name' => $table[0], 'partition_of' => $table[1]], $tables);
+
+        $this->assertSame($expected, array_column((new Builder($connection))->withoutCoveredPartitions($tables, $except), 'schema_qualified_name'));
+    }
+
+    public static function partitionSelections(): array
+    {
+        return [
+            'given parents cover their partitions, excepted or not' => [
+                [['public.events', null], ['public.events_1', 'public.events'], ['archive.events', null], ['archive.events_1', 'archive.events']],
+                ['public.events'],
+                null,
+                [],
+                ['public.events', 'archive.events'],
+            ],
+            'an excepted parent outside the selection keeps its partition' => [
+                [['archive.events_oct', 'public.events'], ['archive.cold_oct', 'cold.events']],
+                ['public.events'],
+                ['public.events', 'cold.events'],
+                [],
+                ['archive.cold_oct'],
+            ],
+            'an excepted root above an intermediate outside the selection keeps the leaf' => [
+                [['archive.events_oct', 'cold.events_2026'], ['archive.other_oct', 'cold.other_2026']],
+                ['events'],
+                ['cold.events_2026', 'cold.other_2026'],
+                [
+                    (object) ['name' => 'cold.events_2026', 'partition_of' => 'public.events'],
+                    (object) ['name' => 'cold.other_2026', 'partition_of' => 'public.other'],
+                ],
+                ['archive.other_oct'],
+            ],
+        ];
     }
 
     public function testExecuteBlueprintCompilesOnceAndExecutesStatementsInOrder(): void
@@ -67,7 +211,7 @@ class DatabaseSchemaBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never()->with('unreached statement');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [failed statement].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [failed statement].');
 
         (new Builder($connection))->executeBlueprint($blueprint);
     }
@@ -128,20 +272,18 @@ class DatabaseSchemaBuilderTest extends TestCase
         $connection = new PdoConnection($pdo, 'test');
         $grammar = m::mock(Grammar::class);
         $connection->setSchemaGrammar($grammar);
+        $failure = new PDOException('Failed to restore foreign key constraints.');
 
         $grammar->shouldReceive('compileDisableForeignKeyConstraints')->once()->andReturn('disable constraints');
         $grammar->shouldReceive('compileEnableForeignKeyConstraints')->once()->andReturn('enable constraints');
         $pdo->shouldReceive('exec')->once()->with('disable constraints')->andReturn(0)->ordered();
-        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andReturnFalse()->ordered();
+        $pdo->shouldReceive('exec')->once()->with('enable constraints')->andThrow($failure)->ordered();
 
         try {
             (new Builder($connection))->withoutForeignKeyConstraints(fn () => null);
             $this->fail('Expected foreign key constraint restoration to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame(
-                'Failed to execute schema statement [enable constraints].',
-                $exception->getMessage()
-            );
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertFalse($connection->isReusable());
@@ -177,48 +319,60 @@ class DatabaseSchemaBuilderTest extends TestCase
         $this->assertFalse($connection->isReusable());
     }
 
-    public function testHasTableCorrectlyCallsGrammar()
+    public function testHasTableCorrectlyCallsGrammar(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(Grammar::class);
         $processor = m::mock(Processor::class);
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getPostProcessor')->andReturn($processor);
         $builder = new Builder($connection);
-        $grammar->shouldReceive('compileTableExists');
-        $grammar->shouldReceive('compileTables')->once()->andReturn('sql');
-        $processor->shouldReceive('processTables')->once()->andReturn([['name' => 'prefix_table']]);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('prefix_');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([['name' => 'prefix_table']]);
+        $grammar->expects('compileTableExists');
+        $grammar->expects('compileTables')->andReturn('sql');
+        $processor->expects('processTables')->andReturn([['name' => 'prefix_table']]);
+        $connection->expects('getTablePrefix')->andReturn('prefix_');
+        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'prefix_table']]);
 
         $this->assertTrue($builder->hasTable('table'));
     }
 
-    public function testTableHasColumns()
+    public function testTableHasColumns(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(Grammar::class);
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $builder = m::mock(Builder::class . '[getColumnListing]', [$connection]);
-        $builder->shouldReceive('getColumnListing')->with('users')->twice()->andReturn(['id', 'firstname']);
+        $builder->expects('getColumnListing')->with('users')->times(2)->andReturn(['id', 'firstname']);
 
         $this->assertTrue($builder->hasColumns('users', ['id', 'firstname']));
         $this->assertFalse($builder->hasColumns('users', ['id', 'address']));
     }
 
-    public function testGetColumnTypeAddsPrefix()
+    public function testGetColumnTypeAddsPrefix(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(Grammar::class);
         $processor = m::mock(Processor::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
-        $processor->shouldReceive('processColumns')->once()->andReturn([['name' => 'id', 'type_name' => 'integer']]);
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getPostProcessor')->andReturn($processor);
+        $processor->expects('processColumns')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
         $builder = new Builder($connection);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('prefix_');
-        $grammar->shouldReceive('compileColumns')->once()->with(null, 'prefix_users')->andReturn('sql');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
+        $connection->expects('getTablePrefix')->andReturn('prefix_');
+        $grammar->expects('compileColumns')->with(null, 'prefix_users')->andReturn('sql');
+        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
 
         $this->assertSame('integer', $builder->getColumnType('users', 'id'));
+    }
+}
+
+class DatabaseSchemaMetadataBuilder extends Builder
+{
+    public array $metadataQueries = [];
+
+    protected function selectMetadata(string $query): array
+    {
+        $this->metadataQueries[] = $query;
+
+        return parent::selectMetadata($query);
     }
 }

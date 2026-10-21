@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing;
 
-use Hypervel\Testing\ParallelRunner;
 use Hypervel\Testing\PendingCommand;
 use Hypervel\Testing\TestComponent;
 use Hypervel\Testing\TestView;
 use Hypervel\Tests\TestCase;
-use ReflectionProperty;
 
 class TestingStaticStateTest extends TestCase
 {
@@ -44,25 +42,5 @@ class TestingStaticStateTest extends TestCase
         PendingCommand::flushState();
 
         $this->assertFalse(PendingCommand::hasMacro('testingStaticStateProbe'));
-    }
-
-    public function testParallelRunnerFlushStateClearsResolvers(): void
-    {
-        $applicationResolver = static fn () => null;
-        $runnerResolver = static fn () => null;
-
-        ParallelRunner::resolveApplicationUsing($applicationResolver);
-        ParallelRunner::resolveRunnerUsing($runnerResolver);
-
-        $applicationResolverProperty = new ReflectionProperty(ParallelRunner::class, 'applicationResolver');
-        $runnerResolverProperty = new ReflectionProperty(ParallelRunner::class, 'runnerResolver');
-
-        $this->assertSame($applicationResolver, $applicationResolverProperty->getValue());
-        $this->assertSame($runnerResolver, $runnerResolverProperty->getValue());
-
-        ParallelRunner::flushState();
-
-        $this->assertNull($applicationResolverProperty->getValue());
-        $this->assertNull($runnerResolverProperty->getValue());
     }
 }

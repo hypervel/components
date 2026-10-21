@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeSessionTest extends AbstractBladeTestCase
 {
-    public function testSessionsAreCompiled()
+    public function testSessionsAreCompiled(): void
     {
         $string = '
 @session(\'status\')

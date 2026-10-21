@@ -4,12 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Auth\Access;
 
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use UnitEnum;
 
 trait Authorizable
 {
+    /**
+     * Determine if the given ability should be granted for the entity.
+     *
+     * @throws AuthorizationException
+     */
+    public function authorize(UnitEnum|string $ability, mixed $arguments = []): Response
+    {
+        return Container::getInstance()->make(Gate::class)->forUser($this)->authorize($ability, $arguments);
+    }
+
     /**
      * Determine if the entity has the given abilities.
      */

@@ -13,6 +13,7 @@
 - [Customizing the Pagination View](#customizing-the-pagination-view)
 - [Paginator and LengthAwarePaginator Instance Methods](#paginator-instance-methods)
 - [Cursor Paginator Instance Methods](#cursor-paginator-instance-methods)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -394,3 +395,8 @@ Each cursor paginator instance provides additional pagination information via th
 | `$paginator->url($cursor)`      | Get the URL for a given cursor instance.                          |
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Pagination began as a port of [Laravel Pagination](https://github.com/illuminate/pagination) and has been adapted for Hypervel's framework architecture and coroutine runtime.

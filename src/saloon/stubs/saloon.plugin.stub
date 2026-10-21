@@ -13,5 +13,6 @@ trait {{ class }}
      */
     public function boot{{ class }}(PendingRequest $pendingRequest): void
     {
+        //
     }
 }

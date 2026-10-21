@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Support\Str;
 
@@ -43,7 +44,7 @@ class RouteBinding
     /**
      * Create a Route model binding for a model.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
+     * @throws ModelNotFoundException<Model>
      */
     public static function forModel(Container $container, string $class, ?Closure $callback = null): Closure
     {

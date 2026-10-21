@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Concerns;
 
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
@@ -26,7 +28,7 @@ use SortDirection;
  * @template TKey of array-key
  * @template TValue
  *
- * @mixin \Hypervel\Database\Query\Builder<TKey, TValue>
+ * @mixin QueryBuilder<TKey, TValue>
  */
 trait BuildsQueries
 {
@@ -35,7 +37,7 @@ trait BuildsQueries
     /**
      * Chunk the results of the query.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -43,10 +45,12 @@ trait BuildsQueries
             throw new InvalidArgumentException('The chunk size should be at least 1');
         }
 
-        $this->enforceOrderBy();
+        $clone = clone $this;
 
-        $skip = $this->getOffset();
-        $remaining = $this->getLimit();
+        $clone->enforceOrderBy();
+
+        $skip = $clone->getOffset();
+        $remaining = $clone->getLimit();
 
         $page = 1;
 
@@ -59,7 +63,7 @@ trait BuildsQueries
                 break;
             }
 
-            $results = $this->offset($offset)->limit($limit)->get();
+            $results = $clone->offset($offset)->limit($limit)->get();
 
             $countResults = $results->count();
 
@@ -90,7 +94,7 @@ trait BuildsQueries
      * @template TReturn
      *
      * @param callable(TValue): TReturn $callback
-     * @return \Hypervel\Support\Collection<int, TReturn>
+     * @return Collection<int, TReturn>
      */
     public function chunkMap(callable $callback, int $count = 1000): Collection
     {
@@ -126,7 +130,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -136,7 +140,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -146,7 +150,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
@@ -236,7 +240,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazy(int $chunkSize = 1000): LazyCollection
     {
@@ -244,21 +248,42 @@ trait BuildsQueries
             throw new InvalidArgumentException('The chunk size should be at least 1');
         }
 
-        $this->enforceOrderBy();
+        $skip = $this->getOffset();
+        $remaining = $this->getLimit();
 
-        return new LazyCollection(function () use ($chunkSize) {
+        return new LazyCollection(function () use ($chunkSize, $skip, $remaining): Generator {
+            $clone = clone $this;
+
+            $clone->enforceOrderBy();
+
             $page = 1;
 
             while (true) {
-                $results = $this->forPage($page++, $chunkSize)->get();
+                $offset = (($page - 1) * $chunkSize) + (int) $skip;
+
+                $limit = is_null($remaining) ? $chunkSize : min($chunkSize, $remaining);
+
+                if ($limit === 0) {
+                    return;
+                }
+
+                $results = $clone->offset($offset)->limit($limit)->get();
 
                 foreach ($results as $result) {
                     yield $result;
                 }
 
-                if ($results->count() < $chunkSize) {
+                $countResults = $results->count();
+
+                if (! is_null($remaining)) {
+                    $remaining = max($remaining - $countResults, 0);
+                }
+
+                if ($countResults < $chunkSize) {
                     return;
                 }
+
+                ++$page;
             }
         });
     }
@@ -266,7 +291,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
@@ -276,7 +301,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
@@ -286,7 +311,10 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in a given order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException if the ID column is missing while iterating the results
      */
     protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): LazyCollection
     {
@@ -298,22 +326,43 @@ trait BuildsQueries
 
         $alias ??= $column;
 
-        return new LazyCollection(function () use ($chunkSize, $column, $alias, $descending) {
+        $skip = $this->getOffset();
+        $remaining = $this->getLimit();
+
+        return new LazyCollection(function () use ($chunkSize, $column, $alias, $descending, $skip, $remaining): Generator {
             $lastId = null;
+
+            $page = 1;
 
             while (true) {
                 $clone = clone $this;
 
+                if ($skip && $page > 1) {
+                    $clone->offset(0);
+                }
+
+                $limit = is_null($remaining) ? $chunkSize : min($chunkSize, $remaining);
+
+                if ($limit === 0) {
+                    return;
+                }
+
                 $results = match ($descending) {
-                    SortDirection::Ascending, false => $clone->forPageAfterId($chunkSize, $lastId, $column)->get(),
-                    SortDirection::Descending, true => $clone->forPageBeforeId($chunkSize, $lastId, $column)->get(),
+                    SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->get(),
+                    SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->get(),
                 };
 
                 foreach ($results as $result) {
                     yield $result;
                 }
 
-                if ($results->count() < $chunkSize) {
+                $countResults = $results->count();
+
+                if (! is_null($remaining)) {
+                    $remaining = max($remaining - $countResults, 0);
+                }
+
+                if ($countResults < $chunkSize) {
                     return;
                 }
 
@@ -322,6 +371,8 @@ trait BuildsQueries
                 if ($lastId === null) {
                     throw new RuntimeException("The lazyById operation was aborted because the [{$alias}] column is not present in the query result.");
                 }
+
+                ++$page;
             }
         });
     }
@@ -342,7 +393,7 @@ trait BuildsQueries
      *
      * @return TValue
      *
-     * @throws \Hypervel\Database\RecordNotFoundException
+     * @throws RecordNotFoundException
      */
     public function firstOrFail(array|string $columns = ['*'], ?string $message = null)
     {
@@ -361,8 +412,8 @@ trait BuildsQueries
      *
      * @return TValue
      *
-     * @throws \Hypervel\Database\RecordsNotFoundException
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws RecordsNotFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function sole(array|string $columns = ['*'])
     {
@@ -482,9 +533,9 @@ trait BuildsQueries
     /**
      * Get the original column name of the given column, without any aliasing.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $builder
+     * @param  QueryBuilder|Builder<*>  $builder
      */
-    protected function getOriginalColumnNameForCursorPagination(\Hypervel\Database\Query\Builder|Builder $builder, string $parameter): string
+    protected function getOriginalColumnNameForCursorPagination(QueryBuilder|Builder $builder, string $parameter): string
     {
         $columns = $builder instanceof Builder ? $builder->getQuery()->getColumns() : $builder->getColumns();
 
@@ -508,13 +559,9 @@ trait BuildsQueries
      */
     protected function paginator(Collection $items, int $total, int $perPage, int $currentPage, array $options): LengthAwarePaginator
     {
-        return Container::getInstance()->makeWith(LengthAwarePaginator::class, compact(
-            'items',
-            'total',
-            'perPage',
-            'currentPage',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(LengthAwarePaginator::class, [
+            'items' => $items, 'total' => $total, 'perPage' => $perPage, 'currentPage' => $currentPage, 'options' => $options,
+        ]);
     }
 
     /**
@@ -522,12 +569,9 @@ trait BuildsQueries
      */
     protected function simplePaginator(Collection $items, int $perPage, int $currentPage, array $options): Paginator
     {
-        return Container::getInstance()->makeWith(Paginator::class, compact(
-            'items',
-            'perPage',
-            'currentPage',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(Paginator::class, [
+            'items' => $items, 'perPage' => $perPage, 'currentPage' => $currentPage, 'options' => $options,
+        ]);
     }
 
     /**
@@ -535,12 +579,9 @@ trait BuildsQueries
      */
     protected function cursorPaginator(Collection $items, int $perPage, ?Cursor $cursor, array $options): CursorPaginator
     {
-        return Container::getInstance()->makeWith(CursorPaginator::class, compact(
-            'items',
-            'perPage',
-            'cursor',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(CursorPaginator::class, [
+            'items' => $items, 'perPage' => $perPage, 'cursor' => $cursor, 'options' => $options,
+        ]);
     }
 
     /**

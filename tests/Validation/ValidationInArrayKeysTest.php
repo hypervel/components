@@ -11,7 +11,7 @@ use Hypervel\Validation\Validator;
 
 class ValidationInArrayKeysTest extends TestCase
 {
-    public function testInArrayKeysValidation()
+    public function testInArrayKeysValidation(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -36,7 +36,7 @@ class ValidationInArrayKeysTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
-    public function testInArrayKeysValidationWithNestedArrays()
+    public function testInArrayKeysValidationWithNestedArrays(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -60,7 +60,7 @@ class ValidationInArrayKeysTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testInArrayKeysValidationErrorMessage()
+    public function testInArrayKeysValidationErrorMessage(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines([
@@ -69,7 +69,7 @@ class ValidationInArrayKeysTest extends TestCase
 
         $v = new Validator($trans, ['foo' => ['wrong_key' => 'bar']], ['foo' => 'in_array_keys:first_key,second_key']);
         $this->assertFalse($v->passes());
-        $this->assertEquals(
+        $this->assertSame(
             'The foo field must contain at least one of the following keys: first_key, second_key.',
             $v->messages()->first('foo')
         );

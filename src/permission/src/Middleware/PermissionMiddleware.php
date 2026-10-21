@@ -79,10 +79,7 @@ class PermissionMiddleware
         $permission = enum_value($permission);
 
         if (is_array($permission)) {
-            return implode('|', array_map(
-                fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
-                $permission
-            ));
+            return implode('|', array_map(enum_value(...), $permission));
         }
 
         return (string) $permission;

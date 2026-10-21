@@ -14,6 +14,7 @@ use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -33,13 +34,15 @@ use JsonException;
 use LogicException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * @template TResponse of \Symfony\Component\HttpFoundation\Response
+ * @template TResponse of SymfonyResponse
  *
- * @mixin \Hypervel\Http\Response
+ * @mixin TResponse
+ * @mixin Response
  */
 class TestResponse implements ArrayAccess
 {
@@ -485,7 +488,7 @@ class TestResponse implements ArrayAccess
         $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() !== 0 && $expiresAt->lessThan(CarbonImmutable::now()),
+            $cookie->getExpiresTime() !== 0 && $expiresAt->isPast(),
             "Cookie [{$cookieName}] is not expired, it expires at [{$expiresAt}]."
         );
 
@@ -505,7 +508,7 @@ class TestResponse implements ArrayAccess
         $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() === 0 || $expiresAt->greaterThan(CarbonImmutable::now()),
+            $cookie->getExpiresTime() === 0 || $expiresAt->isFuture(),
             "Cookie [{$cookieName}] is expired, it expired at [{$expiresAt}]."
         );
 
@@ -1452,6 +1455,7 @@ class TestResponse implements ArrayAccess
      * Assert that the session is missing a given key in the flashed input array.
      *
      * @param list<string>|string $key
+     * @return $this
      */
     public function assertSessionMissingInput(array|string $key): static
     {

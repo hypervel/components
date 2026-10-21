@@ -14,11 +14,17 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
 final class WithImmutableDates implements AfterEach, BeforeEach
 {
+    /**
+     * Handle the attribute.
+     */
     public function beforeEach(ApplicationContract $app): void
     {
         Date::useClass(CarbonImmutable::class);
     }
 
+    /**
+     * Handle the attribute.
+     */
     public function afterEach(ApplicationContract $app): void
     {
         Date::useDefault();

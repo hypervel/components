@@ -116,6 +116,13 @@ class Validator implements ValidatorContract
     protected array $distinctValues = [];
 
     /**
+     * Typed occurrence counts for each distinct attribute during this validation pass.
+     *
+     * @var array<string, array{counts: array<string, int>, looseType: null|string}>
+     */
+    protected array $distinctValueCounts = [];
+
+    /**
      * The compiled execution plans for the current passes() invocation.
      *
      * @var array<string, AttributePlan>
@@ -321,11 +328,25 @@ class Validator implements ValidatorContract
     protected static bool $fakeDnsLookups = false;
 
     /**
+     * The lowercase names of the encodings supported by mbstring.
+     *
+     * @var null|array<string, true>
+     */
+    protected static ?array $encodingNames = null;
+
+    /**
+     * The identifiers of every timezone.
+     *
+     * @var null|array<string, true>
+     */
+    protected static ?array $timezoneIdentifiers = null;
+
+    /**
      * The exception to throw upon failure.
      *
-     * @var class-string<ValidationException>
+     * @var class-string<ValidationException>|ValidationException
      */
-    protected $exception = ValidationException::class;
+    protected string|ValidationException $exception = ValidationException::class;
 
     /**
      * The custom callback to determine if an exponent is within allowed range.
@@ -412,6 +433,7 @@ class Validator implements ValidatorContract
     {
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->distinctValueCounts = [];
         $this->activeExclusions = [];
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];
@@ -915,6 +937,12 @@ class Validator implements ValidatorContract
 
     /**
      * Execute the callback if the data passes the validation rules.
+     *
+     * @template TWhenReturnType = never
+     *
+     * @param (callable($this): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
+     * @return $this|TWhenReturnType
      */
     public function whenPasses(callable $callback, ?callable $default = null): mixed
     {
@@ -930,6 +958,12 @@ class Validator implements ValidatorContract
 
     /**
      * Execute the callback if the data fails the validation rules.
+     *
+     * @template TWhenReturnType = never
+     *
+     * @param (callable($this): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
+     * @return $this|TWhenReturnType
      */
     public function whenFails(callable $callback, ?callable $default = null): mixed
     {
@@ -954,6 +988,7 @@ class Validator implements ValidatorContract
                     && $this->hasAttributeAncestorInSet($attribute, $this->activeExclusions));
         }
 
+        // Keep the subclass fallback as a loop to avoid an extra callback per exclusion.
         foreach ($this->excludeAttributes as $excludeAttribute) {
             if ($attribute === $excludeAttribute
                 || Str::startsWith($attribute, $excludeAttribute . '.')
@@ -1000,7 +1035,9 @@ class Validator implements ValidatorContract
      */
     public function validate(): array
     {
-        throw_if($this->fails(), $this->exception, $this);
+        if ($this->fails()) {
+            throw is_string($this->exception) ? new $this->exception($this) : $this->exception;
+        }
 
         return $this->validated();
     }
@@ -1047,13 +1084,17 @@ class Validator implements ValidatorContract
             $this->passes();
         }
 
-        throw_if($this->messages->isNotEmpty(), $this->exception, $this);
+        if ($this->messages->isNotEmpty()) {
+            throw is_string($this->exception) ? new $this->exception($this) : $this->exception;
+        }
 
         $results = [];
 
         $missingValue = new stdClass;
 
         foreach ($this->getRules() as $key => $rules) {
+            $key = (string) $key;
+
             $value = data_get($this->getData(), $key, $missingValue);
 
             if (
@@ -1145,7 +1186,7 @@ class Validator implements ValidatorContract
      */
     protected function getExplicitKeys(string $attribute): array
     {
-        $pattern = str_replace('\*', '([^\.]+)', preg_quote($this->getPrimaryAttribute($attribute), '/'));
+        $pattern = str_replace('\*', '([^\.]*)', preg_quote($this->getPrimaryAttribute($attribute), '/'));
 
         if (preg_match('/^' . $pattern . '/', $attribute, $keys)) {
             array_shift($keys);
@@ -1435,7 +1476,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Returns the data which was valid.
+     * Return the data which was valid.
      */
     public function valid(): array
     {
@@ -1450,7 +1491,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Returns the data which was invalid.
+     * Return the data which was invalid.
      */
     public function invalid(): array
     {
@@ -1612,7 +1653,8 @@ class Validator implements ValidatorContract
         return (new Collection($this->rules))
             ->mapWithKeys(fn ($value, $key) => [
                 static::decodeAttributeWithPlaceholder((string) $key) => $value,
-            ])->all();
+            ])
+            ->all();
     }
 
     /**
@@ -1623,7 +1665,8 @@ class Validator implements ValidatorContract
         $rules = (new Collection($rules))
             ->mapWithKeys(function ($value, $key) {
                 return [static::encodeAttributeWithPlaceholder((string) $key) => $value];
-            })->toArray();
+            })
+            ->toArray();
 
         $this->initialRules = $rules;
 
@@ -1671,10 +1714,12 @@ class Validator implements ValidatorContract
 
     /**
      * Parse the given rules and merge them into current rules.
+     *
+     * @internal
      */
     public function addRules(array $rules): void
     {
-        // The primary purpose of this parser is to expand any "*" rules to the all
+        // The primary purpose of this parser is to expand any "*" rules to all
         // of the explicit rules needed for the given data. For example the rule
         // names.* would get expanded to names.0, names.1, etc. for this data.
         $response = (new ValidationRuleParser($this->data))
@@ -1705,6 +1750,8 @@ class Validator implements ValidatorContract
             $this->implicitAttributes = array_merge($response->implicitAttributes, $this->implicitAttributes);
 
             foreach ($response->rules as $ruleKey => $ruleValue) {
+                $ruleKey = (string) $ruleKey;
+
                 if ($callback($payload, $this->dataForSometimesIteration($ruleKey, ! str_ends_with($key, '.*')))) {
                     $this->addRules([static::encodeAttributeWithPlaceholder($ruleKey) => $ruleValue]);
                 }
@@ -1718,7 +1765,8 @@ class Validator implements ValidatorContract
 
     /**
      * Get the data that should be injected into the iteration of a wildcard "sometimes" callback.
-     * @return array|Fluent|mixed
+     *
+     * @return Fluent|mixed
      */
     private function dataForSometimesIteration(string $attribute, bool $removeLastSegmentOfAttribute): mixed
     {
@@ -1866,7 +1914,7 @@ class Validator implements ValidatorContract
      */
     public function setImplicitAttributesFormatter(?callable $formatter = null): static
     {
-        $this->implicitAttributesFormatter = $formatter;
+        $this->implicitAttributesFormatter = $formatter === null ? null : $formatter(...);
 
         return $this;
     }
@@ -1931,9 +1979,9 @@ class Validator implements ValidatorContract
     /**
      * Get the exception to throw upon failed validation.
      *
-     * @return class-string<ValidationException>
+     * @return class-string<ValidationException>|ValidationException
      */
-    public function getException(): string
+    public function getException(): string|ValidationException
     {
         return $this->exception;
     }
@@ -2055,6 +2103,8 @@ class Validator implements ValidatorContract
     public static function flushState(): void
     {
         static::$fakeDnsLookups = false;
+        static::$encodingNames = null;
+        static::$timezoneIdentifiers = null;
     }
 
     /**

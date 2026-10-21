@@ -20,7 +20,7 @@ class EloquentAggregateTest extends DatabaseTestCase
         });
     }
 
-    public function testMinMax()
+    public function testMinMax(): void
     {
         UserAggregateTest::create(['c' => 1, 'name' => 'test-name1', 'balance' => -1]);
         UserAggregateTest::create(['c' => 2, 'name' => 'test-name2', 'balance' => -1]);
@@ -38,7 +38,7 @@ class EloquentAggregateTest extends DatabaseTestCase
         $this->assertEquals(0, UserAggregateTest::query()->where('c', '<', 4)->max('balance'));
     }
 
-    public function testAvg()
+    public function testAvg(): void
     {
         UserAggregateTest::create(['c' => 1, 'name' => 'test-name1', 'balance' => -10]);
         UserAggregateTest::create(['c' => 2, 'name' => 'test-name2', 'balance' => -10]);
@@ -56,7 +56,7 @@ class EloquentAggregateTest extends DatabaseTestCase
         $this->assertEquals(-10, UserAggregateTest::query()->where('c', '<', 3)->average('balance'));
     }
 
-    public function testSum()
+    public function testSum(): void
     {
         UserAggregateTest::create(['c' => 1, 'name' => 'name-1', 'balance' => -11]);
         UserAggregateTest::create(['c' => 2, 'name' => 'name-2', 'balance' => -10]);
@@ -71,7 +71,7 @@ class EloquentAggregateTest extends DatabaseTestCase
         $this->assertEquals(2, UserAggregateTest::query()->where('c', '>', 1)->sum('balance'));
     }
 
-    public function testNumericAggregate()
+    public function testNumericAggregate(): void
     {
         UserAggregateTest::create(['c' => 1, 'name' => 'name-1', 'balance' => 40]);
         UserAggregateTest::create(['c' => 2, 'name' => 'name-2', 'balance' => -40]);

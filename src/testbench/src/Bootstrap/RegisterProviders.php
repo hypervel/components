@@ -9,6 +9,8 @@ class RegisterProviders extends \Hypervel\Foundation\Bootstrap\RegisterProviders
     /**
      * Merge additional providers for Testbench.
      *
+     * @internal
+     *
      * @template TProviders of array<int, class-string>
      *
      * @param TProviders $providers

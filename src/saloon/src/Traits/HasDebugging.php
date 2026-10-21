@@ -35,7 +35,7 @@ trait HasDebugging
                     },
                 );
             },
-            order: PipeOrder::Last,
+            order: PipeOrder::LAST,
         );
 
         return $this;
@@ -65,7 +65,7 @@ trait HasDebugging
 
                 return $response;
             },
-            order: PipeOrder::First,
+            order: PipeOrder::FIRST,
         );
 
         return $this;

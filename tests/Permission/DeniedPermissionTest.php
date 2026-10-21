@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
-use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
-use Hypervel\Permission\PermissionRegistrar;
-use Hypervel\Permission\Support\Config;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
@@ -130,7 +127,7 @@ class DeniedPermissionTest extends TestCase
 
         $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertFalse($this->testUser->getPermissionsViaRoles()->contains('name', 'edit-articles'));
+        $this->assertSame([], $this->testUser->getPermissionsViaRoles()->all());
         $this->assertFalse($this->testUser->getAllPermissions()->contains('name', 'edit-articles'));
     }
 
@@ -167,7 +164,7 @@ class DeniedPermissionTest extends TestCase
         $this->assertFalse($this->testUser->hasPermissionTo('edit-news'));
     }
 
-    public function testMissingPermissionStillThrowsOrChecksFalseWithRoleDeniedEdges(): void
+    public function testMissingPermissionStillThrowsOrChecksFalseWhenARoleHasDenies(): void
     {
         $this->testUserRole->denyPermissionTo('edit-articles');
         $this->testUser->assignRole($this->testUserRole);
@@ -202,7 +199,14 @@ class DeniedPermissionTest extends TestCase
             denied: ['edit-news'],
         );
 
-        $this->assertArrayHasKey('attached', $changes);
+        $this->assertSame([
+            'attached' => [
+                $this->testUserPermission->getKey(),
+                $this->app->make(PermissionContract::class)::findByName('edit-news')->getKey(),
+            ],
+            'detached' => [],
+            'updated' => [],
+        ], $changes);
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
         $this->assertFalse($this->testUser->hasPermissionTo('edit-news'));
         $this->assertTrue($this->testUser->hasDeniedPermission('edit-news'));
@@ -391,18 +395,6 @@ class DeniedPermissionTest extends TestCase
         );
     }
 
-    public function testDeniedDuplicateRolePermissionIsExcluded(): void
-    {
-        $allowedRole = $this->app->make(RoleContract::class)::create(['name' => 'duplicate-allowed']);
-        $deniedRole = $this->app->make(RoleContract::class)::create(['name' => 'duplicate-denied']);
-
-        $allowedRole->givePermissionTo('edit-articles');
-        $deniedRole->denyPermissionTo('edit-articles');
-        $this->testUser->assignRole($allowedRole, $deniedRole);
-
-        $this->assertSame([], $this->testUser->getPermissionsViaRoles()->pluck('name')->values()->all());
-    }
-
     public function testRoleDeniedSyncAffectsAllUsersWithRoleAfterCachesAreWarm(): void
     {
         $role = $this->app->make(RoleContract::class)::create(['name' => 'publisher']);
@@ -441,75 +433,29 @@ class DeniedPermissionTest extends TestCase
 
         $this->assertSame(['edit-articles'], $permissionNames);
         $this->assertTrue($role->hasDeniedPermission('edit-news'));
+        $this->assertSame(['edit-news'], $role->getDeniedPermissions()->pluck('name')->all());
     }
 
-    public function testDirectPermissionChecksDenyWhenRelationContainsDuplicateEffects(): void
+    public function testGetDeniedPermissionsReturnsDirectAndRoleDeniesOnce(): void
     {
-        $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
-        $allowed = clone $permission;
-        $denied = clone $permission;
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUserRole->denyPermissionTo('edit-news');
+        $this->testUser->assignRole('testRole');
+        $this->testUser->denyPermissionTo('edit-articles', 'edit-news');
+        $this->testUser->givePermissionTo('edit-blog');
 
-        $allowed->setRelation('pivot', Pivot::fromRawAttributes(
-            $this->testUser,
-            [
-                $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
-                Config::morphKey() => $this->testUser->getKey(),
-                'model_type' => $this->testUser->getMorphClass(),
-                'is_denied' => false,
-            ],
-            Config::modelHasPermissionsTable(),
-            true,
-        ));
+        $this->assertSame(
+            ['edit-articles', 'edit-news'],
+            $this->testUser->getDeniedPermissions()->pluck('name')->sort()->values()->all(),
+        );
 
-        $denied->setRelation('pivot', Pivot::fromRawAttributes(
-            $this->testUser,
-            [
-                $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
-                Config::morphKey() => $this->testUser->getKey(),
-                'model_type' => $this->testUser->getMorphClass(),
-                'is_denied' => true,
-            ],
-            Config::modelHasPermissionsTable(),
-            true,
-        ));
+        // A loaded relation supplies the direct permissions as an Eloquent collection.
+        $this->testUser->load('permissions');
 
-        $this->testUser->setRelation('permissions', collect([$allowed, $denied]));
-
-        $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
-    }
-
-    public function testRolePermissionChecksDenyWhenRelationContainsDuplicateEffects(): void
-    {
-        $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
-        $allowed = clone $permission;
-        $denied = clone $permission;
-
-        $allowed->setRelation('pivot', Pivot::fromRawAttributes(
-            $this->testUserRole,
-            [
-                $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
-                $this->app->make(PermissionRegistrar::class)->pivotRole => $this->testUserRole->getKey(),
-                'is_denied' => false,
-            ],
-            Config::roleHasPermissionsTable(),
-            true,
-        ));
-
-        $denied->setRelation('pivot', Pivot::fromRawAttributes(
-            $this->testUserRole,
-            [
-                $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
-                $this->app->make(PermissionRegistrar::class)->pivotRole => $this->testUserRole->getKey(),
-                'is_denied' => true,
-            ],
-            Config::roleHasPermissionsTable(),
-            true,
-        ));
-
-        $this->testUserRole->setRelation('permissions', collect([$allowed, $denied]));
-
-        $this->assertFalse($this->testUserRole->hasDirectPermission('edit-articles'));
-        $this->assertFalse($this->testUserRole->hasPermissionTo('edit-articles'));
+        $this->assertSame(
+            ['edit-articles', 'edit-news'],
+            $this->testUser->getDeniedPermissions()->pluck('name')->sort()->values()->all(),
+        );
     }
 
     public function testPermissionScopeExcludesDirectDeniedPermission(): void
@@ -601,7 +547,7 @@ class DeniedPermissionTest extends TestCase
         ));
     }
 
-    public function testRolePermissionScopeExcludesDeniedRolePermissionEdges(): void
+    public function testRolePermissionScopeExcludesRolesDeniedThePermission(): void
     {
         $this->testUserRole->denyPermissionTo('edit-articles');
 

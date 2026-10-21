@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ConnectionPool;
 
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\ConnectionPool\Exceptions\SocketPopException;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -468,6 +469,83 @@ class KeepaliveConnectionTest extends TestCase
         ];
     }
 
+    public function testCallFailsWithoutWaitingWhenTheWinnerClosesDuringLosingReconnectCleanup(): void
+    {
+        $pool = new HeartbeatPoolStub(new Container, 'test', [
+            'heartbeat_interval' => 3600.0,
+            'wait_timeout' => 0.05,
+        ]);
+        $connection = $pool->borrow();
+        $firstReady = new Channel(1);
+        $loserClosing = new Channel(1);
+        $finishLoserClose = new Channel(1);
+        $completed = new Channel(1);
+        $created = [];
+        $closed = [];
+        $called = false;
+        $connection->createCallback = function () use (&$created, $firstReady): object {
+            $socket = new stdClass;
+            $created[] = $socket;
+
+            if (count($created) === 1) {
+                $firstReady->pop(1.0);
+            }
+
+            return $socket;
+        };
+        $connection->closeCallback = function (object $socket) use (
+            &$created,
+            &$closed,
+            $loserClosing,
+            $finishLoserClose,
+        ): void {
+            $closed[] = $socket;
+
+            if ($socket === $created[0]) {
+                $loserClosing->push(true);
+                $finishLoserClose->pop(1.0);
+            }
+        };
+        $coroutineId = Coroutine::create(function () use ($connection, &$called, $completed): void {
+            try {
+                $connection->call(function () use (&$called): void {
+                    $called = true;
+                });
+                $completed->push(true);
+            } catch (Throwable $exception) {
+                $completed->push($exception);
+            }
+        });
+
+        try {
+            $winner = $connection->call(static fn ($socket) => $socket);
+            $this->assertSame($created[1], $winner);
+            $firstReady->push(true);
+            $this->assertTrue($loserClosing->pop(1.0));
+
+            $connection->close();
+            $finishLoserClose->push(true);
+
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            $failure = $completed->pop(1.0);
+            $this->assertInstanceOf(ConnectionException::class, $failure);
+            $this->assertSame('Socket of keepalive.connection could not be reconnected.', $failure->getMessage());
+            $this->assertFalse($called);
+            $this->assertFalse($connection->isConnected());
+            $this->assertCount(2, $created);
+            $this->assertSame($created, $closed);
+            $this->assertSame(2, $connection->closeCount);
+            $this->assertNull((new ClassInvoker($connection))->timerId);
+            $this->assertSame([], (new ClassInvoker($connection->timer))->coroutines);
+        } finally {
+            $firstReady->close();
+            $finishLoserClose->close();
+            Coroutine::join([$coroutineId], 1.0);
+            $connection->discard();
+            $connection->timer->clearAll();
+        }
+    }
+
     #[DataProvider('heartbeatModes')]
     public function testCanceledCloseClearsStateAndReconnectWakesOldWaiters(?float $heartbeatInterval): void
     {
@@ -585,12 +663,14 @@ class KeepaliveConnectionTest extends TestCase
         }
     }
 
-    public function testCloseDuringTimerCreationDoesNotRetainTheTimer(): void
+    #[DataProvider('reconnectOperations')]
+    public function testCloseDuringTimerCreationFailsReconnectionWithoutRetainingTheTimer(bool $throughCall): void
     {
         $pool = new HeartbeatPoolStub(new Container, 'test', ['heartbeat_interval' => 3600.0]);
         $connection = $pool->borrow();
         $connection->setActiveConnection(new stdClass);
         $closed = false;
+        $called = false;
         Coroutine::afterCreated(function () use ($connection, &$closed): void {
             if (! $closed) {
                 $closed = true;
@@ -599,16 +679,40 @@ class KeepaliveConnectionTest extends TestCase
         });
 
         try {
-            $connection->reconnect();
+            if ($throughCall) {
+                try {
+                    $connection->call(function () use (&$called): void {
+                        $called = true;
+                    });
+                    $this->fail('Expected reconnection to fail after timer creation closed the socket.');
+                } catch (ConnectionException $exception) {
+                    $this->assertSame('Socket of keepalive.connection could not be reconnected.', $exception->getMessage());
+                }
+            } else {
+                $this->assertFalse($connection->reconnect());
+            }
 
             $this->assertTrue($closed);
+            $this->assertFalse($called);
             $this->assertFalse($connection->isConnected());
+            $this->assertSame(1, $connection->closeCount);
             $this->assertNull((new ClassInvoker($connection))->timerId);
             $this->assertSame([], (new ClassInvoker($connection->timer))->coroutines);
         } finally {
             $connection->discard();
             $connection->timer->clearAll();
         }
+    }
+
+    /**
+     * Provide direct and caller-initiated reconnection.
+     */
+    public static function reconnectOperations(): array
+    {
+        return [
+            'direct reconnect' => [false],
+            'reconnect before call' => [true],
+        ];
     }
 
     public function testReconnectPublishesIfAnEarlierWinnerHasAlreadyClosed(): void

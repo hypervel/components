@@ -12,7 +12,7 @@ use Hypervel\Testbench\TestCase;
 
 class QueuedListenersTest extends TestCase
 {
-    public function testListenersCanBeQueuedOptionally()
+    public function testListenersCanBeQueuedOptionally(): void
     {
         Queue::fake();
 

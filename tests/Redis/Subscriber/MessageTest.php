@@ -10,7 +10,7 @@ use ReflectionClass;
 
 class MessageTest extends TestCase
 {
-    public function testConstructWithChannelAndPayload()
+    public function testConstructWithChannelAndPayload(): void
     {
         $message = new Message(channel: 'my-channel', payload: 'hello');
 
@@ -19,7 +19,7 @@ class MessageTest extends TestCase
         $this->assertNull($message->pattern);
     }
 
-    public function testConstructWithPattern()
+    public function testConstructWithPattern(): void
     {
         $message = new Message(channel: 'events.user.created', payload: 'data', pattern: 'events.*');
 
@@ -28,7 +28,7 @@ class MessageTest extends TestCase
         $this->assertSame('events.*', $message->pattern);
     }
 
-    public function testPropertiesAreReadonly()
+    public function testPropertiesAreReadonly(): void
     {
         $message = new Message(channel: 'ch', payload: 'msg');
 

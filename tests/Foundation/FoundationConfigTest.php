@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
+use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Config\Repository;
 use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
@@ -42,7 +45,7 @@ class FoundationConfigTest extends TestCase
             return require dirname(__DIR__, 2) . '/src/foundation/config/logging.php';
         });
 
-        $this->assertSame(30, $config['channels']['daily']['days']);
+        $this->assertSame(30, $config['channels']['daily']['max_files']);
     }
 
     public function testLoggingConfigNormalizesNullablePapertrailPort(): void
@@ -324,20 +327,44 @@ class FoundationConfigTest extends TestCase
         ];
     }
 
-    public function testShippedFilesystemDisksDeclareVisibilityAndFailurePolicy(): void
+    public function testShippedFilesystemDisksUseSafeVisibilityDefaultsAndDeclareFailurePolicy(): void
     {
         $disks = $this->filesystemConfig()['disks'];
 
-        foreach ([
-            'local' => 'private',
-            'public' => 'public',
-            's3' => 'public',
-            'gcs' => 'public',
-        ] as $name => $visibility) {
-            $this->assertSame($visibility, $disks[$name]['visibility']);
+        $this->assertSame('private', $disks['local']['visibility']);
+        $this->assertSame('public', $disks['public']['visibility']);
+        $this->assertArrayNotHasKey('visibility', $disks['s3']);
+        $this->assertArrayNotHasKey('visibility', $disks['gcs']);
+
+        foreach (['local', 'public', 's3', 'gcs'] as $name) {
             $this->assertFalse($disks[$name]['throw']);
             $this->assertFalse($disks[$name]['report']);
         }
+    }
+
+    #[DataProvider('publicDiskUrlProvider')]
+    public function testPublicDiskUrlsNormalizeTheApplicationUrl(?string $appUrl, string $expectedUrl): void
+    {
+        $config = $this->withEnvironmentValue(
+            'APP_URL',
+            $appUrl,
+            fn (): array => $this->filesystemConfig(),
+        );
+        $disk = $this->app->make('filesystem')->build($config['disks']['public']);
+
+        $this->assertSame($expectedUrl, $disk->url('avatar.png'));
+    }
+
+    /**
+     * Provide application URLs and their public file URLs.
+     */
+    public static function publicDiskUrlProvider(): array
+    {
+        return [
+            'without trailing slash' => ['https://example.test', 'https://example.test/storage/avatar.png'],
+            'subpath with trailing slash' => ['https://example.test/app/', 'https://example.test/app/storage/avatar.png'],
+            'absent application URL' => [null, '/storage/avatar.png'],
+        ];
     }
 
     public function testS3RootReadsTheAwsRootEnvironmentVariable(): void
@@ -456,6 +483,15 @@ class FoundationConfigTest extends TestCase
         $this->assertSame('/socket', $config['connections']['reverb']['options']['path']);
     }
 
+    public function testMercureBroadcastingConfigPreservesFractionalMinutes(): void
+    {
+        $config = $this->withEnvironmentValue('MERCURE_SUBSCRIBE_EXPIRATION', '0.5', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame(0.5, $config['connections']['mercure']['subscribe_expiration']);
+    }
+
     public function testBroadcastingConfigDisablesJsonpAndDoesNotShipSdkPools(): void
     {
         $config = require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
@@ -477,6 +513,32 @@ class FoundationConfigTest extends TestCase
 
         $this->assertSame(8443, $config['connections']['reverb']['options']['port']);
         $this->assertSame(9443, $config['connections']['pusher']['options']['port']);
+    }
+
+    #[DataProvider('broadcastConnectionEnvironmentValues')]
+    public function testBroadcastingConfigNormalizesANullDefaultConnection(?string $value, string $expected, string $broadcaster): void
+    {
+        $config = $this->withEnvironmentValue('BROADCAST_CONNECTION', $value, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame($expected, $config['default']);
+
+        $this->app->make('config')->set('broadcasting', $config);
+
+        $this->assertInstanceOf($broadcaster, $this->app->make(BroadcastManager::class)->connection());
+    }
+
+    /**
+     * Supply omitted, null and named default broadcast connections.
+     */
+    public static function broadcastConnectionEnvironmentValues(): array
+    {
+        return [
+            'omitted' => [null, 'null', NullBroadcaster::class],
+            'null' => ['null', 'null', NullBroadcaster::class],
+            'named' => ['log', 'log', LogBroadcaster::class],
+        ];
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void

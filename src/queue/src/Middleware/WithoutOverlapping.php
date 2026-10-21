@@ -40,14 +40,19 @@ class WithoutOverlapping
     public bool $shareKey = false;
 
     /**
+     * The cache store that should hold the lock.
+     */
+    protected ?string $storeName = null;
+
+    /**
      * Create a new middleware instance.
      *
-     * @param string $key the job's unique key used for preventing overlaps
+     * @param int|string|UnitEnum $key the job's unique key used for preventing overlaps
      * @param null|DateTimeInterface|int $releaseAfter the number of seconds before a job should be available again if no lock was acquired
      * @param DateTimeInterface|int $expiresAfter the number of seconds before the lock should expire
      */
     public function __construct(
-        UnitEnum|string $key = '',
+        UnitEnum|int|string $key = '',
         public DateTimeInterface|int|null $releaseAfter = 0,
         DateTimeInterface|int $expiresAfter = 0
     ) {
@@ -60,14 +65,10 @@ class WithoutOverlapping
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        /** @var \Hypervel\Cache\CacheManager $cache */
-        $cache = Container::getInstance()
-            ->make(CacheFactory::class);
-
-        $lock = $cache->lock(
-            $this->getLockKey($job),
-            $this->expiresAfter
-        );
+        $lock = Container::getInstance()
+            ->make(CacheFactory::class)
+            ->store($this->storeName)
+            ->lock($this->getLockKey($job), $this->expiresAfter); // @phpstan-ignore method.notFound (lock() is on LockProvider, which concrete stores implement)
 
         if ($lock->get()) {
             try {
@@ -123,11 +124,21 @@ class WithoutOverlapping
     }
 
     /**
-     * Indicate that the lock key should be shared across job classes.
+     * Indicate that the lock key may be shared across jobs belonging to different classes.
      */
     public function shared(): static
     {
         $this->shareKey = true;
+
+        return $this;
+    }
+
+    /**
+     * Specify the cache store that should hold the lock.
+     */
+    public function store(UnitEnum|string $store): static
+    {
+        $this->storeName = (string) enum_value($store);
 
         return $this;
     }

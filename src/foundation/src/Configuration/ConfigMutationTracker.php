@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Configuration;
 
 use Closure;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
 
 /**
  * Tracks configuration mutations made during application boot for worker replay.
@@ -17,7 +18,7 @@ class ConfigMutationTracker
     /**
      * The ordered configuration mutations made during application boot.
      *
-     * @var list<array<array-key, mixed>|Closure(Repository): void>
+     * @var list<array<array-key, mixed>|Closure(RepositoryContract): void>
      */
     protected array $mutations = [];
 
@@ -47,9 +48,9 @@ class ConfigMutationTracker
      * Boot-only. The operation is retained for worker-start replay and is
      * re-evaluated against the freshly rebuilt configuration repository.
      *
-     * @param Closure(Repository): void $mutation
+     * @param Closure(RepositoryContract): void $mutation
      */
-    public function applyAndRecord(Repository $config, Closure $mutation): void
+    public function applyAndRecord(RepositoryContract $config, Closure $mutation): void
     {
         $wasRecording = $this->recording;
         $this->recording = false;

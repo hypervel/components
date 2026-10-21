@@ -33,7 +33,7 @@ class ResolvesScoutModelClassTest extends TestCase
     public function testThrowsScoutExceptionForNonExistentClass(): void
     {
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Model [NonExistentModel] not found.');
+        $this->expectExceptionMessageIs('Model [NonExistentModel] not found.');
 
         $this->resolver()->resolve('NonExistentModel');
     }

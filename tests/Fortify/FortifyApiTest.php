@@ -227,6 +227,7 @@ class FortifyApiTest extends TestCase
             'authentication pipeline callback' => ['authenticateThroughCallback'],
             'authentication callback' => ['authenticateUsingCallback'],
             'password confirmation callback' => ['confirmPasswordsUsingCallback'],
+            'recovery code generator' => ['recoveryCodeGenerator'],
             'route registration flag' => ['registersRoutes'],
             'encrypter' => ['encrypter'],
             'redirect callbacks' => ['redirectUsingCallbacks'],

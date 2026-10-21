@@ -15,7 +15,7 @@ use JsonSerializable;
 
 class SupportJsTest extends TestCase
 {
-    public function testScalars()
+    public function testScalars(): void
     {
         $this->assertSame('false', (string) Js::from(false));
         $this->assertSame('true', (string) Js::from(true));
@@ -26,7 +26,7 @@ class SupportJsTest extends TestCase
         $this->assertSame('null', (string) Js::from(null));
         $this->assertSame("'Hello world'", (string) Js::from('Hello world'));
         $this->assertSame("'Hèlló world'", (string) Js::from('Hèlló world'));
-        $this->assertEquals(
+        $this->assertSame(
             "'\\u003Cdiv class=\\u0022foo\\u0022\\u003E\\u0027quoted html\\u0027\\u003C\\/div\\u003E'",
             (string) Js::from('<div class="foo">\'quoted html\'</div>')
         );
@@ -47,28 +47,28 @@ class SupportJsTest extends TestCase
         $this->assertSame('{"value":"�1"}', Js::encode($jsonable));
     }
 
-    public function testArrays()
+    public function testArrays(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('[\\u0022hello\\u0022,\\u0022world\\u0022]')",
             (string) Js::from(['hello', 'world'])
         );
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from(['foo' => 'hello', 'bar' => 'world'])
         );
     }
 
-    public function testObjects()
+    public function testObjects(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from((object) ['foo' => 'hello', 'bar' => 'world'])
         );
     }
 
-    public function testJsonSerializable()
+    public function testJsonSerializable(): void
     {
         // JsonSerializable should take precedence over Arrayable, so we'll
         // implement both and make sure the correct data is used.
@@ -88,13 +88,13 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
     }
 
-    public function testJsonable()
+    public function testJsonable(): void
     {
         // Jsonable should take precedence over JsonSerializable and Arrayable, so we'll
         // implement all three and make sure the correct data is used.
@@ -119,13 +119,13 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
     }
 
-    public function testArrayable()
+    public function testArrayable(): void
     {
         $data = new class implements Arrayable {
             public $foo = 'not hello';
@@ -138,13 +138,13 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
     }
 
-    public function testHtmlable()
+    public function testHtmlable(): void
     {
         $data = new class implements Htmlable {
             public function toHtml(): string
@@ -153,7 +153,7 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals("'\\u003Cp\\u003EHello, World!\\u003C\\/p\\u003E'", (string) Js::from($data));
+        $this->assertSame("'\\u003Cp\\u003EHello, World!\\u003C\\/p\\u003E'", (string) Js::from($data));
 
         $data = new class implements Htmlable, Arrayable {
             public function toHtml(): string
@@ -167,7 +167,7 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
@@ -184,7 +184,7 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
@@ -201,13 +201,13 @@ class SupportJsTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             "JSON.parse('{\\u0022foo\\u0022:\\u0022hello\\u0022,\\u0022bar\\u0022:\\u0022world\\u0022}')",
             (string) Js::from($data)
         );
     }
 
-    public function testBackedEnums()
+    public function testBackedEnums(): void
     {
         $this->assertSame('2', (string) Js::from(IntBackedEnum::Two));
         $this->assertSame("'Hello world'", (string) Js::from(StringBackedEnum::HelloWorld));

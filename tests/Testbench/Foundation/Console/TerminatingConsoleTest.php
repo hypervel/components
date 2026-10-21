@@ -46,6 +46,26 @@ class TerminatingConsoleTest extends TestCase
     }
 
     #[Test]
+    public function itPassesTheTerminatingSignalToCallbacks(): void
+    {
+        $signals = [];
+
+        TerminatingConsole::before(function (?int $signal) use (&$signals): void {
+            $signals[] = $signal;
+        });
+
+        TerminatingConsole::handle(SIGTERM);
+
+        TerminatingConsole::before(function (?int $signal) use (&$signals): void {
+            $signals[] = $signal;
+        });
+
+        TerminatingConsole::handle();
+
+        $this->assertSame([SIGTERM, null], $signals);
+    }
+
+    #[Test]
     public function itExhaustsDetachedCallbacksAndDoesNotReplayReentrantRegistrations(): void
     {
         $calls = [];

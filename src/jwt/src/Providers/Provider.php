@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Jwt\Providers;
 
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 abstract class Provider
 {
@@ -30,8 +31,10 @@ abstract class Provider
      * Constructor.
      */
     public function __construct(
+        #[SensitiveParameter]
         protected string $secret,
         protected string $algo,
+        #[SensitiveParameter]
         protected array $keys
     ) {
     }
@@ -68,7 +71,7 @@ abstract class Provider
      *
      * @return $this
      */
-    public function setSecret(string $secret): static
+    public function setSecret(#[SensitiveParameter] string $secret): static
     {
         $this->secret = $secret;
         $this->onConfigurationChanged();
@@ -92,7 +95,7 @@ abstract class Provider
      *
      * @return $this
      */
-    public function setKeys(array $keys): static
+    public function setKeys(#[SensitiveParameter] array $keys): static
     {
         $this->keys = $keys;
         $this->onConfigurationChanged();

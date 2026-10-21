@@ -10,9 +10,18 @@ use Hypervel\Saloon\Http\PendingRequest;
 class {{ class }} implements Authenticator
 {
     /**
+     * Create a new authenticator instance.
+     */
+    public function __construct()
+    {
+        //
+    }
+
+    /**
      * Apply the authentication to the request.
      */
     public function set(PendingRequest $pendingRequest): void
     {
+        //
     }
 }

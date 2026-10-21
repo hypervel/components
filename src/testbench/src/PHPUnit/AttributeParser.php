@@ -13,6 +13,8 @@ use ReflectionMethod;
 
 /**
  * Parses PHPUnit test case attributes for testing features.
+ *
+ * @internal
  */
 class AttributeParser
 {

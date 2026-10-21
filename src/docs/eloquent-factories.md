@@ -228,6 +228,14 @@ public function suspended(): static
 }
 ```
 
+You may remove registered callbacks, including those added by `configure`, using `withoutAfterMaking` or `withoutAfterCreating`:
+
+```php
+$user = User::factory()->withoutAfterMaking()->make();
+
+$user = User::factory()->withoutAfterCreating()->create();
+```
+
 <a name="creating-models-using-factories"></a>
 ## Creating Models Using Factories
 
@@ -246,6 +254,15 @@ You may create a collection of many models using the `count` method:
 
 ```php
 $users = User::factory()->count(3)->make();
+```
+
+To supply different attributes for each model, use `makeMany`. The returned collection contains models that have not been persisted:
+
+```php
+$users = User::factory()->makeMany([
+    ['name' => 'Taylor Otwell'],
+    ['name' => 'Jeffrey Way'],
+]);
 ```
 
 <a name="applying-states"></a>
@@ -299,6 +316,15 @@ You may override the factory's default model attributes by passing an array of a
 ```php
 $user = User::factory()->create([
     'name' => 'Abigail',
+]);
+```
+
+To persist multiple models with different attributes, use `createMany`:
+
+```php
+$users = User::factory()->createMany([
+    ['name' => 'Taylor Otwell'],
+    ['name' => 'Jeffrey Way'],
 ]);
 ```
 

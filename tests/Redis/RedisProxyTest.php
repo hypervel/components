@@ -651,7 +651,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis error');
+        $this->expectExceptionMessageIs('Redis error');
 
         $redis->get('key');
     }
@@ -669,7 +669,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Get connection failed.');
+        $this->expectExceptionMessageIs('Get connection failed.');
 
         $redis->set('xxxx', 'yyyy');
     }
@@ -1130,7 +1130,7 @@ class RedisProxyTest extends TestCase
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exec failed.');
+        $this->expectExceptionMessageIs('Exec failed.');
 
         $this->createRedis($connection)->transaction(static function (): void {
         });
@@ -1296,7 +1296,7 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         $redis->withConnection(function (RedisConnection $redisConnection) {
             throw new RuntimeException('Callback failed');
@@ -1861,6 +1861,36 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testPinnedClusterDiscoveryFailureKeepsTheCallersConnection(): void
+    {
+        $failure = new RuntimeException('Master discovery failed.');
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('shouldTransform')->with(true)->andReturnSelf();
+        $connection->expects('getConnection')->twice()->andReturnSelf();
+        $connection->expects('masters')->andThrow($failure);
+        $connection->expects('release');
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn($this->clusterConfig());
+        $pool->expects('borrow')->andReturn($connection);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->allows('pool')->with('default')->andReturn($pool);
+        $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
+
+        $redis->withPinnedConnection(function () use ($redis, $failure, $connection): void {
+            try {
+                $redis->subscriber();
+                $this->fail('Expected Cluster discovery to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertSame(
+                $connection,
+                CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+            );
+        });
+    }
+
     public function testClusterDiscoveryNormalizesWrappedCancellationAndStillReleases(): void
     {
         $nativeFailure = new RedisClusterException('Master discovery canceled.');
@@ -2281,6 +2311,7 @@ class RedisProxyTest extends TestCase
             'backoff_algorithm' => 'decorrelated_jitter',
             'backoff_base' => 100,
             'backoff_cap' => 1000,
+            'tcp_keepalive' => 0,
             'pool' => [
                 'min_retained_connections' => 1,
                 'max_connections' => 10,

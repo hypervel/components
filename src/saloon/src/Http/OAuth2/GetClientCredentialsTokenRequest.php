@@ -23,7 +23,7 @@ class GetClientCredentialsTokenRequest extends Request
     /**
      * Create a client-credentials token request.
      *
-     * @param list<string> $scopes
+     * @param list<?string> $scopes
      */
     public function __construct(
         protected OAuthConfig $oauthConfig,
@@ -59,10 +59,7 @@ class GetClientCredentialsTokenRequest extends Request
             'grant_type' => 'client_credentials',
             'client_id' => $this->oauthConfig->clientId,
             'client_secret' => $this->oauthConfig->clientSecret,
-            'scope' => implode($this->scopeSeparator, [
-                ...$this->oauthConfig->defaultScopes,
-                ...$this->scopes,
-            ]),
+            'scope' => implode($this->scopeSeparator, $this->oauthConfig->scopes($this->scopes)),
         ];
     }
 }

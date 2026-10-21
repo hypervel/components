@@ -20,11 +20,30 @@ class ArraySessionHandlerTest extends TestCase
         );
     }
 
+    public function testItCreatesSessionIds(): void
+    {
+        $sessionId = (new ArraySessionHandler(10))->create_sid();
+
+        $this->assertIsString($sessionId);
+        $this->assertNotEmpty($sessionId);
+    }
+
     public function testInitializeSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertTrue($handler->open('', ''));
+    }
+
+    public function testItValidatesSessionIds(): void
+    {
+        $handler = new ArraySessionHandler(10);
+
+        $this->assertFalse($handler->validateId('foo'));
+
+        $handler->write('foo', 'bar');
+
+        $this->assertTrue($handler->validateId('foo'));
     }
 
     public function testCloseSession(): void
@@ -47,10 +66,10 @@ class ArraySessionHandlerTest extends TestCase
     {
         $handler = new ArraySessionHandler(10);
 
-        CarbonImmutable::setTestNow(Date::now());
+        CarbonImmutable::setTestNow($now = Date::now());
         $handler->write('foo', 'bar');
 
-        CarbonImmutable::setTestNow(Date::now()->addMinutes(10));
+        CarbonImmutable::setTestNow($now->addMinutes(10));
 
         $this->assertSame('bar', $handler->read('foo'));
     }
@@ -59,10 +78,10 @@ class ArraySessionHandlerTest extends TestCase
     {
         $handler = new ArraySessionHandler(10);
 
-        CarbonImmutable::setTestNow(Date::now());
+        CarbonImmutable::setTestNow($now = Date::now());
         $handler->write('foo', 'bar');
 
-        CarbonImmutable::setTestNow(Date::now()->addMinutes(10)->addSecond());
+        CarbonImmutable::setTestNow($now->addMinutes(10)->addSecond());
 
         $this->assertSame('', $handler->read('foo'));
     }
@@ -103,16 +122,16 @@ class ArraySessionHandlerTest extends TestCase
 
         $this->assertSame(0, $handler->gc(300));
 
-        CarbonImmutable::setTestNow(Date::now());
+        CarbonImmutable::setTestNow($now = Date::now());
         $handler->write('foo', 'bar');
         $this->assertSame(0, $handler->gc(300));
         $this->assertSame('bar', $handler->read('foo'));
 
-        CarbonImmutable::setTestNow(Date::now()->addSecond());
+        CarbonImmutable::setTestNow($now = $now->addSecond());
 
         $handler->write('baz', 'qux');
 
-        CarbonImmutable::setTestNow(Date::now()->addMinutes(5));
+        CarbonImmutable::setTestNow($now->addMinutes(5));
 
         $this->assertSame(1, $handler->gc(300));
         $this->assertSame('', $handler->read('foo'));

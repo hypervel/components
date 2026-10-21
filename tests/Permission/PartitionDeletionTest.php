@@ -14,7 +14,7 @@ use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingGlobalPartitionUser;
 
 class PartitionDeletionTest extends PartitionTestCase
 {
-    public function testRoleDeleteRemovesOnlyItsPartitionEdges(): void
+    public function testRoleDeleteRemovesOnlyItsPartitionAssignments(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $roleA = PartitionedRole::create(['name' => 'member']);
@@ -41,7 +41,7 @@ class PartitionDeletionTest extends PartitionTestCase
         $this->assertSame(1, DB::table('role_has_permissions')->count());
     }
 
-    public function testPermissionDeleteRemovesOnlyItsPartitionEdges(): void
+    public function testPermissionDeleteRemovesOnlyItsPartitionAssignments(): void
     {
         $roleA = PartitionedRole::create(['name' => 'member']);
         $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);

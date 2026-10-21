@@ -28,7 +28,7 @@ use function Hypervel\Coroutine\parallel;
 
 class ParallelTest extends TestCase
 {
-    public function testParallel()
+    public function testParallel(): void
     {
         // Closure
         $parallel = new Parallel;
@@ -56,7 +56,7 @@ class ParallelTest extends TestCase
         $this->assertSame([], parallel([]));
     }
 
-    public function testParallelConcurrent()
+    public function testParallelConcurrent(): void
     {
         $parallel = new Parallel;
         $num = 0;
@@ -120,7 +120,7 @@ class ParallelTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
-    public function testParallelCallbackCount()
+    public function testParallelCallbackCount(): void
     {
         $parallel = new Parallel;
         $callback = function () {
@@ -139,7 +139,7 @@ class ParallelTest extends TestCase
         $this->assertEquals(count($res), 8);
     }
 
-    public function testParallelClear()
+    public function testParallelClear(): void
     {
         $parallel = new Parallel;
         $callback = function () {
@@ -160,7 +160,7 @@ class ParallelTest extends TestCase
         $this->assertEquals(count($res), 4);
     }
 
-    public function testParallelKeys()
+    public function testParallelKeys(): void
     {
         $parallel = new Parallel;
         $callback = function () {
@@ -193,7 +193,7 @@ class ParallelTest extends TestCase
         $this->assertSame([1 => 1], $res);
     }
 
-    public function testParallelThrows()
+    public function testParallelThrows(): void
     {
         $parallel = new Parallel;
         $err = function () {
@@ -654,7 +654,7 @@ class ParallelTest extends TestCase
         $this->assertSame('The parallel concurrency channel is closed.', $parallel->getThrowables()['closed']->getMessage());
     }
 
-    public function testParallelResultsAndThrows()
+    public function testParallelResultsAndThrows(): void
     {
         $parallel = new Parallel;
 
@@ -689,7 +689,7 @@ class ParallelTest extends TestCase
         }
     }
 
-    public function testParallelCount()
+    public function testParallelCount(): void
     {
         $parallel = new Parallel;
         $id = 0;
@@ -708,7 +708,7 @@ class ParallelTest extends TestCase
         $this->assertSame(4, $id);
     }
 
-    public function testTheResultSort()
+    public function testTheResultSort(): void
     {
         $res = parallel(['a' => function () {
             usleep(1000);
@@ -780,7 +780,7 @@ class ParallelTest extends TestCase
         }
     }
 
-    public function testNewInspectionMethodsInitialState()
+    public function testNewInspectionMethodsInitialState(): void
     {
         $parallel = new Parallel;
 
@@ -789,7 +789,7 @@ class ParallelTest extends TestCase
         $this->assertSame(0, $parallel->failedCount());
     }
 
-    public function testWaitWithoutThrowReturnsResultsAndCapturesThrowables()
+    public function testWaitWithoutThrowReturnsResultsAndCapturesThrowables(): void
     {
         $parallel = new Parallel;
 
@@ -812,7 +812,7 @@ class ParallelTest extends TestCase
         $this->assertSame(['failed' => $err], $parallel->getThrowables());
     }
 
-    public function testNewInspectionMethodsAfterAllSuccessRun()
+    public function testNewInspectionMethodsAfterAllSuccessRun(): void
     {
         $parallel = new Parallel;
         $parallel->add(function () {
@@ -829,7 +829,7 @@ class ParallelTest extends TestCase
         $this->assertSame([], $parallel->getThrowables());
     }
 
-    public function testHasFailuresAndFailedCountReportFailures()
+    public function testHasFailuresAndFailedCountReportFailures(): void
     {
         $parallel = new Parallel;
 
@@ -854,7 +854,7 @@ class ParallelTest extends TestCase
         $this->assertSame(2, $parallel->failedCount());
     }
 
-    public function testStringAndNumericKeysArePreservedInThrowables()
+    public function testStringAndNumericKeysArePreservedInThrowables(): void
     {
         $parallel = new Parallel;
 
@@ -876,7 +876,7 @@ class ParallelTest extends TestCase
         $this->assertSame('numeric-key', $throwables[42]->getMessage());
     }
 
-    public function testClearResetsNewMethodsState()
+    public function testClearResetsNewMethodsState(): void
     {
         $parallel = new Parallel;
 
@@ -895,7 +895,7 @@ class ParallelTest extends TestCase
         $this->assertSame(0, $parallel->failedCount());
     }
 
-    public function testWaitDoesNotLeakStateBetweenRuns()
+    public function testWaitDoesNotLeakStateBetweenRuns(): void
     {
         $parallel = new Parallel;
 
@@ -920,7 +920,7 @@ class ParallelTest extends TestCase
         $this->assertSame([], $parallel->getThrowables());
     }
 
-    public function testConcurrencyLimitWithFailuresDoesNotDeadlock()
+    public function testConcurrencyLimitWithFailuresDoesNotDeadlock(): void
     {
         $parallel = new Parallel(2);
 
@@ -956,7 +956,7 @@ class ParallelTest extends TestCase
         $this->assertFalse($parallel->hasFailures());
     }
 
-    public function testCopyContextDisabledByDefault()
+    public function testCopyContextDisabledByDefault(): void
     {
         CoroutineContext::set('parent_only', 'value');
 
@@ -970,7 +970,7 @@ class ParallelTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testCopyContextTrueCopiesAllKeys()
+    public function testCopyContextTrueCopiesAllKeys(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -987,7 +987,7 @@ class ParallelTest extends TestCase
         $this->assertSame('value_b', $channel->pop());
     }
 
-    public function testCopyContextEmptyArrayCopiesAllKeys()
+    public function testCopyContextEmptyArrayCopiesAllKeys(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -1004,7 +1004,7 @@ class ParallelTest extends TestCase
         $this->assertSame('value_b', $channel->pop());
     }
 
-    public function testCopyContextArrayCopiesSpecifiedKeysOnly()
+    public function testCopyContextArrayCopiesSpecifiedKeysOnly(): void
     {
         CoroutineContext::set('key_a', 'value_a');
         CoroutineContext::set('key_b', 'value_b');
@@ -1021,7 +1021,7 @@ class ParallelTest extends TestCase
         $this->assertNull($channel->pop());
     }
 
-    public function testCopyContextWorksWithConcurrencyLimit()
+    public function testCopyContextWorksWithConcurrencyLimit(): void
     {
         CoroutineContext::set('shared', 'value');
 
@@ -1058,7 +1058,7 @@ class ParallelTest extends TestCase
         $this->assertSame($resource, CoroutineContext::get('resource'));
     }
 
-    public function testParallelHelperPassesCopyContextThrough()
+    public function testParallelHelperPassesCopyContextThrough(): void
     {
         CoroutineContext::set('via_helper', 'value');
 

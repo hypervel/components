@@ -51,7 +51,7 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         Post::create();
     }
 
-    public function testLoadCount()
+    public function testLoadCount(): void
     {
         $posts = Post::all();
 
@@ -65,7 +65,7 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertSame('2', (string) $posts[0]->getOriginal('comments_count'));
     }
 
-    public function testLoadCountWithSameModels()
+    public function testLoadCountWithSameModels(): void
     {
         $posts = Post::all()->push(Post::first());
 
@@ -79,7 +79,7 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertSame('2', (string) $posts[2]->comments_count);
     }
 
-    public function testLoadCountOnDeletedModels()
+    public function testLoadCountOnDeletedModels(): void
     {
         $posts = Post::all()->each->delete();
 
@@ -141,7 +141,7 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertSame([], DB::getQueryLog());
     }
 
-    public function testLoadCountWithArrayOfRelations()
+    public function testLoadCountWithArrayOfRelations(): void
     {
         $posts = Post::all();
 
@@ -191,7 +191,7 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertTrue($post->isDirty($post->getKeyName()));
     }
 
-    public function testLoadCountDoesNotOverrideAttributesWithDefaultValue()
+    public function testLoadCountDoesNotOverrideAttributesWithDefaultValue(): void
     {
         $post = Post::first();
         $post->some_default_value = 200;

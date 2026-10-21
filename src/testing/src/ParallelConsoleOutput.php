@@ -7,13 +7,14 @@ namespace Hypervel\Testing;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class ParallelConsoleOutput extends ConsoleOutput
 {
     /**
      * The original output instance.
      */
-    protected \Symfony\Component\Console\Output\OutputInterface $output;
+    protected OutputInterface $output;
 
     /**
      * The output that should be ignored.
@@ -28,7 +29,7 @@ class ParallelConsoleOutput extends ConsoleOutput
     /**
      * Create a new parallel console output instance.
      */
-    public function __construct(\Symfony\Component\Console\Output\OutputInterface $output)
+    public function __construct(OutputInterface $output)
     {
         parent::__construct(
             $output->getVerbosity(),

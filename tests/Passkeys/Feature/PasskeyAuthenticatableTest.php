@@ -79,7 +79,7 @@ class PasskeyAuthenticatableTest extends TestCase
         $handle = $user->getPasskeyUserHandle();
 
         $this->assertSame(
-            hash_hmac('sha256', 'users|' . $user->getKey(), 'test-secret', binary: true),
+            hash_hmac('sha256', User::class . '|users|' . $user->getKey(), 'test-secret', binary: true),
             $handle,
         );
         $this->assertNotSame((string) $user->getKey(), $handle);
@@ -144,6 +144,20 @@ class PasskeyAuthenticatableTest extends TestCase
         $admin = AdminUser::create();
 
         $this->assertNotSame($user->getPasskeyUserHandle(), $admin->getPasskeyUserHandle());
+    }
+
+    public function testItIncludesTheOwnerMorphClassWhenDerivingUserHandles(): void
+    {
+        config(['passkeys.user_handle_secret' => 'test-secret']);
+
+        $user = User::create([
+            'name' => 'Alex Müller',
+            'email' => 'alex@example.com',
+        ]);
+
+        $sameRowOwner = SameTableUser::findOrFail($user->getKey());
+
+        $this->assertNotSame($user->getPasskeyUserHandle(), $sameRowOwner->getPasskeyUserHandle());
     }
 
     public function testDeletingOwnerDeletesRelatedPasskeys(): void
@@ -289,6 +303,11 @@ class AdminUser extends Authenticatable implements PasskeyUser
     protected ?string $table = 'admin_users';
 
     protected array $guarded = [];
+}
+
+class SameTableUser extends User
+{
+    protected ?string $table = 'users';
 }
 
 class SoftDeletingPasskeyUser extends Authenticatable implements PasskeyUser

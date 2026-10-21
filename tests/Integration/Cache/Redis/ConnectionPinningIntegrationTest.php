@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Cache;
 use Redis as PhpRedis;
@@ -24,18 +25,22 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
     {
         parent::defineEnvironment($app);
 
-        $app->make('config')->set('database.redis.cache.pool.min_retained_connections', 1);
-        $app->make('config')->set('database.redis.cache.pool.max_connections', 1);
-        $app->make('config')->set('database.redis.cache.pool.wait_timeout', 0.25);
+        $config = $app->make('config');
+        $connection = $config->string('cache.stores.redis.connection');
+        $config->set("database.redis.{$connection}.pool.min_retained_connections", 1);
+        $config->set("database.redis.{$connection}.pool.max_connections", 1);
+        $config->set("database.redis.{$connection}.pool.wait_timeout", 0.25);
     }
 
     public function testWithPinnedConnectionReusesConnection(): void
     {
         $store = $this->store();
+        $pool = $this->app->make(PoolManager::class)->pool($store->connection()->getName());
 
         // Multiple operations inside a pinned scope should all succeed
         // using a single pool connection
-        $result = $store->withPinnedConnection(function () use ($store) {
+        $result = $store->withPinnedConnection(function () use ($store, $pool) {
+            $this->assertSame(1, $pool->getBorrowedCount());
             $store->put('pinned_key_1', 'value_1', 60);
             $store->put('pinned_key_2', 'value_2', 60);
 
@@ -46,24 +51,32 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
         });
 
         $this->assertSame(['value_1', 'value_2'], $result);
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testWithPinnedConnectionIsReentrant(): void
     {
         $store = $this->store();
+        $pool = $this->app->make(PoolManager::class)->pool($store->connection()->getName());
 
-        $result = $store->withPinnedConnection(function () use ($store) {
+        $result = $store->withPinnedConnection(function () use ($store, $pool) {
             $store->put('outer_key', 'outer_value', 60);
 
             // Nested pin should not double-release
-            return $store->withPinnedConnection(function () use ($store) {
+            $result = $store->withPinnedConnection(function () use ($store, $pool) {
+                $this->assertSame(1, $pool->getBorrowedCount());
                 $store->put('inner_key', 'inner_value', 60);
 
                 return $store->get('outer_key') . ':' . $store->get('inner_key');
             });
+
+            $this->assertSame(1, $pool->getBorrowedCount());
+
+            return $result;
         });
 
         $this->assertSame('outer_value:inner_value', $result);
+        $this->assertSame(0, $pool->getBorrowedCount());
 
         // Both keys should still be accessible after the pinned scope
         $this->assertSame('outer_value', Cache::get('outer_key'));
@@ -149,14 +162,14 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
                 }
             }, transform: false);
         } else {
-            $pipeline = $redis->multi(PhpRedis::PIPELINE);
+            $results = $redis->pipeline(function (PhpRedis $pipeline) use ($prefix, $tagKey, $expiresAt): void {
+                for ($i = 1; $i <= 1001; ++$i) {
+                    $pipeline->set($prefix . "bulk:{$i}", "value:{$i}", 60);
+                    $pipeline->zAdd($tagKey, $expiresAt, "bulk:{$i}");
+                }
+            });
 
-            for ($i = 1; $i <= 1001; ++$i) {
-                $pipeline->set($prefix . "bulk:{$i}", "value:{$i}", 60);
-                $pipeline->zAdd($tagKey, $expiresAt, "bulk:{$i}");
-            }
-
-            $this->assertIsArray($pipeline->exec());
+            $this->assertIsArray($results);
         }
 
         $this->assertSame(1001, $redis->zCard($tagKey));
@@ -167,5 +180,49 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame(0, $redis->zCard($tagKey));
         $this->assertSame(0, $redis->exists($prefix . 'bulk:1'));
         $this->assertSame(0, $redis->exists($prefix . 'bulk:1001'));
+    }
+
+    public function testAnyModeOperationsReuseTheirHeldConnection(): void
+    {
+        $this->setTagMode(TagMode::Any);
+        $cache = Cache::tags(['values']);
+
+        $this->assertTrue($cache->add('key', 1, 60));
+        $this->assertTrue($cache->put('key', 2, 60));
+        $this->assertTrue($cache->forever('key', 3));
+        $this->assertSame(5, $cache->increment('key', 2));
+        $this->assertSame(4, $cache->decrement('key'));
+        $this->assertTrue(Cache::touch('key', 120));
+        $this->assertTrue(Cache::forget('key'));
+    }
+
+    public function testAllModePruneReusesItsHeldConnection(): void
+    {
+        $this->setTagMode(TagMode::All);
+        $cache = Cache::tags(['orphan']);
+        $cache->forever('key', 'value');
+        $cache->forget('key');
+
+        $result = $this->store()->allTagOps()->prune()->execute();
+
+        $this->assertSame(1, $result['orphans_removed']);
+        $this->assertSame([], $this->getAllModeTagEntries('orphan'));
+    }
+
+    public function testAnyModeFlushScansAndDeletesChunksWithOnePooledConnection(): void
+    {
+        $this->setTagMode(TagMode::Any);
+        $cache = Cache::tags(['bulk']);
+
+        for ($index = 1; $index <= 1001; ++$index) {
+            $cache->forever('bulk:' . $index, 'value:' . $index);
+        }
+
+        $this->assertTrue($cache->flush());
+
+        $this->assertNull(Cache::get('bulk:1'));
+        $this->assertNull(Cache::get('bulk:1001'));
+        $this->assertSame(0, $this->redis()->hLen($this->anyModeTagKey('bulk')));
+        $this->assertFalse($this->anyModeRegistryHasTag('bulk'));
     }
 }

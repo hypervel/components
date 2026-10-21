@@ -13,9 +13,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class ConfigClearCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'config:clear';
+    protected ?string $signature = 'config:clear';
 
     /**
      * The console command description.

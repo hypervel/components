@@ -62,7 +62,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         ]);
     }
 
-    public function testTransactionCallbacks()
+    public function testTransactionCallbacks(): void
     {
         [$firstObject, $secondObject, $thirdObject] = [
             new TestObjectForTransactions,
@@ -85,7 +85,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         $this->assertFalse($thirdObject->ran);
     }
 
-    public function testTransactionCallbacksDoNotInterfereWithOneAnother()
+    public function testTransactionCallbacksDoNotInterfereWithOneAnother(): void
     {
         [$firstObject, $secondObject, $thirdObject] = [
             new TestObjectForTransactions,
@@ -119,7 +119,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         $this->assertFalse($thirdObject->ran);
     }
 
-    public function testTransactionsDoNotAffectDifferentConnections()
+    public function testTransactionsDoNotAffectDifferentConnections(): void
     {
         [$firstObject, $secondObject, $thirdObject] = [
             new TestObjectForTransactions,
@@ -263,7 +263,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         $this->assertTrue($afterCommitRan);
     }
 
-    public function testAfterRollbackCallbacksAreExecuted()
+    public function testAfterRollbackCallbacksAreExecuted(): void
     {
         $afterCommitRan = false;
         $afterRollbackRan = false;

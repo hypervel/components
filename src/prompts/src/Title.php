@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts;
 
+use Hypervel\Prompts\Support\Utils;
+
 class Title extends Prompt
 {
+    /**
+     * Create a new Title instance.
+     */
     public function __construct(public string $title)
     {
     }
@@ -15,7 +20,9 @@ class Title extends Prompt
      */
     public function prompt(): bool
     {
-        $this->writeDirectly($this->renderTheme());
+        $frame = $this->renderTheme();
+
+        $this->writeDirectly(static::output()->isDecorated() ? $frame : Utils::stripTerminalControls($frame));
 
         return true;
     }

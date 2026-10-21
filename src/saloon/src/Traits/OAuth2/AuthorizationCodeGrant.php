@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Traits\OAuth2;
 
+use DateTimeImmutable;
 use Hypervel\Saloon\Contracts\OAuthAuthenticator;
 use Hypervel\Saloon\Data\AuthorizationUrl;
 use Hypervel\Saloon\Data\OAuthConfig;
 use Hypervel\Saloon\Exceptions\InvalidStateException;
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\OAuth2\GetAccessTokenRequest;
 use Hypervel\Saloon\Http\OAuth2\GetRefreshTokenRequest;
@@ -18,6 +20,7 @@ use Hypervel\Saloon\Http\UrlResolver;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use SensitiveParameter;
+use UnexpectedValueException;
 
 /**
  * @phpstan-require-extends Connector
@@ -25,13 +28,13 @@ use SensitiveParameter;
  */
 trait AuthorizationCodeGrant
 {
-    use CreatesOAuthAuthenticator;
     use HasOAuthConfig;
+    use ParsesOAuthTokenResponses;
 
     /**
      * Create an authorization URL and its paired state.
      *
-     * @param list<string> $scopes
+     * @param list<?string> $scopes
      * @param array<string, mixed> $additionalQueryParameters
      */
     public function authorizationUrl(
@@ -55,24 +58,24 @@ trait AuthorizationCodeGrant
             throw new InvalidArgumentException('The PKCE challenge must be non-empty and use the [S256] or [plain] method.');
         }
 
-        $resolvedScopes = [...$config->defaultScopes, ...$scopes];
-        $queryParameters = [
-            'response_type' => 'code',
-            'client_id' => $config->clientId,
-            'redirect_uri' => $config->redirectUri,
-            'state' => $state,
-        ];
+        $resolvedScopes = $config->scopes($scopes);
+        $queryParameters = ['response_type' => 'code'];
 
         if ($resolvedScopes !== []) {
             $queryParameters['scope'] = implode($scopeSeparator, $resolvedScopes);
         }
+
+        $queryParameters['client_id'] = $config->clientId;
+        $queryParameters['redirect_uri'] = $config->redirectUri;
+        $queryParameters['state'] = $state;
 
         if ($codeChallenge !== null) {
             $queryParameters['code_challenge'] = $codeChallenge;
             $queryParameters['code_challenge_method'] = $codeChallengeMethod;
         }
 
-        $queryParameters += $additionalQueryParameters;
+        // Additional parameters may replace the others, but not the state paired with the returned URL.
+        $queryParameters = [...$queryParameters, ...$additionalQueryParameters, 'state' => $state];
         $uri = UrlResolver::resolve(
             $this->resolveBaseUrl(),
             $config->authorizeEndpoint,
@@ -105,7 +108,14 @@ trait AuthorizationCodeGrant
         $config = $this->oauthConfig();
         $config->validate();
         $this->validateState($state, $expectedState);
-        $request = $config->modify($this->resolveAccessTokenRequest($code, $config, $codeVerifier));
+        $request = $this->resolveAccessTokenRequest($code, $config);
+
+        // Adding the verifier here keeps PKCE working with a custom token request resolver.
+        if ($codeVerifier !== null) {
+            $request->withData(['code_verifier' => $codeVerifier]);
+        }
+
+        $request = $config->modify($request);
         $requestModifier?->__invoke($request);
         $response = $this->send($request);
 
@@ -135,8 +145,12 @@ trait AuthorizationCodeGrant
         $config->validate();
 
         if ($refreshToken instanceof OAuthAuthenticator) {
-            $refreshToken = $refreshToken->getRefreshToken()
-                ?? throw new InvalidArgumentException('The provided OAuth authenticator does not contain a refresh token.');
+            if ($refreshToken->isNotRefreshable()) {
+                throw new InvalidArgumentException('The provided OAuthAuthenticator does not contain a refresh token.');
+            }
+
+            /** @var string $refreshToken */
+            $refreshToken = $refreshToken->getRefreshToken();
         }
 
         $request = $config->modify($this->resolveRefreshTokenRequest($config, $refreshToken));
@@ -153,31 +167,60 @@ trait AuthorizationCodeGrant
     }
 
     /**
+     * Create an OAuth authenticator from a token response.
+     */
+    protected function createOAuthAuthenticatorFromResponse(
+        #[SensitiveParameter]
+        Response $response,
+        #[SensitiveParameter]
+        ?string $fallbackRefreshToken = null,
+    ): OAuthAuthenticator {
+        [$accessToken, $expiresAt, $data] = $this->parseOAuthTokenResponse($response);
+        $refreshToken = $data['refresh_token'] ?? $fallbackRefreshToken;
+
+        if ($refreshToken !== null && ! is_string($refreshToken)) {
+            throw new UnexpectedValueException('The OAuth token response contains an invalid refresh token.');
+        }
+
+        return $this->createOAuthAuthenticator($accessToken, $refreshToken, $expiresAt);
+    }
+
+    /**
+     * Create an OAuth authenticator.
+     */
+    protected function createOAuthAuthenticator(
+        #[SensitiveParameter]
+        string $accessToken,
+        #[SensitiveParameter]
+        ?string $refreshToken = null,
+        ?DateTimeImmutable $expiresAt = null,
+    ): OAuthAuthenticator {
+        return new AccessTokenAuthenticator($accessToken, $refreshToken, $expiresAt);
+    }
+
+    /**
      * Retrieve the authenticated OAuth user.
      *
      * @template TRequest of Request
      * @param null|callable(TRequest): void $requestModifier
      */
-    public function getUser(OAuthAuthenticator $authenticator, ?callable $requestModifier = null): Response
+    public function getUser(OAuthAuthenticator $oauthAuthenticator, ?callable $requestModifier = null): Response
     {
         $config = $this->oauthConfig();
-        $request = $config->modify($this->resolveUserRequest($config))->authenticate($authenticator);
+        $request = $config->modify($this->resolveUserRequest($config))->authenticate($oauthAuthenticator);
         $requestModifier?->__invoke($request);
 
         return $this->send($request);
     }
 
+    // getState() is not included: authorizationUrl() returns the state with its URL, since the connector may be shared.
+
     /**
      * Resolve the access-token request.
      */
-    protected function resolveAccessTokenRequest(
-        #[SensitiveParameter]
-        string $code,
-        OAuthConfig $oauthConfig,
-        #[SensitiveParameter]
-        ?string $codeVerifier = null,
-    ): Request {
-        return new GetAccessTokenRequest($code, $oauthConfig, $codeVerifier);
+    protected function resolveAccessTokenRequest(#[SensitiveParameter] string $code, OAuthConfig $oauthConfig): Request
+    {
+        return new GetAccessTokenRequest($code, $oauthConfig);
     }
 
     /**

@@ -6,7 +6,7 @@ namespace Hypervel\Saloon\Traits\Request;
 
 use Hypervel\Saloon\Http\Response;
 
-/** @template TDto */
+/** @template-covariant TDto */
 trait CreatesDtoFromResponse
 {
     /**

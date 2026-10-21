@@ -11,7 +11,7 @@ class FluentRoutingTest extends RoutingTestCase
 {
     public static string $value = '';
 
-    public function testMiddlewareRunWhenRegisteredAsArrayOrParams()
+    public function testMiddlewareRunWhenRegisteredAsArrayOrParams(): void
     {
         $controller = function () {
             return 'Hello World';
@@ -51,7 +51,7 @@ class FluentRoutingTest extends RoutingTestCase
         $this->assertSame('1_2', $this->get('both_after')->content());
     }
 
-    public function testEmptyMiddlewareGroupAreHandledGracefully()
+    public function testEmptyMiddlewareGroupAreHandledGracefully(): void
     {
         $controller = function () {
             return 'Hello World';

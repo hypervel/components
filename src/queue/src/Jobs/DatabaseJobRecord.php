@@ -11,6 +11,7 @@ use stdClass;
  * @property int $id
  * @property string $payload
  * @property int $attempts
+ * @property null|int $reserved_at
  */
 class DatabaseJobRecord
 {
@@ -45,7 +46,7 @@ class DatabaseJobRecord
     /**
      * Dynamically access the underlying job information.
      */
-    public function __get(string $key)
+    public function __get(string $key): mixed
     {
         return $this->record->{$key};
     }

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Wrapping;
 
-enum WrapExecutionType
+enum WrapExecutionType: string
 {
-    case Disabled;
-    case Enabled;
-    case TemporarilyDisabled;
+    case Disabled = 'Disabled';
+    case Enabled = 'Enabled';
+    case TemporarilyDisabled = 'TemporarilyDisabled';
 
     /**
      * Determine if wrapping should run at the current node.

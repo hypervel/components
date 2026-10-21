@@ -30,6 +30,7 @@ class PackageMetadataTest extends TestCase
             'ext-redis',
             'hypervel/foundation',
             'hypervel/routing',
+            'hypervel/slack-notification-channel',
             'symfony/console',
             'symfony/http-foundation',
             'symfony/http-kernel',

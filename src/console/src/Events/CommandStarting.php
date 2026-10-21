@@ -13,8 +13,8 @@ class CommandStarting
      * Create a new event instance.
      *
      * @param string $command the command name
-     * @param \Symfony\Component\Console\Input\InputInterface $input the console input implementation
-     * @param \Symfony\Component\Console\Output\OutputInterface $output the command output implementation
+     * @param InputInterface $input the console input implementation
+     * @param OutputInterface $output the command output implementation
      */
     public function __construct(
         public string $command,

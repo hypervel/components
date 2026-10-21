@@ -158,7 +158,7 @@ class BidiStreamingCallTest extends TestCase
         $this->assertSame(StatusCode::Unavailable, $call->status()->code());
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('request stream has already been closed');
+        $this->expectExceptionMessageIsOrContains('request stream has already been closed');
 
         $call->write(new StringValue);
     }

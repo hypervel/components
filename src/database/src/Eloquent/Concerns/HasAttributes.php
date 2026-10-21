@@ -262,10 +262,10 @@ trait HasAttributes
         );
 
         // Here we will grab all of the appended, calculated attributes to this model
-        // as these attributes are not really in the attributes array, but are run
+        // as these attributes may not be in the attributes array, but are run
         // when we need to array or JSON the model for convenience to the coder.
         foreach ($this->getArrayableAppends() as $key) {
-            $attributes[$key] = $this->mutateAttributeForArray($key, null);
+            $attributes[$key] = $this->mutateAttributeForArray($key, $this->getAttributeFromArray($key));
         }
 
         return $attributes;
@@ -514,7 +514,7 @@ trait HasAttributes
     /**
      * Either throw a missing attribute exception or return null depending on Eloquent's configuration.
      *
-     * @throws \Hypervel\Database\Eloquent\MissingAttributeException
+     * @throws MissingAttributeException
      */
     protected function throwMissingAttributeExceptionIfApplicable(string $key): mixed
     {
@@ -522,11 +522,13 @@ trait HasAttributes
             && ! $this->wasRecentlyCreated
             && static::preventsAccessingMissingAttributes()
             && ! CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false)) {
+            $exception = new MissingAttributeException($this, $key);
+
             if (isset(static::$missingAttributeViolationCallback)) {
-                return call_user_func(static::$missingAttributeViolationCallback, $this, $key);
+                return call_user_func(static::$missingAttributeViolationCallback, $this, $key, $exception);
             }
 
-            throw new MissingAttributeException($this, $key);
+            throw $exception;
         }
 
         return null;
@@ -595,18 +597,27 @@ trait HasAttributes
 
     /**
      * Handle a lazy loading violation.
+     *
+     * @throws LazyLoadingViolationException
      */
     protected function handleLazyLoadingViolation(string $key): mixed
     {
+        $exception = new LazyLoadingViolationException($this, $key);
+
         if (isset(static::$lazyLoadingViolationCallback)) {
-            return call_user_func(static::$lazyLoadingViolationCallback, $this, $key);
+            return call_user_func(
+                static::$lazyLoadingViolationCallback,
+                $this,
+                $key,
+                $exception
+            );
         }
 
         if (! $this->exists || $this->wasRecentlyCreated) {
             return null;
         }
 
-        throw new LazyLoadingViolationException($this, $key);
+        throw $exception;
     }
 
     /**
@@ -616,7 +627,7 @@ trait HasAttributes
      */
     protected function getRelationshipFromMethod(string $method): mixed
     {
-        $relation = $this->{$method}();
+        $relation = Relation::withConstraintsForNestedRelation(fn (): mixed => $this->{$method}());
 
         if (! $relation instanceof Relation) {
             if (is_null($relation)) {
@@ -773,6 +784,8 @@ trait HasAttributes
 
     /**
      * Ensure that the given casts are strings.
+     *
+     * @throws InvalidArgumentException
      */
     protected function ensureCastsAreStringValues(array $casts): array
     {
@@ -1252,7 +1265,7 @@ trait HasAttributes
     /**
      * Get an enum case instance from a given class and value.
      *
-     * @return BackedEnum|UnitEnum
+     * @return UnitEnum
      */
     protected function getEnumCaseFromValue(string $enumClass, string|int $value): mixed
     {
@@ -1264,7 +1277,9 @@ trait HasAttributes
     /**
      * Get the storable value from the given enum.
      *
-     * @param BackedEnum|UnitEnum $value
+     * @param UnitEnum $value
+     *
+     * @throws ValueError
      */
     protected function getStorableEnumValue(string $expectedEnum, mixed $value): string|int
     {
@@ -1303,6 +1318,8 @@ trait HasAttributes
 
     /**
      * Cast the given attribute to JSON.
+     *
+     * @throws JsonEncodingException
      */
     protected function castAttributeAsJson(string $key, mixed $value): string
     {
@@ -1390,6 +1407,8 @@ trait HasAttributes
 
     /**
      * Cast the given attribute to a hashed string.
+     *
+     * @throws RuntimeException
      */
     protected function castAttributeAsHashedString(string $key, #[SensitiveParameter] mixed $value): ?string
     {
@@ -1429,6 +1448,8 @@ trait HasAttributes
 
     /**
      * Return a decimal as string.
+     *
+     * @throws MathException
      */
     protected function asDecimal(float|string $value, int $decimals): string
     {
@@ -1552,7 +1573,7 @@ trait HasAttributes
      */
     public function getDateFormat(): string
     {
-        return $this->dateFormat ?: $this->getConnection()->getQueryGrammar()->getDateFormat();
+        return $this->dateFormat ?: $this->getConnectionDateFormat();
     }
 
     /**
@@ -1597,11 +1618,29 @@ trait HasAttributes
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, string|Stringable>
+     * @return array<string, list<string>|string|Stringable>
      */
     protected function casts(): array
     {
         return [];
+    }
+
+    /**
+     * Get the default attribute values for the model.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaults(): array
+    {
+        return [];
+    }
+
+    /**
+     * Merge the default values into the model's attributes.
+     */
+    protected function mergeDefaultAttributes(): void
+    {
+        $this->attributes = array_merge($this->attributes, $this->defaults());
     }
 
     /**
@@ -1639,7 +1678,7 @@ trait HasAttributes
     /**
      * Determine if the given key is cast using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassCastable(string $key): bool
     {
@@ -1697,7 +1736,7 @@ trait HasAttributes
     /**
      * Determine if the key is deviable using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassDeviable(string $key): bool
     {
@@ -1717,7 +1756,7 @@ trait HasAttributes
     /**
      * Determine if the key is serializable using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassSerializable(string $key): bool
     {
@@ -1969,7 +2008,7 @@ trait HasAttributes
     {
         return (new static)->setRawAttributes(
             $this->original,
-            $sync = true
+            sync: true
         )->getOriginalWithoutRewindingModel($key, $default);
     }
 

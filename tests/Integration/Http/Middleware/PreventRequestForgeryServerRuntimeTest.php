@@ -10,6 +10,7 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class PreventRequestForgeryServerRuntimeTest extends TestCase
 {
@@ -77,11 +78,13 @@ class PreventRequestForgeryServerRuntimeTest extends TestCase
     }
 
     /**
-     * @param array<int, \Symfony\Component\HttpFoundation\Cookie> $cookies
+     * Get the named cookie from the given response cookies.
+     *
+     * @param array<int, Cookie> $cookies
      */
-    protected function cookieFromResponse(array $cookies, string $name): \Symfony\Component\HttpFoundation\Cookie
+    protected function cookieFromResponse(array $cookies, string $name): Cookie
     {
         return Collection::make($cookies)
-            ->first(fn (\Symfony\Component\HttpFoundation\Cookie $cookie): bool => $cookie->getName() === $name);
+            ->first(fn (Cookie $cookie): bool => $cookie->getName() === $name);
     }
 }

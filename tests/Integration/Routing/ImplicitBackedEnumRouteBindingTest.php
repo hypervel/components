@@ -6,27 +6,30 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Route;
-use Hypervel\Tests\Integration\Routing\Fixtures\CategoryBackedEnum;
+use Hypervel\Tests\Routing\Fixtures\Integration\CategoryBackedEnum;
 
 class ImplicitBackedEnumRouteBindingTest extends RoutingTestCase
 {
+    /**
+     * Define the application environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set(['app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF']);
     }
 
-    public function testWithRouteCachingEnabled()
+    public function testWithRouteCachingEnabled(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
 
-use Hypervel\Tests\Integration\Routing\Fixtures\CategoryBackedEnum;
+use Hypervel\Tests\Routing\Fixtures\Integration\CategoryBackedEnum;
 
-Route::get('/categories/{category}', function (CategoryBackedEnum $category) {
+Route::get('/categories/{category}', function (CategoryBackedEnum $category): string {
     return $category->value;
 })->middleware('web');
 
-Route::get('/categories-default/{category?}', function (CategoryBackedEnum $category = CategoryBackedEnum::Fruits) {
+Route::get('/categories-default/{category?}', function (CategoryBackedEnum $category = CategoryBackedEnum::Fruits): string {
     return $category->value;
 })->middleware('web');
 PHP);
@@ -50,21 +53,21 @@ PHP);
         $response->assertSee('fruits');
     }
 
-    public function testWithoutRouteCachingEnabled()
+    public function testWithoutRouteCachingEnabled(): void
     {
         config(['app.key' => str_repeat('a', 32)]);
 
-        Route::post('/categories/{category}', function (CategoryBackedEnum $category) {
+        Route::post('/categories/{category}', function (CategoryBackedEnum $category): string {
             return $category->value;
         })->middleware(['web']);
 
-        Route::post('/categories-default/{category?}', function (CategoryBackedEnum $category = CategoryBackedEnum::Fruits) {
+        Route::post('/categories-default/{category?}', function (CategoryBackedEnum $category = CategoryBackedEnum::Fruits): string {
             return $category->value;
         })->middleware('web');
 
-        Route::bind('categoryCode', fn (string $categoryCode) => CategoryBackedEnum::fromCode($categoryCode) ?? abort(404));
+        Route::bind('categoryCode', fn (string $categoryCode): CategoryBackedEnum => CategoryBackedEnum::fromCode($categoryCode) ?? abort(404));
 
-        Route::post('/categories-code/{categoryCode}', function (CategoryBackedEnum $categoryCode) {
+        Route::post('/categories-code/{categoryCode}', function (CategoryBackedEnum $categoryCode): string {
             return $categoryCode->value;
         })->middleware(['web']);
 

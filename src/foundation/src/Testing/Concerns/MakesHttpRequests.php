@@ -10,6 +10,8 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\DatabaseTransactionState;
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
@@ -20,9 +22,11 @@ use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Collection;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
+use SensitiveParameter;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 trait MakesHttpRequests
 {
@@ -113,7 +117,7 @@ trait MakesHttpRequests
     /**
      * Add an authorization token for the request.
      */
-    public function withToken(string $token, string $type = 'Bearer'): static
+    public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
         return $this->withHeader('Authorization', $type . ' ' . $token);
     }
@@ -121,7 +125,7 @@ trait MakesHttpRequests
     /**
      * Add a basic authentication header to the request with the given credentials.
      */
-    public function withBasicAuth(string $username, string $password): static
+    public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
         return $this->withToken(base64_encode("{$username}:{$password}"), 'Basic');
     }
@@ -481,70 +485,89 @@ trait MakesHttpRequests
         array $server = [],
         ?string $content = null
     ): TestResponse {
-        return $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content) {
-            $kernel = $this->app->make(HttpKernel::class);
+        $parentTransactions = DatabaseTransactionState::current();
 
-            $files = array_merge($files, $this->extractFilesFromDataArray($parameters));
+        $response = $this->getWaiter()->wait(function () use ($method, $uri, $parameters, $cookies, $files, $server, $content, $parentTransactions): TestResponse {
+            $transactions = DatabaseTransactionState::current();
+            $resolver = $this->app->make('db.resolver');
+            $synchronizer = new RequestContextSynchronizer;
 
-            $symfonyRequest = SymfonyRequest::create(
-                $this->prepareUrlForRequest($uri),
-                $method,
-                $parameters,
-                $cookies,
-                $files,
-                array_replace($this->serverVariables, $server),
-                $content
-            );
-
-            $request = $this->createTestRequest($symfonyRequest);
-
-            // Seed coroutine Context — tests bypass the HttpServer\Server adapter
-            // which normally does this in onRequest().
-            RequestContext::set($request);
-
-            $this->dispatchRequestLifecycleEvent(
-                RequestReceived::class,
-                $request
-            );
-
-            $response = $kernel->handle($request);
-
-            $this->dispatchRequestLifecycleEvent(
-                RequestHandled::class,
-                $request,
-                $response
-            );
-
-            $this->dispatchRequestLifecycleEvent(
-                ResponseSent::class,
-                $request,
-                $response
-            );
-
-            $kernel->terminate($request, $response);
-
-            // Snapshot route parameters onto the request before the coroutine
-            // ends. Route parameters are stored in coroutine Context which is
-            // destroyed when this waiter coroutine finishes. The snapshot
-            // allows test assertions like $response->baseRequest->route('param')
-            // to access parameters after the coroutine is gone.
-            $route = $request->route();
-            if ($route && $route->hasParameters()) {
-                $request->attributes->set('_route_params', $route->parameters());
+            if ($resolver instanceof DatabaseConnectionResolver) {
+                $synchronizer->syncTransactionState($parentTransactions, $transactions, $resolver->getRetainedConnections());
             }
 
-            RequestContext::set($request, \Hypervel\Coroutine\Coroutine::parentId());
+            try {
+                $kernel = $this->app->make(HttpKernel::class);
 
-            $this->syncRequestContextToParent($request);
+                $files = array_merge($files, $this->extractFilesFromDataArray($parameters));
 
-            $response = $this->createTestResponse($response, $request);
+                $symfonyRequest = SymfonyRequest::create(
+                    $this->prepareUrlForRequest($uri),
+                    $method,
+                    $parameters,
+                    $cookies,
+                    $files,
+                    array_replace($this->serverVariables, $server),
+                    $content
+                );
 
-            if ($this->followRedirects) {
-                $response = $this->followRedirects($response);
+                $request = $this->createTestRequest($symfonyRequest);
+
+                // Seed coroutine Context — tests bypass the HttpServer\Server adapter
+                // which normally does this in onRequest().
+                RequestContext::set($request);
+
+                $this->dispatchRequestLifecycleEvent(
+                    RequestReceived::class,
+                    $request
+                );
+
+                $response = $kernel->handle($request);
+
+                $this->dispatchRequestLifecycleEvent(
+                    RequestHandled::class,
+                    $request,
+                    $response
+                );
+
+                $this->dispatchRequestLifecycleEvent(
+                    ResponseSent::class,
+                    $request,
+                    $response
+                );
+
+                $kernel->terminate($request, $response);
+
+                // Snapshot route parameters onto the request before the coroutine
+                // ends. Route parameters are stored in coroutine Context which is
+                // destroyed when this waiter coroutine finishes. The snapshot
+                // allows test assertions like $response->baseRequest->route('param')
+                // to access parameters after the coroutine is gone.
+                $route = $request->route();
+                if ($route && $route->hasParameters()) {
+                    $request->attributes->set('_route_params', $route->parameters());
+                }
+
+                RequestContext::set($request, \Hypervel\Coroutine\Coroutine::parentId());
+
+                $this->syncRequestContextToParent($request);
+
+                return $this->createTestResponse($response, $request);
+            } finally {
+                if ($resolver instanceof DatabaseConnectionResolver) {
+                    // Lazy refresh may have retained a connection during this request.
+                    $synchronizer->syncTransactionState($transactions, $parentTransactions, $resolver->getRetainedConnections());
+                }
             }
-
-            return $response;
         }, 10.0, copyContext: true);
+
+        // Follow redirects from the test coroutine, so each followed request syncs its
+        // session, authentication and request state back to the test.
+        if ($this->followRedirects) {
+            return $this->followRedirects($response);
+        }
+
+        return $response;
     }
 
     /**
@@ -568,10 +591,14 @@ trait MakesHttpRequests
     {
         $synchronizer = new RequestContextSynchronizer;
 
-        $synchronizer->syncSnapshotToParent(
-            $this->sessionContextSnapshot($request),
-            $this->sessionContextKeys()
-        );
+        // A read-only session is never saved, so the test keeps the session it had before
+        // the request, just as the next real request would load the unchanged stored session.
+        if (! $request->hasSession() || ! $request->session()->isReadOnly()) {
+            $synchronizer->syncSnapshotToParent(
+                $this->sessionContextSnapshot($request),
+                $this->sessionContextKeys()
+            );
+        }
 
         $synchronizer->syncContextKeysToParent($this->authenticationContextKeys());
     }
@@ -772,7 +799,7 @@ trait MakesHttpRequests
     protected function dispatchRequestLifecycleEvent(
         string $eventClass,
         Request $request,
-        ?\Symfony\Component\HttpFoundation\Response $response = null
+        ?SymfonyResponse $response = null
     ): void {
         if (! $this->app->bound('events')) {
             return;

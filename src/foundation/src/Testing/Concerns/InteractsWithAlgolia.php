@@ -83,11 +83,7 @@ trait InteractsWithAlgolia
     {
         try {
             if ($this->algolia !== null) {
-                try {
-                    $this->cleanupAlgoliaIndices();
-                } catch (Throwable) {
-                    // Ignore cleanup errors
-                }
+                $this->cleanupAlgoliaIndices();
             }
         } finally {
             $this->algolia = null;

@@ -5,18 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
+use Hypervel\Tests\Validation\Fixtures\PureEnum;
+use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Validator;
-
-include_once 'Enums.php';
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationInRuleTest extends TestCase
 {
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new In(['Laravel', 'Framework', 'PHP']);
 
@@ -75,7 +77,7 @@ class ValidationInRuleTest extends TestCase
         $this->assertSame('in:"one"', (string) $rule);
     }
 
-    public function testInRuleValidation()
+    public function testInRuleValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 
@@ -90,5 +92,23 @@ class ValidationInRuleTest extends TestCase
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => ['required', Rule::in('foo', 'bar')]]);
         $this->assertTrue($v->passes());
+    }
+
+    #[TestWith([' 1', false])]
+    #[TestWith(['1 ', false])]
+    #[TestWith(["\t1", false])]
+    #[TestWith(["1\n", false])]
+    #[TestWith(['01', false])]
+    #[TestWith(['+1', false])]
+    #[TestWith(['1.0', false])]
+    #[TestWith(['1e0', false])]
+    #[TestWith(['1', true])]
+    public function testInRuleIsNotLoosyBypassed(mixed $value, bool $expectation): void
+    {
+        $trans = new Translator(new ArrayLoader, 'en');
+
+        $v = new Validator($trans, ['x' => $value], ['x' => ['in:1,2,3']]);
+
+        $this->assertSame($expectation, $v->passes());
     }
 }

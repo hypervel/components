@@ -25,11 +25,6 @@ trait ManagesAttributes
     public DateTimeZone|string|null $timezone = null;
 
     /**
-     * The user the command should run as.
-     */
-    public ?string $user = null;
-
-    /**
      * The list of environments the command should run under.
      */
     public array $environments = [];
@@ -40,7 +35,7 @@ trait ManagesAttributes
     public bool $evenInMaintenanceMode = false;
 
     /**
-     * Indicates if the command should run when the scheduler is paused.
+     * Indicates if the command should run even when the scheduler is paused.
      */
     public bool $evenWhenPaused = false;
 
@@ -50,7 +45,7 @@ trait ManagesAttributes
     public bool $withoutOverlapping = false;
 
     /**
-     * Indicates if the event mutex should be released on termination signals.
+     * Indicates if the mutex should be released when the process receives a termination signal.
      */
     public bool $releaseOnTerminationSignals = true;
 
@@ -80,29 +75,19 @@ trait ManagesAttributes
     protected array $rejects = [];
 
     /**
-     * The human readable description of the event.
+     * The human-readable description of the event.
      */
     public ?string $description = null;
 
     /**
-     * The arbitrary attributes assigned to the event.
+     * The arbitrary attributes stored with the event.
      */
     public array $attributes = [];
 
-    /**
-     * Set which user the command should run as.
-     */
-    public function user(string $user): static
-    {
-        $this->user = $user;
-
-        return $this;
-    }
+    // REMOVED: Laravel's user() / $user; coroutine tasks share the scheduler's OS user.
 
     /**
      * Limit the environments the command should run in.
-     *
-     * @param array|mixed $environments
      */
     public function environments(mixed $environments): static
     {
@@ -133,6 +118,7 @@ trait ManagesAttributes
 
     /**
      * Do not allow the event to overlap each other.
+     *
      * The expiration time of the underlying cache lock may be specified in minutes.
      */
     public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static

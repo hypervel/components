@@ -16,6 +16,7 @@
     - [Rate Limiting](#rate-limiting)
     - [Preventing Job Overlaps](#preventing-job-overlaps)
     - [Throttling Exceptions](#throttling-exceptions)
+    - [Releasing Jobs](#releasing-jobs)
     - [Skipping Jobs](#skipping-jobs)
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
@@ -67,6 +68,7 @@
     - [Testing Job Batches](#testing-job-batches)
     - [Testing Job / Queue Interactions](#testing-job-queue-interactions)
 - [Job Events](#job-events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -102,6 +104,21 @@ ProcessPodcast::dispatch();
 
 // This job is sent to the default connection's "emails" queue...
 ProcessPodcast::dispatch()->onQueue('emails');
+```
+
+When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unit enums use their case name:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+enum QueueName: string
+{
+    case Emails = 'emails';
+}
+
+ProcessPodcast::dispatch()->onQueue(QueueName::Emails);
+
+$pending = Queue::connection()->pendingSize(QueueName::Emails);
 ```
 
 Some applications may not need to ever push jobs onto multiple queues, instead preferring to have one simple queue. However, pushing jobs to multiple queues can be especially useful for applications that wish to prioritize or segment how jobs are processed, since the Hypervel queue worker allows you to specify which queues it should process by priority. For example, if you push jobs to a `high` queue, you may run a worker that gives them higher processing priority:
@@ -149,6 +166,20 @@ Configure a connection pool inside its queue connection definition:
 Hypervel uses a complete `key` and `secret` pair when both are configured, including the optional `token` as a temporary AWS session credential. When both static values are null, the AWS SDK's default credential chain is used. Configure both static values together.
 
 The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
+
+Calls to the same custom credential provider run one at a time, including when it is shared with S3 or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
+
+When credentials come from the `ecs` or `instance` provider or from the AWS SDK's default credential chain, you may enable the optional `credential_cache` setting so that the processes and pooled connections on the same host or container share the credentials they fetch, instead of each fetching its own copy:
+
+```php
+'credential_cache' => [
+    'enabled' => true,
+    'store' => null,
+    'fallback_store' => 'file',
+],
+```
+
+A `null` store uses your default cache store, and the optional `fallback_store` is tried when the primary store is unavailable. Credentials are only shared between processes that use the same cache store, so a store local to one process, such as `array`, shares nothing. When the store supports [atomic locks](/docs/{{version}}/cache#atomic-locks), one process refreshes expiring credentials while the others wait for the result, although a lock timeout or an expired lock can still lead to an extra fetch. Cache failures never prevent a connection from fetching its credentials directly. Static `key` and `secret` values and custom credential values, such as arrays, objects, and callables, are never cached. Credentials that never expire, such as keys from environment variables or a shared credentials file, are not stored in the shared cache either, because they have no expiration time to limit how long a shared copy may be used. Each connection's AWS client still keeps them for as long as the client exists.
 
 `min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
 
@@ -255,7 +286,7 @@ The following dependencies are needed for the listed queue drivers. These depend
 
 <div class="content-list" markdown="1">
 
-- Amazon SQS: `aws/aws-sdk-php ^3.235.5`
+- Amazon SQS: `aws/aws-sdk-php ^3.322.9`
 - Beanstalkd: `pda/pheanstalk ^8.0.2`
 - Redis: PhpRedis PHP extension
 
@@ -264,7 +295,7 @@ The following dependencies are needed for the listed queue drivers. These depend
 <a name="laravel-job-interoperability"></a>
 ### Laravel Job Interoperability
 
-Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, overlapping locks, and throttled exception buckets can be shared safely.
+Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, and overlapping locks can be shared safely.
 
 For this to work, the Laravel job class and any classes referenced by the serialized payload must be autoloadable and compatible in your Hypervel application. Encrypted jobs require compatible encryption configuration, and jobs containing serialized models require compatible model classes and database records.
 
@@ -325,6 +356,25 @@ In this example, note that we were able to pass an [Eloquent model](/docs/{{vers
 
 If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance and its loaded relationships from the database. This approach to model serialization allows for much smaller job payloads to be sent to your queue driver.
 
+<a name="serializing-models-using-morph-maps"></a>
+#### Serializing Models Using Morph Maps
+
+By default, queued models are identified by their fully qualified class names. A stable morph alias lets queued models be restored after their class is renamed or moved, provided the morph map points to the new class. If you have defined a [morph map](/docs/{{version}}/eloquent-relationships#custom-polymorphic-types), you may use its aliases instead by calling `ModelIdentifier::useMorphMap` in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Contracts\Database\ModelIdentifier;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    ModelIdentifier::useMorphMap();
+}
+```
+
+Applications that dispatch or process the same jobs must use the same morph map and enable this setting. Keep the aliases and setting in place while jobs using them remain queued.
+
 <a name="handle-method-dependency-injection"></a>
 #### `handle` Method Dependency Injection
 
@@ -383,7 +433,7 @@ public function __construct(
 ) {}
 ```
 
-For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model:
+For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model. The attribute may also be applied to a parent job class:
 
 ```php
 <?php
@@ -411,13 +461,17 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-If a job receives a collection or array of Eloquent models instead of a single model, the models within that collection will not have their relationships restored when the job is deserialized and executed. This is to prevent excessive resource usage on jobs that deal with large numbers of models.
+If a job receives an Eloquent collection, relationships loaded on every model in the collection are restored when the job is deserialized. Relationships loaded on only some models are not restored. To queue a collection without its relationships, apply the `WithoutRelations` attribute to the property or job class.
+
+When models are passed in a plain PHP array, their full attributes and loaded relationships are stored in the job payload instead of being reloaded from the database.
 
 <a name="unique-jobs"></a>
 ### Unique Jobs
 
 > [!WARNING]
-> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
+> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, `array`, and `worker-array` cache drivers support atomic locks.
+
+The lock is acquired where the job is dispatched and released by the worker that processes it, so the cache store must be shared by both processes. Otherwise, duplicates may be queued and the original lock may remain held after processing. The `array` store is local to one coroutine, `worker-array` to one process, and `swoole` to workers of the same server. For separate queue workers or multiple servers, use a store shared by all of them, such as Redis or a database.
 
 > [!WARNING]
 > Unique job constraints do not apply to jobs within batches.
@@ -499,6 +553,8 @@ Behind the scenes, when a `ShouldBeUnique` job is dispatched, Hypervel attempts 
 
 ```php
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Cache;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
@@ -606,7 +662,7 @@ If a debounced job is superseded by a newer dispatch, Hypervel will dispatch the
 > If your application dispatches debounced jobs from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server.
 
 > [!WARNING]
-> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup across multiple servers may allow more than one matching job to run, and dispatch during middleware may extend an active `maxWait` window. Debounced jobs should be idempotent.
+> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup, including cleanup after a failed or rolled-back dispatch, may allow more than one matching job to run. Dispatch during middleware and failed-dispatch cleanup may also extend an active `maxWait` window. Debounced jobs should be idempotent.
 
 <a name="encrypted-jobs"></a>
 ### Encrypted Jobs
@@ -735,9 +791,9 @@ In the example above, we defined an hourly rate limit; however, you may easily d
 return Limit::perMinute(50)->by($job->user->id);
 ```
 
-Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
+Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/rate-limiting#scoping-named-rate-limits) as named route rate limiters.
 
-Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several rate limits, Hypervel consumes them in the listed order. When a later rate limit denies the job, capacity already consumed by earlier rate limits is not restored.
+Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several limits, Hypervel [consumes them together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied job does not consume capacity from the other limits, subject to the documented Redis Cluster limitation.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
@@ -799,7 +855,9 @@ The `RateLimited` middleware supports every configured rate limiter store.
 <a name="preventing-job-overlaps"></a>
 ### Preventing Job Overlaps
 
-Hypervel includes an `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
+Hypervel includes a `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
+
+Keys may be strings, integers, or enums. Backed enums use their value, while unit enums use their case name.
 
 For example, let's imagine you have a queued job that updates a user's credit score and you want to prevent credit score update job overlaps for the same user ID. To accomplish this, you can return the `WithoutOverlapping` middleware from your job's `middleware` method:
 
@@ -862,7 +920,21 @@ public function middleware(): array
 ```
 
 > [!WARNING]
-> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
+> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, `array`, and `worker-array` cache drivers support atomic locks.
+
+The lock is stored in your application's default cache store, so it only prevents overlaps between workers that share that store. For example, `array` locks only last for the current job, `worker-array` locks are local to one worker, and a Swoole table is shared only by the workers of one server, not by separately started `queue:work` processes. You may choose the store that should hold the lock using the `store` method:
+
+```php
+/**
+ * Get the middleware the job should pass through.
+ *
+ * @return array<int, object>
+ */
+public function middleware(): array
+{
+    return [(new WithoutOverlapping($this->order->id))->store('redis')];
+}
+```
 
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes
@@ -963,14 +1035,26 @@ public function middleware(): array
 }
 ```
 
-The `backoff` method also accepts a closure, allowing the delay to be determined from the exception:
+The `backoff` method also accepts a closure that receives the thrown exception, allowing the delay to be determined dynamically:
 
 ```php
+use App\Exceptions\RateLimitedException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Throwable;
 
-return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
-    fn (Throwable $exception) => $exception->getCode() === 429 ? 5 : 1
-)];
+/**
+ * Get the middleware the job should pass through.
+ *
+ * @return array<int, object>
+ */
+public function middleware(): array
+{
+    return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
+        fn (Throwable $throwable) => $throwable instanceof RateLimitedException
+            ? $throwable->retryAfterMinutes()
+            : 5
+    )];
+}
 ```
 
 The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
@@ -1225,6 +1309,19 @@ class PodcastController extends Controller
 
         return redirect('/podcasts');
     }
+}
+```
+
+You may also configure a job's default delay using the `Delay` attribute. Job delays apply when dispatching jobs individually, in bulk, or as part of a batch:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(60)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
 }
 ```
 
@@ -1623,7 +1720,7 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-You may also specify the job's queue or connection using the `Queue` and `Connection` attributes:
+You may also specify the job's queue or connection using the `Queue` and `Connection` attributes, which accept strings or enum cases. Backed enums use their value, while unit enums use their case name:
 
 ```php
 <?php
@@ -1655,9 +1752,10 @@ In addition to routing specific job classes, you may also pass an interface, tra
 Typically, you should call the `route` method from the `boot` method of a service provider:
 
 ```php
+use App\Concerns\RequiresVideo;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ProcessVideo;
-use App\Traits\RequiresVideo;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Support\Facades\Queue;
 
 /**
@@ -1667,6 +1765,7 @@ public function boot(): void
 {
     Queue::route(ProcessPodcast::class, connection: 'redis', queue: 'podcasts');
     Queue::route(RequiresVideo::class, queue: 'video');
+    Queue::route(ShouldBroadcast::class, queue: 'events');
 }
 ```
 
@@ -1681,12 +1780,37 @@ You may also route multiple job classes at once by passing an array to the `rout
 ```php
 Queue::route([
     ProcessPodcast::class => ['redis', 'podcasts'], // Connection and queue
-    ProcessVideo::class => [null, 'videos'], // Queue only (uses default connection)
+    ProcessVideo::class => 'videos', // Queue only (uses default connection)
 ]);
 ```
 
 > [!NOTE]
 > Queue routing can still be overridden by the job on a per-job basis.
+
+You may use the `forward` method to forward jobs from one queue to another queue and / or connection. This is useful when you need to change queue infrastructure without modifying individual jobs or dispatch locations. Register forwarding in a service provider's `boot` method:
+
+```php
+Queue::forward('reports', 'reports.fifo', 'sqs');
+Queue::forward('payments', connection: 'sqs');
+Queue::forward('updates', 'notifications');
+```
+
+You may also forward multiple queues at once by passing an array:
+
+```php
+Queue::forward([
+    'reports' => 'reports.fifo',
+    'emails' => 'emails.fifo',
+], connection: 'sqs');
+```
+
+An explicit connection configured on a job takes precedence over a forwarded connection.
+
+When dispatching through a `failover` connection, specify a queue to apply forwards scoped to that connection. Jobs without a queue use each child connection's default. Omitting the destination queue from `Queue::forward` preserves the original queue name.
+
+After forwarding queues, update your worker queue lists to avoid listing multiple names that resolve to the same queue. Before forwarding a queue to a different name, drain its existing jobs. Workers using the forwarding configuration will consume the destination queue instead.
+
+When a forward specifies a connection, pass that connection to `queue:clear`; using another connection clears the source queue instead. Clearing a forwarded queue on the matching connection clears its destination, including jobs sent through other queue names that forward to the same destination.
 
 <a name="max-job-attempts-and-timeout"></a>
 ### Specifying Max Job Attempts / Timeout Values
@@ -1730,6 +1854,7 @@ You may take a more granular approach by defining the maximum number of times a 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Tries;
 
 #[Tries(5)]
@@ -1814,6 +1939,24 @@ In this example, the job is released for ten seconds if the application is unabl
 
 `MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
 
+By default, an attempt that ends because the worker process crashed or was killed, such as when it runs out of memory, does not count towards the job's maximum number of exceptions. If you would like these attempts to count as an exception, you may add the `CountCrashesAsExceptions` attribute to your job class:
+
+```php
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Tries;
+
+#[Tries(25)]
+#[MaxExceptions(3)]
+#[CountCrashesAsExceptions]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
+When this attribute is present, the worker stores a marker in your application's cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception.
+
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
 
@@ -1869,6 +2012,7 @@ You may also define the maximum number of seconds a job should be allowed to run
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Timeout;
 
 #[Timeout(120)]
@@ -1881,7 +2025,7 @@ class ProcessPodcast implements ShouldQueue
 Sometimes, IO blocking processes such as sockets or outgoing HTTP connections may not respect your specified timeout. Therefore, when using these features, you should always attempt to specify a timeout using their APIs as well. For example, when using [Guzzle](https://docs.guzzlephp.org), you should always specify a connection and request timeout value.
 
 > [!WARNING]
-> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension is recommended so workers can respond to process signals gracefully.
+> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The `--timeout` option has no effect when the `queue:work` command is invoked with the `--once` option. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension is recommended so workers can respond to process signals gracefully.
 
 <a name="failing-on-timeout"></a>
 #### Failing on Timeout
@@ -1893,6 +2037,7 @@ If you would like to indicate that a job should be marked as [failed](#dealing-w
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 
 #[FailOnTimeout]
@@ -1920,6 +2065,8 @@ Hypervel provides a fluent `onGroup` method to specify the message group ID when
 ProcessOrder::dispatch($order)
     ->onGroup("customer-{$order->customer_id}");
 ```
+
+If you dispatch a job to an SQS FIFO queue without specifying a message group, Hypervel will use the queue name as the message group ID.
 
 SQS FIFO queues support message deduplication. Implement a `deduplicationId` method in your job class to provide a custom deduplication ID:
 
@@ -1983,12 +2130,15 @@ class ProcessOrder implements ShouldQueue
 
 When utilizing FIFO queues, you will also need to define message groups on listeners, mail, and notifications. Alternatively, you can dispatch queued instances of these objects to a non-FIFO queue.
 
-To define the message group for a [queued event listener](/docs/{{version}}/events#queued-event-listeners), define a `messageGroup` method on the listener. You may also optionally define a `deduplicationId` method:
+To define the message group for a [queued event listener](/docs/{{version}}/events#queued-event-listeners), define a `messageGroup` method on the listener. You may also optionally define a `deduplicator` method, which receives the event and should return a closure that generates the deduplication ID:
 
 ```php
 <?php
 
 namespace App\Listeners;
+
+use App\Events\OrderShipped;
+use Closure;
 
 class SendShipmentNotification
 {
@@ -2003,16 +2153,16 @@ class SendShipmentNotification
     }
 
     /**
-     * Get the job's deduplication ID.
+     * Get the job's deduplicator.
      */
-    public function deduplicationId(): string
+    public function deduplicator(OrderShipped $event): Closure
     {
-        return "shipment-notification-{$this->shipment->id}";
+        return fn () => "shipment-notification-{$event->order->id}";
     }
 }
 ```
 
-When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the notification:
+When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the mail message:
 
 ```php
 use App\Mail\InvoicePaid;
@@ -2037,6 +2187,23 @@ $invoicePaid = (new InvoicePaid($invoice))
 $user->notify($invoicePaid);
 ```
 
+Like jobs, mailables and notifications may define `messageGroup` and `deduplicationId` methods instead of calling `onGroup` and `withDeduplicator`.
+
+For notifications, you may pass arrays keyed by channel to give each channel its own message group and deduplicator:
+
+```php
+$invoicePaid = (new InvoicePaid($invoice))
+    ->onGroup(['mail' => 'invoice-mail', 'database' => 'invoice-history'])
+    ->withDeduplicator([
+        'mail' => fn () => 'invoice-mail-'.$invoice->id,
+        'database' => fn () => 'invoice-history-'.$invoice->id,
+    ]);
+
+$user->notify($invoicePaid);
+```
+
+Alternatively, define `withMessageGroups($notifiable, $channel)` and `withDeduplicators($notifiable, $channel)` on the notification. These methods receive the recipient and channel and return the message group and deduplicator callback for that delivery.
+
 <a name="queue-failover"></a>
 ### Queue Failover
 
@@ -2057,6 +2224,8 @@ To configure a failover queue connection, specify the `failover` driver and prov
 
 With `after_commit` enabled, Hypervel waits until every applicable database transaction has committed before attempting the primary connection. A rollback discards the pending job. This keeps an after-commit primary failure inside the failover chain so the next connection is attempted. The database job insert therefore occurs after the business transaction instead of participating in it, and the default deferred fallback runs in-process at the end of the coroutine.
 
+When the failover connection waits for commit, it copies the log context entries at dispatch, but each child driver serializes the job and context when its attempt is made. Avoid mutating the job, its data, or objects stored in context before the transactions commit.
+
 If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target.
 
 Once you have configured a connection that uses the `failover` driver, you will need to set the failover connection as your default queue connection in your application's `.env` file to make use of the failover functionality:
@@ -2067,7 +2236,7 @@ QUEUE_CONNECTION=failover
 
 Next, start a worker for each child connection that uses an external worker. With the default connection list, only the database child needs one:
 
-```bash
+```shell
 php artisan queue:work database
 ```
 
@@ -2243,7 +2412,7 @@ class ImportCsv implements ShouldQueue
 <a name="dispatching-batches"></a>
 ### Dispatching Batches
 
-To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive an `Hypervel\Bus\Batch` instance when they are invoked.
+To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive a `Hypervel\Bus\Batch` instance when they are invoked.
 
 When running multiple queue workers, the jobs in the batch will be processed in parallel. Therefore, the order in which the jobs complete may not be the same as the order in which they were added to the batch. Consult our documentation on [job chains and batches](#chains-and-batches) for information on how to run a series of jobs in sequence.
 
@@ -2620,7 +2789,7 @@ php artisan queue:work
 > [!NOTE]
 > To keep the `queue:work` process running permanently in the background, you should use a process monitor such as [Supervisor](#supervisor-configuration) to ensure that the queue worker does not stop running.
 
-You may include the `-v` flag when invoking the `queue:work` command if you would like the processed job IDs, connection names, and queue names to be included in the command's output:
+You may include the `-v` flag when invoking the `queue:work` command if you would like the processed job IDs, connection names, queue names, and worker memory usage to be included in the command's output:
 
 ```shell
 php artisan queue:work -v
@@ -2738,7 +2907,24 @@ php artisan queue:work --force
 <a name="resource-considerations"></a>
 #### Resource Considerations
 
-Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, if you are doing image manipulation with the [GD library](https://www.php.net/manual/en/book.image.php), you should free the memory with `imagedestroy` when you are done processing the image.
+Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, after [image manipulation](/docs/{{version}}/images), release references to image objects when you no longer need them. Do not retain them in static properties or singleton services between jobs.
+
+<a name="lost-database-connections"></a>
+#### Lost Database Connections
+
+When a queue worker detects a lost database connection while fetching or processing a job, it stops so that your process manager can start a fresh worker. If your jobs use several database connections, such as read replicas, you may prefer to keep the worker running when one of them briefly drops. To do so, set the static `$stopOnLostConnection` property on the `Hypervel\Queue\Worker` class to `false` in the `boot` method of your `AppServiceProvider`:
+
+```php
+use Hypervel\Queue\Worker;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Worker::$stopOnLostConnection = false;
+}
+```
 
 <a name="queue-priorities"></a>
 ### Queue Priorities
@@ -2856,6 +3042,16 @@ Hypervel monitors running jobs using a coroutine timer. The `--monitor-interval`
 php artisan queue:work --monitor-interval=1
 ```
 
+By default, a timeout stops the worker process, including its other running jobs. To cancel only the timed-out job, set the following property during application boot:
+
+```php
+use Hypervel\Queue\Worker;
+
+Worker::$killOnTimeout = false;
+```
+
+In this mode, the job receives a `Swoole\Coroutine\CanceledException`, allowing its `finally` blocks to release resources. The worker then handles the timeout using the job's normal retry, backoff, and failure settings, reporting a `Hypervel\Queue\TimeoutExceededException`. Other jobs continue running. Do not swallow cancellation: a job that continues running keeps its concurrency slot. Cancellation requires the job to yield; CPU-bound code cannot be interrupted by the coroutine timer.
+
 > [!WARNING]
 > The `--timeout` value should always be at least several seconds shorter than your `retry_after` configuration value. This will ensure that a worker processing a frozen job is always terminated before the job is retried. If your `--timeout` option is longer than your `retry_after` configuration value, your jobs may be processed twice.
 
@@ -2892,7 +3088,25 @@ php artisan queue:resume --all
 
 After resuming a queue, workers will begin processing new jobs from that queue immediately. Resuming all queues does not resume queues that were paused individually. The `queue:continue` command is available as an alias for `queue:resume`. Note that pausing a queue does not stop the worker process itself - it only prevents the worker from processing new jobs from the specified queue.
 
+You may also pause and resume queues using the `Queue` facade. These methods use your default queue connection unless you specify another connection:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+Queue::pause('emails');
+Queue::pauseFor('emails', 60, 'redis');
+Queue::isPaused('emails');
+Queue::getPausedQueues(['emails', 'notifications']);
+Queue::resume('emails');
+```
+
+The `pause`, `pauseFor`, and `resume` methods also accept enums for queue and connection names.
+
 Queue workers report paused and resumed queues in their console output.
+
+Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connectionName` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.
+
+A worker process may also be paused as a whole by sending it the `SIGUSR2` signal and resumed with `SIGCONT`. The worker dispatches the `WorkerPausing` and `WorkerResuming` events when it receives these signals. Both events provide the worker's `connectionName`, `queue`, and `workerOptions`.
 
 <a name="worker-restart-and-pause-signals"></a>
 #### Worker Restart and Pause Signals
@@ -3049,6 +3263,7 @@ If you would like to configure how many seconds Hypervel should wait before retr
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff(3)]
@@ -3077,6 +3292,7 @@ You may easily configure "exponential" backoffs by defining an array of backoff 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff([1, 5, 10])]
@@ -3175,6 +3391,8 @@ If necessary, you may pass multiple IDs to the command:
 php artisan queue:retry ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece 91401d2c-0784-4f43-824c-34f94a33c24d
 ```
 
+Custom failed-job providers may return a `Collection` or `LazyCollection` from `find()` to retry a group under one ID. Each collection key is passed to the provider's `forget()` method after that job is pushed.
+
 You may also retry all of the failed jobs for a particular queue:
 
 ```shell
@@ -3228,6 +3446,7 @@ For convenience, you may choose to automatically delete jobs with missing models
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 
 #[DeleteWhenMissingModels]
@@ -3349,6 +3568,15 @@ $delayed = $queue->delayedJobs('emails');
 $reserved = $queue->reservedJobs('emails');
 ```
 
+These methods return a collection of `Hypervel\Queue\Jobs\InspectedJob` instances, which provide the job's `uuid`, `queue`, `name`, `attempts`, and `createdAt` values, as well as its decoded `payload` array:
+
+```php
+foreach ($pending as $job) {
+    $job->name;
+    $job->payload['data'];
+}
+```
+
 You may inspect jobs across every queue on the connection using the corresponding `allPendingJobs`, `allDelayedJobs`, and `allReservedJobs` methods:
 
 ```php
@@ -3387,7 +3615,7 @@ To return the queue sizes as JSON, pass the `--json` option:
 php artisan queue:monitor redis:default,redis:deployments --max=100 --json
 ```
 
-Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, an `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
+Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, a `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
 
 ```php
 use App\Notifications\QueueHasLongWaitTime;
@@ -3826,7 +4054,13 @@ class AppServiceProvider extends ServiceProvider
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
-The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
+The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
+
+When a job releases itself back onto the queue without throwing an exception, the worker dispatches a `JobReleased` event with the `connectionName` and `job`. This includes releases from job middleware.
+
+When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
+
+When a job exceeds its timeout, the `JobTimedOut` event provides the `connectionName`, `job`, and `timeout` in seconds. The timeout comes from the job when specified, or from the worker's `--timeout` option otherwise.
 
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 
@@ -3840,6 +4074,10 @@ Queue::looping(function () {
     }
 });
 ```
+
+The `JobPopping` event is dispatched before a worker attempts to retrieve a job. Its `connectionName` and `queue` properties identify the configured connection and queue selection, which may be a comma-separated list. After a job is retrieved, the `JobPopped` event provides the `connectionName` and `job`.
+
+Long-running queue workers dispatch a `WorkerStarting` event when they start. Its `connectionName`, `queue`, and `workerOptions` properties describe the worker. You may register a listener using `Queue::starting` in the `boot` method of a service provider.
 
 Hypervel also dispatches a `Hypervel\Queue\Events\WorkerIdle` event when a queue worker is unable to retrieve a job from the queue:
 
@@ -3856,4 +4094,11 @@ Event::listen(function (WorkerIdle $event) {
 
 When an interrupting signal is delivered to running jobs, Hypervel dispatches a `Hypervel\Queue\Events\JobInterrupted` event once for each job that was notified. Its `connectionName`, `job`, and `signal` properties identify the interrupted work.
 
-Queue workers also dispatch a `WorkerStopping` event before they stop. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+
+When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Queue began as a port of [Laravel Queue](https://github.com/illuminate/queue) and has been adapted for Hypervel's framework architecture and coroutine runtime.

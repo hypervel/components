@@ -38,7 +38,7 @@ class PackageMetadataTest extends TestCase
 
         $this->assertSame($internalConstraint, $composer['require']['hypervel/routing']);
 
-        foreach (['guzzlehttp/guzzle', 'psr/log', 'symfony/http-kernel'] as $dependency) {
+        foreach (['hypervel/guzzle', 'psr/log', 'symfony/http-kernel'] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
@@ -47,7 +47,7 @@ class PackageMetadataTest extends TestCase
         $this->assertArrayNotHasKey('hypervel/auth', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/cache', $composer['require']);
 
-        foreach (['hypervel/redis', 'ably/ably-php', 'pusher/pusher-php-server'] as $dependency) {
+        foreach (['hypervel/redis', 'ably/ably-php', 'pusher/pusher-php-server', 'symfony/http-client', 'symfony/mercure', 'web-token/jwt-library'] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['suggest']);
             $this->assertIsString($composer['suggest'][$dependency]);
             $this->assertNotSame('', trim($composer['suggest'][$dependency]));

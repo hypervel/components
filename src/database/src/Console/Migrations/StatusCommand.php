@@ -7,16 +7,20 @@ namespace Hypervel\Database\Console\Migrations;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
+use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'migrate:status')]
 class StatusCommand extends BaseCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'migrate:status';
+    protected ?string $signature = 'migrate:status
+                    {--database= : The database connection to use}
+                    {--pending= : Only list pending migrations}
+                    {--path=* : The path(s) to the migrations files to use}
+                    {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}';
 
     /**
      * The console command description.
@@ -34,6 +38,18 @@ class StatusCommand extends BaseCommand
     }
 
     /**
+     * Configure the command's default values.
+     */
+    #[Override]
+    protected function configureDefaults(): void
+    {
+        // Defaults to false (not null) so that handle() can distinguish "not passed
+        // at all" from "passed with no value", which can't be expressed as a literal
+        // boolean default in the signature above.
+        $this->getDefinition()->getOption('pending')->setDefault(false);
+    }
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
@@ -42,7 +58,7 @@ class StatusCommand extends BaseCommand
             if (! $this->migrator->repositoryExists()) {
                 $this->components->error('Migration table not found.');
 
-                return 1;
+                return self::FAILURE;
             }
 
             $ran = $this->migrator->getRepository()->getRan();
@@ -75,7 +91,7 @@ class StatusCommand extends BaseCommand
                 return (int) $this->option('pending');
             }
 
-            return 0;
+            return self::SUCCESS;
         });
     }
 
@@ -106,18 +122,5 @@ class StatusCommand extends BaseCommand
     protected function getAllMigrationFiles(): array
     {
         return $this->migrator->getMigrationFiles($this->getMigrationPaths());
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
-            ['pending', null, InputOption::VALUE_OPTIONAL, 'Only list pending migrations', false],
-            ['path', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'The path(s) to the migrations files to use'],
-            ['realpath', null, InputOption::VALUE_NONE, 'Indicate any provided migration file paths are pre-resolved absolute paths'],
-        ];
     }
 }

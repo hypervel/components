@@ -30,7 +30,7 @@ class PackageMetadataTest extends TestCase
             'ext-pcntl',
             'ext-posix',
             'ext-swoole',
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'nesbot/carbon',
             'nunomaduro/termwind',
             'psr/http-client',

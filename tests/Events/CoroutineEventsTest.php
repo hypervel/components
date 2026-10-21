@@ -14,7 +14,7 @@ use function Hypervel\Coroutine\parallel;
 
 class CoroutineEventsTest extends TestCase
 {
-    public function testDeferredEventsAreCoroutineIsolated()
+    public function testDeferredEventsAreCoroutineIsolated(): void
     {
         $dispatcher = new Dispatcher;
         $results = [];
@@ -73,7 +73,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertContains('coroutine-2-done', $results);
     }
 
-    public function testDeferredEventsDoNotLeakBetweenCoroutines()
+    public function testDeferredEventsDoNotLeakBetweenCoroutines(): void
     {
         $dispatcher = new Dispatcher;
         $coroutine1Events = [];
@@ -109,7 +109,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertCount(1, $coroutine2Events);
     }
 
-    public function testPushedEventsDoNotLeakBetweenCoroutines()
+    public function testPushedEventsDoNotLeakBetweenCoroutines(): void
     {
         $dispatcher = new Dispatcher;
         $flushed = [];
@@ -136,7 +136,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertSame(['coroutine-1'], $flushed);
     }
 
-    public function testForgetPushedDoesNotClearOtherCoroutinePushedEvents()
+    public function testForgetPushedDoesNotClearOtherCoroutinePushedEvents(): void
     {
         $dispatcher = new Dispatcher;
         $flushed = [];
@@ -164,7 +164,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertSame(['coroutine-1'], $flushed);
     }
 
-    public function testContextKeysAreCleanedUpAfterDeferCompletes()
+    public function testContextKeysAreCleanedUpAfterDeferCompletes(): void
     {
         $dispatcher = new Dispatcher;
 
@@ -193,7 +193,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertNull(CoroutineContext::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
-    public function testContextKeysAreCleanedUpAfterDeferThrowsException()
+    public function testContextKeysAreCleanedUpAfterDeferThrowsException(): void
     {
         $dispatcher = new Dispatcher;
 
@@ -219,7 +219,7 @@ class CoroutineEventsTest extends TestCase
         $this->assertNull(CoroutineContext::get(Dispatcher::EVENTS_TO_DEFER_CONTEXT_KEY));
     }
 
-    public function testNestedDeferRestoresOuterStateAfterInnerCompletes()
+    public function testNestedDeferRestoresOuterStateAfterInnerCompletes(): void
     {
         $dispatcher = new Dispatcher;
         $dispatched = [];

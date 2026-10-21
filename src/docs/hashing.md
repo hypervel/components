@@ -7,6 +7,7 @@
     - [Verifying That a Password Matches a Hash](#verifying-that-a-password-matches-a-hash)
     - [Determining if a Password Needs to be Rehashed](#determining-if-a-password-needs-to-be-rehashed)
 - [Hash Algorithm Verification](#hash-algorithm-verification)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -120,3 +121,8 @@ This is the expected behavior for most applications, where the hashing algorithm
 ```ini
 HASH_VERIFY=false
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Hashing began as a port of [Laravel Hashing](https://github.com/illuminate/hashing) and has been adapted for Hypervel's framework architecture and coroutine runtime.

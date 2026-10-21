@@ -24,6 +24,7 @@ use LogicException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class SqsQueue extends Queue implements QueueContract, ClearableQueue
 {
@@ -39,10 +40,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
     /**
      * The cache key prefix for extended SQS payloads.
-     *
-     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    public const string EXTENDED_PAYLOAD_CACHE_PREFIX = 'laravel:sqs-payloads:';
+    public const string EXTENDED_PAYLOAD_CACHE_PREFIX = 'hypervel:sqs-payloads:';
 
     /**
      * The overflow storage options for large payload offloading.
@@ -72,7 +71,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         $response = $this->sqs->getQueueAttributes([
             'QueueUrl' => $this->getQueue($queue),
@@ -93,7 +92,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         $response = $this->sqs->getQueueAttributes([
             'QueueUrl' => $this->getQueue($queue),
@@ -106,7 +105,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         $response = $this->sqs->getQueueAttributes([
             'QueueUrl' => $this->getQueue($queue),
@@ -119,7 +118,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         $response = $this->sqs->getQueueAttributes([
             'QueueUrl' => $this->getQueue($queue),
@@ -164,7 +163,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -172,7 +171,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -180,7 +179,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -214,7 +213,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      *
      * Not supported by SQS, returns null.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         // Not supported by SQS...
         return null;
@@ -223,8 +222,10 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload(
@@ -243,7 +244,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         if ($this->willOverflow($payload)) {
             $overflowPayload = $payload;
@@ -276,8 +277,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
         $queueName = $this->resolveQueueName($queue);
 
         $this->ensureDelayIsSupported($delay, $queueName);
@@ -310,8 +312,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
         $jobs = array_values($jobs);
 
         if ($jobs === []) {
@@ -394,7 +397,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     {
         $queueName = $this->resolveQueueName($queue);
 
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function ($job) use ($data, $queueName) {
                 $delay = $this->getJobDelay($job);
 
@@ -730,11 +733,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null): ?JobContract
     {
         $response = $this->sqs->receiveMessage([
             'QueueUrl' => $queue = $this->getQueue($queue),
-            'AttributeNames' => ['ApproximateReceiveCount'],
+            'MessageSystemAttributeNames' => ['ApproximateReceiveCount'],
         ]);
 
         if (! is_null($response['Messages']) && count($response['Messages']) > 0) {
@@ -754,9 +757,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(?string $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
-        return tap($this->size($queue), function () use ($queue) {
+        return tap($this->size($queue), function () use ($queue): void {
             $this->sqs->purgeQueue([
                 'QueueUrl' => $this->getQueue($queue),
             ]);
@@ -774,7 +777,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return array{DelaySeconds?: int, MessageGroupId?: string, MessageDeduplicationId?: string}
      */
-    public function getQueueableOptions(object|string $job, ?string $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
+    public function getQueueableOptions(object|string $job, UnitEnum|string|null $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
     {
         // Make sure we have a queue name to properly determine if it's a FIFO queue...
         $queue = $this->resolveQueueName($queue);
@@ -805,7 +808,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
         if ($isObject) {
             $messageGroupId = transform($job->messageGroup ?? (method_exists($job, 'messageGroup') ? $job->messageGroup() : null), $transformToString);
-        } elseif ($isFifo) {
+        }
+
+        if ($isFifo && is_null($messageGroupId)) {
             $messageGroupId = transform($queue, $transformToString);
         }
 
@@ -845,15 +850,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Resolve the effective queue name.
      */
-    protected function resolveQueueName(?string $queue): string
+    protected function resolveQueueName(UnitEnum|string|null $queue): string
     {
-        return $queue === null || $queue === '' ? $this->default : $queue;
+        $queue = $this->normalizeQueue($queue);
+
+        return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**
      * Get the queue or return the default.
      */
-    public function getQueue(?string $queue): string
+    public function getQueue(UnitEnum|string|null $queue): string
     {
         $queue = $this->resolveQueueName($queue);
 

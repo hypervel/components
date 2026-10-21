@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
@@ -26,7 +25,7 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -50,7 +49,7 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -75,7 +74,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // First tag
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -85,7 +84,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // Second tag
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:posts:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:posts:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -104,12 +103,12 @@ class GetEntriesTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testGetEntriesDeduplicatesWithinTag(): void
+    public function testGetEntriesReturnsTheMembersInEachPage(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -121,8 +120,7 @@ class GetEntriesTest extends RedisCacheTestCase
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
-        // array_unique is applied within each tag
-        $this->assertCount(2, $entries->all());
+        $this->assertSame(['key1', 'key2'], $entries->all());
     }
 
     /**
@@ -134,7 +132,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // zScan returns null/false when done or empty
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnNull();
 
         $store = $this->createStore($connection);
@@ -154,7 +152,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // zScan can return false in some cases
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturn(false);
 
         $store = $this->createStore($connection);
@@ -190,7 +188,7 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('custom_prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('custom_prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -215,7 +213,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // First page
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 123; // Non-zero cursor indicates more data
 
@@ -245,7 +243,7 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 123;
 
@@ -281,8 +279,7 @@ class GetEntriesTest extends RedisCacheTestCase
     /**
      * @test
      *
-     * Documents that deduplication is per-tag, not global. If the same key
-     * exists in multiple tags, it will appear multiple times in the result.
+     * If the same key exists in multiple tags, it will appear multiple times in the result.
      * This is intentional - the Flush operation handles this gracefully
      * (deleting a non-existent key is a no-op).
      */
@@ -293,7 +290,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // First tag has 'shared_key'
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
@@ -303,7 +300,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // Second tag also has 'shared_key'
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:posts:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:posts:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 

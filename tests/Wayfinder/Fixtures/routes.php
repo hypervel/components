@@ -21,6 +21,8 @@ use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ParameterNameController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\PostController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ReverseBarrelCollisionController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\ReverseBarrelCollisionController\NestedController as ReverseBarrelCollisionNestedController;
+use Hypervel\Tests\Wayfinder\Fixtures\Controllers\SearchController;
+use Hypervel\Tests\Wayfinder\Fixtures\Controllers\SharedUriController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\TwoRoutesSameActionController;
 use Hypervel\Tests\Wayfinder\Fixtures\Controllers\UrlDefaultsController;
 use Hypervel\Tests\Wayfinder\Fixtures\Middleware\UrlDefaultsMiddleware;
@@ -29,6 +31,7 @@ use Hypervel\Tests\Wayfinder\Fixtures\Prism\Prism\Http\Controllers\PrismChatCont
 Route::get('/', fn () => 'Home')->name('home');
 
 Route::get('/closure', fn () => 'ok');
+Route::query('/query', fn () => 'Query')->name('query');
 Route::get('/export/{report}/{export}', fn () => 'Export')->name('export');
 Route::get('/invokable-controller', InvokableController::class);
 Route::get('/named-invokable-controller', NamedInvokableController::class)->name('invokable');
@@ -101,7 +104,11 @@ Route::get('/nested/foo-bar', fn () => 'foo-bar')->name('nested.foo-bar.index');
 Route::get('/nested/foo-bar-camel', fn () => 'fooBar')->name('nested.fooBar.index');
 Route::get('/named-reverse/child/grandchild', fn () => 'grandchild')->name('named-reverse.child.grandchild');
 Route::get('/named-reverse/child', fn () => 'child')->name('named-reverse.child');
-Route::get('/reports/index/daily', fn () => 'daily')->name('reports.index.daily');
+
+Route::get('/photos', fn (): string => 'ok')->name('photos.index');
+Route::get('/photos/window', fn (): string => 'ok')->name('photos.index.window');
+
+Route::get('/albums/recent', fn (): string => 'ok')->name('albums.index.recent');
 
 Route::get('/prism/chat', [PrismChatController::class, 'index']);
 
@@ -110,6 +117,13 @@ Route::get('/two-routes-one-action-2', [TwoRoutesSameActionController::class, 's
 Route::get('/two-routes-one-action-same-uri', [TwoRoutesSameActionController::class, 'sameUri']);
 Route::post('/two-routes-one-action-same-uri', [TwoRoutesSameActionController::class, 'sameUri']);
 Route::match(['GET', 'POST'], '/two-routes-one-action-match', [TwoRoutesSameActionController::class, 'matched']);
+
+Route::get('/shared-uri/{name}', SharedUriController::class);
+Route::post('/shared-uri/{name}', SharedUriController::class);
+Route::match(['put', 'patch'], '/shared-uri/{name}', SharedUriController::class);
+
+Route::match(['QUERY'], '/search', [SearchController::class, 'index'])->name('search.index');
+Route::match(['GET', 'QUERY'], '/search/{type}', [SearchController::class, 'show'])->name('search.show');
 
 Route::get('/disallowed/delete', [DisallowedMethodNameController::class, 'delete']);
 Route::get('/disallowed/delete-method', [DisallowedMethodNameController::class, 'deleteMethod']);

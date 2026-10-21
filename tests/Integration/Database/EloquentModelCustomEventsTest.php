@@ -34,7 +34,7 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
         });
     }
 
-    public function testFlushListenersClearsCustomEvents()
+    public function testFlushListenersClearsCustomEvents(): void
     {
         $_SERVER['fired_event'] = false;
 
@@ -45,7 +45,7 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
         $this->assertFalse($_SERVER['fired_event']);
     }
 
-    public function testCustomEventListenersAreFired()
+    public function testCustomEventListenersAreFired(): void
     {
         $_SERVER['fired_event'] = false;
 
@@ -54,7 +54,7 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
         $this->assertTrue($_SERVER['fired_event']);
     }
 
-    public function testAddObservableEventFromTrait()
+    public function testAddObservableEventFromTrait(): void
     {
         $model = new EloquentModelStubWithCustomEventFromTrait;
 

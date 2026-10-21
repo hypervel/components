@@ -10,11 +10,14 @@ use DateTimeImmutable;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\Database\Pool\PoolManager as DatabasePoolManager;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -22,12 +25,17 @@ use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Sentry\Features\Storage\SentryCloudFilesystem;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -66,6 +74,153 @@ class ClientPooledFilesystemTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    #[WithConfig('database.connections.filesystem_release', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'pool' => ['testing_enabled' => true, 'max_connections' => 1],
+    ])]
+    #[TestWith(['get'])]
+    #[TestWith(['readStream'])]
+    #[TestWith(['withDriver'])]
+    public function testRemoteOperationsReleaseIdleDatabaseSessionsButPathFormattingDoesNot(string $operation): void
+    {
+        $this->driver->write('file.txt', 'contents');
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $disk = $this->disk($clientCreations, $stackCreations);
+        DB::connection('filesystem_release')->selectOne('select 1');
+        $pool = $this->app->make(DatabasePoolManager::class)->pool('filesystem_release');
+
+        $this->assertSame($this->tempDir . '/file.txt', $disk->path('file.txt'));
+        $this->assertSame(1, $pool->getBorrowedCount());
+
+        $result = $operation === 'withDriver'
+            ? $disk->withDriver(static fn (FilesystemOperator $driver): string => $driver->read('file.txt'))
+            : $disk->{$operation}('file.txt');
+
+        try {
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $this->assertSame('contents', is_resource($result) ? stream_get_contents($result) : $result);
+        } finally {
+            if (is_resource($result)) {
+                fclose($result);
+            }
+        }
+    }
+
+    public function testCrossDiskTransfersReleaseSharedClientBeforeWriting(): void
+    {
+        $definition = new PoolDefinition('filesystem:transfer', 'local-client', 'shared', PoolOptions::fromArray([
+            'max_objects' => 1,
+            'wait_timeout' => 0.02,
+        ]));
+        $makeDisk = fn (string $root): ClientPooledFilesystem => new ClientPooledFilesystem(
+            $definition,
+            static fn (): object => new stdClass,
+            static function (object $client) use ($root): FilesystemAdapter {
+                $adapter = new LocalFilesystemAdapter($root);
+
+                return new FilesystemAdapter(new Filesystem($adapter), $adapter, ['root' => $root]);
+            },
+            $this->pools,
+            ['root' => $root],
+        );
+        $source = $makeDisk($this->tempDir . '/source');
+        $destination = $makeDisk($this->tempDir . '/destination');
+        $source->put('file.txt', 'contents');
+
+        $this->assertTrue($source->copyToDisk($destination, 'file.txt'));
+        $this->assertSame('contents', $destination->get('file.txt'));
+        $this->assertTrue($source->moveToDisk($destination, 'file.txt', 'moved.txt'));
+        $this->assertSame('contents', $destination->get('moved.txt'));
+        $this->assertFalse($source->exists('file.txt'));
+
+        $source->put('file.txt', 'retained');
+        $failedDestination = m::mock(FilesystemContract::class);
+        $stream = null;
+        $failedDestination->shouldReceive('writeStream')->once()->with('file.txt', m::on(function (mixed $resource) use (&$stream): bool {
+            $stream = $resource;
+            $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
+            $this->assertSame('retained', stream_get_contents($resource));
+
+            return true;
+        }))->andReturnFalse();
+
+        $this->assertFalse($source->moveToDisk($failedDestination, 'file.txt'));
+        $this->assertSame('retained', $source->get('file.txt'));
+        $this->assertFalse(is_resource($stream));
+        $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
+    }
+
+    public function testReadThroughDisksReleaseSharedClientBorrowsBeforeCopyingAndProcessingListings(): void
+    {
+        $definition = new PoolDefinition('filesystem:shared-read-through', 'local-client', 'shared', PoolOptions::fromArray([
+            'max_objects' => 1,
+            'wait_timeout' => 0.02,
+        ]));
+        $makeDisk = fn (string $root): ClientPooledFilesystem => new ClientPooledFilesystem(
+            $definition,
+            static fn (): object => new stdClass,
+            static function (object $client) use ($root): FilesystemAdapter {
+                $adapter = new LocalFilesystemAdapter($root);
+
+                return new FilesystemAdapter(new Filesystem($adapter), $adapter, ['root' => $root]);
+            },
+            $this->pools,
+            ['root' => $root],
+        );
+        $primary = $makeDisk($this->tempDir . '/primary');
+        $fallback = $makeDisk($this->tempDir . '/fallback');
+        $manager = new FilesystemManager($this->app);
+        $manager->set('read-primary', new SentryCloudFilesystem($primary, [], false, false));
+        $manager->set('read-fallback', new SentryCloudFilesystem($fallback, [], false, false));
+        $readThrough = $manager->build([
+            'driver' => 'read-through',
+            'primary' => 'read-primary',
+            'fallback' => 'read-fallback',
+        ]);
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertTrue($readThrough->copy('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertSame('contents', $fallback->get('source.txt'));
+        $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+
+        foreach ($readThrough->getDriver()->listContents('', false) as $entry) {
+            $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+            $this->assertSame('contents', $readThrough->get($entry->path()));
+        }
+
+        $stream = $readThrough->readStream('source.txt');
+
+        try {
+            $this->assertSame('contents', stream_get_contents($stream));
+            $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+            $this->assertSame('contents', $primary->get('source.txt'));
+        } finally {
+            fclose($stream);
+        }
+
+        $fallback->put('unpromoted.txt', 'fallback contents');
+        $uncopied = $manager->build([
+            'driver' => 'read-through',
+            'primary' => 'read-primary',
+            'fallback' => 'read-fallback',
+            'copy' => false,
+        ]);
+        $stream = $uncopied->readStream('unpromoted.txt');
+
+        try {
+            $this->assertSame('fallback contents', stream_get_contents($stream));
+            $this->assertSame(1, $this->pools->get($definition->identity)->getBorrowedCount());
+        } finally {
+            fclose($stream);
+        }
+
+        $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+        $this->assertFalse($primary->exists('unpromoted.txt'));
     }
 
     public function testSynchronousOperationsBuildFreshStacksAroundOnePooledClient(): void
@@ -231,7 +386,7 @@ class ClientPooledFilesystemTest extends TestCase
         $disk = $this->disk($clientCreations, $stackCreations);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Pooled disks do not expose borrowed internals.');
+        $this->expectExceptionMessageIsOrContains('Pooled disks do not expose borrowed internals.');
 
         $disk->{$method}();
     }
@@ -252,7 +407,7 @@ class ClientPooledFilesystemTest extends TestCase
         $disk = $this->disk($clientCreations, $stackCreations);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('an unmapped call could return a lazy result');
+        $this->expectExceptionMessageIsOrContains('an unmapped call could return a lazy result');
 
         $disk->listContents('', true);
     }
@@ -281,6 +436,37 @@ class ClientPooledFilesystemTest extends TestCase
 
         $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
+    }
+
+    public function testBufferedReadStreamReleasesTheClientBeforeConsumption(): void
+    {
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $releaseCalls = 0;
+        $buffer = fopen('php://temp', 'w+b');
+        fwrite($buffer, 'buffered contents');
+        rewind($buffer);
+
+        $stack = m::mock(FilesystemAdapter::class);
+        $stack->shouldReceive('readStream')->once()->with('file.txt')->andReturn($buffer);
+        $disk = $this->disk(
+            $clientCreations,
+            $stackCreations,
+            static function (object $client) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+            static fn (object $client): FilesystemAdapter => $stack,
+        );
+
+        try {
+            $stream = $disk->readStream('file.txt');
+
+            $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
+            $this->assertSame(1, $releaseCalls);
+            $this->assertSame('buffered contents', stream_get_contents($stream));
+        } finally {
+            fclose($buffer);
+        }
     }
 
     public function testNonResourceReadStreamResultReleasesImmediately(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Http\Resources\Json\JsonResource;
 use RuntimeException;
 
 class JsonEncodingException extends RuntimeException
@@ -19,7 +20,7 @@ class JsonEncodingException extends RuntimeException
     /**
      * Create a new JSON encoding exception for the resource.
      *
-     * @param \Hypervel\Http\Resources\Json\JsonResource $resource
+     * @param JsonResource $resource
      */
     public static function forResource(object $resource, string $message): static
     {

@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Composer\InstalledVersions;
+use Dotenv\Dotenv;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\PendingProcess;
+use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -238,6 +243,22 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("channels: __DIR__ . '/../routes/channels.php',", $bootstrapContent);
     }
 
+    public function testReportsManualRegistrationWhenBootstrapHasNoRouting(): void
+    {
+        Process::fake();
+
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        file_put_contents($bootstrapPath, $this->skeletonBootstrapFixtureWithoutRouting());
+
+        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true, '--without-node' => true])
+            ->expectsOutputToContain('Unable to register broadcast routes.')
+            ->assertSuccessful();
+
+        $this->assertSame($this->skeletonBootstrapFixtureWithoutRouting(), file_get_contents($bootstrapPath));
+    }
+
     public function testWritesBroadcastConnectionEnv(): void
     {
         Process::fake();
@@ -406,9 +427,11 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
 
         // --reverb WITHOUT --without-reverb: triggers the Reverb install prompt.
-        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-node' => true])
-            ->expectsConfirmation('Would you like to install Hypervel Reverb?', 'yes')
-            ->assertSuccessful();
+        $this->withoutInstalledReverb(function (): void {
+            $this->artisan('install:broadcasting', ['--reverb' => true, '--without-node' => true])
+                ->expectsConfirmation('Would you like to install Hypervel Reverb?', 'yes')
+                ->assertSuccessful();
+        });
 
         // Verify composer require was called for reverb.
         $reverbCalls = array_filter(TestableBroadcastingInstallCommand::$composerRequireCalls, function (array $call): bool {
@@ -418,9 +441,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         // Verify reverb:install was run via the Process facade.
         Process::assertRan(function (PendingProcess $process): bool {
-            $command = implode(' ', (array) $process->command);
-
-            return str_contains($command, 'reverb:install');
+            return is_array($process->command)
+                && array_slice($process->command, 2) === ['reverb:install', ...($process->tty ? [] : ['--no-interaction'])]
+                && $process->timeout === null;
         });
     }
 
@@ -724,7 +747,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $tester->setInputs(['yes']);
 
         try {
-            $tester->execute(['--reverb' => true, '--without-node' => true]);
+            $this->withoutInstalledReverb(fn () => $tester->execute(['--reverb' => true, '--without-node' => true]));
             $this->fail('Expected Reverb installation to fail.');
         } catch (ProcessFailedException) {
         }
@@ -735,10 +758,13 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
     #[DataProvider('packageManagerCommands')]
     public function testNodePackageManagersUseSafeInstallFlags(
         ?string $lockFile,
-        string $expectedInstallCommand,
-        bool $expectsIgnoreScripts,
+        ?string $yarnVersion,
+        string $expectedCommand,
     ): void {
-        Process::fake();
+        Process::fake([
+            'yarn --version' => Process::result($yarnVersion . PHP_EOL),
+            '*' => Process::result(),
+        ]);
 
         $channelsPath = $this->app->basePath('routes/channels.php');
         $echoPath = $this->app->resourcePath('js/echo.js');
@@ -755,54 +781,257 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
             ->assertSuccessful();
 
-        Process::assertRan(function (PendingProcess $process) use ($expectedInstallCommand, $expectsIgnoreScripts): bool {
-            $command = (string) $process->command;
+        Process::assertRan(fn (PendingProcess $process): bool => $process->command === $expectedCommand);
 
-            return str_contains($command, $expectedInstallCommand)
-                && str_contains($command, '--ignore-scripts') === $expectsIgnoreScripts;
-        });
+        if ($yarnVersion === null) {
+            Process::assertDidntRun('yarn --version');
+        } else {
+            Process::assertRan(fn (PendingProcess $process): bool => $process->command === 'yarn --version'
+                && $process->path === $this->app->basePath());
+        }
     }
 
+    /**
+     * Provide package manager installation commands.
+     */
     public static function packageManagerCommands(): iterable
     {
         yield 'pnpm' => [
             'pnpm-lock.yaml',
-            'pnpm add --save-dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            null,
+            'pnpm add --save-dev laravel-echo pusher-js --ignore-scripts && pnpm run build',
         ];
 
-        yield 'yarn' => [
+        yield 'yarn 1' => [
             'yarn.lock',
-            'yarn add --dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            '1.22.22',
+            'yarn add --dev laravel-echo pusher-js --ignore-scripts && yarn run build',
+        ];
+
+        yield 'yarn 2' => [
+            'yarn.lock',
+            '2.4.2',
+            'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js && yarn run build',
+        ];
+
+        yield 'yarn 3' => [
+            'yarn.lock',
+            '3.8.7',
+            'yarn add --dev laravel-echo pusher-js --mode=skip-build && yarn run build',
         ];
 
         yield 'bun' => [
             'bun.lock',
-            'bun add --dev laravel-echo pusher-js',
-            false,
+            null,
+            'bun add --dev laravel-echo pusher-js && bun run build',
         ];
 
         yield 'npm' => [
             null,
-            'npm install --save-dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            null,
+            'npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build',
         ];
     }
 
-    public function testNodeFailurePrintsCompleteManualRecoveryCommands(): void
+    public function testFailedYarnVersionCheckDoesNotInstallNodeDependencies(): void
     {
-        Process::fake(static fn () => Process::result(exitCode: 1));
+        Process::fake([
+            'yarn --version' => Process::result(errorOutput: 'yarn: command not found', exitCode: 127),
+            '*' => Process::result(),
+        ]);
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $lockPath = $this->app->basePath('yarn.lock');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        $this->createdFiles[] = $lockPath;
+        file_put_contents($lockPath, '');
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+        $tester->setInputs(['yes']);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true]);
+            $this->fail('Expected the Yarn version check to fail.');
+        } catch (ProcessFailedException $exception) {
+            $this->assertSame('yarn --version', $exception->result->command());
+            $this->assertSame(127, $exception->result->exitCode());
+        }
+
+        Process::assertRan('yarn --version');
+        Process::assertDidntRun(fn (PendingProcess $process): bool => $process->command !== 'yarn --version');
+    }
+
+    #[DataProvider('manualRecoveryCommands')]
+    public function testNodeFailurePrintsCompleteManualRecoveryCommands(
+        ?string $lockFile,
+        ?string $yarnVersion,
+        string $expectedCommand,
+    ): void {
+        Process::fake([
+            'yarn --version' => Process::result($yarnVersion . PHP_EOL),
+            '*' => Process::result(exitCode: 1),
+        ]);
 
         $channelsPath = $this->app->basePath('routes/channels.php');
         $echoPath = $this->app->resourcePath('js/echo.js');
         $this->createdFiles[] = $channelsPath;
         $this->createdFiles[] = $echoPath;
 
+        if ($lockFile !== null) {
+            $lockPath = $this->app->basePath($lockFile);
+            file_put_contents($lockPath, '');
+            $this->createdFiles[] = $lockPath;
+        }
+
         $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true])
             ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
-            ->expectsOutputToContain('npm install --save-dev --ignore-scripts laravel-echo pusher-js && npm run build')
+            ->expectsOutputToContain($expectedCommand)
             ->assertSuccessful();
+    }
+
+    /**
+     * Provide manual recovery commands.
+     */
+    public static function manualRecoveryCommands(): iterable
+    {
+        yield 'npm' => [
+            null,
+            null,
+            'npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build',
+        ];
+
+        yield 'yarn 2' => [
+            'yarn.lock',
+            '2.4.2',
+            'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js && yarn run build',
+        ];
+
+        yield 'yarn 4' => [
+            'yarn.lock',
+            '4.18.1',
+            'yarn add --dev laravel-echo pusher-js --mode=skip-build && yarn run build',
+        ];
+    }
+
+    #[TestWith(['https://hub.example.com/.well-known/mercure', false])]
+    #[TestWith(['http://localhost/.well-known/mercure', true])]
+    #[TestWith(['HTTP://localhost/.well-known/mercure', true])]
+    public function testInstallsMercureConfiguration(string $publicUrl, bool $plainHttp): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $this->createdFiles[] = $echoPath;
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+        $tester->setInputs(['http://hub.internal/.well-known/mercure', $publicUrl, '', 'yes']);
+
+        $tester->execute(['--mercure' => true, '--without-node' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $variables = Dotenv::parse(file_get_contents($this->app->basePath('.env')));
+        $this->assertSame('mercure', $variables['BROADCAST_CONNECTION']);
+        $this->assertSame('http://hub.internal/.well-known/mercure', $variables['MERCURE_URL']);
+        $this->assertSame($publicUrl, $variables['MERCURE_PUBLIC_URL']);
+        $this->assertSame($publicUrl, $variables['VITE_MERCURE_HUB_URL']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $variables['MERCURE_JWT_SECRET']);
+        $this->assertStringStartsWith('base64:', $variables['MERCURE_ENCRYPTION_KEY']);
+        $this->assertSame(32, strlen(base64_decode(substr($variables['MERCURE_ENCRYPTION_KEY'], 7), true)));
+
+        if ($plainHttp) {
+            $this->assertSame('mercure_access_token', $variables['MERCURE_COOKIE_NAME']);
+            $this->assertStringContainsString('cookie_name mercure_access_token', $tester->getDisplay());
+        } else {
+            $this->assertArrayNotHasKey('MERCURE_COOKIE_NAME', $variables);
+        }
+
+        $this->assertStringContainsString("broadcaster: 'mercure'", file_get_contents($echoPath));
+        $this->assertStringContainsString('host: import.meta.env.VITE_MERCURE_HUB_URL', file_get_contents($echoPath));
+        Process::assertNothingRan();
+    }
+
+    public function testPretendPrintsDependencyCommandsWithoutInstalling(): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
+        $directory = ParallelTesting::tempDir('BroadcastingInstallCommandComposerPretend');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($directory);
+        $composer = $directory . '/composer.php';
+        $files->put($composer, '<?php echo json_encode(array_slice($argv, 1), JSON_UNESCAPED_SLASHES);');
+        $tester = $this->commandTester(new BroadcastingInstallCommandWithFakeConfig);
+        $tester->setInputs(['yes', 'yes']);
+
+        try {
+            $this->withoutInstalledReverb(fn () => $tester->execute(['--reverb' => true, '--pretend' => true, '--composer' => $composer]));
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $output = $tester->getDisplay();
+        $this->assertStringContainsString('["require","--with-all-dependencies","hypervel/reverb:^0.4","--dry-run"]', $output);
+        $this->assertStringContainsString('npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build', $output);
+        $this->assertStringNotContainsString('Installing and building Node dependencies.', $output);
+        $this->assertStringNotContainsString('Reverb installed successfully.', $output);
+        $this->assertStringNotContainsString('Node dependencies installed successfully.', $output);
+        Process::assertNothingRan();
+    }
+
+    public function testDriverPackagesSkipOnlyInstalledUnconstrainedPackagesAndKeepVersionConstraints(): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
+        $command = new class extends TestableBroadcastingInstallCommand {
+            /**
+             * Packages covering installed and missing dependencies, with and without constraints.
+             *
+             * @var array<string, array<string, string>>
+             */
+            protected array $driverPackages = [
+                'mercure' => [
+                    'symfony/mercure' => '^0.8',
+                    'symfony/http-client' => '*',
+                    'hypervel-test/missing' => '*',
+                    'hypervel-test/constrained' => '^1.0',
+                ],
+            ];
+        };
+        $tester = $this->commandTester($command);
+        $tester->setInputs(['https://hub.example.com/.well-known/mercure', '', str_repeat('s', 32), 'no']);
+
+        $tester->execute(['--mercure' => true, '--pretend' => true, '--without-node' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame([[
+            'composer' => 'global',
+            'packages' => ['symfony/mercure:^0.8', 'hypervel-test/missing', 'hypervel-test/constrained:^1.0'],
+            'pretend' => true,
+        ]], TestableBroadcastingInstallCommand::$composerRequireCalls);
+    }
+
+    /**
+     * Exercise installation without the aggregate package's Reverb replacement.
+     */
+    private function withoutInstalledReverb(callable $callback): void
+    {
+        $installed = require dirname(__DIR__, 4) . '/vendor/composer/installed.php';
+        $reloaded = $installed;
+        unset($reloaded['versions']['hypervel/reverb']);
+        $canGetVendors = new ReflectionProperty(InstalledVersions::class, 'canGetVendors');
+        $previousCanGetVendors = $canGetVendors->getValue();
+
+        $canGetVendors->setValue(null, false);
+        InstalledVersions::reload($reloaded);
+
+        try {
+            $callback();
+        } finally {
+            InstalledVersions::reload($installed);
+            $canGetVendors->setValue(null, $previousCanGetVendors);
+        }
     }
 
     /**
@@ -894,6 +1123,26 @@ PHP;
     }
 
     /**
+     * Get a bootstrap fixture that does not register routing.
+     */
+    private function skeletonBootstrapFixtureWithoutRouting(): string
+    {
+        return <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\Exceptions;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withExceptions(function (Exceptions $exceptions): void {
+        //
+    })->create();
+PHP;
+    }
+
+    /**
      * Create a tester for a broadcasting installer command.
      */
     private function commandTester(BroadcastingInstallCommand $command): CommandTester
@@ -906,23 +1155,36 @@ PHP;
     }
 }
 
-/**
- * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
- * record calls without actually running Composer.
- */
-class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
+class BroadcastingInstallCommandWithFakeConfig extends BroadcastingInstallCommand
 {
-    /** @var list<array{composer: string, packages: array<int, string>}> */
-    public static array $composerRequireCalls = [];
-
+    /**
+     * Skip configuration publication while exercising the real Composer integration.
+     */
     public function call(SymfonyCommand|string $command, array $arguments = []): int
     {
         return self::SUCCESS;
     }
+}
 
-    protected function requireComposerPackages(string $composer, array $packages): void
+/**
+ * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
+ * record calls without actually running Composer.
+ */
+class TestableBroadcastingInstallCommand extends BroadcastingInstallCommandWithFakeConfig
+{
+    /**
+     * Composer installation requests recorded by the fixture.
+     *
+     * @var list<array{composer: string, packages: array<int, string>, pretend: bool}>
+     */
+    public static array $composerRequireCalls = [];
+
+    /**
+     * Record dependency installation without running Composer.
+     */
+    protected function requireComposerPackages(string $composer, array $packages, bool $pretend = false): void
     {
-        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
+        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages, 'pretend' => $pretend];
     }
 }
 

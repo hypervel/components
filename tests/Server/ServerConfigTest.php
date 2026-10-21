@@ -93,7 +93,7 @@ class ServerConfigTest extends TestCase
     public function testEmptyServerNameIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Server names cannot be empty.');
+        $this->expectExceptionMessageIs('Server names cannot be empty.');
 
         new ServerConfig([
             'servers' => [
@@ -106,7 +106,7 @@ class ServerConfigTest extends TestCase
     public function testDuplicateServerNameIsRejected(array $servers): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Server name [grpc] is duplicated.');
+        $this->expectExceptionMessageIs('Server name [grpc] is duplicated.');
 
         new ServerConfig(['servers' => $servers]);
     }
@@ -159,7 +159,7 @@ class ServerConfigTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $config->addServer($server);
     }
@@ -188,7 +188,7 @@ class ServerConfigTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $config->setServers($servers);
     }
@@ -221,7 +221,7 @@ class ServerConfigTest extends TestCase
     public function testRejectsGlobalEventObjectSetting(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Swoole event_object is not supported in global server settings; use Hypervel lifecycle events instead.'
         );
 
@@ -234,7 +234,7 @@ class ServerConfigTest extends TestCase
     public function testRejectsPortEventObjectSetting(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Swoole event_object is not supported on server port 'http'; use Hypervel lifecycle events instead."
         );
 
@@ -267,7 +267,7 @@ class ServerConfigTest extends TestCase
         $config = new ServerConfig(['servers' => $this->servers()]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Swoole event_object is not supported in global server settings; use Hypervel lifecycle events instead.'
         );
 
@@ -279,7 +279,7 @@ class ServerConfigTest extends TestCase
         $config = new ServerConfig(['servers' => $this->servers()]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Swoole event_object is not supported on server port 'http'; use Hypervel lifecycle events instead."
         );
 

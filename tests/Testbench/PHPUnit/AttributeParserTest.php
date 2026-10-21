@@ -29,7 +29,7 @@ class AttributeParserTest extends TestCase
     public function itPropagatesAttributeConstructionFailures(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('attribute construction failed');
+        $this->expectExceptionMessageIs('attribute construction failed');
 
         AttributeParser::forMethod(AttributeParserFixture::class, 'withFailingConstructor');
     }
@@ -38,7 +38,7 @@ class AttributeParserTest extends TestCase
     public function itPropagatesAttributeResolverFailures(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('attribute resolver failed');
+        $this->expectExceptionMessageIs('attribute resolver failed');
 
         AttributeParser::forMethod(AttributeParserFixture::class, 'withFailingResolver');
     }

@@ -17,63 +17,57 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class DatabaseSQLiteBuilderTest extends TestCase
 {
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
-        File::shouldReceive('put')
-            ->once()
+        File::expects('put')
             ->with('my_temporary_database_a', '')
             ->andReturn(20); // bytes
 
         $this->assertTrue($builder->createDatabase('my_temporary_database_a'));
 
-        File::shouldReceive('put')
-            ->once()
+        File::expects('put')
             ->with('my_temporary_database_b', '')
             ->andReturn(false);
 
         $this->assertFalse($builder->createDatabase('my_temporary_database_b'));
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(true);
 
-        File::shouldReceive('delete')
-            ->once()
+        File::expects('delete')
             ->with('my_temporary_database_b')
             ->andReturn(true);
 
         $this->assertTrue($builder->dropDatabaseIfExists('my_temporary_database_b'));
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(false);
 
         $this->assertTrue($builder->dropDatabaseIfExists('my_temporary_database_c'));
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(true);
 
-        File::shouldReceive('delete')
-            ->once()
+        File::expects('delete')
             ->with('my_temporary_database_c')
             ->andReturn(false);
 
@@ -89,7 +83,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$name}] is not supported."
         );
 
@@ -106,7 +100,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('delete')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$name}] is not supported."
         );
 
@@ -255,7 +249,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('statement failed');
+        $this->expectExceptionMessageIs('statement failed');
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
@@ -282,17 +276,14 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ],
             [new Fluent(['name' => 'alter'])],
         );
-        $pdo->failForeignKeyRestoration = true;
+        $failure = $pdo->foreignKeyRestorationFailure = new PDOException('Failed to restore foreign key constraints.');
 
         try {
             try {
                 (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
                 $this->fail('Expected foreign-key restoration to fail.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame(
-                    'Failed to execute schema statement [pragma foreign_keys = 1].',
-                    $exception->getMessage(),
-                );
+            } catch (PDOException $exception) {
+                $this->assertSame($failure, $exception);
             }
 
             $this->assertFalse($connection->isReusable());
@@ -330,7 +321,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite cannot rebuild the populated table [users] while foreign key constraints are enabled within an active transaction.'
         );
 
@@ -418,7 +409,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite foreign key constraints cannot be enabled or disabled within an active transaction.'
         );
 
@@ -619,7 +610,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Failed to execute schema statement [delete from "main".sqlite_master where type in (\'table\', \'index\', \'trigger\')].'
         );
 
@@ -650,7 +641,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [vacuum "main"].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -679,7 +670,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('markCurrentSessionStateUnknown')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [vacuum "main"].');
+        $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -688,6 +679,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
+        $failure = new PDOException('Failed to reset writable_schema.');
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -702,20 +694,23 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')
             ->once()
             ->with('pragma writable_schema = RESET')
-            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = RESET].'))
+            ->andThrow($failure)
             ->ordered();
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [pragma writable_schema = RESET].');
-
-        (new SQLiteBuilder($connection))->dropAllTables();
+        try {
+            (new SQLiteBuilder($connection))->dropAllTables();
+            $this->fail('Expected writable_schema reset to fail.');
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testDropAllViewsPropagatesWritableModeRestorationFailure(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
+        $failure = new PDOException('Failed to restore writable_schema.');
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -735,13 +730,15 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('executeSessionStatement')
             ->once()
             ->with('pragma writable_schema = 1')
-            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = 1].'))
+            ->andThrow($failure)
             ->ordered();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [pragma writable_schema = 1].');
-
-        (new SQLiteBuilder($connection))->dropAllViews();
+        try {
+            (new SQLiteBuilder($connection))->dropAllViews();
+            $this->fail('Expected writable_schema restoration to fail.');
+        } catch (PDOException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     public function testDropAllTablesRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
@@ -753,7 +750,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot drop all tables within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot drop all tables within an active transaction.');
 
         (new SQLiteBuilder($connection))->dropAllTables();
     }
@@ -767,7 +764,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('statement')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot drop all views within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot drop all views within an active transaction.');
 
         (new SQLiteBuilder($connection))->dropAllViews();
     }
@@ -801,7 +798,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'SQLite database files cannot be refreshed through a connection using WAL journal mode. Use dropAllTables() to empty a database while connections are using it.'
         );
 
@@ -818,7 +815,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('SQLite cannot refresh the database file within an active transaction.');
+        $this->expectExceptionMessageIs('SQLite cannot refresh the database file within an active transaction.');
 
         (new SQLiteBuilder($connection))->refreshDatabaseFile();
     }
@@ -847,7 +844,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         File::shouldReceive('put')->never();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "SQLite database management requires a plain filesystem path; [{$database}] is not supported."
         );
 
@@ -877,7 +874,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ->andReturn(false);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to refresh SQLite database file [/database.sqlite].');
+        $this->expectExceptionMessageIs('Unable to refresh SQLite database file [/database.sqlite].');
 
         (new SQLiteBuilder($connection))->refreshDatabaseFile('/database.sqlite');
     }
@@ -918,7 +915,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
 class SQLiteBuilderFailingForeignKeyRestorePdo extends PDO
 {
-    public bool $failForeignKeyRestoration = false;
+    public ?PDOException $foreignKeyRestorationFailure = null;
 
     /**
      * Execute an SQL statement and return the number of affected rows.
@@ -926,8 +923,8 @@ class SQLiteBuilderFailingForeignKeyRestorePdo extends PDO
     #[Override]
     public function exec(string $statement): int|false
     {
-        if ($this->failForeignKeyRestoration && trim($statement) === 'pragma foreign_keys = 1') {
-            return false;
+        if ($this->foreignKeyRestorationFailure !== null && trim($statement) === 'pragma foreign_keys = 1') {
+            throw $this->foreignKeyRestorationFailure;
         }
 
         return parent::exec($statement);

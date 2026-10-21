@@ -15,20 +15,21 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\ExpectationFailedException;
 
 class FoundationInteractsWithDatabaseTest extends TestCase
 {
     use InteractsWithDatabase;
 
-    protected $table = 'products';
+    protected string $table = 'products';
 
-    protected $data = [
+    protected array $data = [
         'title' => 'Spark',
-        'name' => 'Laravel',
+        'name' => 'Hypervel',
     ];
 
-    protected $connection;
+    protected Connection&MockInterface $connection;
 
     protected function setUp(): void
     {
@@ -37,21 +38,21 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->connection = m::mock(Connection::class);
     }
 
-    public function testSeeInDatabaseFindsResults()
+    public function testSeeInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
-    public function testAssertDatabaseHasSupportsModelClass()
+    public function testAssertDatabaseHasSupportsModelClass(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseHas(ProductStub::class, $this->data);
     }
 
-    public function testAssertDatabaseHasConstrainsToModel()
+    public function testAssertDatabaseHasConstrainsToModel(): void
     {
         $data = $this->data;
 
@@ -65,25 +66,24 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseHas(new ProductStub(['id' => 1]), $data);
     }
 
-    public function testAssertDatabaseHasSupportsArrays(): void
+    public function testAssertDatabaseSupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturn(true);
+        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturn(true);
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
         $this->assertDatabaseHas($this->table, [
-            ['title' => 'Spark', 'name' => 'Laravel'],
-            ['title' => 'Forge', 'name' => 'Laravel'],
+            ['title' => 'Spark', 'name' => 'Hypervel'],
+            ['title' => 'Forge', 'name' => 'Hypervel'],
         ]);
     }
 
-    public function testSeeInDatabaseDoesNotFindResults()
+    public function testSeeInDatabaseDoesNotFindResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $builder = $this->mockCountBuilder(false);
 
@@ -92,11 +92,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
-    public function testSeeInDatabaseFindsNotMatchingResults()
+    public function testSeeInDatabaseFindsNotMatchingResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-
-        $this->expectExceptionMessage('Found similar results: ' . json_encode([['title' => 'Forge']], JSON_PRETTY_PRINT));
+        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode([['title' => 'Forge']], JSON_PRETTY_PRINT)));
 
         $builder = $this->mockCountBuilder(false);
 
@@ -106,11 +104,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
-    public function testSeeInDatabaseFindsManyNotMatchingResults()
+    public function testSeeInDatabaseFindsManyNotMatchingResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-
-        $this->expectExceptionMessage('Found similar results: ' . json_encode(['data', 'data', 'data'], JSON_PRETTY_PRINT) . ' and 2 others.');
+        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode(['data', 'data', 'data'], JSON_PRETTY_PRINT) . ' and 2 others.'));
 
         $builder = $this->mockCountBuilder(false, countResult: [5, 5]);
 
@@ -125,33 +121,33 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     public function testAssertDatabaseMissingSupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturn(false);
+        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturn(false);
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
         $this->assertDatabaseMissing($this->table, [
-            ['title' => 'Spark', 'name' => 'Laravel'],
-            ['title' => 'Forge', 'name' => 'Laravel'],
+            ['title' => 'Spark', 'name' => 'Hypervel'],
+            ['title' => 'Forge', 'name' => 'Hypervel'],
         ]);
     }
 
-    public function testDontSeeInDatabaseDoesNotFindResults()
+    public function testDontSeeInDatabaseDoesNotFindResults(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertDatabaseMissingSupportsModelClass()
+    public function testAssertDatabaseMissingSupportsModelClass(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing(ProductStub::class, $this->data);
     }
 
-    public function testAssertDatabaseMissingConstrainsToModel()
+    public function testAssertDatabaseMissingConstrainsToModel(): void
     {
         $data = $this->data;
 
@@ -165,7 +161,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing(new ProductStub(['id' => 1]), $data);
     }
 
-    public function testDontSeeInDatabaseFindsResults()
+    public function testDontSeeInDatabaseFindsResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
@@ -177,14 +173,14 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertTableEntriesCount()
+    public function testAssertTableEntriesCount(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseCount($this->table, 1);
     }
 
-    public function testAssertDatabaseCountSupportModels()
+    public function testAssertDatabaseCountSupportModels(): void
     {
         $this->mockCountBuilder(true);
 
@@ -192,7 +188,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseCount(new ProductStub, 1);
     }
 
-    public function testAssertDatabaseEmpty()
+    public function testAssertDatabaseEmpty(): void
     {
         $this->mockCountBuilder(false);
 
@@ -203,7 +199,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     public function testAssertDatabaseEmptySupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('count')->twice()->andReturn(0);
+        $builder->expects('count')->twice()->andReturn(0);
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
         $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
@@ -211,10 +207,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseEmpty([ProductStub::class, OrderStub::class]);
     }
 
-    public function testAssertTableEntriesCountWrong()
+    public function testAssertTableEntriesCountWrong(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('Failed asserting that table [products] matches expected entries count of 3. Entries found: 1.');
+        $this->expectExceptionObject(new ExpectationFailedException('Failed asserting that table [products] matches expected entries count of 3. Entries found: 1.'));
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseCount($this->table, 3);
@@ -223,41 +218,73 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     public function testAssertSoftDeletedSupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('whereNotNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturnTrue();
+        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('whereNotNull')->with('deleted_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
         $this->assertSoftDeleted($this->table, [
-            ['title' => 'Spark', 'name' => 'Laravel'],
-            ['title' => 'Forge', 'name' => 'Laravel'],
+            ['title' => 'Spark', 'name' => 'Hypervel'],
+            ['title' => 'Forge', 'name' => 'Hypervel'],
+        ]);
+    }
+
+    public function testAssertSoftDeletedSupportsModelWithArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
+        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
+        $builder->expects('whereNotNull')->with('trashed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertSoftDeleted(new CustomProductStub(['id' => 1]), [
+            ['title' => 'Spark'],
+            ['name' => 'Hypervel'],
         ]);
     }
 
     public function testAssertNotSoftDeletedSupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
-        $builder->shouldReceive('whereNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturnTrue();
+        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
+        $builder->expects('whereNull')->with('deleted_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
         $this->assertNotSoftDeleted($this->table, [
-            ['title' => 'Spark', 'name' => 'Laravel'],
-            ['title' => 'Forge', 'name' => 'Laravel'],
+            ['title' => 'Spark', 'name' => 'Hypervel'],
+            ['title' => 'Forge', 'name' => 'Hypervel'],
+        ]);
+    }
+
+    public function testAssertNotSoftDeletedSupportsModelWithArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
+        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
+        $builder->expects('whereNull')->with('trashed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertNotSoftDeleted(new CustomProductStub(['id' => 1]), [
+            ['title' => 'Spark'],
+            ['name' => 'Hypervel'],
         ]);
     }
 
     public function testAssertSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
-        $builder->shouldReceive('whereNotNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturnTrue();
+        $builder->expects('where')->with($this->data)->twice()->andReturnSelf();
+        $builder->expects('whereNotNull')->with('removed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
         $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
@@ -268,9 +295,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     public function testAssertNotSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
-        $builder->shouldReceive('whereNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('exists')->twice()->andReturnTrue();
+        $builder->expects('where')->with($this->data)->twice()->andReturnSelf();
+        $builder->expects('whereNull')->with('removed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
         $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
@@ -278,14 +305,14 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
     }
 
-    public function testAssertDatabaseMissingPassesWhenDoesNotFindResults()
+    public function testAssertDatabaseMissingPassesWhenDoesNotFindResults(): void
     {
         $this->mockCountBuilder(false);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertDatabaseMissingFailsWhenFindsResults()
+    public function testAssertDatabaseMissingFailsWhenFindsResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
@@ -296,7 +323,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
-    public function testAssertModelMissingPassesWhenDoesNotFindModelResults()
+    public function testAssertModelMissingPassesWhenDoesNotFindModelResults(): void
     {
         $this->data = ['id' => 1];
 
@@ -307,24 +334,50 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertModelMissing(new ProductStub($this->data));
     }
 
-    public function testAssertSoftDeletedInDatabaseFindsResults()
+    public function testAssertModelMissingFailsWhenFindsModelResults(): void
+    {
+        $this->expectException(ExpectationFailedException::class);
+
+        $this->data = ['id' => 1];
+
+        $builder = $this->mockCountBuilder(true);
+
+        $builder->shouldReceive('get')->andReturn(collect([$this->data]));
+
+        $this->assertModelMissing(new ProductStub($this->data));
+    }
+
+    public function testAssertModelExistsFailsWhenDoesNotFindModelResults(): void
+    {
+        $this->expectException(ExpectationFailedException::class);
+
+        $this->data = ['id' => 1];
+
+        $builder = $this->mockCountBuilder(false);
+
+        $builder->shouldReceive('get')->andReturn(collect());
+
+        $this->assertModelExists(new ProductStub($this->data));
+    }
+
+    public function testAssertSoftDeletedInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertSoftDeletedSupportModelStrings()
+    public function testAssertSoftDeletedSupportModelStrings(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertSoftDeleted(ProductStub::class, $this->data);
+        $this->assertSoftDeleted(ProductStub::class, $this->data, deletedAtColumn: null);
     }
 
-    public function testAssertSoftDeletedInDatabaseDoesNotFindResults()
+    public function testAssertSoftDeletedInDatabaseDoesNotFindResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $builder = $this->mockCountBuilder(false);
 
@@ -333,10 +386,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertSoftDeletedInDatabaseDoesNotFindModelResults()
+    public function testAssertSoftDeletedInDatabaseDoesNotFindModelResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $this->data = ['id' => 1];
 
@@ -347,12 +399,11 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted(new ProductStub($this->data));
     }
 
-    public function testAssertSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults()
+    public function testAssertSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $model = new CustomProductStub(['id' => 1, 'name' => 'Laravel']);
+        $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
         $this->data = ['id' => 1, 'name' => 'Tailwind'];
 
         $builder = $this->mockCountBuilder(false, 'trashed_at');
@@ -362,12 +413,11 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted($model, ['name' => 'Tailwind']);
     }
 
-    public function testAssertSoftDeletedInDatabaseDoesNotFindModePassedViaFcnWithCustomColumnResults()
+    public function testAssertSoftDeletedInDatabaseDoesNotFindModePassedViaFcnWithCustomColumnResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $model = new CustomProductStub(['id' => 1, 'name' => 'Laravel']);
+        $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
         $this->data = ['id' => 1];
 
         $builder = $this->mockCountBuilder(false, 'trashed_at');
@@ -377,24 +427,24 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
 
-    public function testAssertNotSoftDeletedInDatabaseFindsResults()
+    public function testAssertNotSoftDeletedInDatabaseFindsResults(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertNotSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertNotSoftDeletedSupportModelStrings()
+    public function testAssertNotSoftDeletedSupportModelStrings(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertNotSoftDeleted(ProductStub::class, $this->data);
+        $this->assertNotSoftDeleted(ProductStub::class, $this->data, deletedAtColumn: null);
     }
 
-    public function testAssertNotSoftDeletedOnlyFindsMatchingModels()
+    public function testAssertNotSoftDeletedOnlyFindsMatchingModels(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('Failed asserting that any existing row');
+        $this->expectExceptionObject(new ExpectationFailedException('Failed asserting that any existing row'));
 
         $builder = $this->mockCountBuilder(false);
 
@@ -403,10 +453,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(ProductStub::class, $this->data);
     }
 
-    public function testAssertNotSoftDeletedInDatabaseDoesNotFindResults()
+    public function testAssertNotSoftDeletedInDatabaseDoesNotFindResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $builder = $this->mockCountBuilder(false);
 
@@ -415,10 +464,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelResults()
+    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $this->data = ['id' => 1];
 
@@ -429,12 +477,11 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(new ProductStub($this->data));
     }
 
-    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults()
+    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $model = new CustomProductStub(['id' => 1, 'name' => 'Laravel']);
+        $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
         $this->data = ['id' => 1, 'name' => 'Tailwind'];
 
         $builder = $this->mockCountBuilder(false, 'trashed_at');
@@ -444,12 +491,11 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted($model, ['name' => 'Tailwind']);
     }
 
-    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelPassedViaFcnWithCustomColumnResults()
+    public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelPassedViaFcnWithCustomColumnResults(): void
     {
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The table is empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $model = new CustomProductStub(['id' => 1, 'name' => 'Laravel']);
+        $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
         $this->data = ['id' => 1];
 
         $builder = $this->mockCountBuilder(false, 'trashed_at');
@@ -459,7 +505,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
 
-    public function testAssertExistsPassesWhenFindsResults()
+    public function testAssertExistsPassesWhenFindsResults(): void
     {
         $this->data = ['id' => 1];
 
@@ -470,33 +516,33 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertModelExists(new ProductStub($this->data));
     }
 
-    public function testGetTableNameFromModel()
+    public function testGetTableNameFromModel(): void
     {
         $this->assertEquals($this->table, $this->getTable(ProductStub::class));
         $this->assertEquals($this->table, $this->getTable(new ProductStub));
         $this->assertEquals($this->table, $this->getTable($this->table));
-        $this->assertEquals('all_products', $this->getTable((new ProductStub)->setTable('all_products')));
+        $this->assertSame('all_products', $this->getTable((new ProductStub)->setTable('all_products')));
     }
 
-    public function testGetTableConnectionNameFromModel()
+    public function testGetTableConnectionNameFromModel(): void
     {
-        $this->assertSame(null, $this->getTableConnection(ProductStub::class));
-        $this->assertSame(null, $this->getTableConnection(new ProductStub));
+        $this->assertNull($this->getTableConnection(ProductStub::class));
+        $this->assertNull($this->getTableConnection(new ProductStub));
         $this->assertSame('mysql', $this->getTableConnection((new ProductStub)->setConnection('mysql')));
     }
 
-    public function testGetTableCustomizedDeletedAtColumnName()
+    public function testGetTableCustomizedDeletedAtColumnName(): void
     {
-        $this->assertEquals('trashed_at', $this->getDeletedAtColumn(CustomProductStub::class));
-        $this->assertEquals('trashed_at', $this->getDeletedAtColumn(new CustomProductStub));
+        $this->assertSame('trashed_at', $this->getDeletedAtColumn(CustomProductStub::class));
+        $this->assertSame('trashed_at', $this->getDeletedAtColumn(new CustomProductStub));
     }
 
-    public function testExpectsDatabaseQueryCount()
+    public function testExpectsDatabaseQueryCount(): void
     {
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(0);
             }
@@ -509,7 +555,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(3);
             }
@@ -528,7 +574,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(3);
 
@@ -554,7 +600,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case = new class('foo') extends TestingTestCase {
             use CreatesApplication;
 
-            public function testExpectsDatabaseQueryCount()
+            public function testExpectsDatabaseQueryCount(): void
             {
                 $this->expectsDatabaseQueryCount(4);
                 $this->expectsDatabaseQueryCount(1, 'mysql');
@@ -576,7 +622,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $case->tearDown();
     }
 
-    protected function mockCountBuilder($existsResult, $deletedAtColumn = 'deleted_at', $countResult = null)
+    /**
+     * Mock the query used by database assertions.
+     *
+     * @param null|int|list<int> $countResult
+     */
+    protected function mockCountBuilder(bool $existsResult, string $deletedAtColumn = 'deleted_at', array|int|null $countResult = null): Builder&MockInterface
     {
         $builder = m::mock(Builder::class);
 
@@ -609,7 +660,10 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         return $builder;
     }
 
-    protected function getConnection()
+    /**
+     * Get the mocked database connection.
+     */
+    protected function getConnection(): Connection&MockInterface
     {
         return $this->connection;
     }

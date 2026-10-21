@@ -34,7 +34,7 @@ use StdClass;
 
 class RedisPayloadTest extends IntegrationTestCase
 {
-    public function testTypeIsCorrectlyDetermined()
+    public function testTypeIsCorrectlyDetermined(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -81,7 +81,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertIsNumeric($payload->decoded['pushedAt']);
     }
 
-    public function testTagsAreCorrectlyDetermined()
+    public function testTagsAreCorrectlyDetermined(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -95,7 +95,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':1', FakeModel::class . ':2'], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreCorrectlyGatheredFromCollections()
+    public function testTagsAreCorrectlyGatheredFromCollections(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -109,7 +109,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':1', FakeModel::class . ':2'], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreCorrectlyExtractedForListeners()
+    public function testTagsAreCorrectlyExtractedForListeners(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -122,7 +122,7 @@ class RedisPayloadTest extends IntegrationTestCase
         ], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreCorrectlyExtractedForListenersWithDynamicEventInformation()
+    public function testTagsAreCorrectlyExtractedForListenersWithDynamicEventInformation(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -135,7 +135,7 @@ class RedisPayloadTest extends IntegrationTestCase
         ], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreCorrectlyDeterminedForListeners()
+    public function testTagsAreCorrectlyDeterminedForListeners(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -146,7 +146,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':42'], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreCorrectlyDeterminedForListenersWithPropertyTypes()
+    public function testTagsAreCorrectlyDeterminedForListenersWithPropertyTypes(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -157,7 +157,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':21'], $JobPayload->decoded['tags']);
     }
 
-    public function testListenerAndEventTagsCanMergeAutoTagEvents()
+    public function testListenerAndEventTagsCanMergeAutoTagEvents(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -170,7 +170,7 @@ class RedisPayloadTest extends IntegrationTestCase
         ], $JobPayload->decoded['tags']);
     }
 
-    public function testTagsAreAddedToExisting()
+    public function testTagsAreAddedToExisting(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1', 'tags' => ['mytag']]));
 
@@ -181,7 +181,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals(['mytag', FakeModel::class . ':42'], $JobPayload->decoded['tags']);
     }
 
-    public function testJobsCanHaveTagsMethodToOverrideAutoTagging()
+    public function testJobsCanHaveTagsMethodToOverrideAutoTagging(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -189,7 +189,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals(['first', 'second'], $JobPayload->decoded['tags']);
     }
 
-    public function testItDeterminesIfJobIsSilencedCorrectly()
+    public function testItDeterminesIfJobIsSilencedCorrectly(): void
     {
         $horizonConfig = config()->array('horizon');
         unset($horizonConfig['silenced'], $horizonConfig['silenced_tags']);
@@ -213,7 +213,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertFalse($JobPayload->isSilenced());
     }
 
-    public function testItDeterminesIfJobIsSilencedCorrectlyForMailable()
+    public function testItDeterminesIfJobIsSilencedCorrectlyForMailable(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
@@ -223,7 +223,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertTrue($JobPayload->isSilenced());
     }
 
-    public function testItDeterminesIfJobIsSilencedCorrectlyByTags()
+    public function testItDeterminesIfJobIsSilencedCorrectlyByTags(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 

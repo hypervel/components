@@ -27,86 +27,90 @@ class CacheSchedulingMutexTest extends TestCase
 
     protected ?Repository $cacheRepository = null;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->cacheFactory = m::mock(CacheFactory::class);
         $this->cacheRepository = m::mock(Repository::class);
-        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
+        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository)->byDefault();
         $this->cacheMutex = new CacheSchedulingMutex($this->cacheFactory);
         $this->event = new Event(new CacheEventMutex($this->cacheFactory), 'command');
         $this->time = CarbonImmutable::now();
     }
 
-    public function testMutexReceivesCorrectCreate()
+    public function testMutexReceivesCorrectCreate(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('add')->once()->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(true);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('add')->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(true);
 
         $this->assertTrue($this->cacheMutex->create($this->event, $this->time));
     }
 
-    public function testCanUseCustomConnection()
+    public function testCanUseCustomConnection(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheFactory->shouldReceive('store')->with('test')->andReturn($this->cacheRepository);
-        $this->cacheRepository->shouldReceive('add')->once()->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(true);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheFactory->expects('store')->with('test')->andReturn($this->cacheRepository);
+        $this->cacheRepository->expects('add')->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(true);
         $this->cacheMutex->useStore('test');
 
         $this->assertTrue($this->cacheMutex->create($this->event, $this->time));
     }
 
-    public function testPreventsMultipleRuns()
+    public function testPreventsMultipleRuns(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('add')->once()->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(false);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('add')->with($this->event->mutexName() . $this->time->format('Hi'), true, 3600)->andReturn(false);
 
         $this->assertFalse($this->cacheMutex->create($this->event, $this->time));
     }
 
-    public function testChecksForNonRunSchedule()
+    public function testChecksForNonRunSchedule(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('has')->once()->with($this->event->mutexName() . $this->time->format('Hi'))->andReturn(false);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('has')->with($this->event->mutexName() . $this->time->format('Hi'))->andReturn(false);
 
         $this->assertFalse($this->cacheMutex->exists($this->event, $this->time));
     }
 
-    public function testChecksForAlreadyRunSchedule()
+    public function testChecksForAlreadyRunSchedule(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('has')->with($this->event->mutexName() . $this->time->format('Hi'))->andReturn(true);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('has')->with($this->event->mutexName() . $this->time->format('Hi'))->andReturn(true);
 
         $this->assertTrue($this->cacheMutex->exists($this->event, $this->time));
     }
 
-    public function testMutexReceivesCorrectCreateWithLockProvider()
+    public function testMutexReceivesCorrectCreateWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
 
         $this->assertTrue($this->cacheMutex->create($this->event, $this->time));
     }
 
-    public function testPreventsMultipleRunsWithLockProvider()
+    public function testPreventsMultipleRunsWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
 
+        // first create the lock, so we can test that the next call fails.
         $this->cacheMutex->create($this->event, $this->time);
 
         $this->assertFalse($this->cacheMutex->create($this->event, $this->time));
     }
 
-    public function testChecksForNonRunScheduleWithLockProvider()
+    public function testChecksForNonRunScheduleWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
 
         $this->assertFalse($this->cacheMutex->exists($this->event, $this->time));
     }
 
-    public function testChecksForAlreadyRunScheduleWithLockProvider()
+    public function testChecksForAlreadyRunScheduleWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
 
         $this->cacheMutex->create($this->event, $this->time);
 

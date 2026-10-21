@@ -10,7 +10,7 @@ use InvalidArgumentException;
 use JsonException;
 use UnexpectedValueException;
 
-/** @implements Arrayable<array-key, mixed> */
+/** @implements Arrayable<array<array-key, mixed>> */
 class Cursor implements Arrayable
 {
     /**
@@ -79,7 +79,7 @@ class Cursor implements Arrayable
     /**
      * Get the array representation of the cursor.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public function toArray(): array
     {

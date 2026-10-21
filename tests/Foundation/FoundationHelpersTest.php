@@ -13,6 +13,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Http\Request;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
@@ -207,43 +208,90 @@ class FoundationHelpersTest extends TestCase
         $this->assertInstanceOf(CacheManager::class, cache());
 
         // cache(['foo' => 'bar'], 1) puts
-        $cache->shouldReceive('put')->once()->with('foo', 'bar', 1);
+        $cache->expects('put')->withArgs(['foo', 'bar', 'ttl' => 1]);
         cache(['foo' => 'bar'], 1);
 
         // cache('foo') gets
-        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo'));
 
         // cache('foo', null) gets with null default
-        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo', null));
 
         // cache('baz', 'default') gets with default
-        $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
+        $cache->expects('get')->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
+    }
+
+    public function testSessionAcceptsEnumKeys(): void
+    {
+        session(['America/New_York' => 'string-backed', 1 => 'integer-backed', 'UTC' => 'unit']);
+
+        $this->assertSame('string-backed', session(StringEnum::NewYork));
+        $this->assertSame('integer-backed', session(IntEnum::One));
+        $this->assertSame('unit', session(UnitEnum::UTC));
+        $this->assertSame('default', session(UnitEnum::EST, 'default'));
+    }
+
+    public function testOldReturnsNonStringInput(): void
+    {
+        $session = $this->app->make('session')->driver();
+        $session->flashInput(['quantity' => 3]);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
+        RequestContext::set($request);
+
+        $this->assertSame(3, old('quantity'));
+    }
+
+    public function testInfoWritesToTheLogger(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $logger->expects('info')->with('User login attempt failed.', ['id' => 1]);
+        $this->app->instance(LoggerInterface::class, $logger);
+
+        info('User login attempt failed.', ['id' => 1]);
+    }
+
+    public function testInfoAddsTheCallerLocationToTheContext(): void
+    {
+        $loggedContext = null;
+        $logger = m::mock(LoggerInterface::class);
+        $logger->expects('info')->withArgs(function (string $message, array $context) use (&$loggedContext): bool {
+            $loggedContext = $context;
+
+            return $message === 'Cache warmed.';
+        });
+        $this->app->instance(LoggerInterface::class, $logger);
+
+        info('Cache warmed.', ['id' => 1], callerLocation: true);
+        $line = __LINE__ - 1;
+
+        $this->assertSame(['id' => 1, 'caller_location' => __FILE__ . ':' . $line], $loggedContext);
     }
 
     public function testLogsResolvesAChannelNamedZero(): void
     {
         $manager = m::mock(LogManager::class);
         $logger = m::mock(LoggerInterface::class);
-        $manager->shouldReceive('driver')->once()->with('0')->andReturn($logger);
+        $manager->expects('driver')->with('0')->andReturn($logger);
         $this->app->instance('log', $manager);
 
         $this->assertSame($logger, logs('0'));
         $this->assertSame($manager, logs());
     }
 
-    public function testEvents()
+    public function testEvents(): void
     {
         $dispatcher = m::mock(Dispatcher::class);
         $this->app->instance('events', $dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with('test.event', ['payload'], false)->andReturn('foo');
+        $dispatcher->expects('dispatch')->with('test.event', ['payload'], false)->andReturn('foo');
         $this->assertSame('foo', event('test.event', ['payload'], false));
     }
 
-    public function testEventHelperReturnsArrayForNormalDispatch()
+    public function testEventHelperReturnsArrayForNormalDispatch(): void
     {
         Event::listen('test.event', function () {
             return 'response';
@@ -255,7 +303,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['response'], $result);
     }
 
-    public function testEventHelperReturnsNonArrayForHaltedDispatch()
+    public function testEventHelperReturnsNonArrayForHaltedDispatch(): void
     {
         Event::listen('test.halted', function () {
             return 42;
@@ -266,14 +314,14 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(42, $result);
     }
 
-    public function testEventHelperReturnsNullWhenNoListenersAndHalted()
+    public function testEventHelperReturnsNullWhenNoListenersAndHalted(): void
     {
         $result = event('test.no-listeners', [], true);
 
         $this->assertNull($result);
     }
 
-    public function testEventHelperReturnsEmptyArrayWhenNoListeners()
+    public function testEventHelperReturnsEmptyArrayWhenNoListeners(): void
     {
         $result = event('test.no-listeners');
 
@@ -281,7 +329,9 @@ class FoundationHelpersTest extends TestCase
         $this->assertEmpty($result);
     }
 
-    public function testAbortReceivesCodeAsSymfonyResponseInstance()
+    // REMOVED: Mix helper tests; Hypervel uses Vite instead of Laravel Mix.
+
+    public function testAbortReceivesCodeAsSymfonyResponseInstance(): void
     {
         try {
             abort($code = new SymfonyResponse);
@@ -294,7 +344,7 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testAbortReceivesCodeAsResponsableImplementation()
+    public function testAbortReceivesCodeAsResponsableImplementation(): void
     {
         $request = \Hypervel\Http\Request::create('/');
         RequestContext::set($request);
@@ -319,7 +369,7 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testAbortReceivesCodeAsInteger()
+    public function testAbortReceivesCodeAsInteger(): void
     {
         try {
             abort(400, 'Bad request', ['X-FOO' => 'BAR']);
@@ -332,12 +382,12 @@ class FoundationHelpersTest extends TestCase
         }
     }
 
-    public function testBroadcastIfReturnsFakeOnFalse()
+    public function testBroadcastIfReturnsFakeOnFalse(): void
     {
         $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_if(false, 'foo'));
     }
 
-    public function testBroadcastIfReturnsRealBroadcastOnTrue()
+    public function testBroadcastIfReturnsRealBroadcastOnTrue(): void
     {
         $result = broadcast_if(true, new stdClass);
 
@@ -345,7 +395,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
     }
 
-    public function testBroadcastIfEvaluatesEventLazily()
+    public function testBroadcastIfEvaluatesEventLazily(): void
     {
         $evaluated = false;
 
@@ -357,12 +407,12 @@ class FoundationHelpersTest extends TestCase
         $this->assertFalse($evaluated, 'Event closure should not be evaluated when condition is false');
     }
 
-    public function testBroadcastUnlessReturnsFakeOnTrue()
+    public function testBroadcastUnlessReturnsFakeOnTrue(): void
     {
         $this->assertInstanceOf(FakePendingBroadcast::class, broadcast_unless(true, 'foo'));
     }
 
-    public function testBroadcastUnlessReturnsRealBroadcastOnFalse()
+    public function testBroadcastUnlessReturnsRealBroadcastOnFalse(): void
     {
         $result = broadcast_unless(false, new stdClass);
 
@@ -370,7 +420,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertNotInstanceOf(FakePendingBroadcast::class, $result);
     }
 
-    public function testFakePendingBroadcastMethodsAreNoOps()
+    public function testFakePendingBroadcastMethodsAreNoOps(): void
     {
         $fake = new FakePendingBroadcast;
 
@@ -378,19 +428,19 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame($fake, $fake->toOthers());
     }
 
-    public function testDeferReturnsDeferredCallbackWhenCallbackProvided()
+    public function testDeferReturnsDeferredCallbackWhenCallbackProvided(): void
     {
         $deferred = defer(fn () => null);
 
         $this->assertInstanceOf(DeferredCallback::class, $deferred);
     }
 
-    public function testDeferReturnsCollectionWhenCallbackIsNull()
+    public function testDeferReturnsCollectionWhenCallbackIsNull(): void
     {
         $this->assertInstanceOf(DeferredCallbackCollection::class, defer());
     }
 
-    public function testDeferWithoutNameQueuesCallbackUntilCollectionInvoked()
+    public function testDeferWithoutNameQueuesCallbackUntilCollectionInvoked(): void
     {
         $executed = false;
         defer(function () use (&$executed) {
@@ -404,7 +454,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertTrue($executed);
     }
 
-    public function testDeferWithNameDeduplicatesCallbacksWhenCollectionInvoked()
+    public function testDeferWithNameDeduplicatesCallbacksWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -421,7 +471,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['second'], $results);
     }
 
-    public function testDeferWithDifferentNamesRunsBothWhenCollectionInvoked()
+    public function testDeferWithDifferentNamesRunsBothWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -438,7 +488,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['foo', 'bar'], $results);
     }
 
-    public function testDeferWithNamedAndUnnamedBothExecuteWhenCollectionInvoked()
+    public function testDeferWithNamedAndUnnamedBothExecuteWhenCollectionInvoked(): void
     {
         $results = [];
 
@@ -455,7 +505,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(['unnamed', 'named'], $results);
     }
 
-    public function testDeferStoresAlwaysFlag()
+    public function testDeferStoresAlwaysFlag(): void
     {
         $deferred = defer(fn () => null, always: true);
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Console;
 
 use Hypervel\Sentry\Console\TestCommand;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
@@ -14,7 +14,7 @@ use Sentry\ExceptionDataBag;
 use Sentry\Frame;
 use Sentry\Stacktrace;
 
-class TestCommandTest extends SentryTestCase
+class TestCommandTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.dsn' => null,

@@ -24,7 +24,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $notifiable = m::mock();
 
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->once()->with(m::type(BroadcastNotificationCreated::class));
+        $events->expects('dispatch')->with(m::type(BroadcastNotificationCreated::class));
         $channel = new BroadcastChannel($events);
         $channel->send($notifiable, $notification);
     }
@@ -134,7 +134,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $notifiable = m::mock();
 
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->once()->with(m::on(function ($event) {
+        $events->expects('dispatch')->with(m::on(function (BroadcastNotificationCreated $event): bool {
             return $event->connection === 'sync';
         }));
         $channel = new BroadcastChannel($events);
@@ -161,6 +161,9 @@ class NotificationBroadcastChannelTest extends TestCase
 
 class NotificationBroadcastChannelTestNotification extends Notification
 {
+    /**
+     * Get the array representation of the notification.
+     */
     public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
@@ -169,11 +172,17 @@ class NotificationBroadcastChannelTestNotification extends Notification
 
 class CustomChannelsTestNotification extends Notification
 {
+    /**
+     * Get the array representation of the notification.
+     */
     public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
+    /**
+     * Get the channels the notification should broadcast on.
+     */
     public function broadcastOn(): array
     {
         return [new PrivateChannel('custom-channel')];
@@ -182,11 +191,17 @@ class CustomChannelsTestNotification extends Notification
 
 class CustomEventNameTestNotification extends Notification
 {
+    /**
+     * Get the array representation of the notification.
+     */
     public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
+    /**
+     * Get the notification broadcast type.
+     */
     public function broadcastType(): string
     {
         return 'custom.type';
@@ -195,11 +210,17 @@ class CustomEventNameTestNotification extends Notification
 
 class TestNotificationBroadCastedNow extends Notification
 {
+    /**
+     * Get the array representation of the notification.
+     */
     public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
+    /**
+     * Get the notification broadcast message.
+     */
     public function toBroadcast(): BroadcastMessage
     {
         return (new BroadcastMessage([]))->onConnection('sync');
@@ -208,11 +229,17 @@ class TestNotificationBroadCastedNow extends Notification
 
 class CustomBroadcastWithTestNotification extends Notification
 {
+    /**
+     * Get the array representation of the notification.
+     */
     public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
+    /**
+     * Get the notification broadcast data.
+     */
     public function broadcastWith(): array
     {
         return ['id' => 1, 'type' => 'custom', 'additional' => 'custom'];
@@ -221,6 +248,9 @@ class CustomBroadcastWithTestNotification extends Notification
 
 class NotificationBroadcastChannelTestNotifiable
 {
+    /**
+     * Get the notifiable key.
+     */
     public function getKey(): int
     {
         return 1;
@@ -229,6 +259,9 @@ class NotificationBroadcastChannelTestNotifiable
 
 class NotificationBroadcastChannelTestNotifiableWithChannel
 {
+    /**
+     * Get the notification broadcast channel.
+     */
     public function receivesBroadcastNotificationsOn(Notification $notification): string
     {
         return 'notifiable-channel.' . $notification->id;

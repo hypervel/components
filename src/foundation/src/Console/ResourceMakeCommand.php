@@ -6,15 +6,18 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:resource')]
 class ResourceMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:resource';
+    protected ?string $signature = 'make:resource
+                    {name : The name of the resource}
+                    {--f|force : Create the class even if the resource already exists}
+                    {--j|json-api : Create a JSON:API resource}
+                    {--c|collection : Create a resource collection}';
 
     /**
      * The console command description.
@@ -75,17 +78,5 @@ class ResourceMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Http\Resources';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the resource already exists'],
-            ['json-api', 'j', InputOption::VALUE_NONE, 'Create a JSON:API resource'],
-            ['collection', 'c', InputOption::VALUE_NONE, 'Create a resource collection'],
-        ];
     }
 }

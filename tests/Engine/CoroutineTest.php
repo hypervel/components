@@ -11,7 +11,10 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RuntimeException;
 use Hypervel\Tests\TestCase;
+use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Timer;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class CoroutineTest extends TestCase
@@ -21,7 +24,7 @@ class CoroutineTest extends TestCase
         $coroutine = new Coroutine(fn () => null);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Coroutine has not been executed.');
+        $this->expectExceptionMessageIs('Coroutine has not been executed.');
 
         $coroutine->getId();
     }
@@ -46,6 +49,31 @@ class CoroutineTest extends TestCase
 
         $this->assertInstanceOf(CoroutineInterface::class, $coroutine);
         $this->assertIsInt($coroutine->getId());
+    }
+
+    public function testCreatedCoroutineKeepsErrorReportingEnabledAfterSuspension(): void
+    {
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6305 is released.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '==')) {
+            $this->markTestSkipped('Swoole 6.3.0RC1 suppresses error reporting inside coroutines created by Hypervel.');
+        }
+
+        $previousErrorReporting = error_reporting(E_ALL);
+        $levels = [];
+
+        try {
+            $coroutine = Coroutine::create(static function () use (&$levels): void {
+                $levels[] = error_reporting();
+                Coroutine::yield();
+                $levels[] = error_reporting();
+            });
+
+            Coroutine::resumeById($coroutine->getId());
+
+            $this->assertSame([E_ALL, E_ALL], $levels);
+        } finally {
+            error_reporting($previousErrorReporting);
+        }
     }
 
     public function testCoroutineContext(): void
@@ -244,6 +272,43 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutine->getId()));
     }
 
+    public function testCancellationEscapesDirectoryIteration(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires correct coroutine exception delivery from https://github.com/swoole/swoole-src/pull/6185.');
+        }
+
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/cancel-directory-iterator.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+        ]);
+        $process->setTimeout(2);
+        $process->mustRun();
+
+        $this->assertSame("canceled\n", $process->getOutput());
+    }
+
+    public function testCoroutineTimeLimitOwnsOneFractionalTimer(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires fractional and owned coroutine time-limit timers from https://github.com/swoole/swoole-src/pull/6270.');
+        }
+
+        $timerCount = Timer::stats()['num'];
+        $counts = [];
+
+        SwooleCoroutine::create(function () use (&$counts): void {
+            $this->assertTrue(SwooleCoroutine::setTimeLimit(0.05));
+            $counts[] = Timer::stats()['num'];
+            $this->assertTrue(SwooleCoroutine::setTimeLimit(0.1));
+            $counts[] = Timer::stats()['num'];
+        });
+
+        $this->assertSame([$timerCount + 1, $timerCount + 1], $counts);
+        $this->assertSame($timerCount, Timer::stats()['num']);
+    }
+
     public function testCoroutineList(): void
     {
         $list = Coroutine::list();
@@ -253,6 +318,8 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineListCount(): void
     {
+        $initialCount = iterator_count(Coroutine::list());
+
         Coroutine::create(function () {
             usleep(100000);
         });
@@ -262,6 +329,6 @@ class CoroutineTest extends TestCase
         Coroutine::create(function () {
             usleep(100000);
         });
-        $this->assertEquals(4, iterator_count(Coroutine::list()));
+        $this->assertSame($initialCount + 3, iterator_count(Coroutine::list()));
     }
 }

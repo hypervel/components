@@ -14,9 +14,7 @@ class AuthHeaders implements TokenExtractor
      */
     public function parseToken(Request $request): ?string
     {
-        $header = $request->header('Authorization')
-            ?: $request->server('HTTP_AUTHORIZATION')
-            ?: $request->server('REDIRECT_HTTP_AUTHORIZATION');
+        $header = $request->header('Authorization');
 
         if (! is_string($header)) {
             return null;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Fortify\Contracts\ConfirmPasswordViewResponse;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -35,9 +34,7 @@ class ConfirmablePasswordControllerTest extends TestCase
 
     public function testTheConfirmPasswordViewIsReturned(): void
     {
-        $this->mock(ConfirmPasswordViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
+        Fortify::confirmPasswordView(fn (): string => 'hello world');
 
         $response = $this->withoutExceptionHandling()->actingAs($this->user)->get(
             '/user/confirm-password'

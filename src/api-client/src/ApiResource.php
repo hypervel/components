@@ -15,7 +15,7 @@ use LogicException;
 use Stringable;
 
 /**
- * @implements Arrayable<array-key, mixed>
+ * @implements Arrayable<array<array-key, mixed>>
  * @mixin ApiResponse
  */
 class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayable, Jsonable

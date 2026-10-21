@@ -65,6 +65,8 @@ class Attribute
 
     /**
      * Disable object caching for the attribute.
+     *
+     * @return $this
      */
     public function withoutObjectCaching(): static
     {
@@ -75,6 +77,8 @@ class Attribute
 
     /**
      * Enable caching for the attribute.
+     *
+     * @return $this
      */
     public function shouldCache(): static
     {

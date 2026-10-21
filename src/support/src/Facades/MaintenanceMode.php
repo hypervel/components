@@ -12,7 +12,7 @@ use Hypervel\Foundation\MaintenanceModeManager;
  * @method static \Hypervel\Foundation\MaintenanceModeManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static \Hypervel\Foundation\MaintenanceModeManager setContainer(\Hypervel\Contracts\Container\Container $container)
  *
  * @see \Hypervel\Foundation\MaintenanceModeManager

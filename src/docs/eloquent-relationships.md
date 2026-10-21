@@ -14,6 +14,7 @@
     - [Filtering Queries via Intermediate Table Columns](#filtering-queries-via-intermediate-table-columns)
     - [Ordering Queries via Intermediate Table Columns](#ordering-queries-via-intermediate-table-columns)
     - [Defining Custom Intermediate Table Models](#defining-custom-intermediate-table-models)
+        - [Automatically Hydrating Pivot Relationships](#automatically-hydrating-pivot-relationships)
 - [Polymorphic Relationships](#polymorphic-relationships)
     - [One to One](#one-to-one-polymorphic-relations)
     - [One to Many](#one-to-many-polymorphic-relations)
@@ -880,8 +881,13 @@ If you would like your intermediate table to have `created_at` and `updated_at` 
 return $this->belongsToMany(Role::class)->withTimestamps();
 ```
 
-> [!WARNING]
-> Intermediate tables that utilize Eloquent's automatically maintained timestamps are required to have both `created_at` and `updated_at` timestamp columns.
+By default, the intermediate table must contain both timestamp columns. To use different column names, pass them to the `createdAt` and `updatedAt` arguments. You may pass `false` to either argument to disable that timestamp:
+
+```php
+return $this->belongsToMany(Role::class)->withTimestamps(updatedAt: false);
+```
+
+For custom pivot models, also override `getCreatedAtColumn` or `getUpdatedAtColumn` to return the renamed column or `null` for a disabled timestamp.
 
 <a name="customizing-the-pivot-attribute-name"></a>
 #### Customizing the `pivot` Attribute Name
@@ -937,6 +943,19 @@ return $this->belongsToMany(Podcast::class)
     ->as('subscriptions')
     ->wherePivotNotNull('expired_at');
 ```
+
+You may pass a closure to `wherePivot` or `orWherePivot` to group conditions or call local scopes on a [custom pivot model](#defining-custom-intermediate-table-models). The closure receives an Eloquent builder for the pivot model:
+
+```php
+use Hypervel\Database\Eloquent\Builder;
+
+return $this->belongsToMany(Role::class)
+    ->wherePivot(function (Builder $query) {
+        $query->where('approved', 1)->where('priority', '>', 2);
+    });
+```
+
+Qualify column names inside the closure if the related table has columns with the same names. Pivot filters constrain which existing rows `detach`, `sync`, and `updateExistingPivot` affect; they do not restrict newly attached rows.
 
 The `wherePivot` adds a where clause constraint to the query, but does not add the specified value when creating new models via the defined relationship. If you need to both query and create relationships with a particular pivot value, you may use the `withPivotValue` method:
 
@@ -1017,6 +1036,49 @@ class RoleUser extends Pivot
 }
 ```
 
+<a name="automatically-hydrating-pivot-relationships"></a>
+#### Automatically Hydrating Pivot Relationships
+
+When a custom pivot model defines `belongsTo` relationships for the declaring and related models, you may invoke `chaperone` after `using` to automatically hydrate those relationships on each pivot model. This avoids additional queries when accessing the models through the pivot:
+
+```php
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+
+class RoleUser extends Pivot
+{
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+
+class Role extends Model
+{
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)
+            ->using(RoleUser::class)
+            ->chaperone();
+    }
+}
+```
+
+Eloquent infers the relationship names from the pivot keys and model names. You may also pass the declaring and related relationship names to `chaperone` explicitly:
+
+```php
+return $this->belongsToMany(User::class)
+    ->using(RoleUser::class)
+    ->chaperone(declaring: 'role', related: 'user');
+```
+
 <a name="polymorphic-relationships"></a>
 ## Polymorphic Relationships
 
@@ -1042,8 +1104,8 @@ users
 images
     id - integer
     url - string
-    imageable_id - integer
     imageable_type - string
+    imageable_id - integer
 ```
 
 Note the `imageable_id` and `imageable_type` columns on the `images` table. The `imageable_id` column will contain the ID value of the post or user, while the `imageable_type` column will contain the class name of the parent model. The `imageable_type` column is used by Eloquent to determine which "type" of parent model to return when accessing the `imageable` relation. In this case, the column would contain either `App\Models\Post` or `App\Models\User`.
@@ -1163,8 +1225,8 @@ videos
 comments
     id - integer
     body - text
-    commentable_id - integer
     commentable_type - string
+    commentable_id - integer
 ```
 
 <a name="one-to-many-polymorphic-model-structure"></a>
@@ -1356,8 +1418,8 @@ tags
 
 taggables
     tag_id - integer
-    taggable_id - integer
     taggable_type - string
+    taggable_id - integer
 ```
 
 > [!NOTE]
@@ -1863,7 +1925,7 @@ If you need to set additional query constraints on the count query, you may pass
 ```php
 $book->loadCount(['reviews' => function (Builder $query) {
     $query->where('rating', 5);
-}])
+}]);
 ```
 
 <a name="relationship-counting-and-custom-select-statements"></a>
@@ -2170,6 +2232,22 @@ $users = User::with(['posts' => function ($query) {
 }])->get();
 ```
 
+<a name="preserving-related-collection-keys"></a>
+#### Preserving Related Collection Keys
+
+The `afterQuery` method registers a callback that receives the query results after they have been retrieved. You may return a collection from the callback to replace those results. For example, you may key the posts by their unique slugs:
+
+```php
+use App\Models\User;
+use Hypervel\Database\Eloquent\Collection;
+
+$users = User::with(['posts' => function ($query) {
+    $query->afterQuery(fn (Collection $posts) => $posts->keyBy('slug'));
+}])->get();
+```
+
+The associative keys are preserved in each user's related `posts` collection when the relationship is eager loaded.
+
 <a name="constraining-eager-loading-of-morph-to-relationships"></a>
 #### Constraining Eager Loading of `morphTo` Relationships
 
@@ -2282,9 +2360,6 @@ $activities = ActivityFeed::with('parentable')
 <a name="automatic-eager-loading"></a>
 ### Automatic Eager Loading
 
-> [!WARNING]
-> This feature is currently in beta in order to gather community feedback. The behavior and functionality of this feature may change even on patch releases.
-
 In many cases, Hypervel can automatically eager load the relationships you access. To enable automatic eager loading, you should invoke the `Model::automaticallyEagerLoadRelationships` method within the `boot` method of your application's `AppServiceProvider`:
 
 ```php
@@ -2349,12 +2424,16 @@ After preventing lazy loading, Eloquent will throw a `Hypervel\Database\LazyLoad
 You may customize the behavior of lazy loading violations using the `handleLazyLoadingViolationUsing` method. For example, using this method, you may instruct lazy loading violations to only be logged instead of interrupting the application's execution with exceptions:
 
 ```php
-Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation) {
+use Hypervel\Database\LazyLoadingViolationException;
+
+Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation, LazyLoadingViolationException $exception) {
     $class = $model::class;
 
-    info("Attempted to lazy load [{$relation}] on model [{$class}].");
+    info("Attempted to lazy load [{$relation}] on model [{$class}].", ['exception' => $exception]);
 });
 ```
+
+The callback receives the violation exception as its third argument.
 
 <a name="inserting-and-updating-related-models"></a>
 ## Inserting and Updating Related Models

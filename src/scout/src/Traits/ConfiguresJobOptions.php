@@ -29,10 +29,8 @@ trait ConfiguresJobOptions
 
     /**
      * Indicates if the job should be marked as failed on timeout.
-     *
-     * @var bool
      */
-    public $failOnTimeout = true;
+    public bool $failOnTimeout = true;
 
     /**
      * Configure the job.

@@ -6,6 +6,7 @@ namespace Hypervel\Sanctum\Contracts;
 
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Sanctum\NewAccessToken;
 use UnitEnum;
 
 interface HasApiTokens
@@ -30,7 +31,7 @@ interface HasApiTokens
      *
      * @param array<string|UnitEnum> $abilities
      */
-    public function createToken(string $name, array $abilities = ['*'], ?DateTimeInterface $expiresAt = null): \Hypervel\Sanctum\NewAccessToken;
+    public function createToken(string $name, array $abilities = ['*'], ?DateTimeInterface $expiresAt = null): NewAccessToken;
 
     /**
      * Get the access token currently associated with the user.

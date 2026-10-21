@@ -17,7 +17,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Image\Image fromUrl(string $url)
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static \Hypervel\Image\ImageManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Image\ImageManager transformUsing(string $driver, string $transformation, callable $callback)
  *

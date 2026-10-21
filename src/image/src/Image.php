@@ -31,6 +31,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use UnitEnum;
 
 class Image implements Responsable, Stringable
@@ -491,7 +492,7 @@ class Image implements Responsable, Stringable
     {
         try {
             return $this->resolveDriver()->process($this->source->contents(), $this->pipeline);
-        } catch (ImageException $exception) {
+        } catch (CanceledException|ImageException $exception) {
             throw $exception;
         } catch (Exception $exception) {
             throw new ImageException("Failed to process image: {$exception->getMessage()}", 0, $exception);
@@ -562,6 +563,8 @@ class Image implements Responsable, Stringable
 
             try {
                 return $this->dimensions = $driver->dimensions($contents);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Exception $exception) {
                 throw new ImageException(
                     "Unable to determine the dimensions of the image: {$exception->getMessage()}",
@@ -608,7 +611,7 @@ class Image implements Responsable, Stringable
      */
     public function using(string $driver): static
     {
-        $clone = clone $this;
+        $clone = $this->newClone();
 
         $clone->driver = $driver;
 
@@ -666,6 +669,14 @@ class Image implements Responsable, Stringable
     }
 
     /**
+     * Create an immutable clone with copied options.
+     */
+    protected function newClone(): static
+    {
+        return clone $this;
+    }
+
+    /**
      * Create an immutable clone with updated output options.
      */
     protected function withOutput(Closure $callback): static
@@ -678,7 +689,7 @@ class Image implements Responsable, Stringable
      */
     protected function withClone(Closure $callback): static
     {
-        $clone = clone $this;
+        $clone = $this->newClone();
 
         $callback($clone);
 

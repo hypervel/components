@@ -12,39 +12,39 @@ use RuntimeException;
 
 class ListenCommandTest extends IntegrationTestCase
 {
-    public function testListenCommandRequiresWatchConfiguration()
+    public function testListenCommandRequiresWatchConfiguration(): void
     {
         config(['horizon.watch' => [], 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandRequiresWatchConfigurationToBeSet()
+    public function testListenCommandRequiresWatchConfigurationToBeSet(): void
     {
         config(['horizon.watch' => null, 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandRequiresWatchConfigurationKeyToExist()
+    public function testListenCommandRequiresWatchConfigurationKeyToExist(): void
     {
         $config = config('horizon');
         unset($config['watch']);
         config(['horizon' => $config, 'watcher' => []]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('List of directories / files to watch not found.');
+        $this->expectExceptionMessageIsOrContains('List of directories / files to watch not found.');
 
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfig()
+    public function testListenCommandFallsBackToWatcherConfig(): void
     {
         $config = config('horizon');
         unset($config['watch']);
@@ -73,12 +73,12 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsEmpty()
+    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsEmpty(): void
     {
         config(['horizon.watch' => []]);
         config(['watcher.watch' => ['app']]);
@@ -101,12 +101,12 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }
 
-    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsNull()
+    public function testListenCommandFallsBackToWatcherConfigWhenHorizonWatchIsNull(): void
     {
         config(['horizon.watch' => null]);
         config(['watcher.watch' => ['app']]);
@@ -129,7 +129,7 @@ class ListenCommandTest extends IntegrationTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('__sentinel_start_called__');
+        $this->expectExceptionMessageIs('__sentinel_start_called__');
 
         $this->artisan('horizon:listen');
     }

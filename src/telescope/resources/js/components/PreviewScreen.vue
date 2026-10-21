@@ -19,7 +19,9 @@ export default {
             entry: null,
             batch: null,
             ready: false,
+            requestController: new AbortController(),
 
+            unwatchReady: null,
             updateEntryTimeout: null,
             updateEntryTimer: 2500,
         };
@@ -45,6 +47,7 @@ export default {
      * Clean after the component is destroyed.
      */
     destroyed() {
+        this.requestController.abort();
         clearTimeout(this.updateEntryTimeout);
     },
 
@@ -67,10 +70,22 @@ export default {
 
     methods: {
         prepareEntry() {
+            this.requestController.abort();
+            this.requestController = new AbortController();
+            clearTimeout(this.updateEntryTimeout);
+
             document.title = this.title + " - Telescope";
             this.ready = false;
 
-            let unwatch = this.$watch('ready', newVal => {
+            // The component is reused when the route ID changes, so a failed load must not leave the previous entry on screen.
+            this.entry = null;
+            this.batch = null;
+            this.$parent.entry = null;
+            this.$parent.batch = [];
+
+            if (this.unwatchReady) this.unwatchReady();
+
+            const unwatch = this.unwatchReady = this.$watch('ready', newVal => {
                 if (newVal) {
                     this.$emit('ready');
                     unwatch();
@@ -91,13 +106,22 @@ export default {
         },
 
 
-        loadEntry(after){
-            axios.get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id).then(response => {
+        loadEntry(after, polling = false){
+            const {signal} = this.requestController;
+
+            return axios.get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, {signal}).then(response => {
+                if (signal.aborted) return;
+
                 if (_.isFunction(after)) {
                     after(response);
                 }
             }).catch(error => {
+                if (signal.aborted) return;
+
                 this.ready = true;
+
+                // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
+                if (polling && this.mayRetry(error, signal)) this.updateEntry();
             })
         },
 
@@ -107,7 +131,7 @@ export default {
          */
         updateEntry(){
             if (this.resource != 'jobs') return;
-            if (this.entry.content.status !== 'pending') return;
+            if (!this.entry || this.entry.content.status !== 'pending') return;
 
             this.updateEntryTimeout = setTimeout(() => {
                 this.loadEntry((response) => {
@@ -118,9 +142,9 @@ export default {
                     this.$parent.batch = response.data.batch;
 
                     this.ready = true;
-                });
 
-                this.updateEntry();
+                    this.updateEntry();
+                }, true);
             }, this.updateEntryTimer);
         }
     }

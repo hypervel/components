@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 
 class AutoCompletePrompt extends Prompt
@@ -123,19 +124,19 @@ class AutoCompletePrompt extends Prompt
         // When cursor is at the end and there's ghost text, make the first
         // ghost character the inverted cursor so it flows naturally.
         if ($ghostText !== '' && $this->cursorPosition >= mb_strlen($this->value())) {
-            $cursorChar = mb_substr($ghostText, 0, 1);
-            $remainingGhost = mb_substr($ghostText, 1);
-
-            return $this->value()
-                . $this->inverse($cursorChar)
-                . $this->dim($remainingGhost);
+            $value = $this->addCursor($this->value() . mb_substr($ghostText, 0, 1), $this->cursorPosition, $maxWidth);
+            $ghostText = mb_substr($ghostText, 1);
+        } else {
+            $value = $this->addCursor($this->value(), $this->cursorPosition, $maxWidth);
         }
 
-        return $this->addCursor(
-            $this->value(),
-            $this->cursorPosition,
-            $maxWidth
-        ) . $this->dim($ghostText);
+        $remainingWidth = $maxWidth - mb_strwidth(Utils::stripEscapeSequences($value));
+
+        if ($ghostText === '' || $remainingWidth <= 0) {
+            return $value;
+        }
+
+        return $value . $this->dim(mb_strimwidth($ghostText, 0, $remainingWidth, '…'));
     }
 
     /**
@@ -157,7 +158,7 @@ class AutoCompletePrompt extends Prompt
 
         return $this->matches = array_values(array_filter(
             $this->options,
-            fn ($option) => str_starts_with(strtolower($option), strtolower($this->value())),
+            fn (string $option): bool => str_starts_with(mb_strtolower($option), mb_strtolower($this->value())),
         ));
     }
 

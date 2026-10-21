@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static array all()
+ * @method static array<array-key, mixed> all()
  * @method static array<array-key, mixed> array(string $key, null|array<array-key, mixed>|\Closure $default = null)
  * @method static bool boolean(string $key, null|bool|\Closure $default = null)
  * @method static \Hypervel\Support\Collection<array-key, mixed> collection(string $key, null|array<array-key, mixed>|\Closure $default = null)
@@ -28,6 +28,9 @@ namespace Hypervel\Support\Facades;
  */
 class Config extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'config';

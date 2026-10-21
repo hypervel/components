@@ -77,6 +77,26 @@ class GeneratesFileTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToGenerateFile(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+
+        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
+            ->shouldReceive('exists')->once()->with('b')->andReturnFalse()
+            ->shouldReceive('copy')->never()
+            ->shouldReceive('delete')->never();
+
+        $components->shouldReceive('task')->once()->with('File [b] would be generated');
+
+        (new GeneratesFile(
+            filesystem: $filesystem,
+            components: $components,
+            pretending: true,
+        ))->handle('a', 'b');
+    }
+
+    #[Test]
     public function itCannotGeneratesFileWhenSourceFileDoesNotExists(): void
     {
         $filesystem = m::mock(Filesystem::class);
@@ -107,7 +127,7 @@ class GeneratesFileTest extends TestCase
         $components->shouldNotReceive('task');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to generate file [b].');
+        $this->expectExceptionMessageIs('Unable to generate file [b].');
 
         (new GeneratesFile(
             filesystem: $filesystem,

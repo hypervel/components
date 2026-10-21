@@ -39,6 +39,19 @@ trait HasOptions
     }
 
     /**
+     * Remove the given options from the request.
+     *
+     * @param array<int, string>|string $keys
+     * @return $this
+     */
+    public function withoutOptions(array|string $keys): static
+    {
+        $this->optionRepository()->set(array_diff_key($this->options(), array_flip((array) $keys)));
+
+        return $this;
+    }
+
+    /**
      * Specify the maximum number of redirects to allow.
      *
      * @return $this

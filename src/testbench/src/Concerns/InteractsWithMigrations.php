@@ -26,19 +26,26 @@ use function Hypervel\Testbench\load_migration_paths;
 trait InteractsWithMigrations
 {
     /**
+     * List of cached migrators instances.
+     *
      * @var array<int, MigrateProcessor>
      */
     protected array $cachedTestMigratorProcessors = [];
 
+    /**
+     * Setup the test environment.
+     */
     protected function setUpInteractsWithMigrations(): void
     {
         if ($this->usesInMemoryDatabaseForMigrationState()) {
-            $this->afterApplicationCreated(static function (): void {
-                static::usesTestingFeature(new ResetRefreshDatabaseState);
-            });
+            // A later setup hook may skip or fail before after-application callbacks run.
+            static::usesTestingFeature(new ResetRefreshDatabaseState);
         }
     }
 
+    /**
+     * Teardown the test environment.
+     */
     protected function tearDownInteractsWithMigrations(): void
     {
         $hasInMemoryConnections = ! empty(RefreshDatabaseState::$inMemoryConnections);
@@ -77,6 +84,8 @@ trait InteractsWithMigrations
     }
 
     /**
+     * Define hooks to migrate the database before and after each test.
+     *
      * @api
      *
      * @param array<int|string, mixed>|string $paths
@@ -130,10 +139,14 @@ trait InteractsWithMigrations
     }
 
     /**
+     * Resolve Package Migrations Artisan command options.
+     *
      * @internal
      *
      * @param array<string, mixed>|string $paths
      * @return array<string, mixed>
+     *
+     * @throws InvalidArgumentException
      */
     protected function resolvePackageMigrationsOptions(array|string $paths = []): array
     {
@@ -183,6 +196,8 @@ trait InteractsWithMigrations
     }
 
     /**
+     * Resolve Hypervel Migrations Artisan command options.
+     *
      * @internal
      *
      * @param array<string, mixed>|string $database
@@ -243,6 +258,11 @@ trait InteractsWithMigrations
         return $this->usesSqliteInMemoryDatabaseConnection();
     }
 
+    /**
+     * Reset artisan commands for the application.
+     *
+     * @internal
+     */
     protected function resetApplicationArtisanCommands(ApplicationContract $app): void
     {
         $kernel = $app->make(ConsoleKernelContract::class);

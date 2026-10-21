@@ -10,6 +10,7 @@
     - [Databases and Migrations](#databases-and-migrations)
     - [Directory Configuration](#directory-configuration)
 - [IDE Support](#ide-support)
+    - [Static Analysis](#static-analysis)
 - [Next Steps](#next-steps)
     - [Hypervel the Full Stack Framework](#hypervel-the-fullstack-framework)
     - [Hypervel the API Backend](#hypervel-the-api-backend)
@@ -20,6 +21,8 @@
 <a name="requirements"></a>
 ### Requirements
 
+Hypervel supports Linux and macOS. Windows developers should use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install). Native Windows execution is not supported.
+
 Before creating your first Hypervel application, make sure that your local machine has [PHP](https://php.net), [Composer](https://getcomposer.org), and the Swoole PHP extension installed. In addition, you should install either [Node and NPM](https://nodejs.org) or [Bun](https://bun.sh/) so that you can compile your application's frontend assets.
 
 The Hypervel framework has a few system requirements:
@@ -28,6 +31,7 @@ The Hypervel framework has a few system requirements:
 
 - PHP >= 8.4
 - Composer
+- cURL PHP Extension
 - Fileinfo PHP Extension
 - Filter PHP Extension
 - Hash PHP Extension
@@ -39,20 +43,25 @@ The Hypervel framework has a few system requirements:
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
-- Swoole PHP Extension >= 6.2.2
+- Swoole PHP Extension >= 6.3.0RC1
 - Tokenizer PHP Extension
 
 </div>
 
-If your application uses Redis for cache, queues, sessions, or broadcasting, you should also install the Redis PHP extension 6.1 or higher.
+> [!WARNING]
+> Hypervel supports only the official [Swoole](https://github.com/swoole/swoole-src) extension. Forks such as OpenSwoole aren't supported. The Hypervel team actively contributes enhancements and fixes to Swoole, and Hypervel depends on several of those changes.
+
+If your application uses Redis for cache, queues, sessions, or broadcasting, you should also install the Redis PHP extension 6.1 or higher. If it uses MySQL or MariaDB, the PDO MySQL extension must use PHP's mysqlnd driver, which is the default.
 
 You may install Swoole using [PIE](https://github.com/php/pie):
 
 ```shell
-pie install swoole/swoole
+pie install "swoole/swoole:^6.3.0@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
 ```
 
-If you develop on macOS, you may also install Swoole via Homebrew. Replace `8.4` with your installed PHP version:
+Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled.
+
+Once the Homebrew formula provides a Swoole version that meets the requirement above, macOS developers may install Swoole via Homebrew instead. The formula already includes the required build options. Replace `8.4` with your installed PHP version:
 
 ```shell
 brew tap shivammathur/extensions
@@ -65,7 +74,7 @@ You should also ensure that `swoole.use_shortname` is disabled in your `php.ini`
 swoole.use_shortname=Off
 ```
 
-Hypervel will not start while Swoole short function names are enabled. Disabling them ensures Hypervel's namespaced coroutine helpers and exception handling work correctly.
+Hypervel will not start while Swoole short function names are enabled. Disabling them ensures Hypervel's namespaced coroutine helpers and exception handling work correctly. Hypervel also will not start if Swoole was built without OpenSSL or native cURL support, and SQLite or PostgreSQL connections fail if Swoole was built without support for that database.
 
 <a name="incompatible-extensions"></a>
 #### Incompatible Extensions
@@ -86,7 +95,7 @@ Xdebug support depends on your PHP and Swoole versions. If you experience corout
 <a name="creating-an-application"></a>
 ### Creating an Application
 
-After you have installed PHP, Composer, and Swoole, you're ready to create a new Hypervel application using Composer's `create-project` command:
+After you have installed PHP, Composer, and Swoole, you are ready to create a new Hypervel application using Composer's `create-project` command:
 
 ```shell
 composer create-project hypervel/hypervel example-app
@@ -99,13 +108,15 @@ cd example-app
 php artisan serve
 ```
 
-Once you have started the development server, your application will be accessible in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file.
+Once you have started the development server, you can access your application in your web browser at [http://localhost:8000](http://localhost:8000). The server host, port, worker count, and other Swoole options may be configured in your application's `config/server.php` file.
 
 You may temporarily override the HTTP server address for the current process using the `--host` and `--port` options:
 
 ```shell
 php artisan serve --host=127.0.0.1 --port=8001
 ```
+
+The `--host` option also accepts a port, such as `127.0.0.1:8001` or `[::1]:8001`. If both options specify a port, `--port` takes precedence.
 
 <a name="watching-for-changes"></a>
 ### Watching for Changes
@@ -153,7 +164,7 @@ composer create-project hypervel/react-starter-kit example-app
 <a name="initial-configuration"></a>
 ## Initial Configuration
 
-All of the configuration files for the Hypervel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
+All configuration files for the Hypervel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
 
 Hypervel needs almost no additional configuration out of the box. You are free to get started developing! However, you may wish to review the `config/app.php` and `config/server.php` files and their documentation. These files contain options such as your application's URL, locale, server host, server port, and worker count.
 
@@ -205,6 +216,27 @@ For extensive and robust PHP support, take a look at [PhpStorm](https://www.jetb
 
 Hypervel's application skeleton includes the `swoole/ide-helper` package in development so IDEs can understand Swoole classes, constants, and functions.
 
+<a name="static-analysis"></a>
+### Static Analysis
+
+The application skeleton includes PHPStan and `phpstan/extension-installer`, which loads Hypervel's extensions automatically. Run `composer analyse` to check your application. The database extension understands [Eloquent scopes and forwarded query methods](/docs/{{version}}/database#static-analysis), while the Foundation extension distinguishes factory calls such as `response()` from calls that create a response, such as `response(status: 204)`. If your application uses [Scout](/docs/{{version}}/scout), its extension understands the `searchable` and `unsearchable` query methods.
+
+For an existing application, install the extension installer and allow its Composer plugin when prompted:
+
+```shell
+composer require --dev phpstan/extension-installer
+```
+
+If you prefer to configure extensions manually, add these entries to your `phpstan.neon` file instead:
+
+```neon
+includes:
+    - vendor/hypervel/database/extension.neon
+    - vendor/hypervel/foundation/extension.neon
+```
+
+If your application uses Scout, also include `vendor/hypervel/scout/extension.neon`.
+
 <a name="next-steps"></a>
 ## Next Steps
 
@@ -228,7 +260,7 @@ How you want to use Hypervel will also dictate the next steps on your journey. T
 <a name="hypervel-the-fullstack-framework"></a>
 ### Hypervel the Full Stack Framework
 
-Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](https://inertiajs.com). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
+Hypervel may serve as a full stack framework. By "full stack" framework we mean that you are going to use Hypervel to route requests to your application and render your frontend via [Blade templates](/docs/{{version}}/blade) or a single-page application hybrid technology like [Inertia](/docs/{{version}}/inertia). This is the most common way to use the Hypervel framework, and, in our opinion, the most productive way to use Hypervel.
 
 If this is how you plan to use Hypervel, you may want to check out our documentation on [frontend development](/docs/{{version}}/frontend), [routing](/docs/{{version}}/routing), [views](/docs/{{version}}/views), or the [Eloquent ORM](/docs/{{version}}/eloquent). Hypervel includes first-class support for Blade and Inertia, and our React starter kit provides a fast path to a full-stack Inertia application.
 

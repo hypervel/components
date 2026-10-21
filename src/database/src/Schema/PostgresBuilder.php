@@ -9,7 +9,7 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Override;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\PostgresGrammar $grammar
+ * @property PostgresGrammar $grammar
  */
 class PostgresBuilder extends Builder
 {
@@ -64,7 +64,7 @@ class PostgresBuilder extends Builder
 
         $excludedTables = $this->connection->getConfig('dont_drop') ?? ['spatial_ref_sys'];
 
-        foreach ($this->getTables($this->getCurrentSchemaListing()) as $table) {
+        foreach ($this->withoutCoveredPartitions($this->getTables($this->getCurrentSchemaListing()), $excludedTables) as $table) {
             if (empty(array_intersect([$table['name'], $table['schema_qualified_name']], $excludedTables))) {
                 $tables[] = $table['schema_qualified_name'];
             }
@@ -130,6 +130,8 @@ class PostgresBuilder extends Builder
 
     /**
      * Get the current schemas for the connection.
+     *
+     * @return string[]
      */
     #[Override]
     public function getCurrentSchemaListing(): array

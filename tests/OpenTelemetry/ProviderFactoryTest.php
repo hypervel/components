@@ -167,7 +167,7 @@ class ProviderFactoryTest extends TestCase
         $container->shouldReceive('make')->once()->with('invalid.metrics')->andReturn(new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must implement [OpenTelemetry\SDK\Metrics\MeterProviderInterface]');
+        $this->expectExceptionMessageIsOrContains('must implement [OpenTelemetry\SDK\Metrics\MeterProviderInterface]');
 
         (new ProviderFactory($container))->create(
             (new ConfigurationNormalizer)->normalize($configuration),

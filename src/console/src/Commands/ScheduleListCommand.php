@@ -18,6 +18,7 @@ use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Terminal;
 
 #[AsCommand(name: 'schedule:list')]
@@ -68,7 +69,7 @@ class ScheduleListCommand extends Command
             if ($this->option('json')) {
                 $this->output->writeln('[]');
             } else {
-                $this->info('No scheduled tasks have been defined.');
+                $this->components->info('No scheduled tasks have been defined.');
             }
 
             return;
@@ -82,18 +83,11 @@ class ScheduleListCommand extends Command
     }
 
     /**
-     * Render the scheduled tasks information.
-     */
-    protected function display(Collection $events, DateTimeZone $timezone): void
-    {
-        $this->option('json') ? $this->displayJson($events, $timezone) : $this->displayForCli($events, $timezone);
-    }
-
-    /**
      * Render the scheduled tasks information as JSON.
      */
     protected function displayJson(Collection $events, DateTimeZone $timezone): void
     {
+        // Formatting would strip console style tags, and backslashes before < or >, from shell commands.
         $this->output->writeln($events->map(function ($event) use ($timezone) {
             $nextDueDate = $this->getNextDueDateForEvent($event, $timezone);
 
@@ -109,6 +103,8 @@ class ScheduleListCommand extends Command
                 if (in_array($command, ['Closure', 'Callback'])) {
                     $command = 'Closure at: ' . $this->getClosureLocation($event);
                 }
+            } elseif (! $event->isSystem) {
+                $command = 'php artisan ' . $command;
             }
 
             return [
@@ -123,7 +119,7 @@ class ScheduleListCommand extends Command
                 'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
                 'environments' => $event->environments,
             ];
-        })->values()->toJson());
+        })->values()->toJson(), OutputInterface::OUTPUT_RAW);
     }
 
     /**
@@ -253,6 +249,14 @@ class ScheduleListCommand extends Command
     }
 
     /**
+     * Render the scheduled tasks information.
+     */
+    protected function display(Collection $events, DateTimeZone $timezone): void
+    {
+        $this->option('json') ? $this->displayJson($events, $timezone) : $this->displayForCli($events, $timezone);
+    }
+
+    /**
      * Get the next due date for an event.
      */
     private function getNextDueDateForEvent(Event $event, DateTimeZone $timezone): CarbonImmutable
@@ -289,8 +293,8 @@ class ScheduleListCommand extends Command
     /**
      * Get the timezone in which the raw cron expression is evaluated.
      *
-     * A static timezone conversion cannot preserve cron ranges, special syntax,
-     * month boundaries, and daylight-saving transitions, so the expression
+     * A static timezone conversion cannot preserve every combination of cron
+     * syntax, month boundaries and daylight-saving transitions, so the expression
      * remains in its real evaluation timezone.
      */
     private function getExpressionTimezone(Event $event): string

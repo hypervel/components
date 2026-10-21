@@ -209,6 +209,10 @@ class SQLiteGrammar extends Grammar
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
+        if (! is_null($blueprint->rangePartitionColumns)) {
+            throw new RuntimeException('This database driver does not support table partitioning.');
+        }
+
         return sprintf(
             '%s table %s (%s%s%s)',
             $blueprint->temporary ? 'create temporary' : 'create',
@@ -222,7 +226,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Get the foreign key syntax for a table creation statement.
      *
-     * @param \Hypervel\Support\Fluent[] $foreignKeys
+     * @param Fluent[] $foreignKeys
      */
     protected function addForeignKeys(array $foreignKeys): string
     {
@@ -713,6 +717,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a drop foreign key command.
+     *
+     * @throws RuntimeException
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command): ?array
     {
@@ -1071,6 +1077,22 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
+     * Create the column definition for a medium binary type.
+     */
+    protected function typeMediumBinary(Fluent $column): string
+    {
+        return 'blob';
+    }
+
+    /**
+     * Create the column definition for a long binary type.
+     */
+    protected function typeLongBinary(Fluent $column): string
+    {
+        return 'blob';
+    }
+
+    /**
      * Create the column definition for a uuid type.
      */
     protected function typeUuid(Fluent $column): string
@@ -1110,15 +1132,7 @@ class SQLiteGrammar extends Grammar
         return $this->typeGeometry($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     *
-     * @throws RuntimeException
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver requires a type, see the virtualAs / storedAs modifiers.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Get the SQL for a generated virtual column modifier.

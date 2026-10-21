@@ -79,11 +79,12 @@ class FakeProcessDescription
      */
     public function replaceOutput(string $output): static
     {
-        $this->output = (new Collection($this->output))->reject(function ($output) {
-            return $output['type'] === 'out';
-        })->values()->all();
+        $this->output = (new Collection($this->output))
+            ->reject(fn (array $output): bool => $output['type'] === 'out')
+            ->values()
+            ->all();
 
-        if (strlen($output) > 0) {
+        if ($output !== '') {
             $this->output[] = [
                 'type' => 'out',
                 'buffer' => rtrim($output, "\n") . "\n",
@@ -98,11 +99,12 @@ class FakeProcessDescription
      */
     public function replaceErrorOutput(string $output): static
     {
-        $this->output = (new Collection($this->output))->reject(function ($output) {
-            return $output['type'] === 'err';
-        })->values()->all();
+        $this->output = (new Collection($this->output))
+            ->reject(fn (array $output): bool => $output['type'] === 'err')
+            ->values()
+            ->all();
 
-        if (strlen($output) > 0) {
+        if ($output !== '') {
             $this->output[] = [
                 'type' => 'err',
                 'buffer' => rtrim($output, "\n") . "\n",
@@ -170,8 +172,8 @@ class FakeProcessDescription
             ->filter(fn ($output) => $output['type'] === 'out');
 
         return $output->isNotEmpty()
-                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
-                    : '';
+            ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
+            : '';
     }
 
     /**
@@ -183,7 +185,7 @@ class FakeProcessDescription
             ->filter(fn ($output) => $output['type'] === 'err');
 
         return $output->isNotEmpty()
-                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
-                    : '';
+            ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
+            : '';
     }
 }

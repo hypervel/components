@@ -40,7 +40,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->setUpRuleSets();
     }
 
-    public function testBasicValidation()
+    public function testBasicValidation(): void
     {
         $rule = Rule::anyOf([
             ['required', 'uuid:4'],
@@ -87,7 +87,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
-    public function testBasicStringValidation()
+    public function testBasicStringValidation(): void
     {
         $rule = Rule::anyOf([
             'required|uuid:4',
@@ -133,7 +133,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
-    public function testTaggedUnionObjects()
+    public function testTaggedUnionObjects(): void
     {
         $validator = new Validator($this->app->make('translator'), [
             'data' => [
@@ -184,7 +184,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
-    public function testNestedValidation()
+    public function testNestedValidation(): void
     {
         $validator = new Validator($this->app->make('translator'), [
             'user' => [
@@ -239,7 +239,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
-    public function testStarRuleSimple()
+    public function testStarRuleSimple(): void
     {
         $rule = [
             'persons.*.age' => ['required', Rule::anyOf([
@@ -273,7 +273,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testStarRuleNested()
+    public function testStarRuleNested(): void
     {
         $rule = [
             'persons.*.birth' => ['required', Rule::anyOf([
@@ -324,7 +324,7 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
-    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    public function testCustomMessageUsingDotNotationAndFqcnWorks(): void
     {
         $v = new Validator(
             $this->app->make('translator'),

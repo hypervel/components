@@ -32,7 +32,7 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         });
     }
 
-    public function testItOnlyEagerLoadsRequiredModels()
+    public function testItOnlyEagerLoadsRequiredModels(): void
     {
         $this->retrievedLogins = 0;
         User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
@@ -55,7 +55,7 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         $this->assertSame(2, $this->retrievedLogins);
     }
 
-    public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId()
+    public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId(): void
     {
         $user = User::create();
 

@@ -27,7 +27,7 @@ class AvatarTest extends FeatureTestCase
         $this->withoutMiddleware(Authorize::class);
     }
 
-    public function testItCanGenerateAvatarUrl()
+    public function testItCanGenerateAvatarUrl(): void
     {
         $user = null;
 
@@ -62,7 +62,7 @@ class AvatarTest extends FeatureTestCase
             ]);
     }
 
-    public function testItCanRegisterCustomAvatarPath()
+    public function testItCanRegisterCustomAvatarPath(): void
     {
         $user = null;
 
@@ -101,7 +101,7 @@ class AvatarTest extends FeatureTestCase
             ]);
     }
 
-    public function testItCanReadCustomAvatarPathOnNullEmail()
+    public function testItCanReadCustomAvatarPathOnNullEmail(): void
     {
         $user = null;
 

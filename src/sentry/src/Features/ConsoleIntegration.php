@@ -11,6 +11,9 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
+use Sentry\DataCollection\DataCollectionPolicy;
+use Sentry\DataCollection\KeyValueCollectionBehavior;
+use Sentry\DataCollection\KeyValueDataFilter;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -25,11 +28,17 @@ class ConsoleIntegration extends Feature
 
     private const string COMMAND_SCOPE_OWNERS_CONTEXT_KEY = '__sentry.console.command_scope_owners';
 
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         return true;
     }
 
+    /**
+     * Set up the feature in the environment.
+     */
     public function onBoot(): void
     {
         $dispatcher = $this->container->make('events');
@@ -50,7 +59,7 @@ class ConsoleIntegration extends Feature
         /** @var WeakMap<Command, Scope> $commandScopeOwners */
         $commandScopeOwners = CoroutineContext::getOrSet(
             self::COMMAND_SCOPE_OWNERS_CONTEXT_KEY,
-            fn () => new WeakMap,
+            fn (): WeakMap => new WeakMap,
         );
 
         $commandScopeOwners[$event->command] = $this->pushScope();
@@ -65,7 +74,7 @@ class ConsoleIntegration extends Feature
                 Breadcrumb::TYPE_DEFAULT,
                 'artisan.command',
                 'Starting Artisan command: ' . $command,
-                $this->commandInputMetadata($event->input),
+                $this->commandInputMetadata($event->command, $event->input),
             ));
         }
     }
@@ -85,7 +94,7 @@ class ConsoleIntegration extends Feature
                 'Finished Artisan command: ' . $command,
                 array_merge([
                     'exit' => $this->resolveExitCode($event),
-                ], $this->commandInputMetadata($event->input)),
+                ], $this->commandInputMetadata($event->command, $event->input)),
             ));
         }
 
@@ -141,16 +150,44 @@ class ConsoleIntegration extends Feature
     }
 
     /**
-     * Get command input metadata allowed by the PII configuration.
+     * Get command input metadata allowed by the data collection policy.
      *
-     * @return array{input?: string}
+     * @return array<string, mixed>
      */
-    private function commandInputMetadata(InputInterface $input): array
+    private function commandInputMetadata(Command $command, InputInterface $input): array
     {
-        if (! $this->shouldSendDefaultPii() || ! $input instanceof ArgvInput) {
+        if (! $input instanceof ArgvInput) {
             return [];
         }
 
-        return ['input' => (string) $input];
+        if (DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub())->isLegacyMode()) {
+            return $this->shouldSendDefaultPii() ? ['input' => (string) $input] : [];
+        }
+
+        // Unlike the raw command line, the bound values let the SDK denylist filter sensitive arguments and options by name
+        $definition = $command->getDefinition();
+        $filter = new KeyValueDataFilter(KeyValueCollectionBehavior::denyList());
+
+        return ['input' => [
+            'arguments' => $filter->filterKeyValueData($this->withoutDefaults($input->getArguments(), $definition->getArgumentDefaults())),
+            'options' => $filter->filterKeyValueData($this->withoutDefaults($input->getOptions(), $definition->getOptionDefaults())),
+        ]];
+    }
+
+    /**
+     * Remove the input values that equal their definition defaults.
+     *
+     * @param array<int|string, mixed> $values
+     * @param array<int|string, mixed> $defaults
+     *
+     * @return array<int|string, mixed>
+     */
+    private function withoutDefaults(array $values, array $defaults): array
+    {
+        return array_filter(
+            $values,
+            static fn (mixed $value, int|string $name): bool => $value !== $defaults[$name],
+            ARRAY_FILTER_USE_BOTH,
+        );
     }
 }

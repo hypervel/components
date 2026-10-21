@@ -12,8 +12,6 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use ReflectionClass;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'queue:clear')]
 class ClearCommand extends Command
@@ -22,9 +20,12 @@ class ClearCommand extends Command
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'queue:clear';
+    protected ?string $signature = 'queue:clear
+                    {connection? : The name of the queue connection to clear}
+                    {--queue= : The names of the queues to clear}
+                    {--force : Force the operation to run when in production}';
 
     /**
      * The console command description.
@@ -84,27 +85,5 @@ class ClearCommand extends Command
         return $queue === null || $queue === ''
             ? $this->hypervel->make('config')->string("queue.connections.{$connection}.queue", 'default')
             : $queue;
-    }
-
-    /**
-     *  Get the console command arguments.
-     */
-    protected function getArguments(): array
-    {
-        return [
-            ['connection', InputArgument::OPTIONAL, 'The name of the queue connection to clear'],
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['queue', null, InputOption::VALUE_OPTIONAL, 'The names of the queues to clear'],
-
-            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
-        ];
     }
 }

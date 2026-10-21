@@ -27,11 +27,11 @@ class ForgetFailedCommand extends Command
     public function handle(): ?int
     {
         if ($this->hypervel->make(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
-            $this->info('Failed job deleted successfully.');
+            $this->components->info('Failed job deleted successfully.');
         } else {
-            $this->error('No failed job matches the given ID.');
+            $this->components->error('No failed job matches the given ID.');
 
-            return 1;
+            return self::FAILURE;
         }
 
         return null;

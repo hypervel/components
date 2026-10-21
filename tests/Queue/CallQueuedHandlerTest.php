@@ -9,6 +9,7 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\Dispatcher as ConcreteBusDispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
@@ -35,6 +36,107 @@ use function Hypervel\Coroutine\parallel;
 
 class CallQueuedHandlerTest extends TestCase
 {
+    protected Container $container;
+
+    protected Repository $cache;
+
+    protected UniqueLock $locks;
+
+    protected CallQueuedHandler $handler;
+
+    /**
+     * Set up the handler with an array-backed lock cache.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->container = new Container;
+        $this->cache = new Repository(new ArrayStore);
+        $this->container->instance(Cache::class, $this->cache);
+        $this->locks = new UniqueLock($this->cache);
+        $this->handler = new CallQueuedHandler(new ConcreteBusDispatcher($this->container), $this->container);
+    }
+
+    public function testUniqueUntilProcessingLockIsReleasedOnTerminalFailure(): void
+    {
+        $command = new UniqueUntilProcessingFailureJob;
+        $this->assertTrue($this->locks->acquire($command));
+
+        $this->handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertTrue($this->locks->acquire(new UniqueUntilProcessingFailureJob));
+    }
+
+    public function testUniqueUntilProcessingListenerLockIsReleasedOnTerminalFailure(): void
+    {
+        $command = new CallQueuedListener(UniqueUntilProcessingFailureJob::class, 'handle', []);
+        $command->shouldBeUnique = true;
+        $command->shouldBeUniqueUntilProcessing = true;
+        $this->assertTrue($this->locks->acquire($command));
+
+        $this->handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertTrue($this->locks->acquire(clone $command));
+    }
+
+    public function testFailureDoesNotReleaseReplacementJobLock(): void
+    {
+        $command = new UniqueUntilProcessingFailureJob;
+        $this->assertTrue($this->locks->acquire($command));
+        $this->locks->release($command);
+        $this->assertTrue($this->locks->acquire(new UniqueUntilProcessingFailureJob));
+
+        $this->handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertFalse($this->locks->acquire(new UniqueUntilProcessingFailureJob));
+    }
+
+    public function testLegacyUniqueUntilProcessingFailureDoesNotForceReleaseAnUnownedLock(): void
+    {
+        $command = new UniqueUntilProcessingFailureJob;
+        $this->assertTrue($this->locks->acquire($command));
+        $command->uniqueLockOwner = '';
+
+        $this->handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertFalse($this->locks->acquire(new UniqueUntilProcessingFailureJob));
+    }
+
+    public function testLegacyUniqueJobLockIsStillReleasedOnTerminalFailure(): void
+    {
+        $command = new LegacyUniqueFailureJob;
+        $this->assertTrue($this->locks->acquire($command));
+
+        $this->handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertTrue($this->locks->acquire(new LegacyUniqueFailureJob));
+    }
+
+    public function testUniqueLockReleaseOverrideCanForwardOwnershipRequirement(): void
+    {
+        $locks = new CustomUniqueLock($this->cache);
+        $command = new UniqueUntilProcessingFailureJob;
+        $this->assertTrue($locks->acquire($command));
+
+        $locks->release($command, onlyOwned: true);
+
+        $this->assertTrue($locks->onlyOwned);
+        $this->assertTrue($locks->acquire(new UniqueUntilProcessingFailureJob));
+    }
+
+    public function testHandlerLockReleaseOverrideReceivesOwnershipRequirement(): void
+    {
+        $handler = new CustomLockReleaseHandler(new ConcreteBusDispatcher($this->container), $this->container);
+        $command = new UniqueUntilProcessingFailureJob;
+        $this->assertTrue($this->locks->acquire($command));
+
+        $handler->failed(['command' => serialize($command)], new RuntimeException, 'job-id', new FakeJob);
+
+        $this->assertTrue($handler->onlyOwned);
+        $this->assertTrue($this->locks->acquire(new UniqueUntilProcessingFailureJob));
+    }
+
     public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface(): void
     {
         $handler = $this->createHandler();
@@ -430,6 +532,45 @@ class CallQueuedHandlerTest extends TestCase
         $reflection = new ReflectionMethod($object, $method);
 
         return $reflection->invoke($object, ...$args);
+    }
+}
+
+class UniqueUntilProcessingFailureJob implements ShouldBeUniqueUntilProcessing
+{
+    use Queueable;
+}
+
+class LegacyUniqueFailureJob implements ShouldBeUnique
+{
+}
+
+class CustomUniqueLock extends UniqueLock
+{
+    public bool $onlyOwned = false;
+
+    /**
+     * Record the ownership requirement and release the lock.
+     */
+    public function release(mixed $job, bool $onlyOwned = false, string $owner = ''): void
+    {
+        $this->onlyOwned = $onlyOwned;
+
+        parent::release($job, $onlyOwned, $owner);
+    }
+}
+
+class CustomLockReleaseHandler extends CallQueuedHandler
+{
+    public bool $onlyOwned = false;
+
+    /**
+     * Record the ownership requirement and release the job's lock.
+     */
+    protected function ensureUniqueJobLockIsReleased(mixed $command, bool $onlyOwned = false, ?Job $job = null): void
+    {
+        $this->onlyOwned = $onlyOwned;
+
+        parent::ensureUniqueJobLockIsReleased($command, $onlyOwned, $job);
     }
 }
 

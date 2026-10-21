@@ -20,26 +20,36 @@ class OptimizeCommandTest extends TestCase
         'bootstrap/cache/routes-v7.php',
     ];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Testbench gives each ParaTest worker its own route cache path outside bootstrap/cache.
+        $this->beforeApplicationDestroyed(function () {
+            $this->app->make('files')->delete($this->app->getCachedRoutesPath());
+        });
+    }
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [ServiceProviderWithOptimize::class];
     }
 
-    public function testCanRunOptimizeWithPackageRegisteredCommand()
+    public function testCanRunOptimizeWithPackageRegisteredCommand(): void
     {
         $this->artisan('optimize')
             ->assertSuccessful()
             ->expectsOutputToContain('my package');
     }
 
-    public function testCanExcludeCommandsByKey()
+    public function testCanExcludeCommandsByKey(): void
     {
         $this->artisan('optimize', ['--except' => 'my package'])
             ->assertSuccessful()
             ->doesntExpectOutputToContain('my package');
     }
 
-    public function testCanExcludeCommandsByCommand()
+    public function testCanExcludeCommandsByCommand(): void
     {
         $this->artisan('optimize', ['--except' => 'my_package:cache'])
             ->assertSuccessful()

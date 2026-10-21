@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeElseStatementsTest extends AbstractBladeTestCase
 {
-    public function testElseStatementsAreCompiled()
+    public function testElseStatementsAreCompiled(): void
     {
         $string = '@if (name(foo(bar)))
 breeze
@@ -21,7 +21,7 @@ boom
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testElseIfStatementsAreCompiled()
+    public function testElseIfStatementsAreCompiled(): void
     {
         $string = '@if(name(foo(bar)))
 breeze

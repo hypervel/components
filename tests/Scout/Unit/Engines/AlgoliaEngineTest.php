@@ -383,7 +383,7 @@ class AlgoliaEngineTest extends TestCase
         $model->shouldNotReceive('indexableAs');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Algolia filter deletion requires a non-empty filter.');
+        $this->expectExceptionMessageIs('Algolia filter deletion requires a non-empty filter.');
 
         $engine->deleteByFilter(new Builder($model, ''));
     }
@@ -407,7 +407,7 @@ class AlgoliaEngineTest extends TestCase
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Algolia filter deletion did not complete successfully.');
+        $this->expectExceptionMessageIs('Algolia filter deletion did not complete successfully.');
 
         $engine->deleteByFilter($builder);
     }
@@ -569,7 +569,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with('users', [
                 'query' => 'zonda',
-                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25 AND precise_ratio<1.2345678901234567",
+                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25 AND precise_ratio<1.2345678901234567 AND (is_featured:true OR is_featured:false) AND NOT is_hidden:true AND NOT is_hidden:false",
             ], []);
 
         $engine = new AlgoliaEngine($client);
@@ -588,7 +588,9 @@ class AlgoliaEngineTest extends TestCase
             ->where('rank', '>=', 10)
             ->where('score', '>=', '9223372036854775808')
             ->where('ratio', '<', 1.25)
-            ->where('precise_ratio', '<', 1.2345678901234567);
+            ->where('precise_ratio', '<', 1.2345678901234567)
+            ->whereIn('is_featured', [true, false])
+            ->whereNotIn('is_hidden', [true, false]);
 
         $engine->search($builder);
     }
@@ -655,7 +657,7 @@ class AlgoliaEngineTest extends TestCase
         $builder->where('value', $operator, $value);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->search($builder);
     }

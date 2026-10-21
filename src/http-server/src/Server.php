@@ -45,7 +45,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
     }
 
     /**
-     * Resolve the Kernel, sync middleware to Router, and trigger route compilation.
+     * Resolve the Kernel, bootstrap the application if needed, and compile the routes.
      *
      * Called by the server boot process (Server\Server::registerSwooleEvents),
      * before $server->start(). In SWOOLE_PROCESS mode this runs in the main
@@ -58,7 +58,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
         // Resolve the Kernel via Contracts\Http\Kernel binding (set in bootstrap/app.php)
         $this->kernel = $this->container->make(KernelContract::class);
 
-        // Trigger middleware sync + route compilation/pre-warming
+        // A no-op when the console bootstrap has already booted the application
         $this->kernel->bootstrap();
 
         // Compile routes and pre-warm all static caches for HTTP serving

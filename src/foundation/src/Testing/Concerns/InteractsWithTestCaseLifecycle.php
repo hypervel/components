@@ -21,7 +21,6 @@ use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\ParallelTesting;
-use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
 use ReflectionClass;
 use Throwable;
 
@@ -63,7 +62,6 @@ trait InteractsWithTestCaseLifecycle
     {
         Facade::clearResolvedInstances();
 
-        /* @phpstan-ignore-next-line */
         if (! $this->app) {
             $this->refreshApplication();
 
@@ -147,21 +145,30 @@ trait InteractsWithTestCaseLifecycle
             }
         }
 
-        try {
-            HandleExceptions::flushState($this);
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
-        }
-
         $this->app = null;
         $this->afterApplicationCreatedCallbacks = [];
         $this->beforeApplicationDestroyedCallbacks = [];
         $this->callbackException = null;
         $this->setUpHasRun = false;
 
+        try {
+            $this->flushState();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
         if ($exception !== null) {
             throw $exception;
         }
+    }
+
+    /**
+     * Reset static state between test executions.
+     */
+    protected function flushState(): void
+    {
+        // Other framework static state is reset by AfterEachTestSubscriber.
+        HandleExceptions::flushState($this);
     }
 
     /**
@@ -188,6 +195,10 @@ trait InteractsWithTestCaseLifecycle
         }
 
         foreach ($uses as $trait) {
+            if ($this->setUpTheTestEnvironmentTraitToBeIgnored($trait)) {
+                continue;
+            }
+
             if (method_exists($this, $method = 'setUp' . class_basename($trait))) {
                 $this->{$method}();
             }
@@ -208,6 +219,16 @@ trait InteractsWithTestCaseLifecycle
         }
 
         return $uses;
+    }
+
+    /**
+     * Determine if the trait should be skipped when setting up the test environment.
+     *
+     * @param class-string $use
+     */
+    protected function setUpTheTestEnvironmentTraitToBeIgnored(string $use): bool
+    {
+        return false;
     }
 
     /**
@@ -242,12 +263,6 @@ trait InteractsWithTestCaseLifecycle
      */
     public static function tearDownAfterClassUsingTestCase(): void
     {
-        if (class_exists(PHPUnitRegistry::class)) {
-            (function () {
-                $this->classDocBlocks = [];
-                $this->methodDocBlocks = [];
-            })->call(PHPUnitRegistry::getInstance());
-        }
     }
 
     /**
@@ -292,7 +307,8 @@ trait InteractsWithTestCaseLifecycle
      * RefreshDatabase and DatabaseTransactions store transaction state in Context.
      * Since setUpTraits runs in a temporary coroutine (separate from the test method's
      * coroutine), we must copy this state to non-coroutine context. The test coroutine
-     * will then copy from non-coroutine context via copyFromNonCoroutine().
+     * restores the same transaction state explicitly; normal context copying
+     * omits it so child coroutines cannot inherit their parent's transactions.
      */
     protected function preserveTransactionContext(): void
     {

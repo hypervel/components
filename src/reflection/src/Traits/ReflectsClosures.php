@@ -11,6 +11,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionIntersectionType;
 use ReflectionNamedType;
+use ReflectionParameter;
 use ReflectionUnionType;
 use RuntimeException;
 
@@ -75,13 +76,15 @@ trait ReflectsClosures
     {
         $reflection = new ReflectionFunction($closure);
 
-        return Collection::make($reflection->getParameters())->mapWithKeys(function ($parameter) {
-            if ($parameter->isVariadic()) {
-                return [$parameter->getName() => null];
-            }
+        return (new Collection($reflection->getParameters()))
+            ->mapWithKeys(function (ReflectionParameter $parameter): array {
+                if ($parameter->isVariadic()) {
+                    return [$parameter->getName() => null];
+                }
 
-            return [$parameter->getName() => Reflector::getParameterClassName($parameter)];
-        })->all();
+                return [$parameter->getName() => Reflector::getParameterClassName($parameter)];
+            })
+            ->all();
     }
 
     /**
@@ -105,11 +108,10 @@ trait ReflectsClosures
             : [$reflection->getReturnType()];
 
         /** @var Collection<int, ReflectionNamedType> $namedTypes */
-        $namedTypes = Collection::make($types)
-            ->filter(fn ($type) => $type instanceof ReflectionNamedType);
+        $namedTypes = (new Collection($types))
+            ->filter(fn ($type) => $type instanceof ReflectionNamedType && ! $type->isBuiltin());
 
         return $namedTypes
-            ->reject(fn (ReflectionNamedType $type) => $type->isBuiltin())
             // PHP resolves relative types differently for named and anonymous closures.
             ->map(fn (ReflectionNamedType $type): ?string => match ($type->getName()) {
                 'self' => $reflection->getClosureScopeClass()?->getName(),

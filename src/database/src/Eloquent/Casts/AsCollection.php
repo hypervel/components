@@ -22,11 +22,19 @@ class AsCollection implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
+            /**
+             * Create a new collection cast instance.
+             */
             public function __construct(protected array $arguments)
             {
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             *
+             * @throws InvalidArgumentException
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
@@ -60,8 +68,15 @@ class AsCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
+                if (is_null($value) && in_array('nullable', $this->arguments, true)) {
+                    return [$key => null];
+                }
+
                 $encoded = Json::encode($value);
 
                 if ($encoded === false) {
@@ -97,5 +112,20 @@ class AsCollection implements Castable
         }
 
         return static::class . ':' . implode(',', [$class, $map]);
+    }
+
+    /**
+     * Specify that a null value assigned to the attribute should be persisted as a native SQL NULL instead of the JSON "null" literal.
+     *
+     * @param null|class-string $class
+     * @param null|array{class-string, string}|class-string $map
+     */
+    public static function nullable(?string $class = null, array|string|null $map = null): string
+    {
+        if (is_array($map) && is_callable($map)) {
+            $map = $map[0] . '@' . $map[1];
+        }
+
+        return static::class . ':' . implode(',', [$class, $map, 'nullable']);
     }
 }

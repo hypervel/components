@@ -52,7 +52,7 @@ class CommandSchedulingTest extends TestCase
         Artisan::registerCommand(new CommandSchedulingTestCommand);
     }
 
-    public function testForegroundExecutionOrder()
+    public function testForegroundExecutionOrder(): void
     {
         $schedule = $this->app->make(Schedule::class);
 
@@ -80,7 +80,7 @@ class CommandSchedulingTest extends TestCase
         $this->assertEquals(['before', 'handled', 'after'], CommandSchedulingTestCommand::$log);
     }
 
-    public function testForegroundExecutionOrderWithoutOnOneServer()
+    public function testForegroundExecutionOrderWithoutOnOneServer(): void
     {
         $schedule = $this->app->make(Schedule::class);
 

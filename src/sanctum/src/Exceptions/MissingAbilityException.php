@@ -17,7 +17,7 @@ class MissingAbilityException extends AuthorizationException
     protected array $abilities;
 
     /**
-     * Create a new missing scope exception.
+     * Create a new missing ability exception.
      *
      * @param array<string>|string $abilities
      */

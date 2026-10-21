@@ -7,6 +7,7 @@ namespace Hypervel\Testbench;
 use Closure;
 use Composer\InstalledVersions;
 use Composer\Semver\VersionParser;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
@@ -22,12 +23,15 @@ use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\PendingCommand;
 use InvalidArgumentException;
+use OutOfBoundsException;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
-use RuntimeException;
+use ReflectionClass;
+use UnexpectedValueException;
 
 use function Hypervel\Filesystem\join_paths as filesystem_join_paths;
 use function Hypervel\Support\php_binary as support_php_binary;
@@ -36,6 +40,13 @@ use function Hypervel\Support\php_binary as support_php_binary;
  * Register after resolving callback.
  *
  * Calls the callback when the given abstract is resolved, or immediately if already resolved.
+ *
+ * @api
+ *
+ * @template THypervel of ApplicationContract
+ *
+ * @param THypervel $app
+ * @param null|(Closure(object, THypervel): mixed) $callback
  */
 function after_resolving(ApplicationContract $app, string $name, ?Closure $callback = null): void
 {
@@ -49,8 +60,19 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
 /**
  * Create Hypervel application instance.
  *
+ * @api
+ *
  * @param null|callable(ApplicationContract):void $resolvingCallback
- * @param array<string, mixed> $options
+ * @param array{
+ *   extra?: array{
+ *     env?: array,
+ *     providers?: array<int, class-string>,
+ *     dont-discover?: array<int, string>,
+ *     bootstrappers?: null|array<int, class-string>|class-string
+ *   },
+ *   load_environment_variables?: bool,
+ *   enables_package_discoveries?: bool
+ * } $options
  */
 function container(
     ?string $basePath = null,
@@ -67,6 +89,10 @@ function container(
 
 /**
  * Run artisan command.
+ *
+ * @api
+ *
+ * @param array<string, mixed> $parameters
  */
 function artisan(TestCaseContract|ApplicationContract $context, string $command, array $parameters = []): int
 {
@@ -87,9 +113,9 @@ function artisan(TestCaseContract|ApplicationContract $context, string $command,
  * Resets PHPUnit's shutdown handler message to prevent
  * "PHPUnit did not exit cleanly" warnings on process exit.
  */
-function bail(?object $testCase, int $status = 0): never
+function bail(?object $testCase, string|int $status = 0): never
 {
-    if ($testCase instanceof PHPUnitTestCase && phpunit_version_compare('12.3.5', '>=')) {
+    if ($testCase instanceof PHPUnitTestCase) {
         ShutdownHandler::resetMessage();
     }
 
@@ -99,7 +125,7 @@ function bail(?object $testCase, int $status = 0): never
 /**
  * Exit cleanly from a test process.
  */
-function terminate(?object $testCase, int $status = 0): never
+function terminate(?object $testCase, string|int $status = 0): never
 {
     bail($testCase, $status);
 }
@@ -109,6 +135,8 @@ function terminate(?object $testCase, int $status = 0): never
  *
  * Route names set via fluent ->name() after RouteCollection::add() are not
  * indexed until refreshNameLookups() runs. This function triggers that refresh.
+ *
+ * @api
  */
 function refresh_router_lookups(Router $router): void
 {
@@ -119,6 +147,8 @@ function refresh_router_lookups(Router $router): void
  * Load migration paths.
  *
  * Registers the given paths with the migrator so they're included when running migrations.
+ *
+ * @api
  *
  * @param array<int, string>|string $paths
  */
@@ -134,8 +164,10 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 /**
  * Get the path to the default skeleton application.
  *
- * Returns the path to the runtime copy of the workbench app used for testing.
- * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
+ * Returns a path inside the active runtime skeleton, which Bootstrapper::bootstrap()
+ * sets through the BASE_PATH constant.
+ *
+ * @api
  *
  * @no-named-arguments
  *
@@ -157,11 +189,7 @@ function default_skeleton_path(array|string $path = ''): string|false
  */
 function uses_default_skeleton(?string $basePath = null): bool
 {
-    $basePath ??= default_skeleton_path() ?: null;
-
-    if ($basePath === null) {
-        return false;
-    }
+    $basePath ??= base_path();
 
     return realpath(join_paths($basePath, 'bootstrap', '.testbench-default-skeleton')) !== false;
 }
@@ -171,6 +199,8 @@ function uses_default_skeleton(?string $basePath = null): bool
  *
  * Returns the path to framework test migrations in the testbench package.
  * These are separate from the workbench app's migrations (which use database_path()).
+ *
+ * @api
  *
  * @throws InvalidArgumentException
  */
@@ -216,6 +246,22 @@ function is_symlink(string $path): bool
 }
 
 /**
+ * Resolve filename from classname.
+ *
+ * @param class-string $className
+ */
+function filename_from_classname(string $className): string|false
+{
+    if (! class_exists($className, false)) {
+        return false;
+    }
+
+    $classFileName = (new ReflectionClass($className))->getFileName();
+
+    return $classFileName === false ? false : realpath($classFileName);
+}
+
+/**
  * Get the path to the testbench package folder.
  *
  * @no-named-arguments
@@ -242,6 +288,8 @@ function testbench_path(array|string $path = ''): string
 
 /**
  * Get the path to the package root folder.
+ *
+ * @api
  *
  * @no-named-arguments
  *
@@ -282,6 +330,8 @@ function package_path(array|string $path = ''): string
  * variables must be strings. This prevents "Array to string conversion"
  * errors when tests pollute $_SERVER with array values.
  *
+ * @api
+ *
  * @return array<string, null|bool|float|int|string>
  */
 function defined_environment_variables(): array
@@ -300,6 +350,8 @@ function defined_environment_variables(): array
 /**
  * Get default environment variables.
  *
+ * @api
+ *
  * @param iterable<string, mixed> $variables
  * @return array<int, string>
  */
@@ -308,7 +360,8 @@ function parse_environment_variables(iterable $variables): array
     return (new Collection($variables))
         ->transform(static function (mixed $value, string $key): string {
             if (is_bool($value) || in_array($value, ['true', 'false'], true)) {
-                $value = in_array($value, [true, 'true'], true) ? '(true)' : '(false)';
+                // Unlike Orchestra's parenthesized values, these also work for raw environment consumers.
+                $value = in_array($value, [true, 'true'], true) ? 'true' : 'false';
             } elseif ($value === null || $value === 'null') {
                 $value = '(null)';
             } else {
@@ -338,6 +391,8 @@ function quote_environment_value(string $value): string
 
 /**
  * Determine if the Hypervel application's vendor directory already matches the working vendor path.
+ *
+ * @api
  */
 function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath = null): bool
 {
@@ -352,6 +407,8 @@ function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath =
 
 /**
  * Transform realpath to alias path.
+ *
+ * @api
  */
 function transform_realpath_to_relative(string $path, ?string $workingPath = null, string $prefix = ''): string
 {
@@ -397,6 +454,8 @@ function transform_relative_path(?string $path, string $workingPath): ?string
 /**
  * Get the workbench configuration.
  *
+ * @api
+ *
  * @return array<string, mixed>
  */
 function workbench(): array
@@ -411,6 +470,8 @@ function workbench(): array
 
 /**
  * Get the path to the workbench folder.
+ *
+ * @api
  *
  * @no-named-arguments
  *
@@ -476,16 +537,41 @@ function workbench_relative_path(array|string $path = ''): string
 
 /**
  * Compare the installed version of a package.
+ *
+ * Replaced and provided packages only have version ranges, so comparing them
+ * returns whether those ranges satisfy the comparison, using equality when no
+ * operator is given.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? bool|int : bool)
+ *
+ * @throws OutOfBoundsException
+ * @throws UnexpectedValueException
  */
 function package_version_compare(string $package, string $version, ?string $operator = null): int|bool
 {
+    $versionParser = new VersionParser;
     $prettyVersion = InstalledVersions::getPrettyVersion($package);
 
     if ($prettyVersion === null) {
-        throw new RuntimeException(sprintf('Unable to compare "%s" version', $package));
+        // Composer constraints do not accept the word operators that version_compare() allows.
+        $operator = match ($operator) {
+            'lt' => '<',
+            'le' => '<=',
+            'gt' => '>',
+            'ge' => '>=',
+            'eq' => '==',
+            'ne' => '!=',
+            default => $operator,
+        };
+
+        return InstalledVersions::satisfies($versionParser, $package, ($operator ?? '=') . $version);
     }
 
-    $versionParser = new VersionParser;
     $normalizedPackageVersion = $versionParser->normalize($prettyVersion);
     $normalizedVersion = $versionParser->normalize($version);
 
@@ -498,6 +584,15 @@ function package_version_compare(string $package, string $version, ?string $oper
 
 /**
  * Compare the installed Hypervel framework version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
  */
 function hypervel_version_compare(string $version, ?string $operator = null): int|bool
 {
@@ -513,28 +608,66 @@ function hypervel_version_compare(string $version, ?string $operator = null): in
 }
 
 /**
+ * Compare the running PHP version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
+ */
+function php_version_compare(string $version, ?string $operator = null): int|bool
+{
+    $versionParser = new VersionParser;
+    // PHP 8.6 development and pre-release builds compare as 8.6.0.
+    $normalizedPhpVersion = $versionParser->normalize(PHP_VERSION_ID === 80600 ? '8.6.0' : PHP_VERSION);
+    $normalizedVersion = $versionParser->normalize($version);
+
+    if ($operator === null) {
+        return version_compare($normalizedPhpVersion, $normalizedVersion);
+    }
+
+    return version_compare($normalizedPhpVersion, $normalizedVersion, $operator);
+}
+
+/**
  * Compare the installed PHPUnit version.
+ *
+ * Development builds compare as their release version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
  */
 function phpunit_version_compare(string $version, ?string $operator = null): int|bool
 {
-    $currentVersion = Version::id();
-
-    $normalizedCurrentVersion = match (true) {
-        str_starts_with($currentVersion, '13.0-') => '13.0.0',
-        default => $currentVersion,
-    };
+    $versionParser = new VersionParser;
+    $normalizedPhpunitVersion = $versionParser->normalize(explode('-', Version::id(), 2)[0]);
+    $normalizedVersion = $versionParser->normalize($version);
 
     if ($operator === null) {
-        return version_compare($normalizedCurrentVersion, $version);
+        return version_compare($normalizedPhpunitVersion, $normalizedVersion);
     }
 
-    return version_compare($normalizedCurrentVersion, $version, $operator);
+    return version_compare($normalizedPhpunitVersion, $normalizedVersion, $operator);
 }
 
 /**
  * Ensure the provided application is available or throw an exception.
+ *
+ * @internal
+ *
+ * @throws ApplicationNotAvailableException
  */
-function hypervel_or_fail(mixed $app, ?string $caller = null): Application
+function hypervel_or_fail(?ApplicationContract $app, ?string $caller = null): Application
 {
     if ($app instanceof Application) {
         return $app;
@@ -554,6 +687,23 @@ function hypervel_or_fail(mixed $app, ?string $caller = null): Application
 }
 
 /**
+ * Determine if current test is handled via parallel testing.
+ *
+ * @api
+ */
+function in_parallel_testing(): bool
+{
+    $container = Container::getInstance();
+
+    // Without an application, such as in a data provider, there is no token resolver to honor.
+    $parallelTesting = $container instanceof ApplicationContract
+        ? $container->make(ParallelTesting::class)
+        : new ParallelTesting($container);
+
+    return $parallelTesting->inParallel();
+}
+
+/**
  * Determine if running via the Testbench CLI.
  */
 function is_testbench_cli(?bool $dusk = null): bool
@@ -570,6 +720,8 @@ function is_testbench_cli(?bool $dusk = null): bool
 
 /**
  * Determine the PHP binary.
+ *
+ * @api
  */
 function php_binary(bool $escape = false): string
 {
@@ -583,6 +735,8 @@ function php_binary(bool $escape = false): string
  *
  * Spawns a subprocess to run a console command, useful for testing scenarios
  * that require process isolation (e.g., queue workers with job timeouts).
+ *
+ * @api
  *
  * @param array<int, string>|Closure|string $command The command to run
  * @param array<string, mixed>|string $env Environment variables or APP_ENV value

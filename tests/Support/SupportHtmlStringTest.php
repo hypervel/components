@@ -28,7 +28,7 @@ class SupportHtmlStringTest extends TestCase
 
         // Check if HtmlString correctly handles an empty string
         $emptyHtml = new HtmlString('');
-        $this->assertEquals('', $emptyHtml->toHtml());
+        $this->assertSame('', $emptyHtml->toHtml());
 
         // Check if HtmlString correctly converts a plain text string
         $str = 'foo bar';
@@ -36,7 +36,7 @@ class SupportHtmlStringTest extends TestCase
         $this->assertEquals($str, $html->toHtml());
     }
 
-    public function testToString()
+    public function testToString(): void
     {
         $str = '<h1>foo</h1>';
         $html = new HtmlString('<h1>foo</h1>');
@@ -62,7 +62,7 @@ class SupportHtmlStringTest extends TestCase
         $this->assertFalse((new HtmlString('<p>Hello</p>'))->isEmpty());
     }
 
-    public function testIsNotEmpty()
+    public function testIsNotEmpty(): void
     {
         $this->assertTrue((new HtmlString('foo'))->isNotEmpty());
     }

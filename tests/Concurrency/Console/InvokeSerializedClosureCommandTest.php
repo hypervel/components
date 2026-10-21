@@ -154,6 +154,17 @@ class InvokeSerializedClosureCommandTest extends TestCase
         $this->assertSame('invalid � message', $result['message']);
     }
 
+    public function testItTransportsConsoleMarkupInFailureDiagnosticsVerbatim(): void
+    {
+        $result = $this->invokeSerializedClosure(
+            static fn (): never => throw new RuntimeException('<info>failed</info> on a\>b')
+        );
+
+        $this->assertFalse($result['successful']);
+        $this->assertSame('<info>failed</info> on a\>b', $result['message']);
+        $this->assertSame(['message' => '<info>failed</info> on a\>b'], $result['parameters']);
+    }
+
     public function testItFallsBackWhenExceptionParametersCannotBeEncoded(): void
     {
         $result = $this->invokeSerializedClosure(

@@ -362,12 +362,13 @@ class DatabaseStoreTest extends TestCase
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'PostgreSQL database rate limiter connection [limiter] must use READ COMMITTED transaction isolation.'
         );
 
         match ($operation) {
             'consume' => $store->consume('physical-key', Limit::perMinute(10)),
+            'consumeMany' => $store->consumeMany([['key' => 'physical-key', 'policy' => Limit::perMinute(10)]]),
             'block' => $store->block('physical-key', 1_000_000),
             'recordFailure' => $store->recordFailure('physical-key', Backoff::exponential()),
             'clear' => $store->clear('physical-key'),
@@ -388,7 +389,7 @@ class DatabaseStoreTest extends TestCase
         $connection->shouldNotReceive('table');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'PostgreSQL database rate limiter connection [limiter] must use READ COMMITTED transaction isolation.'
         );
 
@@ -450,12 +451,13 @@ class DatabaseStoreTest extends TestCase
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Database rate limiter mutations cannot run inside an active transaction on the selected connection.'
         );
 
         match ($operation) {
             'consume' => $store->consume('physical-key', Limit::perMinute(10)),
+            'consumeMany' => $store->consumeMany([['key' => 'physical-key', 'policy' => Limit::perMinute(10)]]),
             'block' => $store->block('physical-key', 1_000_000),
             'recordFailure' => $store->recordFailure('physical-key', Backoff::exponential()),
             'clear' => $store->clear('physical-key'),
@@ -467,6 +469,7 @@ class DatabaseStoreTest extends TestCase
     {
         return [
             'consume' => ['consume'],
+            'consume group' => ['consumeMany'],
             'block' => ['block'],
             'record failure' => ['recordFailure'],
             'clear' => ['clear'],

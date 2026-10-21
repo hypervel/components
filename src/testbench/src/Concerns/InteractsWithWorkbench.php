@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Workbench\Workbench;
+use Hypervel\Workbench\AuthServiceProvider;
 
 /**
  * @internal
@@ -24,7 +28,7 @@ trait InteractsWithWorkbench
      */
     public static function applicationBasePathUsingWorkbench(): ?string
     {
-        return $_ENV['APP_BASE_PATH'] ?? null;
+        return Bootstrapper::explicitApplicationBasePath();
     }
 
     /**
@@ -52,7 +56,7 @@ trait InteractsWithWorkbench
      *
      * @return null|array<int, class-string>
      */
-    protected function getPackageBootstrappersUsingWorkbench(object $app): ?array
+    protected function getPackageBootstrappersUsingWorkbench(ApplicationContract $app): ?array
     {
         if (empty($bootstrappers = static::cachedConfigurationForWorkbench()?->getExtraAttributes()['bootstrappers'] ?? null)) {
             return null;
@@ -68,9 +72,9 @@ trait InteractsWithWorkbench
      *
      * @internal
      *
-     * @return null|array<int, class-string<\Hypervel\Support\ServiceProvider>>
+     * @return null|array<int, class-string<ServiceProvider>>
      */
-    protected function getPackageProvidersUsingWorkbench(object $app): ?array
+    protected function getPackageProvidersUsingWorkbench(ApplicationContract $app): ?array
     {
         $config = static::cachedConfigurationForWorkbench();
 
@@ -78,16 +82,16 @@ trait InteractsWithWorkbench
         $providers = $config?->getExtraAttributes()['providers'] ?? [];
 
         if ($hasAuthentication === true
-            && class_exists(\Hypervel\Auth\AuthServiceProvider::class)
-            && ! in_array(\Hypervel\Auth\AuthServiceProvider::class, $providers, true)) {
-            $providers[] = \Hypervel\Auth\AuthServiceProvider::class;
+            && class_exists(AuthServiceProvider::class)
+            && ! in_array(AuthServiceProvider::class, $providers, true)) {
+            $providers[] = AuthServiceProvider::class;
         }
 
         if (empty($providers)) {
             return null;
         }
 
-        return static::usesTestingConcern(WithWorkbench::class)
+        return static::usesTestingConcern(WithWorkbench::class) || ! static::usesTestingConcern()
             ? Arr::wrap($providers)
             : [];
     }
@@ -97,7 +101,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationConsoleKernelUsingWorkbench(object $app): string
+    protected function applicationConsoleKernelUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationConsoleKernel() ?? \Hypervel\Testbench\Console\Kernel::class;
@@ -111,7 +115,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationHttpKernelUsingWorkbench(object $app): string
+    protected function applicationHttpKernelUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationHttpKernel() ?? \Hypervel\Testbench\Http\Kernel::class;
@@ -125,7 +129,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationExceptionHandlerUsingWorkbench(object $app): string
+    protected function applicationExceptionHandlerUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationExceptionHandler() ?? \Hypervel\Testbench\Exceptions\Handler::class;
@@ -135,7 +139,7 @@ trait InteractsWithWorkbench
     }
 
     /**
-     * Define or get the cached uses for test case.
+     * Get the cached Workbench configuration.
      */
     public static function cachedConfigurationForWorkbench(): ?ConfigContract
     {

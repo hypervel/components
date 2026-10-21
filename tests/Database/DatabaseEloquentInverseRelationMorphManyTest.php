@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
@@ -60,7 +62,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         parent::tearDown();
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphManyInversePostModel::factory()->withComments()->count(3)->create();
         $posts = MorphManyInversePostModel::all();
@@ -75,7 +77,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphManyInversePostModel::factory()->withComments()->count(3)->create();
         $posts = MorphManyInversePostModel::with('comments')->get();
@@ -90,7 +92,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphManyGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphManyInversePostModel::factory()->withComments()->count(3)->create();
         $posts = MorphManyInversePostModel::all();
@@ -105,7 +107,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphManyGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphManyInversePostModel::factory()->withComments()->count(3)->create();
         $posts = MorphManyInversePostModel::with('guessedComments')->get();
@@ -120,7 +122,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::all();
@@ -134,7 +136,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::with('lastComment')->get();
@@ -147,7 +149,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphLatestOfManyGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphLatestOfManyGuessedInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::all();
@@ -161,7 +163,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphLatestOfManyGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphLatestOfManyGuessedInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::with('guessedLastComment')->get();
@@ -174,7 +176,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testMorphOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::all();
@@ -188,7 +190,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testMorphOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         MorphManyInversePostModel::factory()->count(3)->withComments()->create();
         $posts = MorphManyInversePostModel::with('firstComment')->get();
@@ -201,7 +203,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenMakingMany()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenMakingMany(): void
     {
         $post = MorphManyInversePostModel::create();
 
@@ -213,7 +215,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenCreatingMany()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenCreatingMany(): void
     {
         $post = MorphManyInversePostModel::create();
 
@@ -225,7 +227,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly(): void
     {
         $post = MorphManyInversePostModel::create();
 
@@ -237,7 +239,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenSavingMany()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenSavingMany(): void
     {
         $post = MorphManyInversePostModel::create();
         $comments = array_fill(0, 3, new MorphManyInverseCommentModel);
@@ -250,7 +252,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
         }
     }
 
-    public function testMorphManyInverseRelationIsProperlySetToParentWhenUpdatingMany()
+    public function testMorphManyInverseRelationIsProperlySetToParentWhenUpdatingMany(): void
     {
         $post = MorphManyInversePostModel::create();
         $comments = MorphManyInverseCommentModel::factory()->count(3)->create();
@@ -268,26 +270,20 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 
     /**
      * Helpers...
-     * @param mixed $connection
      */
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

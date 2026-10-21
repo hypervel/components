@@ -202,9 +202,48 @@ class AssertableJsonString implements ArrayAccess, Countable
      */
     public function assertMissingPath(string $path): static
     {
-        PHPUnit::assertFalse(Arr::has($this->json(), $path));
+        if (! str_contains($path, '*')) {
+            PHPUnit::assertFalse(Arr::has($this->json(), $path));
+
+            return $this;
+        }
+
+        PHPUnit::assertFalse(
+            $this->hasJsonPath($this->json(), explode('.', $path)),
+            "Found unexpected path [{$path}] within the response JSON."
+        );
 
         return $this;
+    }
+
+    /**
+     * Determine whether a JSON path exists, where each wildcard matches any child at its level.
+     *
+     * @param list<string> $segments
+     */
+    protected function hasJsonPath(mixed $data, array $segments): bool
+    {
+        if ($segments === []) {
+            return true;
+        }
+
+        if (! is_array($data)) {
+            return false;
+        }
+
+        $segment = array_shift($segments);
+
+        if ($segment === '*') {
+            foreach ($data as $value) {
+                if ($this->hasJsonPath($value, $segments)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return array_key_exists($segment, $data) && $this->hasJsonPath($data[$segment], $segments);
     }
 
     /**

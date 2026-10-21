@@ -3,6 +3,8 @@ Events for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/events)
 
+Documentation: https://hypervel.org/docs/events
+
 Ported from: https://github.com/laravel/framework
 
 ## Differences From Laravel

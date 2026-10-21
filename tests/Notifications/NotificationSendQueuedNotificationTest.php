@@ -5,25 +5,45 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Contracts\Database\ModelIdentifier;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
-use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Throwable;
 
 class NotificationSendQueuedNotificationTest extends TestCase
 {
+    public function testManualFailureWithoutAnExceptionReachesTheNotification(): void
+    {
+        $notification = new class extends Notification {
+            public array $failures = [];
+
+            /**
+             * Record the failed notification.
+             */
+            public function failed(?Throwable $exception): void
+            {
+                $this->failures[] = $exception;
+            }
+        };
+
+        (new SendQueuedNotifications('notifiable', $notification))->failed(null);
+
+        $this->assertSame([null], $notification->failures);
+    }
+
     public function testNotificationsCanBeSent(): void
     {
         $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
         $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('sendNow')->once()->withArgs(function ($notifiables, $notification, $channels) {
+        $manager->expects('sendNow')->withArgs(function (mixed $notifiables, mixed $notification, ?array $channels): bool {
             return $notifiables instanceof Collection && $notifiables->toArray() === ['notifiables']
                 && $notification instanceof TestNotification
                 && $channels === null;
@@ -66,6 +86,13 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $this->assertEquals(23, $job->maxExceptions);
     }
 
+    public function testNotificationRespectsFailOnTimeoutAttribute(): void
+    {
+        $job = new SendQueuedNotifications(new NotifiableUser, new FailOnTimeoutNotification);
+
+        $this->assertTrue($job->failOnTimeout);
+    }
+
     public function testNotificationAcceptsImmutableRetryUntilMethod(): void
     {
         $retryUntil = CarbonImmutable::parse('2026-07-23 12:34:56');
@@ -78,26 +105,28 @@ class NotificationSendQueuedNotificationTest extends TestCase
     }
 }
 
-class NotifiableUser extends Model
+class TestNotification extends Notification
 {
-    use Notifiable;
-
-    protected ?string $table = 'users';
-
-    public bool $timestamps = false;
 }
 
-class TestNotification extends Notification
+#[FailOnTimeout]
+class FailOnTimeoutNotification extends Notification
 {
 }
 
 class TestNotificationWithRetryUntil extends Notification
 {
+    /**
+     * Create a notification with a retry deadline.
+     */
     public function __construct(
         private CarbonImmutable $retryUntil
     ) {
     }
 
+    /**
+     * Get the retry deadline.
+     */
     public function retryUntil(): CarbonImmutable
     {
         return $this->retryUntil;

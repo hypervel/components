@@ -8,7 +8,7 @@ use Hypervel\Support\Facades\Route;
 
 class FallbackRouteTest extends RoutingTestCase
 {
-    public function testBasicFallback()
+    public function testBasicFallback(): void
     {
         Route::fallback(function () {
             return response('fallback', 404);
@@ -23,7 +23,7 @@ class FallbackRouteTest extends RoutingTestCase
         $this->assertEquals(404, $this->get('/non-existing')->getStatusCode());
     }
 
-    public function testFallbackWithPrefix()
+    public function testFallbackWithPrefix(): void
     {
         Route::group(['prefix' => 'prefix'], function () {
             Route::fallback(function () {
@@ -41,7 +41,7 @@ class FallbackRouteTest extends RoutingTestCase
         $this->get('/non-existing')->assertNotFound();
     }
 
-    public function testFallbackWithWildcards()
+    public function testFallbackWithWildcards(): void
     {
         Route::fallback(function () {
             return response('fallback', 404);
@@ -65,7 +65,7 @@ class FallbackRouteTest extends RoutingTestCase
         });
     }
 
-    public function testNoRoutes()
+    public function testNoRoutes(): void
     {
         Route::fallback(function () {
             return response('fallback', 404);
@@ -75,7 +75,7 @@ class FallbackRouteTest extends RoutingTestCase
         $this->assertEquals(404, $this->get('/non-existing')->getStatusCode());
     }
 
-    public function testRespondWithNamedFallbackRoute()
+    public function testRespondWithNamedFallbackRoute(): void
     {
         Route::fallback(function () {
             return response('fallback', 404);
@@ -89,7 +89,7 @@ class FallbackRouteTest extends RoutingTestCase
         $this->assertStringContainsString('fallback', $this->get('/one')->getContent());
     }
 
-    public function testNoFallbacks()
+    public function testNoFallbacks(): void
     {
         Route::get('one', function () {
             return 'one';

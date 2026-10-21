@@ -61,7 +61,7 @@ class DataObjectTest extends TestCase
         $this->assertSame('Taylor', $data->displayName);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('required property [displayName] is missing');
+        $this->expectExceptionMessageIsOrContains('required property [displayName] is missing');
 
         CamelCaseDataObject::from(['display_name' => 'Taylor']);
     }
@@ -88,8 +88,7 @@ class DataObjectTest extends TestCase
     public function testMissingRequiredValueNamesTheClassAndProperty(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(RequiredDataObject::class);
-        $this->expectExceptionMessage('required property [name] is missing');
+        $this->expectExceptionMessageIs('Cannot create ' . RequiredDataObject::class . ': required property [name] is missing.');
 
         RequiredDataObject::from([]);
     }
@@ -130,7 +129,7 @@ class DataObjectTest extends TestCase
     public function testDataObjectRequestCastsRejectArguments(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Data object request cast [' . RequiredDataObject::class . '] does not accept arguments.',
         );
 
@@ -640,7 +639,7 @@ class DataObjectTest extends TestCase
     public function testNonPromotedConstructorParametersAreRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('constructor parameter [name] must be a public promoted property');
+        $this->expectExceptionMessageIsOrContains('constructor parameter [name] must be a public promoted property');
 
         NonPromotedDataObject::from(['name' => 'Taylor']);
     }
@@ -648,7 +647,7 @@ class DataObjectTest extends TestCase
     public function testNonPublicPromotedPropertiesAreRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('constructor parameter [name] must be a public promoted property');
+        $this->expectExceptionMessageIsOrContains('constructor parameter [name] must be a public promoted property');
 
         ProtectedPromotedDataObject::from(['name' => 'Taylor']);
     }
@@ -656,7 +655,7 @@ class DataObjectTest extends TestCase
     public function testPrivatePromotedPropertiesAreRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('constructor parameter [name] must be a public promoted property');
+        $this->expectExceptionMessageIsOrContains('constructor parameter [name] must be a public promoted property');
 
         PrivatePromotedDataObject::from(['name' => 'Taylor']);
     }
@@ -664,7 +663,7 @@ class DataObjectTest extends TestCase
     public function testInheritedPrivatePromotedPropertiesAreRejectedConsistently(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('constructor parameter [name] must be a public promoted property');
+        $this->expectExceptionMessageIsOrContains('constructor parameter [name] must be a public promoted property');
 
         InheritedPrivatePromotedDataObject::from(['name' => 'Taylor']);
     }
@@ -672,7 +671,7 @@ class DataObjectTest extends TestCase
     public function testExtraPublicInstancePropertiesAreRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('public property [extra] must be promoted by its constructor');
+        $this->expectExceptionMessageIsOrContains('public property [extra] must be promoted by its constructor');
 
         ExtraPublicPropertyDataObject::from(['name' => 'Taylor']);
     }
@@ -703,7 +702,7 @@ class DataObjectTest extends TestCase
     public function testChildConstructorCannotLeaveInheritedPublicDataOutsideItsRecipe(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('public property [name] must be promoted by its constructor');
+        $this->expectExceptionMessageIsOrContains('public property [name] must be promoted by its constructor');
 
         InvalidChildDataObject::from(['id' => 1]);
     }

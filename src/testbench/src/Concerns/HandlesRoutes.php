@@ -53,6 +53,8 @@ trait HandlesRoutes
 
     /**
      * Setup application routes.
+     *
+     * @internal
      */
     protected function setUpApplicationRoutes(ApplicationContract $app): void
     {
@@ -78,6 +80,8 @@ trait HandlesRoutes
 
     /**
      * Define routes setup.
+     *
+     * @api
      */
     protected function defineRoutes(Router $router): void
     {
@@ -86,6 +90,8 @@ trait HandlesRoutes
 
     /**
      * Define web routes setup.
+     *
+     * @api
      */
     protected function defineWebRoutes(Router $router): void
     {
@@ -94,6 +100,8 @@ trait HandlesRoutes
 
     /**
      * Define stash routes setup.
+     *
+     * @api
      */
     protected function defineStashRoutes(Closure|string $route): void
     {
@@ -102,6 +110,8 @@ trait HandlesRoutes
 
     /**
      * Define cache routes setup.
+     *
+     * @api
      */
     protected function defineCacheRoutes(Closure|string $route, bool $cached = true): void
     {

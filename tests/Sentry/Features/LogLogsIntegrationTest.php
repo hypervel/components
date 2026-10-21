@@ -7,27 +7,31 @@ namespace Hypervel\Tests\Sentry\Features;
 use Exception;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Sentry\Features\LogFeature;
+use Hypervel\Sentry\Features\LogIntegration;
 use Hypervel\Support\Facades\Log;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use Sentry\EventType;
+use Sentry\Logs\Log as SentryLog;
 use Sentry\Logs\LogLevel;
 
 use function Sentry\logger;
 
-class LogLogsIntegrationTest extends SentryTestCase
+class LogLogsIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.features' => [
-            LogFeature::class,
+            LogIntegration::class,
         ],
     ];
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        tap($app->make('config'), static function (Repository $config) {
+        tap($app->make('config'), static function (Repository $config): void {
             $config->set('logging.channels.sentry_logs', [
                 'driver' => 'sentry_logs',
             ]);
@@ -52,7 +56,7 @@ class LogLogsIntegrationTest extends SentryTestCase
             'sentry.dsn' => null,
             'sentry_test.override_dsn' => true,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 
@@ -117,7 +121,7 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.log_flush_threshold' => 2,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 
@@ -141,7 +145,7 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.log_flush_threshold' => null,
             'sentry.features' => [
-                LogFeature::class,
+                LogIntegration::class,
             ],
         ]);
 
@@ -178,7 +182,11 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->assertEquals('bar', $log->attributes()->get('foo')->getValue());
     }
 
-    /** @return \Sentry\Logs\Log[] */
+    /**
+     * Get and flush the captured logs.
+     *
+     * @return SentryLog[]
+     */
     private function getAndFlushCapturedLogs(): array
     {
         $logs = logger()->aggregator()->all();

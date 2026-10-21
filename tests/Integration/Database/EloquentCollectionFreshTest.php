@@ -10,24 +10,27 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Tests\Integration\Database\Fixtures\User;
+use Hypervel\Tests\Database\Fixtures\Models\Integration\User;
 
 class EloquentCollectionFreshTest extends DatabaseTestCase
 {
+    /**
+     * Create the test schema.
+     */
     protected function afterRefreshingDatabase(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
             $table->timestamps();
         });
     }
 
-    public function testEloquentCollectionFresh()
+    public function testEloquentCollectionFresh(): void
     {
         User::insert([
-            ['email' => 'laravel@framework.com'],
-            ['email' => 'laravel@laravel.com'],
+            ['email' => 'hypervel@framework.com'],
+            ['email' => 'hypervel@hypervel.com'],
         ]);
 
         $collection = User::all();

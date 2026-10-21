@@ -54,7 +54,7 @@ class GrpcResponseTest extends TestCase
     public function testRejectsReadingAStreamFromAUnaryResponse(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A unary gRPC response does not contain a message stream.');
+        $this->expectExceptionMessageIs('A unary gRPC response does not contain a message stream.');
 
         GrpcResponse::make(new GPBEmpty)->messages();
     }
@@ -62,7 +62,7 @@ class GrpcResponseTest extends TestCase
     public function testRejectsReadingAUnaryMessageFromAStreamingResponse(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A server-streaming gRPC response does not contain a unary message.');
+        $this->expectExceptionMessageIs('A server-streaming gRPC response does not contain a unary message.');
 
         GrpcResponse::stream([])->message();
     }

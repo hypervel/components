@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Data\Data;
 use Hypervel\Data\Exceptions\CannotCreateData;
+use Hypervel\Data\Optional;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
 use Hypervel\Data\Support\Creation\DataInstantiator;
 use Hypervel\Data\Support\DataClass;
@@ -132,6 +133,48 @@ class DataInstantiatorTest extends TestCase
         );
     }
 
+    public function testResolvesUnboundPropertiesAfterConstruction(): void
+    {
+        $instantiator = new DataInstantiator(new Container);
+        $metadata = $this->metadata(InstantiatorConstructorAssignedDataFixture::class);
+
+        $absent = $instantiator->instantiate($metadata, ['name' => 'Taylor']);
+
+        $this->assertSame('assigned:Taylor', $absent->assigned);
+        $this->assertSame('nullable:Taylor', $absent->nullableAssigned);
+        $this->assertInstanceOf(Optional::class, $absent->optional);
+        $this->assertNull($absent->nullable);
+
+        $optional = $instantiator->instantiate($metadata, [
+            'name' => 'Taylor',
+            'assigned' => Optional::create(),
+            'optional' => Optional::create(),
+        ]);
+
+        $this->assertSame('assigned:Taylor', $optional->assigned);
+        $this->assertInstanceOf(Optional::class, $optional->optional);
+
+        $supplied = $instantiator->instantiate($metadata, [
+            'name' => 'Taylor',
+            'assigned' => 'input',
+            'nullableAssigned' => null,
+        ]);
+
+        $this->assertSame('input', $supplied->assigned);
+        $this->assertNull($supplied->nullableAssigned);
+    }
+
+    public function testAncestorPromotedPropertiesIgnoreInput(): void
+    {
+        $data = (new DataInstantiator(new Container))->instantiate(
+            $this->metadata(InstantiatorAncestorChildDataFixture::class),
+            ['name' => 'Taylor', 'kind' => 'input'],
+        );
+
+        $this->assertSame('child', $data->kind);
+        $this->assertSame('Taylor', $data->name);
+    }
+
     /**
      * Test ordinary construction cannot bypass a non-public constructor.
      */
@@ -172,7 +215,7 @@ class DataInstantiatorTest extends TestCase
         $config = new DataConfig(new Repository(['data' => $defaults]));
         $container = new Container;
         $nameMapperResolver = new NameMapperResolver($container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return (new DataClassFactory(
@@ -259,6 +302,47 @@ class InstantiatorContextualMissingDataFixture extends Data
 class InstantiatorUnboundDataFixture extends Data
 {
     public string $required;
+}
+
+class InstantiatorConstructorAssignedDataFixture extends Data
+{
+    public string|Optional $assigned;
+
+    public ?string $nullableAssigned;
+
+    public string|Optional $optional;
+
+    public ?string $nullable;
+
+    /**
+     * Create a fixture whose constructor assigns unbound properties.
+     */
+    public function __construct(public string $name)
+    {
+        $this->assigned = "assigned:{$name}";
+        $this->nullableAssigned = "nullable:{$name}";
+    }
+}
+
+abstract class InstantiatorAncestorDataFixture extends Data
+{
+    /**
+     * Create a fixture whose kind is promoted by the ancestor constructor.
+     */
+    public function __construct(public readonly string $kind)
+    {
+    }
+}
+
+class InstantiatorAncestorChildDataFixture extends InstantiatorAncestorDataFixture
+{
+    /**
+     * Create a child that fixes its kind through the ancestor constructor.
+     */
+    public function __construct(public string $name)
+    {
+        parent::__construct('child');
+    }
 }
 
 class InstantiatorPrivateDataFixture extends Data

@@ -12,7 +12,7 @@ use Stringable;
 /**
  * Log a debug message to the logs.
  *
- * @return ($message is null ? \Psr\Log\LoggerInterface : null)
+ * @return ($message is null ? LoggerInterface : null)
  */
 function log(Arrayable|Jsonable|Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
 {

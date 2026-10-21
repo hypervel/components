@@ -15,9 +15,11 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Configuration\ApplicationBuilder;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Log\Context\ContextServiceProvider;
 use Hypervel\Log\LogServiceProvider;
@@ -113,6 +115,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected bool $mergeFrameworkConfiguration = true;
 
     /**
+     * The application builder class.
+     *
+     * @var class-string<ApplicationBuilder>
+     */
+    protected static string $applicationBuilder = ApplicationBuilder::class;
+
+    /**
      * Indicates if the application has been bootstrapped before.
      */
     protected bool $hasBeenBootstrapped = false;
@@ -190,24 +199,37 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function checkEnvironment(): void
     {
+        if (! extension_loaded('swoole')) {
+            throw new RuntimeException('Hypervel requires the Swoole extension. OpenSwoole is not supported.');
+        }
+
         if (filter_var(ini_get('swoole.use_shortname'), FILTER_VALIDATE_BOOLEAN)) {
             throw new RuntimeException(
                 'Swoole short function names must be disabled. Set swoole.use_shortname=Off in your php.ini.'
             );
+        }
+
+        if (! defined('SWOOLE_SSL')) {
+            throw new RuntimeException('Swoole must be built with OpenSSL support. Rebuild it with --enable-openssl.');
+        }
+
+        // @phpstan-ignore identical.alwaysFalse (SWOOLE_HOOK_ALL omits the native cURL hook when Swoole is built without cURL support.)
+        if ((SWOOLE_HOOK_ALL & SWOOLE_HOOK_NATIVE_CURL) === 0) {
+            throw new RuntimeException('Swoole must be built with native cURL support. Rebuild it with --enable-swoole-curl.');
         }
     }
 
     /**
      * Configure and create a new application builder instance.
      */
-    public static function configure(?string $basePath = null): Configuration\ApplicationBuilder
+    public static function configure(?string $basePath = null): ApplicationBuilder
     {
         $basePath = match (true) {
             is_string($basePath) => $basePath,
             default => static::inferBasePath(),
         };
 
-        return (new Configuration\ApplicationBuilder(new static($basePath)))
+        return (new static::$applicationBuilder(new static($basePath)))
             ->withKernels()
             ->withEvents()
             ->withCommands()
@@ -647,7 +669,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
-     * Get the fully qualified path to the environment file.
+     * Get the fully-qualified path to the environment file.
      */
     public function environmentFilePath(): string
     {
@@ -665,6 +687,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
         return $this->instance('config_loaded_from_cache', is_file($this->getCachedConfigPath()));
     }
+
+    // Laravel's deferred-provider services.php manifest and getCachedServicesPath() are omitted.
 
     /**
      * Get the path to the configuration cache file.
@@ -764,7 +788,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function environment(array|string ...$environments): bool|string
     {
-        if (count($environments) > 0) {
+        if ($environments !== []) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
             return Str::is($patterns, $this->make('env'));
@@ -876,6 +900,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
     {
         return $this->maintenanceMode()->active();
     }
+
+    // Laravel's handleRequest() is omitted; the Swoole HTTP server handles requests through the kernel.
 
     /**
      * Handle the incoming Artisan command.
@@ -1097,6 +1123,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->loadedProviders[$class] = true;
     }
 
+    // Laravel's deferred-provider methods are omitted; providers register once at worker startup.
+
     /**
      * Determine if the application has booted.
      */
@@ -1112,6 +1140,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
     {
         if ($this->isBooted()) {
             return;
+        }
+
+        // Constructing the HTTP kernel writes its middleware groups and aliases onto
+        // the router, replacing existing entries, so it must happen before providers
+        // boot and change them. Laravel builds the kernel before bootstrapping too.
+        if ($this->bound(HttpKernelContract::class)) {
+            $this->make(HttpKernelContract::class);
         }
 
         // Once the application has booted we will also fire some "booted" callbacks

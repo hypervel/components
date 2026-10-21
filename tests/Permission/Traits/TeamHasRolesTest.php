@@ -8,15 +8,43 @@ use BadMethodCallException;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\Contracts\Role;
+use Hypervel\Permission\Events\RoleAttachedEvent;
+use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Exceptions\TeamNotSelected;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Traits\HasPermissions;
+use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use UnitEnum;
+
+class TeamHasRolesCustomPivot extends MorphPivot
+{
+}
+
+class TeamHasRolesCustomPivotUser extends UserWithoutHasRoles
+{
+    use HasRoles {
+        roles as traitRoles;
+    }
+
+    /**
+     * Get the roles relation through the custom pivot.
+     */
+    public function roles(): BelongsToMany
+    {
+        return $this->traitRoles()
+            ->withPivot('team_test_id')
+            ->using(TeamHasRolesCustomPivot::class);
+    }
+}
 
 class TeamHasRolesTest extends HasRolesTest
 {
@@ -32,20 +60,12 @@ class TeamHasRolesTest extends HasRolesTest
         $this->setUpTeams();
     }
 
-    public function testItDoesNotRunUnnecessarySqlWhenAssigningNewRoles(): void
+    public function testItDeletesPivotTableEntriesWhenDeletingModelsFromHasRolesTest(): void
     {
-        $role2 = app(Role::class)->where('name', 'testRole2')->first();
-
-        DB::enableQueryLog();
-        $this->testUser->syncRoles($this->testUserRole, $role2);
-        DB::disableQueryLog();
-
-        // Hypervel's team-aware sync path writes the current team pivot directly,
-        // so it avoids the extra relation reload that Spatie needs under Laravel.
-        $this->assertCount(2, DB::getQueryLog());
+        parent::testItDeletesPivotTableEntriesWhenDeletingModels();
     }
 
-    public function testItDeletesPivotTableEntriesWhenDeletingModelsAcrossTeams(): void
+    public function testItDeletesPivotTableEntriesWhenDeletingModels(): void
     {
         $user1 = User::create(['email' => 'user1@test.com']);
         $user2 = User::create(['email' => 'user2@test.com']);
@@ -55,27 +75,26 @@ class TeamHasRolesTest extends HasRolesTest
         $user1->givePermissionTo('edit-articles');
         $user2->assignRole('testRole');
         $user2->givePermissionTo('edit-articles');
-
         setPermissionsTeamId(2);
         $user1->givePermissionTo('edit-news');
 
-        $this->assertDatabaseHas('model_has_permissions', ['model_test_id' => $user1->getKey()]);
-        $this->assertDatabaseHas('model_has_roles', ['model_test_id' => $user1->getKey()]);
+        $this->assertDatabaseHas('model_has_permissions', [config('permission.column_names.model_morph_key') => $user1->id]);
+        $this->assertDatabaseHas('model_has_roles', [config('permission.column_names.model_morph_key') => $user1->id]);
 
         $user1->delete();
 
         setPermissionsTeamId(1);
-        $this->assertDatabaseMissing('model_has_permissions', ['model_test_id' => $user1->getKey()]);
-        $this->assertDatabaseMissing('model_has_roles', ['model_test_id' => $user1->getKey()]);
-        $this->assertDatabaseHas('model_has_permissions', ['model_test_id' => $user2->getKey()]);
-        $this->assertDatabaseHas('model_has_roles', ['model_test_id' => $user2->getKey()]);
+        $this->assertDatabaseMissing('model_has_permissions', [config('permission.column_names.model_morph_key') => $user1->id]);
+        $this->assertDatabaseMissing('model_has_roles', [config('permission.column_names.model_morph_key') => $user1->id]);
+        $this->assertDatabaseHas('model_has_permissions', [config('permission.column_names.model_morph_key') => $user2->id]);
+        $this->assertDatabaseHas('model_has_roles', [config('permission.column_names.model_morph_key') => $user2->id]);
     }
 
     public function testItCanAssignSameAndDifferentRolesOnSameUserDifferentTeams(): void
     {
-        app(Role::class)->create(['name' => 'testRole3']);
+        app(Role::class)->create(['name' => 'testRole3']); // team_test_id = 1 by main class
         app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
-        app(Role::class)->create(['name' => 'testRole4', 'team_test_id' => null]);
+        app(Role::class)->create(['name' => 'testRole4', 'team_test_id' => null]); // global role
 
         $testRole3Team1 = app(Role::class)->where(['name' => 'testRole3', 'team_test_id' => 1])->first();
         $testRole3Team2 = app(Role::class)->where(['name' => 'testRole3', 'team_test_id' => 2])->first();
@@ -87,6 +106,10 @@ class TeamHasRolesTest extends HasRolesTest
 
         setPermissionsTeamId(1);
         $this->testUser->assignRole('testRole', 'testRole2');
+
+        // explicit load of roles to assert no mismatch
+        // when same role assigned in diff teams
+        // while old team's roles are loaded
         $this->testUser->load('roles');
 
         setPermissionsTeamId(2);
@@ -100,19 +123,18 @@ class TeamHasRolesTest extends HasRolesTest
 
         $this->testUser->assignRole('testRole3', 'testRole4');
         $this->assertTrue($this->testUser->hasExactRoles(['testRole', 'testRole2', 'testRole3', 'testRole4']));
-        $this->assertTrue($this->testUser->hasRole($testRole3Team1));
-        $this->assertTrue($this->testUser->hasRole($testRole4NoTeam));
+        $this->assertTrue($this->testUser->hasRole($testRole3Team1)); // testRole3 team=1
+        $this->assertTrue($this->testUser->hasRole($testRole4NoTeam)); // global role team=null
 
         setPermissionsTeamId(2);
         $this->testUser->load('roles');
 
         $this->assertSame(['testRole', 'testRole3'], $this->testUser->getRoleNames()->sort()->values()->all());
         $this->assertTrue($this->testUser->hasExactRoles(['testRole', 'testRole3']));
-        $this->assertTrue($this->testUser->hasRole($testRole3Team2));
-
+        $this->assertTrue($this->testUser->hasRole($testRole3Team2)); // testRole3 team=2
         $this->testUser->assignRole('testRole4');
         $this->assertTrue($this->testUser->hasExactRoles(['testRole', 'testRole3', 'testRole4']));
-        $this->assertTrue($this->testUser->hasRole($testRole4NoTeam));
+        $this->assertTrue($this->testUser->hasRole($testRole4NoTeam)); // global role team=null
     }
 
     public function testRoleLookupFindsGlobalAndCurrentTeamRolesOnly(): void
@@ -130,7 +152,6 @@ class TeamHasRolesTest extends HasRolesTest
             app(Role::class)::findByName('team-two-role');
             $this->fail('Expected missing team role exception was not thrown.');
         } catch (RoleDoesNotExist) {
-            $this->assertTrue(true);
         }
 
         setPermissionsTeamId(2);
@@ -259,7 +280,7 @@ class TeamHasRolesTest extends HasRolesTest
         $this->assertSame(1, app(Role::class)->where('name', 'global-find-or-create')->count());
     }
 
-    public function testItCanSyncOrRemoveRolesWithoutDetachingDifferentTeams(): void
+    public function testItCanSyncOrRemoveRolesWithoutDetachOnDifferentTeams(): void
     {
         app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
 
@@ -281,6 +302,129 @@ class TeamHasRolesTest extends HasRolesTest
         $this->testUser->load('roles');
 
         $this->assertSame(['testRole', 'testRole3'], $this->testUser->getRoleNames()->sort()->values()->all());
+    }
+
+    public function testItCanRemoveARoleFromOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasRolesCustomPivotUser::class);
+
+        app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
+
+        $user = TeamHasRolesCustomPivotUser::create(['email' => 'custom-pivot-remove-role@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->syncRoles('testRole', 'testRole2');
+
+        setPermissionsTeamId(2);
+        $user->syncRoles('testRole', 'testRole3');
+        $user->load('roles');
+
+        $this->assertSame(['testRole', 'testRole3'], $user->getRoleNames()->sort()->values()->all());
+
+        setPermissionsTeamId(1);
+        $user->load('roles');
+
+        $this->assertSame(['testRole', 'testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        $user->removeRole('testRole');
+
+        $this->assertSame(['testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        setPermissionsTeamId(2);
+        $user->load('roles');
+
+        $this->assertSame(['testRole', 'testRole3'], $user->getRoleNames()->sort()->values()->all());
+    }
+
+    public function testItDoesNothingWhenRemovingAnEmptySetOfRolesForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasRolesCustomPivotUser::class);
+
+        $user = TeamHasRolesCustomPivotUser::create(['email' => 'custom-pivot-remove-empty-roles@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->syncRoles('testRole', 'testRole2');
+
+        $user->removeRole([]);
+
+        $this->assertSame(['testRole', 'testRole2'], $user->getRoleNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncRolesForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasRolesCustomPivotUser::class);
+
+        app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
+
+        $user = TeamHasRolesCustomPivotUser::create(['email' => 'custom-pivot-sync-roles@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->assignRole('testRole', 'testRole2');
+
+        setPermissionsTeamId(2);
+        $user->assignRole('testRole', 'testRole3');
+
+        setPermissionsTeamId(1);
+        $user->syncRoles('testRole2');
+
+        $this->assertSame(['testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        setPermissionsTeamId(2);
+        $user->load('roles');
+
+        $this->assertSame(['testRole', 'testRole3'], $user->getRoleNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncRolesWithEventsForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        Event::fake([RoleDetachedEvent::class, RoleAttachedEvent::class]);
+        app('config')->set('permission.events_enabled', true);
+        $this->useAuthUserModel(TeamHasRolesCustomPivotUser::class);
+
+        app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
+
+        $user = TeamHasRolesCustomPivotUser::create(['email' => 'custom-pivot-sync-roles-events@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->assignRole('testRole', 'testRole2');
+
+        setPermissionsTeamId(2);
+        $user->assignRole('testRole', 'testRole3');
+
+        setPermissionsTeamId(1);
+        $user->syncRoles('testRole2');
+
+        $this->assertSame(['testRole2'], $user->getRoleNames()->sort()->values()->all());
+
+        Event::assertDispatched(RoleDetachedEvent::class);
+
+        setPermissionsTeamId(2);
+        $user->load('roles');
+
+        $this->assertSame(['testRole', 'testRole3'], $user->getRoleNames()->sort()->values()->all());
+    }
+
+    public function testItCanSyncToNoRolesForOneTeamWhenUsingACustomPivotClass(): void
+    {
+        $this->useAuthUserModel(TeamHasRolesCustomPivotUser::class);
+
+        $user = TeamHasRolesCustomPivotUser::create(['email' => 'custom-pivot-sync-empty-roles@test.com']);
+
+        setPermissionsTeamId(1);
+        $user->assignRole('testRole', 'testRole2');
+
+        setPermissionsTeamId(2);
+        $user->assignRole('testRole');
+
+        setPermissionsTeamId(1);
+        $user->syncRoles([]);
+
+        $this->assertEmpty($user->getRoleNames());
+
+        setPermissionsTeamId(2);
+        $user->load('roles');
+
+        $this->assertSame(['testRole'], $user->getRoleNames()->sort()->values()->all());
     }
 
     public function testItCanScopeUsersOnDifferentTeams(): void

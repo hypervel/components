@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class TokenAuthenticator implements Authenticator
+class TokenAuthenticator implements Authenticator
 {
     /**
      * Create a token authenticator.
      */
     public function __construct(
         #[SensitiveParameter]
-        public string $token,
-        public string $prefix = 'Bearer',
+        public readonly string $token,
+        public readonly string $prefix = 'Bearer',
     ) {
     }
 

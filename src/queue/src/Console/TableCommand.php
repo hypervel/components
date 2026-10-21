@@ -13,9 +13,9 @@ use function Hypervel\Filesystem\join_paths;
 class TableCommand extends MigrationGeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:queue-table';
+    protected ?string $signature = 'make:queue-table';
 
     /**
      * The console command name aliases.
@@ -54,6 +54,7 @@ class TableCommand extends MigrationGeneratorCommand
             return parent::migrationExists($table);
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ([
             join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php'),
             join_paths($this->hypervel->databasePath('migrations'), '0001_01_01_000002_create_jobs_table.php'),

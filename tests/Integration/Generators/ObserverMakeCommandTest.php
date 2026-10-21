@@ -10,7 +10,7 @@ class ObserverMakeCommandTest extends TestCase
         'app/Observers/FooObserver.php',
     ];
 
-    public function testItCanGenerateObserverFile()
+    public function testItCanGenerateObserverFile(): void
     {
         $this->artisan('make:observer', ['name' => 'FooObserver'])
             ->assertExitCode(0);
@@ -21,7 +21,7 @@ class ObserverMakeCommandTest extends TestCase
         ], 'app/Observers/FooObserver.php');
     }
 
-    public function testItCanGenerateObserverFileWithModel()
+    public function testItCanGenerateObserverFileWithModel(): void
     {
         $this->artisan('make:observer', ['name' => 'FooObserver', '--model' => 'Foo'])
             ->assertExitCode(0);

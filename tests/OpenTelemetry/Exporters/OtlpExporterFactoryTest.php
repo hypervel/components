@@ -121,7 +121,7 @@ class OtlpExporterFactoryTest extends TestCase
         }
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported metric temporality [unknown].');
+        $this->expectExceptionMessageIs('Unsupported metric temporality [unknown].');
 
         $factory->resolveTemporality('unknown');
     }

@@ -7,10 +7,27 @@ namespace Hypervel\Saloon\Pagination;
 use Hypervel\Saloon\Http\Request;
 use LogicException;
 
+/**
+ * @template TItem
+ * @extends Paginator<TItem>
+ */
 abstract class OffsetPaginator extends Paginator
 {
     /**
+     * The result-limit query parameter.
+     */
+    protected string $limitName = 'limit';
+
+    /**
+     * The result-offset query parameter.
+     */
+    protected string $offsetName = 'offset';
+
+    /**
      * Apply offset pagination to the request.
+     *
+     * @param Request<mixed> $request
+     * @return Request<mixed>
      */
     protected function applyPagination(Request $request): Request
     {
@@ -19,8 +36,8 @@ abstract class OffsetPaginator extends Paginator
         }
 
         return $request->withQueryParameters([
-            'limit' => $this->perPageLimit,
-            'offset' => $this->getOffset(),
+            $this->limitName => $this->perPageLimit,
+            $this->offsetName => $this->getOffset(),
         ]);
     }
 

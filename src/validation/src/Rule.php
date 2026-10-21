@@ -7,7 +7,6 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
@@ -64,8 +63,8 @@ class Rule
      */
     public static function when(
         bool|callable $condition,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|ValidationRule $rules,
+        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $rules, $defaultRules);
     }
@@ -75,8 +74,8 @@ class Rule
      */
     public static function unless(
         bool|callable $condition,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|ValidationRule $rules,
+        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $defaultRules, $rules);
     }
@@ -126,11 +125,7 @@ class Rule
      */
     public static function in(array|Arrayable|UnitEnum|string $values): In
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new In(is_array($values) ? $values : func_get_args());
+        return new In(...func_get_args());
     }
 
     /**
@@ -138,11 +133,7 @@ class Rule
      */
     public static function notIn(array|Arrayable|UnitEnum|string $values): NotIn
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new NotIn(is_array($values) ? $values : func_get_args());
+        return new NotIn(...func_get_args());
     }
 
     /**
@@ -150,11 +141,7 @@ class Rule
      */
     public static function contains(array|Arrayable|UnitEnum|string $values): Contains
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new Contains(is_array($values) ? $values : func_get_args());
+        return new Contains(...func_get_args());
     }
 
     /**
@@ -162,15 +149,13 @@ class Rule
      */
     public static function doesntContain(array|Arrayable|UnitEnum|string $values): DoesntContain
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new DoesntContain(is_array($values) ? $values : func_get_args());
+        return new DoesntContain(...func_get_args());
     }
 
     /**
      * Get a required_if rule builder instance.
+     *
+     * @param null|bool|(Closure(): bool) $callback
      */
     public static function requiredIf(bool|Closure|null $callback): RequiredIf
     {
@@ -179,6 +164,8 @@ class Rule
 
     /**
      * Get a required_unless rule builder instance.
+     *
+     * @param null|bool|(Closure(): bool) $callback
      */
     public static function requiredUnless(bool|Closure|null $callback): RequiredUnless
     {
@@ -186,7 +173,9 @@ class Rule
     }
 
     /**
-     * Get a exclude_if rule builder instance.
+     * Get an exclude_if rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function excludeIf(bool|Closure $callback): ExcludeIf
     {
@@ -194,7 +183,9 @@ class Rule
     }
 
     /**
-     * Get a exclude_unless rule builder instance.
+     * Get an exclude_unless rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function excludeUnless(bool|Closure $callback): ExcludeUnless
     {
@@ -203,6 +194,8 @@ class Rule
 
     /**
      * Get a prohibited_if rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function prohibitedIf(bool|Closure $callback): ProhibitedIf
     {
@@ -211,6 +204,8 @@ class Rule
 
     /**
      * Get a prohibited_unless rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function prohibitedUnless(bool|Closure $callback): ProhibitedUnless
     {
@@ -309,7 +304,7 @@ class Rule
         $wrappedData = Arr::wrap($data);
 
         $cached = CoroutineContext::get(self::UNDOTTED_DATA_CONTEXT_KEY);
-        if ($cached !== null && $cached['input'] === $wrappedData) {
+        if ($cached !== null && ($cached['input'] === $wrappedData || $cached['dotted'] === $wrappedData)) {
             $undotted = $cached['result'];
         } else {
             $undotted = Arr::undot($wrappedData);

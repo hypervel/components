@@ -29,7 +29,8 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Database\PdoConnection
+ * @mixin Connection
+ * @mixin PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
@@ -51,7 +52,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * for Laravel API compatibility but is not populated during normal
      * pooled operation.
      *
-     * @var array<string, \Hypervel\Database\Connection>
+     * @var array<string, Connection>
      */
     protected array $connections = [];
 
@@ -103,6 +104,59 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Determine whether a connection has an applicable transaction without borrowing a pool slot.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof ConnectionResolver) {
+            return $resolver->hasApplicableTransaction($name);
+        }
+
+        /** @var Connection $connection */
+        $connection = $resolver->connection($name);
+
+        return $connection->hasApplicableTransaction();
+    }
+
+    /**
+     * Get the query grammar date format of a connection.
+     *
+     * The pooled resolver answers without holding a connection once its pool
+     * knows the format; other resolvers resolve the connection as usual.
+     */
+    public function connectionDateFormat(UnitEnum|string|null $name = null): string
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof ConnectionResolver) {
+            return $resolver->connectionDateFormat($name);
+        }
+
+        /** @var Connection $connection */
+        $connection = $resolver->connection($name);
+
+        return $connection->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
      * Resolve a connection directly without using the connection pool.
      *
      * This method is used by SimpleConnectionResolver for testing and Capsule
@@ -137,7 +191,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function build(array $config): ConnectionInterface
+    public function build(array $config): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::build() are not supported in Hypervel. '
@@ -150,7 +204,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function connectUsing(string $name, array $config, bool $force = false): ConnectionInterface
+    public function connectUsing(string $name, array $config, bool $force = false): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
@@ -193,7 +247,9 @@ class DatabaseManager implements ConnectionResolverInterface
 
         $config = $this->factory->parseConfig($config, $connectionName->base);
 
-        if ($connectionName->isRead() && $this->factory->hasReadConfig($config)) {
+        if ($connectionName->isRead()
+            && $this->factory->hasReadConfig($config)
+            && $this->factory->getExtension($config, $connectionName->base) === null) {
             return $this->factory->configForRead($config);
         }
 
@@ -290,11 +346,20 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Return the current execution's idle database sessions to their pools.
+     */
+    public function releaseIdleConnections(): void
+    {
+        ConnectionResolver::releaseIdleConnections();
+    }
+
+    /**
      * Disconnect from the given database.
      *
-     * In pooled mode, this disconnects the current coroutine's driver resources
-     * (if one exists), forcing a reconnect on the next query. Does not clear
-     * context or affect the pool - the connection is still released at coroutine end.
+     * In pooled mode, close the current execution's driver resources and retain
+     * its logical connection, which reconnects on next use. Session leases
+     * invalidate their physical holder and settle the slot at the next release.
+     * Whole-connection pools retain their wrapper until execution ends.
      *
      * In non-pooled mode, disconnects the connection stored in the manager's cache
      * for SimpleConnectionResolver or in a CachedConnectionResolver's cache.
@@ -421,13 +486,8 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function refreshConnection(Connection $connection): Connection
     {
-        $name = $connection->getName()
+        $name = $connection->getNameWithReadWriteType()
             ?? throw new RuntimeException('Cannot reconnect an unnamed database connection.');
-        $role = $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY);
-
-        if ($role === ConnectionName::READ || $role === ConnectionName::WRITE) {
-            $name .= '::' . $role;
-        }
 
         $fresh = $this->configure(
             $this->makeConnection($name)
@@ -733,7 +793,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function setReconnector(callable $reconnector): void
     {
-        $this->reconnector = $reconnector;
+        $this->reconnector = $reconnector(...);
     }
 
     /**

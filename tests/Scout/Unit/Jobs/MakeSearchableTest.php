@@ -8,7 +8,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\MakeSearchableUniquely;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use JsonException;
 
@@ -93,6 +93,14 @@ class MakeSearchableTest extends ScoutTestCase
         );
     }
 
+    public function testUniqueIdDiffersForDifferentModels(): void
+    {
+        $this->assertNotSame(
+            (new MakeSearchableUniquely(Collection::make([$this->model(1), $this->model(2)])))->uniqueId(),
+            (new MakeSearchableUniquely(Collection::make([$this->model(3), $this->model(4)])))->uniqueId()
+        );
+    }
+
     public function testUniqueIdDiffersForDifferentModelClasses(): void
     {
         $first = Collection::make([$this->model(1)]);
@@ -125,7 +133,7 @@ class OverriddenMakeSearchable extends MakeSearchable
 
     public $maxExceptions = 3;
 
-    public $failOnTimeout = false;
+    public bool $failOnTimeout = false;
 
     /**
      * Calculate the number of seconds to wait before retrying the job.

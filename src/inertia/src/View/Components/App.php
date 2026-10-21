@@ -24,7 +24,7 @@ class App extends Component
 
         $this->response = $state->dispatchSsr();
         $this->pageJson = $this->response === null
-            ? json_encode($state->page, JSON_THROW_ON_ERROR)
+            ? json_encode($state->page, JSON_HEX_TAG | JSON_THROW_ON_ERROR)
             : '';
     }
 

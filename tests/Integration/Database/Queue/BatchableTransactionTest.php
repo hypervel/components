@@ -47,7 +47,6 @@ class BatchableTransactionTest extends DatabaseTestCase
                 'DB_CONNECTION' => config('database.default'),
                 'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
                 'DB_URL' => false,
-                'DATABASE_URL' => false,
                 'DB_POOLED_URL' => false,
                 'QUEUE_CONNECTION' => config('queue.default'),
             ])->run();

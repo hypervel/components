@@ -42,7 +42,6 @@ class FeatureTestCase extends TestCase
         $app->make('config')->set([
             'database.default' => 'testing',
             'telescope.storage.database.connection' => 'testing',
-            'telescope.enabled' => true,
             'telescope.path' => 'telescope',
             'telescope.middleware' => [
                 Authorize::class,

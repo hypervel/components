@@ -15,7 +15,7 @@ use Mockery as m;
 
 class MonitorWaitTimesTest extends IntegrationTestCase
 {
-    public function testQueuesWithLongWaitsAreFound()
+    public function testQueuesWithLongWaitsAreFound(): void
     {
         Event::fake();
 
@@ -35,7 +35,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
         });
     }
 
-    public function testQueueIgnoresLongWaits()
+    public function testQueueIgnoresLongWaits(): void
     {
         config(['horizon.waits' => ['redis:ignore-queue' => 0]]);
 
@@ -54,7 +54,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
         Event::assertNotDispatched(LongWaitDetected::class);
     }
 
-    public function testMonitorWaitTimesSkipsWhenLockIsNotAcquired()
+    public function testMonitorWaitTimesSkipsWhenLockIsNotAcquired(): void
     {
         Event::fake();
 
@@ -73,7 +73,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
         Event::assertNotDispatched(LongWaitDetected::class);
     }
 
-    public function testMonitorWaitTimesSkipsWhenNotDueToMonitor()
+    public function testMonitorWaitTimesSkipsWhenNotDueToMonitor(): void
     {
         Event::fake();
 
@@ -93,7 +93,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
         Event::assertNotDispatched(LongWaitDetected::class);
     }
 
-    public function testMonitorWaitTimesSkipsWhenNotDueToMonitorAndExecutesAfter2Minutes()
+    public function testMonitorWaitTimesSkipsWhenNotDueToMonitorAndExecutesAfter2Minutes(): void
     {
         config(['horizon.waits' => ['redis:default' => 60]]);
 
@@ -123,7 +123,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
         Event::assertDispatched(LongWaitDetected::class);
     }
 
-    public function testMonitorWaitTimesExecutesOnceWhenCalledTwice()
+    public function testMonitorWaitTimesExecutesOnceWhenCalledTwice(): void
     {
         config(['horizon.waits' => ['redis:default' => 60]]);
 

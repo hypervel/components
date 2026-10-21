@@ -42,7 +42,7 @@ class ConfigTest extends TestCase
         $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
 
         $this->assertNull($config['hypervel']);
-        $this->assertSame(['APP_DEBUG=(false)'], $config['env']);
+        $this->assertSame(['APP_DEBUG=false'], $config['env']);
         $this->assertSame([], $config['bootstrappers']);
         $this->assertSame([TestbenchServiceProvider::class], $config['providers']);
         $this->assertSame([], $config['dont-discover']);
@@ -51,7 +51,7 @@ class ConfigTest extends TestCase
 
         $this->assertSame([
             'env' => [
-                'APP_DEBUG=(false)',
+                'APP_DEBUG=false',
             ],
             'bootstrappers' => [],
             'providers' => [
@@ -66,8 +66,12 @@ class ConfigTest extends TestCase
         ], $config->getPurgeAttributes());
 
         $this->assertSame([
+            'start' => '/workbench',
+            'user' => 'crynobone@gmail.com',
+            'guard' => null,
             'install' => true,
             'auth' => false,
+            'welcome' => null,
             'health' => null,
             'sync' => [],
             'discovers' => [
@@ -118,8 +122,12 @@ class ConfigTest extends TestCase
         ], $config->getPurgeAttributes());
 
         $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
             'install' => true,
             'auth' => false,
+            'welcome' => null,
             'health' => null,
             'sync' => [],
             'discovers' => [
@@ -208,13 +216,47 @@ class ConfigTest extends TestCase
     }
 
     #[Test]
+    public function itNormalizesCommentOnlyYamlLists(): void
+    {
+        file_put_contents($this->temporaryDirectory . '/testbench.yaml', <<<'YAML'
+            env:
+              # APP_DEBUG: true
+            providers:
+              # - Workbench\App\Providers\WorkbenchServiceProvider
+            dont-discover:
+              # - example/package
+            migrations:
+              # - workbench/database/migrations
+            bootstrappers:
+              # - App\Bootstrapper
+            workbench:
+              discovers:
+                # web: true
+            YAML);
+
+        $config = Config::loadFromYaml($this->temporaryDirectory);
+
+        $this->assertSame([
+            'env' => [],
+            'bootstrappers' => [],
+            'providers' => [],
+            'dont-discover' => [],
+        ], $config->getExtraAttributes());
+        $this->assertSame([], $config['migrations']);
+        $this->assertSame(
+            (new Config)->getWorkbenchDiscoversAttributes(),
+            $config->getWorkbenchDiscoversAttributes(),
+        );
+    }
+
+    #[Test]
     #[DataProvider('invalidYamlRoots')]
     public function itRejectsANonMappingYamlRoot(string $yaml): void
     {
         file_put_contents($this->temporaryDirectory . '/testbench.yaml', $yaml);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The Testbench configuration root must be a mapping.');
+        $this->expectExceptionMessageIs('The Testbench configuration root must be a mapping.');
 
         Config::loadFromYaml($this->temporaryDirectory);
     }
@@ -236,7 +278,7 @@ class ConfigTest extends TestCase
         file_put_contents($this->temporaryDirectory . '/testbench.yaml', "purge: invalid\n");
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The Testbench [purge] configuration must be a mapping.');
+        $this->expectExceptionMessageIs('The Testbench [purge] configuration must be a mapping.');
 
         Config::loadFromYaml($this->temporaryDirectory);
     }

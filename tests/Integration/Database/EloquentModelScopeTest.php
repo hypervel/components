@@ -10,21 +10,21 @@ use Hypervel\Database\Eloquent\Model;
 
 class EloquentModelScopeTest extends DatabaseTestCase
 {
-    public function testModelHasScope()
+    public function testModelHasScope(): void
     {
         $model = new TestScopeModel1;
 
         $this->assertTrue($model->hasNamedScope('exists'));
     }
 
-    public function testModelDoesNotHaveScope()
+    public function testModelDoesNotHaveScope(): void
     {
         $model = new TestScopeModel1;
 
         $this->assertFalse($model->hasNamedScope('doesNotExist'));
     }
 
-    public function testModelHasAttributedScope()
+    public function testModelHasAttributedScope(): void
     {
         $model = new TestScopeModel1;
 

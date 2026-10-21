@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeEnvironmentStatementsTest extends AbstractBladeTestCase
 {
-    public function testEnvStatementsAreCompiled()
+    public function testEnvStatementsAreCompiled(): void
     {
         $string = "@env('staging')
 breeze
@@ -21,7 +21,7 @@ boom
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testEnvStatementsWithMultipleStringParamsAreCompiled()
+    public function testEnvStatementsWithMultipleStringParamsAreCompiled(): void
     {
         $string = "@env('staging', 'production')
 breeze
@@ -36,7 +36,7 @@ boom
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testEnvStatementsWithArrayParamAreCompiled()
+    public function testEnvStatementsWithArrayParamAreCompiled(): void
     {
         $string = "@env(['staging', 'production'])
 breeze
@@ -51,7 +51,7 @@ boom
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testProductionStatementsAreCompiled()
+    public function testProductionStatementsAreCompiled(): void
     {
         $string = '@production
 breeze

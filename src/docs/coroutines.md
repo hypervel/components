@@ -9,6 +9,8 @@
     - [Determining if Code is Running in a Coroutine](#determining-if-code-is-running-in-a-coroutine)
     - [Creating a Child Coroutine](#creating-a-child-coroutine)
     - [Copying Coroutine Context](#copying-coroutine-context)
+    - [Owning Child Startup](#owning-child-startup)
+    - [Detached Background Work](#detached-background-work)
     - [Nested Coroutines](#nested-coroutines)
 - [Error Handling](#error-handling)
     - [Coroutine Cancellation](#coroutine-cancellation)
@@ -234,6 +236,62 @@ go(function () {
 
 Objects stored directly as context values are shared by default. Values that implement `Hypervel\Context\ReplicableContext` are copied independently, while values that implement `Hypervel\Context\NonCopyableContext` are omitted. Hypervel does not inspect objects nested within arrays or other objects. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
 
+Package startup hooks may also propagate their own context into a fresh child. For example, Sentry and Telescope associate ordinary children with the parent's execution. Use [detached background work](#detached-background-work) when that association is unwanted.
+
+<a name="owning-child-startup"></a>
+### Owning Child Startup
+
+Package infrastructure may need to record ownership before a child's startup hooks run. The `createOwned` method accepts a wrapper that runs inside the child before its initial context is installed and before any startup hooks run. For example, count a child before creating it, then release that count even if the child is canceled during startup:
+
+```php
+use Closure;
+use Hypervel\Coroutine\Coroutine;
+use Throwable;
+
+$activeChildren = 0;
+++$activeChildren;
+
+try {
+    $coroutineId = Coroutine::createOwned(
+        function () {
+            // Perform the child work...
+        },
+        function (Closure $run) use (&$activeChildren): void {
+            try {
+                $run();
+            } finally {
+                --$activeChildren;
+            }
+        },
+    );
+} catch (Throwable $exception) {
+    --$activeChildren;
+
+    throw $exception;
+}
+```
+
+The wrapper must invoke `$run` exactly once. Outside that call it must not wait for I/O, channel data or capacity, or other work. Releases that cannot wait are allowed. Finalize the relevant ownership state before notifying waiters, since a notification can immediately run another coroutine. Keep work and cleanup that may wait inside the child callable. The wrapper's `finally` also runs if the child is canceled during startup, before the callable begins.
+
+`forkOwned` accepts the same wrapper plus the context keys to copy, following the [normal copying rules](#copying-coroutine-context). Both methods return the child ID. If either method throws, including `CoroutineCreateException` or a context-copy failure from `forkOwned`, the wrapper has not run, so the caller still owns any resources it reserved.
+
+Returning from the wrapper is not proof that the child has exited: deferred callbacks run afterward and may wait. Use `Coroutine::join()` or `Coroutine::exists()` when resource ownership depends on physical exit. A timed-out join does not terminate a child. For ordinary application tasks, prefer the `wait`, `parallel`, and `WaitConcurrent` APIs, which manage child ownership for you.
+
+<a name="detached-background-work"></a>
+### Detached Background Work
+
+Background services can start without inheriting the request or tracing state of the caller that starts them. Pass `detached: true` to `createOwned` or `forkOwned`, using a callable and ownership wrapper as shown in the [previous example](#owning-child-startup):
+
+```php
+use Hypervel\Coroutine\Coroutine;
+
+$coroutineId = Coroutine::createOwned($callable, $wrapper, detached: true);
+```
+
+Startup hooks still run. The framework installs `Coroutine::DETACHED_CONTEXT_KEY` before the hooks run. Hooks that propagate parent context honor this marker by leaving explicitly installed child values intact and avoiding parent fallback. Detachment does not erase values explicitly copied by `forkOwned`. See the [Sentry](/docs/{{version}}/sentry#introduction) and [Telescope](/docs/{{version}}/telescope#controlling-recording) documentation for their behavior in detached children.
+
+The framework removes the marker after startup hooks and before the callable runs. A detached child may establish its own context, and children it creates, including from startup hooks, follow normal inheritance rules unless explicitly detached. Detachment controls context propagation; the caller still owns cancellation, joining, and resource cleanup.
+
 <a name="nested-coroutines"></a>
 ### Nested Coroutines
 
@@ -257,7 +315,7 @@ go(function () {
 echo 'Main process' . PHP_EOL;
 ```
 
-Each nested coroutine has its own coroutine ID and its own coroutine context. Context values are isolated unless you explicitly copy them into the child coroutine.
+Each nested coroutine has its own coroutine ID and its own coroutine context. Application values are isolated unless explicitly copied; package startup hooks may also propagate execution context as described above.
 
 <a name="error-handling"></a>
 ## Error Handling
@@ -314,7 +372,7 @@ try {
 }
 ```
 
-Cleanup that does not pause should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
+Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
 <a name="reporting-unhandled-exceptions"></a>
 ### Reporting Unhandled Exceptions
@@ -407,7 +465,7 @@ After a failed operation, you may inspect the channel state:
 
 ```php
 if ($channel->isTimeout()) {
-    // The last operation timed out...
+    // The last failed operation timed out...
 }
 
 if ($channel->isClosing()) {
@@ -415,11 +473,11 @@ if ($channel->isClosing()) {
 }
 
 if ($channel->isCanceled()) {
-    // The last operation was canceled...
+    // The last failed operation was canceled...
 }
 ```
 
-The timeout, closure, and cancellation state describes only the last channel operation. Inspect it immediately after `push` or `pop` returns `false`.
+Inspect these methods immediately after a failed operation. Since `pop` also returns `false` when it fails, wrap `false` values, for example as `[$value]`, when a channel needs to carry them.
 
 You may also inspect the channel's capacity, current length, and availability:
 
@@ -501,6 +559,8 @@ $result = wait(function () {
 ```
 
 The requested timeout still cancels the child. If the child stops within the cleanup period, `wait` throws `WaitTimeoutException` as usual. If the child remains active after that period, `wait` continues waiting until it exits and then throws `ChildTerminationTimeoutException`. This exception extends `WaitTimeoutException`, so an existing catch for `WaitTimeoutException` handles both cases.
+
+The same holds when the waiting coroutine is itself canceled: `wait` cancels the child, waits until it has exited, including any cleanup that waits on I/O, and then lets the cancellation continue. Without `waitForChildTermination`, the cancellation continues at once while the child finishes on its own.
 
 > [!WARNING]
 > Waiting for child termination has no secondary timeout. A child that catches cancellation and does not finish can keep the waiting coroutine blocked indefinitely.
@@ -835,6 +895,40 @@ if (Locker::lock('warm-cache')) {
 }
 ```
 
+A waiting coroutine may limit how many seconds it will wait using the `timeout` argument. If the key is not unlocked in time, `lock` throws a `Hypervel\Coroutine\Exceptions\WaitTimeoutException`. If the waiting coroutine is canceled, `lock` throws a `Swoole\Coroutine\CanceledException`. Either way, the owner keeps its lock and the other coroutines keep waiting:
+
+```php
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
+
+try {
+    if (Locker::lock('warm-cache', timeout: 2.0)) {
+        try {
+            rebuildCache();
+        } finally {
+            Locker::unlock('warm-cache');
+        }
+    }
+} catch (WaitTimeoutException $exception) {
+    // The cache was not rebuilt within two seconds...
+}
+```
+
+A waiting coroutine receives `false` even when the owner's work failed. When that work may fail, waiting coroutines should check for the result and call `lock` again if it is missing. One of them becomes the next owner and retries the work while the others wait. Since the previous owner may finish between a coroutine's check and its call to `lock`, a new owner should check again before doing the work:
+
+```php
+while (($report = Cache::get('report')) === null) {
+    if (Locker::lock('report')) {
+        try {
+            if (Cache::get('report') === null) {
+                Cache::put('report', buildReport());
+            }
+        } finally {
+            Locker::unlock('report');
+        }
+    }
+}
+```
+
 <a name="advanced-coroutine-apis"></a>
 ## Advanced Coroutine APIs
 
@@ -870,7 +964,7 @@ if (! Coroutine::join($coroutineIds) && EngineCoroutine::isCanceled()) {
 
 This state is not durable. Read it only at the failed native operation boundary.
 
-The `afterCreated` method registers a callback that runs whenever `Coroutine::create` creates a coroutine. APIs built on `Coroutine::create`, including `go`, `co`, and `Coroutine::fork`, also run the callback:
+The `afterCreated` method registers a callback that runs during child startup for `Coroutine::create`, `fork`, `createOwned`, and `forkOwned`, as well as helpers such as `go` and `co`:
 
 ```php
 Coroutine::afterCreated(function () {
@@ -880,6 +974,8 @@ Coroutine::afterCreated(function () {
 
 > [!WARNING]
 > These callbacks remain registered for the lifetime of the Swoole worker. Register them during application boot or tests only. They run synchronously during child startup and must not perform work that suspends the coroutine.
+
+Hooks that copy state from the parent must check `CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)` and skip parent fallback when it is present. Preserve explicitly installed child values and any isolation they need. The marker remains available to every startup hook and is removed before the application callable runs. See [detached background work](#detached-background-work).
 
 The `flushState` method clears coroutine settings and callbacks stored for the current worker:
 

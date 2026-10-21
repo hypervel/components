@@ -188,9 +188,9 @@ class ConcurrencyLimiterTest extends TestCase
         $limiter = new ConcurrencyLimiter($this->failingReleaseStore(), 'key', 1, 5);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('release failure');
+        $this->expectExceptionMessageIsOrContains('release failure');
 
-        $limiter->block(0, fn () => 'result');
+        $limiter->block(0, fn (): string => 'result');
     }
 
     public function testBlockPreservesCallbackCancellationWhenReleaseIsCanceled(): void
@@ -332,8 +332,7 @@ class ConcurrencyLimiterTest extends TestCase
 
         $this->assertNotInstanceOf(LockProvider::class, $store);
 
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('This cache store does not support locks.');
+        $this->expectExceptionObject(new BadMethodCallException('This cache store does not support locks.'));
 
         $repository->funnel('test');
     }
@@ -455,12 +454,12 @@ class ConcurrencyLimiterTest extends TestCase
         $repository = new Repository($this->failingReleaseStore());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('release failure');
+        $this->expectExceptionMessageIsOrContains('release failure');
 
         $repository->funnel('key')
             ->limit(1)
             ->block(0)
-            ->then(fn () => 'result');
+            ->then(fn (): string => 'result');
     }
 
     public function testFunnelPreservesCallbackCancellationWhenReleaseIsCanceled(): void

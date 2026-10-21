@@ -9,14 +9,14 @@ use Hypervel\Tests\TestCase;
 
 class MissingAbilityExceptionTest extends TestCase
 {
-    public function testAbilitiesMethodReturnsTheAbilities()
+    public function testAbilitiesMethodReturnsTheAbilities(): void
     {
         $exception = new MissingAbilityException(['foo', 'bar']);
 
         $this->assertEquals(['foo', 'bar'], $exception->abilities());
     }
 
-    public function testAbilitiesMethodWithStringAbility()
+    public function testAbilitiesMethodWithStringAbility(): void
     {
         $exception = new MissingAbilityException('foo');
 

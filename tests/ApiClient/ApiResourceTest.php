@@ -135,7 +135,7 @@ class ApiResourceTest extends TestCase
     public function testArrayAccessOffsetSetIsRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Resource data cannot be assigned through array offsets.');
+        $this->expectExceptionMessageIs('Resource data cannot be assigned through array offsets.');
 
         $this->resource->offsetSet('key', 'value');
     }
@@ -143,7 +143,7 @@ class ApiResourceTest extends TestCase
     public function testArrayAccessOffsetUnsetIsRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Resource data cannot be unset through array offsets.');
+        $this->expectExceptionMessageIs('Resource data cannot be unset through array offsets.');
 
         $this->resource->offsetUnset('key');
     }
@@ -161,7 +161,7 @@ class ApiResourceTest extends TestCase
     public function testMagicPropertyAssignmentIsRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Resource data cannot be assigned through properties.');
+        $this->expectExceptionMessageIs('Resource data cannot be assigned through properties.');
 
         $this->resource->key = 'value';
     }
@@ -169,7 +169,7 @@ class ApiResourceTest extends TestCase
     public function testMagicPropertyUnsetIsRejected(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Resource data cannot be unset through properties.');
+        $this->expectExceptionMessageIs('Resource data cannot be unset through properties.');
 
         unset($this->resource->key);
     }

@@ -6,7 +6,6 @@ namespace Hypervel\Redis\Operations;
 
 use Generator;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\RedisConnection;
 use Redis;
@@ -126,7 +125,7 @@ final class SafeScan
      */
     private function scanStandard(string $scanPattern, int $count, int $prefixLen): Generator
     {
-        $iterator = PhpRedis::initialScanCursor();
+        $iterator = null;
 
         do {
             // SCAN returns keys as they exist in Redis (with full prefix)
@@ -166,7 +165,7 @@ final class SafeScan
 
         foreach ($masters as $master) {
             // Each master node needs its own cursor
-            $iterator = PhpRedis::initialScanCursor();
+            $iterator = null;
 
             do {
                 // RedisCluster::scan() signature: scan(&$iter, $node, $pattern, $count)

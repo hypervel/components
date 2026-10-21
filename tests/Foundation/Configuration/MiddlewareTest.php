@@ -9,7 +9,6 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\Foundation\MaintenanceMode;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
@@ -19,6 +18,7 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
+use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -26,7 +26,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class MiddlewareTest extends TestCase
 {
-    public function testConvertEmptyStringsToNull()
+    public function testConvertEmptyStringsToNull(): void
     {
         $configuration = new Middleware;
         $middleware = new ConvertEmptyStringsToNull;
@@ -76,7 +76,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('', $request->input('bbb'));
     }
 
-    public function testTrimStrings()
+    public function testTrimStrings(): void
     {
         $configuration = new Middleware;
         $middleware = new TrimStrings;
@@ -116,7 +116,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('  789  ', $request->input('ccc'));
     }
 
-    public function testTrustProxies()
+    public function testTrustProxies(): void
     {
         $configuration = new Middleware;
         $middleware = new TrustProxies;
@@ -138,7 +138,7 @@ class MiddlewareTest extends TestCase
         ], $method->invoke($middleware));
 
         $configuration->trustProxies(at: '*');
-        $this->assertEquals('*', $method->invoke($middleware));
+        $this->assertSame('*', $method->invoke($middleware));
 
         $configuration->trustProxies(at: [
             '192.168.1.3',
@@ -150,7 +150,7 @@ class MiddlewareTest extends TestCase
         ], $method->invoke($middleware));
     }
 
-    public function testTrustHeaders()
+    public function testTrustHeaders(): void
     {
         $configuration = new Middleware;
         $middleware = new TrustProxies;
@@ -189,7 +189,7 @@ class MiddlewareTest extends TestCase
             | Request::HEADER_X_FORWARDED_PORT, $method->invoke($middleware));
     }
 
-    public function testTrustHosts()
+    public function testTrustHosts(): void
     {
         $app = m::mock(Application::class);
         $configuration = new Middleware;
@@ -224,13 +224,13 @@ class MiddlewareTest extends TestCase
         $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: [], subdomains: false);
-        $this->assertEquals([], $middleware->hosts());
+        $this->assertSame([], $middleware->hosts());
 
         $configuration->trustHosts(at: static fn () => [], subdomains: false);
-        $this->assertEquals([], $middleware->hosts());
+        $this->assertSame([], $middleware->hosts());
     }
 
-    public function testEncryptCookies()
+    public function testEncryptCookies(): void
     {
         $configuration = new Middleware;
         $encrypter = m::mock(Encrypter::class);
@@ -255,6 +255,33 @@ class MiddlewareTest extends TestCase
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
     }
 
+    public function testRedirectUsersToDoesNotOverwriteRedirectGuestsTo(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->redirectGuestsTo(static fn (): string => '/login');
+        $middleware->redirectUsersTo('/dashboard');
+
+        $authenticateCallback = (new ReflectionClass(Authenticate::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $sessionCallback = (new ReflectionClass(AuthenticateSession::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $exceptionCallback = (new ReflectionClass(AuthenticationException::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $usersCallback = (new ReflectionClass(RedirectIfAuthenticated::class))
+            ->getProperty('redirectToCallback')->getValue();
+
+        $this->assertSame('/login', $authenticateCallback(null));
+        $this->assertSame('/login', $sessionCallback(null));
+        $this->assertSame('/login', $exceptionCallback(null));
+        $this->assertSame('/dashboard', $usersCallback(null));
+
+        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
+        $method = $reflection->getMethod('redirectTo');
+
+        $this->assertSame('/dashboard', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
+    }
+
     public function testRedirectGuestsToNullRegistersNullCallback(): void
     {
         (new Middleware)->redirectGuestsTo(null);
@@ -266,25 +293,11 @@ class MiddlewareTest extends TestCase
         $this->assertNull($callback(null));
     }
 
-    public function testRedirectUsersToConfiguresAuthenticationRedirects(): void
-    {
-        (new Middleware)->redirectUsersTo('/panel');
-
-        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
-        $method = $reflection->getMethod('redirectTo');
-
-        $this->assertSame('/panel', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
-    }
-
-    public function testPreventRequestsDuringMaintenance()
+    public function testPreventRequestsDuringMaintenance(): void
     {
         $configuration = new Middleware;
 
-        $mode = m::mock(MaintenanceMode::class);
-        $mode->shouldReceive('active')->andReturn(true);
-        $mode->shouldReceive('data')->andReturn([]);
         $app = m::mock(Application::class);
-        $app->shouldReceive('maintenanceMode')->andReturn($mode);
         $middleware = new PreventRequestsDuringMaintenance($app);
 
         $reflection = new ReflectionClass($middleware);
@@ -303,7 +316,7 @@ class MiddlewareTest extends TestCase
 
     // REMOVED: validateCsrfTokens() is a deprecated alias for
     // preventRequestForgery().
-    public function testPreventRequestForgery()
+    public function testPreventRequestForgery(): void
     {
         $configuration = new Middleware;
         $middleware = new PreventRequestForgery(
@@ -326,7 +339,7 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($reflection->getStaticPropertyValue('allowSameSite'));
     }
 
-    public function testDefaultGlobalMiddleware()
+    public function testDefaultGlobalMiddleware(): void
     {
         $middleware = new Middleware;
 
@@ -342,7 +355,7 @@ class MiddlewareTest extends TestCase
         ], $middleware->getGlobalMiddleware());
     }
 
-    public function testExplicitEmptyGlobalMiddlewareOverridesDefaults()
+    public function testExplicitEmptyGlobalMiddlewareOverridesDefaults(): void
     {
         $middleware = new Middleware;
 
@@ -351,7 +364,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame([], $middleware->getGlobalMiddleware());
     }
 
-    public function testDefaultWebMiddlewareGroup()
+    public function testDefaultWebMiddlewareGroup(): void
     {
         $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
@@ -366,7 +379,7 @@ class MiddlewareTest extends TestCase
         ], $groups['web']);
     }
 
-    public function testDefaultApiMiddlewareGroup()
+    public function testDefaultApiMiddlewareGroup(): void
     {
         $middleware = new Middleware;
         $groups = $middleware->getMiddlewareGroups();
@@ -376,7 +389,7 @@ class MiddlewareTest extends TestCase
         ], $groups['api']);
     }
 
-    public function testDefaultMiddlewareAliases()
+    public function testDefaultMiddlewareAliases(): void
     {
         $middleware = new Middleware;
 
@@ -413,7 +426,7 @@ class MiddlewareTest extends TestCase
         );
     }
 
-    public function testStatefulApiAddsEnsureFrontendRequestsAreStateful()
+    public function testStatefulApiAddsEnsureFrontendRequestsAreStateful(): void
     {
         $middleware = new Middleware;
         $middleware->statefulApi();
@@ -430,7 +443,7 @@ class MiddlewareTest extends TestCase
         );
     }
 
-    public function testDefaultMiddlewarePriority()
+    public function testDefaultMiddlewarePriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -456,7 +469,7 @@ class MiddlewareTest extends TestCase
         ], $priority);
     }
 
-    public function testWithMiddlewareAppliesPriorityToKernel()
+    public function testWithMiddlewareAppliesPriorityToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -482,7 +495,7 @@ class MiddlewareTest extends TestCase
         ], $property->getValue($kernel));
     }
 
-    public function testWithMiddlewareAppliesAppendsToPriority()
+    public function testWithMiddlewareAppliesAppendsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -509,7 +522,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame($bindingsIndex + 1, $appendedIndex, 'Appended middleware should be immediately after SubstituteBindings');
     }
 
-    public function testWithMiddlewareAppliesPrependsToPriority()
+    public function testWithMiddlewareAppliesPrependsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -536,7 +549,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame($bindingsIndex - 1, $prependedIndex, 'Prepended middleware should be immediately before SubstituteBindings');
     }
 
-    public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel()
+    public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
             m::mock(Application::class),
@@ -567,7 +580,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
     }
 
-    public function testWithMiddlewareWiresConfigThroughApplicationBuilder()
+    public function testWithMiddlewareWiresConfigThroughApplicationBuilder(): void
     {
         $app = \Hypervel\Foundation\Application::configure(
             basePath: __DIR__

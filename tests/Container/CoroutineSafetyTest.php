@@ -13,6 +13,7 @@ use Hypervel\Contracts\Container\Transient;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -726,7 +727,9 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame($results['first'], $results['second']);
     }
 
-    public function testCanceledWaiterRemovesCoordinatorEdge(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCanceledWaiterRemovesCoordinatorEdge(bool $throwException): void
     {
         $container = new CoroutineInspectingContainer;
         $ownerEntered = new Channel(1);
@@ -741,7 +744,7 @@ class CoroutineSafetyTest extends TestCase
             return new stdClass;
         });
 
-        SwooleCoroutine::create(function () use ($container, $ownerFinished): void {
+        $ownerId = SwooleCoroutine::create(function () use ($container, $ownerFinished): void {
             $ownerFinished->push($container->make('service'));
         });
         $ownerEntered->pop();
@@ -762,14 +765,90 @@ class CoroutineSafetyTest extends TestCase
             }
 
             $this->assertSame(1, $container->waitCount());
-            $this->assertTrue(SwooleCoroutine::cancel($waiterId, true));
+            $this->assertTrue(SwooleCoroutine::cancel($waiterId, $throwException));
             $this->assertInstanceOf(CanceledException::class, $waiterFinished->pop(1));
             $this->assertSame(0, $container->waitCount());
         } finally {
-            $releaseOwner->push(true);
+            $releaseOwner->push(true, 0.001);
+            $this->cancelSurvivingCoroutines([$ownerId, $waiterId]);
         }
 
         $this->assertInstanceOf(stdClass::class, $ownerFinished->pop(1));
+    }
+
+    public function testOwnerCancellationReachesOnlyTheOwnerAndTheNextResolutionRetries(): void
+    {
+        $container = new CoroutineInspectingContainer;
+        $ownerEntered = new Channel(1);
+        $releaseOwner = new Channel(1);
+        $ownerFinished = new Channel(1);
+        $waiterFinished = new Channel(1);
+        $attempts = 0;
+
+        $container->singleton('service', function () use ($ownerEntered, $releaseOwner, &$attempts) {
+            if (++$attempts === 1) {
+                $ownerEntered->push(true);
+                $releaseOwner->pop();
+            }
+
+            return new stdClass;
+        });
+
+        $ownerId = SwooleCoroutine::create(function () use ($container, $ownerFinished): void {
+            try {
+                $container->make('service');
+            } catch (Throwable $exception) {
+                $ownerFinished->push($exception);
+            }
+        });
+        $ownerEntered->pop();
+
+        $waiterId = SwooleCoroutine::create(function () use ($container, $waiterFinished): void {
+            try {
+                $container->make('service');
+            } catch (Throwable $exception) {
+                $waiterFinished->push($exception);
+            }
+        });
+
+        try {
+            $deadline = microtime(true) + 1;
+
+            while ($container->waitCount() !== 1 && microtime(true) < $deadline) {
+                usleep(100);
+            }
+
+            $this->assertSame(1, $container->waitCount());
+            $this->assertTrue(SwooleCoroutine::cancel($ownerId, true));
+
+            $ownerException = $ownerFinished->pop(1);
+            $waiterException = $waiterFinished->pop(1);
+
+            $this->assertInstanceOf(CanceledException::class, $ownerException);
+            $this->assertInstanceOf(BindingResolutionException::class, $waiterException);
+            $this->assertSame($ownerException, $waiterException->getPrevious());
+        } finally {
+            $releaseOwner->push(true, 0.001);
+            $this->cancelSurvivingCoroutines([$ownerId, $waiterId]);
+        }
+
+        $this->assertInstanceOf(stdClass::class, $container->make('service'));
+        $this->assertSame(2, $attempts);
+    }
+
+    /**
+     * Cancel and join the given child coroutines that are still running.
+     *
+     * @param list<int> $coroutineIds
+     */
+    protected function cancelSurvivingCoroutines(array $coroutineIds): void
+    {
+        foreach ($coroutineIds as $coroutineId) {
+            if (SwooleCoroutine::exists($coroutineId)) {
+                SwooleCoroutine::cancel($coroutineId, true);
+                SwooleCoroutine::join([$coroutineId], 1);
+            }
+        }
     }
 }
 

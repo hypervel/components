@@ -28,26 +28,36 @@ interface Mailable
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function cc(array|object|string $address, ?string $name = null): static;
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function bcc(array|object|string $address, ?string $name = null): static;
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function to(array|object|string $address, ?string $name = null): static;
 
     /**
      * Set the locale of the message.
+     *
+     * @return $this
      */
     public function locale(string $locale): static;
 
     /**
      * Set the name of the mailer that should be used to send the message.
+     *
+     * @return $this
      */
     public function mailer(?string $mailer): static;
 }

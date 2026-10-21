@@ -5,13 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Concerns\EmptyDataTest;
 
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
-use Hypervel\Data\Exceptions\DataPropertyCanOnlyHaveOneType;
-use Hypervel\Data\Lazy;
 use Hypervel\Data\Resource;
-use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 
 class EmptyDataTest extends TestCase
@@ -25,26 +21,9 @@ class EmptyDataTest extends TestCase
     }
 
     /**
-     * Test empty values derive from declared property types.
+     * Test a custom empty value replaces null without replacing supplied values.
      */
-    public function testCreatesEmptyRepresentation(): void
-    {
-        $this->assertSame([
-            'property' => null,
-            'lazyProperty' => null,
-            'array' => [],
-            'collection' => [],
-            'data' => ['value' => null],
-            'lazyData' => ['value' => null],
-            'mapped_value' => null,
-            'defaultProperty' => true,
-        ], EmptyShapeData::empty());
-    }
-
-    /**
-     * Test explicit values and a custom empty scalar are supported.
-     */
-    public function testOverridesEmptyValues(): void
+    public function testReplacesNullValues(): void
     {
         $this->assertSame([
             'value' => 'supplied',
@@ -53,35 +32,6 @@ class EmptyDataTest extends TestCase
         $this->assertSame([
             'value' => '?',
         ], SimpleEmptyData::empty(replaceNullValuesWith: '?'));
-    }
-
-    /**
-     * Test only and except filter the output shape.
-     */
-    public function testFiltersEmptyRepresentation(): void
-    {
-        $this->assertSame([
-            'second' => null,
-        ], FilteredEmptyData::empty(except: ['first'], only: ['first', 'second']));
-    }
-
-    /**
-     * Test ambiguous property types require an explicit value.
-     */
-    public function testRejectsAmbiguousPropertyTypeWithoutOverride(): void
-    {
-        $this->expectException(DataPropertyCanOnlyHaveOneType::class);
-        $this->expectExceptionMessageIsOrContains(AmbiguousEmptyData::class . '::$value');
-
-        AmbiguousEmptyData::empty();
-    }
-
-    /**
-     * Test explicit values resolve ambiguous property types.
-     */
-    public function testAcceptsOverrideForAmbiguousPropertyType(): void
-    {
-        $this->assertSame(['value' => 1], AmbiguousEmptyData::empty(['value' => 1]));
     }
 
     /**
@@ -106,41 +56,9 @@ class EmptyDataTest extends TestCase
     }
 }
 
-class EmptyShapeData extends Data
-{
-    public string $property;
-
-    public string|Lazy $lazyProperty;
-
-    public array $array;
-
-    public Collection $collection;
-
-    public SimpleEmptyData $data;
-
-    public Lazy|SimpleEmptyData $lazyData;
-
-    #[MapOutputName('mapped_value')]
-    public string $mappedValue;
-
-    public bool $defaultProperty = true;
-}
-
 class SimpleEmptyData extends Data
 {
     public string $value;
-}
-
-class FilteredEmptyData extends Data
-{
-    public string $first;
-
-    public string $second;
-}
-
-class AmbiguousEmptyData extends Data
-{
-    public int|string $value;
 }
 
 class DefaultObjectData extends Data

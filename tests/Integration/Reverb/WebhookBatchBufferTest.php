@@ -53,11 +53,13 @@ class WebhookBatchBufferTest extends TestCase
             $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_' . $i, 'channel' => 'test']);
         }
 
-        $events = $this->buffer->claim('app1', 50, 262144);
+        $payload = $this->buffer->claim('app1', 50, 262144)['payload'];
 
-        $this->assertCount(5, $events);
-        $this->assertSame('event_0', $events[0]['name']);
-        $this->assertSame('event_4', $events[4]['name']);
+        $this->assertCount(5, $payload->events);
+        $this->assertSame('event_0', $payload->events[0]['name']);
+        $this->assertSame('event_4', $payload->events[4]['name']);
+        $this->assertSame(36, strlen($payload->webhookId));
+        $this->assertGreaterThan(0, $payload->timeMs);
     }
 
     public function testClaimRespectsMaxEvents(): void
@@ -66,9 +68,9 @@ class WebhookBatchBufferTest extends TestCase
             $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_' . $i]);
         }
 
-        $events = $this->buffer->claim('app1', 5, 262144);
+        $batch = $this->buffer->claim('app1', 5, 262144);
 
-        $this->assertCount(5, $events);
+        $this->assertCount(5, $batch['payload']->events);
         $this->assertTrue($this->buffer->hasRemaining('app1'));
     }
 
@@ -80,18 +82,33 @@ class WebhookBatchBufferTest extends TestCase
         }
 
         // Set a very low byte limit — should only fit a few events
-        $events = $this->buffer->claim('app1', 50, 300);
+        $events = $this->buffer->claim('app1', 50, 300)['payload']->events;
 
         $this->assertGreaterThan(0, count($events));
         $this->assertLessThan(10, count($events));
         $this->assertTrue($this->buffer->hasRemaining('app1'));
     }
 
-    public function testClaimReturnsEmptyWhenBufferEmpty(): void
+    public function testClaimsKeepTheBufferOrderWhenAnEventExceedsTheByteBudget(): void
     {
-        $events = $this->buffer->claim('app1', 50, 262144);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'first']);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'second', 'data' => str_repeat('x', 200)]);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'third']);
 
-        $this->assertSame([], $events);
+        $claimed = [];
+
+        while ($batch = $this->buffer->claim('app1', 50, 150)) {
+            $claimed[] = array_column($batch['payload']->events, 'name');
+            $this->buffer->acknowledge('app1', $batch['token']);
+        }
+
+        // The oversized second event is still claimed on its own, so the buffer progresses.
+        $this->assertSame([['first'], ['second'], ['third']], $claimed);
+    }
+
+    public function testClaimReturnsNullWhenBufferEmpty(): void
+    {
+        $this->assertNull($this->buffer->claim('app1', 50, 262144));
     }
 
     public function testClaimMovesEventsToProcessingHash(): void
@@ -110,15 +127,37 @@ class WebhookBatchBufferTest extends TestCase
         $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_1']);
 
         // First claim succeeds
-        $events = $this->buffer->claim('app1', 50, 262144);
-        $this->assertCount(1, $events);
+        $batch = $this->buffer->claim('app1', 50, 262144);
+        $this->assertCount(1, $batch['payload']->events);
 
         // Add more events
         $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_2']);
 
-        // Second claim bails because processing key exists
-        $events = $this->buffer->claim('app1', 50, 262144);
-        $this->assertSame([], $events);
+        // Second claim bails because the first claim is current
+        $this->assertNull($this->buffer->claim('app1', 50, 262144));
+    }
+
+    public function testStaleClaimIsTakenOverWithTheSameBatch(): void
+    {
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_1']);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_2']);
+        $stalled = $this->buffer->claim('app1', 50, 262144);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_3']);
+        $this->expireClaim('app1');
+
+        $takeover = $this->buffer->claim('app1', 50, 262144);
+
+        $this->assertSame($stalled['payload']->toJson(), $takeover['payload']->toJson());
+        $this->assertNotSame($stalled['token'], $takeover['token']);
+        $this->assertTrue($this->buffer->hasRemaining('app1'));
+
+        // The stalled flush finishing later must not delete the newer claim.
+        $this->buffer->acknowledge('app1', $stalled['token']);
+        $this->assertSame(1, Redis::connection()->exists($this->key('app1', 'processing')));
+
+        $this->buffer->acknowledge('app1', $takeover['token']);
+        $this->assertSame(0, Redis::connection()->exists($this->key('app1', 'processing')));
+        $this->assertSame(['event_3'], array_column($this->buffer->claim('app1', 50, 262144)['payload']->events, 'name'));
     }
 
     // ── acknowledge ───────────────────────────────────────────────────
@@ -126,49 +165,52 @@ class WebhookBatchBufferTest extends TestCase
     public function testAcknowledgeDeletesProcessingKey(): void
     {
         $this->buffer->appendAndCheckSchedule('app1', ['name' => 'test_event']);
+        $batch = $this->buffer->claim('app1', 50, 262144);
+
+        $this->buffer->acknowledge('app1', $batch['token']);
+
+        $exists = Redis::connection()->exists($this->key('app1', 'processing'));
+        $this->assertSame(0, $exists);
+    }
+
+    // ── shouldScheduleFlush ───────────────────────────────────────────
+
+    public function testShouldScheduleFlushOnceForAStaleClaim(): void
+    {
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'test_event']);
         $this->buffer->claim('app1', 50, 262144);
+        $this->buffer->clearFlushLock('app1');
+        $this->expireClaim('app1');
 
-        $this->buffer->acknowledge('app1');
+        $this->assertTrue($this->buffer->shouldScheduleFlush('app1'));
+        $this->assertFalse($this->buffer->shouldScheduleFlush('app1'));
+        $this->assertGreaterThan(0, Redis::connection()->pttl($this->key('app1', 'flush')));
 
-        $exists = Redis::connection()->exists($this->key('app1', 'processing'));
-        $this->assertSame(0, $exists);
+        // A lost dispatch is scheduled again once the key is gone.
+        $this->buffer->clearFlushLock('app1');
+        $this->assertTrue($this->buffer->shouldScheduleFlush('app1'));
     }
 
-    // ── recoverStaleProcessingKeys ────────────────────────────────────
-
-    public function testRecoverStaleProcessingKeysRequeuesOldEvents(): void
+    public function testShouldScheduleFlushOnceForUnclaimedEvents(): void
     {
-        // Manually create a stale processing hash
-        Redis::connection()->hset($this->key('app1', 'processing'), 'events', json_encode([
-            '{"name":"channel_occupied","channel":"test"}',
-        ]), 'claimed_at', (string) (time() - 120));
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'test_event']);
+        // A failed flush dispatch clears the key it acquired.
+        $this->buffer->clearFlushLock('app1');
 
-        $recovered = $this->buffer->recoverStaleProcessingKeys('app1', 60);
-
-        $this->assertTrue($recovered);
-        $this->assertTrue($this->buffer->hasRemaining('app1'));
-
-        // Processing key should be deleted
-        $exists = Redis::connection()->exists($this->key('app1', 'processing'));
-        $this->assertSame(0, $exists);
+        $this->assertTrue($this->buffer->shouldScheduleFlush('app1'));
+        $this->assertFalse($this->buffer->shouldScheduleFlush('app1'));
     }
 
-    public function testRecoverStaleProcessingKeysIgnoresRecentKeys(): void
+    public function testShouldNotScheduleFlushForACurrentClaimOrAnEmptyBuffer(): void
     {
-        Redis::connection()->hset($this->key('app1', 'processing'), 'events', json_encode([
-            '{"name":"channel_occupied","channel":"test"}',
-        ]), 'claimed_at', (string) (time() - 10));
+        $this->assertFalse($this->buffer->shouldScheduleFlush('app1'));
 
-        $recovered = $this->buffer->recoverStaleProcessingKeys('app1', 60);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_1']);
+        $this->buffer->claim('app1', 50, 262144);
+        $this->buffer->appendAndCheckSchedule('app1', ['name' => 'event_2']);
+        $this->buffer->clearFlushLock('app1');
 
-        $this->assertFalse($recovered);
-    }
-
-    public function testRecoverStaleProcessingKeysNoopsWhenNoKey(): void
-    {
-        $recovered = $this->buffer->recoverStaleProcessingKeys('app1', 60);
-
-        $this->assertFalse($recovered);
+        $this->assertFalse($this->buffer->shouldScheduleFlush('app1'));
     }
 
     // ── clearFlushLock ────────────────────────────────────────────────
@@ -212,6 +254,11 @@ class WebhookBatchBufferTest extends TestCase
     private function key(string $appId, string $type): string
     {
         return $this->probe()->keysForTest($appId)[$type];
+    }
+
+    private function expireClaim(string $appId): void
+    {
+        Redis::connection()->hset($this->key($appId, 'processing'), 'claimed_at', (string) (time() - 120));
     }
 
     private function probe(): WebhookBatchBufferProbe

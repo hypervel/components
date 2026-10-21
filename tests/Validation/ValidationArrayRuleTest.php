@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeys;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeysBacked;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\TestWith;
-
-include_once 'Enums.php';
 
 class ValidationArrayRuleTest extends TestCase
 {
@@ -70,7 +70,7 @@ class ValidationArrayRuleTest extends TestCase
         $this->assertTrue($validator->fails());
     }
 
-    public function testArrayValidation()
+    public function testArrayValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 

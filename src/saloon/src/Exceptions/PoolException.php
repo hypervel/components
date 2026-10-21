@@ -24,7 +24,7 @@ class PoolException extends SaloonException
     ) {
         parent::__construct(
             'One or more requests or callbacks failed while processing the Saloon pool.',
-            previous: $orchestrationFailure,
+            previous: $orchestrationFailure ?? array_first($failures) ?? array_first($callbackFailures),
         );
     }
 

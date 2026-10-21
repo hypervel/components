@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
@@ -11,6 +15,9 @@ use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\PostResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
+use Override;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiResourceTest extends TestCase
 {
@@ -30,7 +37,8 @@ class JsonApiResourceTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi', 'included']);
+            ->assertJsonMissingPath('jsonapi')
+            ->assertJsonMissingPath('included');
     }
 
     public function testItCanGenerateJsonApiResponseWithSparseFieldsets(): void
@@ -48,7 +56,8 @@ class JsonApiResourceTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi', 'included']);
+            ->assertJsonMissingPath('jsonapi')
+            ->assertJsonMissingPath('included');
     }
 
     public function testItCanGenerateJsonApiResponseWithEmptySparseFieldsets(): void
@@ -63,7 +72,8 @@ class JsonApiResourceTest extends TestCase
                     'type' => 'users',
                 ],
             ])
-            ->assertJsonMissing(['jsonapi', 'included']);
+            ->assertJsonMissingPath('jsonapi')
+            ->assertJsonMissingPath('included');
     }
 
     public function testItCanGenerateJsonApiResponseWithEmptyRelationshipsUsingSparseIncluded(): void
@@ -86,8 +96,9 @@ class JsonApiResourceTest extends TestCase
                         ],
                     ],
                 ],
+                'included' => [],
             ])
-            ->assertJsonMissing(['jsonapi', 'included']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanGenerateJsonApiResponseWithRelationshipsUsingSparseIncluded(): void
@@ -173,7 +184,6 @@ class JsonApiResourceTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -190,7 +200,6 @@ class JsonApiResourceTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -286,7 +295,7 @@ class JsonApiResourceTest extends TestCase
                 ],
             ])
             ->assertJsonCount(1, 'included')
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanResolveRelationshipWithCustomNameAndResourceClass(): void
@@ -340,7 +349,7 @@ class JsonApiResourceTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanResolveRelationshipWithNestedRelationship(): void
@@ -422,7 +431,7 @@ class JsonApiResourceTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanResolveNestedRelationshipThroughClosureReturningResourceCollection(): void
@@ -458,7 +467,13 @@ class JsonApiResourceTest extends TestCase
         ));
     }
 
-    public function testItResolvesEachRelationshipClosureOnceWhenIncludingNestedRelationships(): void
+    // Upstream testItIgnoresNestedIncludesThatAreNotResourceRelationships and
+    // testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships are replaced by
+    // testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations in the unit JsonApiResourceTest.
+
+    #[TestWith(['posts.comments', 3])]
+    #[TestWith(['posts.comments.commenter', 4])]
+    public function testItResolvesEachRelationshipClosureOnceWhenIncludingNestedRelationships(string $include, int $queryCount): void
     {
         $user = User::factory()->create();
 
@@ -476,11 +491,44 @@ class JsonApiResourceTest extends TestCase
 
         PostResource::$commentsResolutionCount = 0;
 
-        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments']))
+        $this->expectsDatabaseQueryCount($queryCount);
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => $include]))
             ->assertJsonPath('data.relationships.posts.data.0.id', (string) $posts[0]->getKey());
 
         // The "comments" closure should be resolved once per included post, not multiple times...
         $this->assertSame(2, PostResource::$commentsResolutionCount);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRequestedRelationshipsAreAvailableToAttributeCallbacks(bool $collection): void
+    {
+        $user = User::factory()->create();
+        Post::factory()->count(2)->create(['user_id' => $user->getKey()]);
+
+        $resource = new class($user) extends UserResource {
+            /**
+             * Include the requested post count without loading it from the callback.
+             */
+            #[Override]
+            public function toAttributes(Request $request): array
+            {
+                return [
+                    ...parent::toAttributes($request),
+                    'post_count' => $this->whenLoaded('posts', fn (): int => $this->posts->count()),
+                ];
+            }
+        };
+
+        $response = ($collection ? $resource::collection([$user]) : $resource)
+            ->toResponse(JsonApiRequest::create('/?include=posts'))
+            ->getData(true);
+
+        $data = $collection ? $response['data'][0] : $response['data'];
+
+        $this->assertSame(2, $data['attributes']['post_count']);
+        $this->assertCount(2, $data['relationships']['posts']['data']);
     }
 
     public function testItCanResolveRelationshipWithRecursiveNestedRelationship(): void
@@ -525,22 +573,9 @@ class JsonApiResourceTest extends TestCase
                             ],
                         ],
                     ],
-                    [
-                        'attributes' => [
-                            'email' => $user->email,
-                            'name' => $user->name,
-                        ],
-                        'id' => (string) $user->getKey(),
-                        'type' => 'users',
-                        'relationships' => [
-                            'profile' => [
-                                'data' => ['id' => (string) $profile->getKey(), 'type' => 'profiles'],
-                            ],
-                        ],
-                    ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanResolveRelationshipWithRecursiveNestedRelationshipLimitedToDepthConfiguration(): void
@@ -587,17 +622,9 @@ class JsonApiResourceTest extends TestCase
                             ],
                         ],
                     ],
-                    [
-                        'attributes' => [
-                            'email' => $user->email,
-                            'name' => $user->name,
-                        ],
-                        'id' => (string) $user->getKey(),
-                        'type' => 'users',
-                    ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanResolveRelationshipWithoutRedundantIncludedRelationship(): void
@@ -680,7 +707,7 @@ class JsonApiResourceTest extends TestCase
                 ],
             ])
             ->assertJsonCount(1, 'included')
-            ->assertJsonMissing(['jsonapi']);
+            ->assertJsonMissingPath('jsonapi');
     }
 
     public function testItHandlesBidirectionalRelationshipsWithChaperoneWithoutInfiniteLoop(): void
@@ -736,7 +763,8 @@ class JsonApiResourceTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonMissing(['jsonapi', 'included']);
+            ->assertJsonMissingPath('jsonapi')
+            ->assertJsonMissingPath('included');
     }
 
     public function testSameModelWithTheSameResourceTypeIsDeduplicated(): void
@@ -777,19 +805,82 @@ class JsonApiResourceTest extends TestCase
 
     public function testDifferentModelInstancesWithSameTypeAndIdAreDeduplicated(): void
     {
+        $root = User::factory()->create();
         $user = User::factory()->create();
+        $post = Post::factory()->create(['user_id' => $user->getKey()]);
+        $profile = Profile::factory()->create(['user_id' => $user->getKey()]);
 
         // This route manually creates two different User model instances with the same ID and
         // adds them both to the loadedRelationshipsMap. Per the JSON:API spec, they should
         // be deduplicated since they have the same type+id, even though they're different object instances.
-        $response = $this->getJson("/users/{$user->getKey()}/with-duplicate-instances")
+        $response = $this->getJson("/users/{$root->getKey()}/with-duplicate-instances/{$user->getKey()}")
             ->assertHeader('Content-type', 'application/vnd.api+json');
 
         $included = $response->json('included');
 
-        $this->assertCount(1, $included);
-        $this->assertSame('users', $included[0]['type']);
+        $this->assertSame(['users', 'posts', 'profiles'], array_column($included, 'type'));
         $this->assertSame((string) $user->getKey(), $included[0]['id']);
+        $this->assertSame(['id' => (string) $post->getKey(), 'type' => 'posts'], $included[0]['relationships']['posts']['data'][0]);
+        $this->assertSame(['id' => (string) $profile->getKey(), 'type' => 'profiles'], $included[0]['relationships']['profile']['data']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPrimaryDuplicatesPreserveNestedRelationshipLinkage(bool $alreadyLoaded): void
+    {
+        $user = User::factory()->create();
+        $post = Post::factory()->create(['user_id' => $user->getKey()]);
+        $comment = Comment::factory()->create([
+            'post_id' => $post->getKey(), 'user_id' => $user->getKey(), 'content' => 'public',
+        ]);
+        $profile = Profile::factory()->create(['user_id' => $user->getKey()]);
+
+        if ($alreadyLoaded) {
+            $user->load('posts.comments.commenter.profile');
+        }
+
+        $user->load(['profile' => fn (HasOne $query): HasOne => $query->whereRaw('1 = 0')]);
+
+        $this->expectsDatabaseQueryCount($alreadyLoaded ? 0 : 4);
+        $request = JsonApiRequest::create('/?include=profile,' . ($alreadyLoaded ? 'posts.comments' : 'posts.comments.commenter.profile'));
+        $data = $user->toResource()->toResponse($request)->getData(true);
+
+        $this->assertSame(['id' => (string) $profile->getKey(), 'type' => 'profiles'], $data['data']['relationships']['profile']['data']);
+        $this->assertSame(['posts', 'comments', 'profiles'], array_column($data['included'], 'type'));
+        $this->assertSame((string) $comment->getKey(), $data['included'][1]['id']);
+        $this->assertSame((string) $profile->getKey(), $data['included'][2]['id']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPrimaryDuplicatesCombineConstrainedRelationshipLinkage(bool $empty): void
+    {
+        $user = User::factory()->create();
+        $keep = Post::factory()->create(['user_id' => $user->getKey(), 'title' => 'keep']);
+        $other = Post::factory()->create(['user_id' => $user->getKey(), 'title' => 'other']);
+        Comment::factory()->create([
+            'post_id' => $keep->getKey(), 'user_id' => $user->getKey(), 'content' => 'public',
+        ]);
+        $user->load(['posts' => fn (HasMany $query): HasMany => $query->where('title', $empty ? 'absent' : 'keep')]);
+
+        $data = $user->toResource()->toResponse(JsonApiRequest::create('/?include=posts,comments.commenter.posts'))->getData(true);
+
+        $this->assertSame([
+            ['id' => (string) $keep->getKey(), 'type' => 'posts'],
+            ['id' => (string) $other->getKey(), 'type' => 'posts'],
+        ], $data['data']['relationships']['posts']['data']);
+        $this->assertNotContains('users', array_column($data['included'], 'type'));
+        $this->assertCount(3, $data['included']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExplicitEmptyIncludesAreRetained(bool $collection): void
+    {
+        $user = User::factory()->create();
+        $uri = $collection ? '/users' : '/users/' . $user->getKey();
+
+        $this->getJson($uri . '?include=')->assertOk()->assertJsonPath('included', []);
     }
 
     public function testSameModelOnDifferentResourcesIsNotDeduplicated(): void

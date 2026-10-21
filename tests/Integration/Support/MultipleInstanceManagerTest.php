@@ -13,7 +13,7 @@ use RuntimeException;
 
 class MultipleInstanceManagerTest extends TestCase
 {
-    public function testConfigurableInstancesCanBeResolved()
+    public function testConfigurableInstancesCanBeResolved(): void
     {
         $manager = new MultipleInstanceManager($this->app);
 
@@ -29,9 +29,9 @@ class MultipleInstanceManagerTest extends TestCase
         $duplicateFooInstance = $manager->instance('foo');
         $duplicateBarInstance = $manager->instance('bar');
         $duplicateMysqlInstance = $manager->instance('mysql_database-connection');
-        $this->assertEquals(spl_object_hash($fooInstance), spl_object_hash($duplicateFooInstance));
-        $this->assertEquals(spl_object_hash($barInstance), spl_object_hash($duplicateBarInstance));
-        $this->assertEquals(spl_object_hash($mysqlInstance), spl_object_hash($duplicateMysqlInstance));
+        $this->assertSame(spl_object_id($fooInstance), spl_object_id($duplicateFooInstance));
+        $this->assertSame(spl_object_id($barInstance), spl_object_id($duplicateBarInstance));
+        $this->assertSame(spl_object_id($mysqlInstance), spl_object_id($duplicateMysqlInstance));
     }
 
     public function testSetApplicationRefreshesConfigWithoutRebuildingResolvedInstances(): void
@@ -54,19 +54,19 @@ class MultipleInstanceManagerTest extends TestCase
         $this->assertSame('replacement', $manager->instance('configured')->config['source']);
     }
 
-    public function testUnresolvableInstancesThrowErrors()
+    public function testUnresolvableInstancesThrowErrors(): void
     {
         $this->expectException(RuntimeException::class);
 
         $manager = new MultipleInstanceManager($this->app);
 
-        $instance = $manager->instance('missing');
+        $manager->instance('missing');
     }
 
-    public function testCustomDriverClosureBoundObjectIsMultipleInstanceManager()
+    public function testCustomDriverClosureBoundObjectIsMultipleInstanceManager(): void
     {
         $manager = new MultipleInstanceManager($this->app);
-        $manager->extend('custom', fn () => $this);
+        $manager->extend('custom', fn (): object => $this);
         $this->assertSame($manager, $manager->instance('custom'));
     }
 }

@@ -9,6 +9,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -25,29 +26,14 @@ interface Kernel
     public function bootstrap(): void;
 
     /**
-     * Define the application's command schedule.
-     */
-    public function schedule(Schedule $schedule): void;
-
-    /**
      * Resolve a console schedule instance.
      */
     public function resolveConsoleSchedule(): Schedule;
 
     /**
-     * Register the commands for the application.
-     */
-    public function commands(): void;
-
-    /**
      * Register a Closure based command with the application.
      */
     public function command(string $signature, Closure $callback): ClosureCommand;
-
-    /**
-     * Add loadPaths in the given directory.
-     */
-    public function load(array|string $paths): void;
 
     /**
      * Set the Artisan commands provided by the application.
@@ -78,7 +64,7 @@ interface Kernel
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 

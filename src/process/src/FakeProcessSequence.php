@@ -61,8 +61,8 @@ class FakeProcessSequence
     protected function toProcessResult(array|FakeProcessDescription|ProcessResultContract|string $process): FakeProcessDescription|ProcessResultContract
     {
         return is_array($process) || is_string($process)
-                ? new FakeProcessResult(output: $process)
-                : $process;
+            ? new FakeProcessResult(output: $process)
+            : $process;
     }
 
     /**

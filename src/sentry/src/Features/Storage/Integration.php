@@ -19,6 +19,9 @@ class Integration extends Feature
 
     private const string STORAGE_DRIVER_NAME = 'sentry';
 
+    /**
+     * Indicate if the feature is applicable to the current environment.
+     */
     public function isApplicable(): bool
     {
         // The driver must remain available for per-disk overrides even when the

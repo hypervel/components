@@ -54,7 +54,7 @@ class ConfigurationNormalizerTest extends TestCase
         $configuration['traces']['sampler_arg'] = 1.1;
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must be between 0.0 and 1.0');
+        $this->expectExceptionMessageIsOrContains('must be between 0.0 and 1.0');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -102,7 +102,7 @@ class ConfigurationNormalizerTest extends TestCase
         $configuration['traces']['exporter'] = 'missing';
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('exporter [missing] configured for [traces] is not defined');
+        $this->expectExceptionMessageIsOrContains('exporter [missing] configured for [traces] is not defined');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -113,7 +113,7 @@ class ConfigurationNormalizerTest extends TestCase
         $configuration['logs']['max_export_batch_size'] = 2049;
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('max_export_batch_size] must not exceed [max_queue_size]');
+        $this->expectExceptionMessageIsOrContains('max_export_batch_size] must not exceed [max_queue_size]');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -124,7 +124,7 @@ class ConfigurationNormalizerTest extends TestCase
         $configuration['metrics']['exemplar_filter'] = 'invalid';
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported OpenTelemetry exemplar filter [invalid]');
+        $this->expectExceptionMessageIsOrContains('Unsupported OpenTelemetry exemplar filter [invalid]');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -156,7 +156,7 @@ class ConfigurationNormalizerTest extends TestCase
         $configuration['traces']['schedule_delay'] = 0;
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('opentelemetry.traces.schedule_delay');
+        $this->expectExceptionMessageIsOrContains('opentelemetry.traces.schedule_delay');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -372,7 +372,7 @@ class ConfigurationNormalizerTest extends TestCase
         ];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('query_text_max_length] must be a positive integer');
+        $this->expectExceptionMessageIsOrContains('query_text_max_length] must be a positive integer');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -385,7 +385,7 @@ class ConfigurationNormalizerTest extends TestCase
         ];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must contain exact event names without wildcards');
+        $this->expectExceptionMessageIsOrContains('must contain exact event names without wildcards');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }
@@ -404,7 +404,7 @@ class ConfigurationNormalizerTest extends TestCase
         ];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('depth_queues] must contain at least one queue');
+        $this->expectExceptionMessageIsOrContains('depth_queues] must contain at least one queue');
 
         (new ConfigurationNormalizer)->normalize($configuration);
     }

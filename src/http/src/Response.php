@@ -16,6 +16,7 @@ use Override;
 use RuntimeException;
 use Stringable;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag as SymfonyResponseHeaderBag;
 
 class Response extends SymfonyResponse implements Transient
 {
@@ -40,27 +41,32 @@ class Response extends SymfonyResponse implements Transient
      *
      * @throws InvalidArgumentException
      */
-    public function __construct(mixed $content = '', int $status = 200, array $headers = [])
+    public function __construct(mixed $content = '', int $status = 200, array|SymfonyResponseHeaderBag $headers = [])
     {
-        // HTTP dates have one-second precision, so all responses created in the
-        // same second can clone one value. Caller headers are applied afterward.
-        $timestamp = time();
+        // A given header bag is used as is, keeping its cookies and computed state.
+        if (is_array($headers)) {
+            // HTTP dates have one-second precision, so all responses created in the
+            // same second can clone one value. Caller headers are applied afterward.
+            $timestamp = time();
 
-        if (static::$headerPrototype === null) {
-            static::$headerPrototype = new ResponseHeaderBag;
-            static::$headerPrototypeTimestamp = $timestamp;
-        } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
-            static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
-            static::$headerPrototypeTimestamp = $timestamp;
+            if (static::$headerPrototype === null) {
+                static::$headerPrototype = new ResponseHeaderBag;
+                static::$headerPrototypeTimestamp = $timestamp;
+            } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
+                static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
+                static::$headerPrototypeTimestamp = $timestamp;
+            }
+
+            $bag = clone static::$headerPrototype;
+
+            if ($headers !== []) {
+                $bag->add($headers);
+            }
+
+            $headers = $bag;
         }
 
-        $bag = clone static::$headerPrototype;
-
-        if ($headers !== []) {
-            $bag->add($headers);
-        }
-
-        SymfonyResponse::__construct('', $status, $bag);
+        SymfonyResponse::__construct('', $status, $headers);
 
         $this->setContent($content);
     }
@@ -69,7 +75,7 @@ class Response extends SymfonyResponse implements Transient
      * Get the response content.
      */
     #[Override]
-    public function getContent(): string|false
+    public function getContent(): string
     {
         $content = parent::getContent();
 
@@ -150,7 +156,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages headers via its own API
      */
     #[Override]
-    public function sendHeaders(?int $statusCode = null): static
+    public function sendHeaders(?int $statusCode = null): never
     {
         throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
@@ -161,7 +167,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole has no SAPI output stream
      */
     #[Override]
-    public function sendContent(): static
+    public function sendContent(): never
     {
         throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
@@ -172,7 +178,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages response emission
      */
     #[Override]
-    public function send(bool $flush = true): static
+    public function send(bool $flush = true): never
     {
         throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }

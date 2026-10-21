@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use ArrayAccess;
+use ArrayIterator;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 use Hypervel\Support\Collection;
+use IteratorAggregate;
+use Traversable;
 
-class ProcessPoolResults implements ArrayAccess
+/**
+ * @implements IteratorAggregate<int|string, ProcessResultContract>
+ */
+class ProcessPoolResults implements ArrayAccess, IteratorAggregate
 {
     /**
      * Create a new process pool result set.
@@ -73,5 +79,15 @@ class ProcessPoolResults implements ArrayAccess
     public function offsetUnset(mixed $offset): void
     {
         unset($this->results[$offset]);
+    }
+
+    /**
+     * Get an iterator for the results.
+     *
+     * @return ArrayIterator<int|string, ProcessResultContract>
+     */
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator($this->results);
     }
 }

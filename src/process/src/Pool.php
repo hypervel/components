@@ -6,11 +6,12 @@ namespace Hypervel\Process;
 
 use Closure;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Process\Factory
- * @mixin \Hypervel\Process\PendingProcess
+ * @mixin Factory
+ * @mixin PendingProcess
  */
 class Pool
 {
@@ -47,6 +48,8 @@ class Pool
      * Start all of the processes in the pool.
      *
      * The caller must wait for or stop the pool before its owning coroutine exits.
+     *
+     * @throws InvalidArgumentException
      */
     public function start(?callable $output = null): InvokedProcessPool
     {
@@ -72,8 +75,10 @@ class Pool
             try {
                 // Keep partial construction transactional instead of abandoning already-started children.
                 (new InvokedProcessPool($invokedProcesses))->stop(0);
-            } catch (Throwable) {
-                // Preserve the process creation failure.
+            } catch (Throwable $cleanupException) {
+                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                    throw $cleanupException;
+                }
             }
 
             throw $exception;

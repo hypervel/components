@@ -8,6 +8,7 @@
     - [Dashboard Authorization](#dashboard-authorization)
 - [Upgrading Telescope](#upgrading-telescope)
 - [Managing Telescope](#managing-telescope)
+    - [Viewing Entries From the Command Line](#viewing-entries-from-the-command-line)
     - [Controlling Recording](#controlling-recording)
     - [Deferred Storage](#deferred-storage)
 - [Filtering](#filtering)
@@ -35,6 +36,7 @@
     - [Schedule Watcher](#schedule-watcher)
     - [View Watcher](#view-watcher)
 - [Displaying User Avatars](#displaying-user-avatars)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -111,6 +113,40 @@ If desired, you may disable Telescope's data collection entirely using the `enab
 'enabled' => (bool) env('TELESCOPE_ENABLED', true),
 ```
 
+<a name="content-security-policy-csp-nonce"></a>
+#### Content Security Policy (CSP) Nonce
+
+If you would like to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/nonce) on the script and style tags used in Telescope views as part of your [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP), you may use the `Telescope::cspNonce` method to specify the nonce to use. Because the nonce is scoped to the current request, invoke this method within middleware so that a new nonce is assigned for each request:
+
+```php
+use Closure;
+use Hypervel\Http\Request;
+use Hypervel\Support\Str;
+use Hypervel\Telescope\Telescope;
+use Symfony\Component\HttpFoundation\Response;
+
+public function handle(Request $request, Closure $next): Response
+{
+    $nonce = Str::random(40);
+
+    Telescope::cspNonce($nonce);
+
+    return $next($request)->withHeaders([
+        'Content-Security-Policy' => "script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'",
+    ]);
+}
+```
+
+You may add this middleware to the `middleware` option in your application's `config/telescope.php` configuration file:
+
+```php
+'middleware' => [
+    'web',
+    App\Http\Middleware\AddTelescopeCspNonce::class,
+    Authorize::class,
+],
+```
+
 <a name="data-pruning"></a>
 ### Data Pruning
 
@@ -161,6 +197,8 @@ protected function gate(): void
 }
 ```
 
+Since the dashboard doesn't require a login in the `local` environment, Telescope rejects local dashboard requests that a [trusted proxy](/docs/{{version}}/requests#configuring-trusted-proxies) forwards on behalf of a public IP address, such as visitors arriving through an ngrok or Expose tunnel. Until you configure trusted proxies, requests to ngrok and Expose hostnames fail with an error, since Telescope can't see the visitor's address. To share the dashboard through a tunnel, run the application in a non-local environment so the gate protects it.
+
 > [!WARNING]
 > You should ensure you change your `APP_ENV` environment variable to `production` in your production environment. Otherwise, your Telescope installation will be publicly available.
 
@@ -196,6 +234,28 @@ You may delete all Telescope entries and monitored tags using the `telescope:cle
 php artisan telescope:clear
 ```
 
+<a name="viewing-entries-from-the-command-line"></a>
+### Viewing Entries From the Command Line
+
+In addition to the dashboard, you may inspect recorded entries using the `telescope:list` and `telescope:show` Artisan commands. The `telescope:list` command lists the most recent entries, optionally filtered by entry type, tag, batch ID, or family hash:
+
+```shell
+php artisan telescope:list request
+php artisan telescope:list exception --limit=5
+php artisan telescope:list request --tag=Auth:42
+```
+
+When more entries are available, the command displays a `--before` value you may pass to view the next page.
+
+The `telescope:show` command displays an entry along with the other entries recorded in the same batch, such as the queries, cache operations, and logs recorded while handling a request. You may pass a full entry UUID, the shortened UUID displayed by `telescope:list`, `latest`, or `latest:{type}`. The `--type` option limits the related entries to the given types:
+
+```shell
+php artisan telescope:show latest:request
+php artisan telescope:show 79a09461 --type=query,cache
+```
+
+Long SQL queries, messages, and payloads are truncated unless you provide the `--full` option. Both commands also accept a `--json` option if you would like to process their output with other tools.
+
 <a name="controlling-recording"></a>
 ### Controlling Recording
 
@@ -213,6 +273,8 @@ public function register(): void
 ```
 
 This callback controls whether recording begins. To choose which collected entries are stored, use Telescope's [entry and batch filters](#filtering).
+
+Ordinary child coroutines inherit the parent's recording state and batch. [Detached background coroutines](/docs/{{version}}/coroutines#detached-background-work) start with recording disabled and no parent batch, unless those values were explicitly copied into the child. Recording can then begin through the usual request, command, job, or scheduled-task lifecycle.
 
 <a name="deferred-storage"></a>
 ### Deferred Storage
@@ -393,9 +455,25 @@ The gate watcher records the data and result of [gate and policy](/docs/{{versio
 <a name="http-client-watcher"></a>
 ### HTTP Client Watcher
 
-The HTTP client watcher records outgoing [HTTP client requests](/docs/{{version}}/http-client) made by your application.
+The HTTP client watcher records outgoing [HTTP client requests](/docs/{{version}}/http-client) made by your application, including requests from third-party SDKs that use Guzzle.
 
 You may exclude individual outgoing requests from being recorded or attach custom Telescope tags using the HTTP client's [Telescope recording methods](/docs/{{version}}/http-client#telescope-recording).
+
+For a Guzzle client used directly, set the `telescope_enabled` option to `false` on the client or an individual request to disable recording:
+
+```php
+$client = new \GuzzleHttp\Client(['telescope_enabled' => false]);
+```
+
+Telescope hides common credential headers, OAuth token fields, AWS credentials and URL signatures by default. Hidden request parameters are also masked in query strings in recorded URLs and redirects. Masking only affects recorded entries; the original requests, responses and sessions are unchanged.
+
+To hide additional fields, call the following methods from your `TelescopeServiceProvider`'s `boot` method. Header names should be lowercase, and nested body fields may use dot notation. Query parameters are matched the same way: a name such as `access_token` or a dot-notation path such as `credentials.secret` also hides its nested keys, such as `credentials[secret][id]`. Exact bracketed names such as `credentials[secret]` are matched as written:
+
+```php
+Telescope::hideRequestHeaders(['x-service-secret']);
+Telescope::hideRequestParameters(['credentials.secret', 'service_token']);
+Telescope::hideResponseParameters(['credentials.secret']);
+```
 
 You may ignore specific hosts or limit the recorded request and response payload sizes using the watcher's configuration options:
 
@@ -413,7 +491,7 @@ You may ignore specific hosts or limit the recorded request and response payload
 ],
 ```
 
-By default, oversized payloads are replaced with `Purged By Telescope` without reading or processing the body. If `truncate_oversized` is enabled, Telescope will read, mask, and truncate the payload to the configured size limit.
+By default, oversized payloads are replaced with `Purged By Telescope`. Telescope reads response bodies and masks structured payloads before checking their recorded size. If `truncate_oversized` is enabled, Telescope records the payload up to the configured size limit after masking known fields.
 
 <a name="job-watcher"></a>
 ### Job Watcher
@@ -541,10 +619,12 @@ The request watcher records the request, headers, session, and response data ass
 
 You may also use the `ignore_http_methods` and `ignore_status_codes` options to skip recording requests by HTTP method or response status code.
 
+The [credential masking settings](#http-client-watcher) also apply to incoming request entries, including signed URLs in redirects, referrer headers and the session's previous or intended URL.
+
 <a name="schedule-watcher"></a>
 ### Schedule Watcher
 
-The schedule watcher records the task type, description, expression, timezone, user, output, status, and exit code of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application. Opaque command lines are not stored. Describe or name a scheduled command to identify it in Telescope; otherwise, Telescope displays `Scheduled command`.
+The schedule watcher records the task type, description, expression, timezone, output, status, and exit code of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application. Opaque command lines are not stored. Describe or name a scheduled command to identify it in Telescope; otherwise, Telescope displays `Scheduled command`.
 
 <a name="view-watcher"></a>
 ### View Watcher
@@ -574,3 +654,8 @@ public function register(): void
     });
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Telescope began as a port of [Laravel Telescope](https://github.com/laravel/telescope) and has been adapted for Hypervel's framework architecture and coroutine runtime.

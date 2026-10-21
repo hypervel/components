@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
@@ -12,8 +13,8 @@ if (! function_exists('collect')) {
      * @template TKey of array-key
      * @template TValue
      *
-     * @param null|\Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue> $value
-     * @return \Hypervel\Support\Collection<TKey, TValue>
+     * @param null|Arrayable<array<array-key, mixed>>|iterable<TKey, TValue> $value
+     * @return ($value is Arrayable<array<TKey, TValue>> ? Collection<TKey, TValue> : Collection<TKey, TValue>)
      */
     function collect($value = []): Collection
     {
@@ -26,7 +27,7 @@ if (! function_exists('data_fill')) {
      * Fill in data where it's missing.
      *
      * @param mixed $target
-     * @param array|string $key
+     * @param array|int|string $key
      * @param mixed $value
      * @return mixed
      */
@@ -132,7 +133,7 @@ if (! function_exists('data_set')) {
      * Set an item on an array or object using dot notation.
      *
      * @param mixed $target
-     * @param array|string $key
+     * @param array|int|string $key
      * @param mixed $value
      * @param bool $overwrite
      * @return mixed
@@ -258,7 +259,7 @@ if (! function_exists('value')) {
      * @template TValue
      * @template TArgs
      *
-     * @param (\Closure(TArgs): TValue)|TValue $value
+     * @param (Closure(TArgs): TValue)|TValue $value
      * @param TArgs ...$args
      * @return TValue
      */
@@ -275,11 +276,12 @@ if (! function_exists('when')) {
      * @template TValue
      * @template TArgs
      * @template TDefault
+     * @template TDefaultArgs
      *
      * @param mixed $condition
-     * @param (\Closure(TArgs): TValue)|TValue $value
-     * @param (\Closure(): TDefault)|TDefault $default
-     * @return ($condition is non-empty-array|non-falsy-string|positive-int|true ? TValue : ($condition is callable ? TDefault|TValue : TDefault))
+     * @param (Closure(TArgs): TValue)|TValue $value
+     * @param (Closure(TDefaultArgs): TDefault)|TDefault $default
+     * @return ($condition is Closure ? TDefault|TValue : ($condition is empty ? TDefault : TValue))
      */
     function when($condition, $value, $default = null)
     {

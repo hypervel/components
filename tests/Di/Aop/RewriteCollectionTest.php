@@ -9,14 +9,14 @@ use Hypervel\Tests\TestCase;
 
 class RewriteCollectionTest extends TestCase
 {
-    public function testDefaultLevelIsMethodLevel()
+    public function testDefaultLevelIsMethodLevel(): void
     {
         $collection = new RewriteCollection('Foo');
 
         $this->assertSame(RewriteCollection::METHOD_LEVEL, $collection->getLevel());
     }
 
-    public function testAddMethodAndShouldRewrite()
+    public function testAddMethodAndShouldRewrite(): void
     {
         $collection = new RewriteCollection('Foo');
         $collection->add('bar');
@@ -25,7 +25,7 @@ class RewriteCollectionTest extends TestCase
         $this->assertFalse($collection->shouldRewrite('baz'));
     }
 
-    public function testAddMultipleMethods()
+    public function testAddMultipleMethods(): void
     {
         $collection = new RewriteCollection('Foo');
         $collection->add(['bar', 'baz']);
@@ -35,7 +35,7 @@ class RewriteCollectionTest extends TestCase
         $this->assertFalse($collection->shouldRewrite('qux'));
     }
 
-    public function testClassLevelRewritesAllMethodsExceptConstructor()
+    public function testClassLevelRewritesAllMethodsExceptConstructor(): void
     {
         $collection = new RewriteCollection('Foo');
         $collection->setLevel(RewriteCollection::CLASS_LEVEL);
@@ -45,7 +45,7 @@ class RewriteCollectionTest extends TestCase
         $this->assertFalse($collection->shouldRewrite('__construct'));
     }
 
-    public function testMethodPatternMatching()
+    public function testMethodPatternMatching(): void
     {
         $collection = new RewriteCollection('Foo');
         $collection->add('get*');
@@ -55,14 +55,14 @@ class RewriteCollectionTest extends TestCase
         $this->assertFalse($collection->shouldRewrite('setName'));
     }
 
-    public function testGetClass()
+    public function testGetClass(): void
     {
         $collection = new RewriteCollection('App\Foo');
 
         $this->assertSame('App\Foo', $collection->getClass());
     }
 
-    public function testGetMethods()
+    public function testGetMethods(): void
     {
         $collection = new RewriteCollection('Foo');
         $collection->add('bar');
@@ -71,7 +71,7 @@ class RewriteCollectionTest extends TestCase
         $this->assertSame(['bar', 'baz'], $collection->getMethods());
     }
 
-    public function testGetShouldNotRewriteMethods()
+    public function testGetShouldNotRewriteMethods(): void
     {
         $collection = new RewriteCollection('Foo');
 

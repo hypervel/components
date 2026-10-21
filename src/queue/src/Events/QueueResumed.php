@@ -10,7 +10,7 @@ class QueueResumed
      * Create a new event instance.
      */
     public function __construct(
-        public string $connection,
+        public string $connectionName,
         public string $queue,
     ) {
     }

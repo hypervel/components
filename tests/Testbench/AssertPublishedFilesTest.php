@@ -7,8 +7,11 @@ namespace Hypervel\Tests\Testbench;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
+
+use function Hypervel\Testbench\join_paths;
 
 class AssertPublishedFilesTest extends TestCase
 {
@@ -89,6 +92,44 @@ class AssertPublishedFilesTest extends TestCase
         } finally {
             $this->app->instance('files', $filesystem);
             $filesystem->delete([$publishedFile, $migrationFile]);
+        }
+    }
+
+    #[Test]
+    public function itCleansPublishedFilesWithoutAMigrationsDirectory(): void
+    {
+        $filesystem = new Filesystem;
+        $databasePath = ParallelTesting::tempDir('AssertPublishedFilesTest');
+        $originalDatabasePath = $this->app->databasePath();
+        $originalMigrationFiles = $this->cachedExistingMigrationsFiles;
+        $publishedFile = $this->app->basePath('published.txt');
+        $migrationFile = join_paths($databasePath, 'migrations', '2026_08_09_000000_published.php');
+        $this->files = ['published.txt'];
+        $filesystem->deleteDirectory($databasePath);
+        $filesystem->makeDirectory($databasePath, 0700, recursive: true);
+        $this->app->useDatabasePath($databasePath);
+        $this->cachedExistingMigrationsFiles = null;
+
+        try {
+            $this->cacheExistingMigrationsFiles();
+            $filesystem->put($publishedFile, 'published');
+
+            $this->cleanUpPublishedFileSets();
+
+            $this->assertSame([], $this->cachedExistingMigrationsFiles);
+            $this->assertFileDoesNotExist($publishedFile);
+
+            $filesystem->makeDirectory(dirname($migrationFile));
+            $filesystem->put($migrationFile, '<?php');
+
+            $this->cleanUpPublishedFileSets();
+
+            $this->assertFileDoesNotExist($migrationFile);
+        } finally {
+            $this->app->useDatabasePath($originalDatabasePath);
+            $this->cachedExistingMigrationsFiles = $originalMigrationFiles;
+            $filesystem->delete($publishedFile);
+            $filesystem->deleteDirectory($databasePath);
         }
     }
 }

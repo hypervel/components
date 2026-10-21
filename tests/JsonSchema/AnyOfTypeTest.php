@@ -69,7 +69,7 @@ class AnyOfTypeTest extends TestCase
     public function testFinallyEmptyAnyOfIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A JSON Schema anyOf must contain at least one schema.');
+        $this->expectExceptionMessageIs('A JSON Schema anyOf must contain at least one schema.');
 
         JsonSchema::anyOf([])->toArray();
     }

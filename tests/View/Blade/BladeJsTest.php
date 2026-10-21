@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeJsTest extends AbstractBladeTestCase
 {
-    public function testStatementIsCompiledWithoutAnyOptions()
+    public function testStatementIsCompiledWithoutAnyOptions(): void
     {
         $string = '<div x-data="@js($data)"></div>';
         $expected = '<div x-data="<?php echo \Hypervel\Support\Js::from($data)->toHtml() ?>"></div>';
@@ -14,7 +14,7 @@ class BladeJsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testJsonFlagsCanBeSet()
+    public function testJsonFlagsCanBeSet(): void
     {
         $string = '<div x-data="@js($data, JSON_FORCE_OBJECT)"></div>';
         $expected = '<div x-data="<?php echo \Hypervel\Support\Js::from($data, JSON_FORCE_OBJECT)->toHtml() ?>"></div>';
@@ -22,7 +22,7 @@ class BladeJsTest extends AbstractBladeTestCase
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testEncodingDepthCanBeSet()
+    public function testEncodingDepthCanBeSet(): void
     {
         $string = '<div x-data="@js($data, JSON_FORCE_OBJECT, 256)"></div>';
         $expected = '<div x-data="<?php echo \Hypervel\Support\Js::from($data, JSON_FORCE_OBJECT, 256)->toHtml() ?>"></div>';

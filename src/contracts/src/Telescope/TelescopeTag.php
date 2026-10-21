@@ -23,6 +23,7 @@ enum TelescopeTag: string
     case Algolia = 'algolia';
     case Meilisearch = 'meilisearch';
     case Saloon = 'saloon';
+    case Turbopuffer = 'turbopuffer';
     case Typesense = 'typesense';
 
     /**
@@ -38,6 +39,7 @@ enum TelescopeTag: string
             self::Algolia => 'Scout Algolia driver.',
             self::Meilisearch => 'Scout Meilisearch driver.',
             self::Saloon => 'Hypervel Saloon — API integration package.',
+            self::Turbopuffer => 'Scout Turbopuffer driver.',
             self::Typesense => 'Scout Typesense driver.',
         };
     }

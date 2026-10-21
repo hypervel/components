@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -15,9 +14,11 @@ use function Hypervel\Filesystem\join_paths;
 class ConfigMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:config';
+    protected ?string $signature = 'make:config
+                    {name : The name of the config}
+                    {--f|force : Create the configuration file even if it already exists}';
 
     /**
      * The console command description.
@@ -54,16 +55,6 @@ class ConfigMakeCommand extends GeneratorCommand
         return file_exists($customPath = $this->hypervel->basePath($relativePath))
             ? $customPath
             : join_paths(__DIR__, $relativePath);
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the configuration file even if it already exists'],
-        ];
     }
 
     /**

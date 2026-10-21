@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class TableGuesserTest extends TestCase
 {
-    public function testMigrationIsProperlyParsed()
+    public function testMigrationIsProperlyParsed(): void
     {
         [$table, $create] = TableGuesser::guess('create_users_table');
         $this->assertSame('users', $table);
@@ -32,7 +32,7 @@ class TableGuesserTest extends TestCase
         $this->assertFalse($create);
     }
 
-    public function testMigrationIsProperlyParsedWithoutTableSuffix()
+    public function testMigrationIsProperlyParsedWithoutTableSuffix(): void
     {
         [$table, $create] = TableGuesser::guess('create_users');
         $this->assertSame('users', $table);

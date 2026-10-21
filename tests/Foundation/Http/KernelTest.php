@@ -26,7 +26,144 @@ use function Hypervel\Coroutine\parallel;
 
 class KernelTest extends TestCase
 {
-    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware()
+    public function testGetMiddlewareGroups(): void
+    {
+        $kernel = $this->getKernel();
+
+        $this->assertSame([], $kernel->getMiddlewareGroups());
+    }
+
+    // REMOVED: testGetRouteMiddleware - the deprecated getRouteMiddleware() alias is not ported; use getMiddlewareAliases().
+
+    public function testGetMiddlewarePriority(): void
+    {
+        $kernel = $this->getKernel();
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityAfter(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityAfter(
+            [
+                \Hypervel\Cookie\Middleware\EncryptCookies::class,
+                \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            ],
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityAfterFirstMiddleware(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityAfter(
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityAfterAdjacentMiddleware(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityAfter(
+            [
+                \Hypervel\Cookie\Middleware\EncryptCookies::class,
+                \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            ],
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityBefore(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityBefore(
+            [
+                \Hypervel\Cookie\Middleware\EncryptCookies::class,
+                \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            ],
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -45,27 +182,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterWithArrayOfMiddleware()
-    {
-        $kernel = $this->getKernel();
-        $kernel->setMiddlewarePriority([
-            'middleware_a',
-            'middleware_b',
-            'middleware_c',
-        ]);
-
-        // When array is given, it inserts after the LAST found middleware in the array
-        $kernel->addToMiddlewarePriorityAfter(['middleware_a', 'middleware_c'], 'new_middleware');
-
-        $this->assertSame([
-            'middleware_a',
-            'middleware_b',
-            'middleware_c',
-            'new_middleware',
-        ], $kernel->getMiddlewarePriority());
-    }
-
-    public function testAddToMiddlewarePriorityAfterWhenExistingNotFound()
+    public function testAddToMiddlewarePriorityAfterWhenExistingNotFound(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -83,7 +200,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterDoesNotAddDuplicates()
+    public function testAddToMiddlewarePriorityAfterDoesNotAddDuplicates(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -102,7 +219,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeWithSingleMiddleware()
+    public function testAddToMiddlewarePriorityBeforeWithSingleMiddleware(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -121,27 +238,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeWithArrayOfMiddleware()
-    {
-        $kernel = $this->getKernel();
-        $kernel->setMiddlewarePriority([
-            'middleware_a',
-            'middleware_b',
-            'middleware_c',
-        ]);
-
-        // When array is given, it inserts before the FIRST found middleware in the array
-        $kernel->addToMiddlewarePriorityBefore(['middleware_b', 'middleware_c'], 'new_middleware');
-
-        $this->assertSame([
-            'middleware_a',
-            'new_middleware',
-            'middleware_b',
-            'middleware_c',
-        ], $kernel->getMiddlewarePriority());
-    }
-
-    public function testAddToMiddlewarePriorityBeforeWhenExistingNotFound()
+    public function testAddToMiddlewarePriorityBeforeWhenExistingNotFound(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -160,7 +257,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeDoesNotAddDuplicates()
+    public function testAddToMiddlewarePriorityBeforeDoesNotAddDuplicates(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -179,7 +276,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityBeforeAtBeginning()
+    public function testAddToMiddlewarePriorityBeforeAtBeginning(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -196,7 +293,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterAtEnd()
+    public function testAddToMiddlewarePriorityAfterAtEnd(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -213,7 +310,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityReturnsSelf()
+    public function testAddToMiddlewarePriorityReturnsSelf(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority(['middleware_a']);
@@ -225,7 +322,7 @@ class KernelTest extends TestCase
         $this->assertSame($kernel, $result);
     }
 
-    public function testItTriggersTerminatingEvent()
+    public function testItTriggersTerminatingEvent(): void
     {
         $called = [];
         $app = new Application;
@@ -319,7 +416,7 @@ class KernelTest extends TestCase
         $request = Request::create('/');
         $replacement = new Response('replacement', 500);
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->shouldReceive('report')->once()->with($failure, []);
         $handler->shouldReceive('render')->once()->with($request, $failure)->andReturn($replacement);
         $app->instance(ExceptionHandler::class, $handler);
         $router = m::mock(Router::class);
@@ -338,7 +435,7 @@ class KernelTest extends TestCase
         $original = new RuntimeException('router failed');
         $reportingFailure = new RuntimeException('reporting failed');
         $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($original)->andThrow($reportingFailure);
+        $handler->expects('report')->with($original, [])->andThrow($reportingFailure);
         $handler->shouldNotReceive('render');
         $app->instance(ExceptionHandler::class, $handler);
         $router = m::mock(Router::class);

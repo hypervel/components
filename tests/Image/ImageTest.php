@@ -39,6 +39,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 class ImageTest extends TestCase
@@ -196,6 +197,28 @@ class ImageTest extends TestCase
         $image->cover(100, 100)->optimize('webp');
 
         $this->assertEquals($originalOptions, $this->getOptions($image));
+    }
+
+    public function testImmutableOperationsUseTheCloneExtensionPoint(): void
+    {
+        $image = new class('source image') extends Image {
+            public int $generation = 0;
+
+            /**
+             * Record each generation of image variants.
+             */
+            protected function newClone(): static
+            {
+                $clone = parent::newClone();
+                ++$clone->generation;
+
+                return $clone;
+            }
+        };
+
+        $this->assertSame(1, $image->usingGd()->generation);
+        $this->assertSame(1, $image->quality(80)->generation);
+        $this->assertSame(0, $image->generation);
     }
 
     public function testChainedOperationsAccumulate(): void
@@ -426,6 +449,22 @@ class ImageTest extends TestCase
         $this->expectExceptionObject(new TypeError('broken dimensions'));
 
         (new Image('source image'))->using('fake')->blur()->dimensions();
+    }
+
+    public function testDimensionsPreservesDriverCancellationForHeic(): void
+    {
+        $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
+        $cancellation = new CanceledException('Inspecting the image was canceled.');
+        $driver = m::mock(Driver::class);
+        $driver->expects('dimensions')->once()->with($contents)->andThrow($cancellation);
+        $this->registerDrivers(['fake' => $driver]);
+
+        try {
+            (new Image($contents))->using('fake')->dimensions();
+            $this->fail('Expected the driver cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testDominantColorReusesProcessedBytes(): void
@@ -812,9 +851,10 @@ class ImageTest extends TestCase
 
     public function testDriverExceptionIsWrappedInImageException(): void
     {
+        $this->registerDrivers([]);
         $image = new Image($this->fakeImageContents());
 
-        $this->expectExceptionObject(new ImageException('Failed to process image:'));
+        $this->expectExceptionObject(new ImageException('Failed to process image: Image driver [nonexistent] is not supported.'));
 
         // Trigger a driver error by using a non-existent driver
         $image->using('nonexistent')->cover(100, 100)->toBytes();
@@ -822,12 +862,14 @@ class ImageTest extends TestCase
 
     public function testWrappedExceptionPreservesOriginal(): void
     {
+        $this->registerDrivers([]);
         $image = new Image($this->fakeImageContents());
 
         try {
             $image->using('nonexistent')->cover(100, 100)->toBytes();
         } catch (ImageException $exception) {
-            $this->assertNotNull($exception->getPrevious());
+            $this->assertInstanceOf(InvalidArgumentException::class, $exception->getPrevious());
+            $this->assertSame('Image driver [nonexistent] is not supported.', $exception->getPrevious()->getMessage());
 
             return;
         }

@@ -12,6 +12,13 @@ use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\AwsS3V3Adapter;
+use Hypervel\Filesystem\ClientPooledFilesystem;
+use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\FilesystemManager;
+use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\ObjectPool\PoolManager;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
@@ -19,6 +26,7 @@ use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -210,7 +218,9 @@ class AwsS3V3AdapterTest extends TestCase
         $this->assertSame(12, $captured['@http']['timeout']);
     }
 
-    public function testStreamReadsPreserveConfiguredHttpSiblingsForPlainAndRangeReads(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamReadsPreserveConfiguredHttpSiblingsForPlainAndRangeReads(bool $wholeDriver): void
     {
         $commands = [];
         $handler = new MockHandler([
@@ -223,6 +233,11 @@ class AwsS3V3AdapterTest extends TestCase
                 $commands[] = $command;
 
                 return new Result(['Body' => Utils::streamFor('range')]);
+            },
+            function (CommandInterface $command) use (&$commands): Result {
+                $commands[] = $command;
+
+                return new Result(['Body' => Utils::streamFor('pooled')]);
             },
         ]);
         $adapter = $this->adapter($handler, [
@@ -244,7 +259,34 @@ class AwsS3V3AdapterTest extends TestCase
         $this->assertIsResource($range);
         fclose($plain);
         fclose($range);
-        $this->assertCount(2, $commands);
+        $pools = new PoolManager;
+        $definition = new PoolDefinition('filesystem:http-options', 's3', 'test', PoolOptions::fromArray([]));
+        $pooled = $wholeDriver ? new FilesystemPoolProxy(
+            $definition,
+            static fn (): AwsS3V3Adapter => $adapter,
+            $pools,
+            $adapter->getConfig(),
+        ) : new ClientPooledFilesystem(
+            $definition,
+            $adapter->getClient(...),
+            static fn (object $client): AwsS3V3Adapter => $adapter,
+            $pools,
+            $adapter->getConfig(),
+        );
+
+        try {
+            $stream = $pooled->getOperator()->readStream('pooled.txt');
+
+            try {
+                $this->assertSame('pooled', stream_get_contents($stream));
+            } finally {
+                fclose($stream);
+            }
+        } finally {
+            $pools->purgeAll();
+        }
+
+        $this->assertCount(3, $commands);
 
         foreach ($commands as $command) {
             $this->assertSame('bucket', $command['Bucket']);
@@ -255,6 +297,115 @@ class AwsS3V3AdapterTest extends TestCase
         $this->assertSame('tenant/plain.txt', $commands[0]['Key']);
         $this->assertSame('tenant/range.txt', $commands[1]['Key']);
         $this->assertSame('bytes=2-4', $commands[1]['Range']);
+        $this->assertSame('tenant/pooled.txt', $commands[2]['Key']);
+    }
+
+    #[DataProvider('readThroughCloudSides')]
+    public function testReadThroughRangesPreserveNativeRequestsAndTheOuterFailurePolicy(bool $primary, ?string $poolType): void
+    {
+        $command = null;
+        $failure = new RuntimeException('S3 failed');
+        $handler = new MockHandler([
+            function (CommandInterface $request) use (&$command): Result {
+                $command = $request;
+
+                [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+                fwrite($writer, 'range');
+                fclose($writer);
+
+                return new Result(['Body' => Utils::streamFor($reader)]);
+            },
+            $failure,
+        ]);
+        $adapter = $this->adapter($handler, [
+            'bucket' => 'bucket',
+            'root' => 'tenant',
+            'throw' => false,
+            'report' => true,
+            'options' => ['@http' => ['timeout' => 12]],
+        ]);
+        $adapter->getDriver()->shouldReceive('fileExists')->andReturn(true);
+        $emptyDriver = m::mock(FilesystemOperator::class);
+        $emptyDriver->shouldReceive('fileExists')->andReturn(false);
+        $empty = new FilesystemAdapter($emptyDriver, m::mock(FlysystemAdapter::class));
+        $pools = new PoolManager;
+        $definition = new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([]));
+        $cloud = match ($poolType) {
+            'client' => new ClientPooledFilesystem(
+                $definition,
+                $adapter->getClient(...),
+                static fn (object $client): AwsS3V3Adapter => $adapter,
+                $pools,
+                $adapter->getConfig(),
+            ),
+            'driver' => new FilesystemPoolProxy(
+                $definition,
+                static fn (): AwsS3V3Adapter => $adapter,
+                $pools,
+                $adapter->getConfig(),
+            ),
+            null => $adapter,
+        };
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        Container::getInstance()->instance(ExceptionHandler::class, $exceptionHandler);
+        $manager = new FilesystemManager(Container::getInstance());
+        $manager->set('primary', $primary ? $cloud : $empty);
+        $manager->set('fallback', $primary ? $empty : $cloud);
+        $readThrough = $manager->build([
+            'driver' => 'read-through',
+            'primary' => 'primary',
+            'fallback' => 'fallback',
+            'copy' => $primary,
+            'throw' => true,
+            'report' => false,
+            'prefix' => 'outer',
+        ]);
+
+        try {
+            $stream = $readThrough->readStreamRange('file.txt', 2, 4);
+
+            try {
+                $this->assertSame('range', stream_get_contents($stream));
+
+                if ($poolType !== null) {
+                    $this->assertSame(1, $pools->get($definition->identity)->getBorrowedCount());
+                }
+            } finally {
+                fclose($stream);
+            }
+
+            $this->assertSame('bytes=2-4', $command['Range']);
+            $this->assertSame('tenant/outer/file.txt', $command['Key']);
+            $this->assertSame(12, $command['@http']['timeout']);
+
+            try {
+                $readThrough->readStreamRange('file.txt', 2, 4);
+                $this->fail('Expected the composite failure policy to throw.');
+            } catch (UnableToReadFile $exception) {
+                $this->assertSame($failure, $exception->getPrevious());
+            }
+
+            if ($poolType !== null) {
+                $this->assertSame(0, $pools->get($definition->identity)->getBorrowedCount());
+            }
+        } finally {
+            $pools->purgeAll();
+        }
+    }
+
+    /**
+     * Provide read-through sides that can serve native ranges.
+     */
+    public static function readThroughCloudSides(): array
+    {
+        return [
+            'client-pooled primary' => [true, 'client'],
+            'client-pooled fallback without promotion' => [false, 'client'],
+            'driver-pooled primary' => [true, 'driver'],
+            'driver-pooled fallback without promotion' => [false, 'driver'],
+            'non-pooled primary' => [true, null],
+        ];
     }
 
     public function testReadStreamRangeWrapsClientFailures(): void
@@ -263,7 +414,7 @@ class AwsS3V3AdapterTest extends TestCase
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('S3 failed');
+        $this->expectExceptionMessageIsOrContains('S3 failed');
 
         $adapter->readStreamRange('file.txt', 1, 2);
     }
@@ -297,7 +448,7 @@ class AwsS3V3AdapterTest extends TestCase
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
         $this->expectException(UnableToReadFile::class);
-        $this->expectExceptionMessage('Downloaded object does not contain a file resource.');
+        $this->expectExceptionMessageIsOrContains('Downloaded object does not contain a file resource.');
 
         $adapter->readStreamRange('file.txt', 1, 2);
     }

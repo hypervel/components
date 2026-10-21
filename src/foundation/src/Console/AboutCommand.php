@@ -15,9 +15,15 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'about')]
 class AboutCommand extends Command
 {
+    /**
+     * The console command signature.
+     */
     protected ?string $signature = 'about {--only= : The section to display}
                 {--json : Output the information as JSON}';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Display basic information about your application';
 
     /**
@@ -76,7 +82,7 @@ class AboutCommand extends Command
 
         $this->newLine();
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
@@ -140,7 +146,7 @@ class AboutCommand extends Command
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
             'Environment' => $this->hypervel->environment(),
             'Debug Mode' => static::format(config()->boolean('app.debug'), console: $formatEnabledStatus),
-            'URL' => Str::of(config('app.url'))->replace(['http://', 'https://'], ''),
+            'URL' => (new Stringable(config('app.url')))->replace(['http://', 'https://'], ''),
             'Maintenance Mode' => static::format($this->hypervel->isDownForMaintenance(), console: $formatEnabledStatus),
             'Timezone' => config()->string('app.timezone'),
             'Locale' => config()->string('app.locale'),
@@ -150,7 +156,7 @@ class AboutCommand extends Command
             'Config' => static::format($this->hypervel->configurationIsCached(), console: $formatCachedStatus),
             'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
             'Routes' => static::format($this->hypervel->routesAreCached(), console: $formatCachedStatus),
-            'AOP Proxies' => static::format($this->hasPhpFiles($this->hypervel->storagePath('framework/aop'), 'cache'), console: $formatCachedStatus),
+            'AOP Proxies' => static::format($this->hasPhpFiles($this->hypervel->bootstrapPath('cache/aop')), console: $formatCachedStatus),
             'Views' => static::format($this->hasPhpFiles(config()->string('view.compiled')), console: $formatCachedStatus),
         ]);
 
@@ -286,7 +292,7 @@ class AboutCommand extends Command
      */
     protected function sections(): array
     {
-        return (new Collection(explode(',', $this->option('only') ?? '')))
+        return (new Stringable($this->option('only') ?? ''))->explode(',')
             ->filter()
             ->map(fn ($only) => $this->toSearchKeyword($only))
             ->all();

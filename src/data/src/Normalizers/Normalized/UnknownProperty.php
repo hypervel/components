@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Normalizers\Normalized;
 
-enum UnknownProperty
+enum UnknownProperty: string
 {
-    case Instance;
+    case Instance = 'Instance';
 
     /**
      * Get the missing-property sentinel.

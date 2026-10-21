@@ -11,6 +11,7 @@ use Hypervel\Testbench\TestCase;
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\multisearch;
 use function Hypervel\Prompts\multiselect;
+use function Hypervel\Prompts\number;
 use function Hypervel\Prompts\password;
 use function Hypervel\Prompts\pause;
 use function Hypervel\Prompts\search;
@@ -85,6 +86,30 @@ class PromptsAssertionTest extends TestCase
             ->artisan('test:textarea')
             ->expectsQuestion('What is your name?', 'Jane')
             ->expectsOutput('Jane');
+    }
+
+    public function testAssertionForNumberPrompt(): void
+    {
+        $this->app->make(Kernel::class)->registerCommand(
+            new class extends Command {
+                protected ?string $signature = 'test:number';
+
+                /**
+                 * Execute the console command.
+                 */
+                public function handle(): void
+                {
+                    $count = number('How many people?');
+
+                    $this->line("There are {$count} people.");
+                }
+            }
+        );
+
+        $this
+            ->artisan('test:number')
+            ->expectsQuestion('How many people?', 5)
+            ->expectsOutput('There are 5 people.');
     }
 
     public function testAssertionForSuggestPrompt(): void
@@ -301,7 +326,7 @@ class PromptsAssertionTest extends TestCase
 
                     $name = search(
                         label: 'What is your name?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $options->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );
@@ -329,7 +354,7 @@ class PromptsAssertionTest extends TestCase
 
                     $names = multisearch(
                         label: 'Which names do you like?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $options->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );
@@ -370,7 +395,7 @@ class PromptsAssertionTest extends TestCase
                     $titles = collect(['Mr', 'Mrs', 'Ms', 'Dr']);
                     $title = multisearch(
                         label: 'What is your title?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $titles->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );

@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\AutoLazy;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
@@ -24,6 +25,7 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
 use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
@@ -32,9 +34,9 @@ use Hypervel\Data\Mappers\SnakeCaseMapper;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\DataMethod;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Factories\DataClassFactory;
 use Hypervel\Data\Support\Factories\DataMethodFactory;
@@ -52,19 +54,97 @@ use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\ChildScope\ChildAnnotations;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ChildClassItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ConstructorItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\InlineItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ParentClassItem;
-use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Data\Fixtures\DataWithMapper;
+use Hypervel\Tests\Data\Fixtures\Models\DummyModel;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use ReflectionMethod;
 use RuntimeException;
 use stdClass;
 
 class DataClassTest extends TestCase
 {
+    /**
+     * Get package providers for the test application.
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [DataServiceProvider::class];
+    }
+
+    public function testKeepsTrackOfAGlobalMapFromAttribute(): void
+    {
+        $dataClass = $this->factory()->build(new ReflectionClass(DataWithMapper::class));
+
+        $this->assertEquals('cased_property', $dataClass->properties['casedProperty']->inputMappedName);
+        $this->assertEquals('cased_property', $dataClass->properties['casedProperty']->outputMappedName);
+    }
+
+    public function testWillProvideInformationAboutSpecialMethods(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(SimpleData::class));
+
+        $this->assertArrayHasKey('fromString', $class->methods);
+        $this->assertInstanceOf(DataMethod::class, $class->methods['fromString']);
+    }
+
+    public function testWillProvideInformationAboutTheConstructor(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(SimpleData::class));
+
+        $this->assertInstanceOf(ReflectionMethod::class, $class->constructor);
+        $this->assertSame(['string'], array_column($class->constructorParameters, 'name'));
+    }
+
+    public function testWillPopulateDefaultsToPropertiesWhenTheyExist(): void
+    {
+        $dataClass = new class('', '') extends Data {
+            public string $property;
+
+            public string $default_property = 'Hello';
+
+            /**
+             * Create the data object with promoted defaults.
+             */
+            public function __construct(
+                public string $promoted_property,
+                public string $default_promoted_property = 'Hello Again',
+            ) {
+            }
+        };
+
+        $properties = array_values($this->factory()->build(new ReflectionClass($dataClass))->properties);
+
+        // Metadata records only whether a default exists; the value itself is read when needed.
+        $this->assertEquals('property', $properties[0]->name);
+        $this->assertFalse($properties[0]->hasDefaultValue);
+
+        $this->assertEquals('default_property', $properties[1]->name);
+        $this->assertTrue($properties[1]->hasDefaultValue);
+
+        $this->assertEquals('promoted_property', $properties[2]->name);
+        $this->assertFalse($properties[2]->hasDefaultValue);
+
+        $this->assertEquals('default_promoted_property', $properties[3]->name);
+        $this->assertTrue($properties[3]->hasDefaultValue);
+    }
+
+    public function testWontThrowAnErrorIfANonExistingAttributeIsUsedOnADataClass(): void
+    {
+        $this->assertEquals('hello', PhpStormClassAttributeData::from(['property' => 'hello'])->property);
+        $this->assertEquals('hello', NonExistingAttributeData::from(['property' => 'hello'])->property);
+        $this->assertEquals('hello', PhpStormClassAttributeData::from((object) ['property' => 'hello'])->property);
+        $this->assertEquals('hello', PhpStormClassAttributeData::from('{"property": "hello"}')->property);
+        $this->assertEquals(1, ModelWithPhpStormAttributeData::from((new DummyModel)->fill(['id' => 1]))->id);
+    }
+
     /**
      * Test class-level metadata, methods, mappings, and request attributes.
      */
@@ -231,7 +311,8 @@ class DataClassTest extends TestCase
         );
 
         $this->assertTrue($promoted->properties['userId']->isConstructorParameter);
-        $this->assertFalse($promoted->properties['userId']->validate);
+        // A promoted contextual value is validated with the object once Fill resolves it.
+        $this->assertTrue($promoted->properties['userId']->validate);
         $this->assertSame(ContextualValue::class, $promoted->constructorParameters[0]->contextualAttribute?->getName());
         $this->assertSame(['userId' => true], $promoted->contextualParameters);
         $this->assertNull($promoted->creationRecipe);
@@ -260,6 +341,7 @@ class DataClassTest extends TestCase
             AbstractDirectArrayCreationDataFixture::class,
             MorphableDirectArrayCreationDataFixture::class,
             ClassNormalizerDirectArrayCreationDataFixture::class,
+            PreparedDirectArrayCreationDataFixture::class,
             PromotedContextualDataFixture::class,
             AutoLazyDirectArrayCreationDataFixture::class,
             LoadRelationDirectArrayCreationDataFixture::class,
@@ -344,9 +426,30 @@ class DataClassTest extends TestCase
             'computed constructor property' => [ComputedConstructorDataFixture::class, 'declares output-only property'],
             'write-only virtual property' => [WriteOnlyVirtualDataFixture::class, 'declares write-only virtual property'],
             'contextual property collision' => [ContextualCollisionDataFixture::class, 'conflicts with public data property'],
-            'non-public promoted property' => [NonPublicPromotedDataFixture::class, 'promotes non-public property'],
-            'constructor parameter without property' => [MissingPropertyDataFixture::class, 'has no corresponding public data property'],
         ];
+    }
+
+    public function testConstructorInputsWithoutPublicPropertiesAreRecorded(): void
+    {
+        $metadata = $this->factory()->build(new ReflectionClass(MissingPropertyDataFixture::class));
+
+        $this->assertSame(['source'], $metadata->constructorInputs);
+        $this->assertSame([], $metadata->properties);
+        $this->assertNull($metadata->creationRecipe);
+        $this->assertFalse($metadata->directConstructorInstantiation);
+    }
+
+    public function testNonPublicPromotedParametersAreNotConstructorInputs(): void
+    {
+        $required = $this->factory()->build(new ReflectionClass(NonPublicPromotedDataFixture::class));
+        $defaulted = $this->factory()->build(new ReflectionClass(DefaultedNonPublicPromotedDataFixture::class));
+
+        $this->assertSame([], $required->constructorInputs);
+        $this->assertSame(['name'], array_keys($required->properties));
+        // Nothing would supply the required parameter, so creation takes the path that reports it missing.
+        $this->assertFalse($required->directConstructorInstantiation);
+        $this->assertSame([], $defaulted->constructorInputs);
+        $this->assertTrue($defaulted->directConstructorInstantiation);
     }
 
     /**
@@ -451,7 +554,7 @@ class DataClassTest extends TestCase
             'data' => array_replace($defaults, $overrides),
         ]));
         $nameMapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return new DataClassFactory(
@@ -670,6 +773,17 @@ class ClassNormalizerDirectArrayCreationDataFixture extends DirectArrayCreationD
     }
 }
 
+class PreparedDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+    /**
+     * Prepare one normalized payload.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        return $properties;
+    }
+}
+
 class AutoLazyDirectArrayCreationDataFixture extends Data
 {
     /**
@@ -720,7 +834,7 @@ class DirectArrayCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         return $value;
@@ -828,10 +942,23 @@ class ContextualCollisionDataFixture
 class NonPublicPromotedDataFixture
 {
     /**
-     * Create a new non-public promoted fixture.
+     * Create a new fixture with a required non-public promoted parameter.
      */
     public function __construct(
+        public string $name,
         protected string $secret,
+    ) {
+    }
+}
+
+class DefaultedNonPublicPromotedDataFixture
+{
+    /**
+     * Create a new fixture with a defaulted non-public promoted parameter.
+     */
+    public function __construct(
+        public string $name,
+        private string $secret = 'none',
     ) {
     }
 }
@@ -941,4 +1068,52 @@ class EloquentDnfCollectionDataFixture
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class ContextualValue implements ContextualAttribute
 {
+}
+
+#[\JetBrains\PhpStorm\Immutable]
+class PhpStormClassAttributeData extends Data
+{
+    public readonly string $property;
+
+    /**
+     * Create a fixture whose class uses an IDE attribute.
+     */
+    public function __construct(string $property)
+    {
+        $this->property = $property;
+    }
+}
+
+#[\Foo\Bar]
+class NonExistingAttributeData extends Data
+{
+    public readonly string $property;
+
+    /**
+     * Create a fixture whose class uses an undefined attribute.
+     */
+    public function __construct(string $property)
+    {
+        $this->property = $property;
+    }
+}
+
+#[\JetBrains\PhpStorm\Immutable]
+class ModelWithPhpStormAttributeData extends Data
+{
+    /**
+     * Create a model fixture whose class uses an IDE attribute.
+     */
+    public function __construct(
+        public int $id
+    ) {
+    }
+
+    /**
+     * Create the fixture from a dummy model.
+     */
+    public static function fromDummyModel(DummyModel $model): self
+    {
+        return new self($model->id);
+    }
 }

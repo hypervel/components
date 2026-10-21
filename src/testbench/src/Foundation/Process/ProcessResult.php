@@ -152,6 +152,8 @@ final class ProcessResult
     /**
      * Handle dynamic calls to the process instance.
      *
+     * @param array<array-key, mixed> $parameters
+     *
      * @throws BadMethodCallException
      */
     public function __call(string $method, array $parameters): mixed

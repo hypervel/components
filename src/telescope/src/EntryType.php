@@ -43,4 +43,34 @@ class EntryType
     public const string VIEW = 'view';
 
     public const string CLIENT_REQUEST = 'client_request';
+
+    /**
+     * Get all of the entry types.
+     *
+     * @return list<string>
+     */
+    public static function all(): array
+    {
+        return [
+            self::BATCH,
+            self::CACHE,
+            self::CLIENT_REQUEST,
+            self::COMMAND,
+            self::DUMP,
+            self::EVENT,
+            self::EXCEPTION,
+            self::GATE,
+            self::JOB,
+            self::LOG,
+            self::MAIL,
+            self::MODEL,
+            self::NOTIFICATION,
+            self::QUERY,
+            self::REDIS,
+            self::REQUEST,
+            self::REVERB,
+            self::SCHEDULED_TASK,
+            self::VIEW,
+        ];
+    }
 }

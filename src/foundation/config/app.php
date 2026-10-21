@@ -168,7 +168,7 @@ return [
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'UTC'),
+    'timezone' => 'UTC',
 
     // 'schedule_timezone' => 'America/Chicago',
 
@@ -184,6 +184,17 @@ return [
     */
 
     'locale' => env('APP_LOCALE', 'en'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Fallback Locale
+    |--------------------------------------------------------------------------
+    |
+    | The fallback locale determines the locale to use when the default one
+    | is not available. You may change the value to correspond to any of
+    | the languages which are currently supported by your application.
+    |
+    */
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
@@ -259,8 +270,6 @@ return [
     ])->merge([
         // Application Service Providers...
         // App\Providers\AppServiceProvider::class,
-    ])->merge([
-        // Added Service Providers (Do not remove this line)...
     ])->toArray(),
 
     /*
@@ -270,7 +279,7 @@ return [
     |
     | This array of class aliases will be registered when this application
     | is started. You may add any additional class aliases which should
-    | be loaded to the array. For speed, all aliases are lazy loaded.
+    | be loaded to the array.
     |
     */
 

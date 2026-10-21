@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use BackedEnum;
 use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
@@ -99,7 +100,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [auth.guards.staff.passwords] must be a string');
+        $this->expectExceptionMessageIsOrContains('Configuration value for key [auth.guards.staff.passwords] must be a string');
 
         $manager->resolveBrokerNameForGuard('staff');
     }
@@ -188,7 +189,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $container->instance(AuthFactory::class, $this->mockAuthFactory('web'));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [web] does not declare a passwords broker. Set auth.guards.web.passwords.');
+        $this->expectExceptionMessageIs('Auth guard [web] does not declare a passwords broker. Set auth.guards.web.passwords.');
 
         (new PasswordBrokerManager($container))->getDefaultDriver();
     }
@@ -215,13 +216,37 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertSame('other', $manager->getDefaultDriver());
     }
 
-    public function testSetDefaultDriverAcceptsAnIntBackedZeroEnum(): void
+    #[DataProvider('backedBrokerNames')]
+    public function testBrokerCanResolveBackedEnum(BackedEnum $name, string $expected): void
+    {
+        $broker = m::mock(PasswordBrokerContract::class);
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $manager->resolvedBroker = $broker;
+
+        $this->assertSame($broker, $manager->broker($name));
+        $this->assertSame($broker, $manager->broker($expected));
+        $this->assertSame([$expected], $manager->resolvedNames);
+    }
+
+    /**
+     * Provide backed enum broker names.
+     */
+    public static function backedBrokerNames(): array
+    {
+        return [
+            'string backed' => [AuthPasswordBrokerStringEnum::Users, 'users'],
+            'integer backed zero' => [AuthPasswordBrokerIntEnum::Zero, '0'],
+        ];
+    }
+
+    #[DataProvider('backedBrokerNames')]
+    public function testSetDefaultDriverAcceptsBackedEnum(BackedEnum $name, string $expected): void
     {
         $manager = new PasswordBrokerManager(new Container);
 
-        $manager->setDefaultDriver(AuthPasswordBrokerIntEnum::Zero);
+        $manager->setDefaultDriver($name);
 
-        $this->assertSame('0', $manager->getDefaultDriver());
+        $this->assertSame($expected, $manager->getDefaultDriver());
     }
 
     public function testSetDefaultDriverIsCoroutineIsolated(): void
@@ -338,6 +363,17 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $database->shouldNotReceive('connection');
 
         $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
+    }
+
+    public function testBrokerWithEmptyNameUsesDefaultDriver(): void
+    {
+        $broker = m::mock(PasswordBrokerContract::class);
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $manager->resolvedBroker = $broker;
+        $manager->setDefaultDriver('users');
+
+        $this->assertSame($broker, $manager->broker(''));
+        $this->assertSame(['users'], $manager->resolvedNames);
     }
 
     public function testShippedDatabaseBrokerUsesDefaultConnection(): void
@@ -470,20 +506,9 @@ class AuthPasswordBrokerManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Password resetter driver [unknown] is not defined.');
+        $this->expectExceptionMessageIs('Password resetter driver [unknown] is not defined.');
 
         (new PasswordBrokerManager($container))->broker('users');
-    }
-
-    public function testBrokerNormalizesEnumsBeforeCaching(): void
-    {
-        $broker = m::mock(PasswordBrokerContract::class);
-        $manager = new AuthPasswordBrokerManagerStub(new Container);
-        $manager->resolvedBroker = $broker;
-
-        $this->assertSame($broker, $manager->broker(AuthPasswordBrokerIntEnum::Zero));
-        $this->assertSame($broker, $manager->broker('0'));
-        $this->assertSame(['0'], $manager->resolvedNames);
     }
 
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
@@ -504,7 +529,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
     public function testBrokerFailsFastWhenAppKeyIsNotConfigured(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [app.key] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [app.key] must be a string, NULL given.');
 
         $container = new Container;
         $container->instance('config', new Repository([
@@ -576,6 +601,7 @@ class AuthPasswordBrokerManagerStub extends PasswordBrokerManager
 
 enum AuthPasswordBrokerStringEnum: string
 {
+    case Users = 'users';
     case Staff = 'staff';
 }
 

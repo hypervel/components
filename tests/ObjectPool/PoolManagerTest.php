@@ -89,7 +89,7 @@ class PoolManagerTest extends TestCase
         $this->manager->pool('app:reports', static fn (): object => new stdClass);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('"max_objects":{"registered":10,"requested":20}');
+        $this->expectExceptionMessageIsOrContains('"max_objects":{"registered":10,"requested":20}');
 
         $this->manager->pool(
             'app:reports',
@@ -112,7 +112,7 @@ class PoolManagerTest extends TestCase
     public function testPoolRejectsABlankName(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The pool identity must be a non-empty string.');
+        $this->expectExceptionMessageIs('The pool identity must be a non-empty string.');
 
         $this->manager->pool('', static fn (): object => new stdClass);
     }
@@ -122,7 +122,7 @@ class PoolManagerTest extends TestCase
         $this->manager->pool('app:reports', static fn (): object => new stdClass);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('already exists for resource type [app:reports]; requested [s3]');
+        $this->expectExceptionMessageIsOrContains('already exists for resource type [app:reports]; requested [s3]');
 
         $this->manager->getOrCreate(
             $this->definition(
@@ -189,7 +189,7 @@ class PoolManagerTest extends TestCase
         $this->manager->getOrCreate($this->definition(), static fn (): object => new stdClass);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('already exists for resource type [s3]; requested [gcs]');
+        $this->expectExceptionMessageIsOrContains('already exists for resource type [s3]; requested [gcs]');
 
         $this->manager->getOrCreate(
             $this->definition(resourceType: 'gcs'),
@@ -240,7 +240,7 @@ class PoolManagerTest extends TestCase
     public function testGetThrowsForAMissingIdentity(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Pool [missing] does not exist.');
+        $this->expectExceptionMessageIs('Pool [missing] does not exist.');
 
         $this->manager->get('missing');
     }

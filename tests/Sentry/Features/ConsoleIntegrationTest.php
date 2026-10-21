@@ -10,20 +10,18 @@ use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Database\QueryException;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Sentry\Features\ConsoleIntegration;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
 use Sentry\SentrySdk;
 use Symfony\Component\Console\Input\ArgvInput;
 
-class ConsoleIntegrationTest extends SentryTestCase
+class ConsoleIntegrationTest extends TestCase
 {
-    public function testCommandBreadcrumbIncludesInputWhenPiiIsEnabled(): void
+    public function testCommandBreadcrumbIsRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.command_info' => true,
-                'send_default_pii' => true,
-            ]),
+            'sentry.breadcrumbs.command_info' => true,
+            'sentry.send_default_pii' => true,
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
@@ -57,10 +55,8 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCommandBreadcrumbOmitsInputWhenPiiIsDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.command_info' => true,
-                'send_default_pii' => false,
-            ]),
+            'sentry.breadcrumbs.command_info' => true,
+            'sentry.send_default_pii' => false,
         ]);
 
         $baselineScope = $this->getCurrentSentryScope();
@@ -86,10 +82,51 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->assertSame([], $this->getCurrentSentryBreadcrumbs());
     }
 
+    public function testCommandBreadcrumbIncludesFilteredInputWithDataCollection(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.breadcrumbs.command_info' => true,
+            'sentry.send_default_pii' => false,
+            'sentry.data_collection' => [],
+        ]);
+
+        $command = new DataCollectionConsoleIntegrationCommand;
+        $input = new ArgvInput([
+            'artisan', 'taylor', 'api-key-value',
+            '--token=token-value', '--secret', 'secret-value', '-P', 'password-value',
+            '--tag=a', '--tag=b', '-ab',
+        ]);
+        $input->bind($command->getDefinition());
+
+        // Values equal to their defaults, such as the unused connection option, are left out
+        $expectedInput = [
+            'arguments' => ['name' => 'taylor', 'api_key' => '[Filtered]'],
+            'options' => [
+                'token' => '[Filtered]',
+                'secret' => '[Filtered]',
+                'password' => '[Filtered]',
+                'tag' => ['a', 'b'],
+                'alpha' => true,
+                'beta' => true,
+            ],
+        ];
+
+        $this->dispatchHypervelEvent(new BeforeHandle($command, $input));
+
+        $this->assertSame(['input' => $expectedInput], $this->getLastSentryBreadcrumb()->getMetadata());
+
+        // Another instance's completion leaves this command's scope, and so its breadcrumbs, in place
+        $this->dispatchHypervelEvent(new AfterExecute(new DataCollectionConsoleIntegrationCommand, null, $input, 0));
+
+        $this->assertSame(['exit' => 0, 'input' => $expectedInput], $this->getLastSentryBreadcrumb()->getMetadata());
+
+        $this->dispatchHypervelEvent(new AfterExecute($command, null, $input, 0));
+    }
+
     public function testCommandBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
@@ -105,7 +142,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCommandScopesRemainBalancedWhenCommandsAreNested(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $outer = new ConsoleIntegrationCommand;
@@ -129,7 +166,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testDuplicateCompletionDoesNotPopTheParentCommandScope(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $outer = new ConsoleIntegrationCommand;
@@ -151,7 +188,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCommandCompletionOnlyPopsItsOwnedCurrentScope(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => true]),
+            'sentry.breadcrumbs.command_info' => true,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $command = new ConsoleIntegrationCommand;
@@ -178,7 +215,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testOuterCompletionDoesNotPopNestedScopeWhenInnerCompletionWasStopped(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $integration = $this->app->make(ConsoleIntegration::class);
@@ -210,7 +247,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCompletionWithoutAStartedCommandDoesNotPopTheCurrentScope(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $scope = $this->getCurrentSentryScope();
 
@@ -222,7 +259,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testUnnamedCommandCompletionDoesNotPopItsParentCommandScope(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $outer = new ConsoleIntegrationCommand;
@@ -243,7 +280,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testStoppedStartEventDoesNotLetCompletionPopItsParentCommandScope(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+            'sentry.breadcrumbs.command_info' => false,
         ]);
         $baselineScope = $this->getCurrentSentryScope();
         $integration = $this->app->make(ConsoleIntegration::class);
@@ -270,7 +307,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testThrowableExitCodeUsesSymfonyConsoleErrorRules(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => true]),
+            'sentry.breadcrumbs.command_info' => true,
         ]);
         $command = new ConsoleIntegrationCommand;
         $integration = $this->app->make(ConsoleIntegration::class);
@@ -287,6 +324,9 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->assertSame(Command::FAILURE, $this->getLastSentryBreadcrumb()?->getMetadata()['exit']);
     }
 
+    /**
+     * Dispatch the event raised before the command is handled.
+     */
     private function dispatchCommandStartEvent(Command $command, bool $withValue = false): void
     {
         $this->dispatchHypervelEvent(new BeforeHandle(
@@ -295,6 +335,9 @@ class ConsoleIntegrationTest extends SentryTestCase
         ));
     }
 
+    /**
+     * Dispatch the event raised after the command is executed.
+     */
     private function dispatchCommandFinishEvent(
         Command $command,
         ?RuntimeException $throwable = null,
@@ -309,6 +352,9 @@ class ConsoleIntegrationTest extends SentryTestCase
         ));
     }
 
+    /**
+     * Create console input bound to the command's definition.
+     */
     private function commandInput(Command $command, bool $withValue = false): ArgvInput
     {
         $input = new ArgvInput($withValue ? ['artisan', '--foo=bar'] : ['artisan']);
@@ -322,6 +368,9 @@ class ConsoleIntegrationCommand extends Command
 {
     protected ?string $signature = 'test:command {--foo=}';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -331,6 +380,21 @@ class NestedConsoleIntegrationCommand extends Command
 {
     protected ?string $signature = 'test:nested';
 
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+class DataCollectionConsoleIntegrationCommand extends Command
+{
+    protected ?string $signature = 'test:data-collection {name} {api_key?} {--token=} {--secret=} {--P|password=} {--tag=*} {--a|alpha} {--b|beta} {--connection=dsn-with-credentials}';
+
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -338,6 +402,9 @@ class NestedConsoleIntegrationCommand extends Command
 
 class UnnamedConsoleIntegrationCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -345,6 +412,9 @@ class UnnamedConsoleIntegrationCommand extends Command
 
 class StringCodeConsoleException extends RuntimeException
 {
+    /**
+     * Create an exception with a string code, like PDO errors.
+     */
     public function __construct()
     {
         parent::__construct('failed');

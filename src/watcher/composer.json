@@ -33,7 +33,7 @@
         "php": "^8.4",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "ext-swoole": "^6.2.2",
+        "ext-swoole": "^6.3.0RC1",
         "hypervel/console": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
@@ -41,7 +41,7 @@
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/finder": "^8.1"
     },
     "config": {

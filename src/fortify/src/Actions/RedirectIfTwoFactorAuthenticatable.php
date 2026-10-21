@@ -18,6 +18,7 @@ use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
 use Hypervel\Fortify\TwoFactorAuthenticatable;
 use Hypervel\Http\Request;
+use Hypervel\Support\Timebox;
 use Hypervel\Validation\ValidationException;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -75,21 +76,27 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
         }
 
         $provider = $this->provider();
-        $user = $provider->retrieveByCredentials($request->only(Fortify::username(), 'password'));
 
-        $password = $request->input('password');
+        return (new Timebox)->call(function (Timebox $timebox) use ($request, $provider): Authenticatable&Model {
+            $user = $provider->retrieveByCredentials($request->only(Fortify::username(), 'password'));
 
-        if (! $user instanceof Authenticatable || ! $user instanceof Model || ! $provider->validateCredentials($user, ['password' => $password])) {
-            $this->fireFailedEvent($request, $user);
+            $password = $request->input('password');
 
-            $this->throwFailedAuthenticationException($request);
-        }
+            if (! $user instanceof Authenticatable || ! $user instanceof Model || ! $provider->validateCredentials($user, ['password' => $password])) {
+                $this->fireFailedEvent($request, $user);
 
-        if ($this->config->boolean('hashing.rehash_on_login')) {
-            $provider->rehashPasswordIfRequired($user, ['password' => $password]);
-        }
+                $this->throwFailedAuthenticationException($request);
+            }
 
-        return $user;
+            if ($this->config->boolean('hashing.rehash_on_login')) {
+                $provider->rehashPasswordIfRequired($user, ['password' => $password]);
+            }
+
+            // Only failed attempts need a fixed duration, so successful logins skip the wait, as SessionGuard does.
+            $timebox->returnEarly();
+
+            return $user;
+        }, $this->config->integer('auth.timebox_duration'));
     }
 
     /**

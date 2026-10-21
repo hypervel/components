@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
+{{ factoryImport }}
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 
 class {{ class }} extends MorphPivot
 {
-    //
+    {{ factory }}
 }

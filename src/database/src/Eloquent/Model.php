@@ -19,20 +19,26 @@ use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Coroutine\Mutex;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
 use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
+use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Arr;
@@ -67,7 +73,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     use Concerns\TransformsToResource;
     use ForwardsCalls;
 
-    /** @use HasCollection<\Hypervel\Database\Eloquent\Collection<array-key, static & self>> */
+    /** @use HasCollection<Collection<array-key, static & self>> */
     use HasCollection;
 
     /**
@@ -133,6 +139,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var array<int, string>
      */
     protected array $withCount = [];
+
+    /**
+     * The attributes that should be refreshed after the model is written.
+     *
+     * @var list<string>
+     */
+    protected array $refreshes = [];
 
     /**
      * Indicates whether lazy loading will be prevented on this model.
@@ -208,7 +221,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The array of global scopes on the model.
      *
-     * @var array<class-string<self>, array<string, Closure|Scope>>
+     * @var array<class-string<self>, array<int|string, Closure|Scope>>
      */
     protected static array $globalScopes = [];
 
@@ -225,9 +238,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling lazy loading violations.
      *
-     * @var null|(callable(self, string): mixed)
+     * @var null|(callable(self, string, LazyLoadingViolationException): mixed)
      */
-    protected static $lazyLoadingViolationCallback;
+    protected static mixed $lazyLoadingViolationCallback = null;
 
     /**
      * Indicates if an exception should be thrown instead of silently discarding non-fillable attributes.
@@ -237,9 +250,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling discarded attribute violations.
      *
-     * @var null|(callable(self, array): mixed)
+     * @var null|(callable(self, array, MassAssignmentException): mixed)
      */
-    protected static $discardedAttributeViolationCallback;
+    protected static mixed $discardedAttributeViolationCallback = null;
 
     /**
      * Indicates if an exception should be thrown when trying to access a missing attribute on a retrieved model.
@@ -249,21 +262,26 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling missing attribute violations.
      *
-     * @var null|(callable(self, string): mixed)
+     * @var null|(callable(self, string, MissingAttributeException): mixed)
      */
-    protected static $missingAttributeViolationCallback;
+    protected static mixed $missingAttributeViolationCallback = null;
+
+    /**
+     * Indicates if invalid value exceptions during implicit route model binding should be reported.
+     */
+    protected static bool $reportRouteModelBindingExceptions = true;
 
     /**
      * The Eloquent query builder class to use for the model.
      *
-     * @var class-string<\Hypervel\Database\Eloquent\Builder<*>>
+     * @var class-string<Builder<*>>
      */
     protected static string $builder = Builder::class;
 
     /**
      * The Eloquent collection class to use for the model.
      *
-     * @var class-string<\Hypervel\Database\Eloquent\Collection<*, *>>
+     * @var class-string<Collection<*, *>>
      */
     protected static string $collectionClass = Collection::class;
 
@@ -273,6 +291,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var array<class-string<static>, class-string<Builder<static>>|false>
      */
     protected static array $resolvedBuilderClasses = [];
+
+    /**
+     * Cache of whether each model class resolves its connection without overriding the resolution methods.
+     *
+     * @var array<class-string<self>, bool>
+     */
+    protected static array $resolvesDefaultConnections = [];
 
     /**
      * Cache of resolved class attributes.
@@ -357,6 +382,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->modelClassAttributesInitialized = true;
 
+        $this->mergeDefaultAttributes();
+
         $this->syncOriginal();
 
         $this->fill($attributes);
@@ -364,6 +391,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Check if the model needs to be booted and if so, do it.
+     *
+     * @throws LogicException
+     * @throws RuntimeException
      */
     protected function bootIfNotBooted(): void
     {
@@ -526,6 +556,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         } elseif ($table && $table->incrementing !== null) {
             $this->incrementing = $table->incrementing;
         }
+
+        if ($this->refreshes === []) {
+            $this->refreshes = static::resolveClassAttribute(Refreshes::class, 'columns') ?? [];
+        }
     }
 
     /**
@@ -605,8 +639,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return true;
         }
 
-        $timestamps = static::resolveClassAttribute(Table::class, 'timestamps', $class)
-            ?? get_class_vars($class)['timestamps'];
+        // Match initializeHasTimestamps(): explicit disabling takes precedence over Table.
+        $timestamps = get_class_vars($class)['timestamps']
+            && static::resolveClassAttribute(WithoutTimestamps::class, null, $class) === null
+            && (static::resolveClassAttribute(Table::class, 'timestamps', $class) ?? true);
 
         if (! $timestamps) {
             return true;
@@ -615,6 +651,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         /** @var array<int, class-string<self>> $ignoreOnTouch */
         $ignoreOnTouch = CoroutineContext::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
 
+        // Keep this loop to avoid an extra callback per class.
         foreach ($ignoreOnTouch as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
                 return true;
@@ -665,7 +702,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every lazy-loading violation across all coroutines.
      *
-     * @param null|(callable(self, string): mixed) $callback
+     * @param null|(callable(self, string, LazyLoadingViolationException): mixed) $callback
      */
     public static function handleLazyLoadingViolationUsing(?callable $callback): void
     {
@@ -690,7 +727,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every discarded-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, array): mixed) $callback
+     * @param null|(callable(self, array, MassAssignmentException): mixed) $callback
      */
     public static function handleDiscardedAttributeViolationUsing(?callable $callback): void
     {
@@ -715,11 +752,22 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every missing-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, string): mixed) $callback
+     * @param null|(callable(self, string, MissingAttributeException): mixed) $callback
      */
     public static function handleMissingAttributeViolationUsing(?callable $callback): void
     {
         static::$missingAttributeViolationCallback = $callback;
+    }
+
+    /**
+     * Report invalid value exceptions during implicit route model binding.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every implicit route binding across all coroutines.
+     */
+    public static function reportRouteModelBindingExceptions(bool $value = true): void
+    {
+        static::$reportRouteModelBindingExceptions = $value;
     }
 
     /**
@@ -771,14 +819,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             if ($this->isFillable($key)) {
                 $this->setAttribute($key, $value);
             } elseif ($totallyGuarded || static::preventsSilentlyDiscardingAttributes()) {
+                $exception = new MassAssignmentException(sprintf(
+                    'Add [%s] to fillable property to allow mass assignment on [%s].',
+                    $key,
+                    get_class($this)
+                ));
+
                 if (isset(static::$discardedAttributeViolationCallback)) {
-                    call_user_func(static::$discardedAttributeViolationCallback, $this, [$key]);
+                    call_user_func(static::$discardedAttributeViolationCallback, $this, [$key], $exception);
                 } else {
-                    throw new MassAssignmentException(sprintf(
-                        'Add [%s] to fillable property to allow mass assignment on [%s].',
-                        $key,
-                        get_class($this)
-                    ));
+                    throw $exception;
                 }
             }
         }
@@ -787,14 +837,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             && static::preventsSilentlyDiscardingAttributes()) {
             $keys = array_diff(array_keys($attributes), array_keys($fillable));
 
+            $exception = new MassAssignmentException(sprintf(
+                'Add fillable property [%s] to allow mass assignment on [%s].',
+                implode(', ', $keys),
+                get_class($this)
+            ));
+
             if (isset(static::$discardedAttributeViolationCallback)) {
-                call_user_func(static::$discardedAttributeViolationCallback, $this, $keys);
+                call_user_func(static::$discardedAttributeViolationCallback, $this, $keys, $exception);
             } else {
-                throw new MassAssignmentException(sprintf(
-                    'Add fillable property [%s] to allow mass assignment on [%s].',
-                    implode(', ', $keys),
-                    get_class($this)
-                ));
+                throw $exception;
             }
         }
 
@@ -1165,12 +1217,20 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $amount = (clone $this)->setAttribute($column, $amount)->getAttributeFromArray($column);
         }
 
-        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column) {
+        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column, $extra): void {
+            if ($this->refreshes !== []) {
+                // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+                $this->mergeAttributesFromCachedCasts();
+
+                // The statement applies the extra values after the increment, so they win.
+                $this->refreshSavedAttributes($extra + [$column => $this->attributes[$column]]);
+            }
+
             $this->syncChanges();
 
             $this->fireModelEvent('updated', false);
 
-            $this->syncOriginalAttribute($column);
+            $this->syncIncrementedOriginals([$column], $extra);
         });
     }
 
@@ -1333,14 +1393,42 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         return tap(
             $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
                 ->{$method}($dbColumns, $extra),
-            function () use ($columns): void {
+            function () use ($columns, $extra): void {
+                if ($this->refreshes !== []) {
+                    // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+                    $this->mergeAttributesFromCachedCasts();
+
+                    // The statement applies the extra values after the increments, so they win.
+                    $this->refreshSavedAttributes($extra + array_intersect_key($this->attributes, $columns));
+                }
+
                 $this->syncChanges();
 
                 $this->fireModelEvent('updated', false);
 
-                $this->syncOriginalAttributes(array_keys($columns));
+                $this->syncIncrementedOriginals(array_keys($columns), $extra);
             }
         );
+    }
+
+    /**
+     * Sync the original attributes with the values an increment stored.
+     *
+     * @param list<string> $columns
+     * @param array<string, mixed> $extra
+     */
+    private function syncIncrementedOriginals(array $columns, array $extra): void
+    {
+        // Refreshed values came from the database, so a later save must not write them back.
+        $this->syncOriginalAttributes([...$columns, ...$this->refreshes]);
+
+        // The row holds the supplied extra values, so they are no longer pending. A value an
+        // updating listener changed afterwards stays dirty, and database-refreshed values win.
+        foreach ($extra as $key => $value) {
+            if (! in_array($key, $this->refreshes, true)) {
+                $this->original[$key] = $value;
+            }
+        }
     }
 
     /**
@@ -1423,7 +1511,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $saved = $this->performInsert($query);
 
             if (! $this->getConnectionName()) {
-                $this->setConnection($query->getConnection()->getName());
+                $this->setConnection($query->getConnection()->getWritableName());
             }
         }
 
@@ -1441,6 +1529,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Save the model to the database, ignoring specific unique constraint conflicts.
      *
      * @param array<string, mixed> $options
+     *
+     * @throws LogicException
      */
     public function saveOrIgnore(array $options = [], array|string|null $uniqueBy = null): bool
     {
@@ -1459,7 +1549,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $saved = $this->performInsertOrIgnore($query, $uniqueBy);
 
         if ($this->getConnectionName() === null) {
-            $this->setConnection($query->getConnection()->getName());
+            $this->setConnection($query->getConnection()->getWritableName());
         }
 
         if ($saved) {
@@ -1528,6 +1618,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 $this->prepareBinaryAttributesForDatabase($dirty)
             );
 
+            $this->refreshSavedAttributes($dirty);
+
             // Cached setters were merged while building the statement values. Read
             // the raw array here so nondeterministic setters are not run again.
             $this->syncChangesFrom(
@@ -1543,8 +1635,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Set the keys for a select query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
@@ -1570,8 +1662,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Set the keys for a save update query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
@@ -1658,7 +1750,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 return true;
             }
 
-            $query->insert($attributes);
+            // Keep array-valued attributes inside the model's single row.
+            $query->insert([$attributes]);
         }
 
         // We will go ahead and set the exists property to true, so that it is set when
@@ -1667,6 +1760,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->exists = true;
 
         $this->wasRecentlyCreated = true;
+
+        $this->refreshSavedAttributes($this->attributes);
 
         $this->fireModelEvent('created', false);
 
@@ -1677,6 +1772,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Perform a model insert operation, ignoring specific unique constraint conflicts.
      *
      * @param Builder<static> $query
+     *
+     * @throws LogicException
      */
     protected function performInsertOrIgnore(Builder $query, array|string|null $uniqueBy): bool
     {
@@ -1697,11 +1794,12 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         );
 
         if ($attributes === []) {
-            return true;
+            throw new LogicException('Cannot use saveOrIgnore on a model without attributes.');
         }
 
+        // Keep array-valued attributes inside the model's single row.
         $result = $query->toBase()->insertOrIgnoreReturning(
-            $attributes,
+            [$attributes],
             ['*'],
             $uniqueBy
         );
@@ -1719,6 +1817,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->exists = true;
         $this->wasRecentlyCreated = true;
+
+        $this->refreshSavedAttributes($this->attributes);
 
         $this->fireModelEvent('created', false);
 
@@ -1739,6 +1839,34 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Refresh the configured attributes after the model is saved.
+     *
+     * @param array<string, mixed> $attributes the raw attribute values the write stored
+     */
+    protected function refreshSavedAttributes(array $attributes): void
+    {
+        if ($this->refreshes === []) {
+            return;
+        }
+
+        // Key selection reads the original values, which keep the previous identity until
+        // the save finishes. Select through a copy that holds the identity this write stored.
+        $model = clone $this;
+        $model->original = array_replace($this->original, $attributes);
+
+        // Read the raw row so the refresh does not eager load relations or fire retrieved events.
+        $row = $model->setKeysForSelectQuery($model->newModelQuery())
+            ->useWritePdo()
+            ->toBase()
+            ->first($this->refreshes)
+            ?? throw (new ModelNotFoundException)->setModel(static::class);
+
+        // Cached casts are already merged, so replacing the raw values drops any cache
+        // built from stale values without running cast setters again.
+        $this->setRawAttributes(array_replace($this->attributes, (array) $row));
+    }
+
+    /**
      * Destroy the models for the given IDs.
      *
      * @param array<int, mixed>|BaseCollection|Collection|int|string $ids
@@ -1755,7 +1883,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $ids = is_array($ids) ? $ids : func_get_args();
 
-        if (count($ids) === 0) {
+        if ($ids === []) {
             return 0;
         }
 
@@ -1946,7 +2074,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @return Builder<static>
      */
-    public function newQueryWithoutScope(Scope|string $scope): Builder
+    public function newQueryWithoutScope(Scope|int|string $scope): Builder
     {
         return $this->newQuery()->withoutGlobalScope($scope);
     }
@@ -1954,7 +2082,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
     {
@@ -1985,12 +2113,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function resolveCustomBuilderClass(): string|false
     {
-        $attributes = (new ReflectionClass($this))
-            ->getAttributes(UseEloquentBuilder::class);
-
-        return ! empty($attributes)
-            ? $attributes[0]->newInstance()->builderClass
-            : false;
+        return static::resolveClassAttribute(UseEloquentBuilder::class, 'builderClass') ?? false;
     }
 
     /**
@@ -2100,7 +2223,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toJson(int $options = 0): string
     {
@@ -2116,7 +2239,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to pretty print formatted JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toPrettyJson(int $options = 0): string
     {
@@ -2150,6 +2273,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Reload the current model instance with fresh attributes from the database.
+     *
+     * @return $this
      */
     public function refresh(): static
     {
@@ -2157,16 +2282,43 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return $this;
         }
 
+        return $this->refreshUsingQuery($this->newQueryWithoutScopes());
+    }
+
+    /**
+     * Reload the current model instance with fresh attributes from the database while locking it for updating.
+     *
+     * @return $this
+     */
+    public function refreshForUpdate(): static
+    {
+        if (! $this->exists) {
+            return $this;
+        }
+
+        return $this->refreshUsingQuery(
+            $this->newQueryWithoutScopes()->lockForUpdate()
+        );
+    }
+
+    /**
+     * Reload the current model instance using the given query.
+     *
+     * @param Builder<static> $query
+     * @return $this
+     */
+    protected function refreshUsingQuery(Builder $query): static
+    {
         $this->setRawAttributes(
-            $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
+            $this->setKeysForSelectQuery($query)
                 ->useWritePdo()
                 ->firstOrFail()
                 ->attributes
         );
 
         $this->load((new BaseCollection($this->relations))->reject(
-            fn ($relation) => $relation instanceof Pivot
-                || (is_object($relation) && in_array(AsPivot::class, class_uses_recursive($relation), true))
+            fn (mixed $relation): bool => $relation instanceof Pivot
+                || (is_object($relation) && isset(class_uses_recursive($relation)[AsPivot::class]))
         )->keys()->all());
 
         $this->syncOriginal();
@@ -2227,7 +2379,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         return $key !== null
             && $key === $model->getKey()
             && $this->getTable() === $model->getTable()
-            && $this->getConnectionName() === $model->getConnectionName();
+            && ConnectionName::withoutWriteType($this->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName());
     }
 
     /**
@@ -2244,6 +2396,44 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public function getConnection(): Connection
     {
         return static::resolveConnection($this->getConnectionName());
+    }
+
+    /**
+     * Check for an applicable transaction without borrowing a standard pooled connection.
+     */
+    public function hasApplicableTransaction(): bool
+    {
+        if ($this->usesDefaultConnectionResolution() && static::$resolver instanceof DatabaseManager) {
+            return static::$resolver->hasApplicableTransaction($this->getConnectionName());
+        }
+
+        return $this->getConnection()->hasApplicableTransaction();
+    }
+
+    /**
+     * Get the date format of the query grammar of the model's connection.
+     *
+     * Through the database manager this holds no pooled connection once the
+     * connection's pool knows the format, so date casts in coroutines that run
+     * no query borrow nothing. Models that override how their connection is
+     * resolved get the format from that connection.
+     */
+    public function getConnectionDateFormat(): string
+    {
+        if ($this->usesDefaultConnectionResolution() && static::$resolver instanceof DatabaseManager) {
+            return static::$resolver->connectionDateFormat($this->getConnectionName());
+        }
+
+        return $this->getConnection()->getQueryGrammar()->getDateFormat();
+    }
+
+    /**
+     * Determine whether this model uses the framework's normal connection resolution.
+     */
+    protected function usesDefaultConnectionResolution(): bool
+    {
+        return static::$resolvesDefaultConnections[static::class] ??= (new ReflectionMethod(static::class, 'getConnection'))->class === self::class
+            && (new ReflectionMethod(static::class, 'resolveConnection'))->class === self::class;
     }
 
     /**
@@ -2579,9 +2769,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child model query for a bound value.
      *
-     * @return Relations\Relation<self, $this, *>
+     * @return Relation<self, $this, *>
      */
-    protected function resolveChildRouteBindingQuery(string $childType, mixed $value, ?string $field): Relations\Relation
+    protected function resolveChildRouteBindingQuery(string $childType, mixed $value, ?string $field): Relation
     {
         $relationship = $this->{$this->childRouteBindingRelationshipName($childType)}();
 
@@ -2608,12 +2798,53 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  self|Builder|Relations\Relation<*, *, *>  $query
-     * @return Builder<static>|Relations\Relation<*, *, *>
+     * @param  self|Builder|Relation<*, *, *>  $query
+     * @return Builder<static>|Relation<*, *, *>
+     *
+     * @throws ModelNotFoundException<static>
      */
-    public function resolveRouteBindingQuery(self|Builder|Relations\Relation $query, mixed $value, ?string $field = null): Builder|Relations\Relation
+    public function resolveRouteBindingQuery(self|Builder|Relation $query, mixed $value, ?string $field = null): Builder|Relation
     {
-        return $query->where($field ?? $this->getRouteKeyName(), $value);
+        $field ??= $this->getRouteKeyName();
+
+        // Non-incrementing integer keys are validated too: MySQL and MariaDB would
+        // otherwise coerce a value such as "12abc" and resolve the model with key 12.
+        if ($this->getKeyType() === 'int'
+            && Str::afterLast($field, '.') === $this->getKeyName()
+            && ! $this->isValidIntegerRouteKey($value)) {
+            $this->handleInvalidRouteKey($value, $field);
+        }
+
+        return $query->where($field, $value);
+    }
+
+    /**
+     * Determine if the given value could address a row in an integer key column.
+     */
+    protected function isValidIntegerRouteKey(mixed $value): bool
+    {
+        if (is_int($value)) {
+            return true;
+        }
+
+        if (! is_string($value) || ! preg_match('/^\s*[+-]?\d+\s*$/', $value)) {
+            return false;
+        }
+
+        return filter_var(
+            preg_replace('/^(\s*[+-]?)0+(?=\d)/', '$1', $value),
+            FILTER_VALIDATE_INT
+        ) !== false;
+    }
+
+    /**
+     * Throw an exception for the given invalid route key.
+     *
+     * @throws ModelNotFoundException<static>
+     */
+    protected function handleInvalidRouteKey(mixed $value, string $field): never
+    {
+        throw (new ModelNotFoundException)->setModel(static::class, $value === null ? [] : [$value]);
     }
 
     /**
@@ -2647,7 +2878,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isSoftDeletable(): bool
     {
-        return static::$isSoftDeletable[static::class] ??= in_array(SoftDeletes::class, class_uses_recursive(static::class));
+        return static::$isSoftDeletable[static::class] ??= isset(class_uses_recursive(static::class)[SoftDeletes::class]);
     }
 
     /**
@@ -2655,7 +2886,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isPrunable(): bool
     {
-        return self::$isPrunable[static::class] ??= in_array(Prunable::class, class_uses_recursive(static::class)) || static::isMassPrunable();
+        return self::$isPrunable[static::class] ??= isset(class_uses_recursive(static::class)[Prunable::class]) || static::isMassPrunable();
     }
 
     /**
@@ -2663,7 +2894,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isMassPrunable(): bool
     {
-        return self::$isMassPrunable[static::class] ??= in_array(MassPrunable::class, class_uses_recursive(static::class));
+        return self::$isMassPrunable[static::class] ??= isset(class_uses_recursive(static::class)[MassPrunable::class]);
     }
 
     /**
@@ -2696,6 +2927,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public static function preventsAccessingMissingAttributes(): bool
     {
         return static::$modelsShouldPreventAccessingMissingAttributes;
+    }
+
+    /**
+     * Determine if invalid value exceptions during implicit route model binding should be reported.
+     */
+    public static function reportsRouteModelBindingExceptions(): bool
+    {
+        return static::$reportRouteModelBindingExceptions;
     }
 
     /**
@@ -2743,6 +2982,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$bootedCallbacks = [];
         static::$traitInitializers = [];
         static::$globalScopes = [];
+        static::$resolvesDefaultConnections = [];
         static::$classAttributes = [];
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
@@ -2755,6 +2995,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$discardedAttributeViolationCallback = null;
         static::$modelsShouldPreventAccessingMissingAttributes = false;
         static::$missingAttributeViolationCallback = null;
+        static::$reportRouteModelBindingExceptions = true;
         static::$builder = Builder::class;
         static::$collectionClass = Collection::class;
         static::$resolvedBuilderClasses = [];

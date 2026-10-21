@@ -39,7 +39,7 @@ class CryptFacadeTest extends TestCase
     public function testDynamicCallsWithoutAFacadeRootThrowTheBaseException(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('A facade root has not been set.');
+        $this->expectExceptionMessageIs('A facade root has not been set.');
 
         Crypt::probe();
     }

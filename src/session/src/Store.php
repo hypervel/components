@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
+use Hypervel\Auth\Events\PasswordConfirmed;
 use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
@@ -54,6 +57,11 @@ class Store implements Session
     public const string ID_CONTEXT_KEY_PREFIX = '__session.store.id.';
 
     /**
+     * Context key for whether the session is read-only.
+     */
+    protected const string READ_ONLY_CONTEXT_KEY_PREFIX = '__session.store.read_only.';
+
+    /**
      * The supported session serialization strategies.
      */
     protected const array SUPPORTED_SERIALIZATIONS = ['json', 'php'];
@@ -77,6 +85,11 @@ class Store implements Session
      * The context key for this session's ID.
      */
     protected readonly string $idContextKey;
+
+    /**
+     * The context key for whether this session is read-only.
+     */
+    protected readonly string $readOnlyContextKey;
 
     /**
      * Create a new session instance.
@@ -104,9 +117,11 @@ class Store implements Session
         $this->startedContextKey = self::STARTED_CONTEXT_KEY_PREFIX . $suffix;
         $this->attributesContextKey = self::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix;
         $this->idContextKey = self::ID_CONTEXT_KEY_PREFIX . $suffix;
+        $this->readOnlyContextKey = self::READ_ONLY_CONTEXT_KEY_PREFIX . $suffix;
 
         CoroutineContext::set($this->startedContextKey, false);
         CoroutineContext::set($this->attributesContextKey, []);
+        CoroutineContext::set($this->readOnlyContextKey, false);
 
         $this->setId($id);
     }
@@ -116,6 +131,10 @@ class Store implements Session
      */
     public function start(): bool
     {
+        // Read-only applies to the request that marks it, so a later request handled in the
+        // same coroutine starts with a writable session.
+        CoroutineContext::set($this->readOnlyContextKey, false);
+
         $this->loadSession();
 
         if (! $this->has('_token')) {
@@ -221,6 +240,10 @@ class Store implements Session
      */
     public function save(): void
     {
+        if ($this->isReadOnly()) {
+            return;
+        }
+
         // Publish the aged attributes only after the handler commits, so a failed
         // write leaves the live flash data and error bag intact for the retry.
         $attributes = $this->ageFlashDataIn($this->getAttributes());
@@ -319,13 +342,13 @@ class Store implements Session
     }
 
     /**
-     * Checks if a key exists.
+     * Check if a key exists.
      */
     public function exists(array|UnitEnum|string $key): bool
     {
         $placeholder = new stdClass;
 
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) use ($placeholder) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) use ($placeholder) {
             return $this->get($key, $placeholder) === $placeholder;
         });
     }
@@ -343,7 +366,7 @@ class Store implements Session
      */
     public function has(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) {
             return is_null($this->get($key));
         });
     }
@@ -353,7 +376,7 @@ class Store implements Session
      */
     public function hasAny(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->contains(function ($key) {
             return ! is_null($this->get($key));
         });
     }
@@ -451,7 +474,7 @@ class Store implements Session
     /**
      * Increment the value of an item in the session.
      */
-    public function increment(UnitEnum|string $key, int $amount = 1): mixed
+    public function increment(UnitEnum|string $key, int $amount = 1): int|float
     {
         $this->put($key, $value = $this->get($key, 0) + $amount);
 
@@ -461,7 +484,7 @@ class Store implements Session
     /**
      * Decrement the value of an item in the session.
      */
-    public function decrement(UnitEnum|string $key, int $amount = 1): int
+    public function decrement(UnitEnum|string $key, int $amount = 1): int|float
     {
         return $this->increment($key, $amount * -1);
     }
@@ -504,8 +527,6 @@ class Store implements Session
 
     /**
      * Reflash a subset of the current flash data.
-     *
-     * @param array|mixed $keys
      */
     public function keep(mixed $keys = null): void
     {
@@ -567,7 +588,9 @@ class Store implements Session
     public function forget(array|UnitEnum|string $keys): void
     {
         $attributes = $this->getAttributes();
-        Arr::forget($attributes, collect((array) $keys)->map(fn ($key) => enum_value($key))->all());
+
+        // Casting an enum to an array would make its name and value separate keys to remove.
+        Arr::forget($attributes, array_map(enum_value(...), Arr::wrap($keys)));
 
         $this->setAttributes($attributes);
     }
@@ -613,7 +636,7 @@ class Store implements Session
      */
     public function migrate(bool $destroy = false): bool
     {
-        if ($destroy) {
+        if ($destroy && ! $this->isReadOnly()) {
             $this->handler->destroy($this->getId());
         }
 
@@ -630,6 +653,26 @@ class Store implements Session
     public function isStarted(): bool
     {
         return CoroutineContext::get($this->startedContextKey, false);
+    }
+
+    /**
+     * Mark the session as read-only for the current request.
+     *
+     * A read-only session is not saved, and regenerating its ID does not destroy the stored
+     * session, so the request cannot overwrite session data saved by concurrent requests.
+     * Changes made during the request remain available until it ends.
+     */
+    public function markAsReadOnly(): void
+    {
+        CoroutineContext::set($this->readOnlyContextKey, true);
+    }
+
+    /**
+     * Determine if the session is read-only for the current request.
+     */
+    public function isReadOnly(): bool
+    {
+        return CoroutineContext::get($this->readOnlyContextKey, false);
     }
 
     /**
@@ -790,9 +833,20 @@ class Store implements Session
      */
     public function passwordConfirmed(?string $guard = null): void
     {
-        $guard ??= Container::getInstance()->make(AuthFactory::class)->getDefaultDriver();
+        $container = Container::getInstance();
+        $guard ??= $container->make(AuthFactory::class)->getDefaultDriver();
 
-        $this->put(PasswordConfirmation::sessionKey($guard), Date::now()->unix());
+        $confirmedAt = Date::now()->unix();
+        $this->put(PasswordConfirmation::sessionKey($guard), $confirmedAt);
+
+        if ($container->bound('events')) {
+            /** @var Dispatcher $events */
+            $events = $container->make('events');
+
+            if ($events->hasListeners(PasswordConfirmed::class)) {
+                $events->dispatch(new PasswordConfirmed($guard, $confirmedAt));
+            }
+        }
     }
 
     /**

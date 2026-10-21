@@ -414,6 +414,7 @@ final class LegacyValidator extends Validator
     {
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->distinctValueCounts = [];
 
         foreach ($this->rules as $attribute => $rules) {
             $attribute = (string) $attribute;

@@ -29,6 +29,7 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
     public function __construct(
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
+        private readonly BuilderMacroResolver $builderMacros,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -63,7 +64,8 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
             return null;
         }
 
-        $cacheKey = $classReflection->getCacheKey() . ':' . strtolower($methodName);
+        // Keep the exact spelling: builder macro names are case-sensitive.
+        $cacheKey = $classReflection->getCacheKey() . ':' . $methodName;
 
         if (array_key_exists($cacheKey, $this->methods)) {
             $cachedMethod = $this->methods[$cacheKey];
@@ -77,7 +79,10 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
             $builderType = $this->activeBuilderType($classReflection);
             $scopeMethod = $this->scopeMethods->resolve($classReflection, $methodName);
 
-            if (($scopeMethod === null || $this->hasNativeMethod($builderType, $methodName))
+            // Native builder methods and local macros run before named scopes.
+            if (($scopeMethod === null
+                    || $this->hasNativeMethod($builderType, $methodName)
+                    || $this->builderMacros->hasMacro($classReflection, $methodName))
                 && $builderType->hasMethod($methodName)->yes()) {
                 $method = new ForwardedModelMethodReflection(
                     $classReflection,

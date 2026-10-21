@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ChannelsControllerTest extends ReverbTestCase
 {
@@ -21,6 +22,35 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertArrayHasKey('channels', $body);
         $this->assertSame([], (array) $body['channels']['test-channel-one']);
         $this->assertSame(1, $body['channels']['presence-test-channel-two']['user_count']);
+    }
+
+    #[DataProvider('timestampOffsetsOutsideTolerance')]
+    public function testRejectsRequestSignaturesOutsideTheTimestampTolerance(int $offset): void
+    {
+        $response = $this->signedRequest('channels', timestamp: time() + $offset);
+
+        $response->assertStatus(401);
+    }
+
+    /**
+     * Supply signature timestamp offsets outside the tolerance.
+     */
+    public static function timestampOffsetsOutsideTolerance(): array
+    {
+        return [
+            'expired' => [-3600],
+            'future' => [3600],
+        ];
+    }
+
+    public function testRejectsRequestSignaturesWithoutATimestamp(): void
+    {
+        $query = 'auth_key=reverb-key&auth_version=1.0';
+        $signature = hash_hmac('sha256', "GET\n/apps/123456/channels\n{$query}", 'reverb-secret');
+
+        $response = $this->reverbGet("/apps/123456/channels?{$query}&auth_signature={$signature}");
+
+        $response->assertStatus(401);
     }
 
     public function testCanReturnFilteredChannelsByPrefix(): void

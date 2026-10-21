@@ -87,7 +87,7 @@ trait DatabaseRule
 
         $value = $this->normalizeWhereValue($value);
 
-        $this->wheres[] = compact('column', 'value');
+        $this->wheres[] = ['column' => $column, 'value' => $value];
 
         return $this;
     }
@@ -195,8 +195,8 @@ trait DatabaseRule
      */
     protected function formatWheres(): string
     {
-        return (new Collection($this->wheres))->map(function ($where) {
-            return $where['column'] . ',"' . str_replace('"', '""', (string) $where['value']) . '"';
-        })->implode(',');
+        return (new Collection($this->wheres))
+            ->map(fn ($where) => $where['column'] . ',"' . str_replace('"', '""', (string) $where['value']) . '"')
+            ->implode(',');
     }
 }

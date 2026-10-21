@@ -38,7 +38,7 @@ class HandshakeHandlerTest extends TestCase
         $handler = new HandshakeHandler($this->container());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('WebSocket handler not found.');
+        $this->expectExceptionMessageIs('WebSocket handler not found.');
 
         $handler->handleHandshake($this->request('MissingWebSocketHandler'));
     }

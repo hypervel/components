@@ -243,7 +243,7 @@ class RememberIntegrationTest extends RedisCacheIntegrationTestCase
         $this->setTagMode(TagMode::All);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         Cache::tags(['exception_tag'])->remember('exception_key', 60, function () {
             throw new RuntimeException('Callback failed');
@@ -255,7 +255,7 @@ class RememberIntegrationTest extends RedisCacheIntegrationTestCase
         $this->setTagMode(TagMode::Any);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         Cache::tags(['exception_tag'])->remember('exception_key', 60, function () {
             throw new RuntimeException('Callback failed');
@@ -267,7 +267,7 @@ class RememberIntegrationTest extends RedisCacheIntegrationTestCase
         $this->setTagMode(TagMode::All);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Forever callback failed');
+        $this->expectExceptionMessageIs('Forever callback failed');
 
         Cache::tags(['forever_exception_tag'])->rememberForever('forever_exception_key', function () {
             throw new RuntimeException('Forever callback failed');
@@ -279,7 +279,7 @@ class RememberIntegrationTest extends RedisCacheIntegrationTestCase
         $this->setTagMode(TagMode::Any);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Forever callback failed');
+        $this->expectExceptionMessageIs('Forever callback failed');
 
         Cache::tags(['forever_exception_tag'])->rememberForever('forever_exception_key', function () {
             throw new RuntimeException('Forever callback failed');

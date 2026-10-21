@@ -22,14 +22,12 @@ class UriQueryString implements Arrayable, Stringable
 
     /**
      * Retrieve all data from the instance.
-     *
-     * @param null|array|mixed $keys
      */
     public function all(mixed $keys = null): array
     {
         $query = $this->toArray();
 
-        if (! $keys) {
+        if ($keys === null) {
             return $query;
         }
 

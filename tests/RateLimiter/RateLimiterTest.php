@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\RateLimiter;
 
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Support\ClassInvoker;
@@ -30,12 +32,39 @@ enum LimiterStore: string
 
 class RateLimiterTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testFacadeResolvesTheCanonicalManager(): void
     {
         $this->assertSame(
             $this->app->make(RateLimiter::class),
             RateLimiterFacade::getFacadeRoot(),
         );
+    }
+
+    public function testMacroable(): void
+    {
+        RateLimiter::macro('foo', fn (): string => 'bar');
+
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $this->assertSame('bar', $rateLimiter->foo());
+    }
+
+    public function testMacrosUseTheManagerAndPreserveStoreForwarding(): void
+    {
+        RateLimiterFacade::macro('forApi', function (): static {
+            return $this->for('api', fn (): Limit => Limit::perMinute(1)->by('user'));
+        });
+
+        $manager = $this->app->make(RateLimiter::class);
+
+        $this->assertSame($manager, RateLimiterFacade::forApi());
+
+        $policy = $manager->limiter('api')();
+
+        $this->assertTrue($manager->consume($policy, 'api')->allowed());
+        $this->assertTrue($manager->consume($policy, 'api')->denied());
     }
 
     public function testManagerResolvesAndCachesWrappedStores(): void
@@ -192,7 +221,7 @@ class RateLimiterTest extends TestCase
         $manager->extend('invalid', static fn (): stdClass => new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
+        $this->expectExceptionMessageIsOrContains('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
 
         $manager->store('invalid');
     }
@@ -216,9 +245,11 @@ class RateLimiterTest extends TestCase
     {
         $config = config()->array('rate-limiter.stores.swoole');
         unset($config['memory_limit_buffer']);
+        $config['rows'] = 64; // Keep the test table small.
         config(['rate-limiter.stores.swoole-default' => $config]);
 
         $store = $this->app->make(RateLimiter::class)->store('swoole-default')->getStore();
+        $this->trackSwooleTable($this->app->make(TableManager::class)->get('swoole-default')->table());
 
         $this->assertInstanceOf(SwooleStore::class, $store);
         $this->assertSame(0.05, (new ClassInvoker($store))->memoryLimitBuffer);
@@ -233,7 +264,7 @@ class RateLimiterTest extends TestCase
         config(['rate-limiter.stores.invalid' => $config]);
 
         $this->expectException($exception);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->app->make(RateLimiter::class)->store('invalid');
     }

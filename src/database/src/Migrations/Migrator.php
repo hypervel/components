@@ -35,6 +35,8 @@ class Migrator
 {
     /**
      * The custom connection resolver callback.
+     *
+     * @var null|(Closure(Resolver, ?string): Connection)
      */
     protected static ?Closure $connectionResolverCallback = null;
 
@@ -53,7 +55,7 @@ class Migrator
     /**
      * The paths that have already been required.
      *
-     * @var array<string, null|\Hypervel\Database\Migrations\Migration>
+     * @var array<string, null|Migration>
      */
     protected static array $requiredPathCache = [];
 
@@ -149,7 +151,7 @@ class Migrator
         // First we will just make sure that there are any migrations to run. If there
         // aren't, we will just make a note of it to the developer so they're aware
         // that all of the migrations have been run against this database system.
-        if (count($migrations) === 0) {
+        if ($migrations === []) {
             if ($this->hasMigrationEventListeners(NoPendingMigrations::class)) {
                 $this->fireMigrationEvent(new NoPendingMigrations('up'));
             }
@@ -263,6 +265,7 @@ class Migrator
      * Get the migrations for a rollback operation.
      *
      * @param array<string, mixed> $options
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     protected function getMigrationsForRollback(array $options): array
     {
@@ -280,6 +283,7 @@ class Migrator
     /**
      * Rollback the given migrations.
      *
+     * @param object{migration: string}[] $migrations
      * @param string|string[] $paths
      * @param array<string, mixed> $options
      * @return string[]
@@ -336,7 +340,7 @@ class Migrator
         // the database back into its "empty" state ready for the migrations.
         $migrations = array_reverse($this->repository->getRan());
 
-        if (count($migrations) === 0) {
+        if ($migrations === []) {
             $this->write(Info::class, 'Nothing to rollback.');
 
             return [];
@@ -363,7 +367,7 @@ class Migrator
         return $this->rollbackMigrations(
             $migrations,
             $paths,
-            compact('pretend')
+            ['pretend' => $pretend]
         );
     }
 
@@ -476,7 +480,7 @@ class Migrator
         $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
-            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getNameWithReadWriteType());
 
             $migration->{$method}();
         } finally {
@@ -799,6 +803,8 @@ class Migrator
      *
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every migration's connection resolution.
+     *
+     * @param Closure(Resolver, ?string): Connection $callback
      */
     public static function resolveConnectionsUsing(Closure $callback): void
     {

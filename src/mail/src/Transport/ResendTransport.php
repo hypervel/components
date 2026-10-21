@@ -13,6 +13,7 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\MessageConverter;
 use Throwable;
 
@@ -50,13 +51,16 @@ class ResendTransport extends AbstractTransport
     }
 
     /**
-     * @throws \Symfony\Component\Mailer\Exception\TransportException
+     * Send the given message.
+     *
+     * @throws TransportException
      * @throws Throwable
      */
     protected function doSend(SentMessage $message): void
     {
-        /* @phpstan-ignore-next-line */
-        $email = MessageConverter::toEmail($message->getOriginalMessage());
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+        $email = MessageConverter::toEmail($originalMessage);
 
         $envelope = $message->getEnvelope();
 
@@ -102,8 +106,7 @@ class ResendTransport extends AbstractTransport
         }
 
         try {
-            /* @phpstan-ignore-next-line */
-            $result = $this->resend->emails->send([
+            $result = $this->resend->emails->send([ // @phpstan-ignore property.notFound
                 'from' => $envelope->getSender()->toString(),
                 'to' => $this->stringifyAddresses($this->getRecipients($email, $envelope)),
                 'cc' => $this->stringifyAddresses($email->getCc()),
@@ -116,7 +119,9 @@ class ResendTransport extends AbstractTransport
                 'attachments' => $attachments,
             ]);
 
-            throw_if(isset($result['statusCode']) && $result['statusCode'] !== Response::HTTP_OK, Exception::class, $result['message']);
+            if (isset($result['statusCode']) && $result['statusCode'] !== Response::HTTP_OK) {
+                throw new Exception($result['message']);
+            }
         } catch (Exception $exception) {
             throw new TransportException(
                 sprintf('Request to Resend API failed. Reason: %s.', $exception->getMessage()),
@@ -127,7 +132,9 @@ class ResendTransport extends AbstractTransport
 
         $messageId = $result->id;
 
-        $email->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
+        $message->setMessageId($messageId);
+
+        $originalMessage->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
     }
 
     /**

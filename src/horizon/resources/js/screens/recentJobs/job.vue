@@ -122,17 +122,28 @@
                     //
                 }
 
-                if (unserialized && unserialized.delay && unserialized.delay.date) {
+                if (!unserialized || !unserialized.delay) {
+                    return null;
+                }
+
+                if (unserialized.delay.date) {
                     return moment.tz(unserialized.delay.date, unserialized.delay.timezone)
-                        .local()
-                        .format('YYYY-MM-DD HH:mm:ss');
-                } else if (unserialized && unserialized.delay) {
-                    return this.formatDate(this.job.payload.pushedAt).add(unserialized.delay, 'seconds')
                         .local()
                         .format('YYYY-MM-DD HH:mm:ss');
                 }
 
-                return null;
+                if (typeof unserialized.delay === 'object') {
+                    // Use the delay the queue stored in seconds. A serialized DateInterval's
+                    // fields don't give its length: one built from a string has none, and an
+                    // inverted one points into the past.
+                    return this.formatDate(this.job.payload.pushedAt).add(this.job.payload.delay, 'seconds')
+                        .local()
+                        .format('YYYY-MM-DD HH:mm:ss');
+                }
+
+                return this.formatDate(this.job.payload.pushedAt).add(unserialized.delay, 'seconds')
+                    .local()
+                    .format('YYYY-MM-DD HH:mm:ss');
             },
         },
 

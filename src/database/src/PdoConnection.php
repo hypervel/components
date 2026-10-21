@@ -137,52 +137,63 @@ class PdoConnection extends Connection
      */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
     {
-        $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
-            if ($this->pretending()) {
-                return null;
-            }
+        ++$this->sessionPinDepth;
+        $statement = null;
 
-            // First we will create a statement for the query. Then, we will set the fetch
-            // mode and prepare the bindings for the query. Once that's done we will be
-            // ready to execute the query against the database and return the cursor.
-            $statement = $this->prepared($this->getPdoForSelect($useReadPdo)
-                ->prepare($query));
-
-            $this->bindValues(
-                $statement,
-                $this->prepareBindings($bindings)
-            );
-
-            // Next, we'll execute the query against the database and return the statement
-            // so we can return the cursor. The cursor will use a PHP generator to give
-            // back one row at a time without using a bunch of memory to render them.
-            $statement->execute();
-
-            return $statement;
-        });
-
-        if ($statement === null) {
-            return;
-        }
-
-        if ($fetchUsing !== []) {
-            // fetchAll() supplies default column and class arguments that setFetchMode()
-            // demands explicitly, so a mode-only call keeps the same meaning when streamed.
-            if (count($fetchUsing) === 1) {
-                $mode = $fetchUsing[0] & ~(PDO::FETCH_GROUP | PDO::FETCH_UNIQUE | PDO::FETCH_CLASSTYPE | PDO::FETCH_PROPS_LATE);
-
-                if ($mode === PDO::FETCH_COLUMN) {
-                    $fetchUsing[] = 0;
-                } elseif ($mode === PDO::FETCH_CLASS && ($fetchUsing[0] & PDO::FETCH_CLASSTYPE) === 0) {
-                    $fetchUsing[] = stdClass::class;
+        try {
+            $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
+                if ($this->pretending()) {
+                    return null;
                 }
+
+                // First we will create a statement for the query. Then, we will set the fetch
+                // mode and prepare the bindings for the query. Once that's done we will be
+                // ready to execute the query against the database and return the cursor.
+                $statement = $this->prepared($this->getPdoForSelect($useReadPdo)
+                    ->prepare($query));
+
+                $this->bindValues(
+                    $statement,
+                    $this->prepareBindings($bindings)
+                );
+
+                // Next, we'll execute the query against the database and return the statement
+                // so we can return the cursor. The cursor will use a PHP generator to give
+                // back one row at a time without using a bunch of memory to render them.
+                $statement->execute();
+
+                return $statement;
+            });
+
+            if ($statement === null) {
+                return;
             }
 
-            $statement->setFetchMode(...$fetchUsing);
-        }
+            if ($fetchUsing !== []) {
+                // fetchAll() supplies default column and class arguments that setFetchMode()
+                // demands explicitly, so a mode-only call keeps the same meaning when streamed.
+                if (count($fetchUsing) === 1) {
+                    $mode = $fetchUsing[0] & ~(PDO::FETCH_GROUP | PDO::FETCH_UNIQUE | PDO::FETCH_CLASSTYPE | PDO::FETCH_PROPS_LATE);
 
-        foreach ($statement as $record) {
-            yield $record;
+                    if ($mode === PDO::FETCH_COLUMN) {
+                        $fetchUsing[] = 0;
+                    } elseif ($mode === PDO::FETCH_CLASS && ($fetchUsing[0] & PDO::FETCH_CLASSTYPE) === 0) {
+                        $fetchUsing[] = stdClass::class;
+                    }
+                }
+
+                $statement->setFetchMode(...$fetchUsing);
+            }
+
+            foreach ($statement as $record) {
+                yield $record;
+            }
+        } finally {
+            try {
+                $statement?->closeCursor();
+            } finally {
+                --$this->sessionPinDepth;
+            }
         }
     }
 
@@ -352,7 +363,8 @@ class PdoConnection extends Connection
         $this->latestReadWriteTypeRetrieved = 'write';
         $pdo = $this->resolvePdo();
 
-        return static::$sessionConfigurators === []
+        // Transaction and cleanup failures can invalidate a PDO even without session configurators.
+        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
             ? $pdo
             : $this->synchronizeSession($pdo, read: false);
     }
@@ -370,19 +382,13 @@ class PdoConnection extends Connection
      */
     public function getReadPdo(): PDO
     {
-        if ($this->transactions > 0) {
+        if ($this->resolveReadWriteType() === 'write') {
             return $this->getPdo();
         }
 
-        if ($this->readOnWriteConnection
-            || ($this->recordsModified && $this->getConfig('sticky'))) {
-            return $this->getPdo();
-        }
-
-        $this->latestReadWriteTypeRetrieved = 'read';
         $pdo = $this->resolveReadPdo();
 
-        return static::$sessionConfigurators === []
+        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
             ? $pdo
             : $this->synchronizeSession($pdo, read: true);
     }
@@ -423,6 +429,55 @@ class PdoConnection extends Connection
         $this->latestReadWriteTypeRetrieved = 'write';
 
         return $this->resolvePdo();
+    }
+
+    /**
+     * Resolve a physical handle without applying caller-specific session state.
+     *
+     * @internal
+     */
+    public function resolveRawPdo(bool $read = false): PDO
+    {
+        return $read ? $this->resolveReadPdo() : $this->resolvePdo();
+    }
+
+    /**
+     * Adopt resolved handles and endpoint metadata without changing caller state.
+     *
+     * @internal
+     */
+    public function attachPdoResources(self $source): void
+    {
+        if ($source->pdo instanceof PDO) {
+            $this->pdo = $source->pdo;
+        }
+
+        if ($source->readPdo instanceof PDO) {
+            $this->readPdo = $source->readPdo;
+        }
+
+        $this->config = $source->config;
+        $this->readConnectionConfig = $source->readConnectionConfig;
+    }
+
+    /**
+     * Restore lazy resolvers after returning the physical resources to their owner.
+     *
+     * @param Closure(): PDO $pdo
+     * @param null|Closure(): PDO $readPdo
+     *
+     * @internal
+     */
+    public function detachPdoResources(Closure $pdo, ?Closure $readPdo): void
+    {
+        if ($this->foreignKeyConstraintSuppressionDepth > 0) {
+            $this->markCurrentSessionStateUnknown();
+        }
+
+        $this->pdo = $pdo;
+        $this->readPdo = $readPdo;
+        $this->lockForPopping = null;
+        $this->maxBindings = null;
     }
 
     /**
@@ -557,14 +612,6 @@ class PdoConnection extends Connection
     }
 
     /**
-     * Invalidate the state remembered for the current physical session.
-     */
-    protected function invalidateCurrentSessionState(): void
-    {
-        $this->invalidateSessionState($this->resolvePdo());
-    }
-
-    /**
      * Mark the current write session's state as unknown.
      *
      * @internal
@@ -591,9 +638,7 @@ class PdoConnection extends Connection
         $pdo = $this->getPdo();
 
         try {
-            if ($pdo->exec($sql) === false) {
-                throw new RuntimeException("Failed to execute schema statement [{$sql}].");
-            }
+            $pdo->exec($sql);
         } catch (Throwable $exception) {
             $this->markSessionStateUnknown($pdo);
 
@@ -689,18 +734,30 @@ class PdoConnection extends Connection
     protected function disconnectDriverResources(): void
     {
         $pdo = $this->getRawPdo();
+        $readPdo = $this->getRawReadPdo();
         $exception = null;
 
         try {
-            if ($pdo instanceof PDO && $pdo->inTransaction()) {
-                $pdo->rollBack();
-                $this->invalidateSessionState($pdo);
-            }
-        } catch (Throwable $throwable) {
-            $this->markSessionStateUnknown($pdo);
+            foreach ($readPdo === $pdo ? [$pdo] : [$pdo, $readPdo] as $handle) {
+                if (! $handle instanceof PDO) {
+                    continue;
+                }
 
-            if (! $this->causedByLostConnection($throwable)) {
-                $exception = $throwable;
+                try {
+                    if ($handle->inTransaction()) {
+                        $handle->rollBack();
+                        $this->invalidateSessionState($handle);
+                    }
+                } catch (Throwable $throwable) {
+                    $this->markSessionStateUnknown($handle);
+
+                    if (! $this->causedByLostConnection($throwable)
+                        && ($exception === null
+                            || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException))
+                    ) {
+                        $exception = $throwable;
+                    }
+                }
             }
         } finally {
             $this->forgetDriverResources();
@@ -717,18 +774,23 @@ class PdoConnection extends Connection
     protected function replaceDriverResources(Connection $fresh): void
     {
         /** @var self $fresh */
-        $fresh->getPdo();
-        $fresh->getReadPdo();
+        try {
+            $fresh->getPdo();
+            $fresh->getReadPdo();
 
-        $pdo = $fresh->getRawPdo();
-        $readPdo = $fresh->getRawReadPdo();
+            $pdo = $fresh->getRawPdo();
+            $readPdo = $fresh->getRawReadPdo();
+        } finally {
+            // Its grammar retains the temporary connection until cyclic GC runs.
+            $fresh->setPdo(null)->setReadPdo(null);
+        }
+
         $database = $fresh->database;
         $configuredDatabase = $fresh->configuredDatabase;
         $tablePrefix = $fresh->tablePrefix;
         $configuredTablePrefix = $fresh->configuredTablePrefix;
         $config = $fresh->config;
         $readConnectionConfig = $fresh->readConnectionConfig;
-        $readWriteType = $fresh->readWriteType;
 
         // Keep the current generation intact until both replacement handles
         // are ready so a failed refresh cannot leave a partial connection.
@@ -743,7 +805,6 @@ class PdoConnection extends Connection
             $this->configuredTablePrefix = $configuredTablePrefix;
             $this->config = $config;
             $this->readConnectionConfig = $readConnectionConfig;
-            $this->readWriteType = $readWriteType;
             $this->latestReadWriteTypeRetrieved = null;
         }
     }
@@ -796,6 +857,19 @@ class PdoConnection extends Connection
     public function inTransaction(): bool
     {
         return $this->pdo instanceof PDO && $this->pdo->inTransaction();
+    }
+
+    /**
+     * Determine whether either open PDO handle has an active transaction.
+     *
+     * @internal
+     */
+    public function hasPhysicalTransaction(): bool
+    {
+        return $this->inTransaction()
+            || ($this->readPdo instanceof PDO
+                && $this->readPdo !== $this->pdo
+                && $this->readPdo->inTransaction());
     }
 
     /**
@@ -897,8 +971,6 @@ class PdoConnection extends Connection
 
     /**
      * Get the maximum number of bindings supported by one statement.
-     *
-     * @internal
      */
     public function maxBindings(): int
     {

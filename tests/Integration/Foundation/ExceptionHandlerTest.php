@@ -30,7 +30,7 @@ use Throwable;
 
 class ExceptionHandlerTest extends TestCase
 {
-    public function testItRendersAuthorizationExceptions()
+    public function testItRendersAuthorizationExceptions(): void
     {
         Route::get('test-route', fn () => Response::deny('expected message', 321)->authorize());
 
@@ -68,10 +68,10 @@ class ExceptionHandlerTest extends TestCase
             ->assertStatus(500)
             ->assertSee('shouldnt report');
 
-        $this->assertEquals([], $reported);
+        $this->assertSame([], $reported);
     }
 
-    public function testItRendersAuthorizationExceptionsWithCustomStatusCode()
+    public function testItRendersAuthorizationExceptionsWithCustomStatusCode(): void
     {
         Route::get('test-route', fn () => Response::deny('expected message', 321)->withStatus(404)->authorize());
 
@@ -88,7 +88,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItRendersAuthorizationExceptionsWithStatusCodeTextWhenNoMessageIsSet()
+    public function testItRendersAuthorizationExceptionsWithStatusCodeTextWhenNoMessageIsSet(): void
     {
         Route::get('test-route', fn () => Response::denyWithStatus(404)->authorize());
 
@@ -119,7 +119,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItRendersAuthorizationExceptionsWithStatusButWithoutResponse()
+    public function testItRendersAuthorizationExceptionsWithStatusButWithoutResponse(): void
     {
         Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(418));
 
@@ -136,7 +136,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItHasFallbackErrorMessageForUnknownStatusCodes()
+    public function testItHasFallbackErrorMessageForUnknownStatusCodes(): void
     {
         Route::get('test-route', fn () => throw (new AuthorizationException)->withStatus(399));
 
@@ -153,7 +153,7 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItReturns400CodeOnMalformedRequests()
+    public function testItReturns400CodeOnMalformedRequests(): void
     {
         // HTTP request...
         $this->post('test-route', ['_method' => '__construct'])
@@ -170,6 +170,7 @@ class ExceptionHandlerTest extends TestCase
 
     public function testItHandlesMalformedErrorViewsInProduction(): void
     {
+        // @TODO: Restore Laravel's undefined-variable fixture and both tests' assertions once https://github.com/swoole/swoole-src/pull/6305 is released.
         Config::set('view.paths', [__DIR__ . '/Fixtures/MalformedErrorViews']);
         Config::set('app.debug', false);
         $reported = [];
@@ -184,7 +185,7 @@ class ExceptionHandlerTest extends TestCase
         }
 
         $this->assertCount(1, $reported);
-        $this->assertSame('Undefined variable $foo (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
+        $this->assertSame('Malformed error view. (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
         $this->assertNotNull($response);
         $response->assertStatus(404);
     }
@@ -205,7 +206,7 @@ class ExceptionHandlerTest extends TestCase
         }
 
         $this->assertCount(1, $reported);
-        $this->assertSame('Undefined variable $foo (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
+        $this->assertSame('Malformed error view. (View: ' . __DIR__ . DIRECTORY_SEPARATOR . 'Fixtures' . DIRECTORY_SEPARATOR . 'MalformedErrorViews' . DIRECTORY_SEPARATOR . 'errors' . DIRECTORY_SEPARATOR . '404.blade.php)', $reported[0]->getMessage());
         $this->assertNotNull($response);
         $response->assertStatus(500);
     }
@@ -274,7 +275,7 @@ class ExceptionHandlerTest extends TestCase
             ->assertHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    public function testItDoesNotLeakSensitiveInfoInHtmlWhenDebugIsFalse()
+    public function testItDoesNotLeakSensitiveInfoInHtmlWhenDebugIsFalse(): void
     {
         Config::set('app.debug', false);
 
@@ -290,7 +291,7 @@ class ExceptionHandlerTest extends TestCase
         $this->assertStringNotContainsString('Stack Trace', $content);
     }
 
-    public function testItReportsRequestExceptions()
+    public function testItReportsRequestExceptions(): void
     {
         config(['logging.default' => 'test_log']);
         config(['logging.channels.test_log' => [

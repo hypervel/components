@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Di\Aop\AspectCollector;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Response;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Redis\RedisConfig;
-use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
@@ -18,24 +20,20 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class DisabledWatcherTest extends FeatureTestCase
 {
-    protected function defineEnvironment(ApplicationContract $app): void
-    {
-        parent::defineEnvironment($app);
-
-        // Override the FeatureTestCase default so we can detect whether
-        // the watcher's enableCacheEvents() mutated this config.
-        $app->make('config')->set('cache.stores.array.events', false);
-    }
-
     #[WithConfig('telescope.watchers', [
         CacheWatcher::class => [
             'enabled' => false,
             'hidden' => [],
         ],
     ])]
-    public function testDisabledCacheWatcherDoesNotEnableCacheEvents(): void
+    public function testDisabledCacheWatcherRecordsNoCacheEntries(): void
     {
-        $this->assertFalse(config()->boolean('cache.stores.array.events'));
+        $repository = $this->app->make(Repository::class);
+
+        $repository->put('disabled-key', 'laravel', 1);
+        $repository->get('disabled-key');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
     #[WithConfig('telescope.watchers', [
@@ -76,12 +74,13 @@ class DisabledWatcherTest extends FeatureTestCase
             DatabaseEntriesRepository::class,
             $this->app->make(EntriesRepository::class),
         );
-        $this->assertFalse(config('cache.stores.array.events'));
         $this->assertFalse(
             $this->app->make(RedisConfig::class)
                 ->connectionConfig('foo')['events'],
         );
-        $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
     #[WithConfig('telescope.watchers', [
@@ -89,7 +88,9 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testEnabledClientRequestWatcherRegistersGuzzleInstrumentation(): void
     {
-        $this->assertNotEmpty(AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertSame(EntryType::CLIENT_REQUEST, $this->loadTelescopeEntries()->sole()->type);
     }
 
     #[WithConfig('telescope.watchers', [
@@ -97,6 +98,8 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testDisabledClientRequestWatcherDoesNotRegisterGuzzleInstrumentation(): void
     {
-        $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
+        (new Client(['handler' => new MockHandler([new Response])]))->get('https://example.com');
+
+        $this->assertCount(0, $this->loadTelescopeEntries());
     }
 }

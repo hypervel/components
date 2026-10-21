@@ -14,7 +14,7 @@ use function Hypervel\Coroutine\parallel;
 
 class RouteCoroutineIsolationTest extends RoutingTestCase
 {
-    public function testParametersAreIsolatedBetweenCoroutines()
+    public function testParametersAreIsolatedBetweenCoroutines(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -40,7 +40,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertContains('2', $results);
     }
 
-    public function testOriginalParametersAreIsolatedBetweenCoroutines()
+    public function testOriginalParametersAreIsolatedBetweenCoroutines(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -75,7 +75,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertContains(['current' => 'mutated-20', 'original' => '20'], $results);
     }
 
-    public function testSetParameterIsIsolatedBetweenCoroutines()
+    public function testSetParameterIsIsolatedBetweenCoroutines(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -102,7 +102,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertContains('replaced-by-coroutine-2', $results);
     }
 
-    public function testForgetParameterIsIsolatedBetweenCoroutines()
+    public function testForgetParameterIsIsolatedBetweenCoroutines(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -130,7 +130,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertContains(false, $results);
     }
 
-    public function testControllerInstancesAreIsolatedBetweenCoroutines()
+    public function testControllerInstancesAreIsolatedBetweenCoroutines(): void
     {
         $container = new Container;
         // Use bind() so each make() returns a fresh instance (no auto-singleton).
@@ -169,7 +169,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertTrue($results[1]['same']);
     }
 
-    public function testHasParametersReturnsFalseInUnboundCoroutine()
+    public function testHasParametersReturnsFalseInUnboundCoroutine(): void
     {
         $route = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
 
@@ -190,7 +190,7 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         $this->assertContains(false, $results);
     }
 
-    public function testRouteClassContainerBindingIsIsolatedBetweenCoroutines()
+    public function testRouteClassContainerBindingIsIsolatedBetweenCoroutines(): void
     {
         $router = $this->app->make(\Hypervel\Routing\Router::class);
 

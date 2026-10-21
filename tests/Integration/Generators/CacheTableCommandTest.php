@@ -10,7 +10,7 @@ use Hypervel\Support\Facades\Date;
 
 class CacheTableCommandTest extends TestCase
 {
-    public function testCreateMakesCollisionFreeMigrations(): void
+    public function testCreateMakesMigration(): void
     {
         Date::setTestNow('2026-07-23 12:00:00');
 

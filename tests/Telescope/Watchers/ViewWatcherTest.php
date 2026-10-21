@@ -42,7 +42,7 @@ class ViewWatcherTest extends FeatureTestCase
         parent::tearDown();
     }
 
-    public function testViewWatcherRegistersViews()
+    public function testViewWatcherRegistersViews(): void
     {
         file_put_contents($this->viewDir . '/welcome.blade.php', 'Hello {{ $name }}');
 
@@ -55,7 +55,7 @@ class ViewWatcherTest extends FeatureTestCase
         $this->assertSame(['name'], $entry->content['data']);
     }
 
-    public function testViewWatcherCapturesViewsWithoutComposers()
+    public function testViewWatcherCapturesViewsWithoutComposers(): void
     {
         file_put_contents($this->viewDir . '/simple.blade.php', 'No composers here');
 
@@ -67,7 +67,7 @@ class ViewWatcherTest extends FeatureTestCase
         $this->assertSame('test::simple', $entry->content['name']);
     }
 
-    public function testViewWatcherCapturesFailedRenders()
+    public function testViewWatcherCapturesFailedRenders(): void
     {
         file_put_contents($this->viewDir . '/error.blade.php', '{{ $undefined->method() }}');
 
@@ -84,7 +84,7 @@ class ViewWatcherTest extends FeatureTestCase
         $this->assertSame('test::error', $viewEntries->first()->content['name']);
     }
 
-    public function testViewWatcherCapturesNestedViews()
+    public function testViewWatcherCapturesNestedViews(): void
     {
         file_put_contents($this->viewDir . '/child.blade.php', 'Child content');
         file_put_contents($this->viewDir . '/parent.blade.php', 'Parent @include("test::child")');

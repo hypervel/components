@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeIfIssetStatementsTest extends AbstractBladeTestCase
 {
-    public function testIfStatementsAreCompiled()
+    public function testIfStatementsAreCompiled(): void
     {
         $string = '@isset ($test)
 breeze

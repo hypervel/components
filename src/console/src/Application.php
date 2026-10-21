@@ -52,12 +52,14 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * The console application bootstrappers.
      *
-     * @var array<array-key, Closure(static): void>
+     * @var array<array-key, Closure(static): mixed>
      */
     protected static array $bootstrappers = [];
 
     /**
      * A map of command names to classes.
+     *
+     * @var array<string, class-string<SymfonyCommand>>
      */
     protected array $commandMap = [];
 
@@ -94,6 +96,26 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     // Composer can preload an older, untyped Symfony Console application before
     // running Hypervel scripts. Keep these contract methods declared locally so
     // their return types do not depend on the Symfony version already loaded.
+
+    /**
+     * Get a registered command by name or alias.
+     *
+     * @throws CommandNotFoundException
+     */
+    #[Override]
+    public function get(string $name): SymfonyCommand
+    {
+        return parent::get($name);
+    }
+
+    /**
+     * Determine if a command exists.
+     */
+    #[Override]
+    public function has(string $name): bool
+    {
+        return parent::has($name);
+    }
 
     /**
      * Get all commands registered with the application.
@@ -172,7 +194,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      * Boot-only. The bootstrapper persists in a static property for the worker
      * lifetime and runs for every subsequent console application instance.
      *
-     * @param Closure(static): void $callback
+     * @param Closure(static): mixed $callback
      */
     public static function starting(Closure $callback): void
     {
@@ -203,7 +225,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
@@ -287,6 +309,8 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
     /**
      * Parse the incoming Artisan command and its input.
+     *
+     * @return array{?string, ArrayInput|StringInput}
      */
     protected function parseCommand(string|SymfonyCommand $command, array $parameters): array
     {

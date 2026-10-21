@@ -8,12 +8,11 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notifiable;
-use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Notifications\Fixtures\SentMessageMailNotification;
 
 class SentMessageMailTest extends TestCase
 {
@@ -65,22 +64,4 @@ class SentMessageUser extends Model
     use Notifiable;
 
     public bool $timestamps = false;
-}
-
-class SentMessageMailNotification extends Notification
-{
-    public function via(): array
-    {
-        return ['mail'];
-    }
-
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-            ->line('Example notification with attachment.')
-            ->attach(__DIR__ . '/Fixtures/blank_document.pdf', [
-                'as' => 'blank_document.pdf',
-                'mime' => 'application/pdf',
-            ]);
-    }
 }

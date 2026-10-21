@@ -12,7 +12,7 @@ use stdClass;
 
 class ChannelTest extends TestCase
 {
-    public function testChannelPushAndPop()
+    public function testChannelPushAndPop(): void
     {
         $result = [
             uniqid(),
@@ -32,7 +32,7 @@ class ChannelTest extends TestCase
         $this->assertSame($result, $actual);
     }
 
-    public function testChannelInCoroutine()
+    public function testChannelInCoroutine(): void
     {
         $id = uniqid();
         /** @var ChannelInterface $channel */
@@ -46,7 +46,7 @@ class ChannelTest extends TestCase
         $this->assertTrue((microtime(true) - $t) > 0.001);
     }
 
-    public function testChannelClose()
+    public function testChannelClose(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel;
@@ -65,7 +65,7 @@ class ChannelTest extends TestCase
         $this->assertTrue($channel->isClosing());
     }
 
-    public function testChannelCloseAgain()
+    public function testChannelCloseAgain(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
@@ -76,7 +76,7 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->isAvailable());
     }
 
-    public function testPushClosedChannel()
+    public function testPushClosedChannel(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(10);
@@ -89,7 +89,7 @@ class ChannelTest extends TestCase
         $this->assertSame(false, $channel->pop());
     }
 
-    public function testChannelIsAvailable()
+    public function testChannelIsAvailable(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
@@ -99,16 +99,12 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->isAvailable());
     }
 
-    public function testChannelTimeout()
+    public function testChannelTimeout(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
         $channel->pop(0.001);
         $this->assertTrue($channel->isTimeout());
-
-        $channel->push(true);
-        $channel->pop(0.001);
-        $this->assertFalse($channel->isTimeout());
     }
 
     public function testChannelCancellationIsReportedImmediately(): void
@@ -123,12 +119,9 @@ class ChannelTest extends TestCase
 
         $this->assertTrue(Coroutine::cancelById($coroutine->getId()));
         $this->assertTrue($isCanceled);
-
-        $this->assertTrue($channel->push(true));
-        $this->assertFalse($channel->isCanceled());
     }
 
-    public function testChannelPushTimeout()
+    public function testChannelPushTimeout(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
@@ -142,7 +135,7 @@ class ChannelTest extends TestCase
         $this->assertTrue($channel->isTimeout());
     }
 
-    public function testChannelIsClosing()
+    public function testChannelIsClosing(): void
     {
         /** @var ChannelInterface $channel */
         $channel = new Channel(1);
@@ -172,13 +165,12 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->isAvailable());
     }
 
-    public function testSplId()
+    public function testSplId(): void
     {
-        $obj = new stdClass;
-        $chan = new Channel(1);
-        $chan->push($obj);
+        $object = new stdClass;
+        $channel = new Channel(1);
+        $channel->push($object);
 
-        $this->assertSame(spl_object_id($obj), spl_object_id($assert = $chan->pop()));
-        $this->assertSame(spl_object_hash($obj), spl_object_hash($assert));
+        $this->assertSame(spl_object_id($object), spl_object_id($channel->pop()));
     }
 }

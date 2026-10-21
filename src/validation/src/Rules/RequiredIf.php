@@ -11,11 +11,15 @@ class RequiredIf implements Stringable
 {
     /**
      * The condition that validates the attribute.
+     *
+     * @var bool|(Closure(): bool)
      */
     public bool|Closure $condition;
 
     /**
      * Create a new required validation rule based on a condition.
+     *
+     * @param null|bool|(Closure(): bool) $condition
      */
     public function __construct(bool|Closure|null $condition)
     {

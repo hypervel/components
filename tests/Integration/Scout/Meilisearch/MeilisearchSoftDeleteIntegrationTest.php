@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Tests\Scout\Models\SoftDeleteSearchableModel;
+use Hypervel\Tests\Integration\Scout\Fixtures\Models\SoftDeleteSearchableModel;
 
 /**
  * Integration tests for Scout soft delete behavior with Meilisearch.

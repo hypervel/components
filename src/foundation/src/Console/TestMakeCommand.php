@@ -8,7 +8,6 @@ use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\select;
@@ -17,9 +16,14 @@ use function Hypervel\Prompts\select;
 class TestMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:test';
+    protected ?string $signature = 'make:test
+                    {name : The name of the test}
+                    {--f|force : Create the test even if the test already exists}
+                    {--u|unit : Create a unit test}
+                    {--pest : Create a Pest test}
+                    {--phpunit : Create a PHPUnit test}';
 
     /**
      * The console command description.
@@ -81,19 +85,6 @@ class TestMakeCommand extends GeneratorCommand
     protected function rootNamespace(): string
     {
         return 'Tests';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the test even if the test already exists'],
-            ['unit', 'u', InputOption::VALUE_NONE, 'Create a unit test'],
-            ['pest', null, InputOption::VALUE_NONE, 'Create a Pest test'],
-            ['phpunit', null, InputOption::VALUE_NONE, 'Create a PHPUnit test'],
-        ];
     }
 
     /**

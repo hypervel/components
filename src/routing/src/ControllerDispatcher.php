@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use Hypervel\Container\Container;
+use Hypervel\Container\NativeInvoker;
 use Hypervel\Context\RequestContext;
 use Hypervel\Foundation\Routing\PrecognitionControllerDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
@@ -63,7 +64,9 @@ class ControllerDispatcher implements ControllerDispatcherContract
             return $controller->callAction($method, $parameters);
         }
 
-        return $controller->{$method}(...array_values($parameters));
+        return $parameters === []
+            ? $controller->{$method}()
+            : NativeInvoker::call($controller->{$method}(...), array_values($parameters));
     }
 
     /**

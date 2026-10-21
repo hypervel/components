@@ -107,17 +107,19 @@ class JwtGuardSubjectLockTest extends TestCase
         ]));
 
         return new JwtGuard(
-            'jwt',
-            $provider,
-            $jwtManager,
-            new ClaimFactory(new Repository([
+            name: 'jwt',
+            provider: $provider,
+            jwtManager: $jwtManager,
+            claimFactory: new ClaimFactory(new Repository([
                 'jwt' => [
                     'issuer' => null,
                     'lock_subject' => true,
                 ],
             ])),
-            new Parser([new AuthHeaders, new InputSource]),
-            $this->app,
+            parser: new Parser([new AuthHeaders, new InputSource]),
+            app: $this->app,
+            rehashOnLogin: false,
+            timeboxDuration: 0,
         );
     }
 }

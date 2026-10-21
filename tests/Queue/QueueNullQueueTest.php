@@ -22,7 +22,7 @@ use Mockery as m;
 
 class QueueNullQueueTest extends TestCase
 {
-    public function testCreationTimeOfOldestPendingJobReturnsNull()
+    public function testCreationTimeOfOldestPendingJobReturnsNull(): void
     {
         $queue = new NullQueue;
 

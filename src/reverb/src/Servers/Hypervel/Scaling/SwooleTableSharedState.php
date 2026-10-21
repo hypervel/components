@@ -33,8 +33,8 @@ class SwooleTableSharedState implements SharedState
     /**
      * Create a new Swoole Table shared state instance.
      *
-     * Must be created before fork (via instance(), not singleton()) so
-     * both the Table and the Atomic locks are in shared memory.
+     * Must be created before the fork so both the Table and the Atomic
+     * locks are in shared memory.
      *
      * @param Table $table Main counter table (subscription counts, connection slots)
      * @param Table $lockTable Webhook throttle/dedupe lock table (timestamp-based TTLs)

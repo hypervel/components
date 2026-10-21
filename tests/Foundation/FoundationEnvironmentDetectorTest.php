@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class FoundationEnvironmentDetectorTest extends TestCase
 {
-    public function testClosureCanBeUsedForCustomEnvironmentDetection()
+    public function testClosureCanBeUsedForCustomEnvironmentDetection(): void
     {
         $env = new EnvironmentDetector;
 
@@ -19,7 +19,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('foobar', $result);
     }
 
-    public function testConsoleEnvironmentDetection()
+    public function testConsoleEnvironmentDetection(): void
     {
         $env = new EnvironmentDetector;
 
@@ -29,7 +29,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('local', $result);
     }
 
-    public function testConsoleEnvironmentDetectionSeparatedWithSpace()
+    public function testConsoleEnvironmentDetectionSeparatedWithSpace(): void
     {
         $env = new EnvironmentDetector;
 
@@ -39,7 +39,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('local', $result);
     }
 
-    public function testConsoleEnvironmentDetectionWithNoValue()
+    public function testConsoleEnvironmentDetectionWithNoValue(): void
     {
         $env = new EnvironmentDetector;
 
@@ -49,7 +49,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('foobar', $result);
     }
 
-    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnv()
+    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnv(): void
     {
         $env = new EnvironmentDetector;
 
@@ -59,7 +59,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('foobar', $result);
     }
 
-    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnvSeparatedWithSpace()
+    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnvSeparatedWithSpace(): void
     {
         $env = new EnvironmentDetector;
 
@@ -69,7 +69,7 @@ class FoundationEnvironmentDetectorTest extends TestCase
         $this->assertSame('foobar', $result);
     }
 
-    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnvWithNoValue()
+    public function testConsoleEnvironmentDetectionDoesNotUseArgumentThatStartsWithEnvWithNoValue(): void
     {
         $env = new EnvironmentDetector;
 

@@ -41,21 +41,21 @@ class FilesystemTest extends TestCase
         parent::tearDown();
     }
 
-    public function testGetRetrievesFiles()
+    public function testGetRetrievesFiles(): void
     {
         file_put_contents($this->tempDir . '/file.txt', 'Hello World');
         $files = new Filesystem;
         $this->assertSame('Hello World', $files->get($this->tempDir . '/file.txt'));
     }
 
-    public function testPutStoresFiles()
+    public function testPutStoresFiles(): void
     {
         $files = new Filesystem;
         $files->put($this->tempDir . '/file.txt', 'Hello World');
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'Hello World');
     }
 
-    public function testLines()
+    public function testLines(): void
     {
         $path = $this->tempDir . '/file.txt';
 
@@ -75,10 +75,9 @@ class FilesystemTest extends TestCase
         $this->assertSame([''], $files->lines($path)->all());
     }
 
-    public function testLinesThrowsExceptionNonexisitingFile()
+    public function testLinesThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . __DIR__ . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . __DIR__ . '/unknown-file.txt.'));
 
         (new Filesystem)->lines(__DIR__ . '/unknown-file.txt');
     }
@@ -169,7 +168,7 @@ class FilesystemTest extends TestCase
         $this->assertSame($before, $this->temporaryFilesWithPrefix($prefix));
     }
 
-    public function testReplaceInFileCorrectlyReplaces()
+    public function testReplaceInFileCorrectlyReplaces(): void
     {
         $tempFile = $this->tempDir . '/file.txt';
 
@@ -185,7 +184,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/missing.txt';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to read file at path [{$path}].");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path [{$path}].");
 
         (new Filesystem)->replaceInFile('old', 'new', $path);
     }
@@ -207,7 +206,7 @@ class FilesystemTest extends TestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
-    public function testReplaceWhenUnixSymlinkExists()
+    public function testReplaceWhenUnixSymlinkExists(): void
     {
         $tempFile = $this->tempDir . '/file.txt';
         $symlinkDir = $this->tempDir . '/symlink_dir';
@@ -248,7 +247,7 @@ class FilesystemTest extends TestCase
         }
     }
 
-    public function testSetChmod()
+    public function testSetChmod(): void
     {
         file_put_contents($this->tempDir . '/file.txt', 'Hello World');
         $files = new Filesystem;
@@ -272,7 +271,7 @@ class FilesystemTest extends TestCase
         }
     }
 
-    public function testGetChmod()
+    public function testGetChmod(): void
     {
         file_put_contents($this->tempDir . '/file.txt', 'Hello World');
         chmod($this->tempDir . '/file.txt', 0755);
@@ -288,7 +287,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse((new Filesystem)->chmod($this->tempDir . '/missing.txt'));
     }
 
-    public function testDeleteRemovesFiles()
+    public function testDeleteRemovesFiles(): void
     {
         file_put_contents($this->tempDir . '/file1.txt', 'Hello World');
         file_put_contents($this->tempDir . '/file2.txt', 'Hello World');
@@ -303,7 +302,7 @@ class FilesystemTest extends TestCase
         $this->assertFileDoesNotExist($this->tempDir . '/file3.txt');
     }
 
-    public function testPrependExistingFiles()
+    public function testPrependExistingFiles(): void
     {
         $files = new Filesystem;
         $files->put($this->tempDir . '/file.txt', 'World');
@@ -311,14 +310,14 @@ class FilesystemTest extends TestCase
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'Hello World');
     }
 
-    public function testPrependNewFiles()
+    public function testPrependNewFiles(): void
     {
         $files = new Filesystem;
         $files->prepend($this->tempDir . '/file.txt', 'Hello World');
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'Hello World');
     }
 
-    public function testMissingFile()
+    public function testMissingFile(): void
     {
         $files = new Filesystem;
         $this->assertTrue($files->missing($this->tempDir . '/file.txt'));
@@ -359,7 +358,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(is_link($link));
     }
 
-    public function testDeleteDirectoryReturnFalseWhenNotADirectory()
+    public function testDeleteDirectoryReturnFalseWhenNotADirectory(): void
     {
         mkdir($this->tempDir . '/bar');
         file_put_contents($this->tempDir . '/bar/file.txt', 'Hello World');
@@ -435,7 +434,7 @@ class FilesystemTest extends TestCase
         $this->assertFileDoesNotExist($target . '/file.txt');
     }
 
-    public function testMacro()
+    public function testMacro(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'Hello World');
         $files = new Filesystem;
@@ -446,7 +445,7 @@ class FilesystemTest extends TestCase
         $this->assertSame('Hello World', $files->getFoo());
     }
 
-    public function testFilesMethod()
+    public function testFilesMethod(): void
     {
         mkdir($this->tempDir . '/views');
         file_put_contents($this->tempDir . '/views/1.txt', '1');
@@ -459,13 +458,13 @@ class FilesystemTest extends TestCase
         unset($files);
     }
 
-    public function testCopyDirectoryReturnsFalseIfSourceIsntDirectory()
+    public function testCopyDirectoryReturnsFalseIfSourceIsntDirectory(): void
     {
         $files = new Filesystem;
         $this->assertFalse($files->copyDirectory($this->tempDir . '/breeze/boom/foo/bar/baz', $this->tempDir));
     }
 
-    public function testCopyDirectoryMovesEntireDirectory()
+    public function testCopyDirectoryMovesEntireDirectory(): void
     {
         mkdir($this->tempDir . '/tmp', 0777, true);
         file_put_contents($this->tempDir . '/tmp/foo.txt', '');
@@ -482,7 +481,7 @@ class FilesystemTest extends TestCase
         $this->assertFileExists($this->tempDir . '/tmp2/nested/baz.txt');
     }
 
-    public function testMoveDirectoryMovesEntireDirectory()
+    public function testMoveDirectoryMovesEntireDirectory(): void
     {
         mkdir($this->tempDir . '/tmp2', 0777, true);
         file_put_contents($this->tempDir . '/tmp2/foo.txt', '');
@@ -500,7 +499,7 @@ class FilesystemTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->tempDir . '/tmp2');
     }
 
-    public function testMoveDirectoryMovesEntireDirectoryAndOverwrites()
+    public function testMoveDirectoryMovesEntireDirectoryAndOverwrites(): void
     {
         mkdir($this->tempDir . '/tmp4', 0777, true);
         file_put_contents($this->tempDir . '/tmp4/foo.txt', '');
@@ -523,21 +522,20 @@ class FilesystemTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->tempDir . '/tmp4');
     }
 
-    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory()
+    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory(): void
     {
         mkdir($this->tempDir . '/tmp6', 0777, true);
         file_put_contents($this->tempDir . '/tmp6/foo.txt', '');
         mkdir($this->tempDir . '/tmp7', 0777, true);
 
         $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('deleteDirectory')->once()->andReturn(false);
+        $files->expects('deleteDirectory')->andReturn(false);
         $this->assertFalse($files->moveDirectory($this->tempDir . '/tmp6', $this->tempDir . '/tmp7', true));
     }
 
-    public function testGetThrowsExceptionNonexisitingFile()
+    public function testGetThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.'));
 
         (new Filesystem)->get($this->tempDir . '/unknown-file.txt');
     }
@@ -547,7 +545,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/vanished.txt';
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path {$path}.");
 
         (new VanishingReadFilesystem)->get($path);
     }
@@ -557,22 +555,21 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/vanished.txt';
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path {$path}.");
 
         (new VanishingReadFilesystem)->get($path, true);
     }
 
-    public function testGetRequireReturnsProperly()
+    public function testGetRequireReturnsProperly(): void
     {
         file_put_contents($this->tempDir . '/file.php', '<?php return "Howdy?"; ?>');
         $files = new Filesystem;
         $this->assertSame('Howdy?', $files->getRequire($this->tempDir . '/file.php'));
     }
 
-    public function testGetRequireThrowsExceptionNonExistingFile()
+    public function testGetRequireThrowsExceptionNonExistingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.'));
 
         (new Filesystem)->getRequire($this->tempDir . '/unknown-file.txt');
     }
@@ -629,7 +626,7 @@ class FilesystemTest extends TestCase
         (new Filesystem)->json($this->tempDir . '/file.json', JSON_THROW_ON_ERROR);
     }
 
-    public function testAppendAddsDataToFile()
+    public function testAppendAddsDataToFile(): void
     {
         file_put_contents($this->tempDir . '/file.txt', 'foo');
         $files = new Filesystem;
@@ -639,7 +636,7 @@ class FilesystemTest extends TestCase
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'foobar');
     }
 
-    public function testMoveMovesFiles()
+    public function testMoveMovesFiles(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
@@ -653,7 +650,7 @@ class FilesystemTest extends TestCase
         $filesystem = new StubLinkFilesystem(false);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to create a relative link');
+        $this->expectExceptionMessageIsOrContains('Unable to create a relative link');
 
         $filesystem->relativeLink('/root/target.txt', '/root/link.txt');
     }
@@ -665,42 +662,42 @@ class FilesystemTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testNameReturnsName()
+    public function testNameReturnsName(): void
     {
         file_put_contents($this->tempDir . '/foobar.txt', 'foo');
         $filesystem = new Filesystem;
         $this->assertSame('foobar', $filesystem->name($this->tempDir . '/foobar.txt'));
     }
 
-    public function testExtensionReturnsExtension()
+    public function testExtensionReturnsExtension(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertSame('txt', $files->extension($this->tempDir . '/foo.txt'));
     }
 
-    public function testBasenameReturnsBasename()
+    public function testBasenameReturnsBasename(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertSame('foo.txt', $files->basename($this->tempDir . '/foo.txt'));
     }
 
-    public function testDirnameReturnsDirectory()
+    public function testDirnameReturnsDirectory(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertEquals($this->tempDir, $files->dirname($this->tempDir . '/foo.txt'));
     }
 
-    public function testTypeIdentifiesFile()
+    public function testTypeIdentifiesFile(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertSame('file', $files->type($this->tempDir . '/foo.txt'));
     }
 
-    public function testTypeIdentifiesDirectory()
+    public function testTypeIdentifiesDirectory(): void
     {
         mkdir($this->tempDir . '/foo-dir');
         $files = new Filesystem;
@@ -719,7 +716,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($filesystem->glob(str_repeat('a', 5000), GLOB_ERR));
     }
 
-    public function testSizeOutputsSize()
+    public function testSizeOutputsSize(): void
     {
         $size = file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
@@ -727,7 +724,7 @@ class FilesystemTest extends TestCase
     }
 
     #[RequiresPhpExtension('fileinfo')]
-    public function testMimeTypeOutputsMimeType()
+    public function testMimeTypeOutputsMimeType(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
@@ -747,7 +744,7 @@ class FilesystemTest extends TestCase
         $this->assertNull((new MissingMimeTypeFilesystem)->guessExtension('/missing.txt'));
     }
 
-    public function testIsWritable()
+    public function testIsWritable(): void
     {
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $this->markTestSkipped('Permission checks are unreliable when running as root.');
@@ -761,7 +758,7 @@ class FilesystemTest extends TestCase
         $this->assertTrue($files->isWritable($this->tempDir . '/foo.txt'));
     }
 
-    public function testIsReadable()
+    public function testIsReadable(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
@@ -779,7 +776,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($files->isReadable($this->tempDir . '/doesnotexist.txt'));
     }
 
-    public function testIsDirEmpty()
+    public function testIsDirEmpty(): void
     {
         mkdir($this->tempDir . '/foo-dir');
         file_put_contents($this->tempDir . '/foo-dir/.hidden', 'foo');
@@ -802,7 +799,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($files->isEmptyDirectory($this->tempDir . '/quz-dir'));
     }
 
-    public function testGlobFindsFiles()
+    public function testGlobFindsFiles(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         file_put_contents($this->tempDir . '/bar.txt', 'bar');
@@ -812,7 +809,7 @@ class FilesystemTest extends TestCase
         $this->assertContains($this->tempDir . '/bar.txt', $glob);
     }
 
-    public function testAllFilesFindsFiles()
+    public function testAllFilesFindsFiles(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         file_put_contents($this->tempDir . '/bar.txt', 'bar');
@@ -825,7 +822,7 @@ class FilesystemTest extends TestCase
         $this->assertContains('bar.txt', $allFiles);
     }
 
-    public function testDirectoriesFindsDirectories()
+    public function testDirectoriesFindsDirectories(): void
     {
         mkdir($this->tempDir . '/film');
         mkdir($this->tempDir . '/music');
@@ -835,7 +832,7 @@ class FilesystemTest extends TestCase
         $this->assertContains($this->tempDir . DIRECTORY_SEPARATOR . 'music', $directories);
     }
 
-    public function testAllDirectoriesFindsDirectories()
+    public function testAllDirectoriesFindsDirectories(): void
     {
         mkdir($this->tempDir . '/film');
         mkdir($this->tempDir . '/music');
@@ -850,7 +847,7 @@ class FilesystemTest extends TestCase
         $this->assertContains($this->tempDir . DIRECTORY_SEPARATOR . 'music' . DIRECTORY_SEPARATOR . 'blues', $directories);
     }
 
-    public function testMakeDirectory()
+    public function testMakeDirectory(): void
     {
         $files = new Filesystem;
         $this->assertTrue($files->makeDirectory($this->tempDir . '/created'));
@@ -862,7 +859,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/uncreatable';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create directory [{$path}].");
+        $this->expectExceptionMessageIsOrContains("Unable to create directory [{$path}].");
 
         (new FailingDirectoryFilesystem)->ensureDirectoryExists($path);
     }
@@ -877,7 +874,7 @@ class FilesystemTest extends TestCase
         $this->assertSame(1, $filesystem->creationAttempts);
     }
 
-    public function testRequireOnceRequiresFileProperly()
+    public function testRequireOnceRequiresFileProperly(): void
     {
         $filesystem = new Filesystem;
         mkdir($this->tempDir . '/scripts');
@@ -889,15 +886,14 @@ class FilesystemTest extends TestCase
         $this->assertFalse(function_exists('random_function_xyz_changed'));
     }
 
-    public function testRequireOnceThrowsExceptionNonexisitingFile()
+    public function testRequireOnceThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . __DIR__ . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . __DIR__ . '/unknown-file.txt.'));
 
         (new Filesystem)->requireOnce(__DIR__ . '/unknown-file.txt');
     }
 
-    public function testCopyCopiesFileProperly()
+    public function testCopyCopiesFileProperly(): void
     {
         $filesystem = new Filesystem;
         $data = 'contents';
@@ -908,7 +904,7 @@ class FilesystemTest extends TestCase
         $this->assertEquals($data, file_get_contents($this->tempDir . '/text/foo2.txt'));
     }
 
-    public function testHasSameHashChecksFileHashes()
+    public function testHasSameHashChecksFileHashes(): void
     {
         $filesystem = new Filesystem;
 
@@ -923,7 +919,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($filesystem->hasSameHash($this->tempDir . '/text/foo.txt', $this->tempDir . '/text/foo4.txt'));
     }
 
-    public function testIsFileChecksFilesProperly()
+    public function testIsFileChecksFilesProperly(): void
     {
         $filesystem = new Filesystem;
         mkdir($this->tempDir . '/help');
@@ -932,7 +928,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($filesystem->isFile($this->tempDir . './help'));
     }
 
-    public function testFilesMethodReturnsFileInfoObjects()
+    public function testFilesMethodReturnsFileInfoObjects(): void
     {
         mkdir($this->tempDir . '/objects');
         file_put_contents($this->tempDir . '/objects/1.txt', '1');
@@ -943,7 +939,7 @@ class FilesystemTest extends TestCase
         unset($files);
     }
 
-    public function testAllFilesReturnsFileInfoObjects()
+    public function testAllFilesReturnsFileInfoObjects(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         file_put_contents($this->tempDir . '/bar.txt', 'bar');
@@ -951,14 +947,14 @@ class FilesystemTest extends TestCase
         $this->assertContainsOnlyInstancesOf(SplFileInfo::class, $files->allFiles($this->tempDir));
     }
 
-    public function testHashWithDefaultValue()
+    public function testHashWithDefaultValue(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $filesystem = new Filesystem;
         $this->assertSame('79aef92e83454121ab6e5f64077e7d8a', $filesystem->hash($this->tempDir . '/foo.txt'));
     }
 
-    public function testHash()
+    public function testHash(): void
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $filesystem = new Filesystem;
@@ -967,7 +963,7 @@ class FilesystemTest extends TestCase
         $this->assertSame('76d3bc41c9f588f7fcd0d5bf4718f8f84b1c41b20882703100b9eb9413807c01', $filesystem->hash($this->tempDir . '/foo.txt', 'sha3-256'));
     }
 
-    public function testLastModifiedReturnsTimestamp()
+    public function testLastModifiedReturnsTimestamp(): void
     {
         $path = $this->tempDir . '/timestamp.txt';
         file_put_contents($path, 'test content');
@@ -980,7 +976,7 @@ class FilesystemTest extends TestCase
         $this->assertEquals(filemtime($path), $timestamp);
     }
 
-    public function testFileCreationAndContentVerification()
+    public function testFileCreationAndContentVerification(): void
     {
         $files = new Filesystem;
 
@@ -994,7 +990,7 @@ class FilesystemTest extends TestCase
         $this->assertEquals(strlen($testContent), $files->size($filePath));
     }
 
-    public function testDirectoryOperationsWithSubdirectories()
+    public function testDirectoryOperationsWithSubdirectories(): void
     {
         $files = new Filesystem;
 
@@ -1015,10 +1011,10 @@ class FilesystemTest extends TestCase
         $allFiles = $files->allFiles($dirPath);
 
         $this->assertCount(1, $allFiles);
-        $this->assertEquals('test.txt', $allFiles[0]->getFilename());
+        $this->assertSame('test.txt', $allFiles[0]->getFilename());
     }
 
-    public function testConcurrentCoroutineSharedGetAndLockedPut()
+    public function testConcurrentCoroutineSharedGetAndLockedPut(): void
     {
         $files = new Filesystem;
         $path = $this->tempDir . '/concurrent.txt';

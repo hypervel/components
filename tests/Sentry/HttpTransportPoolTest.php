@@ -4,60 +4,76 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Container\Container;
-use Hypervel\Foundation\Application;
-use Hypervel\Foundation\PackageManifest;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Psr\Log\AbstractLogger;
 use ReflectionProperty;
+use Sentry\ClientBuilder;
 use Sentry\Event;
 use Sentry\HttpClient\HttpClient;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\HttpClient\Response;
-use Sentry\Options;
 use Sentry\Transport\ResultStatus;
+use Stringable;
 
 class HttpTransportPoolTest extends TestCase
 {
-    public function testCreatesTheSdkHttpClient(): void
+    public function testEachTransportGetsItsOwnDefaultClientIdentifiedByTheBuilder(): void
     {
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('version')
-            ->once()
-            ->with('hypervel/sentry')
-            ->andReturn('1.2.3');
+        $builder = new ClientBuilder;
+        $builder->setSdkIdentifier('sentry.php.custom');
+        $builder->setSdkVersion('1.2.3');
+        $pool = new HttpTransportPool($builder, $this->poolOptions(2));
+        $first = $pool->borrow();
+        $second = $pool->borrow();
 
-        Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
+        $firstClient = $first->getHttpClient();
 
-        $pool = new InspectableHttpTransportPool(
-            new Options,
-            $this->poolOptions(),
-        );
+        $this->assertInstanceOf(HttpClient::class, $firstClient);
+        $this->assertNotSame($firstClient, $second->getHttpClient());
+        $this->assertSame('sentry.php.custom', (new ReflectionProperty($firstClient, 'sdkIdentifier'))->getValue($firstClient));
+        $this->assertSame('1.2.3', (new ReflectionProperty($firstClient, 'sdkVersion'))->getValue($firstClient));
 
-        $httpClient = $pool->createHttpClient();
-
-        $this->assertInstanceOf(HttpClient::class, $httpClient);
-        $this->assertSame('sentry.php.hypervel', (new ReflectionProperty($httpClient, 'sdkIdentifier'))->getValue($httpClient));
-        $this->assertSame('1.2.3', (new ReflectionProperty($httpClient, 'sdkVersion'))->getValue($httpClient));
+        $pool->release($first);
+        $pool->release($second);
         $pool->close();
     }
 
-    public function testCreatesTheSdkHttpClientWithTheFrameworkVersionAsFallback(): void
+    public function testTransportsShareTheBuilderClientAndLogThroughTheBuilderLogger(): void
     {
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('version')
-            ->once()
-            ->with('hypervel/sentry')
-            ->andReturn(null);
+        $httpClient = m::mock(HttpClientInterface::class);
+        $httpClient->shouldReceive('sendRequest')
+            ->twice()
+            ->andReturn(new Response(200, [], ''));
+        $logger = new class extends AbstractLogger {
+            /** @var list<string> */
+            public array $messages = [];
 
-        Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
+            /**
+             * Record the log message.
+             */
+            public function log(mixed $level, string|Stringable $message, array $context = []): void
+            {
+                $this->messages[] = (string) $message;
+            }
+        };
+        $builder = ClientBuilder::create(['dsn' => 'https://public@example.com/1']);
+        $builder->setHttpClient($httpClient);
+        $builder->setLogger($logger);
+        $pool = new HttpTransportPool($builder, $this->poolOptions(2));
+        $first = $pool->borrow();
+        $second = $pool->borrow();
 
-        $pool = new InspectableHttpTransportPool(new Options, $this->poolOptions());
-        $httpClient = $pool->createHttpClient();
+        $this->assertSame($httpClient, $first->getHttpClient());
+        $this->assertSame($httpClient, $second->getHttpClient());
+        $this->assertSame(ResultStatus::success(), $first->send(Event::createEvent())->getStatus());
+        $this->assertSame(ResultStatus::success(), $second->send(Event::createEvent())->getStatus());
+        $this->assertCount(2, array_filter($logger->messages, static fn (string $message): bool => str_starts_with($message, 'Sending ')));
 
-        $this->assertSame(Application::VERSION, (new ReflectionProperty($httpClient, 'sdkVersion'))->getValue($httpClient));
+        $pool->release($first);
+        $pool->release($second);
         $pool->close();
     }
 
@@ -70,11 +86,9 @@ class HttpTransportPoolTest extends TestCase
                 'X-Sentry-Rate-Limits' => ['60:error'],
             ], ''));
 
-        $pool = new ScriptedHttpTransportPool(
-            new Options(['dsn' => 'https://public@example.com/1']),
-            $this->poolOptions(),
-            $httpClient,
-        );
+        $builder = ClientBuilder::create(['dsn' => 'https://public@example.com/1']);
+        $builder->setHttpClient($httpClient);
+        $pool = new HttpTransportPool($builder, $this->poolOptions());
 
         $transport = $pool->borrow();
         $this->assertSame(ResultStatus::rateLimit(), $transport->send(Event::createEvent())->getStatus());
@@ -88,40 +102,16 @@ class HttpTransportPoolTest extends TestCase
     }
 
     /**
-     * Get pool options for one reusable transport.
+     * Get pool options for the given number of reusable transports.
      */
-    private function poolOptions(): PoolOptions
+    private function poolOptions(int $maxObjects = 1): PoolOptions
     {
         return PoolOptions::fromArray([
             'min_retained_objects' => 0,
-            'max_objects' => 1,
+            'max_objects' => $maxObjects,
             'wait_timeout' => 0.1,
             'max_lifetime' => null,
             'pool_idle_timeout' => null,
         ]);
-    }
-}
-
-class InspectableHttpTransportPool extends HttpTransportPool
-{
-    public function createHttpClient(): HttpClientInterface
-    {
-        return $this->getHttpClient();
-    }
-}
-
-class ScriptedHttpTransportPool extends HttpTransportPool
-{
-    public function __construct(
-        Options $sentryOptions,
-        PoolOptions $poolOptions,
-        private HttpClientInterface $httpClient,
-    ) {
-        parent::__construct($sentryOptions, $poolOptions);
-    }
-
-    protected function getHttpClient(): HttpClientInterface
-    {
-        return $this->httpClient;
     }
 }

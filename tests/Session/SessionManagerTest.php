@@ -32,6 +32,19 @@ use SessionHandlerInterface;
 
 class SessionManagerTest extends TestCase
 {
+    // REMOVED: CacheBasedSessionHandlerTest; Redis sessions use a dedicated handler,
+    // and the APC, Memcached and DynamoDB session drivers are unsupported.
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $container = $this->getContainer(['session' => ['driver' => 'file']]);
+
+        $manager = new SessionManager($container);
+        $manager->setDefaultDriver(SessionDriverName::Array);
+
+        $this->assertSame('array', $container->make('config')->get('session.driver'));
+    }
+
     public function testEnumDefaultDriverIsNormalizedWithoutTreatingZeroAsAbsent(): void
     {
         $manager = new SessionManager($this->getContainer([
@@ -70,7 +83,7 @@ class SessionManagerTest extends TestCase
         $this->assertNull($this->databaseConnectionFromHandler($this->handlerFromStore($store)));
     }
 
-    public function testRedisDriverDefaultsToSessionConnectionWhenUnset(): void
+    public function testRedisDriverUsesConfiguredSessionPrefix(): void
     {
         $container = $this->getContainer([
             'session.driver' => 'redis',
@@ -81,6 +94,7 @@ class SessionManagerTest extends TestCase
             'session.serialization' => 'php',
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => false,
+            'cache.prefix' => 'cache_prefix',
         ]);
         $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
 
@@ -95,6 +109,9 @@ class SessionManagerTest extends TestCase
         $this->assertFalse($this->propertyFromObject($handler, 'trackUserSessions'));
         $this->assertFalse($container->bound('cache'));
     }
+
+    // REMOVED: testRedisDriverFallsBackToCachePrefixWhenNoSessionPrefix;
+    // the native Redis handler uses the required session prefix and never resolves a cache store.
 
     public function testExplicitSessionConnectionOverridesBothDrivers(): void
     {
@@ -253,7 +270,7 @@ class SessionManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'User [' . SessionManagerAdminStub::class . '] does not belong to auth provider [users].'
         );
 
@@ -293,7 +310,7 @@ class SessionManagerTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Auth guard [providerless] does not declare a user provider. Set auth.guards.providerless.provider.'
         );
 
@@ -316,7 +333,7 @@ class SessionManagerTest extends TestCase
         $user->shouldReceive('getAuthIdentifier')->once()->andReturnNull();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The user identifier must be an integer or string.');
+        $this->expectExceptionMessageIs('The user identifier must be an integer or string.');
 
         $manager->forUser($user);
     }
@@ -492,6 +509,11 @@ class SessionManagerTest extends TestCase
 
         return $property->getValue($store);
     }
+}
+
+enum SessionDriverName: string
+{
+    case Array = 'array';
 }
 
 enum SessionIntegerIdentifier: int

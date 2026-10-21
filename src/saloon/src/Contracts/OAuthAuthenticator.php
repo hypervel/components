@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Contracts;
 
-use Carbon\CarbonInterface;
+use DateTimeImmutable;
 
 interface OAuthAuthenticator extends Authenticator
 {
@@ -21,7 +21,7 @@ interface OAuthAuthenticator extends Authenticator
     /**
      * Get the expiry.
      */
-    public function getExpiresAt(): ?CarbonInterface;
+    public function getExpiresAt(): ?DateTimeImmutable;
 
     /**
      * Determine if the authenticator has expired.

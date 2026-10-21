@@ -16,6 +16,7 @@ use Hypervel\Horizon\SupervisorProcess;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Commands\FakeMasterCommand;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
@@ -25,7 +26,7 @@ use Symfony\Component\Process\Process;
 
 class MasterSupervisorTest extends IntegrationTestCase
 {
-    public function testNamesCanBeCustomized()
+    public function testNamesCanBeCustomized(): void
     {
         MasterSupervisor::determineNameUsing(function () {
             return 'test-name';
@@ -59,6 +60,9 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertCount(0, $master->supervisors);
     }
 
+    /**
+     * Get exit codes that stop a supervisor permanently.
+     */
     public static function terminalExitCodes(): array
     {
         // Exit 13 is caught by the duplicate-supervisor branch before dontRestartOn.
@@ -97,12 +101,15 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertSame('default', $command->options['queue']);
     }
 
+    /**
+     * Get exit codes that allow restarting a supervisor.
+     */
     public static function restartableExitCodes(): array
     {
         return [[null], [1], [12], [50]];
     }
 
-    public function testMasterProcessRestartsProcessesThatNeverStarted()
+    public function testMasterProcessRestartsProcessesThatNeverStarted(): void
     {
         $process = m::mock(Process::class);
         $master = new MasterSupervisor;
@@ -121,7 +128,7 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertTrue($supervisorProcess->wasRestarted);
     }
 
-    public function testMasterProcessStartsUnstartedProcessesWhenUnpaused()
+    public function testMasterProcessStartsUnstartedProcessesWhenUnpaused(): void
     {
         $process = m::mock(Process::class);
         $master = new MasterSupervisor;
@@ -140,14 +147,14 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertTrue($supervisorProcess->wasRestarted);
     }
 
-    public function testMasterProcessLoopProcessesPendingCommands()
+    public function testMasterProcessLoopProcessesPendingCommands(): void
     {
         $master = new MasterSupervisor;
         $master->working = true;
 
         resolve(HorizonCommandQueue::class)->push(
             $master->commandQueue(),
-            Commands\FakeMasterCommand::class,
+            FakeMasterCommand::class,
             ['foo' => 'bar']
         );
 
@@ -156,14 +163,14 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master->loop();
 
         // In Hypervel, we use the singleton pattern by default.
-        $command = resolve(Commands\FakeMasterCommand::class);
+        $command = resolve(FakeMasterCommand::class);
 
         $this->assertSame(1, $command->processCount);
         $this->assertEquals($master, $command->master);
         $this->assertEquals(['foo' => 'bar'], $command->options);
     }
 
-    public function testMasterProcessInformationIsPersisted()
+    public function testMasterProcessInformationIsPersisted(): void
     {
         $process = m::mock(Process::class);
         $master = new MasterSupervisor;
@@ -202,7 +209,7 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertSame('paused', $observedStatus);
     }
 
-    public function testMasterProcessShouldNotAllowDuplicateMasterProcessOnSameMachine()
+    public function testMasterProcessShouldNotAllowDuplicateMasterProcessOnSameMachine(): void
     {
         $this->expectException(Exception::class);
 
@@ -215,7 +222,7 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master->monitor();
     }
 
-    public function testSupervisorRepositoryReturnsNullIfNoSupervisorExistsWithGivenName()
+    public function testSupervisorRepositoryReturnsNullIfNoSupervisorExistsWithGivenName(): void
     {
         $repository = resolve(MasterSupervisorRepository::class);
 
@@ -254,11 +261,14 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertSame(MasterSupervisor::commandQueue(), MasterSupervisor::commandQueueFor());
     }
 
-    protected function supervisorOptions()
+    /**
+     * Create options for the fixture worker.
+     */
+    protected function supervisorOptions(): SupervisorOptions
     {
         return tap(new SupervisorOptions(MasterSupervisor::name() . ':name', 'redis'), function ($options) {
             $phpBinary = PhpBinary::path();
-            $options->directory = realpath(__DIR__ . '/../');
+            $options->directory = realpath(__DIR__ . '/../Fixtures');
 
             WorkerCommandString::$command = 'exec ' . $phpBinary . ' worker.php';
         });

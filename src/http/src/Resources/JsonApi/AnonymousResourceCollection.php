@@ -8,13 +8,18 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
-use Hypervel\Support\Arr;
+use Hypervel\Http\Resources\Json\AnonymousResourceCollection as BaseAnonymousResourceCollection;
 use JsonSerializable;
 use Override;
 
-class AnonymousResourceCollection extends \Hypervel\Http\Resources\Json\AnonymousResourceCollection
+class AnonymousResourceCollection extends BaseAnonymousResourceCollection
 {
     use Concerns\ResolvesJsonApiRequest;
+
+    /**
+     * The included resources resolved for this response.
+     */
+    protected ?array $includedResources = null;
 
     /**
      * Get any additional data that should be returned with the resource array.
@@ -22,18 +27,15 @@ class AnonymousResourceCollection extends \Hypervel\Http\Resources\Json\Anonymou
     #[Override]
     public function with(Request $request): array
     {
-        return array_filter([
-            'included' => $this->collection
-                ->map(fn ($resource) => $resource->resolveIncludedResourceObjects($request))
-                ->flatten(depth: 1)
-                ->uniqueStrict('_uniqueKey')
-                ->map(fn ($included) => Arr::except($included, ['_uniqueKey']))
-                ->values()
-                ->all(),
+        $request = $this->resolveJsonApiRequestFrom($request);
+        $included = $this->includedResources ??= JsonApiResource::resolveIncludedResources($this->collection, $request);
+
+        return [
+            ...($included !== [] || $request->has('include')) ? ['included' => $included] : [],
             ...($implementation = JsonApiResource::$jsonApiInformation)
                 ? ['jsonapi' => $implementation]
                 : [],
-        ]);
+        ];
     }
 
     /**
@@ -42,6 +44,8 @@ class AnonymousResourceCollection extends \Hypervel\Http\Resources\Json\Anonymou
     #[Override]
     public function toAttributes(Request $request): array|Arrayable|JsonSerializable
     {
+        JsonApiResource::prepareResourceRelationships($this->collection, $this->resolveJsonApiRequestFrom($request));
+
         return $this->collection
             ->map(fn ($resource) => $resource->resolveResourceData($request))
             ->all();
@@ -62,7 +66,12 @@ class AnonymousResourceCollection extends \Hypervel\Http\Resources\Json\Anonymou
     #[Override]
     public function toResponse(Request $request): JsonResponse
     {
-        return parent::toResponse($this->resolveJsonApiRequestFrom($request));
+        $request = $this->resolveJsonApiRequestFrom($request);
+
+        // Merge duplicate linkage before the primary collection is serialized.
+        $this->includedResources ??= JsonApiResource::resolveIncludedResources($this->collection, $request);
+
+        return parent::toResponse($request);
     }
 
     /**

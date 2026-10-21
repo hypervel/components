@@ -8,11 +8,13 @@ use Countable;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -472,6 +474,40 @@ class SupportStrTest extends TestCase
         $this->assertSame('yvette', Str::beforeLast("yvette\tyv0et0te", "\t"));
     }
 
+    public function testStringBoundariesRespectInternalEncoding(): void
+    {
+        $encoding = mb_internal_encoding();
+
+        try {
+            mb_internal_encoding('SJIS');
+
+            $subject = mb_convert_encoding('日本語と日本語', 'SJIS', 'UTF-8');
+            $search = mb_convert_encoding('日本', 'SJIS', 'UTF-8');
+            $wrapper = mb_convert_encoding('語', 'SJIS', 'UTF-8');
+            $wrapped = mb_convert_encoding('語日本語', 'SJIS', 'UTF-8');
+
+            $this->assertSame(mb_convert_encoding('日本語と', 'SJIS', 'UTF-8'), Str::beforeLast($subject, $search));
+            $this->assertSame($wrapper, Str::afterLast($subject, $search));
+            $this->assertSame($search, Str::unwrap($wrapped, $wrapper));
+
+            // 表 ends with byte 0x5c in SJIS, but contains no backslash character.
+            $leadingSubject = mb_convert_encoding('表計算', 'SJIS', 'UTF-8');
+            $trailingSubject = mb_convert_encoding('計算表', 'SJIS', 'UTF-8');
+
+            $this->assertSame($leadingSubject, Str::afterLast($leadingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::chopEnd($trailingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::unwrap($trailingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::chopEnd($trailingSubject . '\\', '\\'));
+            $this->assertSame($trailingSubject, Str::unwrap($trailingSubject . '\\', '\\'));
+            $this->assertSame(
+                mb_convert_encoding('計算', 'SJIS', 'UTF-8'),
+                Str::chopEnd($trailingSubject, ['\\', mb_convert_encoding('表', 'SJIS', 'UTF-8')]),
+            );
+        } finally {
+            mb_internal_encoding($encoding);
+        }
+    }
+
     public function testStrBetween(): void
     {
         $this->assertSame('abc', Str::between('abc', '', 'c'));
@@ -669,7 +705,7 @@ class SupportStrTest extends TestCase
     public function testFlushCache(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
+        $this->expectExceptionMessageIs('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
 
         Str::flushCache();
     }
@@ -683,8 +719,8 @@ class SupportStrTest extends TestCase
 
     public function testWrap(): void
     {
-        $this->assertEquals('"value"', Str::wrap('value', '"'));
-        $this->assertEquals('foo-bar-baz', Str::wrap('-bar-', 'foo', 'baz'));
+        $this->assertSame('"value"', Str::wrap('value', '"'));
+        $this->assertSame('foo-bar-baz', Str::wrap('-bar-', 'foo', 'baz'));
     }
 
     public function testWrapEdgeCases(): void
@@ -700,11 +736,11 @@ class SupportStrTest extends TestCase
 
     public function testUnwrap(): void
     {
-        $this->assertEquals('value', Str::unwrap('"value"', '"'));
-        $this->assertEquals('value', Str::unwrap('"value', '"'));
-        $this->assertEquals('value', Str::unwrap('value"', '"'));
-        $this->assertEquals('bar', Str::unwrap('foo-bar-baz', 'foo-', '-baz'));
-        $this->assertEquals('some: "json"', Str::unwrap('{some: "json"}', '{', '}'));
+        $this->assertSame('value', Str::unwrap('"value"', '"'));
+        $this->assertSame('value', Str::unwrap('"value', '"'));
+        $this->assertSame('value', Str::unwrap('value"', '"'));
+        $this->assertSame('bar', Str::unwrap('foo-bar-baz', 'foo-', '-baz'));
+        $this->assertSame('some: "json"', Str::unwrap('{some: "json"}', '{', '}'));
     }
 
     public function testIs(): void
@@ -1056,15 +1092,20 @@ class SupportStrTest extends TestCase
     public function testWhetherTheNumberOfGeneratedCharactersIsEquallyDistributed(): void
     {
         $results = [];
-        // take 6.200.000 samples, because there are 62 different characters
-        for ($i = 0; $i < 620000; ++$i) {
+
+        // Take 620,000 samples, because there are 62 different characters.
+        for ($i = 0; $i < 620_000; ++$i) {
             $random = Str::random(1);
             $results[$random] = ($results[$random] ?? 0) + 1;
         }
 
-        // each character should occur 100.000 times with a variance of 5%.
+        $this->assertCount(62, $results);
+
+        // Each character should occur close to 10_000 times. The expected count is
+        // binomially distributed with a standard deviation of ~100, so allow a
+        // generous margin to avoid flaky failures from ordinary sampling noise.
         foreach ($results as $result) {
-            $this->assertEqualsWithDelta(10000, $result, 500);
+            $this->assertEqualsWithDelta(10_000, $result, 800);
         }
     }
 
@@ -1102,12 +1143,12 @@ class SupportStrTest extends TestCase
 
     public function testItCanSpecifyAFallbackForARandomStringSequence(): void
     {
-        Str::createRandomStringsUsingSequence([Str::random(), Str::random()], fn () => throw new Exception('Out of random strings.'));
+        Str::createRandomStringsUsingSequence([Str::random(), Str::random()], fn (): never => throw new Exception('Out of random strings.'));
         Str::random();
         Str::random();
 
         try {
-            $this->expectExceptionMessage('Out of random strings.');
+            $this->expectExceptionObject(new Exception('Out of random strings.'));
             Str::random();
             $this->fail();
         } finally {
@@ -1505,6 +1546,12 @@ class SupportStrTest extends TestCase
         $this->assertSame('maria@email.co*', Str::mask('maria@email.com', '*', -1));
         $this->assertSame('***************', Str::mask('maria@email.com', '*', -15));
         $this->assertSame('***************', Str::mask('maria@email.com', '*', 0));
+
+        // the trailing portion of the string must respect a non-default encoding
+        $latin1 = mb_convert_encoding('José Pérez García', 'ISO-8859-1', 'UTF-8');
+        $expected = mb_convert_encoding('José ***** García', 'ISO-8859-1', 'UTF-8');
+        $this->assertSame($expected, Str::mask($latin1, '*', 5, 5, 'ISO-8859-1'));
+        $this->assertSame($expected, Str::mask($latin1, '*', -12, 5, 'ISO-8859-1'));
     }
 
     public function testMatch(): void
@@ -1540,16 +1587,20 @@ class SupportStrTest extends TestCase
 
         $this->assertSame('foo1Bar', Str::camel('foo1_bar'));
         $this->assertSame('1FooBar', Str::camel('1 foo bar'));
+
+        $this->assertSame('überUns', Str::camel('Über uns'));
+        $this->assertSame('émileZola', Str::camel('émile_zola'));
+        $this->assertSame('élanVital', Str::camel('Élan-vital'));
     }
 
     public function testCharAt(): void
     {
-        $this->assertEquals('р', Str::charAt('Привет, мир!', 1));
-        $this->assertEquals('ち', Str::charAt('「こんにちは世界」', 4));
-        $this->assertEquals('w', Str::charAt('Привет, world!', 8));
-        $this->assertEquals('界', Str::charAt('「こんにちは世界」', -2));
-        $this->assertEquals(null, Str::charAt('「こんにちは世界」', -200));
-        $this->assertEquals(null, Str::charAt('Привет, мир!', 100));
+        $this->assertSame('р', Str::charAt('Привет, мир!', 1));
+        $this->assertSame('ち', Str::charAt('「こんにちは世界」', 4));
+        $this->assertSame('w', Str::charAt('Привет, world!', 8));
+        $this->assertSame('界', Str::charAt('「こんにちは世界」', -2));
+        $this->assertFalse(Str::charAt('「こんにちは世界」', -200));
+        $this->assertFalse(Str::charAt('Привет, мир!', 100));
     }
 
     public function testSubstr(): void
@@ -1854,12 +1905,14 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame("<p><em>hello world</em></p>\n", Str::markdown('*hello world*'));
         $this->assertSame("<h1>hello world</h1>\n", Str::markdown('# hello world'));
+        $this->assertSame('', Str::markdown(null));
     }
 
     public function testInlineMarkdown(): void
     {
         $this->assertSame("<em>hello world</em>\n", Str::inlineMarkdown('*hello world*'));
         $this->assertSame("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", Str::inlineMarkdown('[**Hypervel**](https://hypervel.org)'));
+        $this->assertSame('', Str::inlineMarkdown(null));
     }
 
     public function testRepeat(): void
@@ -1900,6 +1953,7 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame('HHH', Str::transliterate('🎂🚧🏆', 'H'));
         $this->assertSame('Hello', Str::transliterate('🎂', 'Hello'));
+        $this->assertSame('', Str::transliterate(null));
     }
 
     #[DataProvider('specialCharacterProvider')]
@@ -1991,28 +2045,28 @@ class SupportStrTest extends TestCase
         $this->assertSame((string) $first, (string) $retrieved);
 
         $retrieved = Str::uuid();
-        $this->assertFalse(in_array($retrieved, [$zeroth, $first, $third], true));
-        $this->assertFalse(in_array((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third], true));
+        $this->assertNotContains($retrieved, [$zeroth, $first, $third]);
+        $this->assertNotContains((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third]);
 
         $retrieved = Str::uuid();
         $this->assertSame($third, $retrieved);
         $this->assertSame((string) $third, (string) $retrieved);
 
         $retrieved = Str::uuid();
-        $this->assertFalse(in_array($retrieved, [$zeroth, $first, $third], true));
-        $this->assertFalse(in_array((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third], true));
+        $this->assertNotContains($retrieved, [$zeroth, $first, $third]);
+        $this->assertNotContains((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third]);
 
         Str::createUuidsNormally();
     }
 
     public function testItCanSpecifyAFallbackForASequence(): void
     {
-        Str::createUuidsUsingSequence([Str::uuid(), Str::uuid()], fn () => throw new Exception('Out of Uuids.'));
+        Str::createUuidsUsingSequence([Str::uuid(), Str::uuid()], fn (): never => throw new Exception('Out of Uuids.'));
         Str::uuid();
         Str::uuid();
 
         try {
-            $this->expectExceptionMessage('Out of Uuids.');
+            $this->expectExceptionObject(new Exception('Out of Uuids.'));
             Str::uuid();
             $this->fail();
         } finally {
@@ -2122,16 +2176,16 @@ class SupportStrTest extends TestCase
         $this->assertSame((string) $first, (string) $retrieved);
 
         $retrieved = Str::ulid();
-        $this->assertFalse(in_array($retrieved, [$zeroth, $first, $third], true));
-        $this->assertFalse(in_array((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third], true));
+        $this->assertNotContains($retrieved, [$zeroth, $first, $third]);
+        $this->assertNotContains((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third]);
 
         $retrieved = Str::ulid();
         $this->assertSame($third, $retrieved);
         $this->assertSame((string) $third, (string) $retrieved);
 
         $retrieved = Str::ulid();
-        $this->assertFalse(in_array($retrieved, [$zeroth, $first, $third], true));
-        $this->assertFalse(in_array((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third], true));
+        $this->assertNotContains($retrieved, [$zeroth, $first, $third]);
+        $this->assertNotContains((string) $retrieved, [(string) $zeroth, (string) $first, (string) $third]);
 
         Str::createUlidsNormally();
     }
@@ -2140,13 +2194,13 @@ class SupportStrTest extends TestCase
     {
         Str::createUlidsUsingSequence(
             [Str::ulid(), Str::ulid()],
-            fn () => throw new Exception('Out of Ulids'),
+            fn (): never => throw new Exception('Out of Ulids'),
         );
         Str::ulid();
         Str::ulid();
 
         try {
-            $this->expectExceptionMessage('Out of Ulids');
+            $this->expectExceptionObject(new Exception('Out of Ulids'));
             Str::ulid();
             $this->fail();
         } finally {
@@ -2173,6 +2227,43 @@ class SupportStrTest extends TestCase
         ThrowingSequenceStr::createUlidsNormally();
     }
 
+    public function testFactoriesAcceptNonClosureCallables(): void
+    {
+        $factory = new class {
+            /**
+             * Return a fixed UUID.
+             */
+            public function uuid(): Uuid
+            {
+                return Uuid::fromString('00000000-0000-0000-0000-000000000000');
+            }
+
+            /**
+             * Return a fixed ULID.
+             */
+            public function ulid(): Ulid
+            {
+                return new Ulid('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+            }
+        };
+
+        Str::createRandomStringsUsing('strval');
+        Str::createUuidsUsing([$factory, 'uuid']);
+        Str::createUlidsUsing([$factory, 'ulid']);
+
+        $this->assertSame('7', Str::random(7));
+        $this->assertSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
+
+        Str::createRandomStringsUsing();
+        Str::createUuidsUsing();
+        Str::createUlidsUsing();
+
+        $this->assertSame(7, strlen(Str::random(7)));
+        $this->assertNotSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertNotSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
+    }
+
     public function testResetFactoryState(): void
     {
         $uuid = Uuid::fromString('00000000-0000-0000-0000-000000000000');
@@ -2197,7 +2288,7 @@ class SupportStrTest extends TestCase
 
     public function testPasswordCreation(): void
     {
-        $this->assertTrue(strlen(Str::password()) === 32);
+        $this->assertSame(32, strlen(Str::password()));
 
         $this->assertStringNotContainsString(' ', Str::password());
         $this->assertStringContainsString(' ', Str::password(spaces: true));
@@ -2205,6 +2296,26 @@ class SupportStrTest extends TestCase
         $this->assertTrue(
             Str::of(Str::password())->contains(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
         );
+    }
+
+    public function testPasswordReturnsExactLengthWhenBelowPoolCount(): void
+    {
+        $this->assertSame(1, strlen(Str::password(1)));
+        $this->assertSame(2, strlen(Str::password(2)));
+        $this->assertSame(3, strlen(Str::password(3)));
+    }
+
+    public function testPasswordWithZeroOrNegativeLengthReturnsEmptyString(): void
+    {
+        $this->assertSame('', Str::password(0));
+        $this->assertSame('', Str::password(-2));
+    }
+
+    public function testPasswordThrowsWhenNoPoolsEnabled(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Str::password(32, false, false, false, false);
     }
 
     public function testToBase64(): void
@@ -2219,72 +2330,74 @@ class SupportStrTest extends TestCase
         $this->assertSame('foobar', Str::fromBase64(base64_encode('foobar'), true));
     }
 
-    public function testChopStart(): void
+    #[DataProvider('dataProviderChopStart')]
+    public function testChopStart(string $subject, string|array $needle, string $expected): void
     {
-        foreach ([
-            ['', '', ''],
-            ['Hypervel', '', 'Hypervel'],
-            ['Ship it', ['', 'Ship '], 'it'],
-            ['http://hypervel.org', 'http://', 'hypervel.org'],
-            ['http://-http://', 'http://', '-http://'],
-            ['http://hypervel.org', 'htp:/', 'http://hypervel.org'],
-            ['http://hypervel.org', 'http://www.', 'http://hypervel.org'],
-            ['http://hypervel.org', '-http://', 'http://hypervel.org'],
-            ['http://hypervel.org', ['https://', 'http://'], 'hypervel.org'],
-            ['http://www.hypervel.org', ['http://', 'www.'], 'www.hypervel.org'],
-            ['http://http-is-fun.test', 'http://', 'http-is-fun.test'],
-            // Multibyte emoji tests
-            ['🌊✋', '🌊', '✋'],
-            ['🌊✋', '✋', '🌊✋'],
-            ['🚀🌟💫', '🚀', '🌟💫'],
-            ['🚀🌟💫', '🚀🌟', '💫'],
-            // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            ['こんにちは世界', 'こんにちは', '世界'],
-            ['你好世界', '你好', '世界'],
-            ['مرحبا بك', 'مرحبا ', 'بك'],
-            // Mixed multibyte and ASCII
-            ['🎉Hypervel', '🎉', 'Hypervel'],
-            ['Hello🌍World', 'Hello🌍', 'World'],
-            // Multiple needle array with multibyte
-            ['🌊✋🎉', ['🚀', '🌊'], '✋🎉'],
-            ['こんにちは世界', ['Hello', 'こんにちは'], '世界'],
-        ] as [$subject, $needle, $expected]) {
-            $this->assertSame($expected, Str::chopStart($subject, $needle));
-        }
+        $this->assertSame($expected, Str::chopStart($subject, $needle));
     }
 
-    public function testChopEnd(): void
+    /**
+     * Provide prefixes to remove from strings.
+     */
+    public static function dataProviderChopStart(): Generator
     {
-        foreach ([
-            ['', '', ''],
-            ['Hypervel', '', 'Hypervel'],
-            ['Ship it', ['', ' it'], 'Ship'],
-            ['path/to/file.php', '.php', 'path/to/file'],
-            ['.php-.php', '.php', '.php-'],
-            ['path/to/file.php', '.ph', 'path/to/file.php'],
-            ['path/to/file.php', 'foo.php', 'path/to/file.php'],
-            ['path/to/file.php', '.php-', 'path/to/file.php'],
-            ['path/to/file.php', ['.html', '.php'], 'path/to/file'],
-            ['path/to/file.php', ['.php', 'file'], 'path/to/file'],
-            ['path/to/php.php', '.php', 'path/to/php'],
-            // Multibyte emoji tests
-            ['✋🌊', '🌊', '✋'],
-            ['✋🌊', '✋', '✋🌊'],
-            ['🌟💫🚀', '🚀', '🌟💫'],
-            ['🌟💫🚀', '💫🚀', '🌟'],
-            // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            ['世界こんにちは', 'こんにちは', '世界'],
-            ['世界你好', '你好', '世界'],
-            ['بك مرحبا', ' مرحبا', 'بك'],
-            // Mixed multibyte and ASCII
-            ['Hypervel🎉', '🎉', 'Hypervel'],
-            ['Hello🌍World', 'World', 'Hello🌍'],
-            // Multiple needle array with multibyte
-            ['🎉✋🌊', ['🚀', '🌊'], '🎉✋'],
-            ['世界こんにちは', ['Hello', 'こんにちは'], '世界'],
-        ] as [$subject, $needle, $expected]) {
-            $this->assertSame($expected, Str::chopEnd($subject, $needle));
-        }
+        yield 'empty subject and needle' => ['', '', ''];
+        yield 'empty needle leaves subject' => ['Hypervel', '', 'Hypervel'];
+        yield 'first matching needle from array is removed' => ['Ship it', ['', 'Ship '], 'it'];
+        yield 'standard http prefix removed' => ['http://hypervel.org', 'http://', 'hypervel.org'];
+        yield 'prefix only removed once at start' => ['http://-http://', 'http://', '-http://'];
+        yield 'non-matching partial prefix is ignored' => ['http://hypervel.org', 'htp:/', 'http://hypervel.org'];
+        yield 'different non-matching prefix is ignored' => ['http://hypervel.org', 'http://www.', 'http://hypervel.org'];
+        yield 'prefix not at start is ignored' => ['http://hypervel.org', '-http://', 'http://hypervel.org'];
+        yield 'matching prefix selected from array' => ['http://hypervel.org', ['https://', 'http://'], 'hypervel.org'];
+        yield 'first matching prefix in ordered array used' => ['http://www.hypervel.org', ['http://', 'www.'], 'www.hypervel.org'];
+        yield 'http removed from complex host' => ['http://http-is-fun.test', 'http://', 'http-is-fun.test'];
+        yield 'emoji prefix removed' => ['🌊✋', '🌊', '✋'];
+        yield 'emoji needle without prefix match is ignored' => ['🌊✋', '✋', '🌊✋'];
+        yield 'first emoji removed from emoji sequence' => ['🚀🌟💫', '🚀', '🌟💫'];
+        yield 'multibyte emoji sequence prefix removed' => ['🚀🌟💫', '🚀🌟', '💫'];
+        yield 'japanese prefix removed' => ['こんにちは世界', 'こんにちは', '世界'];
+        yield 'chinese prefix removed' => ['你好世界', '你好', '世界'];
+        yield 'arabic prefix removed' => ['مرحبا بك', 'مرحبا ', 'بك'];
+        yield 'mixed emoji and ascii prefix removed' => ['🎉Hypervel', '🎉', 'Hypervel'];
+        yield 'mixed ascii and emoji prefix removed' => ['Hello🌍World', 'Hello🌍', 'World'];
+        yield 'multibyte prefix selected from array' => ['🌊✋🎉', ['🚀', '🌊'], '✋🎉'];
+        yield 'multibyte prefix selected from mixed array' => ['こんにちは世界', ['Hello', 'こんにちは'], '世界'];
+    }
+
+    #[DataProvider('dataProviderChopEnd')]
+    public function testChopEnd(string $subject, string|array $needle, string $expected): void
+    {
+        $this->assertSame($expected, Str::chopEnd($subject, $needle));
+    }
+
+    /**
+     * Provide suffixes to remove from strings.
+     */
+    public static function dataProviderChopEnd(): Generator
+    {
+        yield 'empty string with empty needle' => ['', '', ''];
+        yield 'empty needle leaves subject unchanged' => ['Hypervel', '', 'Hypervel'];
+        yield 'matching needle selected from array' => ['Ship it', ['', ' it'], 'Ship'];
+        yield 'file extension removed' => ['path/to/file.php', '.php', 'path/to/file'];
+        yield 'suffix removed from repeated extension segment' => ['.php-.php', '.php', '.php-'];
+        yield 'partial non-matching suffix is ignored' => ['path/to/file.php', '.ph', 'path/to/file.php'];
+        yield 'different non-matching suffix is ignored' => ['path/to/file.php', 'foo.php', 'path/to/file.php'];
+        yield 'near-matching suffix is ignored' => ['path/to/file.php', '.php-', 'path/to/file.php'];
+        yield 'matching suffix selected from array' => ['path/to/file.php', ['.html', '.php'], 'path/to/file'];
+        yield 'first matching suffix in ordered array used' => ['path/to/file.php', ['.php', 'file'], 'path/to/file'];
+        yield 'suffix removed from complex path' => ['path/to/php.php', '.php', 'path/to/php'];
+        yield 'emoji suffix removed' => ['✋🌊', '🌊', '✋'];
+        yield 'emoji needle without suffix match is ignored' => ['✋🌊', '✋', '✋🌊'];
+        yield 'last emoji removed from emoji sequence' => ['🌟💫🚀', '🚀', '🌟💫'];
+        yield 'multibyte emoji sequence suffix removed' => ['🌟💫🚀', '💫🚀', '🌟'];
+        yield 'japanese suffix removed' => ['世界こんにちは', 'こんにちは', '世界'];
+        yield 'chinese suffix removed' => ['世界你好', '你好', '世界'];
+        yield 'arabic suffix removed' => ['بك مرحبا', ' مرحبا', 'بك'];
+        yield 'mixed ascii and emoji suffix removed' => ['Hypervel🎉', '🎉', 'Hypervel'];
+        yield 'mixed emoji and ascii suffix removed' => ['Hello🌍World', 'World', 'Hello🌍'];
+        yield 'multibyte suffix selected from array' => ['🎉✋🌊', ['🚀', '🌊'], '🎉✋'];
+        yield 'multibyte suffix selected from mixed array' => ['世界こんにちは', ['Hello', 'こんにちは'], '世界'];
     }
 
     public function testReplaceMatches(): void

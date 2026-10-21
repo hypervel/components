@@ -46,7 +46,8 @@ class DatabaseChannel
     {
         if (method_exists($notification, 'toDatabase')) {
             return is_array($data = $notification->toDatabase($notifiable))
-                ? $data : $data->data;
+                ? $data
+                : $data->data;
         }
 
         if (method_exists($notification, 'toArray')) {

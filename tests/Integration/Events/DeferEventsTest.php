@@ -10,7 +10,7 @@ use Hypervel\Testbench\TestCase;
 
 class DeferEventsTest extends TestCase
 {
-    public function testDeferEvents()
+    public function testDeferEvents(): void
     {
         unset($_SERVER['__event.test']);
 
@@ -26,11 +26,11 @@ class DeferEventsTest extends TestCase
             return 'callback_result';
         });
 
-        $this->assertEquals('callback_result', $response);
+        $this->assertSame('callback_result', $response);
         $this->assertSame('bar', $_SERVER['__event.test']);
     }
 
-    public function testDeferModelEvents()
+    public function testDeferModelEvents(): void
     {
         $_SERVER['__model_event.test'] = [];
 
@@ -47,11 +47,11 @@ class DeferEventsTest extends TestCase
             return 'model_event_response';
         });
 
-        $this->assertEquals('model_event_response', $response);
+        $this->assertSame('model_event_response', $response);
         $this->assertContains('saved', $_SERVER['__model_event.test']);
     }
 
-    public function testDeferMultipleModelEvents()
+    public function testDeferMultipleModelEvents(): void
     {
         $_SERVER['__model_events'] = [];
 
@@ -76,11 +76,11 @@ class DeferEventsTest extends TestCase
             return 'multiple_models_response';
         });
 
-        $this->assertEquals('multiple_models_response', $response);
+        $this->assertSame('multiple_models_response', $response);
         $this->assertSame(['saved:TestModel', 'created:AnotherTestModel'], $_SERVER['__model_events']);
     }
 
-    public function testDeferSpecificModelEvents()
+    public function testDeferSpecificModelEvents(): void
     {
         $_SERVER['__model_events'] = [];
 
@@ -102,7 +102,7 @@ class DeferEventsTest extends TestCase
             return 'specific_model_defer_result';
         }, ['eloquent.saved: ' . TestModel::class]);
 
-        $this->assertEquals('specific_model_defer_result', $response);
+        $this->assertSame('specific_model_defer_result', $response);
         $this->assertSame(['creating', 'saved'], $_SERVER['__model_events']);
     }
 }

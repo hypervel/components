@@ -1,8 +1,8 @@
 {
     "name": "hypervel/conditionable",
-    "type": "library",
     "description": "The Hypervel Conditionable package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "conditionable",
@@ -22,13 +22,13 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
+    "require": {
+        "php": "^8.4"
+    },
     "autoload": {
         "psr-4": {
             "Hypervel\\Support\\": "src/"
         }
-    },
-    "require": {
-        "php": "^8.4"
     },
     "config": {
         "sort-packages": true

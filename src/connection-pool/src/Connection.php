@@ -21,18 +21,12 @@ abstract class Connection implements ConnectionContract
 
     protected bool $invalid = false;
 
-    private ?Dispatcher $dispatcher = null;
-
     private ?StdoutLoggerInterface $logger = null;
 
     public function __construct(
         protected Container $container,
         protected ConnectionPoolContract $pool
     ) {
-        if ($this->container->bound('events')) {
-            $this->dispatcher = $this->container->make('events');
-        }
-
         if ($this->container->has(StdoutLoggerInterface::class)) {
             $this->logger = $this->container->make(StdoutLoggerInterface::class);
         }
@@ -82,9 +76,15 @@ abstract class Connection implements ConnectionContract
             $events = $this->pool->getOptions()->events;
 
             if (in_array(ConnectionReleasing::class, $events, true)
-                && $this->dispatcher?->hasListeners(ConnectionReleasing::class)
+                && $this->container->bound('events')
             ) {
-                $this->dispatcher->dispatch(new ConnectionReleasing($this));
+                // Event::fake() can replace the dispatcher after this connection was created.
+                /** @var Dispatcher $dispatcher */
+                $dispatcher = $this->container->make('events');
+
+                if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
+                    $dispatcher->dispatch(new ConnectionReleasing($this));
+                }
             }
         } catch (CanceledException $exception) {
             throw $exception;

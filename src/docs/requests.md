@@ -21,6 +21,7 @@
     - [Storing Uploaded Files](#storing-uploaded-files)
 - [Configuring Trusted Proxies](#configuring-trusted-proxies)
 - [Configuring Trusted Hosts](#configuring-trusted-hosts)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -330,6 +331,8 @@ You may retrieve all of the incoming request's input data as an `array` using th
 $input = $request->all();
 ```
 
+Pass a key or an array of keys to `all` to select specific fields. Passing an empty array returns an empty array; omit the argument or pass `null` to retrieve all input.
+
 Using the `collect` method, you may retrieve all of the incoming request's input data as a [collection](/docs/{{version}}/collections):
 
 ```php
@@ -415,16 +418,25 @@ $name = $request->string('name')->trim();
 <a name="retrieving-integer-input-values"></a>
 #### Retrieving Integer Input Values
 
-To retrieve input values as integers, you may use the `integer` method. This method casts the input value to an integer. If the input is not present, it will return the default value you specify. This is particularly useful for pagination or other numeric inputs:
+To retrieve input values as integers, you may use the `integer` method. This method will attempt to cast the input value to an integer. If the input is not present, it will return the default value you specify, or `0` if you don't specify one. This is particularly useful for pagination or other numeric inputs:
 
 ```php
 $perPage = $request->integer('per_page');
 ```
 
+<a name="retrieving-float-input-values"></a>
+#### Retrieving Float Input Values
+
+Similarly, the `float` method retrieves an input value as a float. If the input is not present, it will return the default value you specify, or `0.0` if you don't specify one:
+
+```php
+$price = $request->float('price');
+```
+
 <a name="retrieving-clamped-input-values"></a>
 #### Retrieving Clamped Input Values
 
-To retrieve a numeric input value constrained between a minimum and maximum value, you may use the `clamp` method. If the input is not present, the default value you specify will be clamped instead:
+To retrieve a numeric input value constrained between a minimum and maximum value, you may use the `clamp` method. If the input is not present or is not numeric, the default value you specify will be clamped instead:
 
 ```php
 $perPage = $request->clamp('per_page', min: 1, max: 100, default: 15);
@@ -470,6 +482,8 @@ You may also pass an array of keys to build the instance from only those input v
 ```php
 $user = $request->fluent(['name', 'role']);
 ```
+
+Fluent instances also provide the input retrieval methods described on this page, such as `integer`, `boolean`, `date`, and `enum`.
 
 <a name="retrieving-date-input-values"></a>
 #### Retrieving Date Input Values
@@ -765,7 +779,7 @@ Hypervel also provides a global `old` helper. If you are displaying old input wi
 <a name="retrieving-cookies-from-requests"></a>
 #### Retrieving Cookies From Requests
 
-Cookies created by the Hypervel framework on routes that use the `web` middleware group are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Hypervel\Http\Request` instance:
+Cookies created by the Hypervel framework on routes that use the `web` middleware group are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on a `Hypervel\Http\Request` instance:
 
 ```php
 $value = $request->cookie('name');
@@ -834,6 +848,8 @@ $file = $request->file('photo');
 
 $file = $request->photo;
 ```
+
+When a text field and an uploaded file share a name, `all()` and dynamic properties return the text value. Use `file()` to retrieve the upload. This also applies when validating data from `all()`; give upload metadata a different field name or explicitly validate the value returned by `file()`.
 
 You may determine if a file is present on the request using the `hasFile` method:
 
@@ -1017,3 +1033,8 @@ The resolver runs during trusted host resolution for each request. In production
 Do not build trusted host patterns directly from the incoming `Host` header unless that host has first been verified against trusted application data.
 
 When `TrustHosts` is enabled, Hypervel rejects requests if no trusted host patterns can be resolved. Configure a valid application URL, `at` list, or resolver so legitimate hosts are trusted.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel HTTP began as a port of [Laravel HTTP](https://github.com/illuminate/http) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -28,7 +28,7 @@ class DatabaseMonitorCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [database.default] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [database.default] must be a string, NULL given.');
 
         $command->run(new ArrayInput([]), new NullOutput);
     }

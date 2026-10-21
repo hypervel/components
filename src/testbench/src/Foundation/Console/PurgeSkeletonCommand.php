@@ -23,20 +23,18 @@ class PurgeSkeletonCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected ?string $signature = 'package:purge-skeleton';
+    protected ?string $signature = 'package:purge-skeleton
+                                {--pretend : Outputs the operations but will not execute anything}';
 
     /**
      * Execute the console command.
      */
     public function handle(Filesystem $filesystem, ConfigContract $config): int
     {
-        $failed = false;
+        /** @var bool $pretending */
+        $pretending = $this->option('pretend');
 
-        foreach (['config:clear', 'event:clear', 'route:clear', 'view:clear'] as $command) {
-            if ($this->call($command) !== self::SUCCESS) {
-                $failed = true;
-            }
-        }
+        $failed = false;
 
         $run = function (callable $action) use (&$failed): void {
             try {
@@ -47,7 +45,20 @@ class PurgeSkeletonCommand extends Command
             }
         };
 
-        $run(static fn () => (new RemoveAssetSymlinkFolders($filesystem, $config))->handle());
+        $runCommand = new Actions\RunCommand(
+            console: $this,
+            components: $this->components,
+            pretending: $pretending,
+        );
+
+        foreach (['config:clear', 'event:clear', 'route:clear', 'view:clear'] as $command) {
+            $run(static fn () => $runCommand->handle($command));
+        }
+
+        // The symlink removals report nothing, so a dry run skips them rather than describing them.
+        if (! $pretending) {
+            $run(static fn () => (new RemoveAssetSymlinkFolders($filesystem, $config))->handle());
+        }
 
         ['files' => $files, 'directories' => $directories] = $config->getPurgeAttributes();
 
@@ -55,6 +66,7 @@ class PurgeSkeletonCommand extends Command
 
         $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
+            pretending: $pretending,
         ))->handle(
             (new Collection([
                 $environmentFile,
@@ -66,6 +78,7 @@ class PurgeSkeletonCommand extends Command
 
         $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
+            pretending: $pretending,
         ))->handle(
             (new LazyCollection(function () use ($filesystem) {
                 yield $this->hypervel->databasePath('database.sqlite');
@@ -79,6 +92,7 @@ class PurgeSkeletonCommand extends Command
         $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
             components: $this->components,
+            pretending: $pretending,
         ))->handle(
             (new LazyCollection($files))
                 ->map(fn (string $file) => $this->hypervel->basePath($file))
@@ -90,6 +104,7 @@ class PurgeSkeletonCommand extends Command
         $run(fn () => (new Actions\DeleteDirectories(
             filesystem: $filesystem,
             components: $this->components,
+            pretending: $pretending,
         ))->handle(
             (new Collection($directories))
                 ->map(fn (string $directory) => $this->hypervel->basePath($directory))
@@ -98,9 +113,11 @@ class PurgeSkeletonCommand extends Command
                 ->reject(static fn (string $directory) => str_contains($directory, '*'))
         ));
 
-        TerminatingConsole::before(function (): void {
-            (new DeleteVendorSymlink)->handle($this->hypervel);
-        });
+        if (! $pretending) {
+            TerminatingConsole::before(function (): void {
+                (new DeleteVendorSymlink)->handle($this->hypervel);
+            });
+        }
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }

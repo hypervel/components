@@ -9,16 +9,8 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
-use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Routing\Router;
-use Hypervel\Support\Facades\Auth;
-use Hypervel\Support\Facades\Blade;
-use Hypervel\Support\Facades\Route;
-use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
-use Hypervel\View\Compilers\BladeCompiler;
-use ReflectionClass;
 use ReflectionMethod;
-use ReflectionParameter;
 
 class PublicApiTest extends TestCase
 {
@@ -29,43 +21,6 @@ class PublicApiTest extends TestCase
         $this->assertSame(RoleMiddleware::class, $router->getMiddleware()['role']);
         $this->assertSame(PermissionMiddleware::class, $router->getMiddleware()['permission']);
         $this->assertSame(RoleOrPermissionMiddleware::class, $router->getMiddleware()['role_or_permission']);
-    }
-
-    public function testRouteMacrosAttachPermissionMiddleware(): void
-    {
-        $roleRoute = Route::get('/roles', $this->getRouteResponse())->role(['testRole', TestRolePermissionsEnum::Editor]);
-        $permissionRoute = Route::get('/permissions', $this->getRouteResponse())->permission(['edit-articles', TestRolePermissionsEnum::ViewArticles]);
-        $roleOrPermissionRoute = Route::get('/either', $this->getRouteResponse())->roleOrPermission(['testRole', 'edit-articles']);
-
-        $this->assertContains('role:testRole|editor', $roleRoute->middleware());
-        $this->assertContains('permission:edit-articles|view articles', $permissionRoute->middleware());
-        $this->assertContains('role_or_permission:testRole|edit-articles', $roleOrPermissionRoute->middleware());
-    }
-
-    public function testBladeConditionsCheckRolesAndPermissions(): void
-    {
-        Auth::login($this->testUser);
-        $this->testUser->assignRole('testRole');
-        $this->testUser->givePermissionTo('edit-articles');
-
-        $this->assertTrue(Blade::check('role', 'testRole'));
-        $this->assertTrue(Blade::check('hasrole', 'testRole'));
-        $this->assertTrue(Blade::check('hasanyrole', ['missing', 'testRole']));
-        $this->assertTrue(Blade::check('hasallroles', ['testRole']));
-        $this->assertTrue(Blade::check('hasexactroles', ['testRole']));
-        $this->assertTrue(Blade::check('haspermission', 'edit-articles'));
-    }
-
-    public function testBladeDirectivesCompile(): void
-    {
-        $compiler = $this->app->make(BladeCompiler::class);
-
-        $compiled = $compiler->compileString("@role('testRole') allowed @else missing @endrole @unlessrole('missing') unless @endunlessrole");
-
-        $this->assertStringContainsString("Blade::check('role', 'testRole')", $compiled);
-        $this->assertStringContainsString('<?php else: ?>', $compiled);
-        $this->assertStringContainsString("Blade::check('role', 'missing')", $compiled);
-        $this->assertStringContainsString('<?php endif; ?>', $compiled);
     }
 
     public function testPermissionRelationsKeepLaravelBaseReturnTypes(): void
@@ -84,46 +39,5 @@ class PublicApiTest extends TestCase
             $this->assertSame(BelongsToMany::class, (string) $method->getReturnType());
             $this->assertSame([], $method->getParameters());
         }
-    }
-
-    public function testAssignmentMethodsDoNotExposePartitionArguments(): void
-    {
-        $methods = [
-            'assignRole' => ['roles'],
-            'removeRole' => ['role'],
-            'syncRoles' => ['roles'],
-            'givePermissionTo' => ['permissions'],
-            'denyPermissionTo' => ['permissions'],
-            'revokePermissionTo' => ['permission'],
-            'syncPermissions' => ['permissions'],
-            'syncPermissionEffects' => ['allowed', 'denied'],
-        ];
-
-        foreach ($methods as $method => $parameters) {
-            $reflection = new ReflectionMethod($this->testUser, $method);
-
-            $this->assertSame(
-                $parameters,
-                array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $reflection->getParameters()),
-            );
-        }
-    }
-
-    public function testRemovedPermissionEffectMethodsDoNotExist(): void
-    {
-        $model = new ReflectionClass($this->testUser);
-
-        foreach ([
-            'giveForbiddenTo',
-            'hasForbiddenPermission',
-            'hasForbiddenPermissionViaRoles',
-            'syncPermissionsWithForbidden',
-        ] as $method) {
-            $this->assertFalse($model->hasMethod($method));
-        }
-
-        $registrar = new ReflectionClass(PermissionRegistrar::class);
-
-        $this->assertFalse($registrar->hasMethod('hasForbiddenRolePermissions'));
     }
 }

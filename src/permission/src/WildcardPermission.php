@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission;
 
-use Closure;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Wildcard;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotProperlyFormatted;
-use Hypervel\Support\Str;
+use Hypervel\Support\Collection;
 
 class WildcardPermission implements Wildcard
 {
@@ -32,11 +31,31 @@ class WildcardPermission implements Wildcard
      */
     public function getIndex(): array
     {
+        // @phpstan-ignore method.notFound (the record uses HasPermissions)
+        return $this->indexPermissions($this->record->getAllPermissions());
+    }
+
+    /**
+     * Get the wildcard index of the record's denied permissions.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function getDeniedIndex(): array
+    {
+        // @phpstan-ignore method.notFound (the record uses HasPermissions)
+        return $this->indexPermissions($this->record->getDeniedPermissions());
+    }
+
+    /**
+     * Build a wildcard index of the given permissions, keyed by guard.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function indexPermissions(Collection $permissions): array
+    {
         $index = [];
 
-        $getAllPermissions = Closure::fromCallable([$this->record, 'getAllPermissions']);
-
-        foreach ($getAllPermissions() as $permission) {
+        foreach ($permissions as $permission) {
             $index[$permission->guard_name] = $this->buildIndex(
                 $index[$permission->guard_name] ?? [],
                 explode(static::PART_DELIMITER, $permission->name),
@@ -64,18 +83,8 @@ class WildcardPermission implements Wildcard
 
         $part = array_shift($parts);
 
-        if (blank($part)) {
-            throw WildcardPermissionNotProperlyFormatted::create($permission);
-        }
-
-        if (! Str::contains($part, static::SUBPART_DELIMITER)) {
-            $index[$part] = $this->buildIndex(
-                $index[$part] ?? [],
-                $parts,
-                $permission,
-            );
-        }
-
+        // A segment without subparts explodes to itself, so this loop also builds plain segments. Upstream's separate
+        // branch for them builds the rest of the name a second time, doubling the work with each segment.
         $subParts = explode(static::SUBPART_DELIMITER, $part);
 
         foreach ($subParts as $subPart) {

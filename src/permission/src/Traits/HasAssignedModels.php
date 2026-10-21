@@ -246,7 +246,7 @@ trait HasAssignedModels
     }
 
     /**
-     * Forget exact assignment caches affected by a reverse assignment operation.
+     * Forget the exact role caches affected by a reverse assignment operation.
      *
      * @param class-string<Model> $modelClass
      * @param list<int|string> $ids
@@ -260,7 +260,7 @@ trait HasAssignedModels
         $morphType = (new $modelClass)->getMorphClass();
 
         foreach ($ids as $id) {
-            $registrar->invalidateModelAssignmentCacheForIdentityAfterMutation(
+            $registrar->invalidateModelRoleCacheForIdentityAfterMutation(
                 $morphType,
                 $id,
                 $context->partition,

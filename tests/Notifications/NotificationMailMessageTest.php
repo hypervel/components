@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Mail\Attachment;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Support\Collection;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 
@@ -107,6 +108,11 @@ class NotificationMailMessageTest extends TestCase
 
         $message = new MailMessage;
         $message->cc(['test@example.com', 'Test' => 'test@example.com']);
+
+        $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->cc);
+
+        $message = new MailMessage;
+        $message->cc(new Collection(['test@example.com', 'Test' => 'test@example.com']));
 
         $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->cc);
 
@@ -329,6 +335,23 @@ class NotificationMailMessageTest extends TestCase
     }
 
     public function testItAttachesFilesFromStorage(): void
+    {
+        $this->bootstrapFilesystem();
+
+        $this->assertNotFalse(file_put_contents(
+            $this->filesystemRoot . '/invoices/1.pdf',
+            'pdf content'
+        ));
+
+        $message = new MailMessage;
+        $message->attachFromStorage('invoices/1.pdf', 'invoice.pdf');
+
+        $this->assertCount(1, $message->rawAttachments);
+        $this->assertSame('invoice.pdf', $message->rawAttachments[0]['name']);
+        $this->assertSame('pdf content', $message->rawAttachments[0]['data']);
+    }
+
+    public function testItAttachesFilesFromStorageUsingTheirFileName(): void
     {
         $this->bootstrapFilesystem();
 

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Engine;
 use GuzzleHttp;
 use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\Client;
+use Swoole\Exception as SwooleException;
 use Throwable;
 
 /**
@@ -16,7 +17,7 @@ use Throwable;
  */
 class ClientTest extends EngineIntegrationTestCase
 {
-    public function testClientRequest()
+    public function testClientRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
@@ -25,7 +26,7 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionRefused()
+    public function testClientSocketConnectionRefused(): void
     {
         try {
             // Use a port that definitely has no server running
@@ -39,7 +40,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
     }
 
-    public function testClientJsonRequest()
+    public function testClientJsonRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request(
@@ -53,7 +54,7 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionTimeout()
+    public function testClientSocketConnectionTimeout(): void
     {
         try {
             $client = new Client($this->getServerHost(), $this->getServerPort());
@@ -67,7 +68,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
     }
 
-    public function testClientCookies()
+    public function testClientCookies(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/cookies');
@@ -79,7 +80,7 @@ class ClientTest extends EngineIntegrationTestCase
         ], $response->headers['set-cookie']);
     }
 
-    public function testGuzzleClientWithCookies()
+    public function testGuzzleClientWithCookies(): void
     {
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
@@ -94,44 +95,51 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hypervel', $cookies->toArray()[1]['Value']);
     }
 
-    public function testServerHeaders()
+    public function testServerHeaders(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame($response->body, $response->headers['x-id'][1]);
-        } else {
-            // Co Client won't support getting multi response headers.
-            $this->assertSame($response->body, implode(',', $response->headers['x-id']));
-        }
+        $this->assertSame($response->body, $response->headers['x-id'][1]);
 
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
         ]);
 
         $response = $client->get('/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        } else {
-            // Co Client Won't support to get multi response headers.
-            $this->assertSame((string) $response->getBody(), $response->getHeaderLine('x-id'));
-        }
-
-        // When Swoole version > 4.5, The native curl support to get multi response headers.
-        if (SWOOLE_VERSION_ID >= 40600) {
-            $client = new GuzzleHttp\Client([
-                'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
-            ]);
-            $response = $client->get('/header');
-            $this->assertSame(2, count($response->getHeader('x-id')));
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        }
+        $this->assertCount(2, $response->getHeader('x-id'));
+        $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
     }
 
-    public function testClientNotFound()
+    public function testClientNotFound(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/not_found');
         $this->assertSame(404, $response->statusCode);
+    }
+
+    public function testClientRejectsInvalidDeferredSocketSettings(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires rejected deferred client settings from https://github.com/swoole/swoole-src/commit/ebd71cb20f131da956249d0293f4c3008b197d30.');
+        }
+
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+
+        try {
+            $this->assertTrue($client->set([
+                'socks5_host' => '127.0.0.1',
+                'timeout' => 0.2,
+            ]));
+
+            try {
+                $client->request('GET', '/');
+                $this->fail('Invalid deferred socket settings must stop the request.');
+            } catch (SwooleException $exception) {
+                $this->assertSame(SWOOLE_ERROR_INVALID_PARAMS, $exception->getCode());
+                $this->assertStringContainsString('socks5_port should not be null', $exception->getMessage());
+            }
+        } finally {
+            $client->close();
+        }
     }
 }

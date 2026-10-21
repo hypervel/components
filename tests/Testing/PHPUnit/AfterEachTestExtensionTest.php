@@ -73,6 +73,21 @@ class AfterEachTestExtensionTest extends TestCase
         $this->assertSame(['cleaned'], file($marker, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
     }
 
+    public function testOutsideGuzzleCallbacksAreDiscardedBetweenTestsAndAtShutdown(): void
+    {
+        $process = $this->runFixture('GuzzleCleanupFixture.php', []);
+
+        $this->assertTrue($process->isSuccessful(), $process->getOutput() . $process->getErrorOutput());
+        $this->assertStringNotContainsString('abandoned-callback-ran', $process->getOutput());
+    }
+
+    public function testSerialCleanupDoesNotLoadTheParallelRunner(): void
+    {
+        $process = $this->runFixture('SerialCleanupFixture.php', []);
+
+        $this->assertTrue($process->isSuccessful(), $process->getOutput() . $process->getErrorOutput());
+    }
+
     /**
      * Run a PHPUnit fixture in a separate process with the real extension.
      *

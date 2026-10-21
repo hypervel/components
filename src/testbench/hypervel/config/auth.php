@@ -6,7 +6,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => Hypervel\Foundation\Auth\User::class,
+            'model' => env('AUTH_MODEL', Hypervel\Foundation\Auth\User::class),
         ],
     ],
 ];

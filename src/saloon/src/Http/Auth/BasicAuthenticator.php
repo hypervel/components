@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class BasicAuthenticator implements Authenticator
+class BasicAuthenticator implements Authenticator
 {
     /**
      * Create a basic authenticator.
      */
     public function __construct(
-        public string $username,
+        public readonly string $username,
         #[SensitiveParameter]
-        public string $password,
+        public readonly string $password,
     ) {
     }
 
@@ -25,6 +25,6 @@ readonly class BasicAuthenticator implements Authenticator
      */
     public function set(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->setTransportAuthentication([$this->username, $this->password]);
+        $pendingRequest->replaceHeaders(['Authorization' => 'Basic ' . base64_encode($this->username . ':' . $this->password)]);
     }
 }

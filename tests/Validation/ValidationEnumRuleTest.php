@@ -8,13 +8,14 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
+use Hypervel\Tests\Validation\Fixtures\PureEnum;
+use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
-
-include_once 'Enums.php';
 
 class ValidationEnumRuleTest extends TestCase
 {

@@ -4,48 +4,51 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Contracts\Auth\Authenticatable;
-use Mockery as m;
+use Hypervel\Auth\Notifications\VerifyEmail;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Notification;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Workbench\App\Models\User;
+use Workbench\Database\Factories\UserFactory;
 
+#[WithMigration]
 class EmailVerificationNotificationControllerTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function testEmailVerificationNotificationCanBeSent(): void
     {
-        $user = m::mock(Authenticatable::class);
+        Notification::fake();
 
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('sendEmailVerificationNotification')->once();
+        $user = User::forceCreate(UserFactory::new()->unverified()->raw());
 
         $response = $this->from('/email/verify')
             ->actingAs($user)
             ->post('/email/verification-notification');
 
         $response->assertRedirect('/email/verify');
+        Notification::assertSentTo($user, VerifyEmail::class);
     }
 
     public function testUserIsRedirectIfAlreadyVerified(): void
     {
-        $user = m::mock(Authenticatable::class);
+        Notification::fake();
 
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('sendEmailVerificationNotification')->never();
+        $user = User::forceCreate(UserFactory::new()->raw());
 
         $response = $this->from('/email/verify')
             ->actingAs($user)
             ->post('/email/verification-notification');
 
         $response->assertRedirect('/home');
+        Notification::assertNothingSent();
     }
 
     public function testUserIsRedirectToIntendedUrlIfAlreadyVerified(): void
     {
-        $user = m::mock(Authenticatable::class);
+        Notification::fake();
 
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('sendEmailVerificationNotification')->never();
+        $user = User::forceCreate(UserFactory::new()->raw());
 
         $response = $this->from('/email/verify')
             ->actingAs($user)
@@ -53,5 +56,6 @@ class EmailVerificationNotificationControllerTest extends TestCase
             ->post('/email/verification-notification');
 
         $response->assertRedirect('http://foo.com/bar');
+        Notification::assertNothingSent();
     }
 }

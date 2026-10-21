@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
@@ -78,6 +79,9 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         $this->app->scoped(RedirectsIfTwoFactorAuthenticatableContract::class, RedirectIfTwoFactorAuthenticatable::class);
+
+        // bind() so each resolution returns the guard selected for the current request.
+        $this->app->bind(StatefulGuard::class, static fn (): StatefulGuard => Fortify::guard());
     }
 
     /**
@@ -114,19 +118,19 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Passkeys::ignoreRoutes();
 
-        $config = $this->app->make(Config::class);
+        $this->configureUsing(static function (Config $config): void {
+            /** @var null|string $appUrl */
+            $appUrl = $config->get('app.url');
+            $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+            $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
-        /** @var null|string $appUrl */
-        $appUrl = $config->get('app.url');
-        $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
-        $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
-
-        $config->set([
-            'passkeys.relying_party_id' => $config->get('fortify.passkeys.relying_party_id', $defaultRelyingPartyId),
-            'passkeys.allowed_origins' => $config->get('fortify.passkeys.allowed_origins', $defaultAllowedOrigins),
-            'passkeys.user_handle_secret' => $config->get('fortify.passkeys.user_handle_secret', $config->get('app.key')),
-            'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', Passkeys::DEFAULT_TIMEOUT),
-        ]);
+            $config->set([
+                'passkeys.relying_party_id' => $config->get('fortify.passkeys.relying_party_id', $defaultRelyingPartyId),
+                'passkeys.allowed_origins' => $config->get('fortify.passkeys.allowed_origins', $defaultAllowedOrigins),
+                'passkeys.user_handle_secret' => $config->get('fortify.passkeys.user_handle_secret', $config->get('app.key')),
+                'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', Passkeys::DEFAULT_TIMEOUT),
+            ]);
+        });
 
         Passkeys::redirectUsing(
             static fn (Request $request): string => Fortify::redirects('login', request: $request),

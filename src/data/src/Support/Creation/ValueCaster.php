@@ -29,10 +29,10 @@ class ValueCaster
     {
         return match ($type) {
             'bool' => self::castBoolean($value),
-            'int' => (int) $value,
-            'float' => (float) $value,
+            'int' => NativeScalar::int($value),
+            'float' => NativeScalar::float($value),
             'array' => (array) $value,
-            'string' => (string) $value,
+            'string' => NativeScalar::string($value),
         };
     }
 
@@ -124,14 +124,10 @@ class ValueCaster
      */
     protected static function castBoolean(mixed $value): bool
     {
-        if (! is_string($value)) {
-            return (bool) $value;
-        }
-
-        return match (strtolower($value)) {
+        return match (is_string($value) ? strtolower($value) : null) {
             'true' => true,
             'false' => false,
-            default => (bool) $value,
+            default => NativeScalar::bool($value),
         };
     }
 

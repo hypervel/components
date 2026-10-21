@@ -11,7 +11,6 @@ import mixedForm, {
 import namedReverse from "./.generated/routes/named-reverse";
 import nested from "./.generated/routes/nested";
 import numericKey from "./.generated/routes/numeric-key";
-import reports from "./.generated/routes/reports";
 import reverseFormShadow from "./.generated/routes/reverse-form-shadow";
 import reverseMixedForm, {
     showForm as reverseMixedShowForm,
@@ -46,7 +45,6 @@ test("preserves named route leaves and child namespaces in either registration o
     );
     expect(nested["foo-bar"].index.url()).toBe("/nested/foo-bar");
     expect(nested.fooBar.index.url()).toBe("/nested/foo-bar-camel");
-    expect(reports.index.daily.url()).toBe("/reports/index/daily");
 });
 
 test("keeps public keys independent of internal declaration names", () => {
@@ -84,8 +82,8 @@ test("uses explicit namespace imports without no-op object assignment", () => {
         `${generated}/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/index.ts`,
         "utf8",
     );
-    const reportRoutes = readFileSync(
-        `${generated}/routes/reports/index.ts`,
+    const albumRoutes = readFileSync(
+        `${generated}/routes/albums/index.ts`,
         "utf8",
     );
     const apiRoutes = readFileSync(
@@ -102,7 +100,7 @@ test("uses explicit namespace imports without no-op object assignment", () => {
     expect(controllers).not.toContain(
         "Object.assign(DomainController, DomainController)",
     );
-    expect(reportRoutes).toContain('from "./index/index"');
+    expect(albumRoutes).toContain('from "./index/index"');
     expect(apiRoutes).toContain("    taskStatus,");
     expect(apiRoutes).not.toContain("'task-status': taskStatus");
 });

@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Override;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\MySqlGrammar $grammar
+ * @property MySqlGrammar $grammar
  */
 class MySqlBuilder extends Builder
 {
@@ -59,6 +60,8 @@ class MySqlBuilder extends Builder
 
     /**
      * Get the names of current schemas for the connection.
+     *
+     * @return string[]
      */
     #[Override]
     public function getCurrentSchemaListing(): array

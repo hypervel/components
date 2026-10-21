@@ -52,7 +52,7 @@ class ProviderMakeCommandTest extends TestCase
         );
     }
 
-    public function testItCanGenerateServiceProviderFile()
+    public function testItCanGenerateServiceProviderFile(): void
     {
         $this->artisan('make:provider', ['name' => 'FooServiceProvider'])
             ->assertExitCode(0);
@@ -65,8 +65,8 @@ class ProviderMakeCommandTest extends TestCase
             'public function boot()',
         ], 'app/Providers/FooServiceProvider.php');
 
-        $this->assertEquals(require $this->app->getBootstrapProvidersPath(), [
+        $this->assertEquals([
             'App\Providers\FooServiceProvider',
-        ]);
+        ], require $this->app->getBootstrapProvidersPath());
     }
 }

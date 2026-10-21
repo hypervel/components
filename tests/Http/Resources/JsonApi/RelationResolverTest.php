@@ -63,7 +63,7 @@ class RelationResolverTest extends TestCase
     public function testRejectsMissingStringResourceClass(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(sprintf(
+        $this->expectExceptionMessageIs(sprintf(
             'Resource class [%s] for relationship [author] does not exist.',
             MissingRelationResolverTestResource::class,
         ));

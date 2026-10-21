@@ -82,9 +82,8 @@ return (new Config)
         'phpdoc_to_comment' => [
             'ignored_tags' => ['var'],
         ],
-        'return_assignment' => [
-            'skip_named_var_tags' => true,
-        ],
+        // This rewrite removes assignments captured by reference in nested closures.
+        'return_assignment' => false,
         'php_unit_method_casing' => [
             'case' => 'camel_case',
         ],
@@ -94,7 +93,7 @@ return (new Config)
         'standardize_not_equals' => true,
         'multiline_comment_opening_closing' => true,
         'fully_qualified_strict_types' => false,
-        // Since PHP 8.3, default null values can be declared as nullable.
+        // Explicit nullable declarations avoid PHP 8.4 deprecations.
         'nullable_type_declaration_for_default_null_value' => true,
         'new_with_parentheses' => [
             'named_class' => false,
@@ -110,13 +109,17 @@ return (new Config)
         PhpCsFixer\Finder::create()
             ->exclude('_archive')
             ->exclude('_tmp')
-            ->exclude('dogfood/testbench-package/vendor')
+            ->exclude('node_modules')
             ->exclude('overrides')
+            ->exclude('dogfood/ai/workbench/storage')
             ->exclude('src/testbench/workbench/bootstrap/cache')
             ->exclude('src/testbench/workbench/runtime')
             ->exclude('src/testbench/workbench/storage')
             ->exclude('vendor')
             ->notPath('#^bin/#')
+            // These deliberately omit strict_types so PHP applies its native weak scalar conversion.
+            ->notPath('src/container/src/NativeInvoker.php')
+            ->notPath('src/data/src/Support/Creation/NativeScalar.php')
             ->notPath('tests/Data/Fixtures/PhpDocTypeContext.php')
             ->notPath('tests/Foundation/Fixtures/fake-compiled-view.php')
             ->name('hypervel-test-profile')

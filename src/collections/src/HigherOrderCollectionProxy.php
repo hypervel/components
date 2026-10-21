@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 /**
- * @template TKey of array-key
+ * @template TMethod of string
+ * @template TValue
+ * @template TCollection of Enumerable<array-key, TValue>
  *
- * @template-covariant TValue
- *
- * @mixin \Hypervel\Support\Enumerable<TKey, TValue>
  * @mixin TValue
  */
 class HigherOrderCollectionProxy
@@ -17,7 +16,8 @@ class HigherOrderCollectionProxy
     /**
      * Create a new proxy instance.
      *
-     * @param \Hypervel\Support\Enumerable<TKey, TValue> $collection
+     * @param TCollection $collection
+     * @param TMethod $method
      */
     public function __construct(
         protected Enumerable $collection,

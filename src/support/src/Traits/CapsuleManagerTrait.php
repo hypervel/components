@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Support\Fluent;
 
 trait CapsuleManagerTrait
 {
@@ -27,7 +27,7 @@ trait CapsuleManagerTrait
         $this->container = $container;
 
         if (! $this->container->bound('config')) {
-            $this->container->instance('config', new Fluent);
+            $this->container->instance('config', new Repository);
         }
     }
 

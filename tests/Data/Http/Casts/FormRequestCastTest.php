@@ -55,7 +55,7 @@ class FormRequestCastTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Data object request cast [' . RequestContactData::class . '] does not accept arguments.',
         );
 

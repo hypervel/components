@@ -8,11 +8,14 @@ use ArrayIterator;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\BaseDataCollectable;
 use Hypervel\Data\Data;
+use Hypervel\Data\Enums\DataTypeKind;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
 use Hypervel\Data\Support\Creation\AutoLazyReplayMode;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use stdClass;
 use Traversable;
@@ -211,6 +214,34 @@ class ConstructionStateTest extends TestCase
         );
         $this->assertSame('title', $posts['items']['different.item']['mappings']['title']);
         $this->assertArrayNotHasKey('same.item', $posts['items']);
+    }
+
+    public function testRecordsSparseTypeSelections(): void
+    {
+        $array = new NamedType('array', true, DataTypeKind::Array);
+        $collection = new NamedType(Collection::class, false, DataTypeKind::Enumerable);
+        $state = $this->state();
+        $state->enterProperty('posts', ['posts']);
+
+        foreach ([0 => $array, 1 => $array, 2 => $collection, 3 => null] as $item => $type) {
+            $state->enterItem($item);
+            $state->recordSelectedType('tags', $type);
+
+            $this->assertSame($type, $state->selectedType('tags'));
+
+            $state->leave();
+        }
+
+        $state->leave();
+        $posts = $state->structure()['children']['posts'];
+
+        $this->assertFalse($posts['uniform']);
+        $this->assertSame([2, 3], array_keys($posts['items']));
+
+        $state->recordSelectedType('tags', $array);
+        $state->resetNodeStructure();
+
+        $this->assertNull($state->selectedType('tags'));
     }
 
     /**

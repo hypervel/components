@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Console\Events;
+use DateTimeZone;
+use Hypervel\Console\Events\ScheduledTaskFailed;
+use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Context\CoroutineContext;
@@ -31,21 +33,21 @@ class ScheduleWatcher extends Watcher
 
         $app->make(Dispatcher::class)
             ->listen([
-                Events\ScheduledTaskFinished::class,
-                Events\ScheduledTaskFailed::class,
+                ScheduledTaskFinished::class,
+                ScheduledTaskFailed::class,
             ], [$this, 'recordCommand']);
     }
 
     /**
      * Record a scheduled command that was executed.
      */
-    public function recordCommand(Events\ScheduledTaskFailed|Events\ScheduledTaskFinished $event): void
+    public function recordCommand(ScheduledTaskFailed|ScheduledTaskFinished $event): void
     {
         if (! Telescope::isRecording()) {
             return;
         }
 
-        if ($event instanceof Events\ScheduledTaskFinished) {
+        if ($event instanceof ScheduledTaskFinished) {
             $this->recordFinishedCommand($event);
 
             return;
@@ -57,7 +59,7 @@ class ScheduleWatcher extends Watcher
     /**
      * Record a successfully finished scheduled command.
      */
-    protected function recordFinishedCommand(Events\ScheduledTaskFinished $event): void
+    protected function recordFinishedCommand(ScheduledTaskFinished $event): void
     {
         $task = $event->task;
         $exitCode = $task->exitCode();
@@ -88,7 +90,7 @@ class ScheduleWatcher extends Watcher
     /**
      * Record a failed scheduled command.
      */
-    protected function recordFailedCommand(Events\ScheduledTaskFailed $event): void
+    protected function recordFailedCommand(ScheduledTaskFailed $event): void
     {
         $outcome = [
             'status' => 'failed',
@@ -126,8 +128,7 @@ class ScheduleWatcher extends Watcher
                 : 'Scheduled command',
             'description' => $task->description,
             'expression' => $task->expression,
-            'timezone' => $task->timezone,
-            'user' => $task->user,
+            'timezone' => $task->timezone instanceof DateTimeZone ? $task->timezone->getName() : $task->timezone,
             'output' => $task->getOutput($this->app),
         ], $outcome));
     }

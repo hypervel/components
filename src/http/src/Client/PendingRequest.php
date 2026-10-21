@@ -9,8 +9,10 @@ use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -18,11 +20,22 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
+use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Http\Client\Destinations\CurlCapabilities;
+use Hypervel\Http\Client\Destinations\DestinationPolicy;
+use Hypervel\Http\Client\Destinations\DestinationPolicyException;
+use Hypervel\Http\Client\Destinations\DestinationResolutionException;
+use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
+use Hypervel\Http\Client\Destinations\ProxyConnectionException;
+use Hypervel\Http\Client\Destinations\ResolvedDestination;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
+use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
+use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -41,6 +54,9 @@ use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
+/**
+ * @template TAsync of bool = bool
+ */
 class PendingRequest implements Transient
 {
     use Conditionable;
@@ -50,7 +66,20 @@ class PendingRequest implements Transient
 
     public const string PRIOR_SENDS_OPTION = 'hypervel_prior_sends';
 
+    public const string DESTINATION_POLICY_OPTION = 'hypervel_destination_policy';
+
+    public const string TRACE_OPTION = 'hypervel_trace';
+
+    public const string TRACE_PROPAGATION_OPTION = 'hypervel_trace_propagation';
+
+    public const float DEFAULT_DESTINATION_RESOLUTION_TIMEOUT = 10.0;
+
     protected const string PREPARED_BODY_OPTION = 'hypervel_prepared_body';
+
+    /**
+     * The largest faked body write to a sink, matching cURL's default maximum write size.
+     */
+    protected const int STUB_SINK_CHUNK_SIZE = 16384;
 
     /**
      * The Guzzle client instance.
@@ -133,6 +162,8 @@ class PendingRequest implements Transient
 
     /**
      * The number of milliseconds to wait between retries.
+     *
+     * @var (Closure(int, Throwable): int)|int
      */
     protected Closure|int $retryDelay = 100;
 
@@ -144,7 +175,7 @@ class PendingRequest implements Transient
     /**
      * The callback that will determine if the request should be retried.
      *
-     * @var null|callable
+     * @var null|(callable(null|Throwable, static, null|string): bool)
      */
     protected $retryWhenCallback;
 
@@ -155,6 +186,8 @@ class PendingRequest implements Transient
 
     /**
      * The callbacks that should execute after the response is built.
+     *
+     * @var Collection<int, callable(Response, null|Request): mixed>
      */
     protected Collection $afterResponseCallbacks;
 
@@ -180,6 +213,8 @@ class PendingRequest implements Transient
 
     /**
      * Whether the requests should be asynchronous.
+     *
+     * @var TAsync
      */
     protected bool $async = false;
 
@@ -357,9 +392,9 @@ class PendingRequest implements Transient
      */
     public function bodyFormat(string $format): static
     {
-        return tap($this, function () use ($format) {
-            $this->bodyFormat = $format;
-        });
+        $this->bodyFormat = $format;
+
+        return $this;
     }
 
     /**
@@ -367,11 +402,11 @@ class PendingRequest implements Transient
      */
     public function withQueryParameters(array $parameters): static
     {
-        return tap($this, function () use ($parameters) {
-            $this->options = array_merge_recursive($this->options, [
-                'query' => $parameters,
-            ]);
-        });
+        $this->options = array_merge_recursive($this->options, [
+            'query' => $parameters,
+        ]);
+
+        return $this;
     }
 
     /**
@@ -405,11 +440,11 @@ class PendingRequest implements Transient
      */
     public function withHeaders(array $headers): static
     {
-        return tap($this, function () use ($headers) {
-            $this->options = array_merge_recursive($this->options, [
-                'headers' => $headers,
-            ]);
-        });
+        $this->options = array_merge_recursive($this->options, [
+            'headers' => $headers,
+        ]);
+
+        return $this;
     }
 
     /**
@@ -435,9 +470,9 @@ class PendingRequest implements Transient
      */
     public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
-        return tap($this, function () use ($username, $password) {
-            $this->options['auth'] = [$username, $password];
-        });
+        $this->options['auth'] = [$username, $password];
+
+        return $this;
     }
 
     /**
@@ -445,29 +480,21 @@ class PendingRequest implements Transient
      */
     public function withDigestAuth(string $username, #[SensitiveParameter] string $password): static
     {
-        return tap($this, function () use ($username, $password) {
-            $this->options['auth'] = [$username, $password, 'digest'];
-        });
+        $this->options['auth'] = [$username, $password, 'digest'];
+
+        return $this;
     }
 
-    /**
-     * Specify the NTLM authentication username and password for the request.
-     */
-    public function withNtlmAuth(string $username, #[SensitiveParameter] string $password): static
-    {
-        return tap($this, function () use ($username, $password) {
-            $this->options['auth'] = [$username, $password, 'ntlm'];
-        });
-    }
+    // Laravel's withNtlmAuth() is omitted; built-in NTLM authentication is unsupported.
 
     /**
      * Specify an authorization token for the request.
      */
     public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
-        return tap($this, function () use ($token, $type) {
-            $this->options['headers']['Authorization'] = trim($type . ' ' . $token);
-        });
+        $this->options['headers']['Authorization'] = trim($type . ' ' . $token);
+
+        return $this;
     }
 
     /**
@@ -485,9 +512,28 @@ class PendingRequest implements Transient
      */
     public function withUrlParameters(array $parameters = []): static
     {
-        return tap($this, function () use ($parameters) {
-            $this->urlParameters = $parameters;
-        });
+        // Replace by key so numeric template names such as {1} are not renumbered.
+        $this->urlParameters = array_replace($this->urlParameters, $parameters);
+
+        return $this;
+    }
+
+    /**
+     * Specify a cookie and its attributes for the request.
+     */
+    public function withCookie(SetCookie $cookie): static
+    {
+        if ($cookie->getDomain() === null) {
+            throw new InvalidArgumentException('An outgoing cookie must have a domain.');
+        }
+
+        if (($error = $cookie->validate()) !== true) {
+            throw new InvalidArgumentException('Invalid cookie: ' . $error);
+        }
+
+        $this->cookies->setCookie(clone $cookie);
+
+        return $this;
     }
 
     /**
@@ -495,11 +541,11 @@ class PendingRequest implements Transient
      */
     public function withCookies(array $cookies, string $domain): static
     {
-        return tap($this, function () use ($cookies, $domain) {
-            foreach (CookieJar::fromArray($cookies, $domain) as $cookie) {
-                $this->cookies->setCookie($cookie);
-            }
-        });
+        foreach (CookieJar::fromArray($cookies, $domain) as $cookie) {
+            $this->cookies->setCookie($cookie);
+        }
+
+        return $this;
     }
 
     /**
@@ -507,15 +553,15 @@ class PendingRequest implements Transient
      */
     public function maxRedirects(int $max): static
     {
-        return tap($this, function () use ($max) {
-            // withoutRedirecting() and withOptions() may leave a boolean here,
-            // which cannot be indexed to apply the per-request limit.
-            if (! is_array($this->options['allow_redirects'] ?? null)) {
-                $this->options['allow_redirects'] = [];
-            }
+        // withoutRedirecting() and withOptions() may leave a boolean here,
+        // which cannot be indexed to apply the per-request limit.
+        if (! is_array($this->options['allow_redirects'] ?? null)) {
+            $this->options['allow_redirects'] = [];
+        }
 
-            $this->options['allow_redirects']['max'] = $max;
-        });
+        $this->options['allow_redirects']['max'] = $max;
+
+        return $this;
     }
 
     /**
@@ -523,9 +569,9 @@ class PendingRequest implements Transient
      */
     public function withoutRedirecting(): static
     {
-        return tap($this, function () {
-            $this->options['allow_redirects'] = false;
-        });
+        $this->options['allow_redirects'] = false;
+
+        return $this;
     }
 
     /**
@@ -533,9 +579,54 @@ class PendingRequest implements Transient
      */
     public function withoutVerifying(): static
     {
-        return tap($this, function () {
-            $this->options['verify'] = false;
-        });
+        $this->options['verify'] = false;
+
+        return $this;
+    }
+
+    /**
+     * Restrict the request's destinations to those the given policy allows.
+     *
+     * The policy checks and pins every physical request, including each redirect,
+     * to the addresses it vetted. Faked requests and clients supplied through
+     * setClient() never reach it.
+     */
+    public function withDestinationPolicy(DestinationPolicy $policy): static
+    {
+        return $this->withOptions([self::DESTINATION_POLICY_OPTION => $policy]);
+    }
+
+    /**
+     * Resolve and pin a destination within this request's timeout limits.
+     *
+     * Hostname pins use an isolated transport; literal addresses can reuse
+     * connections. Disable automatic redirects and send the returned URI so
+     * its hostname matches the pins.
+     *
+     * @internal
+     */
+    public function resolveDestination(DestinationPolicy $policy, string $url): ResolvedDestination
+    {
+        ConnectionResolver::releaseIdleConnections();
+
+        [$destination, $options] = $this->resolveDestinationWithinTimeout($policy, $url, $this->getOptions());
+
+        if ($destination->proxy !== null) {
+            if ($destination->usesHttpsProxy()) {
+                CurlCapabilities::ensureHttpsProxySupported($destination->resolvedHost, $destination->resolvedPort);
+            }
+
+            // The policy vetted the proxy, so its pins must route through that proxy.
+            $options['proxy'] = $destination->proxy;
+        }
+
+        if (($pins = $destination->curlResolveOptions()) !== []) {
+            $options['curl'] = $pins;
+        }
+
+        $this->withOptions($options);
+
+        return $destination;
     }
 
     /**
@@ -545,9 +636,9 @@ class PendingRequest implements Transient
      */
     public function sink($to): static
     {
-        return tap($this, function () use ($to) {
-            $this->options['sink'] = $to;
-        });
+        $this->options['sink'] = $to;
+
+        return $this;
     }
 
     /**
@@ -555,9 +646,9 @@ class PendingRequest implements Transient
      */
     public function timeout(float|int $seconds): static
     {
-        return tap($this, function () use ($seconds) {
-            $this->options['timeout'] = $seconds;
-        });
+        $this->options['timeout'] = $seconds;
+
+        return $this;
     }
 
     /**
@@ -565,15 +656,15 @@ class PendingRequest implements Transient
      */
     public function connectTimeout(float|int $seconds): static
     {
-        return tap($this, function () use ($seconds) {
-            $this->options['connect_timeout'] = $seconds;
-        });
+        $this->options['connect_timeout'] = $seconds;
+
+        return $this;
     }
 
     /**
      * Specify the number of times the request should be attempted.
      *
-     * @param (Closure(int, mixed): int)|int $sleepMilliseconds
+     * @param (Closure(int, Throwable): int)|int $sleepMilliseconds
      * @param null|(callable(null|Throwable, static, null|string): bool) $when
      */
     public function retry(
@@ -584,8 +675,8 @@ class PendingRequest implements Transient
     ): static {
         $this->tries = $times;
         $this->retryDelay = $sleepMilliseconds;
-        $this->retryThrow = $throw;
         $this->retryWhenCallback = $when;
+        $this->retryThrow = $throw;
 
         return $this;
     }
@@ -595,10 +686,10 @@ class PendingRequest implements Transient
      */
     public function withOptions(array $options): static
     {
-        return tap($this, function () use ($options) {
-            $this->validateRequestOptions($options, 'fluent HTTP request options');
-            $this->options = $this->mergeOptionLayers($this->options, $options);
-        });
+        $this->validateRequestOptions($options, 'fluent HTTP request options');
+        $this->options = $this->mergeOptionLayers($this->options, $options);
+
+        return $this;
     }
 
     /**
@@ -678,19 +769,45 @@ class PendingRequest implements Transient
     }
 
     /**
+     * Indicate that OpenTelemetry should trace this request.
+     */
+    public function withTrace(): static
+    {
+        return $this->withOptions([self::TRACE_OPTION => true]);
+    }
+
+    /**
+     * Indicate that OpenTelemetry should not trace this request.
+     */
+    public function withoutTrace(): static
+    {
+        return $this->withOptions([self::TRACE_OPTION => false]);
+    }
+
+    /**
+     * Indicate that trace context should not be automatically added to this request.
+     *
+     * The request may still be traced locally.
+     */
+    public function withoutTracePropagation(): static
+    {
+        return $this->withOptions([self::TRACE_PROPAGATION_OPTION => false]);
+    }
+
+    /**
      * Add a new "before sending" callback to the request.
      */
     public function beforeSending(callable $callback): static
     {
-        return tap($this, function () use ($callback) {
-            $this->beforeSendingCallbacks[] = $callback;
-        });
+        $this->beforeSendingCallbacks[] = $callback;
+
+        return $this;
     }
 
     /**
      * Add a new callback to execute after the response is built.
      *
-     * @param callable(Response, null|Request): (null|Response) $callback
+     * @param callable(Response, null|Request): mixed $callback
      */
     public function afterResponse(callable $callback): static
     {
@@ -702,7 +819,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurs.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throw(?callable $callback = null): static
     {
@@ -714,7 +831,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throwIf(bool|callable $condition, ?callable $callback = null): static
     {
@@ -728,7 +845,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
@@ -772,7 +889,10 @@ class PendingRequest implements Transient
     /**
      * Issue a GET request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
@@ -789,7 +909,10 @@ class PendingRequest implements Transient
     /**
      * Issue a HEAD request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function head(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
@@ -806,7 +929,10 @@ class PendingRequest implements Transient
     /**
      * Issue a QUERY request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function query(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -819,7 +945,10 @@ class PendingRequest implements Transient
     /**
      * Issue a POST request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function post(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -832,7 +961,10 @@ class PendingRequest implements Transient
     /**
      * Issue a PATCH request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function patch(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -845,7 +977,10 @@ class PendingRequest implements Transient
     /**
      * Issue a PUT request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function put(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -858,7 +993,10 @@ class PendingRequest implements Transient
     /**
      * Issue a DELETE request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
+     * @throws HttpRequestException
      * @throws InvalidArgumentException
      */
     public function delete(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
@@ -879,6 +1017,8 @@ class PendingRequest implements Transient
 
     /**
      * Send the request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws Exception
      * @throws ConnectionException|Throwable
@@ -953,27 +1093,25 @@ class PendingRequest implements Transient
                     }
                 );
             } catch (TransferException $e) {
-                if ($e instanceof ConnectException) {
-                    $this->marshalConnectionException($e);
+                // Guzzle wraps failures raised by transport callbacks.
+                if ($e->getPrevious() instanceof CanceledException) {
+                    throw $e->getPrevious();
                 }
 
-                if ($e instanceof RequestException && ! $e->hasResponse()) {
-                    $this->marshalRequestExceptionWithoutResponse($e);
+                if (($response = $this->responseFromException($e)) !== null) {
+                    $this->marshalTransportExceptionWithResponse($e, $response);
+                } else {
+                    $this->marshalTransportException($e);
                 }
-
-                if ($e instanceof RequestException && $e->hasResponse()) {
-                    $this->marshalRequestExceptionWithResponse($e);
-                }
-
-                throw $e;
             }
         }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
-            $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
+            // Destination rejections and missing cURL capabilities fail the same way on every attempt.
+            $result = $shouldRetry ?? (! $exception instanceof DisallowedDestinationException && ! $exception instanceof DestinationPolicyException && ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
-            ) : true);
+            ) : true));
 
             $shouldRetry = null;
 
@@ -986,7 +1124,7 @@ class PendingRequest implements Transient
      */
     protected function expandUrlParameters(string $url): string
     {
-        if ($this->urlParameters === []) {
+        if ($this->urlParameters === [] || ! str_contains($url, '{')) {
             return $url;
         }
 
@@ -1029,13 +1167,15 @@ class PendingRequest implements Transient
             $options[$this->bodyFormat] = $this->pendingBody;
         }
 
-        return (new Collection($options))->map(function ($value, $key) {
-            if ($key === 'json' && $value instanceof JsonSerializable) {
-                return $value;
-            }
+        return (new Collection($options))
+            ->map(function (mixed $value, int|string $key): mixed {
+                if ($key === 'json' && $value instanceof JsonSerializable) {
+                    return $value;
+                }
 
-            return $value instanceof Arrayable ? $value->toArray() : $value;
-        })->all();
+                return $value instanceof Arrayable ? $value->toArray() : $value;
+            })
+            ->all();
     }
 
     /**
@@ -1075,6 +1215,10 @@ class PendingRequest implements Transient
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
+                if ($e instanceof TransferException && $e->getPrevious() instanceof CanceledException) {
+                    throw $e->getPrevious();
+                }
+
                 if ($e instanceof CanceledException) {
                     throw $e;
                 }
@@ -1083,7 +1227,11 @@ class PendingRequest implements Transient
                     throw $e;
                 }
 
-                if ($e instanceof ConnectException || ($e instanceof RequestException && ! $e->hasResponse())) {
+                if (($response = $this->responseFromException($e)) !== null) {
+                    return $this->marshalAsyncTransportExceptionWithResponse($e, $response);
+                }
+
+                if ($e instanceof TransferException) {
                     $exception = new ConnectionException($e->getMessage(), 0, $e);
 
                     $this->dispatchConnectionFailedEvent(
@@ -1094,9 +1242,7 @@ class PendingRequest implements Transient
                     return $exception;
                 }
 
-                return $e instanceof RequestException && $e->hasResponse() ? $this->populateResponse(
-                    $this->newResponse($e->getResponse())
-                ) : $e;
+                return $e;
             })
             ->then(
                 function (Response|Throwable $response) use (
@@ -1126,26 +1272,28 @@ class PendingRequest implements Transient
             return $response;
         }
 
-        if ($response instanceof RequestException) {
-            $response = $this->populateResponse($this->newResponse($response->getResponse()));
+        if ($response instanceof ResponseException) {
+            $response = $this->marshalAsyncTransportExceptionWithResponse($response, $response->getResponse());
         }
 
         try {
-            $shouldRetry = $this->retryWhenCallback ? call_user_func(
+            $exception = $response instanceof Response ? $response->toException() : $response;
+
+            // Destination rejections and missing cURL capabilities fail the same way on every attempt.
+            $shouldRetry = ! $exception instanceof DisallowedDestinationException && ! $exception instanceof DestinationPolicyException && ($this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
-                $response instanceof Response ? $response->toException() : $response,
+                $exception,
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
-            ) : true;
+            ) : true);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Exception $exception) {
             return $exception;
         }
 
-        $exception = $response instanceof Response ? $response->toException() : $response;
-
-        if ($attempt < $this->getMaximumAttempts() && $shouldRetry) {
+        // Non-error responses have no exception to retry, just as on the synchronous path.
+        if ($exception !== null && $attempt < $this->getMaximumAttempts() && $shouldRetry) {
             $options['delay'] = $this->retryDelayInMilliseconds($attempt, $exception);
 
             return $this->makePromise($method, $url, $options, $attempt + 1);
@@ -1164,7 +1312,7 @@ class PendingRequest implements Transient
         }
 
         if ($this->getMaximumAttempts() > 1 && $this->retryThrow) {
-            return $response instanceof Response ? $response->toException() : $response;
+            return $exception ?? $response;
         }
 
         return $response;
@@ -1220,6 +1368,17 @@ class PendingRequest implements Transient
         }
 
         $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions($requestOptions, $options));
+
+        // Guzzle adds the multipart Content-Type, with the body's boundary, only when none is set. A content type
+        // without a boundary, such as one from asJson() or a connection default, cannot describe the body.
+        if (isset($mergedOptions['multipart']) && is_array($mergedOptions['headers'] ?? null)) {
+            $mergedOptions['headers'] = array_filter(
+                $mergedOptions['headers'],
+                static fn (array|string $value, string $name): bool => strcasecmp($name, 'Content-Type') !== 0
+                    || stripos(implode(', ', (array) $value), 'boundary=') !== false,
+                ARRAY_FILTER_USE_BOTH,
+            );
+        }
 
         return $this->buildClient()->{$clientMethod}($method, $url, $mergedOptions);
     }
@@ -1310,6 +1469,11 @@ class PendingRequest implements Transient
                 continue;
             }
 
+            // parseRequestData() has already normalized the logical request data into fresh arrays.
+            if ($key === self::DATA_OPTION) {
+                continue;
+            }
+
             $options[$key] = $this->normalizeRequestOptionValue($value);
         }
 
@@ -1321,15 +1485,18 @@ class PendingRequest implements Transient
      */
     protected function normalizeHeaderValues(array $headers): array
     {
+        $normalized = [];
+
+        // A fresh array never writes through, or keeps, references in the caller's data.
         foreach ($headers as $name => $value) {
             if (! is_string($name)) {
                 throw new InvalidArgumentException('HTTP header names must be strings.');
             }
 
-            $headers[$name] = $this->normalizeHeaderValue($value);
+            $normalized[$name] = $this->normalizeHeaderValue($value);
         }
 
-        return $headers;
+        return $normalized;
     }
 
     /**
@@ -1344,8 +1511,11 @@ class PendingRequest implements Transient
                 return '';
             }
 
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
             foreach ($value as $key => $item) {
-                $value[$key] = match (true) {
+                $normalized[$key] = match (true) {
                     $item === null => '',
                     is_scalar($item) => $this->normalizeScalarString($item),
                     $item instanceof Stringable => $item->toString(),
@@ -1353,7 +1523,7 @@ class PendingRequest implements Transient
                 };
             }
 
-            return $value;
+            return $normalized;
         }
 
         return match (true) {
@@ -1385,33 +1555,40 @@ class PendingRequest implements Transient
      */
     protected function normalizeMultipartOption(array $multipart): array
     {
+        $normalized = [];
+
+        // Fresh arrays never write through, or keep, references in the caller's data.
         foreach ($multipart as $index => $part) {
             if (! is_array($part)) {
-                $multipart[$index] = $this->normalizeRequestOptionValue($part);
+                $normalized[$index] = $this->normalizeRequestOptionValue($part);
 
                 continue;
             }
 
+            $normalizedPart = [];
+
             foreach ($part as $key => $value) {
                 if ($key === 'headers' && is_array($value)) {
+                    $normalizedPart[$key] = $value;
+
                     continue;
                 }
 
-                $part[$key] = $this->normalizeStructuredDataValue($value);
+                $normalizedPart[$key] = $this->normalizeStructuredDataValue($value);
 
                 if ($key === 'contents') {
-                    if (is_array($part[$key])) {
-                        $part[$key] = $this->normalizeNonFiniteFloatValues($part[$key]);
-                    } elseif (is_float($part[$key]) && ! is_finite($part[$key])) {
-                        $part[$key] = $this->normalizeScalarString($part[$key]);
+                    if (is_array($normalizedPart[$key])) {
+                        $normalizedPart[$key] = $this->normalizeNonFiniteFloatValues($normalizedPart[$key]);
+                    } elseif (is_float($normalizedPart[$key]) && ! is_finite($normalizedPart[$key])) {
+                        $normalizedPart[$key] = $this->normalizeScalarString($normalizedPart[$key]);
                     }
                 }
             }
 
-            $multipart[$index] = $part;
+            $normalized[$index] = $normalizedPart;
         }
 
-        return $this->normalizeMultipartHeaders($multipart);
+        return $this->normalizeMultipartHeaders($normalized);
     }
 
     /**
@@ -1423,8 +1600,11 @@ class PendingRequest implements Transient
     {
         foreach ($multipart as $index => $part) {
             if (is_array($part) && isset($part['headers']) && is_array($part['headers'])) {
+                $headers = [];
+
+                // A fresh array never writes through, or keeps, references in the caller's data.
                 foreach ($part['headers'] as $name => $value) {
-                    $multipart[$index]['headers'][$name] = match (true) {
+                    $headers[$name] = match (true) {
                         $value === [] => '',
                         $value === null => '',
                         is_scalar($value) => $this->normalizeScalarString($value),
@@ -1432,6 +1612,8 @@ class PendingRequest implements Transient
                         default => throw new InvalidArgumentException('Multipart header values must be scalar, null, or Hypervel Stringable.'),
                     };
                 }
+
+                $multipart[$index]['headers'] = $headers;
             }
         }
 
@@ -1443,8 +1625,20 @@ class PendingRequest implements Transient
      */
     protected function normalizeRequestOptionValue(mixed $value): mixed
     {
+        if (is_array($value)) {
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
+            foreach ($value as $key => $item) {
+                $normalized[$key] = is_array($item) || is_object($item)
+                    ? $this->normalizeRequestOptionValue($item)
+                    : $item;
+            }
+
+            return $normalized;
+        }
+
         return match (true) {
-            is_array($value) => array_map(fn ($item) => $this->normalizeRequestOptionValue($item), $value),
             $value instanceof Stringable => $value->toString(),
             $value instanceof JsonSerializable => $value,
             $value instanceof Arrayable => $this->normalizeRequestOptionValue($value->toArray()),
@@ -1473,8 +1667,20 @@ class PendingRequest implements Transient
      */
     protected function normalizeStructuredDataValue(mixed $value): mixed
     {
+        if (is_array($value)) {
+            $normalized = [];
+
+            // A fresh array never writes through, or keeps, references in the caller's data.
+            foreach ($value as $key => $item) {
+                $normalized[$key] = is_array($item) || is_object($item)
+                    ? $this->normalizeStructuredDataValue($item)
+                    : $item;
+            }
+
+            return $normalized;
+        }
+
         return match (true) {
-            is_array($value) => array_map(fn ($item) => $this->normalizeStructuredDataValue($item), $value),
             $value instanceof Stringable => $value->toString(),
             $value instanceof JsonSerializable => $this->normalizeStructuredDataValue($value->jsonSerialize()),
             $value instanceof Arrayable => $this->normalizeStructuredDataValue($value->toArray()),
@@ -1564,11 +1770,47 @@ class PendingRequest implements Transient
     {
         $handler = $this->handler;
 
-        if ($handler === null && ! $this->async && $this->connection !== null && $this->factory !== null) {
-            $handler = $this->factory->getConnectionHandler($this->connection);
+        if ($handler === null && $this->factory !== null) {
+            $handler = $this->connection !== null
+                ? $this->factory->getConnectionHandler($this->connection)
+                : $this->factory->getDefaultHandler();
         }
 
-        return $this->pushHandlers(HandlerStack::create($handler));
+        $handler ??= CurlStreamingHandler::wrap(Utils::chooseHandler());
+
+        $stack = $this->pushHandlers(HandlerStack::create($handler));
+
+        if ($this->handler === null) {
+            $allowUrlFopen = (bool) ini_get('allow_url_fopen');
+
+            $stack->before('destination_policy', fn (callable $handler): Closure => function (RequestInterface $request, array $options) use ($handler, $allowUrlFopen): PromiseInterface {
+                if (isset($options[self::DESTINATION_POLICY_OPTION])) {
+                    return $handler($request, $options);
+                }
+
+                if (! $allowUrlFopen && ($options['stream'] ?? false) && ! CurlStreamingHandler::supports($options)) {
+                    throw new RuntimeException('Streaming responses require allow_url_fopen when using the default HTTP handler.');
+                }
+
+                // Real-host DNS pins must not survive in another request's shared transport.
+                if (isset($options['curl'][CURLOPT_RESOLVE])) {
+                    $handler = $this->newIsolatedHandler();
+                }
+
+                return $handler($request, $options);
+            });
+        }
+
+        return $stack;
+    }
+
+    /**
+     * Create a request-owned transport for destination pinning.
+     */
+    protected function newIsolatedHandler(): callable
+    {
+        return $this->factory?->newIsolatedHandler($this->connection)
+            ?? CurlStreamingHandler::wrap(Utils::chooseHandler());
     }
 
     /**
@@ -1592,6 +1834,9 @@ class PendingRequest implements Transient
             $stack->push(Middleware::prepareBody(), 'prepare_body');
             $stack->push($this->buildRecorderHandler());
             $stack->push($this->buildStubHandler());
+            $stack->push($this->buildDatabaseReleaseHandler());
+            // Innermost, so it vets every physical request (each redirect included) and never sees faked ones.
+            $stack->push($this->buildDestinationPolicyHandler(), 'destination_policy');
         });
     }
 
@@ -1659,8 +1904,8 @@ class PendingRequest implements Transient
                             (new Request($request))
                                 ->withData($options[self::DATA_OPTION] ?? [])
                                 ->setRequestAttributes($this->attributes),
-                            $reason instanceof RequestException && $reason->hasResponse()
-                                ? $this->newResponse($reason->getResponse())
+                            $reason instanceof Throwable && ($response = $this->responseFromException($reason)) !== null
+                                ? $this->newResponse($response)
                                 : null,
                         );
 
@@ -1696,13 +1941,32 @@ class PendingRequest implements Transient
 
                 $response = is_array($response) ? Factory::response($response) : $response;
 
+                /** @var null|callable $onHeaders */
+                $onHeaders = $options['on_headers'] ?? null;
                 $sink = $options['sink'] ?? null;
 
-                if ($sink !== null) {
-                    return $response->then($this->sinkStubHandler($sink));
+                if ($onHeaders === null && $sink === null) {
+                    return $response;
                 }
 
-                return $response;
+                // Faked responses reach on_headers and the sink as transported ones do: headers first, then the body.
+                return $response->then(function (ResponseInterface $psrResponse) use ($request, $onHeaders, $sink): ResponseInterface {
+                    if (is_string($sink) && ! is_dir(dirname($sink))) {
+                        $message = sprintf('Directory %s does not exist for sink value of %s', dirname($sink), $sink);
+
+                        throw new RequestException($message, $request);
+                    }
+
+                    if ($onHeaders !== null) {
+                        try {
+                            $onHeaders($psrResponse, $request);
+                        } catch (Throwable $e) {
+                            throw new ResponseException('An error was encountered during the on_headers event', $request, $psrResponse, $e);
+                        }
+                    }
+
+                    return $sink === null ? $psrResponse : $this->sinkStubHandler($sink)($psrResponse, $request);
+                });
             };
         };
     }
@@ -1710,60 +1974,232 @@ class PendingRequest implements Transient
     /**
      * Get the sink stub handler callback.
      *
+     * A sink that stops accepting the body fails the request as a transport
+     * would, with the response, so the callback also takes the request. A
+     * subclass decorating the callback may still pass the response alone, as
+     * Laravel's callback takes it; the request being sent is used then.
+     *
      * @param resource|StreamInterface|string $sink
+     * @return Closure(ResponseInterface, ?RequestInterface=): ResponseInterface
      */
     protected function sinkStubHandler(mixed $sink): Closure
     {
-        return function (ResponseInterface $psrResponse) use ($sink): ResponseInterface {
+        $sentRequest = $this->request?->toPsrRequest();
+
+        return function (ResponseInterface $psrResponse, ?RequestInterface $request = null) use ($sink, $sentRequest): ResponseInterface {
+            /** @var RequestInterface $request */
+            $request ??= $sentRequest;
             $body = $psrResponse->getBody()->getContents();
             $length = strlen($body);
 
-            if (is_string($sink)) {
-                if (@file_put_contents($sink, $body) !== $length) {
-                    throw new RuntimeException("Unable to write response body to sink [{$sink}].");
-                }
-
-                return $psrResponse;
-            }
-
-            if (is_resource($sink)) {
-                $offset = 0;
-
-                while ($offset < $length) {
-                    $written = @fwrite($sink, $offset === 0 ? $body : substr($body, $offset));
-
-                    if ($written === false || $written === 0) {
-                        throw new RuntimeException('Unable to write to stream');
+            try {
+                if (is_string($sink)) {
+                    if (@file_put_contents($sink, $body) !== $length) {
+                        throw new RuntimeException("Unable to write response body to sink [{$sink}].");
                     }
 
-                    $offset += $written;
+                    return $psrResponse;
+                }
+            } catch (Throwable $exception) {
+                throw new ResponseException($exception->getMessage(), $request, $psrResponse, $exception);
+            }
+
+            $resource = is_resource($sink);
+
+            for ($offset = 0; $offset < $length; $offset += self::STUB_SINK_CHUNK_SIZE) {
+                $chunk = substr($body, $offset, self::STUB_SINK_CHUNK_SIZE);
+
+                try {
+                    $written = $resource ? @fwrite($sink, $chunk) : $sink->write($chunk);
+
+                    if ($written === false) {
+                        throw new RuntimeException('Unable to write to stream');
+                    }
+                } catch (Throwable $exception) {
+                    throw new ResponseException($exception->getMessage(), $request, $psrResponse, $exception);
                 }
 
+                if ($written !== strlen($chunk)) {
+                    throw new ResponseException('Unable to write to stream', $request, $psrResponse);
+                }
+            }
+
+            if ($resource) {
                 if (stream_get_meta_data($sink)['seekable'] && ! @rewind($sink)) {
                     throw new RuntimeException('Unable to rewind stream');
                 }
-
-                return $psrResponse;
-            }
-
-            $offset = 0;
-
-            while ($offset < $length) {
-                $written = $sink->write($offset === 0 ? $body : substr($body, $offset));
-
-                if ($written === 0) {
-                    throw new RuntimeException('Unable to write to stream');
-                }
-
-                $offset += $written;
-            }
-
-            if ($sink->isSeekable()) {
+            } elseif ($sink->isSeekable()) {
                 $sink->rewind();
             }
 
             return $psrResponse;
         };
+    }
+
+    /**
+     * Return idle database sessions before waiting for an external service.
+     */
+    protected function buildDatabaseReleaseHandler(): Closure
+    {
+        return (new ReleaseIdleDatabaseConnections)(...);
+    }
+
+    /**
+     * Build the destination policy handler.
+     */
+    protected function buildDestinationPolicyHandler(): Closure
+    {
+        return function (callable $handler): Closure {
+            return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                if (! isset($options[self::DESTINATION_POLICY_OPTION])) {
+                    return $handler($request, $options);
+                }
+
+                return $this->sendToPolicyDestination(
+                    $handler,
+                    $options[self::DESTINATION_POLICY_OPTION],
+                    $request,
+                    $options,
+                );
+            };
+        };
+    }
+
+    /**
+     * Send one physical request to the addresses the destination policy vetted.
+     *
+     * @throws ConnectionException
+     * @throws DestinationPolicyException
+     * @throws DisallowedDestinationException
+     */
+    protected function sendToPolicyDestination(
+        callable $handler,
+        DestinationPolicy $policy,
+        RequestInterface $request,
+        array $options,
+    ): PromiseInterface {
+        $proxy = $options['proxy'] ?? '';
+
+        if (is_array($proxy)) {
+            $proxy = $proxy[$request->getUri()->getScheme()] ?? '';
+        }
+
+        // The pins only bind the cURL handler, and raw cURL or proxy options could route around them.
+        $unsupported = match (true) {
+            ! empty($options['stream']) && ! CurlStreamingHandler::supports($options) => 'cannot stream responses with the fallback transport; use [sink] instead',
+            $this->handler !== null => 'cannot use a custom handler',
+            $proxy !== '' => 'cannot use a proxy configured for this scheme; select proxies in the destination policy',
+            ! empty($options['curl']) => 'cannot set raw [curl] options',
+            default => null,
+        };
+
+        if ($unsupported !== null) {
+            throw new DisallowedDestinationException("Destination-restricted requests {$unsupported}.");
+        }
+
+        CurlCapabilities::ensurePinningSupported();
+
+        try {
+            [$destination, $limits] = $this->resolveDestinationWithinTimeout(
+                $policy,
+                (string) $request->getUri(),
+                $options,
+            );
+            $options = array_replace($options, $limits);
+        } catch (ConnectionException $exception) {
+            $this->dispatchConnectionFailedEvent(
+                (new Request($request))->setRequestAttributes($this->attributes),
+                $exception,
+            );
+
+            throw $exception;
+        }
+
+        if ($destination->usesHttpsProxy()) {
+            CurlCapabilities::ensureHttpsProxySupported($destination->resolvedHost, $destination->resolvedPort);
+        }
+
+        $options['curl'] = $destination->curlOptions();
+        $options['proxy'] = $destination->proxy ?? '';
+
+        // cURL applies the pins only to an exactly matching host ("example.com." resolves
+        // through DNS instead), so send the URL in the normalized form the policy vetted.
+        $request = $request->withUri($destination->uri, true);
+
+        if ($destination->proxy === null) {
+            return $handler($request, $options);
+        }
+
+        // A reused connection to a proxy hostname can bypass the address this policy
+        // just vetted, so keep its real-hostname DNS pins and connections
+        // request-owned. Every connection to a literal proxy reaches its vetted address.
+        if ($options['curl'] !== []) {
+            $handler = $this->newIsolatedHandler();
+        }
+
+        // Connection exceptions carry no cURL error number, so read it from the transfer statistics.
+        $errorNumber = null;
+        $onStats = $options['on_stats'] ?? null;
+
+        $options['on_stats'] = static function (TransferStats $stats) use ($onStats, &$errorNumber): void {
+            $errorNumber = $stats->getHandlerErrorData();
+
+            if ($onStats !== null) {
+                $onStats($stats);
+            }
+        };
+
+        return $handler($request, $options)->otherwise(function (mixed $reason) use ($request, &$errorNumber): PromiseInterface {
+            if ($reason instanceof ConnectException
+                && in_array($errorNumber, [CURLE_COULDNT_RESOLVE_PROXY, CURLE_COULDNT_CONNECT], true)) {
+                $reason = new ProxyConnectionException($reason->getMessage(), 0, $reason);
+
+                $this->dispatchConnectionFailedEvent(
+                    (new Request($request))->setRequestAttributes($this->attributes),
+                    $reason,
+                );
+            }
+
+            return Create::rejectionFor($reason);
+        });
+    }
+
+    /**
+     * Resolve a destination and deduct DNS time from the positive request limits.
+     *
+     * @param array<string, mixed> $options
+     * @return array{ResolvedDestination, array<string, float>}
+     */
+    private function resolveDestinationWithinTimeout(DestinationPolicy $policy, string $url, array $options): array
+    {
+        // Guzzle treats a zero limit as unlimited, so only positive limits bound resolution.
+        $limits = [];
+
+        foreach (['connect_timeout', 'timeout'] as $option) {
+            if (is_numeric($options[$option] ?? null) && $options[$option] > 0) {
+                $limits[$option] = (float) $options[$option];
+            }
+        }
+
+        $startedAt = hrtime(true);
+        $destination = $policy->resolve(
+            $url,
+            $limits === [] ? self::DEFAULT_DESTINATION_RESOLUTION_TIMEOUT : min($limits),
+        );
+        $elapsed = (hrtime(true) - $startedAt) / 1_000_000_000;
+
+        foreach ($limits as $option => $seconds) {
+            $limits[$option] = $seconds - $elapsed;
+
+            // cURL counts limits in whole milliseconds, and zero would remove the limit.
+            if ($limits[$option] < 0.001) {
+                throw new DestinationResolutionException(
+                    'The request timeout ran out while resolving the destination.',
+                );
+            }
+        }
+
+        return [$destination, $limits];
     }
 
     /**
@@ -1907,6 +2343,7 @@ class PendingRequest implements Transient
             return true;
         }
 
+        // Keep this loop to avoid an extra callback per pattern.
         foreach ($this->allowedStrayRequestUrls as $pattern) {
             if (Str::is($pattern, $url)) {
                 return true;
@@ -1918,11 +2355,19 @@ class PendingRequest implements Transient
 
     /**
      * Toggle asynchronicity in requests.
+     *
+     * @template T of bool = true
+     *
+     * @param T $async
+     * @return static<T>
+     *
+     * @phpstan-self-out static<T>
      */
     public function async(bool $async = true): static
     {
         $this->async = $async;
 
+        // @phpstan-ignore return.type (The fluent setter returns the same receiver with its new generic state.)
         return $this;
     }
 
@@ -1987,11 +2432,19 @@ class PendingRequest implements Transient
     }
 
     /**
-     * Handle the given connection exception.
+     * Get the PSR-7 response carried by the given exception, if any.
+     */
+    protected function responseFromException(Throwable $e): ?ResponseInterface
+    {
+        return $e instanceof ResponseException ? $e->getResponse() : null;
+    }
+
+    /**
+     * Handle the given transport exception.
      *
      * @throws ConnectionException
      */
-    protected function marshalConnectionException(ConnectException $e): void
+    protected function marshalTransportException(TransferException $e): void
     {
         $exception = new ConnectionException($e->getMessage(), 0, $e);
 
@@ -2003,36 +2456,32 @@ class PendingRequest implements Transient
     }
 
     /**
-     * Handle the given request exception with no response.
+     * Handle the given transport exception that carried a response.
      *
      * @throws ConnectionException
+     * @throws HttpRequestException
      */
-    protected function marshalRequestExceptionWithoutResponse(RequestException $e): void
+    protected function marshalTransportExceptionWithResponse(TransferException $e, ResponseInterface $response): void
     {
-        $exception = new ConnectionException($e->getMessage(), 0, $e);
-
-        $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
-
-        $this->dispatchConnectionFailedEvent($request, $exception);
-
-        throw $exception;
-    }
-
-    /**
-     * Handle the given request exception with a response.
-     *
-     * @throws ConnectionException
-     * @throws \Hypervel\Http\Client\RequestException
-     */
-    protected function marshalRequestExceptionWithResponse(RequestException $e): void
-    {
-        $response = $this->populateResponse($this->newResponse($e->getResponse()));
+        $response = $this->populateResponse($this->newResponse($response));
 
         throw $response->toException() ?? new ConnectionException($e->getMessage(), 0, $e);
     }
 
     /**
+     * Preserve an asynchronous transfer failure even when its response status is successful.
+     */
+    protected function marshalAsyncTransportExceptionWithResponse(Throwable $e, ResponseInterface $response): Response|ConnectionException
+    {
+        $response = $this->populateResponse($this->newResponse($response));
+
+        return $response->failed() ? $response : new ConnectionException($e->getMessage(), 0, $e);
+    }
+
+    /**
      * Set the client instance.
+     *
+     * The client owns its whole handler stack, so destination policies do not apply to it.
      */
     public function setClient(ClientInterface $client): static
     {
@@ -2043,6 +2492,8 @@ class PendingRequest implements Transient
 
     /**
      * Create a new client instance using the given handler.
+     *
+     * Destination-restricted requests reject custom handlers, since their pins only bind the cURL handler.
      */
     public function setHandler(callable $handler): static
     {
@@ -2090,6 +2541,9 @@ class PendingRequest implements Transient
         return $this->connection;
     }
 
+    /**
+     * Get the pending request connection configuration.
+     */
     public function getConnectionConfig(): ?array
     {
         return $this->connectionConfig;

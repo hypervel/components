@@ -54,6 +54,31 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertTrue($tracked->supportsUserSessionManagement());
     }
 
+    public function testItCreatesSessionIds(): void
+    {
+        $sessionId = $this->handler()->create_sid();
+
+        $this->assertIsString($sessionId);
+        $this->assertNotEmpty($sessionId);
+    }
+
+    #[DataProvider('sessionExistenceProvider')]
+    public function testValidateIdChecksRedis(int $exists, bool $expected): void
+    {
+        $connection = $this->expectConnection();
+        $connection->expects('exists')->with('sessions:' . self::SESSION_ID)->andReturn($exists);
+
+        $this->assertSame($expected, $this->handler()->validateId(self::SESSION_ID));
+    }
+
+    /**
+     * Provide Redis session existence results.
+     */
+    public static function sessionExistenceProvider(): array
+    {
+        return [[0, false], [1, true]];
+    }
+
     #[DataProvider('storedPayloadProvider')]
     public function testReadUnderstandsRawAndVersionedPayloads(string $stored, string $expected): void
     {
@@ -95,7 +120,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('get')->once()->andReturn(123);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis returned an invalid session payload.');
+        $this->expectExceptionMessageIs('Redis returned an invalid session payload.');
 
         $this->handler()->read(self::SESSION_ID);
     }
@@ -574,7 +599,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('evalWithShaCache')->once()->andReturn($result);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis returned an invalid session ownership transition.');
+        $this->expectExceptionMessageIs('Redis returned an invalid session ownership transition.');
 
         $this->handler(tracked: true)->write(self::SESSION_ID, 'payload');
     }
@@ -660,7 +685,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis failed to clean the user session index.');
+        $this->expectExceptionMessageIs('Redis failed to clean the user session index.');
 
         $this->handler(tracked: true)->destroy(self::SESSION_ID);
     }
@@ -804,7 +829,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('hGetAll')->once()->andReturnFalse();
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis returned an invalid user session index.');
+        $this->expectExceptionMessageIs('Redis returned an invalid user session index.');
 
         $this->handler(tracked: true)->userSessions('users', 'user-1');
     }
@@ -856,7 +881,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis failed to clean the user session index.');
+        $this->expectExceptionMessageIs('Redis failed to clean the user session index.');
 
         $this->handler(tracked: true)->destroyUserSession('users', 'user-1', self::SESSION_ID);
     }
@@ -895,7 +920,7 @@ class RedisSessionHandlerTest extends TestCase
         $connection->shouldReceive('evalWithShaCache')->once()->andReturn($result);
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis returned an invalid bulk session deletion result.');
+        $this->expectExceptionMessageIs('Redis returned an invalid bulk session deletion result.');
 
         $this->handler(tracked: true)->destroyUserSessions('users', 'user-1');
     }

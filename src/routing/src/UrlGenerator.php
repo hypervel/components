@@ -13,6 +13,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -28,12 +29,12 @@ class UrlGenerator implements UrlGeneratorContract
     use Macroable;
 
     /**
-     * Context key for the cached URL scheme.
+     * Context key for the URL scheme and the request it was computed from.
      */
     protected const string CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
 
     /**
-     * Context key for the cached root URL.
+     * Context key for the root URL and the request it was computed from.
      */
     protected const string CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
 
@@ -314,9 +315,19 @@ class UrlGenerator implements UrlGeneratorContract
             return $secure ? 'https://' : 'http://';
         }
 
-        return CoroutineContext::getOrSet(self::CACHED_SCHEME_CONTEXT_KEY, function () {
-            return $this->forceScheme ?: $this->getRequest()->getScheme() . '://';
-        });
+        if ($this->forceScheme !== null) {
+            return $this->forceScheme;
+        }
+
+        $request = $this->getRequest();
+        $cached = CoroutineContext::get(self::CACHED_SCHEME_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request) {
+            $cached = ['request' => $request, 'value' => $request->getScheme() . '://'];
+            CoroutineContext::set(self::CACHED_SCHEME_CONTEXT_KEY, $cached);
+        }
+
+        return $cached['value'];
     }
 
     /**
@@ -403,8 +414,12 @@ class UrlGenerator implements UrlGeneratorContract
             return false;
         }
 
-        $url = $absolute ? $request->url() : '/' . $request->path();
+        $url = $absolute
+            ? rtrim($request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo(), '/')
+            : '/' . trim($request->getPathInfo(), '/');
 
+        // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
+        // Keep this explode() to avoid an extra Stringable allocation per call.
         $queryString = (new Collection(explode('&', (string) $request->server->get('QUERY_STRING'))))
             ->reject(function ($parameter) use ($ignoreQuery) {
                 $parameter = Str::before($parameter, '=');
@@ -427,6 +442,7 @@ class UrlGenerator implements UrlGeneratorContract
 
         $keys = is_array($keys) ? $keys : [$keys];
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (hash_equals(
                 hash_hmac('sha256', $original, $key),
@@ -456,7 +472,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Get the URL to a named route.
      *
-     * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
+     * @throws RouteNotFoundException
      * @throws InvalidArgumentException
      */
     public function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string
@@ -480,7 +496,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Get the URL for a given route instance.
      *
-     * @throws \Hypervel\Routing\Exceptions\UrlGenerationException
+     * @throws UrlGenerationException
      */
     public function toRoute(Route $route, mixed $parameters, bool $absolute): string
     {
@@ -581,10 +597,19 @@ class UrlGenerator implements UrlGeneratorContract
             $root = $resolvedRoot === null ? null : rtrim($resolvedRoot, '/');
         }
 
-        return $root ?: CoroutineContext::getOrSet(
-            self::CACHED_ROOT_CONTEXT_KEY,
-            fn (): string => $this->getRequest()->root(),
-        );
+        if ($root) {
+            return $root;
+        }
+
+        $request = $this->getRequest();
+        $cached = CoroutineContext::get(self::CACHED_ROOT_CONTEXT_KEY);
+
+        if ($cached === null || $cached['request'] !== $request) {
+            $cached = ['request' => $request, 'value' => $request->root()];
+            CoroutineContext::set(self::CACHED_ROOT_CONTEXT_KEY, $cached);
+        }
+
+        return $cached['value'];
     }
 
     /**
@@ -710,8 +735,6 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceScheme(?string $scheme): void
     {
-        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
-
         $this->forceScheme = $scheme ? $scheme . '://' : null;
     }
 

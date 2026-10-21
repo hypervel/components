@@ -55,7 +55,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         parent::tearDown();
     }
 
-    public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery()
+    public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery(): void
     {
         $product = Product::create();
         $relation = $product->current_state();
@@ -63,7 +63,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame('select MAX("states"."id") as "id_aggregate", "states"."stateful_id", "states"."stateful_type" from "states" where "states"."stateful_type" = ? and "states"."stateful_id" = ? and "states"."stateful_id" is not null and "states"."stateful_id" in (1) and "states"."stateful_type" = ? group by "states"."stateful_id", "states"."stateful_type"', $relation->getOneOfManySubQuery()->toSql());
     }
 
-    public function testReceivingModel()
+    public function testReceivingModel(): void
     {
         $product = Product::create();
         $product->states()->create([
@@ -77,7 +77,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame('active', $product->current_state->state);
     }
 
-    public function testMorphType()
+    public function testMorphType(): void
     {
         $product = Product::create();
         $product->states()->create([
@@ -96,7 +96,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame('active', $product->current_state->state);
     }
 
-    public function testForceCreateMorphType()
+    public function testForceCreateMorphType(): void
     {
         $product = Product::create();
         $state = $product->states()->forceCreate([
@@ -107,7 +107,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame(Product::class, $product->current_state->stateful_type);
     }
 
-    public function testExists()
+    public function testExists(): void
     {
         $product = Product::create();
         $previousState = $product->states()->create([
@@ -128,7 +128,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertTrue($exists);
     }
 
-    public function testWithWhereHas()
+    public function testWithWhereHas(): void
     {
         $product = Product::create();
         $previousState = $product->states()->create([
@@ -152,7 +152,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame($exists->first()->current_state->state, $currentState->state);
     }
 
-    public function testWithWhereRelation()
+    public function testWithWhereRelation(): void
     {
         $product = Product::create();
         $currentState = $product->states()->create([
@@ -169,7 +169,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertSame($exists->first()->current_state->state, $currentState->state);
     }
 
-    public function testWithExists()
+    public function testWithExists(): void
     {
         $product = Product::create();
 
@@ -183,7 +183,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertTrue($product->current_state_exists);
     }
 
-    public function testWithExistsWithConstraintsInJoinSubSelect()
+    public function testWithExistsWithConstraintsInJoinSubSelect(): void
     {
         $product = Product::create();
 

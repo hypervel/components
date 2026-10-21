@@ -6,14 +6,131 @@ namespace Hypervel\Tests\RateLimiter\Fixtures;
 
 use Closure;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\SlidingWindow;
+use Hypervel\Support\CarbonImmutable;
 
 trait RateLimiterStoreContract
 {
+    public function testStoreContractConsumesMixedPoliciesTogetherAndSharesScalarState(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $key = $this->rateLimiterStoreContractKey('group');
+        $policies = [
+            Limit::perMinute(10)->cost(2)->by($key),
+            SlidingWindow::perMinute(10)->cost(3)->by($key),
+            LeakyBucket::perMinute(1)->burst(10)->cost(4)->by($key),
+            CalendarWindow::perMonth(10)->timezone('UTC')->cost(5)->by($key),
+        ];
+
+        foreach ($policies as $policy) {
+            $limiter->consume($policy->cost(1));
+        }
+
+        $results = $limiter->consumeMany($policies);
+
+        $this->assertCount(4, $results);
+
+        foreach ($results as $index => $result) {
+            $this->assertTrue($result->allowed());
+            $this->assertSame(9 - $policies[$index]->cost, $result->remaining());
+            $this->assertSame($result->remaining(), $limiter->inspect($policies[$index])->remaining());
+        }
+    }
+
+    public function testStoreContractDeniedGroupDoesNotChargeEarlierPolicies(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $key = $this->rateLimiterStoreContractKey('group-denial');
+        $global = Limit::perMinute(10)->by($key);
+        $tenant = SlidingWindow::perMinute(1)->by($key);
+        $later = LeakyBucket::perMinute(1)->by($key);
+        $limiter->consume($tenant);
+        $limiter->consume($later);
+
+        $results = $limiter->consumeMany([$global, $tenant, $later]);
+
+        $this->assertCount(2, $results);
+        $this->assertTrue($results[0]->allowed());
+        $this->assertSame(10, $results[0]->remaining());
+        $this->assertTrue($results[1]->denied());
+        $this->assertGreaterThan(0, $results[1]->retryAfter());
+        $this->assertSame(10, $limiter->inspect($global)->remaining());
+        $this->assertSame(0, $limiter->inspect($global)->resetAfter());
+    }
+
+    public function testStoreContractRepeatedKeysConsumeTheCombinedCost(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $policy = Limit::perMinute(10)->by($this->rateLimiterStoreContractKey('group-repeated'));
+
+        $results = $limiter->consumeMany([$policy->cost(2), $policy->cost(3)]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(8, $results[0]->remaining());
+        $this->assertSame(5, $results[1]->remaining());
+        $this->assertSame(5, $limiter->inspect($policy)->remaining());
+
+        $calendar = CalendarWindow::perMonth(10)
+            ->timezone('UTC')
+            ->by($this->rateLimiterStoreContractKey('group-repeated-calendar'));
+
+        $results = $limiter->consumeMany([$calendar->cost(2), $calendar->cost(3)]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(8, $results[0]->remaining());
+        $this->assertSame(5, $results[1]->remaining());
+        $this->assertSame(5, $limiter->inspect($calendar)->remaining());
+    }
+
+    public function testStoreContractCalendarWindowsEndAtTheCalendarReset(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $policy = CalendarWindow::perMonth(5)
+            ->timezone('UTC')
+            ->cost(2)
+            ->by($this->rateLimiterStoreContractKey('calendar'));
+        $secondsUntilReset = static fn (): int => (int) ceil(
+            CarbonImmutable::now('UTC')->startOfMonth()->addMonth()->getTimestamp()
+            - CarbonImmutable::now()->getPreciseTimestamp(6) / 1_000_000
+        );
+
+        $missing = $limiter->inspect($policy);
+        $this->assertTrue($missing->allowed());
+        $this->assertSame(5, $missing->limit());
+        $this->assertSame(5, $missing->remaining());
+        $this->assertSame(0, $missing->resetAfter());
+
+        // Database and Redis stores use their own clocks, so allow for clock differences.
+        $accepted = $limiter->consume($policy);
+        $this->assertTrue($accepted->allowed());
+        $this->assertSame(3, $accepted->remaining());
+        $this->assertEqualsWithDelta($secondsUntilReset(), $accepted->resetAfter(), 2);
+
+        $denied = $limiter->consume($policy->cost(4));
+        $this->assertTrue($denied->denied());
+        $this->assertSame(3, $denied->remaining());
+        $this->assertSame($denied->resetAfter(), $denied->retryAfter());
+        $this->assertEqualsWithDelta($secondsUntilReset(), $denied->retryAfter(), 2);
+
+        if ($this->advanceRateLimiterStoreContractClock($accepted->resetAfter())) {
+            $expired = $limiter->inspect($policy);
+            $this->assertSame(5, $expired->remaining());
+            $this->assertSame(0, $expired->resetAfter());
+
+            $renewed = $limiter->consume($policy);
+            $this->assertSame(3, $renewed->remaining());
+            $this->assertSame($secondsUntilReset(), $renewed->resetAfter());
+        }
+
+        $this->assertTrue($limiter->clear($policy));
+        $this->assertSame(5, $limiter->inspect($policy)->remaining());
+    }
+
     public function testStoreContractFixedWindowDecisionsAreAtomicAndComplete(): void
     {
         $limiter = $this->rateLimiterStoreContract();

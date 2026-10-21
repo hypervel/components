@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Data\Support\Annotations;
 
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode;
+use PHPStan\PhpDocParser\Ast\PhpDoc\TemplateTagValueNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\GenericTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\NullableTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
@@ -19,6 +21,7 @@ use PHPStan\PhpDocParser\ParserConfig;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
+use Traversable;
 
 class DataIterableAnnotationReader
 {
@@ -52,6 +55,44 @@ class DataIterableAnnotationReader
         }
 
         return $annotations;
+    }
+
+    /**
+     * Get the item type a collection class declares for its parent, such as `@extends Collection<int, SongData>`.
+     *
+     * @param ReflectionClass<object> $class
+     */
+    public function getForCollectionClass(ReflectionClass $class): ?DataIterableAnnotation
+    {
+        // Only an iterable class describes its items; an interface's @extends tags name parent interfaces.
+        $node = $class->isInterface() || ! $class->implementsInterface(Traversable::class)
+            ? null
+            : $this->parse($class->getDocComment());
+        $extends = $node?->getExtendsTagValues()[0] ?? null;
+
+        if ($node === null || $extends === null || $extends->type->genericTypes === []) {
+            return null;
+        }
+
+        $genericTypes = $extends->type->genericTypes;
+        $itemType = $genericTypes[1] ?? $genericTypes[0];
+
+        // A template item, such as `TData of SongData`, is read as its bound; an unbounded one has no item type.
+        if ($itemType instanceof IdentifierTypeNode) {
+            foreach ($node->getTags() as $tag) {
+                if ($tag->value instanceof TemplateTagValueNode && $tag->value->name === $itemType->name) {
+                    $itemType = $tag->value->bound;
+
+                    break;
+                }
+            }
+        }
+
+        return $itemType === null ? null : new DataIterableAnnotation(
+            containerType: $extends->type->type->name,
+            itemType: $itemType,
+            declaringClass: $class->getName(),
+        );
     }
 
     /**

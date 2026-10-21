@@ -15,11 +15,12 @@ use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use RuntimeException;
 
 class DatabaseSQLiteSchemaGrammarTest extends TestCase
 {
-    public function testBasicCreateTable()
+    public function testBasicCreateTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -43,7 +44,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertEquals($expected, $statements);
     }
 
-    public function testCreateTemporaryTable()
+    public function testCreateTemporaryTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -56,7 +57,20 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create temporary table "users" ("id" integer primary key autoincrement not null, "email" varchar not null)', $statements[0]);
     }
 
-    public function testDropTable()
+    public function testCreateRangePartitionedTableIsUnsupported(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'attempts');
+        $blueprint->create();
+        $blueprint->uuid('id')->primary();
+        $blueprint->partitionByRange('id');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIs('This database driver does not support table partitioning.');
+
+        $blueprint->toSql();
+    }
+
+    public function testDropTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->drop();
@@ -66,7 +80,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop table "users"', $statements[0]);
     }
 
-    public function testDropTableIfExists()
+    public function testDropTableIfExists(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropIfExists();
@@ -76,7 +90,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop table if exists "users"', $statements[0]);
     }
 
-    public function testDropUnique()
+    public function testDropUnique(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropUnique('foo');
@@ -86,7 +100,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "foo"', $statements[0]);
     }
 
-    public function testDropIndex()
+    public function testDropIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropIndex('foo');
@@ -96,7 +110,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "foo"', $statements[0]);
     }
 
-    public function testDropIndexWithSchema()
+    public function testDropIndexWithSchema(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'my_schema.users');
         $blueprint->dropIndex('foo');
@@ -145,7 +159,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame([], $schema->getForeignKeys('children'));
     }
 
-    public function testDropColumn()
+    public function testDropColumn(): void
     {
         $db = new Manager;
 
@@ -172,17 +186,16 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertFalse($schema->hasColumn('users', 'name'));
     }
 
-    public function testDropSpatialIndex()
+    public function testDropSpatialIndex(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The database driver in use does not support spatial indexes.');
+        $this->expectExceptionObject(new RuntimeException('The database driver in use does not support spatial indexes.'));
 
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->dropSpatialIndex(['coordinates']);
         $blueprint->toSql();
     }
 
-    public function testRenameTable()
+    public function testRenameTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rename('foo');
@@ -192,7 +205,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" rename to "foo"', $statements[0]);
     }
 
-    public function testRenameIndex()
+    public function testRenameIndex(): void
     {
         $db = new Manager;
 
@@ -228,7 +241,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ));
     }
 
-    public function testAddingPrimaryKey()
+    public function testAddingPrimaryKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -239,7 +252,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create table "users" ("foo" varchar not null, primary key ("foo"))', $statements[0]);
     }
 
-    public function testAddingForeignKey()
+    public function testAddingForeignKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -252,7 +265,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create table "users" ("foo" varchar not null, "order_id" varchar not null, foreign key("order_id") references "orders"("id"), primary key ("foo"))', $statements[0]);
     }
 
-    public function testAddingUniqueKey()
+    public function testAddingUniqueKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->unique('foo', 'bar');
@@ -262,7 +275,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create unique index "bar" on "users" ("foo")', $statements[0]);
     }
 
-    public function testAddingIndex()
+    public function testAddingIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->index(['foo', 'bar'], 'baz');
@@ -284,7 +297,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testAddingUniqueKeyWithSchema()
+    public function testAddingUniqueKeyWithSchema(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'foo.users');
         $blueprint->unique('foo', 'bar');
@@ -292,7 +305,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame(['create unique index "foo"."bar" on "users" ("foo")'], $blueprint->toSql());
     }
 
-    public function testAddingIndexWithSchema()
+    public function testAddingIndexWithSchema(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'foo.users');
         $blueprint->index(['foo', 'bar'], 'baz');
@@ -312,27 +325,25 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testAddingSpatialIndex()
+    public function testAddingSpatialIndex(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The database driver in use does not support spatial indexes.');
+        $this->expectExceptionObject(new RuntimeException('The database driver in use does not support spatial indexes.'));
 
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->spatialIndex('coordinates');
         $blueprint->toSql();
     }
 
-    public function testAddingFluentSpatialIndex()
+    public function testAddingFluentSpatialIndex(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The database driver in use does not support spatial indexes.');
+        $this->expectExceptionObject(new RuntimeException('The database driver in use does not support spatial indexes.'));
 
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates')->spatialIndex();
         $blueprint->toSql();
     }
 
-    public function testAddingRawIndex()
+    public function testAddingRawIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rawIndex('(function(column))', 'raw_index');
@@ -371,7 +382,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testAddingIncrementingID()
+    public function testAddingIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->increments('id');
@@ -381,7 +392,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "id" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingSmallIncrementingID()
+    public function testAddingSmallIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->smallIncrements('id');
@@ -391,7 +402,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "id" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingMediumIncrementingID()
+    public function testAddingMediumIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->mediumIncrements('id');
@@ -401,7 +412,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "id" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingID()
+    public function testAddingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->id();
@@ -418,18 +429,17 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingForeignID()
+    public function testAddingForeignID(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQLiteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 
         $blueprint = new Blueprint($connection, 'users');
         $foreignId = $blueprint->foreignId('foo');
         $blueprint->foreignId('company_id')->constrained();
-        $blueprint->foreignId('laravel_idea_id')->constrained();
+        $blueprint->foreignId('hypervel_idea_id')->constrained();
         $blueprint->foreignId('team_id')->references('id')->on('teams');
         $blueprint->foreignId('team_column_id')->constrained('teams');
 
@@ -443,29 +453,28 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             'insert into "__temp__users" ("foo", "company_id") select "foo", "company_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
-            'alter table "users" add column "laravel_idea_id" integer not null',
-            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "laravel_idea_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id") select "foo", "company_id", "laravel_idea_id" from "users"',
+            'alter table "users" add column "hypervel_idea_id" integer not null',
+            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "hypervel_idea_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id") select "foo", "company_id", "hypervel_idea_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
             'alter table "users" add column "team_id" integer not null',
-            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "laravel_idea_id" integer not null, "team_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"), foreign key("team_id") references "teams"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id", "team_id") select "foo", "company_id", "laravel_idea_id", "team_id" from "users"',
+            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "hypervel_idea_id" integer not null, "team_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"), foreign key("team_id") references "teams"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id", "team_id") select "foo", "company_id", "hypervel_idea_id", "team_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
             'alter table "users" add column "team_column_id" integer not null',
-            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "laravel_idea_id" integer not null, "team_id" integer not null, "team_column_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"), foreign key("team_id") references "teams"("id"), foreign key("team_column_id") references "teams"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id", "team_id", "team_column_id") select "foo", "company_id", "laravel_idea_id", "team_id", "team_column_id" from "users"',
+            'create table "__temp__users" ("foo" integer not null, "company_id" integer not null, "hypervel_idea_id" integer not null, "team_id" integer not null, "team_column_id" integer not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"), foreign key("team_id") references "teams"("id"), foreign key("team_column_id") references "teams"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id", "team_id", "team_column_id") select "foo", "company_id", "hypervel_idea_id", "team_id", "team_column_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
         ], $statements);
     }
 
-    public function testAddingForeignIdSpecifyingIndexNameInConstraint()
+    public function testAddingForeignIdSpecifyingIndexNameInConstraint(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQLiteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 
@@ -483,7 +492,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingBigIncrementingID()
+    public function testAddingBigIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->bigIncrements('id');
@@ -493,7 +502,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "id" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingString()
+    public function testAddingString(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('foo');
@@ -517,7 +526,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" varchar default \'bar\'', $statements[0]);
     }
 
-    public function testAddingText()
+    public function testAddingText(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->text('foo');
@@ -527,7 +536,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" text not null', $statements[0]);
     }
 
-    public function testAddingBigInteger()
+    public function testAddingBigInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->bigInteger('foo');
@@ -544,7 +553,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingInteger()
+    public function testAddingInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->integer('foo');
@@ -561,7 +570,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingMediumInteger()
+    public function testAddingMediumInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->mediumInteger('foo');
@@ -578,7 +587,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingTinyInteger()
+    public function testAddingTinyInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->tinyInteger('foo');
@@ -595,7 +604,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingSmallInteger()
+    public function testAddingSmallInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->smallInteger('foo');
@@ -612,7 +621,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" integer primary key autoincrement not null', $statements[0]);
     }
 
-    public function testAddingFloat()
+    public function testAddingFloat(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->float('foo', 5);
@@ -622,7 +631,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" float not null', $statements[0]);
     }
 
-    public function testAddingDouble()
+    public function testAddingDouble(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->double('foo');
@@ -632,7 +641,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" double not null', $statements[0]);
     }
 
-    public function testAddingDecimal()
+    public function testAddingDecimal(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->decimal('foo', 5, 2);
@@ -642,7 +651,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" numeric not null', $statements[0]);
     }
 
-    public function testAddingBoolean()
+    public function testAddingBoolean(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->boolean('foo');
@@ -652,7 +661,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" tinyint(1) not null', $statements[0]);
     }
 
-    public function testAddingEnum()
+    public function testAddingEnum(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->enum('role', ['member', 'admin']);
@@ -664,7 +673,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "status" varchar check ("status" in (\'bar\')) not null', $statements[1]);
     }
 
-    public function testAddingJson()
+    public function testAddingJson(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->json('foo');
@@ -674,16 +683,14 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" text not null', $statements[0]);
     }
 
-    public function testAddingNativeJson()
+    public function testAddingNativeJson(): void
     {
         $connection = m::mock(Connection::class);
-        $connection
-            ->shouldReceive('getTablePrefix')->andReturn('')
-            ->shouldReceive('getConfig')->once()->with('use_native_json')->andReturn(true)
-            ->shouldReceive('getSchemaGrammar')->andReturn($this->getGrammar($connection))
-            ->shouldReceive('getSchemaBuilder')->andReturn($this->getBuilder())
-            ->shouldReceive('getServerVersion')->andReturn('3.35')
-            ->getMock();
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getConfig')->with('use_native_json')->andReturn(true);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($this->getGrammar($connection));
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($this->getBuilder());
+        $connection->shouldReceive('getServerVersion')->andReturn('3.35');
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->json('foo');
@@ -693,7 +700,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" json not null', $statements[0]);
     }
 
-    public function testAddingJsonb()
+    public function testAddingJsonb(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->jsonb('foo');
@@ -703,16 +710,14 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" text not null', $statements[0]);
     }
 
-    public function testAddingNativeJsonb()
+    public function testAddingNativeJsonb(): void
     {
         $connection = m::mock(Connection::class);
-        $connection
-            ->shouldReceive('getTablePrefix')->andReturn('')
-            ->shouldReceive('getConfig')->once()->with('use_native_jsonb')->andReturn(true)
-            ->shouldReceive('getSchemaGrammar')->andReturn($this->getGrammar($connection))
-            ->shouldReceive('getSchemaBuilder')->andReturn($this->getBuilder())
-            ->shouldReceive('getServerVersion')->andReturn('3.35')
-            ->getMock();
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getConfig')->with('use_native_jsonb')->andReturn(true);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($this->getGrammar($connection));
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($this->getBuilder());
+        $connection->shouldReceive('getServerVersion')->andReturn('3.35');
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->jsonb('foo');
@@ -722,7 +727,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" jsonb not null', $statements[0]);
     }
 
-    public function testAddingDate()
+    public function testAddingDate(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->date('foo');
@@ -732,7 +737,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" date not null', $statements[0]);
     }
 
-    public function testAddingDateWithDefaultCurrent()
+    public function testAddingDateWithDefaultCurrent(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->date('foo')->useCurrent();
@@ -742,7 +747,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" date not null default CURRENT_DATE', $statements[0]);
     }
 
-    public function testAddingYear()
+    public function testAddingYear(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->year('birth_year');
@@ -751,7 +756,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "birth_year" integer not null', $statements[0]);
     }
 
-    public function testAddingYearWithDefaultCurrent()
+    public function testAddingYearWithDefaultCurrent(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->year('birth_year')->useCurrent();
@@ -760,7 +765,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "birth_year" integer not null default (CAST(strftime(\'%Y\', \'now\') AS INTEGER))', $statements[0]);
     }
 
-    public function testAddingDateTime()
+    public function testAddingDateTime(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('created_at');
@@ -769,7 +774,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingDateTimeWithPrecision()
+    public function testAddingDateTimeWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('created_at', 1);
@@ -778,7 +783,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingDateTimeTz()
+    public function testAddingDateTimeTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTimeTz('created_at');
@@ -787,7 +792,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingDateTimeTzWithPrecision()
+    public function testAddingDateTimeTzWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTimeTz('created_at', 1);
@@ -796,7 +801,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingTime()
+    public function testAddingTime(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->time('created_at');
@@ -805,7 +810,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" time not null', $statements[0]);
     }
 
-    public function testAddingTimeWithPrecision()
+    public function testAddingTimeWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->time('created_at', 1);
@@ -814,7 +819,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" time not null', $statements[0]);
     }
 
-    public function testAddingTimeTz()
+    public function testAddingTimeTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timeTz('created_at');
@@ -823,7 +828,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" time not null', $statements[0]);
     }
 
-    public function testAddingTimeTzWithPrecision()
+    public function testAddingTimeTzWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timeTz('created_at', 1);
@@ -832,7 +837,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" time not null', $statements[0]);
     }
 
-    public function testAddingTimestamp()
+    public function testAddingTimestamp(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at');
@@ -841,7 +846,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingTimestampWithPrecision()
+    public function testAddingTimestampWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at', 1);
@@ -850,7 +855,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingTimestampTz()
+    public function testAddingTimestampTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampTz('created_at');
@@ -859,7 +864,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingTimestampTzWithPrecision()
+    public function testAddingTimestampTzWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampTz('created_at', 1);
@@ -868,7 +873,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "created_at" datetime not null', $statements[0]);
     }
 
-    public function testAddingTimestamps()
+    public function testAddingTimestamps(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamps();
@@ -880,7 +885,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingTimestampsTz()
+    public function testAddingTimestampsTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampsTz();
@@ -892,7 +897,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingRememberToken()
+    public function testAddingRememberToken(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rememberToken();
@@ -902,7 +907,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "remember_token" varchar', $statements[0]);
     }
 
-    public function testAddingBinary()
+    public function testAddingBinary(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->binary('foo');
@@ -912,7 +917,19 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" blob not null', $statements[0]);
     }
 
-    public function testAddingUuid()
+    public function testAddingMediumAndLongBinary(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->mediumBinary('foo');
+        $blueprint->longBinary('bar');
+
+        $this->assertSame([
+            'alter table "users" add column "foo" blob not null',
+            'alter table "users" add column "bar" blob not null',
+        ], $blueprint->toSql());
+    }
+
+    public function testAddingUuid(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->uuid('foo');
@@ -922,7 +939,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" varchar not null', $statements[0]);
     }
 
-    public function testAddingUuidDefaultsColumnName()
+    public function testAddingUuidDefaultsColumnName(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->uuid();
@@ -932,18 +949,17 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "uuid" varchar not null', $statements[0]);
     }
 
-    public function testAddingForeignUuid()
+    public function testAddingForeignUuid(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getPostProcessor')->andReturn(new SQliteProcessor);
+        $connection->shouldReceive('getPostProcessor')->andReturn(new SQLiteProcessor);
         $connection->shouldReceive('selectFromWriteConnection')->andReturn([]);
         $connection->shouldReceive('scalar')->andReturn('');
 
         $blueprint = new Blueprint($connection, 'users');
         $foreignUuid = $blueprint->foreignUuid('foo');
         $blueprint->foreignUuid('company_id')->constrained();
-        $blueprint->foreignUuid('laravel_idea_id')->constrained();
+        $blueprint->foreignUuid('hypervel_idea_id')->constrained();
         $blueprint->foreignUuid('team_id')->references('id')->on('teams');
         $blueprint->foreignUuid('team_column_id')->constrained('teams');
 
@@ -957,25 +973,25 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             'insert into "__temp__users" ("foo", "company_id") select "foo", "company_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
-            'alter table "users" add column "laravel_idea_id" varchar not null',
-            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "laravel_idea_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id") select "foo", "company_id", "laravel_idea_id" from "users"',
+            'alter table "users" add column "hypervel_idea_id" varchar not null',
+            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "hypervel_idea_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id") select "foo", "company_id", "hypervel_idea_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
             'alter table "users" add column "team_id" varchar not null',
-            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "laravel_idea_id" varchar not null, "team_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"), foreign key("team_id") references "teams"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id", "team_id") select "foo", "company_id", "laravel_idea_id", "team_id" from "users"',
+            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "hypervel_idea_id" varchar not null, "team_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"), foreign key("team_id") references "teams"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id", "team_id") select "foo", "company_id", "hypervel_idea_id", "team_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
             'alter table "users" add column "team_column_id" varchar not null',
-            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "laravel_idea_id" varchar not null, "team_id" varchar not null, "team_column_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("laravel_idea_id") references "laravel_ideas"("id"), foreign key("team_id") references "teams"("id"), foreign key("team_column_id") references "teams"("id"))',
-            'insert into "__temp__users" ("foo", "company_id", "laravel_idea_id", "team_id", "team_column_id") select "foo", "company_id", "laravel_idea_id", "team_id", "team_column_id" from "users"',
+            'create table "__temp__users" ("foo" varchar not null, "company_id" varchar not null, "hypervel_idea_id" varchar not null, "team_id" varchar not null, "team_column_id" varchar not null, foreign key("company_id") references "companies"("id"), foreign key("hypervel_idea_id") references "hypervel_ideas"("id"), foreign key("team_id") references "teams"("id"), foreign key("team_column_id") references "teams"("id"))',
+            'insert into "__temp__users" ("foo", "company_id", "hypervel_idea_id", "team_id", "team_column_id") select "foo", "company_id", "hypervel_idea_id", "team_id", "team_column_id" from "users"',
             'drop table "users"',
             'alter table "__temp__users" rename to "users"',
         ], $statements);
     }
 
-    public function testAddingIpAddress()
+    public function testAddingIpAddress(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->ipAddress('foo');
@@ -985,7 +1001,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" varchar not null', $statements[0]);
     }
 
-    public function testAddingIpAddressDefaultsColumnName()
+    public function testAddingIpAddressDefaultsColumnName(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->ipAddress();
@@ -995,7 +1011,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "ip_address" varchar not null', $statements[0]);
     }
 
-    public function testAddingMacAddress()
+    public function testAddingMacAddress(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->macAddress('foo');
@@ -1005,7 +1021,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "foo" varchar not null', $statements[0]);
     }
 
-    public function testAddingMacAddressDefaultsColumnName()
+    public function testAddingMacAddressDefaultsColumnName(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->macAddress();
@@ -1015,7 +1031,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add column "mac_address" varchar not null', $statements[0]);
     }
 
-    public function testAddingGeometry()
+    public function testAddingGeometry(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates');
@@ -1025,7 +1041,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "geo" add column "coordinates" geometry not null', $statements[0]);
     }
 
-    public function testAddingGeneratedColumn()
+    public function testAddingGeneratedColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'products');
         $blueprint->create();
@@ -1052,7 +1068,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame($expected, $statements);
     }
 
-    public function testAddingGeneratedColumnByExpression()
+    public function testAddingGeneratedColumnByExpression(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'products');
         $blueprint->create();
@@ -1065,7 +1081,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create table "products" ("price" integer not null, "discounted_virtual" integer as ("price" - 5), "discounted_stored" integer as ("price" - 5) stored)', $statements[0]);
     }
 
-    public function testGrammarsAreMacroable()
+    public function testGrammarsAreMacroable(): void
     {
         // compileReplace macro.
         $this->getGrammar()::macro('compileReplace', function () {
@@ -1077,7 +1093,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertTrue($c);
     }
 
-    public function testCreateTableWithVirtualAsColumn()
+    public function testCreateTableWithVirtualAsColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -1110,12 +1126,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create table "users" ("my_json_column" varchar not null, "my_other_column" varchar as (json_extract("my_json_column", \'$."some_attribute"."nested"\')))', $statements[0]);
     }
 
-    public function testCreateTableWithVirtualAsColumnWhenJsonColumnHasArrayKey()
+    public function testCreateTableWithVirtualAsColumnWhenJsonColumnHasArrayKey(): void
     {
-        $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->andReturn(null);
+        $connection = $this->getConnection();
 
-        $blueprint = new Blueprint($conn, 'users');
+        $blueprint = new Blueprint($connection, 'users');
         $blueprint->create();
         $blueprint->string('my_json_column')->virtualAsJson('my_json_column->foo[0][1]');
 
@@ -1125,7 +1140,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame("create table \"users\" (\"my_json_column\" varchar as (json_extract(\"my_json_column\", '$.\"foo\"[0][1]')))", $statements[0]);
     }
 
-    public function testCreateTableWithStoredAsColumn()
+    public function testCreateTableWithStoredAsColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->create();
@@ -1158,7 +1173,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create table "users" ("my_json_column" varchar not null, "my_other_column" varchar as (json_extract("my_json_column", \'$."some_attribute"."nested"\')) stored)', $statements[0]);
     }
 
-    public function testDroppingColumnsWorks()
+    public function testDroppingColumnsWorks(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users', function ($table) {
             $table->dropColumn('name');
@@ -1167,23 +1182,21 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertEquals(['alter table "users" drop column "name"'], $blueprint->toSql());
     }
 
-    public function testRenamingAndChangingColumnsWork()
+    public function testRenamingAndChangingColumnsWork(): void
     {
-        $builder = mock(SQLiteBuilder::class)
-            ->makePartial()
-            ->shouldReceive('getColumnsForSchemaState')->andReturn([
-                'columns' => [
-                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ],
-                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
-            ])
-            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
-            ->shouldReceive('getForeignKeys')->andReturn([])
-            ->getMock();
+        $builder = m::mock(SQLiteBuilder::class)->makePartial();
+        $builder->expects('getColumnsForSchemaState')->andReturn([
+            'columns' => [
+                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ],
+            'sql' => 'CREATE TABLE users (name varchar, age varchar)',
+        ]);
+        $builder->expects('getIndexesForSchemaState')->andReturn([]);
+        $builder->expects('getForeignKeys')->andReturn([]);
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
+        $connection->expects('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->renameColumn('name', 'first_name');
@@ -1198,23 +1211,21 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testRenamingAndChangingColumnsWorkWithSchema()
+    public function testRenamingAndChangingColumnsWorkWithSchema(): void
     {
-        $builder = mock(SQLiteBuilder::class)
-            ->makePartial()
-            ->shouldReceive('getColumnsForSchemaState')->andReturn([
-                'columns' => [
-                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ],
-                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
-            ])
-            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
-            ->shouldReceive('getForeignKeys')->andReturn([])
-            ->getMock();
+        $builder = m::mock(SQLiteBuilder::class)->makePartial();
+        $builder->expects('getColumnsForSchemaState')->andReturn([
+            'columns' => [
+                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ],
+            'sql' => 'CREATE TABLE users (name varchar, age varchar)',
+        ]);
+        $builder->expects('getIndexesForSchemaState')->andReturn([]);
+        $builder->expects('getForeignKeys')->andReturn([]);
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
+        $connection->expects('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'my_schema.users');
         $blueprint->renameColumn('name', 'first_name');
@@ -1229,39 +1240,48 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ], $blueprint->toSql());
     }
 
+    /**
+     * Get a connection mock for schema compilation.
+     */
     protected function getConnection(
         ?SQLiteGrammar $grammar = null,
         ?SQLiteBuilder $builder = null,
-        $prefix = ''
-    ) {
+        string $prefix = ''
+    ): Connection&MockInterface {
         $connection = m::mock(Connection::class);
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 
-        return $connection
-            ->shouldReceive('getTablePrefix')->andReturn($prefix)
-            ->shouldReceive('getConfig')->andReturn(null)
-            ->shouldReceive('getSchemaGrammar')->andReturn($grammar)
-            ->shouldReceive('getSchemaBuilder')->andReturn($builder)
-            ->shouldReceive('getServerVersion')->andReturn('3.35')
-            ->getMock();
+        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection->shouldReceive('getConfig')->andReturn(null);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
+        $connection->shouldReceive('getServerVersion')->andReturn('3.35');
+
+        return $connection;
     }
 
-    public function getGrammar(?Connection $connection = null)
+    /**
+     * Get the schema grammar.
+     */
+    public function getGrammar(?Connection $connection = null): SQLiteGrammar
     {
         return new SQLiteGrammar($connection ?? $this->getConnection());
     }
 
-    public function getBuilder()
+    /**
+     * Get a schema builder with empty table metadata.
+     */
+    public function getBuilder(): SQLiteBuilder
     {
-        return mock(SQLiteBuilder::class)
-            ->makePartial()
-            ->shouldReceive('getColumnsForSchemaState')->andReturn([
-                'columns' => [],
-                'sql' => 'CREATE TABLE users ()',
-            ])
-            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
-            ->shouldReceive('getForeignKeys')->andReturn([])
-            ->getMock();
+        $builder = m::mock(SQLiteBuilder::class)->makePartial();
+        $builder->shouldReceive('getColumnsForSchemaState')->andReturn([
+            'columns' => [],
+            'sql' => 'CREATE TABLE users ()',
+        ]);
+        $builder->shouldReceive('getIndexesForSchemaState')->andReturn([]);
+        $builder->shouldReceive('getForeignKeys')->andReturn([]);
+
+        return $builder;
     }
 }

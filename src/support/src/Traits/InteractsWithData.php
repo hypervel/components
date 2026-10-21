@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
+use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
+use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Unit;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
-use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use stdClass;
 use Stringable as BaseStringable;
@@ -24,8 +25,6 @@ trait InteractsWithData
 {
     /**
      * Retrieve all data from the instance.
-     *
-     * @param null|array|mixed $keys
      */
     abstract public function all(mixed $keys = null): array;
 
@@ -51,6 +50,7 @@ trait InteractsWithData
 
         $data = $this->all();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! Arr::has($data, $value)) {
                 return false;
@@ -75,7 +75,12 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains the given key.
      *
-     * @return $this|mixed
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenHas(string $key, callable $callback, ?callable $default = null): mixed
     {
@@ -97,6 +102,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if ($this->isEmptyString($value)) {
                 return false;
@@ -113,6 +119,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! $this->isEmptyString($value)) {
                 return false;
@@ -129,6 +136,7 @@ trait InteractsWithData
     {
         $keys = is_array($keys) ? $keys : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if ($this->filled($key)) {
                 return true;
@@ -141,7 +149,12 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a non-empty value for the given key.
      *
-     * @return $this|mixed
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenFilled(string $key, callable $callback, ?callable $default = null): mixed
     {
@@ -159,11 +172,14 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a valid enum value for the given key.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
+     * @template TReturn
+     * @template TReturnDefault = never
      *
      * @param class-string<TEnum> $enumClass
-     * @param callable(TEnum): mixed $callback
-     * @return $this|mixed
+     * @param callable(TEnum): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenEnum(string $key, string $enumClass, callable $callback, ?callable $default = null): mixed
     {
@@ -190,6 +206,13 @@ trait InteractsWithData
 
     /**
      * Apply the callback if the instance is missing the given key.
+     *
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenMissing(string $key, callable $callback, ?callable $default = null): mixed
     {
@@ -229,7 +252,7 @@ trait InteractsWithData
      */
     public function string(string $key, mixed $default = null): Stringable
     {
-        return Str::of($this->data($key, $default));
+        return new Stringable($this->data($key, $default));
     }
 
     /**
@@ -247,7 +270,7 @@ trait InteractsWithData
      */
     public function integer(string $key, int $default = 0): int
     {
-        return intval($this->data($key, $default));
+        return (int) $this->data($key, $default);
     }
 
     /**
@@ -255,7 +278,7 @@ trait InteractsWithData
      */
     public function float(string $key, float $default = 0.0): float
     {
-        return floatval($this->data($key, $default));
+        return (float) $this->data($key, $default);
     }
 
     /**
@@ -263,20 +286,21 @@ trait InteractsWithData
      */
     public function clamp(string $key, int|float $min, int|float $max, int|float $default = 0): int|float
     {
-        $number = $this->data($key, $default);
+        $value = $this->data($key, $default);
 
-        if (is_string($number) && is_numeric($number)) {
-            $number += 0;
+        if (! is_numeric($value)) {
+            $value = $default;
+        } elseif (is_string($value)) {
+            $value += 0;
         }
 
-        // Non-numeric input fails naturally in the strictly typed Number::clamp().
-        return Number::clamp($number, $min, $max); // @phpstan-ignore argument.type
+        return Number::clamp($value, $min, $max);
     }
 
     /**
      * Retrieve data from the instance as a Carbon instance.
      *
-     * @throws \Carbon\Exceptions\InvalidFormatException
+     * @throws InvalidFormatException
      */
     public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?CarbonInterface
     {
@@ -316,11 +340,12 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an enum.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
+     * @template TDefault of TEnum|null
      *
      * @param class-string<TEnum> $enumClass
-     * @param null|TEnum $default
-     * @return null|TEnum
+     * @param TDefault $default
+     * @return TDefault|TEnum
      */
     public function enum(string $key, string $enumClass, mixed $default = null): mixed
     {
@@ -334,7 +359,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an array of enums.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
      *
      * @param class-string<TEnum> $enumClass
      * @return TEnum[]
@@ -369,8 +394,6 @@ trait InteractsWithData
 
     /**
      * Get a subset containing the provided keys with values from the instance data.
-     *
-     * @param array|mixed $keys
      */
     public function only(mixed $keys): array
     {
@@ -393,8 +416,6 @@ trait InteractsWithData
 
     /**
      * Get all of the data except for a specified array of items.
-     *
-     * @param array|mixed $keys
      */
     public function except(mixed $keys): array
     {

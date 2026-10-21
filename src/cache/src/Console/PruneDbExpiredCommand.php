@@ -25,7 +25,7 @@ class PruneDbExpiredCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): ?int
+    public function handle(): int
     {
         $store = $this->argument('store');
         $cache = $this->hypervel->make('cache')->store($store);
@@ -42,14 +42,14 @@ class PruneDbExpiredCommand extends Command
                 $this->error("The cache store [{$store}] is not using the database driver.");
             }
 
-            return 1;
+            return self::FAILURE;
         }
 
         $deleted = $cache->getStore()->pruneExpired();
 
         $this->info("Successfully pruned {$deleted} expired cache entries.");
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

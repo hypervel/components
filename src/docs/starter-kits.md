@@ -48,7 +48,7 @@ Once you have started the Hypervel development server, your application will be 
 <a name="react"></a>
 ## React
 
-The React starter kit provides a modern starting point for building Hypervel applications with a React frontend using [Inertia](https://inertiajs.com).
+The React starter kit provides a modern starting point for building Hypervel applications with a React frontend using [Inertia](/docs/{{version}}/inertia).
 
 Inertia allows you to build modern, single-page React applications using classic server-side routing and controllers. This lets you enjoy the frontend power of React combined with the backend productivity of Hypervel and lightning-fast Vite compilation.
 
@@ -135,6 +135,8 @@ The React starter kit uses [Hypervel Fortify](/docs/{{version}}/fortify) to hand
 
 Fortify automatically registers the following authentication routes based on the features that are enabled in your application's `config/fortify.php` configuration file:
 
+<div class="overflow-auto">
+
 | Route                              | Method | Description                         |
 | ---------------------------------- | ------ | ----------------------------------- |
 | `/login`                           | `GET`  | Display login form                  |
@@ -153,6 +155,8 @@ Fortify automatically registers the following authentication routes based on the
 | `/user/confirm-password`           | `POST` | Confirm password                    |
 | `/two-factor-challenge`            | `GET`  | Display 2FA challenge form          |
 | `/two-factor-challenge`            | `POST` | Verify 2FA code                     |
+
+</div>
 
 The `php artisan route:list` Artisan command can be used to display all of the routes in your application.
 
@@ -184,11 +188,15 @@ When using the React starter kit, you will also need to remove any references to
 
 When a user registers or resets their password, Fortify invokes action classes located in your application's `app/Actions/Fortify` directory:
 
+<div class="overflow-auto">
+
 | File                          | Description                          |
 | ----------------------------- | ------------------------------------ |
 | `CreateNewUser.php`           | Validates and creates new users      |
 | `ResetUserPassword.php`       | Validates and updates user passwords |
 | `PasswordValidationRules.php` | Defines password validation rules    |
+
+</div>
 
 For example, to customize your application's registration logic, you should edit the `CreateNewUser` action:
 
@@ -235,7 +243,7 @@ RateLimiter::for('login', function ($request) {
 <a name="inertia-ssr"></a>
 ## Inertia SSR
 
-The React starter kit is compatible with Inertia's [server-side rendering](https://inertiajs.com/server-side-rendering) capabilities. SSR does not require a different starter kit. The same application may be served using normal client-side Inertia rendering or with an Inertia SSR server running alongside your Hypervel application.
+The React starter kit is compatible with Inertia's [server-side rendering](/docs/{{version}}/inertia#server-side-rendering) capabilities. SSR does not require a different starter kit. The same application may be served using normal client-side Inertia rendering or with an Inertia SSR server running alongside your Hypervel application.
 
 To build an Inertia SSR compatible bundle for your application, run the `build:ssr` command:
 

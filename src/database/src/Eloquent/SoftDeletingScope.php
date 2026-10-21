@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+/**
+ * @template TModel of Model
+ *
+ * @implements Scope<TModel>
+ */
 class SoftDeletingScope implements Scope
 {
     /**
@@ -16,14 +21,12 @@ class SoftDeletingScope implements Scope
     /**
      * Apply the scope to a given Eloquent query builder.
      *
-     * @template TModel of Model
-     *
      * @param Builder<TModel> $builder
      * @param TModel $model
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $builder->whereNull($model->getQualifiedDeletedAtColumn());
+        $builder->whereNull($builder->qualifyColumn($model->getQualifiedDeletedAtColumn()));
     }
 
     /**
@@ -53,8 +56,8 @@ class SoftDeletingScope implements Scope
      */
     protected function getDeletedAtColumn(Builder $builder): string
     {
-        if (count((array) $builder->getQuery()->joins) > 0) {
-            return $builder->getModel()->getQualifiedDeletedAtColumn();
+        if ((array) $builder->getQuery()->joins !== []) {
+            return $builder->qualifyColumn($builder->getModel()->getQualifiedDeletedAtColumn());
         }
 
         return $builder->getModel()->getDeletedAtColumn();
@@ -135,7 +138,7 @@ class SoftDeletingScope implements Scope
 
             // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNull(
-                $model->getQualifiedDeletedAtColumn()
+                $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );
 
             return $builder;
@@ -154,7 +157,7 @@ class SoftDeletingScope implements Scope
 
             // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNotNull(
-                $model->getQualifiedDeletedAtColumn()
+                $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );
 
             return $builder;

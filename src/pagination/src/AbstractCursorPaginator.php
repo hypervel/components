@@ -592,43 +592,43 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Determine if the given item exists.
      *
-     * @param TKey $key
+     * @param TKey $offset
      */
-    public function offsetExists($key): bool
+    public function offsetExists($offset): bool
     {
-        return $this->items->has($key);
+        return $this->items->has($offset);
     }
 
     /**
      * Get the item at the given offset.
      *
-     * @param TKey $key
+     * @param TKey $offset
      * @return null|TValue
      */
-    public function offsetGet($key): mixed
+    public function offsetGet($offset): mixed
     {
-        return $this->items->get($key);
+        return $this->items->get($offset);
     }
 
     /**
      * Set the item at the given offset.
      *
-     * @param null|TKey $key
+     * @param null|TKey $offset
      * @param TValue $value
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet($offset, $value): void
     {
-        $this->items->put($key, $value);
+        $this->items->put($offset, $value);
     }
 
     /**
      * Unset the item at the given key.
      *
-     * @param TKey $key
+     * @param TKey $offset
      */
-    public function offsetUnset($key): void
+    public function offsetUnset($offset): void
     {
-        $this->items->forget($key);
+        $this->items->forget($offset);
     }
 
     /**

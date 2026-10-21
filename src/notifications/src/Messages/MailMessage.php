@@ -211,7 +211,7 @@ class MailMessage extends SimpleMessage implements Renderable
             return $file->attachTo($this);
         }
 
-        $this->attachments[] = compact('file', 'options');
+        $this->attachments[] = ['file' => $file, 'options' => $options];
 
         return $this;
     }
@@ -239,7 +239,7 @@ class MailMessage extends SimpleMessage implements Renderable
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
-        $this->rawAttachments[] = compact('data', 'name', 'options');
+        $this->rawAttachments[] = ['data' => $data, 'name' => $name, 'options' => $options];
 
         return $this;
     }
@@ -320,11 +320,12 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Parse the multi-address array into the necessary format.
      */
-    protected function parseAddresses(array $value): array
+    protected function parseAddresses(Arrayable|iterable $value): array
     {
-        return Collection::make($value)->map(function ($address, $name) {
-            return [$address, is_numeric($name) ? null : $name];
-        })->values()->all();
+        return (new Collection($value))
+            ->map(fn (mixed $address, int|string $name): array => [$address, is_numeric($name) ? null : $name])
+            ->values()
+            ->all();
     }
 
     /**

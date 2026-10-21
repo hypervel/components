@@ -46,7 +46,7 @@ class ConnectionNameTest extends TestCase
     public function testParseRejectsDirectConnectionName(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection suffix [::direct] is not supported. Configure a direct connection and use migrations_connection instead.'
         );
 

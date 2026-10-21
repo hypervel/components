@@ -184,7 +184,7 @@ class RequestQueryStringPartialsResolver
      * Find a data property by its PHP or mapped output name.
      */
     protected function findProperty(
-        string $field,
+        string|int $field,
         DataClass $dataClass,
     ): ?DataProperty {
         if (isset($dataClass->properties[$field])) {

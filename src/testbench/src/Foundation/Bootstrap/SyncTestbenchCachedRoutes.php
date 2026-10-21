@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Filesystem\join_paths;
@@ -16,7 +17,7 @@ class SyncTestbenchCachedRoutes
      */
     public function bootstrap(Application $app): void
     {
-        /** @var \Hypervel\Routing\Router $router */
+        /** @var Router $router */
         $router = $app->make('router');
         $routeFiles = glob($app->basePath(join_paths('routes', 'testbench-*.php'))) ?: [];
 

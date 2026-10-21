@@ -264,6 +264,12 @@ Route::get('/users', function () {
 });
 ```
 
+You may also preserve keys for an individual collection by calling the `preserveKeys` method on the collection returned by `UserResource::collection`:
+
+```php
+return UserResource::collection(User::all()->keyBy->id)->preserveKeys();
+```
+
 <a name="customizing-the-underlying-resource-class"></a>
 #### Customizing the Underlying Resource Class
 
@@ -1036,7 +1042,7 @@ JsonApiResource::configure(
 <a name="defining-jsonapi-attributes"></a>
 ### Defining Attributes
 
-There are two ways to define which attributes are included in your JSON:API resource.
+By default, a resource uses its model's serialized attributes, excluding `id`, `type`, and declared relationship names. There are two ways to explicitly define which attributes are included in your JSON:API resource.
 
 The simplest approach is to define an `$attributes` property on your resource. You may list attribute names as values, which will be read directly from the underlying model:
 
@@ -1122,6 +1128,7 @@ public function toRelationships(Request $request): array
 
 Using closures gives you more control over the relationship payload, while still only resolving the relationship when the client requests it.
 
+<a name="including-jsonapi-relationships"></a>
 #### Including Relationships
 
 Clients may request related resources using the `include` query parameter:
@@ -1182,6 +1189,8 @@ Nested relationships may be included using dot notation:
 GET /api/posts/1?include=comments.author
 ```
 
+Each nested relationship must be declared by its resource. Hypervel batches requested relationships across the collection and loads them before attribute callbacks run, so callbacks such as `whenLoaded()` can use them without issuing additional queries.
+
 <a name="jsonapi-relationship-depth"></a>
 #### Relationship Depth
 
@@ -1199,7 +1208,7 @@ JsonApiResource::maxRelationshipDepth(3);
 <a name="jsonapi-resource-type-and-id"></a>
 ### Resource Type and ID
 
-By default, the resource's `type` is derived from the resource class name. For example, `PostResource` produces the type `posts` and `BlogPostResource` produces `blog-posts`. The resource's `id` is resolved from the model's primary key.
+By default, the resource's `type` is derived from the resource class name. For example, `PostResource` produces the type `posts` and `BlogPostResource` produces `blog_posts`. The resource's `id` is resolved from the model's primary key.
 
 If you need to customize these values, you may override the `toType` and `toId` methods on your resource:
 

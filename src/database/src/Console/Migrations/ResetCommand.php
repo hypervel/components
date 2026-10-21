@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Migrations\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'migrate:reset')]
 class ResetCommand extends BaseCommand
@@ -18,9 +16,14 @@ class ResetCommand extends BaseCommand
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'migrate:reset';
+    protected ?string $signature = 'migrate:reset
+                    {--database= : The database connection to use}
+                    {--force : Force the operation to run when in production}
+                    {--path=* : The path(s) to the migrations files to be executed}
+                    {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
+                    {--pretend : Dump the SQL queries that would be run}';
 
     /**
      * The console command description.
@@ -42,9 +45,8 @@ class ResetCommand extends BaseCommand
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         return $this->migrator->usingConnection($this->option('database'), function () {
@@ -54,7 +56,7 @@ class ResetCommand extends BaseCommand
             if (! $this->migrator->repositoryExists()) {
                 $this->components->warn('Migration table not found.');
 
-                return Command::SUCCESS;
+                return self::SUCCESS;
             }
 
             $this->migrator->setOutput($this->output)->reset(
@@ -62,21 +64,7 @@ class ResetCommand extends BaseCommand
                 $this->option('pretend')
             );
 
-            return Command::SUCCESS;
+            return self::SUCCESS;
         });
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
-            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
-            ['path', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'The path(s) to the migrations files to be executed'],
-            ['realpath', null, InputOption::VALUE_NONE, 'Indicate any provided migration file paths are pre-resolved absolute paths'],
-            ['pretend', null, InputOption::VALUE_NONE, 'Dump the SQL queries that would be run'],
-        ];
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Commands;
 
-use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\PermissionRegistrar;
@@ -40,6 +39,7 @@ class AssignRoleCommand extends Command
             return self::SUCCESS;
         }
 
+        // Validate that the model class exists and is an Eloquent model
         if (! is_string($userModelClass) || ! class_exists($userModelClass)) {
             $this->error("User model class [{$userModelClass}] does not exist.");
 
@@ -74,8 +74,7 @@ class AssignRoleCommand extends Command
         try {
             $role = $roleClass::findOrCreate($roleName, is_string($guardName) ? $guardName : null);
 
-            $assignRole = Closure::fromCallable([$user, 'assignRole']);
-            $assignRole($role);
+            $user->assignRole($role);
         } finally {
             setPermissionsTeamId($teamIdAux);
         }

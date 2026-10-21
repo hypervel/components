@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Scout\Console\ConcurrentImportRunner;
@@ -15,6 +19,72 @@ use Swoole\Coroutine\CanceledException;
 
 class ConcurrentImportRunnerTest extends TestCase
 {
+    public function testChildrenPreserveTheScopedDefaultDatabaseConnection(): void
+    {
+        $container = new Container;
+        $container->instance('config', new Repository(['database' => ['default' => 'central']]));
+        $database = new DatabaseManager($container, new ConnectionFactory($container));
+        $runner = new ConcurrentImportRunner(1);
+        $connection = null;
+
+        $database->usingConnection('tenant', static function () use ($database, $runner, &$connection): void {
+            $runner->create(static function () use ($database, &$connection): void {
+                $connection = $database->getDefaultConnection();
+            });
+            $runner->wait();
+        });
+
+        $this->assertSame('tenant', $connection);
+    }
+
+    public function testZeroCapacityRunsInlineAndPreservesParentCancellation(): void
+    {
+        $runner = new ConcurrentImportRunner(0);
+        $parentId = Coroutine::id();
+        $operationId = null;
+        $runner->create(static function () use (&$operationId): void {
+            $operationId = Coroutine::id();
+        });
+        $runner->wait();
+
+        $this->assertSame($parentId, $operationId);
+
+        $started = new Channel(1);
+        $blocker = new Channel(1);
+        $finished = new Channel(1);
+        $nativeCancellation = null;
+        $caught = null;
+        $parent = EngineCoroutine::create(static function () use ($started, $blocker, $finished, &$nativeCancellation, &$caught): void {
+            try {
+                (new ConcurrentImportRunner(0))->create(static function () use ($started, $blocker, &$nativeCancellation): void {
+                    $started->push(true);
+
+                    try {
+                        $blocker->pop();
+                    } catch (CanceledException $exception) {
+                        $nativeCancellation = $exception;
+                        throw $exception;
+                    }
+                });
+            } catch (CanceledException $exception) {
+                $caught = $exception;
+            } finally {
+                $finished->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($started->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+            $this->assertTrue($finished->pop(1));
+        } finally {
+            $blocker->push(true);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $nativeCancellation);
+        $this->assertSame($nativeCancellation, $caught);
+    }
+
     public function testWaitDrainsActiveChildrenBeforeRethrowingTheFirstFailure(): void
     {
         $runner = new ConcurrentImportRunner(2);

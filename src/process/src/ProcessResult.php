@@ -56,6 +56,10 @@ class ProcessResult implements ProcessResultContract
      */
     public function output(): string
     {
+        if ($this->process->isOutputDisabled()) {
+            return '';
+        }
+
         return $this->process->getOutput();
     }
 
@@ -72,6 +76,10 @@ class ProcessResult implements ProcessResultContract
      */
     public function errorOutput(): string
     {
+        if ($this->process->isOutputDisabled()) {
+            return '';
+        }
+
         return $this->process->getErrorOutput();
     }
 
@@ -86,7 +94,7 @@ class ProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed.
      *
-     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
+     * @throws ProcessFailedException
      */
     public function throw(?callable $callback = null): static
     {
@@ -106,7 +114,7 @@ class ProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed and the given condition is true.
      *
-     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
+     * @throws ProcessFailedException
      */
     public function throwIf(bool $condition, ?callable $callback = null): static
     {

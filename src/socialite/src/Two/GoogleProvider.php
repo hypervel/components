@@ -59,6 +59,7 @@ class GoogleProvider extends AbstractProvider implements ProviderInterface
 
     protected function mapUserToObject(array $user): User
     {
+        // Laravel's deprecated "id", "verified_email" and "link" raw aliases are not added.
         return (new User)->setRaw($user)->map([
             'id' => Arr::get($user, 'sub'),
             'nickname' => Arr::get($user, 'nickname'),

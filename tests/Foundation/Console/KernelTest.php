@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
+use Composer\Autoload\ClassLoader;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
+use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Console\Kernel;
@@ -24,6 +27,8 @@ use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -38,7 +43,7 @@ class KernelTest extends TestCase
         $app->make('config')->set('app.timezone', 'Asia/Tokyo');
     }
 
-    public function testHandleCatchesExceptionsAndReturnsOne()
+    public function testHandleCatchesExceptionsAndReturnsOne(): void
     {
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once();
@@ -69,7 +74,7 @@ class KernelTest extends TestCase
         $reportingFailure = new RuntimeException('Reporting failed');
 
         $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($original)->andThrow($reportingFailure);
+        $handler->shouldReceive('report')->once()->with($original, [])->andThrow($reportingFailure);
         $handler->shouldNotReceive('renderForConsole');
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
@@ -131,7 +136,7 @@ class KernelTest extends TestCase
         }
     }
 
-    public function testBootstrapWithoutBootingProvidersSkipsBootProviders()
+    public function testBootstrapWithoutBootingProvidersSkipsBootProviders(): void
     {
         $bootstrappedWith = null;
 
@@ -182,6 +187,119 @@ class KernelTest extends TestCase
 
         $this->assertSame('scheduling', $this->app->make(CacheEventMutex::class)->store);
         $this->assertSame('scheduling', $this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testLoadIgnoresTestFiles(): void
+    {
+        $files = new Filesystem;
+        $directory = $this->app->path('Console/Commands/Discovery');
+        $loader = new ClassLoader;
+        $loader->addPsr4('App\Console\Commands\Discovery\\', $directory);
+
+        try {
+            $files->ensureDirectoryExists($directory);
+            $files->put($directory . '/ExampleCommand.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Console\Command;
+
+class ExampleCommand extends Command
+{
+    protected ?string $signature = 'example';
+
+    public function handle(): void {}
+}
+PHP);
+            $files->put($directory . '/ExampleCommandTest.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Console\Command;
+
+class ExampleCommandTest extends Command
+{
+    protected ?string $signature = 'example-test';
+
+    public function handle(): void {}
+}
+PHP);
+            $files->put($directory . '/ExampleCommandUnitTest.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Tests\TestCase;
+
+class ExampleCommandUnitTest extends TestCase
+{
+    public function testCommand(): void
+    {
+        $this->assertTrue(true);
+    }
+}
+PHP);
+            $loader->register();
+
+            $kernel = new Kernel($this->app, $this->app->make('events'));
+            $kernel->addCommandPaths([$directory]);
+
+            $commands = collect($kernel->getArtisan()->all())
+                ->map(static fn (SymfonyCommand $command): string => $command::class)->all();
+
+            $this->assertContains('App\Console\Commands\Discovery\ExampleCommand', $commands);
+            $this->assertContains('App\Console\Commands\Discovery\ExampleCommandTest', $commands);
+            $this->assertNotContains('App\Console\Commands\Discovery\ExampleCommandUnitTest', $commands);
+        } finally {
+            $loader->unregister();
+            $files->deleteDirectory($directory);
+        }
+    }
+
+    public function testApplicationKernelsCanOverrideTheProtectedConsoleHooks(): void
+    {
+        $kernel = new class($this->app, $this->app->make('events')) extends Kernel {
+            public array $calls = [];
+
+            /**
+             * Record that the schedule was defined.
+             */
+            protected function schedule(Schedule $schedule): void
+            {
+                $this->calls[] = 'schedule';
+            }
+
+            /**
+             * Load commands the way a Laravel application kernel does.
+             */
+            protected function commands(): void
+            {
+                $this->load(__DIR__ . '/Commands');
+            }
+
+            /**
+             * Record the loaded paths before registering their commands.
+             */
+            protected function load(array|string $paths): void
+            {
+                $this->calls[] = $paths;
+
+                parent::load($paths);
+            }
+        };
+
+        $kernel->bootstrap();
+        $kernel->resolveConsoleSchedule();
+
+        $this->assertSame([__DIR__ . '/Commands', 'schedule'], $kernel->calls);
     }
 
     public function testSetArtisanSynchronizesTheKernelAndContainerBeforeReboundCallbacks(): void
@@ -239,12 +357,12 @@ class KernelTest extends TestCase
         $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
     }
 
-    public function testReportExceptionDelegatesToExceptionHandler()
+    public function testReportExceptionDelegatesToExceptionHandler(): void
     {
         $exception = new RuntimeException('Test exception');
 
         $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($exception);
+        $handler->shouldReceive('report')->once()->with($exception, []);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -253,7 +371,7 @@ class KernelTest extends TestCase
         $method->invoke($kernel, $exception);
     }
 
-    public function testRenderExceptionDelegatesToExceptionHandler()
+    public function testRenderExceptionDelegatesToExceptionHandler(): void
     {
         $exception = new RuntimeException('Test exception');
         $output = new BufferedOutput;
@@ -339,7 +457,7 @@ class KernelTest extends TestCase
         $this->assertSame('configured', trim($output->fetch()));
     }
 
-    public function testItDispatchesTerminatingEvent()
+    public function testItDispatchesTerminatingEvent(): void
     {
         $called = [];
         $app = new Application;
@@ -359,6 +477,103 @@ class KernelTest extends TestCase
             'terminating event',
             'terminating callback',
         ], $called);
+    }
+
+    public function testFindCommandReturnsNullWhenTheCommandDoesNotExist(): void
+    {
+        $kernel = $this->makeKernel();
+
+        $command = $kernel->findCommand('not-a-real-command');
+
+        $this->assertNull($command);
+    }
+
+    public function testFindCommandRetrievesTheCommand(): void
+    {
+        $kernel = $this->makeKernel();
+        $kernel->registerCommand(new KernelTestCommand);
+
+        $command = $kernel->findCommand('kernel-test-command');
+
+        $this->assertInstanceOf(KernelTestCommand::class, $command);
+    }
+
+    public function testFindCommandDoesNotResolveOtherLazilyRegisteredCommands(): void
+    {
+        KernelTestLazyCommand::$constructionAttempts = 0;
+        $kernel = $this->makeKernel();
+        $artisan = $kernel->getArtisan();
+        $artisan->resolveCommands([KernelTestLazyCommand::class]);
+        $artisan->setContainerCommandLoader();
+
+        $kernel->registerCommand(new KernelTestCommand);
+
+        $command = $kernel->findCommand('kernel-test-command');
+
+        $this->assertInstanceOf(KernelTestCommand::class, $command);
+        $this->assertSame(0, KernelTestLazyCommand::$constructionAttempts);
+
+        $command = $kernel->findCommand('kernel-test-lazy-command');
+        $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+        $this->assertInstanceOf(KernelTestLazyCommand::class, $command);
+    }
+
+    public function testFindCommandReturnsTheSameInstanceOnSubsequentCalls(): void
+    {
+        KernelTestLazyCommand::$constructionAttempts = 0;
+        $kernel = $this->makeKernel();
+        $artisan = $kernel->getArtisan();
+        $artisan->resolveCommands([KernelTestLazyCommand::class]);
+        $artisan->setContainerCommandLoader();
+
+        $first = $kernel->findCommand('kernel-test-lazy-command');
+        $second = $kernel->findCommand('kernel-test-lazy-command');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+    }
+
+    /**
+     * Create a console kernel.
+     */
+    protected function makeKernel(): Kernel
+    {
+        return new Kernel($this->app, $this->app->make('events'));
+    }
+}
+
+class KernelTestCommand extends Command
+{
+    protected ?string $signature = 'kernel-test-command';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[AsCommand(name: 'kernel-test-lazy-command')]
+class KernelTestLazyCommand extends Command
+{
+    public static int $constructionAttempts = 0;
+
+    /**
+     * Create a new command instance.
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        ++static::$constructionAttempts;
+    }
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
     }
 }
 

@@ -31,7 +31,7 @@ class StorageTest extends TestCase
         parent::setUp();
     }
 
-    public function testItCanDeleteViaStorage()
+    public function testItCanDeleteViaStorage(): void
     {
         Storage::disk('public')->assertExists('StardewTaylor.png');
         $this->assertTrue(Storage::disk('public')->exists('StardewTaylor.png'));
@@ -42,7 +42,7 @@ class StorageTest extends TestCase
         $this->assertFalse(Storage::disk('public')->exists('StardewTaylor.png'));
     }
 
-    public function testItCanDeleteViaFilesystemShouldUpdatesStorage()
+    public function testItCanDeleteViaFilesystemShouldUpdatesStorage(): void
     {
         Storage::disk('public')->assertExists('StardewTaylor.png');
         $this->assertTrue(Storage::disk('public')->exists('StardewTaylor.png'));
@@ -53,7 +53,7 @@ class StorageTest extends TestCase
         $this->assertFalse(Storage::disk('public')->exists('StardewTaylor.png'));
     }
 
-    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnStorageFromDifferentProcess()
+    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnStorageFromDifferentProcess(): void
     {
         Storage::disk('public')->assertExists('StardewTaylor.png');
         $this->assertTrue(Storage::disk('public')->exists('StardewTaylor.png'));
@@ -65,7 +65,7 @@ class StorageTest extends TestCase
         $this->assertFalse(Storage::disk('public')->exists('StardewTaylor.png'));
     }
 
-    public function testConditionable()
+    public function testConditionable(): void
     {
         Storage::disk('public')->assertExists('StardewTaylor.png');
         $this->assertTrue(Storage::disk('public')->exists('StardewTaylor.png'));
@@ -81,7 +81,7 @@ class StorageTest extends TestCase
         $this->assertFalse(Storage::disk('public')->exists('StardewTaylor.png'));
     }
 
-    public function testItCanDeleteDirectoryViaStorage()
+    public function testItCanDeleteDirectoryViaStorage(): void
     {
         if (! Storage::disk('public')->exists('testdir')) {
             Storage::disk('public')->makeDirectory('testdir');

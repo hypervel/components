@@ -8,7 +8,7 @@ use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use ReflectionClass;
 
 /**
- * @template TCollection of \Hypervel\Database\Eloquent\Collection
+ * @template TCollection of Collection
  */
 trait HasCollection
 {

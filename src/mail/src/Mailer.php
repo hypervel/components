@@ -15,6 +15,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
@@ -83,7 +84,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     public function alwaysFrom(string $address, ?string $name = null): void
     {
-        $this->from = compact('address', 'name');
+        $this->from = ['address' => $address, 'name' => $name];
     }
 
     /**
@@ -95,7 +96,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     public function alwaysReplyTo(string $address, ?string $name = null): void
     {
-        $this->replyTo = compact('address', 'name');
+        $this->replyTo = ['address' => $address, 'name' => $name];
     }
 
     /**
@@ -107,7 +108,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     public function alwaysReturnPath(string $address): void
     {
-        $this->returnPath = compact('address');
+        $this->returnPath = ['address' => $address];
     }
 
     /**
@@ -119,7 +120,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     public function alwaysTo(string $address, ?string $name = null): void
     {
-        $this->to = compact('address', 'name');
+        $this->to = ['address' => $address, 'name' => $name];
     }
 
     /**
@@ -190,7 +191,7 @@ class Mailer implements MailerContract, MailQueueContract
         // First we need to parse the view, which could either be a string or an array
         // containing both an HTML and plain text versions of the view which should
         // be used when sending an e-mail. We will extract both of them out here.
-        [$view, $plain, $raw] = $this->parseView($view);
+        [$view, $plain] = $this->parseView($view);
 
         $data['message'] = $this->createMessage();
 
@@ -468,7 +469,12 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function sendSymfonyMessage(Email $message): ?SymfonySentMessage
     {
-        return $this->transport->send($message, Envelope::create($message));
+        $envelope = Envelope::create($message);
+
+        // Return idle database sessions before waiting for transport capacity and delivery.
+        ConnectionResolver::releaseIdleConnections();
+
+        return $this->transport->send($message, $envelope);
     }
 
     /**

@@ -12,6 +12,8 @@ use Monolog\LogRecord;
 use Sentry\Logs\LogLevel;
 use Throwable;
 
+use function Sentry\logger;
+
 class LogsHandler extends AbstractProcessingHandler
 {
     /**
@@ -19,6 +21,9 @@ class LogsHandler extends AbstractProcessingHandler
      */
     protected ?FormatterInterface $batchFormatter = null;
 
+    /**
+     * Handle a set of records at once, sending the most severe with the others as context.
+     */
     public function handleBatch(array $records): void
     {
         $records = array_values(array_filter($records, $this->isHandling(...)));
@@ -94,7 +99,7 @@ class LogsHandler extends AbstractProcessingHandler
             unset($context['exception']);
         }
 
-        \Sentry\logger()->aggregator()->add(
+        logger()->aggregator()->add(
             self::getLogLevel($record->level),
             $record->message,
             [],

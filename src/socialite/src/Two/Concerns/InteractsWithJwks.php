@@ -7,12 +7,13 @@ namespace Hypervel\Socialite\Two\Concerns;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Firebase\JWT\SignatureInvalidException;
+use Hypervel\Socialite\Two\AbstractProvider;
 use Psr\Http\Message\ResponseInterface;
 use SensitiveParameter;
 use UnexpectedValueException;
 
 /**
- * @phpstan-require-extends \Hypervel\Socialite\Two\AbstractProvider
+ * @phpstan-require-extends AbstractProvider
  */
 trait InteractsWithJwks
 {

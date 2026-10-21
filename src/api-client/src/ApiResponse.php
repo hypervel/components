@@ -12,7 +12,7 @@ use JsonException;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @implements Arrayable<array-key, mixed>
+ * @implements Arrayable<array<array-key, mixed>>
  */
 class ApiResponse extends HttpClientResponse implements Arrayable
 {
@@ -27,7 +27,7 @@ class ApiResponse extends HttpClientResponse implements Arrayable
         $apiResponse->cookies = $response->cookies;
         $apiResponse->transferStats = $response->transferStats;
         $apiResponse->decoded = $response->decoded;
-        $apiResponse->hasDecoded = $response->hasDecoded;
+        $apiResponse->decodedJson = $response->decodedJson;
         $apiResponse->decodingFlags = $response->decodingFlags;
         $apiResponse->decodeUsing = $response->decodeUsing;
         $apiResponse->truncateExceptionsAt = $response->truncateExceptionsAt;
@@ -107,7 +107,7 @@ class ApiResponse extends HttpClientResponse implements Arrayable
         $this->response = $this->toPsrResponse()
             ->withBody($body);
         $this->decoded = null;
-        $this->hasDecoded = false;
+        $this->decodedJson = false;
         $this->decodingFlags = 0;
 
         return $this;

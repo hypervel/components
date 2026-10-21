@@ -54,9 +54,9 @@ abstract class QueryTimeoutTestCase extends DatabaseTestCase
     public function testTimeoutInterruptsUnionSelect(): void
     {
         $this->assertQueryTimesOut(
-            fn () => DB::query()
-                ->selectRaw('1 as value')
-                ->unionAll(DB::query()->selectRaw('SLEEP(2) as value'))
+            fn () => DB::table('query_timeout_probes')
+                ->select('id')
+                ->unionAll(DB::table('query_timeout_probes')->select('id')->whereRaw('SLEEP(2) = 0'))
                 ->timeout(1)
                 ->get()
         );

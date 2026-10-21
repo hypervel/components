@@ -106,17 +106,19 @@ class JwtGuardCoroutineSafetyTest extends TestCase
     private function createGuard(ManagerContract $manager, UserProvider $provider): JwtGuard
     {
         return new JwtGuard(
-            'jwt',
-            $provider,
-            $manager,
-            new ClaimFactory(new Repository([
+            name: 'jwt',
+            provider: $provider,
+            jwtManager: $manager,
+            claimFactory: new ClaimFactory(new Repository([
                 'jwt' => [
                     'issuer' => null,
                     'lock_subject' => false,
                 ],
             ])),
-            new Parser([new AuthHeaders, new InputSource]),
-            $this->app,
+            parser: new Parser([new AuthHeaders, new InputSource]),
+            app: $this->app,
+            rehashOnLogin: false,
+            timeboxDuration: 0,
         );
     }
 }

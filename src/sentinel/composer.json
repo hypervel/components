@@ -1,0 +1,49 @@
+{
+    "name": "hypervel/sentinel",
+    "description": "The Hypervel Sentinel package.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "php",
+        "security",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/auth": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/support": "^0.4",
+        "symfony/http-foundation": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Sentinel\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

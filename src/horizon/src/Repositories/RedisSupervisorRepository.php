@@ -142,7 +142,7 @@ class RedisSupervisorRepository implements SupervisorRepository
         $this->connection()->zRemRangeByScore(
             'supervisors',
             '-inf',
-            (string) CarbonImmutable::now()->subSeconds(14)->getTimestamp()
+            CarbonImmutable::now()->subSeconds(14)->getTimestamp()
         );
     }
 

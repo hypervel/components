@@ -1,5 +1,7 @@
 The MIT License (MIT)
 
+Copyright (c) Taylor Otwell
+
 Copyright (c) Hypervel
 
 Copyright (c) Alexander <iam.asm89@gmail.com>

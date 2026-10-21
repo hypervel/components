@@ -39,12 +39,12 @@ class JsonResourceTest extends TestCase
 
         $resource = m::mock(JsonResource::class, ['resource' => $model])
             ->makePartial()
-            ->shouldReceive('jsonSerialize')->andReturn(['foo' => 'bar'])
+            ->expects('jsonSerialize')->andReturn(['foo' => 'bar'])
             ->getMock();
 
         // Simulate a JSON error
         json_decode('{');
-        $this->assertTrue(json_last_error() !== JSON_ERROR_NONE);
+        $this->assertNotSame(JSON_ERROR_NONE, json_last_error());
 
         $this->assertSame('{"foo":"bar"}', $resource->toJson(JSON_THROW_ON_ERROR));
     }
@@ -56,7 +56,7 @@ class JsonResourceTest extends TestCase
 
         $resource = m::mock(JsonResource::class, ['resource' => $model])
             ->makePartial()
-            ->shouldReceive('jsonSerialize')->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
+            ->expects('jsonSerialize')->times(3)->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
             ->getMock();
 
         $results = $resource->toPrettyJson();

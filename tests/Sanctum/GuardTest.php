@@ -241,7 +241,7 @@ class GuardTest extends TestCase
     protected function expectInvalidSessionGuardsConfiguration(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Auth guard [sanctum] uses the sanctum driver but does not declare a valid session guards list. '
             . 'Set auth.guards.sanctum.session_guards to an array of session guard names, or [] to disable stateful session authentication.'
         );
@@ -650,7 +650,7 @@ class GuardTest extends TestCase
         $this->app->make('auth')->forgetGuards();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [sanctum] lists [other-sanctum] in session_guards, but that guard is not a stateful guard.');
+        $this->expectExceptionMessageIs('Auth guard [sanctum] lists [other-sanctum] in session_guards, but that guard is not a stateful guard.');
 
         $this->withoutExceptionHandling()->getJson('/test/user');
     }
@@ -946,7 +946,7 @@ class GuardTest extends TestCase
         $this->assertNotNull($data['last_used_at']);
     }
 
-    public function testSuccessfulAuthenticationTracksLastUsedAtByDefault(): void
+    public function testLastUsedAtIsTrackedWhenEnabled(): void
     {
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
@@ -980,7 +980,7 @@ class GuardTest extends TestCase
         $this->assertNull($token->fresh()->last_used_at);
     }
 
-    public function testSuccessfulAuthenticationDoesNotTrackLastUsedAtWhenDisabled(): void
+    public function testLastUsedAtIsNotTrackedWhenDisabled(): void
     {
         $this->app->make('config')->set('sanctum.last_used_at', false);
         [$user, $token, $plainToken] = $this->createUserWithToken();
@@ -1138,6 +1138,26 @@ class GuardTest extends TestCase
             ]);
 
         $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testCopiedRequestsRecheckTheAuthenticationCallbackForTheSameToken(): void
+    {
+        [$user, , $plainToken] = $this->createUserWithToken();
+        $hosts = [];
+        Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $isValid) use (&$hosts): bool {
+            $hosts[] = $host = request()->getHost();
+
+            return $isValid && $host === 'first.example';
+        });
+        RequestContext::set(Request::create('https://first.example/test/user', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $plainToken,
+        ]));
+        $this->assertSame($user->getKey(), auth('sanctum')->user()->getKey());
+
+        $this->withToken($plainToken)->getJson('https://second.example/test/user')
+            ->assertOk()->assertJson(['authenticated' => false, 'user_id' => null]);
+
+        $this->assertSame(['first.example', 'second.example'], $hosts);
     }
 
     public function testAuthenticationWithCustomTokenHeader(): void

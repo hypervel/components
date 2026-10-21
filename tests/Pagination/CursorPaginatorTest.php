@@ -87,7 +87,7 @@ class CursorPaginatorTest extends TestCase
             $options = ['path' => 'http://website.com/test', 'parameters' => ['id']]
         );
 
-        $this->assertSame($p->path(), 'http://website.com/test');
+        $this->assertSame('http://website.com/test', $p->path());
     }
 
     public function testCanTransformPaginatorItems(): void
@@ -264,7 +264,7 @@ class CursorPaginatorTest extends TestCase
         ], 1, null, ['parameters' => ['id']]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cursor parameter [id] must not be an array.');
+        $this->expectExceptionMessageIs('Cursor parameter [id] must not be an array.');
 
         $paginator->nextCursor();
     }
@@ -302,7 +302,7 @@ class CursorPaginatorTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("cursor pagination parameter [{$parameter}]");
+        $this->expectExceptionMessageIsOrContains("cursor pagination parameter [{$parameter}]");
 
         $paginator->getParametersForItem($item);
     }
@@ -370,7 +370,7 @@ class CursorPaginatorTest extends TestCase
         ]);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('cursor pagination parameter [role_user.position]');
+        $this->expectExceptionMessageIsOrContains('cursor pagination parameter [role_user.position]');
 
         $paginator->getParametersForItem($model);
     }

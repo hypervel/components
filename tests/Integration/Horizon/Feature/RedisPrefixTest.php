@@ -26,10 +26,13 @@ class RedisPrefixTest extends IntegrationTestCase
     public function testUseThrowsForUnknownConnection(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Redis connection [missing] has not been configured.');
+        $this->expectExceptionMessageIs('Redis connection [missing] has not been configured.');
 
         Horizon::use('missing');
     }
+
+    // REMOVED: Laravel Horizon's top-level database.redis.clusters tests (standalone fallback, clusters registration
+    // and precedence over a same-named connection) do not apply; Hypervel configures Cluster within the named connection.
 
     public function testStandaloneConnectionConfigurationIsPreserved(): void
     {

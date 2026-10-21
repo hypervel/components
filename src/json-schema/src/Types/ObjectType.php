@@ -14,10 +14,20 @@ class ObjectType extends Type
     /**
      * Create a new object type instance.
      *
-     * @param array<string, Type> $properties
+     * @param array<int|string, Type> $properties
      */
     public function __construct(protected array $properties = [])
     {
+    }
+
+    /**
+     * Get the named property schemas.
+     *
+     * @return array<int|string, Type>
+     */
+    public function getProperties(): array
+    {
+        return $this->properties;
     }
 
     /**
@@ -33,7 +43,7 @@ class ObjectType extends Type
     /**
      * Set the type's default value.
      *
-     * @param null|array<string, mixed> $value
+     * @param null|array<int|string, mixed> $value
      */
     public function default(?array $value): static
     {

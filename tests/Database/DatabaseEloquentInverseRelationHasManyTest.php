@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationHasManyTest extends TestCase
@@ -60,7 +62,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         parent::tearDown();
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -74,7 +76,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('posts')->get();
@@ -89,7 +91,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -103,7 +105,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testHasLatestOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('lastPost')->get();
@@ -116,7 +118,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded()
+    public function testOneOfManyInverseRelationIsProperlySetToParentWhenLazyLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::all();
@@ -130,7 +132,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded()
+    public function testOneOfManyInverseRelationIsProperlySetToParentWhenEagerLoaded(): void
     {
         HasManyInverseUserModel::factory()->count(3)->withPosts()->create();
         $users = HasManyInverseUserModel::with('firstPost')->get();
@@ -143,31 +145,39 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenMakingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenMakingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
         $posts = $user->posts()->makeMany(array_fill(0, 3, []));
 
+        $this->assertCount(3, $posts);
+        $this->assertCount(3, array_unique(array_map(spl_object_id(...), $posts->all())));
+
         foreach ($posts as $post) {
+            $this->assertFalse($post->exists);
             $this->assertTrue($post->relationLoaded('user'));
             $this->assertSame($user, $post->user);
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
         $posts = $user->posts()->createMany(array_fill(0, 3, []));
 
+        $this->assertCount(3, $posts);
+        $this->assertCount(3, array_unique(array_map(spl_object_id(...), $posts->all())));
+
         foreach ($posts as $post) {
+            $this->assertTrue($post->exists);
             $this->assertTrue($post->relationLoaded('user'));
             $this->assertSame($user, $post->user);
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenCreatingManyQuietly(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -179,7 +189,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenSavingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenSavingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -193,7 +203,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
         }
     }
 
-    public function testHasManyInverseRelationIsProperlySetToParentWhenUpdatingMany()
+    public function testHasManyInverseRelationIsProperlySetToParentWhenUpdatingMany(): void
     {
         $user = HasManyInverseUserModel::create();
 
@@ -212,26 +222,20 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 
     /**
      * Helpers...
-     * @param mixed $connection
      */
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

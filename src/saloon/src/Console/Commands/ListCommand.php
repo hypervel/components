@@ -307,19 +307,17 @@ class ListCommand extends Command
 
         $regex = '/public\s+function\s+resolveEndpoint\(\):\s+string\s*\{\s*return\s+(.*?);/s';
 
-        $match = Str::match($regex, $contents);
-        $matchSegments = explode('/', $match);
-
-        foreach ($matchSegments as $key => $matchSegment) {
-            if (Str::contains($matchSegment, '$this->')) {
-                $matchSegments[$key] = '{' . Str::before(
-                    Str::after(str_replace(' ', '', $matchSegment), '>'),
-                    '.\''
-                ) . '}';
-            }
-        }
-
-        return str_replace('\'', '', implode('/', $matchSegments));
+        // Keep single-quoted literals as written, including escaped characters, show concatenated or interpolated
+        // properties as {name}, and drop the quotes and joining dots.
+        return preg_replace_callback(
+            '/\'((?:[^\'\\\]|\\\.)*)\'|"((?:[^"\\\]|\\\.)*)"|\$this->(\w+)|\s*\.\s*/s',
+            fn (array $matches): string => match (true) {
+                isset($matches[3]) => '{' . $matches[3] . '}',
+                isset($matches[2]) => preg_replace('/\{?\$this->(\w+)\}?/', '{$1}', $matches[2]),
+                default => $matches[1] ?? '',
+            },
+            Str::match($regex, $contents),
+        );
     }
 
     /**
@@ -329,7 +327,7 @@ class ListCommand extends Command
     {
         $contents = $this->files->get($connector);
 
-        $regex = '/public\s+function\s+resolveBaseUrl\(\):\s+string\s*\{\s*return\s+\'(.*?)\';\s*/s';
+        $regex = '/public\s+function\s+resolveBaseUrl\(\):\s+string\s*\{\s*return\s+[\'"](.*?)[\'"];/s';
         $matches = Str::match($regex, $contents);
 
         return Str::after($matches, '://');

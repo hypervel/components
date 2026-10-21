@@ -13,6 +13,7 @@ use Throwable;
  * @method static void afterResponse(callable $callback)
  * @method static array<array-key, mixed> buildContextForException(Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler buildContextUsing(\Closure $contextCallback)
+ * @method static array contextForException(Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontFlash(array|string $attributes)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontReport(array|string $exceptions)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontReportDuplicates()
@@ -27,7 +28,7 @@ use Throwable;
  * @method static \Symfony\Component\HttpFoundation\Response render(\Hypervel\Http\Request $request, Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler renderable(callable $renderUsing)
  * @method static void renderForConsole(\Symfony\Component\Console\Output\OutputInterface $output, Throwable $e)
- * @method static void report(Throwable $e)
+ * @method static void report(Throwable $e, array<array-key, mixed> $context = [], null|string $level = null)
  * @method static \Hypervel\Foundation\Exceptions\ReportableHandler reportable(callable $reportUsing)
  * @method static \Hypervel\Foundation\Exceptions\Handler respondUsing(callable $callback)
  * @method static \Hypervel\Foundation\Exceptions\Handler shouldRenderJsonWhen(callable $callback)
@@ -66,6 +67,9 @@ class Exceptions extends Facade
         });
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return ExceptionHandler::class;

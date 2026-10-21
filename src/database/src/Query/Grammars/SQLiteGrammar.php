@@ -26,6 +26,24 @@ class SQLiteGrammar extends Grammar
     ];
 
     /**
+     * Compile an offset, supplying SQLite's unbounded limit when needed.
+     */
+    protected function compileOffset(Builder $query, int $offset): string
+    {
+        return ($query->limit === null ? 'limit -1 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
+     * Compile a union offset independently of the first select's limit.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return ($query->unionLimit === null ? 'limit -1 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
      * Compile the lock into SQL.
      */
     protected function compileLock(Builder $query, bool|string $value): string
@@ -170,7 +188,8 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrap('json_each.value') . ' is ' . $value . ')';
+        // "json_each" is the table-valued function's alias, not a table, so it never takes the table prefix.
+        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrapValue('json_each') . '.' . $this->wrapValue('value') . ' is ' . $value . ')';
     }
 
     /**
@@ -196,11 +215,24 @@ class SQLiteGrammar extends Grammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileUpdateWithJoinsOrLimit($query, $values);
         }
 
         return parent::compileUpdate($query, $values);
+    }
+
+    /**
+     * Compile an update statement without joins into SQL.
+     *
+     * A forced index applies to the updated table, as SQLite's "indexed by"
+     * clause allows.
+     */
+    protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
+    {
+        $hint = $query->indexHint === null ? '' : $this->compileIndexHint($query, $query->indexHint);
+
+        return parent::compileUpdateWithoutJoins($query, $hint === '' ? $table : "{$table} {$hint}", $columns, $where);
     }
 
     /**
@@ -237,17 +269,13 @@ class SQLiteGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
-        $jsonGroups = $this->groupJsonColumnsForUpdate($values);
+        return (new Collection($this->groupJsonColumnsForUpdate($values)))
+            ->map(function (array $group, string $column): string {
+                if ($this->isJsonSelector(array_key_first($group))) {
+                    return $this->compileJsonUpdateColumn($column, $group);
+                }
 
-        return (new Collection($values))
-            ->reject(fn ($value, $key) => $this->isJsonSelector($key))
-            ->merge($jsonGroups)
-            ->map(function ($value, $key) use ($jsonGroups) {
-                $column = last(explode('.', $key));
-
-                $value = isset($jsonGroups[$key]) ? $this->compileJsonPatch($column, $value) : $this->parameter($value);
-
-                return $this->wrap($column) . ' = ' . $value;
+                return $this->wrap($column) . ' = ' . $this->parameter(reset($group));
             })
             ->implode(', ');
     }
@@ -271,27 +299,30 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
-     * Group the nested JSON columns.
+     * Compile the JSON paths being updated on a column.
      */
-    protected function groupJsonColumnsForUpdate(array $values): array
+    protected function compileJsonUpdateColumn(string $column, array $values): string
     {
-        $groups = [];
+        $field = $this->wrap($column);
+        $value = "ifnull({$field}, json('{}'))";
 
-        foreach ($values as $key => $value) {
-            if ($this->isJsonSelector($key)) {
-                Arr::set($groups, str_replace('->', '.', Str::after($key, '.')), $value);
+        // SQLite before 3.48 permits 127 function arguments: one document and 63 path/value pairs.
+        foreach (array_chunk($values, 63, true) as $group) {
+            $paths = [];
+
+            foreach ($group as $key => $pathValue) {
+                $path = $this->wrapJsonPath(explode('->', $key, 2)[1]);
+                $parameter = $this->isExpression($pathValue)
+                    ? $this->getValue($pathValue)
+                    : 'json(?)';
+
+                $paths[] = ', ' . $path . ', ' . $parameter;
             }
+
+            $value = 'json_set(' . $value . implode('', $paths) . ')';
         }
 
-        return $groups;
-    }
-
-    /**
-     * Compile a "JSON" patch statement into SQL.
-     */
-    protected function compileJsonPatch(string $column, mixed $value): string
-    {
-        return "json_patch(ifnull({$this->wrap($column)}, json('{}')), json({$this->parameter($value)}))";
+        return "{$field} = {$value}";
     }
 
     /**
@@ -303,9 +334,7 @@ class SQLiteGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
-
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -316,20 +345,10 @@ class SQLiteGrammar extends Grammar
     #[Override]
     public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
-        $groups = $this->groupJsonColumnsForUpdate($values);
-
-        $values = (new Collection($values))
-            ->reject(fn ($value, $key) => $this->isJsonSelector($key))
-            ->merge($groups)
-            ->map(fn ($value) => is_array($value) ? json_encode($value, JSON_THROW_ON_ERROR) : $value)
-            ->all();
-
         $cleanBindings = Arr::except($bindings, 'select');
 
-        $values = Arr::flatten(array_map(fn ($value) => value($value), $values));
-
         return array_values(
-            array_merge($values, Arr::flatten($cleanBindings))
+            array_merge($this->prepareValueBindingsForUpdate($values), Arr::flatten($cleanBindings))
         );
     }
 
@@ -338,7 +357,7 @@ class SQLiteGrammar extends Grammar
      */
     public function compileDelete(Builder $query): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileDeleteWithJoinsOrLimit($query);
         }
 
@@ -352,9 +371,7 @@ class SQLiteGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
-
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }

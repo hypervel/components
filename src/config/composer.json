@@ -1,8 +1,8 @@
 {
     "name": "hypervel/config",
-    "type": "library",
     "description": "The Hypervel Config package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "config",
@@ -23,17 +23,17 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Config\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "hypervel/collections": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Config\\": "src/"
+        }
     },
     "config": {
         "sort-packages": true

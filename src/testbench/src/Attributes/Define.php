@@ -16,6 +16,9 @@ use Hypervel\Testbench\Contracts\Attributes\TestingFeature;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class Define implements Resolvable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $group,
         public readonly string $method

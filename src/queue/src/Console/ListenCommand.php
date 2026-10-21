@@ -8,7 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:listen')]
@@ -50,7 +50,7 @@ class ListenCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -59,7 +59,7 @@ class ListenCommand extends Command
             $connection = $this->input->getArgument('connection')
         );
 
-        $this->info(sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue)))));
+        $this->components->info(sprintf('Processing jobs from the [%s] %s.', $queue, (new Stringable('queue'))->plural(explode(',', $queue))));
 
         $this->listener->listen(
             $connection,
@@ -99,10 +99,10 @@ class ListenCommand extends Command
             backoff: (int) $backoff,
             memory: (int) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
-            sleep: (int) $this->option('sleep'),
-            rest: (int) $this->option('rest'),
+            sleep: (float) $this->option('sleep'),
             maxTries: (int) $this->option('tries'),
-            force: (bool) $this->option('force')
+            force: (bool) $this->option('force'),
+            rest: (float) $this->option('rest')
         );
     }
 

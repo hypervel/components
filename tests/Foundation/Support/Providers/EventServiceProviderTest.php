@@ -18,7 +18,7 @@ use stdClass;
 
 class EventServiceProviderTest extends TestCase
 {
-    public function testGetEventsMergesDiscoveredEventsWithListens()
+    public function testGetEventsMergesDiscoveredEventsWithListens(): void
     {
         if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\Listener', false)) {
             class_alias(Listener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\Listener');
@@ -101,21 +101,21 @@ class EventServiceProviderTest extends TestCase
         }
     }
 
-    public function testShouldDiscoverEventsReturnsTrueForBaseClass()
+    public function testShouldDiscoverEventsReturnsTrueForBaseClass(): void
     {
         $provider = new EventServiceProvider($this->app);
 
         $this->assertTrue($provider->shouldDiscoverEvents());
     }
 
-    public function testShouldDiscoverEventsReturnsFalseForSubclass()
+    public function testShouldDiscoverEventsReturnsFalseForSubclass(): void
     {
         $provider = new EventServiceProviderWithListens($this->app);
 
         $this->assertFalse($provider->shouldDiscoverEvents());
     }
 
-    public function testDisableEventDiscovery()
+    public function testDisableEventDiscovery(): void
     {
         EventServiceProvider::disableEventDiscovery();
 
@@ -124,7 +124,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertFalse($provider->shouldDiscoverEvents());
     }
 
-    public function testSetEventDiscoveryPaths()
+    public function testSetEventDiscoveryPaths(): void
     {
         EventServiceProvider::setEventDiscoveryPaths(['/custom/path']);
 
@@ -136,7 +136,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertSame(['/custom/path'], $paths);
     }
 
-    public function testAddEventDiscoveryPaths()
+    public function testAddEventDiscoveryPaths(): void
     {
         EventServiceProvider::setEventDiscoveryPaths(['/first/path']);
         EventServiceProvider::addEventDiscoveryPaths('/second/path');
@@ -150,7 +150,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertContains('/second/path', $paths);
     }
 
-    public function testAddEventDiscoveryPathsDeduplicates()
+    public function testAddEventDiscoveryPathsDeduplicates(): void
     {
         EventServiceProvider::setEventDiscoveryPaths(['/first/path']);
         EventServiceProvider::addEventDiscoveryPaths('/first/path');
@@ -163,7 +163,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertCount(1, $paths);
     }
 
-    public function testDiscoverEventsWithinDefaultsToListenersDirectory()
+    public function testDiscoverEventsWithinDefaultsToListenersDirectory(): void
     {
         $provider = new EventServiceProvider($this->app);
 
@@ -173,7 +173,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertSame([$this->app->path('Listeners')], $paths);
     }
 
-    public function testFlushStateResetsStaticProperties()
+    public function testFlushStateResetsStaticProperties(): void
     {
         EventServiceProvider::disableEventDiscovery();
         EventServiceProvider::setEventDiscoveryPaths(['/custom/path']);
@@ -188,7 +188,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertSame([$this->app->path('Listeners')], $paths);
     }
 
-    public function testRegisterRegistersListensAndSubscribersAndObservers()
+    public function testRegisterRegistersListensAndSubscribersAndObservers(): void
     {
         Event::fake();
 
@@ -206,7 +206,7 @@ class EventServiceProviderTest extends TestCase
         Event::assertDispatched('App\Events\CustomEvent');
     }
 
-    public function testConfigureEmailVerificationRegistersListenerWhenNotInListen()
+    public function testConfigureEmailVerificationRegistersListenerWhenNotInListen(): void
     {
         $provider = new EventServiceProvider($this->app);
 
@@ -217,7 +217,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertTrue($dispatcher->hasListeners(Registered::class));
     }
 
-    public function testConfigureEmailVerificationSkipsWhenAlreadyInListen()
+    public function testConfigureEmailVerificationSkipsWhenAlreadyInListen(): void
     {
         $provider = new EventServiceProviderWithEmailVerification($this->app);
 

@@ -37,7 +37,7 @@ use Throwable;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
-class WebSocketRuntimeContextTest extends SentryTestCase
+class WebSocketRuntimeContextTest extends TestCase
 {
     public function testRejectedHandshakeFlushesTelemetryRecordedBeforeValidation(): void
     {
@@ -137,17 +137,21 @@ class WebSocketRuntimeContextTest extends SentryTestCase
             $server->onMessage($nativeServer, self::frame(2, 'second'));
         });
 
-        $this->assertTrue($firstReady->pop(1.0));
-        $this->assertTrue($secondReady->pop(1.0));
+        try {
+            $this->assertTrue($firstReady->pop(1.0));
+            $this->assertTrue($secondReady->pop(1.0));
 
-        $releaseFirst->push(true);
-        Coroutine::join([$firstCoroutineId]);
+            $releaseFirst->push(true);
+            Coroutine::join([$firstCoroutineId]);
 
-        $this->assertSame([['first log']], $this->capturedLogBatches());
-        $this->assertSame([['first.metric']], $this->capturedMetricBatches());
-
-        $releaseSecond->push(true);
-        Coroutine::join([$secondCoroutineId]);
+            $this->assertSame([['first log']], $this->capturedLogBatches());
+            $this->assertSame([['first.metric']], $this->capturedMetricBatches());
+        } finally {
+            // Release both handlers even after a failed assertion. Any earlier release has already been consumed, so neither push blocks.
+            $releaseFirst->push(true);
+            $releaseSecond->push(true);
+            Coroutine::join([$firstCoroutineId, $secondCoroutineId]);
+        }
 
         $this->assertSame([['first log'], ['second log']], $this->capturedLogBatches());
         $this->assertSame([['first.metric'], ['second.metric']], $this->capturedMetricBatches());
@@ -191,6 +195,7 @@ class WebSocketRuntimeContextTest extends SentryTestCase
         $request->header = [
             'host' => 'example.com',
             Security::SEC_WEBSOCKET_KEY => $validSecurityKey ? 'dGhlIHNhbXBsZSBub25jZQ==' : 'invalid',
+            Security::SEC_WEBSOCKET_VERSION => Security::VERSION,
         ];
         $request->get = [];
         $request->post = [];

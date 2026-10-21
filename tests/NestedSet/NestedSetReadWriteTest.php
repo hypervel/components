@@ -14,6 +14,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class NestedSetReadWriteTest extends TestCase
 {
@@ -104,6 +105,29 @@ class NestedSetReadWriteTest extends TestCase
 
         $connection->flushQueryLog();
 
+        $this->assertSame(
+            [2, 4],
+            NestedSetReadWriteNode::on('nested_set_split')->whereDescendantOf(1)->orderBy('id')->pluck('id')->all(),
+        );
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'read');
+
+        $connection->flushQueryLog();
+
+        $this->assertSame(
+            [2, 4],
+            NestedSetReadWriteNode::on('nested_set_split')
+                ->useWritePdo()
+                ->whereDescendantOf(1)
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
+
+        $connection->flushQueryLog();
+
         NestedSetReadWriteNode::on('nested_set_split')->moveNode(3, 2);
 
         $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
@@ -124,6 +148,34 @@ class NestedSetReadWriteTest extends TestCase
         NestedSetReadWriteNode::on('nested_set_split')->fixTree();
 
         $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
+    }
+
+    #[DataProvider('diagnosticMethods')]
+    public function testDiagnosticsUseTheWriterOnlyWhenRequested(string $method): void
+    {
+        $connection = DB::connection('nested_set_split');
+        $connection->enableQueryLog();
+
+        NestedSetReadWriteNode::on('nested_set_split')->{$method}();
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'read');
+
+        $connection->flushQueryLog();
+
+        NestedSetReadWriteNode::on('nested_set_split')->useWritePdo()->{$method}();
+
+        $this->assertSelectQueriesUseConnection($connection->getQueryLog(), 'write');
+    }
+
+    /**
+     * Get the tree diagnostic methods.
+     */
+    public static function diagnosticMethods(): array
+    {
+        return [
+            'count errors' => ['countErrors'],
+            'is broken' => ['isBroken'],
+        ];
     }
 
     public function testModelMutationSelectionsUseTheWriter(): void

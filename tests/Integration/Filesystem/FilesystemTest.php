@@ -31,7 +31,7 @@ class FilesystemTest extends TestCase
         parent::setUp();
     }
 
-    public function testItCanDeleteViaFilesystemShouldUpdatesFileExists()
+    public function testItCanDeleteViaFilesystemShouldUpdatesFileExists(): void
     {
         $this->assertTrue(File::exists($this->stubFile));
         $this->assertTrue(File::isFile($this->stubFile));
@@ -41,7 +41,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(File::exists($this->stubFile));
     }
 
-    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnFileExistsFromDifferentProcess()
+    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnFileExistsFromDifferentProcess(): void
     {
         $this->assertTrue(File::exists($this->stubFile));
         $this->assertTrue(File::isFile($this->stubFile));
@@ -52,7 +52,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(File::exists($this->stubFile));
     }
 
-    public function testItCanDeleteViaFilesystemShouldUpdatesIsFile()
+    public function testItCanDeleteViaFilesystemShouldUpdatesIsFile(): void
     {
         $this->assertTrue(File::exists($this->stubFile));
         $this->assertTrue(File::isFile($this->stubFile));
@@ -62,7 +62,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(File::isFile($this->stubFile));
     }
 
-    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnIsFileFromDifferentProcess()
+    public function testItCanDeleteViaFilesystemRequiresManualClearStatCacheOnIsFileFromDifferentProcess(): void
     {
         $this->assertTrue(File::exists($this->stubFile));
         $this->assertTrue(File::isFile($this->stubFile));
@@ -73,7 +73,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(File::isFile($this->stubFile));
     }
 
-    public function testItCanDeleteDirectoryViaFilesystem()
+    public function testItCanDeleteDirectoryViaFilesystem(): void
     {
         if (! File::exists(storage_path('app/public/testdir'))) {
             File::makeDirectory(storage_path('app/public/testdir'));

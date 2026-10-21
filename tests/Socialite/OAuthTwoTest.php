@@ -9,6 +9,7 @@ use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\Two\Exceptions\InvalidCodeException;
 use Hypervel\Socialite\Two\InvalidStateException;
 use Hypervel\Socialite\Two\Token;
 use Hypervel\Socialite\Two\User;
@@ -362,6 +363,28 @@ class OAuthTwoTest extends TestCase
         $provider->user();
     }
 
+    public function testExceptionIsThrownIfStateIsNotAString(): void
+    {
+        $this->expectException(InvalidStateException::class);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')
+            ->andReturn($session = m::mock(SessionContract::class));
+        $request->shouldReceive('input')
+            ->with('state')
+            ->once()
+            ->andReturn([str_repeat('A', 40)]);
+
+        $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
+        $provider = new OAuthTwoTestProviderStub(
+            $request,
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->user();
+    }
+
     public function testExceptionIsThrownIfStateIsNotSet(): void
     {
         $this->expectException(InvalidStateException::class);
@@ -377,6 +400,46 @@ class OAuthTwoTest extends TestCase
             'redirect'
         );
         $provider->user();
+    }
+
+    #[DataProvider('invalidAuthorizationCodeProvider')]
+    public function testExceptionIsThrownIfAuthorizationCodeIsInvalid(mixed $code): void
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')
+            ->andReturn($session = m::mock(SessionContract::class));
+        $request->shouldReceive('input')
+            ->with('state')
+            ->once()
+            ->andReturn(str_repeat('A', 40));
+        $request->shouldReceive('input')
+            ->with('code')
+            ->once()
+            ->andReturn($code);
+
+        $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
+        $provider = new OAuthTwoTestProviderStub(
+            $request,
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->http = m::mock(Client::class);
+        $provider->http->shouldNotReceive('post');
+
+        $this->expectException(InvalidCodeException::class);
+        $this->expectExceptionMessageIs('The authorization code is missing or invalid.');
+
+        $provider->user();
+    }
+
+    public static function invalidAuthorizationCodeProvider(): array
+    {
+        return [
+            'declined authorization' => [null],
+            'array' => [['code']],
+            'empty string' => [''],
+        ];
     }
 
     public function testUserRefreshesToken(): void

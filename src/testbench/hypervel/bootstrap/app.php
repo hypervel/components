@@ -11,9 +11,9 @@ use function Hypervel\Testbench\default_skeleton_path;
 
 $app = Application::configure(basePath: $APP_BASE_PATH ?? default_skeleton_path())
     ->withProviders()
-    ->withMiddleware(function (Middleware $middleware) {
+    ->withMiddleware(function (Middleware $middleware): void {
     })
-    ->withExceptions(function (Exceptions $exceptions) {
+    ->withExceptions(function (Exceptions $exceptions): void {
     })
     ->create();
 

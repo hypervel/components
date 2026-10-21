@@ -100,6 +100,6 @@ class OpenTelemetryHandler extends AbstractHandler
 
         $handler = $this->exceptionHandler ??= $this->container->make(ExceptionHandler::class);
 
-        return method_exists($handler, 'isReporting') && $handler->isReporting($exception);
+        return $handler->isReporting($exception);
     }
 }

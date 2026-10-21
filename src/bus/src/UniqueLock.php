@@ -72,7 +72,7 @@ class UniqueLock
     protected function resolveLockValues(mixed $job): array
     {
         $uniqueFor = method_exists($job, 'uniqueFor')
-            ? $job->uniqueFor()
+            ? ($job->uniqueFor() ?? 0)
             : ($this->getAttributeValue($job, UniqueFor::class, 'uniqueFor') ?? 0);
 
         $cache = method_exists($job, 'uniqueVia')
@@ -125,7 +125,7 @@ class UniqueLock
      *
      * @param string $owner the captured lock owner for a job without Queueable state
      */
-    public function release(mixed $job, string $owner = ''): void
+    public function release(mixed $job, bool $onlyOwned = false, string $owner = ''): void
     {
         $cache = method_exists($job, 'uniqueVia')
             ? ($job->uniqueVia() ?? $this->cache)
@@ -134,6 +134,10 @@ class UniqueLock
         $owner = isset(class_uses_recursive($job)[Queueable::class])
             ? $job->uniqueLockOwner
             : $owner;
+
+        if ($owner === '' && $onlyOwned) {
+            return;
+        }
 
         static::releaseOwned($cache, static::getKey($job), $owner);
     }

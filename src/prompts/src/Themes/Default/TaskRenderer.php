@@ -6,6 +6,7 @@ namespace Hypervel\Prompts\Themes\Default;
 
 use Hypervel\Prompts\Concerns\HasSpinner;
 use Hypervel\Prompts\Task;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class TaskRenderer extends Renderer
 {
@@ -23,6 +24,7 @@ class TaskRenderer extends Renderer
 
         $stableMessages = array_slice($task->stableMessages, -$task->maxStableMessages);
 
+        // Static tasks also collect stable messages, so a kept summary takes precedence over the static frame.
         if ($task->finished && $task->keepSummary && count($stableMessages) > 0) {
             $this->line(" {$this->cyan('•')} {$this->truncate($task->label, $labelMaxWidth)}");
 
@@ -60,7 +62,7 @@ class TaskRenderer extends Renderer
         $logs = array_slice($task->logs, -$task->limit);
 
         foreach ($logs as $log) {
-            $this->line(' ' . $this->dim($log));
+            $this->line(' ' . $this->dim(OutputFormatter::escape($log)));
         }
 
         $remaining = $task->limit - count($task->logs);

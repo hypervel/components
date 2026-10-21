@@ -7,13 +7,14 @@ namespace Hypervel\Tests\Log;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Log\Context\Repository;
+use Hypervel\Support\Facades\Context;
 use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\go;
 
 class ContextCoroutineTest extends TestCase
 {
-    public function testContextIsIsolatedBetweenCoroutines()
+    public function testContextIsIsolatedBetweenCoroutines(): void
     {
         $channel = new Channel(2);
 
@@ -35,7 +36,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame(['coroutine-1', 'coroutine-2'], $results);
     }
 
-    public function testContextIsNotInheritedByChildCoroutines()
+    public function testContextIsNotInheritedByChildCoroutines(): void
     {
         Repository::getInstance()->add('parent_key', 'parent_value');
 
@@ -51,7 +52,41 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame('parent_value', Repository::getInstance()->get('parent_key'));
     }
 
-    public function testForkedCoroutineMutatingContextDoesNotAffectParent()
+    public function testContextHelperUsesTheCurrentCoroutineRepository(): void
+    {
+        $repository = context(['trace_id' => 'parent']);
+
+        $this->assertSame($repository, app(Repository::class));
+        $this->assertSame($repository, Context::getFacadeRoot());
+
+        $channel = new Channel(1);
+
+        Coroutine::create(static function () use ($channel): void {
+            $channel->push(context('trace_id'));
+        });
+
+        $this->assertNull($channel->pop(1));
+        $this->assertSame('parent', context('trace_id'));
+    }
+
+    public function testContextHelperUsesTheForkedRepository(): void
+    {
+        context(['trace_id' => 'parent']);
+
+        $channel = new Channel(1);
+
+        Coroutine::fork(static function () use ($channel): void {
+            $inherited = context('trace_id');
+            context(['trace_id' => 'child']);
+
+            $channel->push([$inherited, Context::get('trace_id')]);
+        });
+
+        $this->assertSame(['parent', 'child'], $channel->pop(1));
+        $this->assertSame('parent', context('trace_id'));
+    }
+
+    public function testForkedCoroutineMutatingContextDoesNotAffectParent(): void
     {
         Repository::getInstance()->add('trace_id', 'parent-value');
 
@@ -75,7 +110,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertNull(Repository::getInstance()->get('child_only'));
     }
 
-    public function testDehydrateAndHydrateAcrossCoroutines()
+    public function testDehydrateAndHydrateAcrossCoroutines(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
         Repository::getInstance()->addHidden('secret', 'token');

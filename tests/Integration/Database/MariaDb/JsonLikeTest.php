@@ -27,7 +27,7 @@ class JsonLikeTest extends MariaDbTestCase
         Schema::dropIfExists('tasks');
     }
 
-    public function testJsonLikeWithEmoji()
+    public function testJsonLikeWithEmoji(): void
     {
         // Test that LIKE queries work correctly with emojis in JSON fields
         // This verifies that json_value() handles emojis correctly (unlike json_unquote)

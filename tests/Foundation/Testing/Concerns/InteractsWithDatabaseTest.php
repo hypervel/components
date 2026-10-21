@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Faker\Generator;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
@@ -26,11 +27,11 @@ class InteractsWithDatabaseTest extends TestCase
         return [
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => dirname(__DIR__, 2) . '/migrations',
+            '--path' => dirname(__DIR__, 2) . '/Fixtures/migrations',
         ];
     }
 
-    public function testAssertDatabaseHas()
+    public function testAssertDatabaseHas(): void
     {
         $user = User::factory()->create();
 
@@ -39,14 +40,14 @@ class InteractsWithDatabaseTest extends TestCase
         ]);
     }
 
-    public function testAssertDatabaseMissing()
+    public function testAssertDatabaseMissing(): void
     {
         $this->assertDatabaseMissing('foundation_test_users', [
             'id' => 1,
         ]);
     }
 
-    public function testAssertDatabaseCount()
+    public function testAssertDatabaseCount(): void
     {
         $this->assertDatabaseCount('foundation_test_users', 0);
 
@@ -55,7 +56,7 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseCount('foundation_test_users', 1);
     }
 
-    public function testAssertDatabaseEmpty()
+    public function testAssertDatabaseEmpty(): void
     {
         $this->assertDatabaseEmpty('foundation_test_users');
     }
@@ -224,14 +225,14 @@ class InteractsWithDatabaseTest extends TestCase
         }
     }
 
-    public function testAssertModelExists()
+    public function testAssertModelExists(): void
     {
         $user = User::factory()->create();
 
         $this->assertModelExists($user);
     }
 
-    public function testAssertModelMissing()
+    public function testAssertModelMissing(): void
     {
         $user = User::factory()->create();
         $user->id = 999;
@@ -239,7 +240,7 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertModelMissing($user);
     }
 
-    public function testFactoryUsesConfiguredFakerLocale()
+    public function testFactoryUsesConfiguredFakerLocale(): void
     {
         $locale = 'fr_FR';
         $this->app->make('config')
@@ -254,7 +255,7 @@ class InteractsWithDatabaseTest extends TestCase
         // Trigger faker initialization by calling make()
         $factory->make();
 
-        /** @var \Faker\Generator $faker */
+        /** @var Generator $faker */
         $faker = $fakerProperty->getValue($factory);
         $providerClasses = array_map(fn ($provider) => get_class($provider), $faker->getProviders());
 

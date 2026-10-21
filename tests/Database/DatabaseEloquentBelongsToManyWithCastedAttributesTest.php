@@ -15,7 +15,7 @@ use Mockery as m;
 
 class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 {
-    public function testModelsAreProperlyMatchedToParents()
+    public function testModelsAreProperlyMatchedToParents(): void
     {
         $relation = $this->getRelation();
         $model1 = m::mock(Model::class);

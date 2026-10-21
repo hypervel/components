@@ -12,7 +12,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class OutputStyleTest extends TestCase
 {
-    public function testDetectsNewLine()
+    public function testDetectsNewLine(): void
     {
         $bufferedOutput = new BufferedOutput;
 
@@ -24,7 +24,7 @@ class OutputStyleTest extends TestCase
         $this->assertSame(2, $style->newLinesWritten());
     }
 
-    public function testDetectsNewLineOnUnderlyingOutput()
+    public function testDetectsNewLineOnUnderlyingOutput(): void
     {
         $bufferedOutput = new BufferedOutput;
 
@@ -35,7 +35,7 @@ class OutputStyleTest extends TestCase
         $this->assertSame(2, $style->newLinesWritten());
     }
 
-    public function testDetectsNewLineOnWrite()
+    public function testDetectsNewLineOnWrite(): void
     {
         $bufferedOutput = new BufferedOutput;
 
@@ -48,7 +48,7 @@ class OutputStyleTest extends TestCase
         $this->assertSame(1, $style->newLinesWritten());
     }
 
-    public function testDetectsNewLineOnWriteln()
+    public function testDetectsNewLineOnWriteln(): void
     {
         $bufferedOutput = new BufferedOutput;
 
@@ -58,7 +58,7 @@ class OutputStyleTest extends TestCase
         $this->assertSame(1, $style->newLinesWritten());
     }
 
-    public function testDetectsNewLineOnlyOnOutput()
+    public function testDetectsNewLineOnlyOnOutput(): void
     {
         $bufferedOutput = new BufferedOutput;
 

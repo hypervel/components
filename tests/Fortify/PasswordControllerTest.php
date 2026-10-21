@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Contracts\Auth\PasswordBroker;
 use Hypervel\Fortify\Contracts\UpdatesUserPasswords;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Password;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UpdateUserPassword;
 use Hypervel\Validation\ValidationException;
-use Mockery as m;
 use Workbench\App\Models\User;
 use Workbench\Database\Factories\UserFactory;
 
@@ -24,11 +22,7 @@ class PasswordControllerTest extends TestCase
     {
         $user = $this->createUser();
 
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
-
-        $broker->shouldReceive('deleteToken')
-            ->once()
-            ->with($user);
+        Password::broker()->createToken($user);
 
         $this->mock(UpdatesUserPasswords::class)
             ->shouldReceive('update')
@@ -46,6 +40,7 @@ class PasswordControllerTest extends TestCase
         ]);
 
         $response->assertStatus(200);
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
     }
 
     public function testPasswordsCannotBeUpdatedWithoutCurrentPassword(): void

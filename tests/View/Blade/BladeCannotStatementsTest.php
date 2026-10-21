@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeCannotStatementsTest extends AbstractBladeTestCase
 {
-    public function testCannotStatementsAreCompiled()
+    public function testCannotStatementsAreCompiled(): void
     {
         $string = '@cannot (\'update\', [$post])
 breeze

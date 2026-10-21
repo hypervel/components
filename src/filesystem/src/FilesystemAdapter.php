@@ -14,6 +14,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\Concerns\TransfersFiles;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
@@ -56,14 +57,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * @mixin \League\Flysystem\FilesystemOperator
+ * @mixin FilesystemOperator
  */
 class FilesystemAdapter implements CloudFilesystemContract
 {
     use Conditionable;
+    use TransfersFiles;
     use Macroable {
         __call as macroCall;
     }
+
+    /**
+     * The stream context option identifying a range over an independent buffer.
+     *
+     * @internal
+     */
+    public const string BUFFERED_STREAM_CONTEXT_OPTION = 'buffered';
 
     /**
      * The filesystem configuration.
@@ -267,7 +276,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->read($path);
         } catch (UnableToReadFile $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
         }
@@ -287,6 +298,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function response(
         string $path,
@@ -305,6 +318,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for serving a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function serve(Request $request, string $path, ?string $name = null, array $headers = []): Response
     {
@@ -315,6 +330,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed download response for a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
@@ -388,7 +405,9 @@ class FilesystemAdapter implements CloudFilesystemContract
                 ? $this->driver->writeStream($path, $contents, $options)
                 : $this->driver->write($path, $contents, $options);
         } catch (UnableToWriteFile|UnableToSetVisibility $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -441,7 +460,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $result = $this->put($path, $stream, $options);
         } finally {
-            @fclose($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
 
         return $result ? $path : false;
@@ -467,7 +488,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->setVisibility($path, $this->parseVisibility($visibility));
         } catch (UnableToSetVisibility $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -526,7 +549,9 @@ class FilesystemAdapter implements CloudFilesystemContract
             try {
                 $this->driver->delete($path);
             } catch (UnableToDeleteFile $e) {
-                throw_if($this->throwsExceptions(), $e);
+                if ($this->throwsExceptions()) {
+                    throw $e;
+                }
 
                 $this->report($e);
 
@@ -545,7 +570,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->copy($from, $to);
         } catch (UnableToCopyFile $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -563,7 +590,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->move($from, $to);
         } catch (UnableToMoveFile $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -591,7 +620,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->checksum($path, $options);
         } catch (UnableToProvideChecksum $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -601,13 +632,17 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get the mime-type of a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function mimeType(string $path): false|string
     {
         try {
             return $this->driver->mimeType($path);
         } catch (UnableToRetrieveMetadata $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
         }
@@ -633,7 +668,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             return $this->driver->readStream($path);
         } catch (UnableToReadFile $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
         }
@@ -705,8 +742,14 @@ class FilesystemAdapter implements CloudFilesystemContract
 
             $psrStream = Utils::streamFor($stream);
             $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
+            $range = StreamWrapper::getResource($limitedStream);
 
-            return StreamWrapper::getResource($limitedStream);
+            if (in_array(stream_get_meta_data($stream)['stream_type'], ['TEMP', 'MEMORY'], true)) {
+                // Only mark this new wrapper; a driver's stream may share the default context.
+                stream_context_set_option($range, 'hypervel', self::BUFFERED_STREAM_CONTEXT_OPTION, true);
+            }
+
+            return $range;
         } catch (CanceledException $exception) {
             if (is_resource($stream)) {
                 fclose($stream);
@@ -760,7 +803,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->writeStream($path, $resource, $options);
         } catch (UnableToWriteFile|UnableToSetVisibility $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -923,6 +968,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get an array of all files in a directory.
+     *
+     * @return array<string>
      */
     public function files(?string $directory = null, bool $recursive = false): array
     {
@@ -939,6 +986,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get all of the files from the given directory (recursive).
+     *
+     * @return array<string>
      */
     public function allFiles(?string $directory = null): array
     {
@@ -947,6 +996,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get all of the directories within a given directory.
+     *
+     * @return array<string>
      */
     public function directories(?string $directory = null, bool $recursive = false): array
     {
@@ -962,6 +1013,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get all the directories within a given directory (recursive).
+     *
+     * @return array<string>
      */
     public function allDirectories(?string $directory = null): array
     {
@@ -976,7 +1029,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->createDirectory($path);
         } catch (UnableToCreateDirectory|UnableToSetVisibility $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -994,7 +1049,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $this->driver->deleteDirectory($directory);
         } catch (UnableToDeleteDirectory $e) {
-            throw_if($this->throwsExceptions(), $e);
+            if ($this->throwsExceptions()) {
+                throw $e;
+            }
 
             $this->report($e);
 
@@ -1018,6 +1075,22 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function getAdapter(): FlysystemAdapter
     {
         return $this->adapter;
+    }
+
+    /**
+     * Run a callback with the Flysystem driver, as pooled disks do with a borrowed one.
+     */
+    public function withDriver(Closure $callback): mixed
+    {
+        return $callback($this->driver);
+    }
+
+    /**
+     * Run a callback with the Flysystem adapter, as pooled disks do with a borrowed one.
+     */
+    public function withAdapter(Closure $callback): mixed
+    {
+        return $callback($this->adapter);
     }
 
     /**
@@ -1139,11 +1212,9 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Pass dynamic methods call onto Flysystem.
      *
-     * @return mixed
-     *
      * @throws BadMethodCallException
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);

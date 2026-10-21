@@ -9,7 +9,7 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class TagRepositoryTest extends IntegrationTestCase
 {
-    public function testPaginationOfJobIdsCanBeAccomplished()
+    public function testPaginationOfJobIdsCanBeAccomplished(): void
     {
         $repo = resolve(TagRepository::class);
 

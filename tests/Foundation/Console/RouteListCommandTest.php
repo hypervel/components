@@ -5,34 +5,31 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application;
-use Hypervel\Console\Events\ArtisanStarting;
-use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Http\Kernel as KernelContract;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Console\RouteListCommand;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class RouteListCommandTest extends TestCase
 {
     protected Application $consoleApp;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
-
         $this->consoleApp = new Application(
-            $hypervel = new \Hypervel\Foundation\Application(__DIR__),
-            $events,
+            $hypervel = new FoundationApplication(__DIR__),
+            new Dispatcher($hypervel),
             'testing',
         );
 
-        $router = new Router(m::mock('Hypervel\Events\Dispatcher'));
+        $router = new Router(new Dispatcher($hypervel));
 
         $kernel = new class($hypervel, $router) extends Kernel {
             protected array $middlewareGroups = [
@@ -50,18 +47,18 @@ class RouteListCommandTest extends TestCase
 
         $kernel->prependToMiddlewarePriority('Middleware 5');
 
-        $hypervel->instance(KernelContract::class, $kernel);
+        $hypervel->instance(Kernel::class, $kernel);
 
-        $router->get('/example', function () {
+        $router->get('/example', function (): string {
             return 'Hello World';
         })->middleware('exampleMiddleware');
 
-        $router->get('/sub-example', function () {
+        $router->get('/sub-example', function (): string {
             return 'Hello World';
         })->domain('sub')
             ->middleware('exampleMiddleware');
 
-        $router->get('/example-group', function () {
+        $router->get('/example-group', function (): string {
             return 'Hello Group';
         })->middleware(['web', 'auth']);
 
@@ -71,7 +68,7 @@ class RouteListCommandTest extends TestCase
         $this->consoleApp->addCommands([$command]);
     }
 
-    public function testNoMiddlewareIfNotVerbose()
+    public function testNoMiddlewareIfNotVerbose(): void
     {
         $this->consoleApp->call('route:list');
         $output = $this->consoleApp->output();
@@ -151,7 +148,7 @@ class RouteListCommandTest extends TestCase
         }
     }
 
-    public function testMiddlewareGroupsAssignmentInCli()
+    public function testMiddlewareGroupsAssignmentInCli(): void
     {
         $this->consoleApp->call('route:list', ['-v' => true]);
         $output = $this->consoleApp->output();
@@ -167,7 +164,7 @@ class RouteListCommandTest extends TestCase
         $this->assertStringNotContainsString('Middleware 5', $output);
     }
 
-    public function testMiddlewareGroupsExpandInCliIfVeryVerbose()
+    public function testMiddlewareGroupsExpandInCliIfVeryVerbose(): void
     {
         $this->consoleApp->call('route:list', ['-vv' => true]);
         $output = $this->consoleApp->output();
@@ -183,7 +180,7 @@ class RouteListCommandTest extends TestCase
         $this->assertStringNotContainsString('auth', $output);
     }
 
-    public function testMiddlewareGroupsAssignmentInJson()
+    public function testMiddlewareGroupsAssignmentInJson(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '-v' => true]);
         $output = $this->consoleApp->output();
@@ -199,7 +196,7 @@ class RouteListCommandTest extends TestCase
         $this->assertStringNotContainsString('Middleware 5', $output);
     }
 
-    public function testMiddlewareGroupsExpandInJsonIfVeryVerbose()
+    public function testMiddlewareGroupsExpandInJsonIfVeryVerbose(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '-vv' => true]);
         $output = $this->consoleApp->output();
@@ -244,6 +241,34 @@ class RouteListCommandTest extends TestCase
         $this->assertStringContainsString('RouteListCommandTest.php:', $routes[0]['path']);
     }
 
+    public function testJsonOutputIsEmptyArrayWhenNoRoutesMatch(): void
+    {
+        $this->consoleApp->call('route:list', ['--json' => true, '--path' => 'missing']);
+
+        $this->assertSame('[]', trim($this->consoleApp->output()));
+    }
+
+    public function testJsonOutputIsEmptyArrayWhenApplicationHasNoRoutes(): void
+    {
+        $hypervel = new FoundationApplication(__DIR__);
+        $router = new Router(new Dispatcher($hypervel));
+
+        $hypervel->instance(Kernel::class, new Kernel($hypervel, $router));
+
+        $command = new RouteListCommand($router);
+        $command->setHypervel($hypervel);
+
+        $consoleApp = new Application(
+            $hypervel,
+            new Dispatcher($hypervel),
+            'testing',
+        );
+        $consoleApp->addCommands([$command]);
+        $consoleApp->call('route:list', ['--json' => true]);
+
+        $this->assertSame('[]', trim($consoleApp->output()));
+    }
+
     public function testClosureRouteShowsPathInCli(): void
     {
         RouteListCommand::resolveTerminalWidthUsing(static fn (): int => 200);
@@ -258,27 +283,23 @@ class RouteListCommandTest extends TestCase
 
     public function testControllerRoutePathIsNull(): void
     {
-        $hypervel = new \Hypervel\Foundation\Application(__DIR__);
-        $router = new Router(m::mock('Hypervel\Events\Dispatcher'));
+        $hypervel = new FoundationApplication(__DIR__);
+        $router = new Router(new Dispatcher($hypervel));
 
         $kernel = new class($hypervel, $router) extends Kernel {
             protected array $middlewareGroups = [];
         };
 
-        $hypervel->instance(KernelContract::class, $kernel);
+        $hypervel->instance(Kernel::class, $kernel);
 
         $router->get('/controller-route', [RouteListCommandTestController::class, 'index']);
 
         $command = new RouteListCommand($router);
         $command->setHypervel($hypervel);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
-
         $app = new Application(
             $hypervel,
-            $events,
+            new Dispatcher($hypervel),
             'testing',
         );
         $app->addCommands([$command]);
@@ -294,6 +315,9 @@ class RouteListCommandTest extends TestCase
 
 class RouteListCommandTestController
 {
+    /**
+     * Handle the controller route.
+     */
     public function index(): string
     {
         return 'Hello World';

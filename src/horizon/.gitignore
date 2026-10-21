@@ -1,7 +1,1 @@
-/vendor
-/laravel
 /node_modules
-/phpunit.xml
-composer.lock
-.phpunit.result.cache
-.phpunit.cache/

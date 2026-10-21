@@ -22,6 +22,7 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
+use Hypervel\Validation\ValidationException;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -115,7 +116,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         $factory = $this->container->make(ValidationFactory::class);
 
         if (method_exists($this, 'validator')) {
-            $validator = $this->container->call($this->validator(...), compact('factory'));
+            $validator = $this->container->call($this->validator(...), ['factory' => $factory]);
         } else {
             $validator = $this->createDefaultValidator($factory);
         }
@@ -150,36 +151,36 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         $class = static::class;
 
         if (! isset(static::$attributeConfiguration[$class])) {
-            $reflection = new ReflectionClass($this);
-
             $config = [];
 
-            if (count($reflection->getAttributes(StopOnFirstFailure::class)) > 0) {
+            if ($this->nearestClassWithAttribute([StopOnFirstFailure::class], ['stopOnFirstFailure'])) {
                 $config['stopOnFirstFailure'] = true;
             }
 
-            $failOnUnknownFields = $reflection->getAttributes(FailOnUnknownFields::class);
-
-            if (count($failOnUnknownFields) > 0) {
-                $config['failOnUnknownFields'] = $failOnUnknownFields[0]->newInstance()->value;
+            if ($reflection = $this->nearestClassWithAttribute([FailOnUnknownFields::class])) {
+                $config['failOnUnknownFields'] = $reflection->getAttributes(FailOnUnknownFields::class)[0]->newInstance()->value;
             }
 
-            $errorBag = $reflection->getAttributes(ErrorBag::class);
-
-            if (count($errorBag) > 0) {
-                $config['errorBag'] = $errorBag[0]->newInstance()->name;
+            if ($reflection = $this->nearestClassWithAttribute([ErrorBag::class], ['errorBag'])) {
+                $config['errorBag'] = $reflection->getAttributes(ErrorBag::class)[0]->newInstance()->name;
             }
 
-            $redirectTo = $reflection->getAttributes(RedirectTo::class);
+            $reflection = $this->nearestClassWithAttribute(
+                [RedirectTo::class, RedirectToRoute::class],
+                ['redirect', 'redirectRoute', 'redirectAction']
+            );
 
-            if (count($redirectTo) > 0) {
-                $config['redirect'] = $redirectTo[0]->newInstance()->url;
-            }
+            if ($reflection) {
+                $redirectTo = $reflection->getAttributes(RedirectTo::class);
 
-            $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+                // A null URI stops an inherited $redirect from outranking a nearer route attribute.
+                $config['redirect'] = $redirectTo !== [] ? $redirectTo[0]->newInstance()->url : null;
 
-            if (count($redirectToRoute) > 0) {
-                $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
+                $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+
+                if ($redirectToRoute !== []) {
+                    $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
+                }
             }
 
             static::$attributeConfiguration[$class] = $config;
@@ -195,7 +196,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
             $this->errorBag = $config['errorBag'];
         }
 
-        if (isset($config['redirect'])) {
+        if (array_key_exists('redirect', $config)) {
             $this->redirect = $config['redirect'];
         }
 
@@ -272,7 +273,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     /**
      * Handle a failed validation attempt.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @throws ValidationException
      */
     protected function failedValidation(Validator $validator): void
     {
@@ -290,17 +291,12 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     {
         $url = $this->redirector->getUrlGenerator();
 
-        if ($this->redirect) {
-            return $url->to($this->redirect);
-        }
-        if ($this->redirectRoute) {
-            return $url->route($this->redirectRoute);
-        }
-        if ($this->redirectAction) {
-            return $url->action($this->redirectAction);
-        }
-
-        return $url->previous();
+        return match (true) {
+            ! empty($this->redirect) => $url->to($this->redirect),
+            ! empty($this->redirectRoute) => $url->route($this->redirectRoute),
+            ! empty($this->redirectAction) => $url->action($this->redirectAction),
+            default => $url->previous(),
+        };
     }
 
     /**
@@ -331,6 +327,11 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Get a validated input container for the validated input.
+     *
+     * @param null|array<int, string> $keys
+     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     *
+     * @throws ValidationException
      */
     public function safe(?array $keys = null): array|ValidatedInput
     {
@@ -367,6 +368,35 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     public function attributes(): array
     {
         return [];
+    }
+
+    /**
+     * Get the nearest class in the request's hierarchy that applies any of the given attributes.
+     *
+     * @param array<int, class-string> $attributes
+     * @param array<int, string> $properties
+     * @return null|ReflectionClass<FormRequest>
+     */
+    protected function nearestClassWithAttribute(array $attributes, array $properties = []): ?ReflectionClass
+    {
+        $reflection = new ReflectionClass($this);
+
+        do {
+            foreach ($attributes as $attribute) {
+                if ($reflection->getAttributes($attribute) !== []) {
+                    return $reflection;
+                }
+            }
+
+            foreach ($properties as $property) {
+                if ($reflection->hasProperty($property)
+                    && $reflection->getProperty($property)->class === $reflection->name) {
+                    return null;
+                }
+            }
+        } while (($reflection = $reflection->getParentClass()) && $reflection->name !== self::class);
+
+        return null;
     }
 
     /**

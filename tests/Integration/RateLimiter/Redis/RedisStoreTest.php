@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\CalendarWindow;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -46,12 +47,14 @@ class RedisStoreTest extends TestCase
         $this->assertSame(2, $limiter->consume($policy)->remaining());
         $physicalKey = $this->physicalKey($policy);
         $redis = $this->redisClient();
+        $redis->pExpire($physicalKey, 5000);
         $before = $redis->pttl($physicalKey);
 
         $this->assertSame(1, $limiter->consume($policy)->remaining());
         $after = $redis->pttl($physicalKey);
 
-        $this->assertGreaterThan(9000, $before);
+        $this->assertGreaterThan(4500, $before);
+        $this->assertLessThanOrEqual($before, $after);
         $this->assertGreaterThan($before - 500, $after);
 
         $denied = $limiter->consume($policy->cost(2));
@@ -165,6 +168,55 @@ class RedisStoreTest extends TestCase
         $this->assertGreaterThan(1_700_000_000_000_000, (int) $storedTat);
     }
 
+    #[DataProvider('calendarClockOffsetProvider')]
+    public function testCalendarWindowsFollowRedisTimeWhenThePhpClockIsInAnotherPeriod(int $offsetSeconds): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds($offsetSeconds));
+        $policy = CalendarWindow::perHour(5)->timezone('UTC')->by('calendar-clock');
+        $limiter = $this->limiter();
+
+        $first = $limiter->consume($policy);
+        $second = $limiter->consume($policy);
+        $redis = $this->redisClient();
+
+        // RedisCluster::time() needs a node, so read the clock of the node that holds the window's key.
+        $redisTime = $this->usingRedisCluster() ? $redis->time($this->physicalKey($policy)) : $redis->time();
+        $redisSeconds = (int) $redisTime[0];
+
+        $this->assertTrue($first->allowed());
+        $this->assertSame(4, $first->remaining());
+        $this->assertSame(3, $second->remaining());
+        $this->assertEqualsWithDelta(3_600 - $redisSeconds % 3_600, $second->resetAfter(), 1);
+        $this->assertLessThanOrEqual(3_600_000, $redis->pttl($this->physicalKey($policy)));
+    }
+
+    /**
+     * Get PHP clock offsets that place the PHP calendar window outside Redis's.
+     */
+    public static function calendarClockOffsetProvider(): array
+    {
+        return [
+            'PHP clock behind Redis' => [-7_200],
+            'PHP clock ahead of Redis' => [7_200],
+        ];
+    }
+
+    public function testAStaleCalendarWindowDiscardsTheGroupsTentativeChargesBeforeRetrying(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->subHours(2));
+        $fixed = Limit::perMinute(10)->by('calendar-group');
+        $calendar = CalendarWindow::perHour(10)->timezone('UTC')->by('calendar-group');
+        $limiter = $this->limiter();
+
+        $results = $limiter->consumeMany([$fixed, $calendar]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(9, $results[0]->remaining());
+        $this->assertSame(9, $results[1]->remaining());
+        $this->assertLessThanOrEqual(3_600, $results[1]->resetAfter());
+        $this->assertSame(9, $limiter->inspect($fixed)->remaining());
+    }
+
     public function testExponentialBackoffUsesOneRedisStateEntry(): void
     {
         $backoff = Backoff::exponential(
@@ -197,13 +249,14 @@ class RedisStoreTest extends TestCase
         try {
             $this->limiter()->consume($policy);
             $this->fail('Expected corrupt leading-zero state to fail.');
-        } catch (LuaScriptException) {
-            $this->addToAssertionCount(1);
+        } catch (LuaScriptException $exception) {
+            $this->assertStringStartsWith('Lua script execution failed: ERR corrupt rate limiter counter', $exception->getMessage());
         }
 
         $redis->set($physicalKey, '1');
 
         $this->expectException(LuaScriptException::class);
+        $this->expectExceptionMessageIsOrContains('Lua script execution failed: ERR corrupt rate limiter counter has no expiry');
 
         $this->limiter()->consume($policy);
     }
@@ -351,6 +404,96 @@ class RedisStoreTest extends TestCase
 
         $this->assertSame(10, count(array_filter($results)));
         $this->assertSame(0, $limiter->inspect($policy)->remaining());
+    }
+
+    public function testConcurrentGroupsRespectCapacityAcrossDistributedKeys(): void
+    {
+        $limiter = $this->limiter();
+        $global = Limit::perMinute(100)->by('group-global');
+        $tenant = Limit::perMinute(10)->by('group-tenant');
+        $this->assertRedisKeysUseDifferentClusterSlots(
+            'rate-limiter-test:' . $this->physicalKey($global),
+            'rate-limiter-test:' . $this->physicalKey($tenant),
+        );
+
+        $results = parallel(array_fill(0, 50, static function () use ($limiter, $global, $tenant): bool {
+            $results = $limiter->consumeMany([$global, $tenant]);
+
+            return end($results)->allowed();
+        }));
+
+        $this->assertSame(10, count(array_filter($results)));
+        $this->assertSame(0, $limiter->inspect($tenant)->remaining());
+
+        if (! $this->usingRedisCluster()) {
+            $this->assertSame(90, $limiter->inspect($global)->remaining());
+        }
+    }
+
+    public function testRepeatedKeyDenialReportsCommittedCapacity(): void
+    {
+        $limiter = $this->limiter();
+
+        foreach ([Limit::perMinute(10), SlidingWindow::perMinute(10), LeakyBucket::perMinute(1)->burst(10)] as $policy) {
+            $limiter->consume($policy->cost(7));
+
+            $results = $limiter->consumeMany([$policy->cost(2), $policy->cost(2)]);
+            $remaining = $this->usingRedisCluster() ? 1 : 3;
+
+            $this->assertTrue($results[0]->allowed());
+            $this->assertSame($remaining, $results[0]->remaining());
+            $this->assertTrue($results[1]->denied());
+            $this->assertSame($remaining, $results[1]->remaining());
+            $this->assertGreaterThan(0, $results[1]->retryAfter());
+            $this->assertSame($remaining, $limiter->inspect($policy)->remaining());
+        }
+    }
+
+    public function testGroupKeepsExistingExpiryAndAccumulatesRepeatedSlidingKeys(): void
+    {
+        $limiter = $this->limiter();
+        $fixed = Limit::perMinute(10)->by('group-ttl');
+        $sliding = SlidingWindow::perMinute(10)->by('group-ttl');
+        $limiter->consume($fixed);
+        $limiter->consume($sliding);
+        $redis = $this->redisClient();
+        $redis->pExpire($this->physicalKey($fixed), 30_000);
+        $redis->pExpire($this->physicalKey($sliding), 90_000);
+
+        $results = $limiter->consumeMany([$fixed, $sliding->cost(2), $sliding->cost(3)]);
+
+        $this->assertSame(8, $results[0]->remaining());
+        $this->assertSame(7, $results[1]->remaining());
+        $this->assertSame(4, $results[2]->remaining());
+        $this->assertSame('6', $redis->hGet($this->physicalKey($sliding), 'current'));
+        $this->assertLessThanOrEqual(30_000, $redis->pttl($this->physicalKey($fixed)));
+        $this->assertLessThanOrEqual(90_000, $redis->pttl($this->physicalKey($sliding)));
+
+        $redis->pExpire($this->physicalKey($sliding), 45_000);
+        $rotated = $limiter->consumeMany([$sliding, $sliding->cost(2)]);
+
+        $this->assertSame(5, $rotated[0]->remaining());
+        $this->assertSame(3, $rotated[1]->remaining());
+        $this->assertSame(['current' => '3', 'previous' => '6'], $redis->hGetAll($this->physicalKey($sliding)));
+        $this->assertGreaterThan(90_000, $redis->pttl($this->physicalKey($sliding)));
+        $this->assertLessThanOrEqual(105_000, $redis->pttl($this->physicalKey($sliding)));
+    }
+
+    public function testCorruptLaterGroupStateDoesNotChargeEarlierPolicies(): void
+    {
+        $limiter = $this->limiter();
+        $global = Limit::perMinute(10)->by('group-corrupt');
+        $tenant = SlidingWindow::perMinute(10)->by('group-corrupt');
+        $this->redisClient()->hSet($this->physicalKey($tenant), 'current', 'invalid');
+
+        try {
+            $limiter->consumeMany([$global, $tenant]);
+            $this->fail('Expected corrupt group state to fail.');
+        } catch (LuaScriptException $exception) {
+            $this->assertStringStartsWith('Lua script execution failed: ERR corrupt rate limiter sliding-window state', $exception->getMessage());
+            $this->assertSame(10, $limiter->inspect($global)->remaining());
+            $this->assertSame(0, $this->redisClient()->exists($this->physicalKey($global)));
+        }
     }
 
     public function testConcurrentWeightedClientsNeverAdmitBeyondCapacity(): void

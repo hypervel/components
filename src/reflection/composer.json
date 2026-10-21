@@ -1,8 +1,8 @@
 {
     "name": "hypervel/reflection",
-    "type": "library",
     "description": "The Hypervel Reflection package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "reflection",
@@ -16,11 +16,15 @@
         {
             "name": "Raj Siva-Rajah",
             "homepage": "https://github.com/binaryfire"
-        }        
+        }
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/collections": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -29,10 +33,6 @@
         "files": [
             "src/helpers.php"
         ]
-    },
-    "require": {
-        "php": "^8.4",
-        "hypervel/collections": "^0.4"
     },
     "config": {
         "sort-packages": true

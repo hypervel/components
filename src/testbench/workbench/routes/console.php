@@ -16,6 +16,5 @@ use Hypervel\Support\Facades\Artisan;
 */
 
 Artisan::command('workbench:inspire', function () {
-    /* @phpstan-ignore-next-line */
     $this->comment('What is essential is invisible to the eye.');
 })->purpose('Display an inspiring quote');

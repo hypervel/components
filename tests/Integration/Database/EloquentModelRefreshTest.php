@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
@@ -24,14 +25,14 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         });
     }
 
-    public function testItRefreshesModelExcludedByGlobalScope()
+    public function testItRefreshesModelExcludedByGlobalScope(): void
     {
         $post = Post::create(['title' => 'mohamed']);
 
         $post->refresh();
     }
 
-    public function testItRefreshesASoftDeletedModel()
+    public function testItRefreshesASoftDeletedModel(): void
     {
         $post = Post::create(['title' => 'said']);
 
@@ -44,7 +45,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $this->assertTrue($post->trashed());
     }
 
-    public function testItSyncsOriginalOnRefresh()
+    public function testItSyncsOriginalOnRefresh(): void
     {
         $post = Post::create(['title' => 'pat']);
 
@@ -57,7 +58,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $this->assertSame('patrick', $post->getOriginal('title'));
     }
 
-    public function testItDoesNotSyncPreviousOnRefresh()
+    public function testItDoesNotSyncPreviousOnRefresh(): void
     {
         $post = Post::create(['title' => 'pat']);
 
@@ -69,6 +70,21 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $this->assertEmpty($post->getPrevious());
     }
 
+    public function testItRefreshesModelForUpdate(): void
+    {
+        $post = Post::create(['title' => 'pat']);
+
+        Post::whereKey($post)->update(['title' => 'patrick']);
+
+        DB::transaction(function () use ($post): void {
+            $this->assertSame($post, $post->refreshForUpdate());
+        });
+
+        $this->assertSame('patrick', $post->title);
+        $this->assertEmpty($post->getDirty());
+        $this->assertSame('patrick', $post->getOriginal('title'));
+    }
+
     public function testFreshRejectsPersistedModelsMissingThePrimaryKey(): void
     {
         Model::preventAccessingMissingAttributes(false);
@@ -77,7 +93,7 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->fresh();
     }
@@ -90,12 +106,12 @@ class EloquentModelRefreshTest extends DatabaseTestCase
         $partialPost = Post::query()->select('title')->findOrFail($post->id);
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [id]');
+        $this->expectExceptionMessageIsOrContains('The attribute [id]');
 
         $partialPost->refresh();
     }
 
-    public function testAsPivot()
+    public function testAsPivot(): void
     {
         Schema::create('post_posts', function (Blueprint $table) {
             $table->increments('id');

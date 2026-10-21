@@ -11,10 +11,15 @@ use Hypervel\Horizon\Jobs\MonitorTag;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\ConditionallyFailingJob;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\FailingJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class RetryJobTest extends IntegrationTestCase
 {
+    /**
+     * Clear the conditional job failure flag before the test.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,6 +27,9 @@ class RetryJobTest extends IntegrationTestCase
         unset($_SERVER['horizon.fail']);
     }
 
+    /**
+     * Clear the conditional job failure flag after the test.
+     */
     protected function tearDown(): void
     {
         unset($_SERVER['horizon.fail']);
@@ -29,15 +37,15 @@ class RetryJobTest extends IntegrationTestCase
         parent::tearDown();
     }
 
-    public function testNothingHappensForFailedJobThatDoesntExist()
+    public function testNothingHappensForFailedJobThatDoesntExist(): void
     {
         dispatch(new RetryFailedJob('12345'));
     }
 
-    public function testFailedJobCanBeRetriedSuccessfullyWithAFreshId()
+    public function testFailedJobCanBeRetriedSuccessfullyWithAFreshId(): void
     {
         $_SERVER['horizon.fail'] = true;
-        $id = Queue::push(new Jobs\ConditionallyFailingJob);
+        $id = Queue::push(new ConditionallyFailingJob);
         $this->work();
         $this->assertSame(1, $this->failedJobs());
 
@@ -69,10 +77,10 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertSame('completed', $retried[0]['status']);
     }
 
-    public function testStatusIsUpdatedForDoubleFailingJobs()
+    public function testStatusIsUpdatedForDoubleFailingJobs(): void
     {
         $_SERVER['horizon.fail'] = true;
-        $id = Queue::push(new Jobs\ConditionallyFailingJob);
+        $id = Queue::push(new ConditionallyFailingJob);
         $this->work();
         dispatch(new RetryFailedJob($id));
         $this->work();
@@ -85,11 +93,11 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertSame('failed', $retried[0]['status']);
     }
 
-    public function testRetryingFailedJobWithRetryUntilAndWithoutPushedAt()
+    public function testRetryingFailedJobWithRetryUntilAndWithoutPushedAt(): void
     {
         $repository = $this->app->make(JobRepository::class);
 
-        $job = new Jobs\FailingJob;
+        $job = new FailingJob;
         $payload = new JobPayload(
             json_encode([
                 'id' => '1',
@@ -100,7 +108,7 @@ class RetryJobTest extends IntegrationTestCase
                 'retryUntil' => now()->addMinute(3)->timestamp,
                 'job' => 'Illuminate\Queue\CallQueuedHandler@call',
                 'data' => [
-                    'commandName' => Jobs\ConditionallyFailingJob::class,
+                    'commandName' => FailingJob::class,
                     'command' => serialize($job),
                 ],
             ])

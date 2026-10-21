@@ -42,7 +42,7 @@ class FulltextTest extends MariaDbTestCase
     }
 
     /** @link https://mariadb.com/kb/en/full-text-index-overview/#in-natural-language-mode */
-    public function testWhereFulltext()
+    public function testWhereFulltext(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], 'database')->get();
 
@@ -52,7 +52,7 @@ class FulltextTest extends MariaDbTestCase
     }
 
     /** @link https://mariadb.com/kb/en/full-text-index-overview/#in-boolean-mode */
-    public function testWhereFulltextWithBooleanMode()
+    public function testWhereFulltextWithBooleanMode(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], '+MariaDB -YourSQL', ['mode' => 'boolean'])->get();
 
@@ -60,7 +60,7 @@ class FulltextTest extends MariaDbTestCase
     }
 
     /** @link https://mariadb.com/kb/en/full-text-index-overview/#with-query-expansion */
-    public function testWhereFulltextWithExpandedQuery()
+    public function testWhereFulltextWithExpandedQuery(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], 'database', ['expanded' => true])->get();
 

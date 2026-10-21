@@ -123,6 +123,10 @@ class ImageManager extends Manager
         /** @var Driver $instance */
         $instance = parent::createDriver($driver);
 
+        if (method_exists($instance, 'ensureRequirementsAreMet')) {
+            $instance->ensureRequirementsAreMet();
+        }
+
         $this->applyTransformationHandlers($driver, $instance);
 
         return $instance;

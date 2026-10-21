@@ -13,14 +13,14 @@ class InteractsWithViewsTest extends TestCase
 {
     use InteractsWithViews;
 
-    public function testBladeCorrectlyRendersString()
+    public function testBladeCorrectlyRendersString(): void
     {
         $string = (string) $this->blade('@if(true)test @endif');
 
         $this->assertSame('test ', $string);
     }
 
-    public function testBladeCleansUpTempFiles()
+    public function testBladeCleansUpTempFiles(): void
     {
         // Capture temp files created before blade() to isolate our file
         $before = glob(sys_get_temp_dir() . '/hypervel-blade*.blade.php') ?: [];
@@ -46,7 +46,7 @@ class InteractsWithViewsTest extends TestCase
         $this->assertFileDoesNotExist($tempFile);
     }
 
-    public function testComponentCanAccessPublicProperties()
+    public function testComponentCanAccessPublicProperties(): void
     {
         $exampleComponent = new class extends Component {
             public string $foo = 'bar';
@@ -69,7 +69,7 @@ class InteractsWithViewsTest extends TestCase
         $component->assertSee('content');
     }
 
-    public function testComponentMacroable()
+    public function testComponentMacroable(): void
     {
         TestComponent::macro('foo', fn (): string => 'bar');
 

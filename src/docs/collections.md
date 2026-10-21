@@ -10,6 +10,7 @@
     - [Creating Lazy Collections](#creating-lazy-collections)
     - [The Enumerable Contract](#the-enumerable-contract)
     - [Lazy Collection Methods](#lazy-collection-methods)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -115,6 +116,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [avg](#method-avg)
 [before](#method-before)
 [chunk](#method-chunk)
+[chunkBy](#method-chunkby)
 [chunkWhile](#method-chunkwhile)
 [collapse](#method-collapse)
 [collapseWithKeys](#method-collapsewithkeys)
@@ -429,6 +431,27 @@ This method is especially useful in [views](/docs/{{version}}/views) when workin
 @endforeach
 ```
 
+<a name="method-chunkby"></a>
+#### `chunkBy()` {.collection-method}
+
+The `chunkBy` method breaks the collection into multiple, smaller collections by grouping adjacent items that have the same value for a given key or callback. For example, you may group adjacent products that share the same parent:
+
+```php
+$chunks = $products->chunkBy('parent');
+```
+
+Unlike the `groupBy` method, items with the same value that are not adjacent are placed in separate chunks:
+
+```php
+$collection = collect([1, 1, 2, 2, 1]);
+
+$chunks = $collection->chunkBy(fn (int $value) => $value);
+
+$chunks->all();
+
+// [[1, 1], [2, 2], [1]]
+```
+
 <a name="method-chunkwhile"></a>
 #### `chunkWhile()` {.collection-method}
 
@@ -657,7 +680,7 @@ $counted->all();
 <a name="method-crossjoin"></a>
 #### `crossJoin()` {.collection-method}
 
-The `crossJoin` method cross joins the collection's values among the given arrays or collections, returning a Cartesian product with all possible permutations:
+The `crossJoin` method cross joins the collection's values among the given arrays or collections, returning a Cartesian product with all possible combinations:
 
 ```php
 $collection = collect([1, 2]);
@@ -1127,7 +1150,7 @@ collect([1, 2, 3, 4])->first();
 <a name="method-first-or-fail"></a>
 #### `firstOrFail()` {.collection-method}
 
-The `firstOrFail` method is identical to the `first` method; however, if no result is found, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+The `firstOrFail` method is identical to the `first` method; however, if no result is found, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
@@ -1137,7 +1160,7 @@ collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
 // Throws ItemNotFoundException...
 ```
 
-You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([])->firstOrFail();
@@ -1468,11 +1491,11 @@ $result = $data->groupBy(['skill', function (array $item) {
             10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
             20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
         ],
-        'Role_2' => [
-            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
-        ],
         'Role_3' => [
             10 => ['user' => 1, 'skill' => 1, 'roles' => ['Role_1', 'Role_3']],
+        ],
+        'Role_2' => [
+            20 => ['user' => 2, 'skill' => 1, 'roles' => ['Role_1', 'Role_2']],
         ],
     ],
     2 => [
@@ -1546,7 +1569,7 @@ collect([1, 2, 3])->hasMany();
 collect([
     ['age' => 2],
     ['age' => 3],
-])->hasMany(fn ($item) => $item['age'] === 2)
+])->hasMany(fn ($item) => $item['age'] === 2);
 
 // false
 ```
@@ -1665,7 +1688,7 @@ $intersect->all();
 <a name="method-intersectassocusing"></a>
 #### `intersectAssocUsing()` {.collection-method}
 
-The `intersectAssocUsing` method compares the original collection against another collection or array, returning the key / value pairs that are present in both, using a custom comparison callback to determine equality for both keys and values:
+The `intersectAssocUsing` method compares the original collection against another collection or array, returning the key / value pairs that are present in both, using a custom comparison callback to compare the keys:
 
 ```php
 $collection = collect([
@@ -2527,9 +2550,9 @@ You may also provide multiple items to append to the end of the collection:
 $collection = collect([1, 2, 3, 4]);
 
 $collection->push(5, 6, 7);
- 
+
 $collection->all();
- 
+
 // [1, 2, 3, 4, 5, 6, 7]
 ```
 
@@ -2683,6 +2706,20 @@ $stats = $orders->reduceInto(new OrderStats, function (OrderStats $stats, array 
 $stats->total;
 
 // 400
+```
+
+When reducing into a scalar or array, you should accept it by reference in the callback so that your mutations are applied to the original value:
+
+```php
+$collection = collect([1, 2, 3, 4, 5]);
+
+$even = $collection->reduceInto([], function (array &$result, int $value) {
+    if ($value % 2 === 0) {
+        $result[] = $value;
+    }
+});
+
+// [2, 4]
 ```
 
 <a name="method-reduce-spread"></a>
@@ -3022,7 +3059,7 @@ $chunks->toArray();
 This is especially useful in conjunction with the [eachSpread](#method-eachspread) method:
 
 ```php
-$transactions->sliding(2)->eachSpread(function (Collection $previous, Collection $current) {
+$transactions->sliding(2)->eachSpread(function ($previous, $current) {
     $current->total = $previous->total + $current->amount;
 });
 ```
@@ -3077,7 +3114,7 @@ $collection->sole();
 // ['product' => 'Desk', 'price' => 200]
 ```
 
-If there are no elements in the collection that should be returned by the `sole` method, an `\Hypervel\Support\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Hypervel\Support\MultipleItemsFoundException` will be thrown.
+If there are no elements in the collection that should be returned by the `sole` method, a `\Hypervel\Support\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, a `\Hypervel\Support\MultipleItemsFoundException` will be thrown.
 
 <a name="method-some"></a>
 #### `some()` {.collection-method}
@@ -3558,11 +3595,7 @@ $collection = collect(['name' => 'Desk', 'price' => 200]);
 
 $collection->toArray();
 
-/*
-    [
-        ['name' => 'Desk', 'price' => 200],
-    ]
-*/
+// ['name' => 'Desk', 'price' => 200]
 ```
 
 > [!WARNING]
@@ -3589,7 +3622,7 @@ $collection = collect(['name' => 'Desk', 'price' => 200]);
 
 $collection->toJson();
 
-// '{"name":"Desk", "price":200}'
+// '{"name":"Desk","price":200}'
 ```
 
 <a name="method-to-pretty-json"></a>
@@ -4283,7 +4316,7 @@ $zipped->all();
 <a name="higher-order-messages"></a>
 ## Higher Order Messages
 
-Collections also provide support for "higher order messages", which are short-cuts for performing common actions on collections. The collection methods that provide higher order messages are: [average](#method-average), [avg](#method-avg), [contains](#method-contains), [each](#method-each), [every](#method-every), [filter](#method-filter), [first](#method-first), [flatMap](#method-flatmap), [groupBy](#method-groupby), [keyBy](#method-keyby), [map](#method-map), [max](#method-max), [min](#method-min), [partition](#method-partition), [reject](#method-reject), [skipUntil](#method-skipuntil), [skipWhile](#method-skipwhile), [some](#method-some), [sortBy](#method-sortby), [sortByDesc](#method-sortbydesc), [sum](#method-sum), [takeUntil](#method-takeuntil), [takeWhile](#method-takewhile), and [unique](#method-unique).
+Collections also provide support for "higher order messages", which are short-cuts for performing common actions on collections. The collection methods that provide higher order messages are: [average](#method-average), [avg](#method-avg), [contains](#method-contains), [each](#method-each), [every](#method-every), [filter](#method-filter), [first](#method-first), [flatMap](#method-flatmap), [groupBy](#method-groupby), [keyBy](#method-keyby), [map](#method-map), [max](#method-max), [min](#method-min), [partition](#method-partition), [reject](#method-reject), [skipUntil](#method-skipuntil), [skipWhile](#method-skipwhile), [sole](#method-sole), [some](#method-some), [sortBy](#method-sortby), [sortByDesc](#method-sortbydesc), [sum](#method-sum), [takeUntil](#method-takeuntil), [takeWhile](#method-takewhile), and [unique](#method-unique).
 
 Each higher order message can be accessed as a dynamic property on a collection instance. For instance, let's use the `each` higher order message to call a method on each object within a collection:
 
@@ -4301,6 +4334,15 @@ Likewise, we can use the `sum` higher order message to gather the total number o
 $users = User::where('group', 'Development')->get();
 
 return $users->sum->votes;
+```
+
+When a collection contains class names, higher order messages call static methods on those classes:
+
+```php
+use App\Notifications\Handlers\EmailHandler;
+use App\Notifications\Handlers\SmsHandler;
+
+$handlerClass = collect([EmailHandler::class, SmsHandler::class])->first->supports($notification);
 ```
 
 <a name="lazy-collections"></a>
@@ -4328,7 +4370,7 @@ LazyCollection::make(function () {
     }
 
     fclose($handle);
-})->chunk(4)->map(function (array $lines) {
+})->chunk(4)->map(function (LazyCollection $lines) {
     return LogEntry::fromLines($lines);
 })->each(function (LogEntry $logEntry) {
     // Process the log entry...
@@ -4404,6 +4446,7 @@ Almost all methods available on the `Collection` class are also available on the
 [avg](#method-avg)
 [before](#method-before)
 [chunk](#method-chunk)
+[chunkBy](#method-chunkby)
 [chunkWhile](#method-chunkwhile)
 [collapse](#method-collapse)
 [collapseWithKeys](#method-collapsewithkeys)
@@ -4682,7 +4725,7 @@ if ($lock->get()) {
             ->lazy()
             ->withHeartbeat(
                 CarbonInterval::minutes(4),
-                fn () => $lock->refresh(60 * 5)
+                fn () => $lock->refresh()
             )
             ->each(fn ($report) => $report->process());
     } finally {
@@ -4690,3 +4733,8 @@ if ($lock->get()) {
     }
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Collections began as a port of [Laravel Collections](https://github.com/illuminate/collections) and has been adapted for Hypervel's framework architecture and coroutine runtime.

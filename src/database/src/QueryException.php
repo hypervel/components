@@ -49,7 +49,8 @@ class QueryException extends PDOException
         array $bindings,
         Throwable $previous,
         array $connectionDetails = [],
-        ?string $readWriteType = null
+        ?string $readWriteType = null,
+        bool $maskBindings = false
     ) {
         parent::__construct('', 0, $previous);
 
@@ -59,7 +60,7 @@ class QueryException extends PDOException
         $this->connectionDetails = $connectionDetails;
         $this->readWriteType = $readWriteType;
         $this->code = $previous->getCode();
-        $this->message = $this->formatMessage($connectionName, $sql, $bindings, $previous);
+        $this->message = $this->formatMessage($connectionName, $sql, $bindings, $previous, $maskBindings);
 
         if ($previous instanceof PDOException) {
             $this->errorInfo = $previous->errorInfo;
@@ -69,11 +70,18 @@ class QueryException extends PDOException
     /**
      * Format the SQL error message.
      */
-    protected function formatMessage(?string $connectionName, string $sql, array $bindings, Throwable $previous): string
-    {
+    protected function formatMessage(
+        ?string $connectionName,
+        string $sql,
+        array $bindings,
+        Throwable $previous,
+        bool $maskBindings = false
+    ): string {
         $details = $this->formatConnectionDetails();
 
-        return $previous->getMessage() . ' (Connection: ' . $connectionName . $details . ', SQL: ' . Str::replaceArray('?', $bindings, $sql) . ')';
+        $sql = $maskBindings ? $sql : Str::replaceArray('?', $bindings, $sql);
+
+        return $previous->getMessage() . ' (Connection: ' . $connectionName . $details . ', SQL: ' . $sql . ')';
     }
 
     /**

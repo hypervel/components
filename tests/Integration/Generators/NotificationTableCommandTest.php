@@ -8,7 +8,7 @@ use Hypervel\Notifications\Console\NotificationTableCommand;
 
 class NotificationTableCommandTest extends TestCase
 {
-    public function testCreateMakesMigration()
+    public function testCreateMakesMigration(): void
     {
         $this->artisan(NotificationTableCommand::class)->assertExitCode(0);
 

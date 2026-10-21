@@ -73,21 +73,7 @@ trait DatabaseTransactions
             $transactionsManager = new DatabaseTransactionsManager($connections)
         );
 
-        foreach ($connections as $name) {
-            $connection = $database->connection($name);
-
-            // Set the testing transaction manager on the connection
-            $connection->setTransactionManager($transactionsManager);
-
-            $dispatcher = $connection->getEventDispatcher();
-
-            $connection->unsetEventDispatcher();
-            $connection->beginTransaction();
-
-            if ($dispatcher !== null) {
-                $connection->setEventDispatcher($dispatcher);
-            }
-        }
+        $transactionsManager->beginTransactions($database);
     }
 
     /**
@@ -103,14 +89,16 @@ trait DatabaseTransactions
 
             $connection->unsetEventDispatcher();
 
-            if ($connection instanceof DatabaseConnection) {
-                $connection->forgetRecordModificationState();
-            }
+            try {
+                if ($connection instanceof DatabaseConnection) {
+                    $connection->forgetRecordModificationState();
+                }
 
-            $connection->rollBack();
-
-            if ($dispatcher !== null) {
-                $connection->setEventDispatcher($dispatcher);
+                $connection->rollBack();
+            } finally {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
             }
         }
     }
@@ -121,6 +109,7 @@ trait DatabaseTransactions
     protected function connectionsToTransact(): array
     {
         return property_exists($this, 'connectionsToTransact')
-            ? $this->connectionsToTransact : [null];
+            ? $this->connectionsToTransact
+            : [null];
     }
 }

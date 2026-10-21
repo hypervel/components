@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:job-middleware')]
 class JobMiddlewareMakeCommand extends GeneratorCommand
@@ -15,9 +14,11 @@ class JobMiddlewareMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:job-middleware';
+    protected ?string $signature = 'make:job-middleware
+                    {name : The name of the middleware}
+                    {--f|force : Create the class even if the job middleware already exists}';
 
     /**
      * The console command description.
@@ -53,15 +54,5 @@ class JobMiddlewareMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Jobs\Middleware';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the job middleware already exists'],
-        ];
     }
 }

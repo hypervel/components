@@ -65,6 +65,81 @@ class WebSocketTest extends TestCase
         $this->assertTrue(Frame::from($swooleFrame)->getMask());
     }
 
+    public function testNativeFramesDecodeMaskedCompressedPayloadsWithoutMutatingTheInput(): void
+    {
+        if (! defined('SWOOLE_HAVE_ZLIB')) {
+            $this->markTestSkipped('Swoole was not compiled with zlib support.');
+        }
+
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires input-preserving WebSocket decoding from https://github.com/swoole/swoole-src/pull/6158.');
+        }
+
+        $payload = str_repeat('hypervel-websocket-frame:', 20);
+        $packed = SwooleFrame::pack(
+            $payload,
+            Opcode::TEXT,
+            SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_MASK | SWOOLE_WEBSOCKET_FLAG_COMPRESS,
+        );
+        $original = bin2hex($packed);
+
+        $this->assertNotSame(0, ord($packed[0]) & 0x40);
+        $this->assertNotSame(0, ord($packed[1]) & 0x80);
+
+        $frame = SwooleFrame::unpack($packed);
+
+        $this->assertInstanceOf(SwooleFrame::class, $frame);
+        $this->assertSame($payload, $frame->data);
+        $this->assertSame($original, bin2hex($packed));
+    }
+
+    public function testMaskedFramesUseFreshKeys(): void
+    {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Requires fresh WebSocket masking keys from https://github.com/swoole/swoole-src/pull/6165.');
+        }
+
+        $keys = [];
+
+        for ($attempt = 0; $attempt < 8; ++$attempt) {
+            $packed = (string) new Frame(mask: true, payloadData: 'hello');
+            $keys[] = substr($packed, 2, 4);
+
+            $this->assertSame('hello', SwooleFrame::unpack($packed)->data);
+        }
+
+        $this->assertGreaterThan(1, count(array_unique($keys)));
+    }
+
+    public function testCompressedControlFramesAreRejected(): void
+    {
+        if (! defined('SWOOLE_HAVE_ZLIB')) {
+            $this->markTestSkipped('Swoole was not compiled with zlib support.');
+        }
+
+        $payload = "\x03\xe8bye";
+        $packed = SwooleFrame::pack(
+            $payload,
+            Opcode::TEXT,
+            SWOOLE_WEBSOCKET_FLAG_FIN | SWOOLE_WEBSOCKET_FLAG_COMPRESS,
+        );
+        $textFrame = SwooleFrame::unpack($packed);
+
+        $this->assertNotSame(0, ord($packed[0]) & 0x40);
+        $this->assertSame(Opcode::TEXT, ord($packed[0]) & 0x0F);
+        $this->assertInstanceOf(SwooleFrame::class, $textFrame);
+        $this->assertSame($payload, $textFrame->data);
+
+        foreach ([Opcode::CLOSE, Opcode::PING, Opcode::PONG] as $opcode) {
+            $invalid = $packed;
+            $invalid[0] = chr((ord($invalid[0]) & 0xF0) | $opcode);
+
+            $this->assertNotSame(0, ord($invalid[0]) & 0x40);
+            $this->assertSame($opcode, ord($invalid[0]) & 0x0F);
+            $this->assertFalse(@SwooleFrame::unpack($invalid));
+        }
+    }
+
     public function testResponseReturnsTheNativeResponsePushResult(): void
     {
         $connection = new EngineTestSwooleResponse;

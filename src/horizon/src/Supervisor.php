@@ -134,7 +134,10 @@ class Supervisor implements Pausable, Restartable, Terminable
             $this->processPools->first(function ($pool) use ($queue) {
                 return $pool->queue() === $queue;
             }, new class {
-                public function __call($method, $arguments)
+                /**
+                 * Ignore calls when no process pool matches the queue.
+                 */
+                public function __call(string $method, array $arguments): void
                 {
                 }
             })->scale($scale);

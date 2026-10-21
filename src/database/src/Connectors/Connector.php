@@ -8,7 +8,9 @@ use Exception;
 use Hypervel\Database\DetectsLostConnections;
 use InvalidArgumentException;
 use PDO;
+use PDOException;
 use SensitiveParameter;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Connector
@@ -33,6 +35,10 @@ class Connector
      */
     public function createConnection(string $dsn, array $config, array $options): PDO
     {
+        if (($options[PDO::ATTR_ERRMODE] ?? PDO::ERRMODE_EXCEPTION) !== PDO::ERRMODE_EXCEPTION) {
+            throw new InvalidArgumentException('Database connection [options] must use PDO::ERRMODE_EXCEPTION.');
+        }
+
         [$username, $password] = [
             $config['username'] ?? null, $config['password'] ?? null,
         ];
@@ -60,7 +66,16 @@ class Connector
      */
     protected function createPdoConnection(string $dsn, ?string $username, #[SensitiveParameter] ?string $password, array $options): PDO
     {
-        return PDO::connect($dsn, $username, $password, $options);
+        try {
+            return PDO::connect($dsn, $username, $password, $options);
+        } catch (PDOException $exception) {
+            // A canceled hooked connect throws the driver's connect failure with the CanceledException as its
+            // previous exception. Swoole declined to patch its vendored drivers, and PHP's own pdo_mysql does
+            // the same: https://github.com/swoole/swoole-src/pull/6272#issuecomment-5931718685
+            $previous = $exception->getPrevious();
+
+            throw $previous instanceof CanceledException ? $previous : $exception;
+        }
     }
 
     /**

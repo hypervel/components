@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Override;
+use RuntimeException;
 
 class PostgresGrammar extends Grammar
 {
@@ -198,6 +200,22 @@ class PostgresGrammar extends Grammar
     }
 
     /**
+     * Compile a vector distance expression for the given column.
+     */
+    public function compileVectorDistanceExpression(Expression|string $column): string
+    {
+        return "({$this->wrap($column)} <=> ?)";
+    }
+
+    /**
+     * Determine if the grammar supports vector distance queries.
+     */
+    public function supportsVectorDistance(): bool
+    {
+        return true;
+    }
+
+    /**
      * Compile the "select *" portion of the query.
      */
     protected function compileColumns(Builder $query, array $columns): ?string
@@ -349,7 +367,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileUpdateWithJoinsOrLimit($query, $values);
         }
 
@@ -361,14 +379,15 @@ class PostgresGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
-        return (new Collection($values))->map(function ($value, $key) {
-            $column = last(explode('.', $key));
+        // Joined sources can share the JSON column name; its source must name the updated table.
+        $alias = $query->joins ? $query->getFromAlias() : null;
 
-            if ($this->isJsonSelector($key)) {
-                return $this->compileJsonUpdateColumn($column, $value);
+        return (new Collection($this->groupJsonColumnsForUpdate($values)))->map(function (array $group, string $column) use ($alias): string {
+            if ($this->isJsonSelector(array_key_first($group))) {
+                return $this->compileJsonUpdateColumn($alias === null ? $column : $alias . '.' . $column, $group);
             }
 
-            return $this->wrap($column) . ' = ' . $this->parameter($value);
+            return $this->wrap($column) . ' = ' . $this->parameter(reset($group));
         })->implode(', ');
     }
 
@@ -399,17 +418,23 @@ class PostgresGrammar extends Grammar
     }
 
     /**
-     * Prepares a JSON column being updated using the JSONB_SET function.
+     * Prepare a JSON column being updated using the JSONB_SET function.
      */
-    protected function compileJsonUpdateColumn(string $key, mixed $value): string
+    protected function compileJsonUpdateColumn(string $key, array $values): string
     {
-        $segments = explode('->', $key);
+        $field = $this->wrap($key);
+        $value = $field . '::jsonb';
 
-        $field = $this->wrap(array_shift($segments));
+        foreach ($values as $path => $pathValue) {
+            $segments = explode('->', $path);
+            array_shift($segments);
 
-        $path = "'{" . implode(',', $this->wrapJsonPathAttributes($segments, '"')) . "}'";
+            $path = "'{" . implode(',', $this->wrapJsonPathAttributes($segments, '"')) . "}'";
+            $value = "jsonb_set({$value}, {$path}, {$this->parameter($pathValue)})";
+        }
 
-        return "{$field} = jsonb_set({$field}::jsonb, {$path}, {$this->parameter($value)})";
+        // PostgreSQL requires an unqualified SET target even when the source is qualified.
+        return $this->wrap(last(explode('.', $key))) . " = {$value}";
     }
 
     /**
@@ -417,6 +442,10 @@ class PostgresGrammar extends Grammar
      */
     public function compileUpdateFrom(Builder $query, array $values): string
     {
+        if ($query->limit !== null || $query->offset > 0) {
+            throw new RuntimeException('PostgreSQL does not support limits or offsets in updateFrom statements.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         // Each one of the columns in the update statements needs to be wrapped in the
@@ -493,18 +522,10 @@ class PostgresGrammar extends Grammar
      */
     public function prepareBindingsForUpdateFrom(array $bindings, array $values): array
     {
-        $values = (new Collection($values))
-            ->map(function ($value, $column) {
-                return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                    ? json_encode($value, JSON_THROW_ON_ERROR)
-                    : $value;
-            })
-            ->all();
-
-        $bindingsWithoutWhere = Arr::except($bindings, ['select', 'where']);
+        $remainingBindings = Arr::except($bindings, ['select', 'from', 'where', 'join']);
 
         return array_values(
-            array_merge($values, $bindings['where'], Arr::flatten($bindingsWithoutWhere))
+            array_merge($this->prepareValueBindingsForUpdate($values), $bindings['from'], $bindings['where'], $bindings['join'], Arr::flatten($remainingBindings))
         );
     }
 
@@ -517,11 +538,7 @@ class PostgresGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
-
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
-
-        return "update {$table} set {$columns} where {$this->wrap('ctid')} in ({$selectSql})";
+        return "update {$table} set {$columns} {$this->compileRowIdentifierWhere($query)}";
     }
 
     /**
@@ -530,18 +547,10 @@ class PostgresGrammar extends Grammar
     #[Override]
     public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
-        $values = (new Collection($values))->map(function ($value, $column) {
-            return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                ? json_encode($value, JSON_THROW_ON_ERROR)
-                : $value;
-        })->all();
-
         $cleanBindings = Arr::except($bindings, 'select');
 
-        $values = Arr::flatten(array_map(fn ($value) => value($value), $values));
-
         return array_values(
-            array_merge($values, Arr::flatten($cleanBindings))
+            array_merge($this->prepareValueBindingsForUpdate($values), Arr::flatten($cleanBindings))
         );
     }
 
@@ -550,7 +559,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileDelete(Builder $query): string
     {
-        if (isset($query->joins) || isset($query->limit)) {
+        if (isset($query->joins) || isset($query->limit) || $query->offset > 0) {
             return $this->compileDeleteWithJoinsOrLimit($query);
         }
 
@@ -564,11 +573,22 @@ class PostgresGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
+        return "delete from {$table} {$this->compileRowIdentifierWhere($query)}";
+    }
 
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
+    /**
+     * Compile the where clause matching the rows selected by a limited or joined write.
+     */
+    protected function compileRowIdentifierWhere(Builder $query): string
+    {
+        // A ctid is unique only within one physical table, and the partitions of a
+        // partitioned table reuse them, so rows are matched by table and ctid.
+        $selectSql = $this->compileSelectQuery($query->select([
+            $this->qualifyRowIdentifier($query, 'tableoid'),
+            $this->qualifyRowIdentifier($query, 'ctid'),
+        ]));
 
-        return "delete from {$table} where {$this->wrap('ctid')} in ({$selectSql})";
+        return "where ({$this->wrap('tableoid')}, {$this->wrap('ctid')}) in ({$selectSql})";
     }
 
     /**
@@ -640,9 +660,18 @@ class PostgresGrammar extends Grammar
             ->map(fn ($attribute) => $this->parseJsonPathArrayKeys($attribute))
             ->collapse()
             ->map(function ($attribute) use ($quote) {
-                return filter_var($attribute, FILTER_VALIDATE_INT) !== false
-                    ? $attribute
-                    : $quote . $attribute . $quote;
+                if (filter_var($attribute, FILTER_VALIDATE_INT) !== false) {
+                    return $attribute;
+                }
+
+                $attribute = str_replace("'", "''", $attribute);
+
+                if ($quote !== "'") {
+                    // Update paths are array literals inside an SQL string.
+                    $attribute = str_replace(['\\', $quote], ['\\\\', '\\' . $quote], $attribute);
+                }
+
+                return $quote . $attribute . $quote;
             })
             ->all();
     }

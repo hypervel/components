@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Process;
 
 use Closure;
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Support\ProcessUtils;
+use Hypervel\Testbench\Bootstrapper;
 use Laravel\SerializableClosure\SerializableClosure;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\php_binary;
@@ -42,13 +47,24 @@ final class RemoteCommand
     {
         $env = is_string($this->env) ? ['APP_ENV' => $this->env] : $this->env;
         $definedEnvironmentVariables = defined_environment_variables();
-        $commandName = $this->resolveCommandName($command);
 
         $env['TESTBENCH_PACKAGE_REMOTE'] = '(true)';
 
-        if (defined('BASE_PATH') && $commandName !== 'serve') {
+        $basePathSupplied = array_key_exists('TESTBENCH_BASE_PATH', $env);
+
+        if (! $basePathSupplied && $this->resolveCommandName($command) === 'serve') {
+            // Serve creates its own runtime copy, even when this process inherited a base path.
+            $env['TESTBENCH_BASE_PATH'] = false;
+        } elseif (defined('BASE_PATH')) {
             $env['TESTBENCH_BASE_PATH'] ??= BASE_PATH;
         }
+
+        // Decided for each child, so an inherited value never vouches for another path.
+        $env['TESTBENCH_RUNTIME_COPY'] = ! $basePathSupplied
+            && is_string($env['TESTBENCH_BASE_PATH'] ?? null)
+            && Bootstrapper::isRuntimeCopy($env['TESTBENCH_BASE_PATH'])
+                ? '(true)'
+                : false;
 
         if (! array_key_exists('APP_ENV', $env)) {
             unset($definedEnvironmentVariables['APP_ENV']);
@@ -60,17 +76,24 @@ final class RemoteCommand
             );
             $env['APP_KEY'] ??= config('app.key') ?? false;
             $commands = ['invoke-serialized-closure'];
-        } elseif (is_string($command)) {
-            $commands = preg_split('/\s+/', $command, -1, PREG_SPLIT_NO_EMPTY);
         } else {
             $commands = $command;
         }
 
-        $process = new Process(
-            command: [php_binary(), $commander, ...$commands],
-            cwd: $this->workingPath,
-            env: array_merge($definedEnvironmentVariables, $env),
-        );
+        $environment = array_merge($definedEnvironmentVariables, $env);
+
+        // String commands are Testbench CLI arguments in shell syntax; exec keeps PHP as the process PID.
+        $process = is_string($commands)
+            ? Process::fromShellCommandline(
+                command: 'exec ' . ProcessUtils::escapeArgument(php_binary()) . ' ' . ProcessUtils::escapeArgument($commander) . ' ' . $commands,
+                cwd: $this->workingPath,
+                env: $environment,
+            )
+            : new Process(
+                command: [php_binary(), $commander, ...$commands],
+                cwd: $this->workingPath,
+                env: $environment,
+            );
 
         if (is_bool($this->tty)) {
             $process->setTty($this->tty);
@@ -84,16 +107,10 @@ final class RemoteCommand
      */
     private function resolveCommandName(Closure|array|string $command): ?string
     {
-        if ($command instanceof Closure) {
-            return null;
-        }
-
-        if (is_array($command)) {
-            return $command[0] ?? null;
-        }
-
-        $commandName = strtok(trim($command), " \t\n\r\0\x0B");
-
-        return $commandName === false ? null : $commandName;
+        return match (true) {
+            $command instanceof Closure => null,
+            is_string($command) => ConsoleApplication::resolveCommandName(new StringInput($command)),
+            default => ConsoleApplication::resolveCommandName(new ArgvInput(['testbench', ...$command])),
+        };
     }
 }

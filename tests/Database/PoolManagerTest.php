@@ -12,6 +12,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PoolManager;
@@ -376,6 +377,24 @@ class PoolManagerTest extends TestCase
         $this->assertFalse($poolManager->has('cache'));
     }
 
+    public function testExistingReturnsOnlyOpenPoolsWithoutCreatingThem(): void
+    {
+        $poolManager = new PoolManager($this->mockContainerWithPools());
+
+        $this->assertNull($poolManager->existing('default'));
+        $this->assertSame([], $poolManager->getPools());
+
+        $pool = $poolManager->pool('default');
+
+        $this->assertSame($pool, $poolManager->existing('default'));
+        $this->assertSame($pool, $poolManager->existing('default::write'));
+
+        $poolManager->purge('default');
+
+        $this->assertNull($poolManager->existing('default'));
+        $this->assertSame([], $poolManager->getPools());
+    }
+
     public function testPurgeAll(): void
     {
         $container = $this->mockContainerWithPools();
@@ -606,6 +625,23 @@ class PoolManagerTest extends TestCase
         );
         $this->assertTrue($poolManager->has('default'));
         $this->assertTrue($poolManager->has('default::read'));
+    }
+
+    public function testReadConnectionUsesSeparatePoolWhenReadConfigComesFromUrl(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'url' => 'mysql://root:@null/db?read[host][]=replica.test&write[host][]=primary.test',
+            ]),
+        ]);
+        $manager = new PoolManager($container);
+        $pool = $manager->pool('default::read');
+
+        $this->assertSame('default::read', $pool->getName());
+        $this->assertNotSame($manager->pool('default'), $pool);
+        $this->assertInstanceOf(PoolManagerTestPool::class, $pool);
+        $this->assertSame(['replica.test'], $pool->configForTest()['read']['host']);
+        $this->assertSame('read', $pool->configForTest()[DatabaseConnection::READ_WRITE_TYPE_CONFIG_KEY]);
     }
 
     public function testReadConnectionUsesBasePoolWhenReadConfigIsMissingOrNull(): void

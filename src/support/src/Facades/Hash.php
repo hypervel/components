@@ -17,7 +17,7 @@ use SensitiveParameter;
  * @method static \Hypervel\Hashing\HashManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static array info(string $hashedValue)
  * @method static bool isHashed(string $value)
  * @method static string make(string $value, array $options = [])
@@ -28,6 +28,9 @@ use SensitiveParameter;
  */
 class Hash extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'hash';
@@ -38,7 +41,7 @@ class Hash extends Facade
      *
      * @throws RuntimeException
      */
-    public static function __callStatic(string $method, #[SensitiveParameter] array $args)
+    public static function __callStatic(string $method, #[SensitiveParameter] array $args): mixed
     {
         // This mirrors Facade::__callStatic() locally because delegating to the
         // parent would retain the sensitive packed arguments in its stack frame.

@@ -9,10 +9,42 @@ use Hypervel\Tests\TestCase;
 
 class ValidationPathTest extends TestCase
 {
-    /**
-     * Test wildcard segments expand against the complete payload.
-     */
-    public function testExpandsWildcardSegments(): void
+    public function testExpandsGlobSegmentsInValidationPaths(): void
+    {
+        $path = ValidationPath::create('list_items.*.title');
+        $matches = $path->matchingWildcardPayloadValidationPaths([
+            'list_items' => [
+                ['title' => 'First'],
+                ['title' => 'Second'],
+            ],
+        ]);
+
+        $this->assertSame([
+            'list_items.0.title',
+            'list_items.1.title',
+        ], array_map(
+            fn (ValidationPath $match): string => (string) $match,
+            $matches,
+        ));
+    }
+
+    public function testExpandsTrailingGlobSegmentsInValidationPaths(): void
+    {
+        $path = ValidationPath::create('list_items.*');
+        $matches = $path->matchingWildcardPayloadValidationPaths([
+            'list_items' => ['First', 'Second'],
+        ]);
+
+        $this->assertSame([
+            'list_items.0',
+            'list_items.1',
+        ], array_map(
+            fn (ValidationPath $match): string => (string) $match,
+            $matches,
+        ));
+    }
+
+    public function testExpandsDeeplyNestedGlobSegmentsInValidationPaths(): void
     {
         $payload = [
             'sections' => [
@@ -39,25 +71,6 @@ class ValidationPathTest extends TestCase
             'sections.1.items.0.name',
         ], array_map(
             fn (ValidationPath $match): string => $match->get(),
-            $matches,
-        ));
-    }
-
-    /**
-     * Test trailing wildcard segments expand to the matching values.
-     */
-    public function testExpandsTrailingWildcardSegments(): void
-    {
-        $path = ValidationPath::create('list_items.*');
-        $matches = $path->matchingWildcardPayloadValidationPaths([
-            'list_items' => ['First', 'Second'],
-        ]);
-
-        $this->assertSame([
-            'list_items.0',
-            'list_items.1',
-        ], array_map(
-            fn (ValidationPath $match): string => (string) $match,
             $matches,
         ));
     }

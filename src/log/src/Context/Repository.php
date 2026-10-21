@@ -158,7 +158,8 @@ class Repository implements ReplicableContext
      */
     public function add(string|array $key, mixed $value = null): static
     {
-        $this->data = array_merge(
+        // Numeric-string keys must not be reindexed.
+        $this->data = array_replace(
             $this->data,
             is_array($key) ? $key : [$key => $value]
         );
@@ -366,7 +367,8 @@ class Repository implements ReplicableContext
      */
     public function addHidden(string|array $key, #[SensitiveParameter] mixed $value = null): static
     {
-        $this->hidden = array_merge(
+        // Numeric-string keys must not be reindexed.
+        $this->hidden = array_replace(
             $this->hidden,
             is_array($key) ? $key : [$key => $value]
         );

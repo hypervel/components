@@ -9,11 +9,12 @@ use Hypervel\Horizon\Jobs\MonitorTag;
 use Hypervel\Horizon\Jobs\StopMonitoringTag;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class MonitoringTest extends IntegrationTestCase
 {
-    public function testCanRetrieveAllMonitoredTags()
+    public function testCanRetrieveAllMonitoredTags(): void
     {
         $repository = resolve(TagRepository::class);
 
@@ -27,14 +28,14 @@ class MonitoringTest extends IntegrationTestCase
         $this->assertCount(2, $monitored);
     }
 
-    public function testCanDetermineIfASetOfTagsAreBeingMonitored()
+    public function testCanDetermineIfASetOfTagsAreBeingMonitored(): void
     {
         $repository = resolve(TagRepository::class);
         dispatch(new MonitorTag('first'));
         $this->assertEquals(['first'], $repository->monitored(['first', 'second']));
     }
 
-    public function testCanStopMonitoringTags()
+    public function testCanStopMonitoringTags(): void
     {
         $repository = resolve(TagRepository::class);
         dispatch(new MonitorTag('first'));
@@ -42,37 +43,37 @@ class MonitoringTest extends IntegrationTestCase
         $this->assertEquals([], $repository->monitored(['first', 'second']));
     }
 
-    public function testTagsThatAreRemovedFromMonitoringAreRemovedFromStorage()
+    public function testTagsThatAreRemovedFromMonitoringAreRemovedFromStorage(): void
     {
         dispatch(new MonitorTag('first'));
         dispatch(new StopMonitoringTag('first'));
         $this->assertNull(Redis::connection('horizon')->get('first'));
     }
 
-    public function testCompletedJobsAreStoredInDatabaseWhenOneOfTheirTagsIsBeingMonitored()
+    public function testCompletedJobsAreStoredInDatabaseWhenOneOfTheirTagsIsBeingMonitored(): void
     {
         dispatch(new MonitorTag('first'));
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
         $this->work();
         $this->assertSame(1, $this->monitoredJobs('first'));
         $this->assertGreaterThan(0, Redis::connection('horizon')->ttl($id));
     }
 
-    public function testCompletedJobsAreRemovedFromDatabaseWhenTheirTagIsNoLongerMonitored()
+    public function testCompletedJobsAreRemovedFromDatabaseWhenTheirTagIsNoLongerMonitored(): void
     {
         dispatch(new MonitorTag('first'));
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
         $this->work();
         dispatch(new StopMonitoringTag('first'));
         $this->assertSame(0, $this->monitoredJobs('first'));
     }
 
-    public function testAllCompletedJobsAreRemovedFromDatabaseWhenTheirTagIsNoLongerMonitored()
+    public function testAllCompletedJobsAreRemovedFromDatabaseWhenTheirTagIsNoLongerMonitored(): void
     {
         dispatch(new MonitorTag('first'));
 
         for ($i = 0; $i < 80; ++$i) {
-            Queue::push(new Jobs\BasicJob);
+            Queue::push(new BasicJob);
         }
 
         $this->work();

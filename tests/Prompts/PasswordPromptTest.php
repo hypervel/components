@@ -91,7 +91,7 @@ class PasswordPromptTest extends TestCase
     public function testFailsValidationWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         password('What is the password?', required: true);

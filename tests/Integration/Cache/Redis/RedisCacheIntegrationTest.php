@@ -11,7 +11,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
  */
 class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    public function testRedisCacheAddTwice()
+    public function testRedisCacheAddTwice(): void
     {
         $cache = $this->cache();
         $this->assertTrue($cache->add('k', 'v', 3600));
@@ -25,7 +25,7 @@ class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
     /**
      * Breaking change.
      */
-    public function testRedisCacheAddFalse()
+    public function testRedisCacheAddFalse(): void
     {
         $cache = $this->cache();
         $cache->forever('k', false);
@@ -36,7 +36,7 @@ class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
     /**
      * Breaking change.
      */
-    public function testRedisCacheAddNull()
+    public function testRedisCacheAddNull(): void
     {
         $cache = $this->cache();
         $cache->forever('k', null);

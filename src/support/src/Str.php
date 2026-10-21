@@ -8,7 +8,9 @@ use Closure;
 use Countable;
 use DateTimeInterface;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use League\CommonMark\Environment\Environment;
+use League\CommonMark\Extension\ExtensionInterface;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\InlinesOnly\InlinesOnlyExtension;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
@@ -35,14 +37,14 @@ class Str
     /**
      * The callback that should be used to generate UUIDs.
      *
-     * @var null|(Closure(): Uuid)
+     * @var null|(Closure(): (string|Uuid))
      */
     protected static ?Closure $uuidFactory = null;
 
     /**
      * The callback that should be used to generate ULIDs.
      *
-     * @var null|(Closure(): \Symfony\Component\Uid\Ulid)
+     * @var null|(Closure(): Ulid)
      */
     protected static ?Closure $ulidFactory = null;
 
@@ -90,13 +92,13 @@ class Str
             return $subject;
         }
 
-        $position = strrpos($subject, $search);
+        $position = mb_strrpos($subject, $search);
 
         if ($position === false) {
             return $subject;
         }
 
-        return substr($subject, $position + strlen($search));
+        return mb_substr($subject, $position + mb_strlen($search));
     }
 
     /**
@@ -110,9 +112,9 @@ class Str
     /**
      * Transliterate a string to its closest ASCII representation.
      */
-    public static function transliterate(string $string, ?string $unknown = '?', ?bool $strict = false): string
+    public static function transliterate(string|int|float|bool|BaseStringable|null $string, ?string $unknown = '?', bool $strict = false): string
     {
-        return ASCII::to_transliterate($string, $unknown, $strict);
+        return ASCII::to_transliterate((string) $string, $unknown, $strict);
     }
 
     /**
@@ -148,7 +150,8 @@ class Str
             return $subject;
         }
 
-        return static::substr($subject, 0, $pos);
+        // Character offsets use the internal encoding, which can differ from Str::substr's UTF-8 default.
+        return mb_substr($subject, 0, $pos);
     }
 
     /**
@@ -188,13 +191,13 @@ class Str
      */
     public static function camel(string $value): string
     {
-        return lcfirst(static::studly($value));
+        return static::lcfirst(static::studly($value));
     }
 
     /**
      * Get the character at the specified index.
      */
-    public static function charAt(string $subject, mixed $index): string|false
+    public static function charAt(string $subject, int $index): string|false
     {
         $length = mb_strlen($subject);
 
@@ -230,7 +233,12 @@ class Str
     {
         foreach ((array) $needle as $n) {
             if ($n !== '' && str_ends_with($subject, $n)) {
-                return mb_substr($subject, 0, -mb_strlen($n));
+                $length = mb_strlen($n);
+
+                // A byte suffix match can start inside a multibyte character.
+                if (mb_substr($subject, -$length) === $n) {
+                    return mb_substr($subject, 0, -$length);
+                }
             }
         }
 
@@ -397,14 +405,14 @@ class Str
 
         $start = ltrim($matches[1]);
 
-        $start = Str::of(mb_substr($start, max(mb_strlen($start, 'UTF-8') - $radius, 0), $radius, 'UTF-8'))->ltrim()->unless(
+        $start = (new Stringable(mb_substr($start, max(mb_strlen($start, 'UTF-8') - $radius, 0), $radius, 'UTF-8')))->ltrim()->unless(
             fn ($startWithRadius) => $startWithRadius->exactly($start),
             fn ($startWithRadius) => $startWithRadius->prepend($omission),
         );
 
         $end = rtrim($matches[3]);
 
-        $end = Str::of(mb_substr($end, 0, $radius, 'UTF-8'))->rtrim()->unless(
+        $end = (new Stringable(mb_substr($end, 0, $radius, 'UTF-8')))->rtrim()->unless(
             fn ($endWithRadius) => $endWithRadius->exactly($end),
             fn ($endWithRadius) => $endWithRadius->append($omission),
         );
@@ -440,11 +448,16 @@ class Str
     public static function unwrap(string $value, string $before, ?string $after = null): string
     {
         if (static::startsWith($value, $before)) {
-            $value = static::substr($value, static::length($before));
+            $value = mb_substr($value, mb_strlen($before));
         }
 
         if (static::endsWith($value, $after ??= $before)) {
-            $value = static::substr($value, 0, -static::length($after));
+            $length = mb_strlen($after);
+
+            // Unlike a prefix, a byte suffix match can start inside a character.
+            if (mb_substr($value, -$length) === $after) {
+                $value = mb_substr($value, 0, -$length);
+            }
         }
 
         return $value;
@@ -453,7 +466,7 @@ class Str
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public static function is(string|int|float|bool|BaseStringable|iterable|null $pattern, string|int|float|bool|BaseStringable|null $value, bool $ignoreCase = false): bool
     {
@@ -685,11 +698,13 @@ class Str
     /**
      * Convert GitHub flavored Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function markdown(string $string, array $options = [], array $extensions = []): string
+    public static function markdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $converter = new GithubFlavoredMarkdownConverter($options);
 
         $environment = $converter->getEnvironment();
@@ -704,11 +719,13 @@ class Str
     /**
      * Convert inline Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function inlineMarkdown(string $string, array $options = [], array $extensions = []): string
+    public static function inlineMarkdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $environment = new Environment($options);
 
         $environment->addExtension(new GithubFlavoredMarkdownExtension);
@@ -724,7 +741,7 @@ class Str
     }
 
     /**
-     * Masks a portion of a string with a repeated character.
+     * Mask a portion of a string with a repeated character.
      */
     public static function mask(string $string, string|BaseStringable $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
     {
@@ -749,7 +766,7 @@ class Str
 
         $start = mb_substr($string, 0, $startIndex, $encoding);
         $segmentLen = mb_strlen($segment, $encoding);
-        $end = mb_substr($string, $startIndex + $segmentLen);
+        $end = mb_substr($string, $startIndex + $segmentLen, null, $encoding);
 
         return $start . str_repeat(mb_substr($character, 0, 1, $encoding), $segmentLen) . $end;
     }
@@ -896,7 +913,7 @@ class Str
     /**
      * Generate a random, secure password.
      *
-     * @return ($letters is false ? ($numbers is true ? ($symbols is false ? ($spaces is false ? numeric-string : string) : string) : string) : string)
+     * @return ($length is positive-int ? ($letters is false ? ($numbers is true ? ($symbols is false ? ($spaces is false ? numeric-string : string) : string) : string) : string) : '')
      */
     public static function password(int $length = 32, bool $letters = true, bool $numbers = true, bool $symbols = true, bool $spaces = false): string
     {
@@ -920,14 +937,22 @@ class Str
             ] : null,
             'spaces' => $spaces === true ? [' '] : null,
         ]))
-            ->filter()
-            ->each(fn ($c) => $password->push($c[random_int(0, count($c) - 1)]))
-            ->flatten();
+            ->filter();
 
-        $length = $length - $password->count();
+        if ($options->isEmpty()) {
+            throw new InvalidArgumentException('At least one character pool must be enabled.');
+        }
 
-        return $password->merge($options->pipe(
-            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)])
+        $allCharacters = $options->flatten();
+
+        $options->shuffle()
+            ->take(max(0, $length))
+            ->each(fn (array $c): Collection => $password->push($c[random_int(0, count($c) - 1)]));
+
+        $length = max(0, $length - $password->count());
+
+        return $password->merge($allCharacters->pipe(
+            fn (Collection $c): Collection => Collection::times($length, fn (): string => $c[random_int(0, $c->count() - 1)])
         ))->shuffle()->implode('');
     }
 
@@ -973,7 +998,7 @@ class Str
      */
     public static function createRandomStringsUsing(?callable $factory = null): void
     {
-        static::$randomStringFactory = $factory;
+        static::$randomStringFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1042,7 +1067,7 @@ class Str
     public static function replaceArray(string $search, iterable $replace, string $subject): string
     {
         if ($replace instanceof Traversable) {
-            $replace = Arr::from($replace);
+            $replace = iterator_to_array($replace);
         }
 
         $segments = explode($search, $subject);
@@ -1081,15 +1106,15 @@ class Str
     public static function replace(string|iterable $search, string|iterable $replace, string|iterable $subject, bool $caseSensitive = true): string|array
     {
         if ($search instanceof Traversable) {
-            $search = Arr::from($search);
+            $search = iterator_to_array($search);
         }
 
         if ($replace instanceof Traversable) {
-            $replace = Arr::from($replace);
+            $replace = iterator_to_array($replace);
         }
 
         if ($subject instanceof Traversable) {
-            $subject = Arr::from($subject);
+            $subject = iterator_to_array($subject);
         }
 
         return $caseSensitive
@@ -1247,7 +1272,7 @@ class Str
     public static function remove(string|iterable $search, string $subject, bool $caseSensitive = true): string
     {
         if ($search instanceof Traversable) {
-            $search = Arr::from($search);
+            $search = iterator_to_array($search);
         }
 
         return $caseSensitive
@@ -1260,7 +1285,7 @@ class Str
      */
     public static function reverse(string $value): string
     {
-        return implode(array_reverse(mb_str_split($value)));
+        return implode('', array_reverse(mb_str_split($value)));
     }
 
     /**
@@ -1278,7 +1303,7 @@ class Str
     /**
      * Convert the given string to upper-case.
      *
-     * @return ($value is '' ? '' : non-empty-string&uppercase-string)
+     * @phpstan-return ($value is '' ? '' : non-empty-string&uppercase-string)
      */
     public static function upper(string $value): string
     {
@@ -1542,6 +1567,7 @@ class Str
     /**
      * Convert a value to studly caps case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function studly(string $value, bool $normalize = false): string
@@ -1558,12 +1584,13 @@ class Str
 
         $studlyWords = array_map(fn ($word) => static::ucfirst($word), $words);
 
-        return implode($studlyWords);
+        return implode('', $studlyWords);
     }
 
     /**
      * Convert a value to Pascal case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function pascal(string $value, bool $normalize = false): string
@@ -1572,7 +1599,7 @@ class Str
     }
 
     /**
-     * Returns the portion of the string specified by the start and length parameters.
+     * Return the portion of the string specified by the start and length parameters.
      */
     public static function substr(string $string, int $start, ?int $length = null, string $encoding = 'UTF-8'): string
     {
@@ -1580,7 +1607,7 @@ class Str
     }
 
     /**
-     * Returns the number of substring occurrences.
+     * Return the number of substring occurrences.
      */
     public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
@@ -1833,11 +1860,11 @@ class Str
      * Tests only. The factory persists in a static property for the worker
      * lifetime and affects every subsequent UUID generation.
      *
-     * @param null|(callable(): Uuid) $factory
+     * @param null|(callable(): (string|Uuid)) $factory
      */
     public static function createUuidsUsing(?callable $factory = null): void
     {
-        static::$uuidFactory = $factory;
+        static::$uuidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1846,8 +1873,8 @@ class Str
      * Tests only. The sequence factory persists in a static property for the
      * worker lifetime and affects every subsequent UUID generation.
      *
-     * @param Uuid[] $sequence
-     * @param null|(callable(): Uuid) $whenMissing
+     * @param array<string|Uuid> $sequence
+     * @param null|(callable(): (string|Uuid)) $whenMissing
      */
     public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
@@ -1952,7 +1979,7 @@ class Str
      */
     public static function createUlidsUsing(?callable $factory = null): void
     {
-        static::$ulidFactory = $factory;
+        static::$ulidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1995,6 +2022,10 @@ class Str
 
     /**
      * Always return the same ULID when generating new ULIDs.
+     *
+     * Tests only unless a callback is supplied. Without a callback, the factory
+     * persists in a static property for the worker lifetime and affects every
+     * subsequent ULID generation.
      *
      * @param null|(Closure(Ulid): mixed) $callback
      */

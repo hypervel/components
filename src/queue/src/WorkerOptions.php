@@ -13,13 +13,13 @@ class WorkerOptions
      * @param int|int[] $backoff
      * @param float $memory the maximum amount of RAM in megabytes the worker may consume
      * @param int $timeout the maximum number of seconds a child worker may run
-     * @param int $sleep the number of seconds to wait in between polling the queue
+     * @param float $sleep the number of seconds to wait in between polling the queue
      * @param int $maxTries the maximum number of times a job may be attempted
      * @param bool $force indicates if the worker should run in maintenance mode
      * @param bool $stopWhenEmpty indicates if the worker should stop when the queue is empty
      * @param int $maxJobs the maximum number of jobs to run
      * @param int $maxTime the maximum number of seconds a worker may live
-     * @param int $rest the number of seconds to rest between jobs
+     * @param float $rest the number of seconds to rest between jobs
      * @param int $stopWhenEmptyFor the number of seconds without processing a job before stopping
      * @param int $concurrency the number of jobs to process at once
      * @param int $monitorInterval the number of seconds between timeout scans
@@ -30,13 +30,13 @@ class WorkerOptions
         public array|int $backoff = 0,
         public float $memory = 128,
         public int $timeout = 60,
-        public int $sleep = 3,
+        public float $sleep = 3,
         public int $maxTries = 1,
         public bool $force = false,
         public bool $stopWhenEmpty = false,
         public int $maxJobs = 0,
         public int $maxTime = 0,
-        public int $rest = 0,
+        public float $rest = 0,
         public int $stopWhenEmptyFor = 0,
         public int $concurrency = 1,
         public int $monitorInterval = 1,

@@ -21,9 +21,7 @@ use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Str;
-use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
-use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -42,7 +40,7 @@ use Throwable;
 ])]
 class JobWatcherTest extends FeatureTestCase
 {
-    public function testJobRegistersEntry()
+    public function testJobRegistersEntry(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(new MyDatabaseJob('Awesome Laravel'));
 
@@ -62,7 +60,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame('Awesome Laravel', $entry->content['data']['payload']);
     }
 
-    public function testJobRegistersEntryWithBatchIdInPayload()
+    public function testJobRegistersEntryWithBatchIdInPayload(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(new MockedBatchableJob($batchId = (string) Str::orderedUuid()));
 
@@ -82,7 +80,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame($batchId, $entry->content['data']['batchId']);
     }
 
-    public function testFailedJobsRegisterEntry()
+    public function testFailedJobsRegisterEntry(): void
     {
         $this->app->make(Dispatcher::class)->dispatch(
             new MyFailedDatabaseJob('I never watched Star Wars.')
@@ -108,7 +106,50 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame('handle', $entry->content['exception']['trace'][0]['function']);
     }
 
-    public function testItHandlesPushedJobs()
+    public function testProcessedJobClearsStaleFailureStateLeftByADuplicateReservation(): void
+    {
+        // A long-running job whose runtime exceeds the queue's retry_after can be
+        // reserved twice: a second worker fails it with MaxAttemptsExceededException
+        // (JobFailed) while the original worker eventually completes it (JobProcessed).
+        // Both events target the same telescope_uuid, so the processed update must not
+        // leave behind the failure's exception payload or "failed" tag.
+        $watcher = new JobWatcher;
+
+        $entry = $watcher->recordJob('redis', 'default', [
+            'job' => 'Hypervel\Queue\CallQueuedHandler@call',
+            'displayName' => MyDatabaseJob::class,
+            'maxTries' => 1,
+            'timeout' => 30,
+            'data' => ['payload' => 'long-running'],
+        ]);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('payload')->andReturn(['telescope_uuid' => $entry->uuid]);
+
+        $watcher->recordFailedJob(new QueueJobFailed(
+            'redis',
+            $job,
+            new Exception(MyDatabaseJob::class . ' has been attempted too many times.')
+        ));
+
+        $watcher->recordProcessedJob(new QueueJobProcessed('redis', $job));
+
+        $stored = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::JOB, $stored->type);
+        $this->assertSame('processed', $stored->content['status']);
+        $this->assertNull($stored->content['exception']);
+
+        $hasFailedTag = $this->app->make('db')->connection('testing')
+            ->table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->uuid)
+            ->where('tag', 'failed')
+            ->exists();
+
+        $this->assertFalse($hasFailedTag, 'The "failed" tag must be removed once the job is processed.');
+    }
+
+    public function testItHandlesPushedJobs(): void
     {
         $queueExceptions = [];
         $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$queueExceptions) {
@@ -134,7 +175,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['framework' => 'Laravel'], $entry->content['data']);
     }
 
-    public function testJobCanHandleDeletedSerializedModel()
+    public function testJobCanHandleDeletedSerializedModel(): void
     {
         $user = UserFactory::new()->create();
 
@@ -158,7 +199,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(sprintf('%s:%s', get_class($user), $user->getKey()), $entry->content['data']['user']);
     }
 
-    public function testJobRegistersProcessingEntryWithBatchFamilyHash()
+    public function testJobRegistersProcessingEntryWithBatchFamilyHash(): void
     {
         $batch = m::mock(Batch::class);
         $batch->shouldReceive('toArray')
@@ -184,7 +225,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(MockedSyncBatchableJob::class, $entry->content['name']);
     }
 
-    public function testJobRecordsDispatchTimeContextInDataHiddenShape()
+    public function testJobRecordsDispatchTimeContextInDataHiddenShape(): void
     {
         ContextRepository::getInstance()->add('trace_id', 'abc-123');
         ContextRepository::getInstance()->addHidden('api_key', 'secret');
@@ -198,7 +239,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['api_key' => 'secret'], $entry->content['context']['hidden']);
     }
 
-    public function testJobProcessedUpdateOverwritesDispatchTimeContext()
+    public function testJobProcessedUpdateOverwritesDispatchTimeContext(): void
     {
         ContextRepository::getInstance()->add('dispatch_key', 'dispatch_value');
 
@@ -215,7 +256,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertArrayNotHasKey('dispatch_key', $entry->content['context']['data']);
     }
 
-    public function testJobEmptyRuntimeContextClearsDispatchTimeContext()
+    public function testJobEmptyRuntimeContextClearsDispatchTimeContext(): void
     {
         ContextRepository::getInstance()->add('dispatch_key', 'dispatch_value');
 
@@ -230,7 +271,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertNull($entry->content['context']);
     }
 
-    public function testJobHiddenOnlyContextIsPreserved()
+    public function testJobHiddenOnlyContextIsPreserved(): void
     {
         ContextRepository::getInstance()->addHidden('secret_key', 'secret_value');
 
@@ -243,7 +284,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(['secret_key' => 'secret_value'], $entry->content['context']['hidden']);
     }
 
-    public function testJobPreservesFalsyFields()
+    public function testJobPreservesFalsyFields(): void
     {
         MockedZeroValuesJob::dispatch();
 
@@ -270,25 +311,6 @@ class JobWatcherTest extends FeatureTestCase
 
         $this->assertSame(1, $job->payloadReads);
         $this->assertCount(0, $this->loadTelescopeEntries());
-    }
-
-    public function testProcessedJobClearsPriorFailureState(): void
-    {
-        $entry = IncomingEntry::make(['status' => 'pending']);
-        Telescope::recordJob($entry);
-
-        $job = new TelescopeQueueJob(['telescope_uuid' => $entry->uuid]);
-        $watcher = $this->app->make(JobWatcher::class);
-
-        $watcher->recordFailedJob(new QueueJobFailed('database', $job, new Exception('failed')));
-        $watcher->recordProcessedJob(new QueueJobProcessed('database', $job));
-
-        $stored = $this->loadTelescopeEntries()->first();
-        $result = $this->app->make(EntriesRepository::class)->find($entry->uuid)->jsonSerialize();
-
-        $this->assertSame('processed', $stored->content['status']);
-        $this->assertNull($stored->content['exception']);
-        $this->assertNotContains('failed', $result['tags']);
     }
 
     public function testBatchIdFailureRestoresRecordingState(): void

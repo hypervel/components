@@ -268,7 +268,7 @@ class Event
     {
         $context = base64_encode(serialize(Repository::getInstance()->dehydrate()));
 
-        /** @var \Hypervel\Contracts\Foundation\Application $container */
+        /** @var ApplicationContract $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath(),
@@ -344,6 +344,8 @@ class Event
         }
     }
 
+    // REMOVED: buildCommand(); Artisan tasks run in-process, and exec() uses Symfony Process directly.
+
     /**
      * Determine if the given event should run based on the Cron expression.
      */
@@ -412,6 +414,7 @@ class Event
     {
         $this->lastChecked = Date::now();
 
+        // Keep these loops to avoid an extra callback per filter.
         foreach ($this->filters as $callback) {
             if (! $this->callEventCallback($app, $callback)) {
                 return false;
@@ -511,8 +514,6 @@ class Event
     /**
      * E-mail the results of the scheduled operation if it produces output.
      *
-     * @param array|mixed $addresses
-     *
      * @throws LogicException
      */
     public function emailWrittenOutputTo(mixed $addresses): static
@@ -522,8 +523,6 @@ class Event
 
     /**
      * E-mail the results of the scheduled operation if it fails.
-     *
-     * @param array|mixed $addresses
      */
     public function emailOutputOnFailure(mixed $addresses): static
     {

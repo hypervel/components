@@ -129,7 +129,13 @@ class TaskProcessTest extends TestCase
     #[RunInSeparateProcess]
     public function testSocketPairFailureFallsBackBeforeRunningCallback(): void
     {
+        $previousHandler = static function (): void {
+        };
         $callbackRuns = 0;
+
+        pcntl_async_signals(false);
+        pcntl_signal(SIGINT, $previousHandler);
+
         $task = new TaskSocketFailureFixture(label: 'Running');
 
         $result = $task->run(function (Logger $logger) use (&$callbackRuns): string {
@@ -141,6 +147,8 @@ class TaskProcessTest extends TestCase
         $this->assertSame('done', $result);
         $this->assertSame(1, $callbackRuns);
         $this->assertTrue($task->static);
+        $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+        $this->assertFalse(pcntl_async_signals());
     }
 
     #[RunInSeparateProcess]
@@ -174,6 +182,12 @@ class TaskProcessTest extends TestCase
     #[RunInSeparateProcess]
     public function testCallbackFailureRemainsPrimaryAndChildIsReaped(): void
     {
+        $previousHandler = static function (): void {
+        };
+
+        pcntl_async_signals(false);
+        pcntl_signal(SIGINT, $previousHandler);
+
         $task = new TaskChildFailureFixture(label: 'Running');
 
         try {
@@ -188,6 +202,8 @@ class TaskProcessTest extends TestCase
 
         $this->assertNotNull($task->forkedPid);
         $this->assertSame(-1, pcntl_waitpid($task->forkedPid, $status, WNOHANG));
+        $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+        $this->assertFalse(pcntl_async_signals());
     }
 
     #[RunInSeparateProcess]

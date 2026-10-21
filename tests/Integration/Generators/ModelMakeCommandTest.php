@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Support\Facades\Date;
+
 class ModelMakeCommandTest extends TestCase
 {
-    protected $files = [
+    protected array $files = [
         'app/Models/Foo.php',
         'app/Models/Foo/Bar.php',
+        'app/Models/Aaa.php',
+        'app/Models/Xxx.php',
         'app/Http/Controllers/FooController.php',
         'app/Http/Controllers/BarController.php',
         'app/Http/Requests/StoreFooRequest.php',
@@ -16,12 +20,14 @@ class ModelMakeCommandTest extends TestCase
         'app/Policies/FooPolicy.php',
         'database/factories/FooFactory.php',
         'database/factories/Foo/BarFactory.php',
+        'database/migrations/*_create_aaas_table.php',
         'database/migrations/*_create_foos_table.php',
+        'database/migrations/*_create_xxxes_table.php',
         'database/seeders/FooSeeder.php',
         'tests/Feature/Models/FooTest.php',
     ];
 
-    public function testItCanGenerateModelFile()
+    public function testItCanGenerateModelFile(): void
     {
         $this->artisan('make:model', ['name' => 'Foo'])
             ->assertExitCode(0);
@@ -46,7 +52,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('tests/Feature/Models/FooTest.php');
     }
 
-    public function testItCanGenerateModelFileWithPivotOption()
+    public function testItCanGenerateModelFileWithPivotOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--pivot' => true])
             ->assertExitCode(0);
@@ -58,7 +64,29 @@ class ModelMakeCommandTest extends TestCase
         ], 'app/Models/Foo.php');
     }
 
-    public function testItCanGenerateModelFileWithMorphPivotOption()
+    public function testItCanGenerateModelFileWithPivotAndFactoryOptions(): void
+    {
+        $this->artisan('make:model', ['name' => 'Foo', '--pivot' => true, '--factory' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Hypervel\Database\Eloquent\Factories\HasFactory;',
+            'use Hypervel\Database\Eloquent\Relations\Pivot;',
+            'class Foo extends Pivot',
+            '/** @use HasFactory<\Database\Factories\FooFactory> */',
+            'use HasFactory;',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileNotContains([
+            '{{ factoryImport }}',
+            '{{ factory }}',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFilenameExists('database/factories/FooFactory.php');
+    }
+
+    public function testItCanGenerateModelFileWithMorphPivotOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--morph-pivot' => true])
             ->assertExitCode(0);
@@ -70,7 +98,29 @@ class ModelMakeCommandTest extends TestCase
         ], 'app/Models/Foo.php');
     }
 
-    public function testItCanGenerateModelFileWithControllerOption()
+    public function testItCanGenerateModelFileWithMorphPivotAndFactoryOptions(): void
+    {
+        $this->artisan('make:model', ['name' => 'Foo', '--morph-pivot' => true, '--factory' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Hypervel\Database\Eloquent\Factories\HasFactory;',
+            'use Hypervel\Database\Eloquent\Relations\MorphPivot;',
+            'class Foo extends MorphPivot',
+            '/** @use HasFactory<\Database\Factories\FooFactory> */',
+            'use HasFactory;',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileNotContains([
+            '{{ factoryImport }}',
+            '{{ factory }}',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFilenameExists('database/factories/FooFactory.php');
+    }
+
+    public function testItCanGenerateModelFileWithControllerOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--controller' => true])
             ->assertExitCode(0);
@@ -102,7 +152,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithFactoryOption()
+    public function testItCanGenerateModelFileWithFactoryOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--factory' => true])
             ->assertExitCode(0);
@@ -126,7 +176,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithFactoryOptionForDeepFolder()
+    public function testItCanGenerateModelFileWithFactoryOptionForDeepFolder(): void
     {
         $this->artisan('make:model', ['name' => 'Foo/Bar', '--factory' => true])
             ->assertExitCode(0);
@@ -150,7 +200,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/Foo/BarSeeder.php');
     }
 
-    public function testItGeneratesModelWithHasFactoryTraitWhenUsingAllOption()
+    public function testItGeneratesModelWithHasFactoryTraitWhenUsingAllOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--all' => true])
             ->expectsQuestion('A App\Models\Foo model does not exist. Do you want to generate it?', false)
@@ -176,7 +226,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertMigrationFileExists('create_foos_table.php');
     }
 
-    public function testItCanGenerateModelFileWithMigrationOption()
+    public function testItCanGenerateModelFileWithMigrationOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--migration' => true])
             ->assertExitCode(0);
@@ -198,7 +248,21 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithSeederOption()
+    public function testItPreservesMigrationGenerationOrderForModelsCreatedWithinTheSameSecond(): void
+    {
+        Date::setTestNow('2026-07-13 15:54:55');
+
+        $this->artisan('make:model', ['name' => 'Xxx', '--migration' => true])
+            ->assertExitCode(0);
+
+        $this->artisan('make:model', ['name' => 'Aaa', '--migration' => true])
+            ->assertExitCode(0);
+
+        $this->assertFilenameExists('database/migrations/2026_07_13_155455_create_xxxes_table.php');
+        $this->assertFilenameExists('database/migrations/2026_07_13_155456_create_aaas_table.php');
+    }
+
+    public function testItCanGenerateModelFileWithSeederOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--seed' => true])
             ->assertExitCode(0);
@@ -214,7 +278,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateNestedModelFileWithControllerOption()
+    public function testItCanGenerateNestedModelFileWithControllerOption(): void
     {
         $this->artisan('make:model', ['name' => 'Foo/Bar', '--controller' => true])
             ->assertExitCode(0);
@@ -235,7 +299,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
 
-    public function testItCanGenerateModelFileWithTest()
+    public function testItCanGenerateModelFileWithTest(): void
     {
         $this->artisan('make:model', ['name' => 'Foo', '--test' => true])
             ->assertExitCode(0);
@@ -252,7 +316,7 @@ class ModelMakeCommandTest extends TestCase
         $this->assertFilenameExists('tests/Feature/Models/FooTest.php');
     }
 
-    public function testItAsksForAdditionalComponentsForExistingModel()
+    public function testItAsksForAdditionalComponentsForExistingModel(): void
     {
         $this->artisan('make:model', ['name' => 'Foo'])
             ->assertExitCode(0);

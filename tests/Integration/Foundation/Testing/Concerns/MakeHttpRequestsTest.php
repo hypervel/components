@@ -20,7 +20,7 @@ class MakeHttpRequestsTest extends TestCase
         ]);
     }
 
-    public function testItCanUseUriToMakeRequest()
+    public function testItCanUseUriToMakeRequest(): void
     {
         $this->getJson(Uri::of('decode')->withQuery(['editing' => true, 'editMode' => 'create', 'search' => 'Hypervel']))
             ->assertSuccessful()

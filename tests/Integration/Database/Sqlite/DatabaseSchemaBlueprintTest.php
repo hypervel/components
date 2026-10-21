@@ -35,7 +35,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->artisan('migrate:install');
     }
 
-    public function testRenamingAndChangingColumnsWork()
+    public function testRenamingAndChangingColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -60,7 +60,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $queries);
     }
 
-    public function testRenamingColumnsWorks()
+    public function testRenamingColumnsWorks(): void
     {
         $schema = DB::connection()->getSchemaBuilder();
 
@@ -139,16 +139,16 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
 
         $this->assertEquals([
             'alter table "users" '
+            . 'alter column "added_at" drop expression if exists, '
             . 'alter column "added_at" type timestamp(2) without time zone, '
             . 'alter column "added_at" set not null, '
             . 'alter column "added_at" set default CURRENT_TIMESTAMP, '
-            . 'alter column "added_at" drop expression if exists, '
             . 'alter column "added_at" drop identity if exists',
             'comment on column "users"."added_at" is NULL',
         ], $blueprint->toSql());
     }
 
-    public function testChangingColumnWithCollationWorks()
+    public function testChangingColumnWithCollationWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('age');
@@ -185,7 +185,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $queries);
     }
 
-    public function testChangingCharColumnsWork()
+    public function testChangingCharColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -207,7 +207,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingPrimaryAutoincrementColumnsToNonAutoincrementColumnsWork()
+    public function testChangingPrimaryAutoincrementColumnsToNonAutoincrementColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->increments('id');
@@ -229,7 +229,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingDoubleColumnsWork()
+    public function testChangingDoubleColumnsWork(): void
     {
         DB::connection()->getSchemaBuilder()->create('products', function ($table) {
             $table->integer('price');
@@ -251,7 +251,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testChangingColumnsWithDefaultWorks()
+    public function testChangingColumnsWithDefaultWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('products', function ($table) {
             $table->integer('changed_col');
@@ -276,7 +276,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testRenameIndexWorks()
+    public function testRenameIndexWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name');
@@ -414,7 +414,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot rebuild table [items] because index [items_active_index] references a dropped column.',
         );
 
@@ -1243,7 +1243,7 @@ SQL);
         return ['concrete' => [false], 'contract' => [true]];
     }
 
-    public function testAddUniqueIndexWithoutNameWorks()
+    public function testAddUniqueIndexWithoutNameWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();
@@ -1281,7 +1281,7 @@ SQL);
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
-    public function testAddUniqueIndexWithNameWorks()
+    public function testAddUniqueIndexWithNameWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();
@@ -1342,7 +1342,7 @@ SQL);
         ], $blueprint->toSql());
     }
 
-    public function testAddColumnNamedCreateWorks()
+    public function testAddColumnNamedCreateWorks(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->string('name');
@@ -1355,7 +1355,7 @@ SQL);
         $this->assertTrue(Schema::hasColumn('users', 'create'));
     }
 
-    public function testDropIndexOnColumnChangeWorks()
+    public function testDropIndexOnColumnChangeWorks(): void
     {
         DB::connection()->getSchemaBuilder()->create('users', function ($table) {
             $table->string('name')->nullable();
@@ -1383,7 +1383,7 @@ SQL);
         );
     }
 
-    public function testItDoesNotSetPrecisionHigherThanSupportedWhenRenamingTimestamps()
+    public function testItDoesNotSetPrecisionHigherThanSupportedWhenRenamingTimestamps(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->timestamp('created_at');
@@ -1398,18 +1398,17 @@ SQL);
             $this->addToAssertionCount(1); // it did not throw
         } catch (Exception $e) {
             // Expecting something similar to:
-            // Illuminate\Database\QueryException
+            // QueryException
             //   SQLSTATE[42000]: Syntax error or access violation: 1426 Too big precision 10 specified for 'my_timestamp'. Maximum is 6....
             $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: ' . $e->getMessage());
         }
     }
 
-    public function testItEnsuresDroppingForeignKeyIsAvailable()
+    public function testItEnsuresDroppingForeignKeyIsAvailable(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This database driver does not support dropping foreign keys by name.');
+        $this->expectExceptionObject(new RuntimeException('This database driver does not support dropping foreign keys by name.'));
 
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('users', function (Blueprint $table): void {
             $table->dropForeign('something');
         });
     }

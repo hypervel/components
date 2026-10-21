@@ -109,6 +109,8 @@ class InvalidOrderException extends Exception
 }
 ```
 
+You may use `Exceptions::contextForException($exception)` to get an exception's complete log context without reporting it. The returned array includes global context, the exception's context, and the exception itself.
+
 <a name="the-report-helper"></a>
 #### The `report` Helper
 
@@ -125,6 +127,12 @@ public function isValid(string $value): bool
         return false;
     }
 }
+```
+
+You may pass an array of contextual data as the second argument to the `report` function. This data is included in the exception's log entry, taking precedence over the global and exception log context, except for the reserved `exception` key. Your exception reporting callbacks receive the complete log context, including this data, as their second argument. The `report_if` and `report_unless` functions accept the same array as their third argument:
+
+```php
+report($e, ['order_id' => $order->id]);
 ```
 
 <a name="deduplicating-reported-exceptions"></a>
@@ -173,6 +181,14 @@ use Psr\Log\LogLevel;
 ->withExceptions(function (Exceptions $exceptions): void {
     $exceptions->level(PDOException::class, LogLevel::CRITICAL);
 })
+```
+
+To override the level for a single report, pass a `level` argument to `report`, `report_if`, or `report_unless`. This takes precedence over the level configured for the exception type:
+
+```php
+use Psr\Log\LogLevel;
+
+report($e, ['order_id' => $order->id], level: LogLevel::WARNING);
 ```
 
 <a name="ignoring-exceptions-by-type"></a>
@@ -494,4 +510,4 @@ php artisan vendor:publish --tag=hypervel-errors
 
 You may also define a "fallback" error page for a given series of HTTP status codes. This page will be rendered if there is not a corresponding page for the specific HTTP status code that occurred. To accomplish this, define a `4xx.blade.php` template and a `5xx.blade.php` template in your application's `resources/views/errors` directory.
 
-When defining fallback error pages, the fallback pages will not affect `404`, `500`, and `503` error responses since Hypervel has internal, dedicated pages for these status codes. To customize the pages rendered for these status codes, you should define a custom error page for each of them individually.
+When defining fallback error pages, the fallback pages will not affect `401`, `402`, `403`, `404`, `419`, `429`, `500`, and `503` error responses since Hypervel has internal, dedicated pages for these status codes. To customize the pages rendered for these status codes, you should define a custom error page for each of them individually.

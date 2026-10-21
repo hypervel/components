@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Permission;
 
 use Composer\InstalledVersions;
-use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
@@ -38,13 +36,6 @@ class PermissionServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/permission.php', 'permission');
-
-        $this->app->singleton(PermissionRegistrar::class, fn ($app) => new PermissionRegistrar(
-            $app->make(CacheManager::class),
-            $app->make('config'),
-            $app,
-            $app->make(ModelCacheCoordinator::class),
-        ));
 
         $this->registerModelBindings();
 
@@ -142,25 +133,25 @@ class PermissionServiceProvider extends ServiceProvider
      */
     protected function registerMacroHelpers(): void
     {
-        Route::macro('role', function ($roles = []) {
+        Route::macro('role', function (mixed $roles = []): Route {
             $roles = Arr::wrap($roles);
-            $roles = array_map(fn ($role) => enum_value($role), $roles);
+            $roles = array_map(enum_value(...), $roles);
 
             /** @var Route $this */
             return $this->middleware('role:' . implode('|', $roles));
         });
 
-        Route::macro('permission', function ($permissions = []) {
+        Route::macro('permission', function (mixed $permissions = []): Route {
             $permissions = Arr::wrap($permissions);
-            $permissions = array_map(fn ($permission) => enum_value($permission), $permissions);
+            $permissions = array_map(enum_value(...), $permissions);
 
             /** @var Route $this */
             return $this->middleware('permission:' . implode('|', $permissions));
         });
 
-        Route::macro('roleOrPermission', function ($rolesOrPermissions = []) {
+        Route::macro('roleOrPermission', function (mixed $rolesOrPermissions = []): Route {
             $rolesOrPermissions = Arr::wrap($rolesOrPermissions);
-            $rolesOrPermissions = array_map(fn ($item) => enum_value($item), $rolesOrPermissions);
+            $rolesOrPermissions = array_map(enum_value(...), $rolesOrPermissions);
 
             /** @var Route $this */
             return $this->middleware('role_or_permission:' . implode('|', $rolesOrPermissions));
@@ -187,7 +178,7 @@ class PermissionServiceProvider extends ServiceProvider
         $this->callAfterResolving(GateContract::class, function (GateContract $gate): void {
             $config = $this->app->make('config');
 
-            if (! $config->boolean('permission.register_permission_check_method', true)) {
+            if (! $config->boolean('permission.register_permission_check_method')) {
                 return;
             }
 
@@ -207,9 +198,8 @@ class PermissionServiceProvider extends ServiceProvider
         AboutCommand::add('Hypervel Permissions', static function () use ($config): array {
             $enabledFeatures = Collection::make([
                 'Teams' => $config->boolean('permission.teams'),
-                'Wildcard Permissions' => $config->boolean('permission.enable_wildcard_permission', false),
-                'Passport Client Credentials' => $config->boolean('permission.use_passport_client_credentials', false),
-                'Denied Permissions' => true,
+                'Wildcard-Permissions' => $config->boolean('permission.enable_wildcard_permission'),
+                'Passport' => $config->boolean('permission.use_passport_client_credentials'),
             ])
                 ->filter()
                 ->keys();

@@ -99,6 +99,9 @@ class StorePasskey
         return $options->rp->id;
     }
 
+    // Intentionally omitted: ensureCredentialIsUnique(). The unique credential_id
+    // index rejects duplicates in createPasskey() without an extra query.
+
     /**
      * Create the passkey record for the user.
      *

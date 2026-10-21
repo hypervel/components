@@ -229,7 +229,7 @@ class UnaryCallTest extends TestCase
         $call = $this->call($state, $deadline);
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage('must contain exactly one message');
+        $this->expectExceptionMessageIsOrContains('must contain exactly one message');
 
         $call->wait();
     }

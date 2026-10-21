@@ -6,9 +6,10 @@ namespace Hypervel\Fortify;
 
 use Hypervel\Container\Container;
 use Hypervel\Fortify\Actions\DisableTwoFactorAuthentication;
+use Hypervel\Foundation\Http\FormRequest;
 
 /**
- * @mixin \Hypervel\Foundation\Http\FormRequest
+ * @mixin FormRequest
  */
 trait InteractsWithTwoFactorState
 {

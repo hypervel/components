@@ -10,11 +10,19 @@ use function PHPStan\Testing\assertType;
 $collection = User::all();
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection);
 
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->duplicates());
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->duplicatesStrict());
+assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->duplicates('name'));
+assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->duplicatesStrict('name'));
+
 assertType('User|null', $collection->find(1));
 assertType("'string'|User", $collection->find(1, 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->find([1]));
 assertType('User', $collection->findOrFail(1));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->findOrFail([1]));
+assertType('User|null', $collection->find(new User));
+assertType('User', $collection->findOrFail(new User));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->findOrFail(collect([1])));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load(['string']));
@@ -156,6 +164,9 @@ assertType(
 
 assertType('Hypervel\Support\Collection<int, stdClass>', $collection->mapInto(stdClass::class));
 
+assertType('Hypervel\Database\Eloquent\Collection<(int|string), Hypervel\Database\Eloquent\Collection<int, User>>', $collection->groupBy('name'));
+assertType('Hypervel\Support\Collection<(int|string), Hypervel\Support\Collection<(int|string), mixed>>', $collection->groupBy(['name', 'email']));
+
 assertType(
     'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->fresh()
@@ -219,10 +230,11 @@ assertType('Hypervel\Support\Collection<int, mixed>', $collection->collapse());
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten());
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten(4));
 
-assertType('Hypervel\Support\Collection<User, int>', $collection->flip());
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->flip());
 
 assertType('Hypervel\Support\Collection<int, int|User>', $collection->pad(2, 0));
 assertType('Hypervel\Support\Collection<int, string|User>', $collection->pad(2, 'string'));
+assertType('Hypervel\Support\Collection<int|string, int|User>', (new Collection(['first' => new User]))->pad(2, 0));
 
 assertType('array<int, mixed>', $collection->getQueueableIds());
 

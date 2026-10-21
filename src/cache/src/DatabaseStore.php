@@ -121,7 +121,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function many(array $keys): array
     {
-        if (count($keys) === 0) {
+        if ($keys === []) {
             return [];
         }
 
@@ -205,7 +205,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         $value = $this->serialize($value);
         $expiration = $this->availableAt($seconds);
 
-        return $this->table()->insertOrIgnore(compact('key', 'value', 'expiration')) > 0;
+        return $this->table()->insertOrIgnore(['key' => $key, 'value' => $value, 'expiration' => $expiration]) > 0;
     }
 
     /**
@@ -347,7 +347,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     {
         $this->table()->whereIn('key', (new Collection($keys))->flatMap(fn ($key) => [
             $this->prefix . $key,
-            "{$this->prefix}hypervel:cache:flexible:created:{$key}",
+            $this->prefix . Repository::FLEXIBLE_CREATED_KEY_PREFIX . $key,
         ])->all())->delete();
 
         return true;
@@ -361,10 +361,10 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         $this->table()
             ->whereIn('key', (new Collection($keys))->flatMap(fn ($key) => $prefixed ? [
                 $key,
-                $this->prefix . 'hypervel:cache:flexible:created:' . Str::chopStart($key, $this->prefix),
+                $this->prefix . Repository::FLEXIBLE_CREATED_KEY_PREFIX . Str::chopStart($key, $this->prefix),
             ] : [
                 "{$this->prefix}{$key}",
-                "{$this->prefix}hypervel:cache:flexible:created:{$key}",
+                $this->prefix . Repository::FLEXIBLE_CREATED_KEY_PREFIX . $key,
             ])->all())
             ->where('expiration', '<=', $this->getTime())
             ->delete();

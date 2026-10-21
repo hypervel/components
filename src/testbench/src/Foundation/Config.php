@@ -7,11 +7,12 @@ namespace Hypervel\Testbench\Foundation;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use InvalidArgumentException;
 use Symfony\Component\Yaml\Yaml;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\parse_environment_variables;
 use function Hypervel\Testbench\transform_relative_path;
 
@@ -39,15 +40,23 @@ use function Hypervel\Testbench\transform_relative_path;
  *   files?: array<int, string>
  * }
  * @phpstan-type TWorkbenchConfig array{
+ *   start: string,
+ *   user: string|int|null,
+ *   guard: string|null,
  *   install: bool,
  *   auth: bool,
+ *   welcome: bool|null,
  *   health: bool|null,
  *   sync: array<int, array{from: string, to: string, reverse?: bool}>,
  *   discovers: TWorkbenchDiscoversConfig
  * }
  * @phpstan-type TOptionalWorkbenchConfig array{
+ *   start?: string,
+ *   user?: string|int|null,
+ *   guard?: string|null,
  *   install?: bool,
  *   auth?: bool,
+ *   welcome?: bool|null,
  *   health?: bool|null,
  *   sync?: array<int, array{from: string, to: string, reverse?: bool}>,
  *   discovers?: TWorkbenchOptionalDiscoversConfig
@@ -77,7 +86,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover: array<int, string>,
  *   bootstrappers: array<int, class-string>|class-string|null,
  *   migrations: array<int, string>|bool|string,
- *   seeders: array<int, mixed>|bool|string,
+ *   seeders: array<array-key, mixed>|bool|string,
  *   purge: TOptionalPurgeConfig,
  *   workbench: TOptionalWorkbenchConfig
  * }
@@ -88,7 +97,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover?: array<int, string>,
  *   bootstrappers?: array<int, class-string>|class-string|null,
  *   migrations?: array<int, string>|bool|string,
- *   seeders?: array<int, mixed>|bool|string,
+ *   seeders?: array<array-key, mixed>|bool|string,
  *   purge?: TOptionalPurgeConfig|null,
  *   workbench?: TOptionalWorkbenchConfig|null
  * }
@@ -134,8 +143,12 @@ class Config extends Fluent implements ConfigContract
      * @phpstan-var TWorkbenchConfig
      */
     protected array $workbenchConfig = [
+        'start' => '/',
+        'user' => null,
+        'guard' => null,
         'install' => true,
         'auth' => false,
+        'welcome' => null,
         'health' => null,
         'sync' => [],
         'discovers' => [
@@ -218,14 +231,21 @@ class Config extends Fluent implements ConfigContract
                 $config = $parsed;
             }
 
+            // "@testbench" means the default skeleton. Resolving it here would bootstrap
+            // Testbench again while it is still loading this file.
             $config['hypervel'] = transform(
                 Arr::get($config, 'hypervel'),
-                static fn (?string $path): ?string => transform_relative_path($path, $workingPath)
+                static fn (?string $path): ?string => $path === '@testbench' ? null : transform_relative_path($path, $workingPath)
             );
 
             if (isset($config['env']) && \is_array($config['env']) && Arr::isAssoc($config['env'])) {
                 $config['env'] = parse_environment_variables($config['env']);
             }
+        }
+
+        // YAML sections containing only comments are null rather than empty collections.
+        foreach (['env', 'providers', 'dont-discover', 'migrations', 'bootstrappers'] as $key) {
+            $config[$key] ??= [];
         }
 
         foreach (['purge', 'workbench'] as $key) {
@@ -234,6 +254,10 @@ class Config extends Fluent implements ConfigContract
             if (! is_array($config[$key])) {
                 throw new InvalidArgumentException("The Testbench [{$key}] configuration must be a mapping.");
             }
+        }
+
+        if (array_key_exists('discovers', $config['workbench'])) {
+            $config['workbench']['discovers'] ??= [];
         }
 
         return new static($config);
@@ -252,7 +276,8 @@ class Config extends Fluent implements ConfigContract
     /**
      * Add additional service providers.
      *
-     * @param array<int, class-string<\Hypervel\Support\ServiceProvider>> $providers
+     * @param array<int, class-string<ServiceProvider>> $providers
+     * @return $this
      */
     public function addProviders(array $providers): static
     {

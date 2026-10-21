@@ -114,6 +114,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     }
 
     /**
+     * Render the view and return the callback result or the contents.
+     *
      * @template TValue
      *
      * @param null|callable(View, string): TValue $callback
@@ -293,8 +295,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     protected function formatErrors(MessageProvider|array|string $provider): MessageBagContract
     {
         return $provider instanceof MessageProvider
-                        ? $provider->getMessageBag()
-                        : new MessageBag((array) $provider);
+            ? $provider->getMessageBag()
+            : new MessageBag((array) $provider);
     }
 
     /**

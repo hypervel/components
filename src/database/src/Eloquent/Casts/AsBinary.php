@@ -15,12 +15,17 @@ class AsBinary implements Castable
      * Get the caster class to use when casting from / to this cast target.
      *
      * @param array{string} $arguments
+     *
+     * @throws InvalidArgumentException
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
             protected string $format;
 
+            /**
+             * Create a new binary cast instance.
+             */
             public function __construct(protected array $arguments)
             {
                 $this->format = $this->arguments[0]
@@ -35,6 +40,9 @@ class AsBinary implements Castable
                 }
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?string
             {
                 $attribute = $attributes[$key] ?? null;
@@ -50,6 +58,9 @@ class AsBinary implements Castable
                 return BinaryCodec::decode($attribute, $this->format);
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(mixed $model, string $key, mixed $value, array $attributes): array
             {
                 return [$key => BinaryCodec::encode($value, $this->format)];

@@ -13,7 +13,7 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class AddSupervisorTest extends IntegrationTestCase
 {
-    public function testAddSupervisorCommandCreatesNewSupervisorOnMasterProcess()
+    public function testAddSupervisorCommandCreatesNewSupervisorOnMasterProcess(): void
     {
         $master = new MasterSupervisor;
         $phpBinary = PhpBinary::path();

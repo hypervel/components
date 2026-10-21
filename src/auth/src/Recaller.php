@@ -21,7 +21,8 @@ class Recaller
      */
     public function __construct(string $recaller)
     {
-        $this->recaller = @unserialize($recaller, ['allowed_classes' => false]) ?: $recaller;
+        // Cookie middleware owns serialization; legacy cookie decoding is intentionally omitted.
+        $this->recaller = $recaller;
         $this->segments = explode('|', $this->recaller);
     }
 

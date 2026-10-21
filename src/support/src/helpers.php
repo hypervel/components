@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonInterval;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
@@ -81,13 +83,13 @@ if (! function_exists('class_basename')) {
     /**
      * Get the class "basename" of the given object / class.
      *
-     * @param object|string $class
+     * @param int|object|string $class
      */
     function class_basename($class): string
     {
         $class = is_object($class) ? get_class($class) : $class;
 
-        return basename(str_replace('\\', '/', $class));
+        return basename(str_replace('\\', '/', (string) $class));
     }
 }
 
@@ -222,13 +224,15 @@ if (! function_exists('object_get')) {
      * @template TValue of object
      *
      * @param TValue $object
-     * @param null|string $key
+     * @param null|bool|int|string $key
      * @param mixed $default
-     * @return ($key is empty ? TValue : mixed)
+     * @return ($key is null|''|false ? TValue : mixed)
      */
     function object_get($object, $key, $default = null)
     {
-        if (is_null($key) || trim($key) === '') {
+        $key = (string) $key;
+
+        if (trim($key) === '') {
             return $object;
         }
 
@@ -273,7 +277,7 @@ if (! function_exists('optional')) {
      *
      * @param TValue $value
      * @param null|(callable(TValue): TReturn) $callback
-     * @return ($callback is null ? \Hypervel\Support\Optional : ($value is null ? null : TReturn))
+     * @return ($callback is null ? Optional : ($value is null ? null : TReturn))
      */
     function optional($value = null, ?callable $callback = null)
     {
@@ -307,13 +311,13 @@ if (! function_exists('retry')) {
      *
      * @template TValue
      *
-     * @param array<int, int>|int $times
+     * @param array<int, float|int>|int $times
      * @param callable(int): TValue $callback
-     * @param \Closure(int, \Throwable): int|int $sleepMilliseconds
-     * @param null|(callable(\Throwable): bool) $when
+     * @param CarbonInterval|(Closure(int, Throwable): (CarbonInterval|float|int))|float|int $sleepMilliseconds
+     * @param null|(callable(Throwable): bool) $when
      * @return TValue
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     function retry($times, callable $callback, $sleepMilliseconds = 0, $when = null)
     {
@@ -343,7 +347,16 @@ if (! function_exists('retry')) {
                 $sleepMilliseconds = $backoff[$attempts - 1] ?? $sleepMilliseconds;
 
                 if ($sleepMilliseconds) {
-                    Sleep::usleep(value($sleepMilliseconds, $attempts, $e) * 1000);
+                    $duration = value($sleepMilliseconds, $attempts, $e);
+                    $microseconds = (int) ($duration instanceof CarbonInterval
+                        ? $duration->totalMicroseconds
+                        : $duration * 1000);
+
+                    if ($microseconds > 0) {
+                        ConnectionResolver::releaseIdleConnections();
+                    }
+
+                    Sleep::usleep($microseconds);
                 }
             }
         }
@@ -355,18 +368,24 @@ if (! function_exists('str')) {
      * Get a new stringable object from the given string.
      *
      * @param null|string $string
-     * @return ($string is null ? object : \Hypervel\Support\Stringable)
+     * @return ($string is null ? object : SupportStringable)
      */
     function str($string = null)
     {
         if (func_num_args() === 0) {
             return new class {
-                public function __call($method, $parameters)
+                /**
+                 * Dynamically pass method calls to the Str class.
+                 */
+                public function __call(string $method, array $parameters): mixed
                 {
                     return Str::$method(...$parameters);
                 }
 
-                public function __toString()
+                /**
+                 * Get the string representation of the object.
+                 */
+                public function __toString(): string
                 {
                     return '';
                 }
@@ -385,7 +404,7 @@ if (! function_exists('tap')) {
      *
      * @param TValue $value
      * @param null|(callable(TValue): mixed) $callback
-     * @return ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : TValue)
+     * @return ($callback is null ? HigherOrderTapProxy<TValue> : TValue)
      */
     function tap($value, $callback = null)
     {
@@ -405,7 +424,7 @@ if (! function_exists('throw_if')) {
      *
      * @template TValue
      * @template TParams of mixed
-     * @template TException of \Throwable
+     * @template TException of Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
      * @param TValue $condition
@@ -441,7 +460,7 @@ if (! function_exists('throw_unless')) {
      *
      * @template TValue
      * @template TParams of mixed
-     * @template TException of \Throwable
+     * @template TException of Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
      * @param TValue $condition

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
-use BackedEnum;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +11,8 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Support\Collection as BaseCollection;
 use Throwable;
+
+use function Hypervel\Support\enum_value;
 
 trait InteractsWithPivotTable
 {
@@ -36,7 +37,7 @@ trait InteractsWithPivotTable
             array_keys($records)
         ));
 
-        if (count($detach) > 0) {
+        if ($detach !== []) {
             $this->detach($detach, false);
 
             $changes['detached'] = $this->castKeys($detach);
@@ -47,7 +48,7 @@ trait InteractsWithPivotTable
         // this change list and get ready to return these results to the callers.
         $attach = array_diff_key($records, array_flip($detach));
 
-        if (count($attach) > 0) {
+        if ($attach !== []) {
             $this->attach($attach, [], false);
 
             $changes['attached'] = array_keys($attach);
@@ -85,18 +86,6 @@ trait InteractsWithPivotTable
     }
 
     /**
-     * Sync the intermediate tables with a list of IDs without detaching within a transaction.
-     *
-     * @return array{attached: array, detached: array, updated: array}
-     *
-     * @throws Throwable
-     */
-    public function syncWithoutDetachingOrFail(BaseCollection|Model|array|int|string|null $ids): array
-    {
-        return $this->syncOrFail($ids, false);
-    }
-
-    /**
      * Sync the intermediate tables with a list of IDs or collection of models.
      *
      * @return array{attached: array, detached: array, updated: array}
@@ -126,7 +115,7 @@ trait InteractsWithPivotTable
             // @phpstan-ignore argument.type ($current is array of IDs from pluck, PHPStan loses type through collection)
             $detach = array_diff($current, array_keys($records));
 
-            if (count($detach) > 0) {
+            if ($detach !== []) {
                 $this->detach($detach, false);
 
                 $changes['detached'] = $this->castKeys($detach);
@@ -166,6 +155,18 @@ trait InteractsWithPivotTable
     }
 
     /**
+     * Sync the intermediate tables with a list of IDs without detaching within a transaction.
+     *
+     * @return array{attached: array, detached: array, updated: array}
+     *
+     * @throws Throwable
+     */
+    public function syncWithoutDetachingOrFail(BaseCollection|Model|array|int|string|null $ids): array
+    {
+        return $this->syncOrFail($ids, false);
+    }
+
+    /**
      * Sync the intermediate tables with a list of IDs or collection of models with the given pivot values.
      *
      * @return array{attached: array, detached: array, updated: array}
@@ -194,14 +195,12 @@ trait InteractsWithPivotTable
      */
     protected function formatRecordsList(array $records): array
     {
-        return (new BaseCollection($records))->mapWithKeys(function ($attributes, $id) {
+        return (new BaseCollection($records))->mapWithKeys(function (mixed $attributes, int|string $id): array {
             if (! is_array($attributes)) {
                 [$id, $attributes] = [$attributes, []];
             }
 
-            if ($id instanceof BackedEnum) {
-                $id = $id->value;
-            }
+            $id = enum_value($id);
 
             return [$id => $attributes];
         })->all();
@@ -522,7 +521,16 @@ trait InteractsWithPivotTable
      */
     public function newPivot(array $attributes = [], bool $exists = false): Model
     {
-        $attributes = array_merge(array_column($this->pivotValues, 'value', 'column'), $attributes);
+        $defaults = [];
+
+        foreach ($this->pivotValues as $pivotValue) {
+            // Expression predicates have no attribute name to populate on the model.
+            if (is_string($pivotValue['column'])) {
+                $defaults[$pivotValue['column']] = $pivotValue['value'];
+            }
+        }
+
+        $attributes = array_merge($defaults, $attributes);
 
         /** @var Pivot $pivot */
         $pivot = $this->related->newPivot(
@@ -534,17 +542,12 @@ trait InteractsWithPivotTable
         );
 
         $pivot = $pivot
-            ->setConnection($this->getPivotConnection()->getName())
+            ->setConnection($this->getPivotConnection()->getWritableName())
             ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
             ->setRelatedModel($this->related);
 
         if ($this->hasPivotConstraints()) {
-            $pivot->setPivotConstraints(
-                wheres: $this->pivotWheres,
-                whereIns: $this->pivotWhereIns,
-                whereNulls: $this->pivotWhereNulls,
-                whereBetweens: $this->pivotWhereBetweens,
-            );
+            $pivot->setPivotConstraints($this->pivotConstraints);
         }
 
         return $pivot;
@@ -591,20 +594,8 @@ trait InteractsWithPivotTable
 
         if ($this->hasPivotConstraints()) {
             $query->where(function (QueryBuilder $query): void {
-                foreach ($this->pivotWheres as $arguments) {
-                    $query->where(...$arguments);
-                }
-
-                foreach ($this->pivotWhereIns as $arguments) {
-                    $query->whereIn(...$arguments);
-                }
-
-                foreach ($this->pivotWhereNulls as $arguments) {
-                    $query->whereNull(...$arguments);
-                }
-
-                foreach ($this->pivotWhereBetweens as $arguments) {
-                    $query->whereBetween(...$arguments);
+                foreach ($this->pivotConstraints as [$method, $arguments]) {
+                    $query->{$method}(...$arguments);
                 }
             });
         }
@@ -617,10 +608,7 @@ trait InteractsWithPivotTable
      */
     protected function hasPivotConstraints(): bool
     {
-        return $this->pivotWheres !== []
-            || $this->pivotWhereIns !== []
-            || $this->pivotWhereNulls !== []
-            || $this->pivotWhereBetweens !== [];
+        return $this->pivotConstraints !== [];
     }
 
     /**

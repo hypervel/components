@@ -25,7 +25,7 @@ class Yarn implements NodePackageManager
     }
 
     /**
-     * Get the command to execute a package using Yarn.
+     * Get the command to execute an installed package binary using Yarn.
      */
     public function getExecCommand(string $command): string
     {

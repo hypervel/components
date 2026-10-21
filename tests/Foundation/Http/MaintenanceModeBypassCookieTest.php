@@ -11,35 +11,35 @@ use Symfony\Component\HttpFoundation\Cookie;
 
 class MaintenanceModeBypassCookieTest extends TestCase
 {
-    public function testCreateReturnsCookieInstance()
+    public function testCreateReturnsCookieInstance(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
         $this->assertInstanceOf(Cookie::class, $cookie);
     }
 
-    public function testCookieHasCorrectName()
+    public function testCookieHasCorrectName(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
         $this->assertSame('hypervel_maintenance', $cookie->getName());
     }
 
-    public function testIsValidReturnsTrueForMatchingKey()
+    public function testIsValidReturnsTrueForMatchingKey(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
         $this->assertTrue(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
     }
 
-    public function testIsValidReturnsFalseForWrongKey()
+    public function testIsValidReturnsFalseForWrongKey(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'wrong-key'));
     }
 
-    public function testIsValidReturnsFalseForExpiredCookie()
+    public function testIsValidReturnsFalseForExpiredCookie(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
@@ -48,12 +48,12 @@ class MaintenanceModeBypassCookieTest extends TestCase
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
     }
 
-    public function testIsValidReturnsFalseForInvalidPayload()
+    public function testIsValidReturnsFalseForInvalidPayload(): void
     {
         $this->assertFalse(MaintenanceModeBypassCookie::isValid('not-valid-base64-json', 'test-key'));
     }
 
-    public function testIsValidReturnsFalseForMissingMac()
+    public function testIsValidReturnsFalseForMissingMac(): void
     {
         $payload = base64_encode(json_encode([
             'expires_at' => time() + 3600,
@@ -62,7 +62,7 @@ class MaintenanceModeBypassCookieTest extends TestCase
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($payload, 'test-key'));
     }
 
-    public function testIsValidReturnsFalseForMissingExpiresAt()
+    public function testIsValidReturnsFalseForMissingExpiresAt(): void
     {
         $payload = base64_encode(json_encode([
             'mac' => 'some-mac-value',
@@ -71,7 +71,7 @@ class MaintenanceModeBypassCookieTest extends TestCase
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($payload, 'test-key'));
     }
 
-    public function testCookieExpiresIn12Hours()
+    public function testCookieExpiresIn12Hours(): void
     {
         CarbonImmutable::setTestNow('2026-01-15 10:00:00');
 

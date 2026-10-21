@@ -7,10 +7,12 @@ namespace Hypervel\Queue\Capsule;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Queue\Concerns\RegistersQueueConnectors;
 use Hypervel\Queue\QueueManager;
-use Hypervel\Queue\QueueServiceProvider;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
+use UnitEnum;
 
 /**
  * @mixin QueueManager
@@ -19,6 +21,7 @@ use Hypervel\Support\Traits\CapsuleManagerTrait;
 class Manager
 {
     use CapsuleManagerTrait;
+    use RegistersQueueConnectors;
 
     /**
      * The queue manager instance.
@@ -60,19 +63,21 @@ class Manager
      */
     protected function registerConnectors(): void
     {
-        // Capsule intentionally reuses the provider's connector registration logic with its
-        // standalone container; this works in practice and only differs from the provider's
-        // stricter application constructor type.
-        /** @phpstan-ignore-next-line */
-        $provider = new QueueServiceProvider($this->container);
+        $this->registerDefaultConnectors($this->manager);
+    }
 
-        $provider->registerConnectors($this->manager);
+    /**
+     * Get the container used to resolve connector dependencies.
+     */
+    protected function connectorContainer(): ContainerContract
+    {
+        return $this->container;
     }
 
     /**
      * Get a connection instance from the global manager.
      */
-    public static function connection(?string $connection = null): Queue
+    public static function connection(UnitEnum|string|null $connection = null): Queue
     {
         return static::$instance->getConnection($connection);
     }
@@ -80,7 +85,7 @@ class Manager
     /**
      * Push a new job onto the queue.
      */
-    public static function push(object|string $job, mixed $data = '', ?string $queue = null, ?string $connection = null): mixed
+    public static function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): mixed
     {
         return static::$instance->connection($connection)->push($job, $data, $queue);
     }
@@ -88,7 +93,7 @@ class Manager
     /**
      * Push an array of jobs onto the queue.
      */
-    public static function bulk(array $jobs, mixed $data = '', ?string $queue = null, ?string $connection = null): mixed
+    public static function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): mixed
     {
         return static::$instance->connection($connection)->bulk($jobs, $data, $queue);
     }
@@ -96,7 +101,7 @@ class Manager
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public static function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null, ?string $connection = null): mixed
+    public static function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): mixed
     {
         return static::$instance->connection($connection)->later($delay, $job, $data, $queue);
     }
@@ -104,7 +109,7 @@ class Manager
     /**
      * Get a registered connection instance.
      */
-    public function getConnection(?string $name = null): Queue
+    public function getConnection(UnitEnum|string|null $name = null): Queue
     {
         return $this->manager->connection($name);
     }

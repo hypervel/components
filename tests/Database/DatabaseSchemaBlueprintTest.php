@@ -6,42 +6,88 @@ namespace Hypervel\Tests\Database;
 
 use Closure;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\ColumnDefinition;
+use Hypervel\Database\Schema\ForeignIdColumnDefinition;
 use Hypervel\Database\Schema\ForeignKeyDefinition;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Database\Schema\IndexDefinition;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Support\Fluent;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingNonIncrementedInt;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUlid;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUuid;
 use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Builder::$defaultMorphKeyType = 'int';
-
-        parent::tearDown();
-    }
-
-    public function testBuildDelegatesToTheConnectionOwnedBuilder(): void
+    public function testToSqlRunsCommandsFromBlueprint(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new MySqlGrammar($connection));
-        $builder = m::mock(Builder::class);
-        $blueprint = new Blueprint($connection, 'users');
-
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($builder);
-        $builder->shouldReceive('executeBlueprint')->once()->with($blueprint);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn(new MySqlGrammar($connection));
+        $connection->expects('statement')->with('foo')->andReturnTrue()->ordered();
+        $connection->expects('statement')->with('bar')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaBuilder')->andReturn(new Builder($connection));
+        $blueprint = $this->getMockBuilder(Blueprint::class)->onlyMethods(['toSql'])->setConstructorArgs([$connection, 'users'])->getMock();
+        $blueprint->expects($this->once())->method('toSql')->willReturn(['foo', 'bar']);
 
         $blueprint->build();
     }
 
-    public function testIndexDefaultNames()
+    public function testInheritedColumnHelpersUseTheCustomDefinitionFactory(): void
+    {
+        $blueprint = new DatabaseSchemaCustomColumnBlueprint($this->getConnection(), 'users');
+
+        $name = $blueprint->string('name')->nullable();
+        $count = $blueprint->unsignedBigInteger('count');
+        $deletedAt = $blueprint->softDeletes(precision: 6);
+        $timestamps = $blueprint->timestamps(6);
+        $columns = [$name, $count, $deletedAt, ...$timestamps];
+
+        $this->assertSame($columns, $blueprint->getColumns());
+
+        foreach ($columns as $column) {
+            $this->assertInstanceOf(DatabaseSchemaCustomColumnDefinition::class, $column);
+        }
+
+        $this->assertSame('string', $name->get('type'));
+        $this->assertSame(Builder::$defaultStringLength, $name->get('length'));
+        $this->assertTrue($name->get('nullable'));
+        $this->assertTrue($count->get('unsigned'));
+        $this->assertSame(6, $deletedAt->get('precision'));
+        $this->assertTrue($deletedAt->get('nullable'));
+        $this->assertSame(['created_at', 'updated_at'], $timestamps->pluck('name')->all());
+        $this->assertSame(ColumnDefinition::class, $this->getBlueprint()->string('name')::class);
+    }
+
+    public function testCustomColumnDefinitionsCoexistWithForeignIdDefinitions(): void
+    {
+        $blueprint = new DatabaseSchemaCustomColumnBlueprint($this->getConnection(), 'posts');
+        $title = $blueprint->string('title')->change();
+        $authorId = $blueprint->foreignId('author_id');
+        $authorId->constrained();
+
+        $this->assertInstanceOf(DatabaseSchemaCustomColumnDefinition::class, $title);
+        $this->assertSame(ForeignIdColumnDefinition::class, $authorId::class);
+        $this->assertSame([$title, $authorId], $blueprint->getColumns());
+        $this->assertSame([1 => $authorId], $blueprint->getAddedColumns());
+        $this->assertSame([
+            'alter table `posts` modify `title` varchar(255) not null',
+            'alter table `posts` add `author_id` bigint unsigned not null',
+            'alter table `posts` add constraint `posts_author_id_foreign` foreign key (`author_id`) references `authors` (`id`)',
+        ], $blueprint->toSql());
+    }
+
+    public function testIndexDefaultNames(): void
     {
         $blueprint = $this->getBlueprint(table: 'users');
         $blueprint->unique(['foo', 'bar']);
@@ -93,7 +139,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'users');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'The [whereNotNull] modifier must be chained onto an index definition.',
         );
 
@@ -109,7 +155,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'users');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The [whereNotNull] modifier is only available for ordinary indexes.',
         );
 
@@ -137,7 +183,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame([$foreign], $blueprint->getCommands());
     }
 
-    public function testIndexDefaultNamesWhenPrefixSupplied()
+    public function testIndexDefaultNamesWhenPrefixSupplied(): void
     {
         $blueprint = $this->getBlueprint(table: 'users', prefix: 'prefix_');
         $blueprint->unique(['foo', 'bar']);
@@ -155,7 +201,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('prefix_geo_coordinates_spatialindex', $commands[0]->index);
     }
 
-    public function testDropIndexDefaultNames()
+    public function testDropIndexDefaultNames(): void
     {
         $blueprint = $this->getBlueprint(table: 'users');
         $blueprint->dropUnique(['foo', 'bar']);
@@ -192,7 +238,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint = $this->getBlueprint(table: 'children');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Cannot drop foreign key [children_first_fk] with a second constraint name [children_second_fk]. Pass the foreign key columns as the first argument when specifying its name.',
         );
 
@@ -215,7 +261,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('0', $blueprint->getCommands()[0]->index);
     }
 
-    public function testDropIndexDefaultNamesWhenPrefixSupplied()
+    public function testDropIndexDefaultNamesWhenPrefixSupplied(): void
     {
         $blueprint = $this->getBlueprint(table: 'users', prefix: 'prefix_');
         $blueprint->dropUnique(['foo', 'bar']);
@@ -233,19 +279,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('prefix_geo_coordinates_spatialindex', $commands[0]->index);
     }
 
-    public function testDefaultCurrentDate()
+    public function testDefaultCurrentDate(): void
     {
-        $getSql = function ($grammar, $mysql57 = false) {
-            if ($grammar == 'MySql') {
+        $getSql = function (string $grammar, bool $mysql57 = false): array {
+            if ($grammar === 'MySql') {
                 $connection = $this->getConnection($grammar);
                 $mysql57 ? $connection->shouldReceive('getServerVersion')->andReturn('5.7') : $connection->shouldReceive('getServerVersion')->andReturn('8.0.13');
                 $connection->shouldReceive('isMaria')->andReturn(false);
 
-                return (new Blueprint($connection, 'users', function ($table) {
+                return (new Blueprint($connection, 'users', function (Blueprint $table): void {
                     $table->date('created')->useCurrent();
                 }))->toSql();
             } else {
-                return $this->getBlueprint($grammar, 'users', function ($table) {
+                return $this->getBlueprint($grammar, 'users', function (Blueprint $table): void {
                     $table->date('created')->useCurrent();
                 })->toSql();
             }
@@ -257,7 +303,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" date not null default CURRENT_DATE'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentDateTime()
+    public function testDefaultCurrentDateTime(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -270,7 +316,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentTimestamp()
+    public function testDefaultCurrentTimestamp(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -283,19 +329,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentYear()
+    public function testDefaultCurrentYear(): void
     {
-        $getSql = function ($grammar, $mysql57 = false) {
-            if ($grammar == 'MySql') {
+        $getSql = function (string $grammar, bool $mysql57 = false): array {
+            if ($grammar === 'MySql') {
                 $connection = $this->getConnection($grammar);
                 $mysql57 ? $connection->shouldReceive('getServerVersion')->andReturn('5.7') : $connection->shouldReceive('getServerVersion')->andReturn('8.0.13');
                 $connection->shouldReceive('isMaria')->andReturn(false);
 
-                return (new Blueprint($connection, 'users', function ($table) {
+                return (new Blueprint($connection, 'users', function (Blueprint $table): void {
                     $table->year('birth_year')->useCurrent();
                 }))->toSql();
             } else {
-                return $this->getBlueprint($grammar, 'users', function ($table) {
+                return $this->getBlueprint($grammar, 'users', function (Blueprint $table): void {
                     $table->year('birth_year')->useCurrent();
                 })->toSql();
             }
@@ -307,7 +353,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "birth_year" integer not null default (CAST(strftime(\'%Y\', \'now\') AS INTEGER))'], $getSql('SQLite'));
     }
 
-    public function testRemoveColumn()
+    public function testRemoveColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -446,7 +492,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame(['add', 'add', 'unique'], array_column($blueprint->getCommands(), 'name'));
     }
 
-    public function testRenameColumn()
+    public function testRenameColumn(): void
     {
         $getSql = function ($grammar) {
             $connection = $this->getConnection($grammar);
@@ -463,7 +509,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" rename column "foo" to "bar"'], $getSql('SQLite'));
     }
 
-    public function testNativeRenameColumnOnMysql57()
+    public function testNativeRenameColumnOnMysql57(): void
     {
         $connection = $this->getConnection('MySql');
         $connection->shouldReceive('isMaria')->andReturn(false);
@@ -487,7 +533,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testNativeRenameColumnOnLegacyMariaDB()
+    public function testNativeRenameColumnOnLegacyMariaDB(): void
     {
         $connection = $this->getConnection('MariaDb');
         $connection->shouldReceive('isMaria')->andReturn(true);
@@ -514,7 +560,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testDropColumn()
+    public function testDropColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'users', function ($table) {
@@ -527,7 +573,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" drop column "foo"'], $getSql('SQLite'));
     }
 
-    public function testNativeColumnModifyingOnMySql()
+    public function testNativeColumnModifyingOnMySql(): void
     {
         $blueprint = $this->getBlueprint('MySql', 'users', function ($table) {
             $table->double('amount')->nullable()->invisible()->after('name')->change();
@@ -549,7 +595,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         Blueprint::macro('foo', function () {
             return $this->addCommand('foo');
@@ -566,7 +612,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['bar'], $blueprint->toSql());
     }
 
-    public function testDefaultUsingIdMorph()
+    public function testDefaultUsingIdMorph(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'comments', function ($table) {
@@ -581,7 +627,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableIdMorph()
+    public function testDefaultUsingNullableIdMorph(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'comments', function ($table) {
@@ -596,7 +642,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingUuidMorph()
+    public function testDefaultUsingUuidMorph(): void
     {
         Builder::defaultMorphKeyType('uuid');
 
@@ -613,7 +659,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableUuidMorph()
+    public function testDefaultUsingNullableUuidMorph(): void
     {
         Builder::defaultMorphKeyType('uuid');
 
@@ -630,7 +676,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingUlidMorph()
+    public function testDefaultUsingUlidMorph(): void
     {
         Builder::defaultMorphKeyType('ulid');
 
@@ -647,7 +693,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDefaultUsingNullableUlidMorph()
+    public function testDefaultUsingNullableUlidMorph(): void
     {
         Builder::defaultMorphKeyType('ulid');
 
@@ -664,11 +710,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithIncrementalModel()
+    public function testGenerateRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->foreignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -677,11 +723,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithNonIncrementalModel()
+    public function testGenerateRelationshipColumnWithNonIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingNonIncrementedInt::class);
+                $table->foreignIdFor(EloquentModelUsingNonIncrementedInt::class);
             })->toSql();
         };
 
@@ -690,11 +736,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithUuidModel()
+    public function testGenerateRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->foreignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -707,7 +753,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignUuidFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->foreignUuidFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -716,11 +762,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipColumnWithUlidModel()
+    public function testGenerateRelationshipColumnWithUlidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingUlid::class);
+                $table->foreignIdFor(EloquentModelUsingUlid::class);
             })->toSql();
         };
 
@@ -733,11 +779,24 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipConstrainedColumn()
+    public function testGenerateUlidRelationshipColumnWithUlidModel(): void
+    {
+        $getSql = function (string $grammar): array {
+            return $this->getBlueprint($grammar, 'posts', function (Blueprint $table): void {
+                $table->foreignUlidFor(EloquentModelUsingUlid::class);
+            })->toSql();
+        };
+
+        $this->assertEquals([
+            'alter table `posts` add `model_using_ulid_id` char(26) not null',
+        ], $getSql('MySql'));
+    }
+
+    public function testGenerateRelationshipConstrainedColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class)->constrained();
+                $table->foreignIdFor(Authenticatable::class)->constrained();
             })->toSql();
         };
 
@@ -751,7 +810,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignUuidFor(Fixtures\Models\EloquentModelUsingUuid::class)->constrained();
+                $table->foreignUuidFor(EloquentModelUsingUuid::class)->constrained();
             })->toSql();
         };
 
@@ -761,7 +820,21 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testGenerateRelationshipForModelWithNonStandardPrimaryKeyName()
+    public function testGenerateUlidRelationshipConstrainedColumn(): void
+    {
+        $getSql = function (string $grammar): array {
+            return $this->getBlueprint($grammar, 'posts', function (Blueprint $table): void {
+                $table->foreignUlidFor(EloquentModelUsingUlid::class)->constrained();
+            })->toSql();
+        };
+
+        $this->assertEquals([
+            'alter table `posts` add `model_using_ulid_id` char(26) not null',
+            'alter table `posts` add constraint `posts_model_using_ulid_id_foreign` foreign key (`model_using_ulid_id`) references `model` (`id`)',
+        ], $getSql('MySql'));
+    }
+
+    public function testGenerateRelationshipForModelWithNonStandardPrimaryKeyName(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -775,11 +848,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropRelationshipColumnWithIncrementalModel()
+    public function testDropRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropForeignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->dropForeignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -788,11 +861,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropRelationshipColumnWithUuidModel()
+    public function testDropRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropForeignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->dropForeignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -801,11 +874,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropConstrainedRelationshipColumnWithIncrementalModel()
+    public function testDropConstrainedRelationshipColumnWithIncrementalModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropConstrainedForeignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->dropConstrainedForeignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -815,11 +888,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testDropConstrainedRelationshipColumnWithUuidModel()
+    public function testDropConstrainedRelationshipColumnWithUuidModel(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropConstrainedForeignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->dropConstrainedForeignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -829,7 +902,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
-    public function testTinyTextColumn()
+    public function testTinyTextColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -842,7 +915,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) not null'], $getSql('Postgres'));
     }
 
-    public function testTinyTextNullableColumn()
+    public function testTinyTextNullableColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -855,7 +928,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) null'], $getSql('Postgres'));
     }
 
-    public function testRawColumn()
+    public function testRawColumn(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -876,7 +949,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('Postgres'));
     }
 
-    public function testTableComment()
+    public function testTableComment(): void
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
@@ -888,7 +961,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['comment on table "posts" is \'Look at my comment, it is amazing\''], $getSql('Postgres'));
     }
 
-    public function testColumnDefault()
+    public function testColumnDefault(): void
     {
         // Test a normal string literal column default.
         $getSql = function ($grammar) {
@@ -927,14 +1000,20 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext not null default \'this\'\'ll work too\''], $getSql('MySql'));
     }
 
-    protected function getConnection(?string $grammar = null, string $prefix = '')
+    /**
+     * Get a connection mock.
+     */
+    protected function getConnection(?string $grammar = null, string $prefix = ''): Connection&MockInterface
     {
-        $connection = m::mock(Connection::class)
-            ->shouldReceive('getTablePrefix')->andReturn($prefix)
-            ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true)
-            ->getMock();
-
         $grammar ??= 'MySql';
+        $connection = m::mock(match ($grammar) {
+            'MySql' => MySqlConnection::class,
+            'MariaDb' => MariaDbConnection::class,
+            default => Connection::class,
+        });
+        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true);
+
         $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
         $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
@@ -949,9 +1028,17 @@ class DatabaseSchemaBlueprintTest extends TestCase
             $connection->shouldReceive('isMaria')->andReturn(false);
         }
 
+        if ($connection instanceof MySqlConnection) {
+            $connection->shouldReceive('usesBackslashEscapes')->passthru();
+            $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
+        }
+
         return $connection;
     }
 
+    /**
+     * Get a blueprint for the schema grammar.
+     */
     protected function getBlueprint(
         ?string $grammar = null,
         string $table = '',
@@ -961,6 +1048,24 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $connection = $this->getConnection($grammar, $prefix);
 
         return new Blueprint($connection, $table, $callback);
+    }
+}
+
+class DatabaseSchemaCustomColumnDefinition extends ColumnDefinition
+{
+}
+
+/**
+ * @extends Blueprint<DatabaseSchemaCustomColumnDefinition>
+ */
+class DatabaseSchemaCustomColumnBlueprint extends Blueprint
+{
+    /**
+     * Create a new column definition.
+     */
+    protected function newColumnDefinition(array $attributes): DatabaseSchemaCustomColumnDefinition
+    {
+        return new DatabaseSchemaCustomColumnDefinition($attributes);
     }
 }
 

@@ -19,7 +19,7 @@ class HttpServerTest extends EngineIntegrationTestCase
      */
     protected int $serverPort = 19505;
 
-    public function testHttpServerHelloWorld()
+    public function testHttpServerHelloWorld(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
@@ -27,7 +27,7 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testHttpServerReceived()
+    public function testHttpServerReceived(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('POST', '/', contents: 'Hypervel');
@@ -35,7 +35,7 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Received: Hypervel', $response->body);
     }
 
-    public function testHttpServerCookies()
+    public function testHttpServerCookies(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
 

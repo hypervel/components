@@ -12,32 +12,26 @@ use ValueError;
 class ProxyDispatcher
 {
     /**
-     * Dispatch an intercepted method through its aspect pipeline.
+     * Dispatch an intercepted method through its aspect chain.
      */
     public static function dispatch(
         string $className,
         string $methodName,
         array $arguments,
-        Closure $originalMethod
+        Closure $originalMethod,
+        ?object $instance
     ): mixed {
         $proceedingJoinPoint = new ProceedingJoinPoint(
             $originalMethod,
             $className,
             $methodName,
-            $arguments
+            $arguments,
+            $instance
         );
 
-        $aspects = self::resolveAspects($className, $methodName);
+        $chain = AspectManager::get($className, $methodName) ?? self::compile($className, $methodName);
 
-        if ($aspects === []) {
-            return $proceedingJoinPoint->processOriginalMethod();
-        }
-
-        return (new Pipeline(Container::getInstance()))
-            ->via('process')
-            ->through($aspects)
-            ->send($proceedingJoinPoint)
-            ->then(static fn (ProceedingJoinPoint $point) => $point->processOriginalMethod());
+        return $chain($proceedingJoinPoint);
     }
 
     /**
@@ -101,16 +95,12 @@ class ProxyDispatcher
     }
 
     /**
-     * Resolve and cache the aspects for a class method.
+     * Compile and cache the ordered aspect chain for a class method.
      *
-     * @return array<int, string>
+     * @return Closure(ProceedingJoinPoint): mixed
      */
-    private static function resolveAspects(string $className, string $methodName): array
+    private static function compile(string $className, string $methodName): Closure
     {
-        if (AspectManager::has($className, $methodName)) {
-            return AspectManager::get($className, $methodName);
-        }
-
         $matchedAspects = [];
 
         foreach (AspectCollector::getClassRules() as $aspect => $rules) {
@@ -124,7 +114,7 @@ class ProxyDispatcher
 
         $queue = new SplPriorityQueue;
 
-        foreach (array_unique($matchedAspects) as $aspect) {
+        foreach ($matchedAspects as $aspect) {
             $queue->insert($aspect, AspectCollector::getPriority($aspect));
         }
 
@@ -135,10 +125,21 @@ class ProxyDispatcher
             $queue->next();
         }
 
-        // Publish only the complete immutable list so another coroutine can never
-        // observe a cache entry while it is still being assembled.
-        AspectManager::set($className, $methodName, $resolvedAspects);
+        $chain = static fn (ProceedingJoinPoint $point): mixed => $point->processOriginalMethod();
 
-        return $resolvedAspects;
+        foreach (array_reverse($resolvedAspects) as $aspect) {
+            $next = $chain;
+            $chain = static function (ProceedingJoinPoint $point) use ($aspect, $next): mixed {
+                $point->pipe = $next;
+
+                return Container::getInstance()->make($aspect)->process($point);
+            };
+        }
+
+        // Publish only the complete immutable chain so another coroutine can never
+        // observe a cache entry while it is still being assembled.
+        AspectManager::set($className, $methodName, $chain);
+
+        return $chain;
     }
 }

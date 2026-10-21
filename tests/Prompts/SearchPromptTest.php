@@ -110,6 +110,22 @@ class SearchPromptTest extends TestCase
         $this->assertSame(3, $result);
     }
 
+    public function testRendersInfoForTheHighlightedOption(): void
+    {
+        Prompt::fake([Key::DOWN, Key::DOWN, Key::ENTER]);
+
+        $result = search(
+            label: 'What is your favorite color?',
+            options: fn (string $value): array => ['red' => 'Red', 'blue' => 'Blue'],
+            info: fn (int|string|null $value): string => $value === null ? 'Nothing highlighted' : "Key: {$value}",
+        );
+
+        $this->assertSame('blue', $result);
+        Prompt::assertStrippedOutputContains('Nothing highlighted');
+        Prompt::assertStrippedOutputContains('Key: red');
+        Prompt::assertStrippedOutputContains('Key: blue');
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake(['u', 'e', Key::DOWN, Key::ENTER]);
@@ -230,7 +246,7 @@ class SearchPromptTest extends TestCase
     public function testFailsWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         search('What is your favorite color?', fn () => []);
@@ -239,7 +255,7 @@ class SearchPromptTest extends TestCase
     public function testAllowsRequiredValidationMessageCustomization(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('The color is required.');
+        $this->expectExceptionMessageIs('The color is required.');
 
         Prompt::interactive(false);
         search('What is your favorite color?', fn () => [], required: 'The color is required.');

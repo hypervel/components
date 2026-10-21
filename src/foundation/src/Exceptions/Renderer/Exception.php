@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 class Exception
@@ -226,25 +227,22 @@ class Exception
     /**
      * Get the application's SQL queries.
      *
-     * @return array<int, array{connectionName: string, time: float, sql: string}>
+     * @return array<int, array{connectionName: ?string, time: ?float, sql: string}>
      */
     public function applicationQueries(): array
     {
-        return array_map(function (array $query) {
-            $sql = $query['sql'];
+        return array_map(function (array $query): array {
+            $bindings = array_map(static fn (mixed $binding): string => match (gettype($binding)) {
+                'integer', 'double' => (string) $binding,
+                'NULL' => 'NULL',
+                default => "'{$binding}'",
+            }, $query['bindings']);
 
-            foreach ($query['bindings'] as $binding) {
-                $sql = match (gettype($binding)) {
-                    'integer', 'double' => preg_replace('/\?/', (string) $binding, $sql, 1),
-                    'NULL' => preg_replace('/\?/', 'NULL', $sql, 1),
-                    default => preg_replace('/\?/', "'{$binding}'", $sql, 1),
-                };
-            }
-
+            // Fill original placeholders so question marks inside values are not replaced again.
             return [
                 'connectionName' => $query['connectionName'],
                 'time' => $query['time'],
-                'sql' => $sql,
+                'sql' => Str::replaceArray('?', $bindings, $query['sql']),
             ];
         }, $this->listener->queries());
     }

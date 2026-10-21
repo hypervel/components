@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ForeignIdColumnDefinition;
@@ -13,15 +14,16 @@ use Hypervel\Database\Schema\MariaDbBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 
 class DatabaseMariaDbSchemaGrammarTest extends TestCase
 {
-    public function testBasicCreateTable()
+    public function testBasicCreateTable(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -62,12 +64,12 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('create table `users` (`id` uuid not null, primary key (`id`))', $statements[0]);
     }
 
-    public function testAutoIncrementStartingValue()
+    public function testAutoIncrementStartingValue(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -81,7 +83,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` auto_increment = 1000', $statements[1]);
     }
 
-    public function testAddColumnsWithMultipleAutoIncrementStartingValue()
+    public function testAddColumnsWithMultipleAutoIncrementStartingValue(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->id()->from(100);
@@ -95,11 +97,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testEngineCreateTable()
+    public function testEngineCreateTable(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -113,9 +115,9 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null) default character set utf8 collate 'utf8_unicode_ci' engine = InnoDB", $statements[0]);
 
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn('InnoDB');
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn('InnoDB');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -128,10 +130,10 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null) default character set utf8 collate 'utf8_unicode_ci' engine = InnoDB", $statements[0]);
     }
 
-    public function testCharsetCollationCreateTable()
+    public function testCharsetCollationCreateTable(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -146,9 +148,9 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null) default character set utf8mb4 collate 'utf8mb4_unicode_ci'", $statements[0]);
 
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -161,7 +163,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) character set utf8mb4 collate 'utf8mb4_unicode_ci' not null) default character set utf8 collate 'utf8_unicode_ci'", $statements[0]);
     }
 
-    public function testBasicCreateTableWithPrefix()
+    public function testBasicCreateTableWithPrefix(): void
     {
         $conn = $this->getConnection(prefix: 'prefix_');
         $conn->shouldReceive('getConfig')->andReturn(null);
@@ -177,7 +179,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('create table `prefix_users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null)', $statements[0]);
     }
 
-    public function testCreateTemporaryTable()
+    public function testCreateTemporaryTable(): void
     {
         $conn = $this->getConnection();
         $conn->shouldReceive('getConfig')->andReturn(null);
@@ -194,7 +196,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('create temporary table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255) not null)', $statements[0]);
     }
 
-    public function testDropTable()
+    public function testDropTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->drop();
@@ -204,7 +206,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('drop table `users`', $statements[0]);
     }
 
-    public function testDropTableIfExists()
+    public function testDropTableIfExists(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropIfExists();
@@ -214,7 +216,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('drop table if exists `users`', $statements[0]);
     }
 
-    public function testDropColumn()
+    public function testDropColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropColumn('foo');
@@ -238,7 +240,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop `foo`, drop `bar`', $statements[0]);
     }
 
-    public function testDropPrimary()
+    public function testDropPrimary(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropPrimary();
@@ -248,7 +250,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop primary key', $statements[0]);
     }
 
-    public function testDropUnique()
+    public function testDropUnique(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropUnique('foo');
@@ -258,7 +260,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop index `foo`', $statements[0]);
     }
 
-    public function testDropIndex()
+    public function testDropIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropIndex('foo');
@@ -268,7 +270,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop index `foo`', $statements[0]);
     }
 
-    public function testDropSpatialIndex()
+    public function testDropSpatialIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->dropSpatialIndex(['coordinates']);
@@ -278,7 +280,17 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` drop index `geo_coordinates_spatialindex`', $statements[0]);
     }
 
-    public function testDropForeign()
+    public function testDropVectorIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->dropVectorIndex(['embeddings']);
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table `posts` drop index `posts_embeddings_vectorindex`', $statements[0]);
+    }
+
+    public function testDropForeign(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropForeign('foo');
@@ -298,7 +310,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop foreign key `users_parent_fk`', $statements[0]);
     }
 
-    public function testDropTimestamps()
+    public function testDropTimestamps(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropTimestamps();
@@ -308,7 +320,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop `created_at`, drop `updated_at`', $statements[0]);
     }
 
-    public function testDropTimestampsTz()
+    public function testDropTimestampsTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dropTimestampsTz();
@@ -318,7 +330,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop `created_at`, drop `updated_at`', $statements[0]);
     }
 
-    public function testDropMorphs()
+    public function testDropMorphs(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'photos');
         $blueprint->dropMorphs('imageable');
@@ -329,7 +341,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `photos` drop `imageable_type`, drop `imageable_id`', $statements[1]);
     }
 
-    public function testRenameTable()
+    public function testRenameTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rename('foo');
@@ -339,7 +351,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('rename table `users` to `foo`', $statements[0]);
     }
 
-    public function testRenameIndex()
+    public function testRenameIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->renameIndex('foo', 'bar');
@@ -349,7 +361,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` rename index `foo` to `bar`', $statements[0]);
     }
 
-    public function testAddingPrimaryKey()
+    public function testAddingPrimaryKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->primary('foo', 'bar');
@@ -359,7 +371,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add primary key (`foo`)', $statements[0]);
     }
 
-    public function testAddingPrimaryKeyWithAlgorithm()
+    public function testAddingPrimaryKeyWithAlgorithm(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->primary('foo', 'bar', 'hash');
@@ -369,7 +381,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add primary key using hash(`foo`)', $statements[0]);
     }
 
-    public function testAddingUniqueKey()
+    public function testAddingUniqueKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->unique('foo', 'bar');
@@ -379,7 +391,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add unique `bar`(`foo`)', $statements[0]);
     }
 
-    public function testAddingIndex()
+    public function testAddingIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->index(['foo', 'bar'], 'baz');
@@ -401,7 +413,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testAddingIndexWithAlgorithm()
+    public function testAddingIndexWithAlgorithm(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->index(['foo', 'bar'], 'baz', 'hash');
@@ -411,7 +423,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add index `baz` using hash(`foo`, `bar`)', $statements[0]);
     }
 
-    public function testAddingFulltextIndex()
+    public function testAddingFulltextIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->fulltext('body');
@@ -421,7 +433,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add fulltext `users_body_fulltext`(`body`)', $statements[0]);
     }
 
-    public function testAddingSpatialIndex()
+    public function testAddingSpatialIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->spatialIndex('coordinates');
@@ -431,7 +443,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add spatial index `geo_coordinates_spatialindex`(`coordinates`)', $statements[0]);
     }
 
-    public function testAddingFluentSpatialIndex()
+    public function testAddingFluentSpatialIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'point')->spatialIndex();
@@ -467,7 +479,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testAddingRawIndex()
+    public function testAddingRawIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rawIndex('(function(column))', 'raw_index');
@@ -477,7 +489,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add index `raw_index`((function(column)))', $statements[0]);
     }
 
-    public function testAddingForeignKey()
+    public function testAddingForeignKey(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->foreign('foo_id')->references('id')->on('orders');
@@ -501,7 +513,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add constraint `users_foo_id_foreign` foreign key (`foo_id`) references `orders` (`id`) on update cascade', $statements[0]);
     }
 
-    public function testAddingIncrementingID()
+    public function testAddingIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->increments('id');
@@ -511,7 +523,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `id` int unsigned not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingSmallIncrementingID()
+    public function testAddingSmallIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->smallIncrements('id');
@@ -521,7 +533,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `id` smallint unsigned not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingID()
+    public function testAddingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->id();
@@ -538,7 +550,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` bigint unsigned not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingForeignID()
+    public function testAddingForeignID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $foreignId = $blueprint->foreignId('foo');
@@ -563,7 +575,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingForeignIdSpecifyingIndexNameInConstraint()
+    public function testAddingForeignIdSpecifyingIndexNameInConstraint(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->foreignId('company_id')->constrained(indexName: 'my_index');
@@ -574,7 +586,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingBigIncrementingID()
+    public function testAddingBigIncrementingID(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->bigIncrements('id');
@@ -584,7 +596,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `id` bigint unsigned not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingColumnInTableFirst()
+    public function testAddingColumnInTableFirst(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('name')->first();
@@ -594,7 +606,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `name` varchar(255) not null first', $statements[0]);
     }
 
-    public function testAddingColumnAfterAnotherColumn()
+    public function testAddingColumnAfterAnotherColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('name')->after('foo');
@@ -604,7 +616,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `name` varchar(255) not null after `foo`', $statements[0]);
     }
 
-    public function testAddingMultipleColumnsAfterAnotherColumn()
+    public function testAddingMultipleColumnsAfterAnotherColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->after('foo', function ($blueprint) {
@@ -621,7 +633,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingGeneratedColumn()
+    public function testAddingGeneratedColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'products');
         $blueprint->integer('price');
@@ -650,7 +662,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingGeneratedColumnWithCharset()
+    public function testAddingGeneratedColumnWithCharset(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'links');
         $blueprint->string('url', 2083)->charset('ascii');
@@ -666,7 +678,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingGeneratedColumnByExpression()
+    public function testAddingGeneratedColumnByExpression(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'products');
         $blueprint->integer('price');
@@ -682,7 +694,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingInvisibleColumn()
+    public function testAddingInvisibleColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('secret', 64)->nullable(false)->invisible();
@@ -692,7 +704,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `secret` varchar(64) not null invisible', $statements[0]);
     }
 
-    public function testAddingString()
+    public function testAddingString(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('foo');
@@ -730,7 +742,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` varchar(100) null default \'bar\'', $statements[0]);
     }
 
-    public function testAddingText()
+    public function testAddingText(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->text('foo');
@@ -740,7 +752,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` text not null', $statements[0]);
     }
 
-    public function testAddingBigInteger()
+    public function testAddingBigInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->bigInteger('foo');
@@ -757,7 +769,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` bigint not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingInteger()
+    public function testAddingInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->integer('foo');
@@ -774,7 +786,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` int not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingIncrementsWithStartingValues()
+    public function testAddingIncrementsWithStartingValues(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->id()->startingValue(1000);
@@ -785,7 +797,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` auto_increment = 1000', $statements[1]);
     }
 
-    public function testAddingMediumInteger()
+    public function testAddingMediumInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->mediumInteger('foo');
@@ -802,7 +814,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` mediumint not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingSmallInteger()
+    public function testAddingSmallInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->smallInteger('foo');
@@ -819,7 +831,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` smallint not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingTinyInteger()
+    public function testAddingTinyInteger(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->tinyInteger('foo');
@@ -836,7 +848,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` tinyint not null auto_increment primary key', $statements[0]);
     }
 
-    public function testAddingFloat()
+    public function testAddingFloat(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->float('foo', 5);
@@ -846,7 +858,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` float(5) not null', $statements[0]);
     }
 
-    public function testAddingDouble()
+    public function testAddingDouble(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->double('foo');
@@ -856,7 +868,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` double not null', $statements[0]);
     }
 
-    public function testAddingDecimal()
+    public function testAddingDecimal(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->decimal('foo', 5, 2);
@@ -866,7 +878,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` decimal(5, 2) not null', $statements[0]);
     }
 
-    public function testAddingBoolean()
+    public function testAddingBoolean(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->boolean('foo');
@@ -876,7 +888,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` tinyint(1) not null', $statements[0]);
     }
 
-    public function testAddingEnum()
+    public function testAddingEnum(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->enum('role', ['member', 'admin']);
@@ -888,7 +900,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `status` enum(\'bar\') not null', $statements[1]);
     }
 
-    public function testAddingSet()
+    public function testAddingSet(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->set('role', ['member', 'admin']);
@@ -898,7 +910,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `role` set(\'member\', \'admin\') not null', $statements[0]);
     }
 
-    public function testAddingJson()
+    public function testAddingJson(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->json('foo');
@@ -908,7 +920,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` json not null', $statements[0]);
     }
 
-    public function testAddingJsonb()
+    public function testAddingJsonb(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->jsonb('foo');
@@ -918,11 +930,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` json not null', $statements[0]);
     }
 
-    public function testAddingDate()
+    public function testAddingDate(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('isMaria')->andReturn(true);
-        $conn->shouldReceive('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('isMaria')->andReturn(true);
+        $conn->expects('getServerVersion')->andReturn('10.3.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->date('foo');
@@ -932,11 +944,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` date not null', $statements[0]);
     }
 
-    public function testAddingDateWithDefaultCurrent()
+    public function testAddingDateWithDefaultCurrent(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('isMaria')->andReturn(true);
-        $conn->shouldReceive('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('isMaria')->andReturn(true);
+        $conn->expects('getServerVersion')->andReturn('10.3.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->date('foo')->useCurrent();
@@ -946,11 +958,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` date not null default (CURDATE())', $statements[0]);
     }
 
-    public function testAddingYear()
+    public function testAddingYear(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('isMaria')->andReturn(true);
-        $conn->shouldReceive('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('isMaria')->andReturn(true);
+        $conn->expects('getServerVersion')->andReturn('10.3.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->year('birth_year');
@@ -959,11 +971,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `birth_year` year not null', $statements[0]);
     }
 
-    public function testAddingYearWithDefaultCurrent()
+    public function testAddingYearWithDefaultCurrent(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('isMaria')->andReturn(true);
-        $conn->shouldReceive('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('isMaria')->andReturn(true);
+        $conn->expects('getServerVersion')->andReturn('10.3.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->year('birth_year')->useCurrent();
@@ -973,7 +985,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `birth_year` year not null default (YEAR(CURDATE()))', $statements[0]);
     }
 
-    public function testAddingDateTime()
+    public function testAddingDateTime(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('foo');
@@ -988,7 +1000,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime(1) not null', $statements[0]);
     }
 
-    public function testAddingDateTimeWithDefaultCurrent()
+    public function testAddingDateTimeWithDefaultCurrent(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('foo')->useCurrent();
@@ -997,7 +1009,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime not null default CURRENT_TIMESTAMP', $statements[0]);
     }
 
-    public function testAddingDateTimeWithOnUpdateCurrent()
+    public function testAddingDateTimeWithOnUpdateCurrent(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('foo')->useCurrentOnUpdate();
@@ -1006,7 +1018,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime not null on update CURRENT_TIMESTAMP', $statements[0]);
     }
 
-    public function testAddingDateTimeWithDefaultCurrentAndOnUpdateCurrent()
+    public function testAddingDateTimeWithDefaultCurrentAndOnUpdateCurrent(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('foo')->useCurrent()->useCurrentOnUpdate();
@@ -1015,7 +1027,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP', $statements[0]);
     }
 
-    public function testAddingDateTimeWithDefaultCurrentOnUpdateCurrentAndPrecision()
+    public function testAddingDateTimeWithDefaultCurrentOnUpdateCurrentAndPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTime('foo', 3)->useCurrent()->useCurrentOnUpdate();
@@ -1024,7 +1036,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime(3) not null default CURRENT_TIMESTAMP(3) on update CURRENT_TIMESTAMP(3)', $statements[0]);
     }
 
-    public function testAddingDateTimeTz()
+    public function testAddingDateTimeTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->dateTimeTz('foo', 1);
@@ -1039,7 +1051,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` datetime not null', $statements[0]);
     }
 
-    public function testAddingTime()
+    public function testAddingTime(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->time('created_at');
@@ -1048,7 +1060,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` time not null', $statements[0]);
     }
 
-    public function testAddingTimeWithPrecision()
+    public function testAddingTimeWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->time('created_at', 1);
@@ -1057,7 +1069,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` time(1) not null', $statements[0]);
     }
 
-    public function testAddingTimeTz()
+    public function testAddingTimeTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timeTz('created_at');
@@ -1066,7 +1078,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` time not null', $statements[0]);
     }
 
-    public function testAddingTimeTzWithPrecision()
+    public function testAddingTimeTzWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timeTz('created_at', 1);
@@ -1075,7 +1087,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` time(1) not null', $statements[0]);
     }
 
-    public function testAddingTimestamp()
+    public function testAddingTimestamp(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at');
@@ -1084,7 +1096,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp not null', $statements[0]);
     }
 
-    public function testAddingTimestampWithPrecision()
+    public function testAddingTimestampWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at', 1);
@@ -1093,7 +1105,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp(1) not null', $statements[0]);
     }
 
-    public function testAddingTimestampWithDefault()
+    public function testAddingTimestampWithDefault(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at')->default('2015-07-22 11:43:17');
@@ -1102,7 +1114,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("alter table `users` add `created_at` timestamp not null default '2015-07-22 11:43:17'", $statements[0]);
     }
 
-    public function testAddingTimestampWithDefaultCurrentSpecifyingPrecision()
+    public function testAddingTimestampWithDefaultCurrentSpecifyingPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at', 1)->useCurrent();
@@ -1111,7 +1123,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp(1) not null default CURRENT_TIMESTAMP(1)', $statements[0]);
     }
 
-    public function testAddingTimestampWithOnUpdateCurrentSpecifyingPrecision()
+    public function testAddingTimestampWithOnUpdateCurrentSpecifyingPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at', 1)->useCurrentOnUpdate();
@@ -1120,7 +1132,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp(1) not null on update CURRENT_TIMESTAMP(1)', $statements[0]);
     }
 
-    public function testAddingTimestampWithDefaultCurrentAndOnUpdateCurrentSpecifyingPrecision()
+    public function testAddingTimestampWithDefaultCurrentAndOnUpdateCurrentSpecifyingPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamp('created_at', 1)->useCurrent()->useCurrentOnUpdate();
@@ -1129,7 +1141,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp(1) not null default CURRENT_TIMESTAMP(1) on update CURRENT_TIMESTAMP(1)', $statements[0]);
     }
 
-    public function testAddingTimestampTz()
+    public function testAddingTimestampTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampTz('created_at');
@@ -1138,7 +1150,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp not null', $statements[0]);
     }
 
-    public function testAddingTimestampTzWithPrecision()
+    public function testAddingTimestampTzWithPrecision(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampTz('created_at', 1);
@@ -1147,7 +1159,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `created_at` timestamp(1) not null', $statements[0]);
     }
 
-    public function testAddingTimeStampTzWithDefault()
+    public function testAddingTimeStampTzWithDefault(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampTz('created_at')->default('2015-07-22 11:43:17');
@@ -1156,7 +1168,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("alter table `users` add `created_at` timestamp not null default '2015-07-22 11:43:17'", $statements[0]);
     }
 
-    public function testAddingTimestamps()
+    public function testAddingTimestamps(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestamps();
@@ -1168,7 +1180,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingTimestampsTz()
+    public function testAddingTimestampsTz(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->timestampsTz();
@@ -1180,7 +1192,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingRememberToken()
+    public function testAddingRememberToken(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->rememberToken();
@@ -1190,7 +1202,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `remember_token` varchar(100) null', $statements[0]);
     }
 
-    public function testAddingBinary()
+    public function testAddingBinary(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->binary('foo');
@@ -1200,7 +1212,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` blob not null', $statements[0]);
     }
 
-    public function testAddingUuid()
+    public function testAddingUuid(): void
     {
         $conn = $this->getConnection();
         $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
@@ -1213,10 +1225,10 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` uuid not null', $statements[0]);
     }
 
-    public function testAddingUuidOn106()
+    public function testAddingUuidOn106(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getServerVersion')->andReturn('10.6.21');
+        $conn->expects('getServerVersion')->andReturn('10.6.21');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->uuid('foo');
@@ -1226,7 +1238,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` char(36) not null', $statements[0]);
     }
 
-    public function testAddingUuidDefaultsColumnName()
+    public function testAddingUuidDefaultsColumnName(): void
     {
         $conn = $this->getConnection();
         $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
@@ -1239,7 +1251,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `uuid` uuid not null', $statements[0]);
     }
 
-    public function testAddingForeignUuid()
+    public function testAddingForeignUuid(): void
     {
         $conn = $this->getConnection();
         $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
@@ -1267,7 +1279,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
-    public function testAddingIpAddress()
+    public function testAddingIpAddress(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->ipAddress('foo');
@@ -1277,7 +1289,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` varchar(45) not null', $statements[0]);
     }
 
-    public function testAddingIpAddressDefaultsColumnName()
+    public function testAddingIpAddressDefaultsColumnName(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->ipAddress();
@@ -1287,7 +1299,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `ip_address` varchar(45) not null', $statements[0]);
     }
 
-    public function testAddingMacAddress()
+    public function testAddingMacAddress(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->macAddress('foo');
@@ -1297,7 +1309,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` varchar(17) not null', $statements[0]);
     }
 
-    public function testAddingMacAddressDefaultsColumnName()
+    public function testAddingMacAddressDefaultsColumnName(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->macAddress();
@@ -1307,7 +1319,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `mac_address` varchar(17) not null', $statements[0]);
     }
 
-    public function testAddingGeometry()
+    public function testAddingGeometry(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates');
@@ -1317,7 +1329,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` geometry not null', $statements[0]);
     }
 
-    public function testAddingGeography()
+    public function testAddingGeography(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geography('coordinates');
@@ -1327,7 +1339,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` geometry ref_system_id=4326 not null', $statements[0]);
     }
 
-    public function testAddingPoint()
+    public function testAddingPoint(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'point');
@@ -1337,7 +1349,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` point not null', $statements[0]);
     }
 
-    public function testAddingPointWithSrid()
+    public function testAddingPointWithSrid(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'point', 4326);
@@ -1347,7 +1359,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` point ref_system_id=4326 not null', $statements[0]);
     }
 
-    public function testAddingPointWithSridColumn()
+    public function testAddingPointWithSridColumn(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'point', 4326)->after('id');
@@ -1357,7 +1369,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` point ref_system_id=4326 not null after `id`', $statements[0]);
     }
 
-    public function testAddingLineString()
+    public function testAddingLineString(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'linestring');
@@ -1367,7 +1379,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` linestring not null', $statements[0]);
     }
 
-    public function testAddingPolygon()
+    public function testAddingPolygon(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'polygon');
@@ -1377,7 +1389,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` polygon not null', $statements[0]);
     }
 
-    public function testAddingGeometryCollection()
+    public function testAddingGeometryCollection(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'geometrycollection');
@@ -1387,7 +1399,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` geometrycollection not null', $statements[0]);
     }
 
-    public function testAddingMultiPoint()
+    public function testAddingMultiPoint(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'multipoint');
@@ -1397,7 +1409,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` multipoint not null', $statements[0]);
     }
 
-    public function testAddingMultiLineString()
+    public function testAddingMultiLineString(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'multilinestring');
@@ -1407,7 +1419,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` multilinestring not null', $statements[0]);
     }
 
-    public function testAddingMultiPolygon()
+    public function testAddingMultiPolygon(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
         $blueprint->geometry('coordinates', 'multipolygon');
@@ -1417,21 +1429,21 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add `coordinates` multipolygon not null', $statements[0]);
     }
 
-    public function testAddingComment()
+    public function testAddingComment(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->string('foo')->comment("Escape ' when using words like it's");
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
-        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape \\' when using words like it\\'s'", $statements[0]);
+        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape '' when using words like it''s'", $statements[0]);
     }
 
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getConfig')->once()->once()->with('charset')->andReturn('utf8mb4_foo');
-        $connection->shouldReceive('getConfig')->once()->once()->with('collation')->andReturn('utf8mb4_unicode_ci_foo');
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8mb4_foo');
+        $connection->expects('getConfig')->with('collation')->andReturn('utf8mb4_unicode_ci_foo');
 
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_a');
 
@@ -1441,8 +1453,8 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         );
 
         $connection = $this->getConnection();
-        $connection->shouldReceive('getConfig')->once()->once()->with('charset')->andReturn('utf8mb4_bar');
-        $connection->shouldReceive('getConfig')->once()->once()->with('collation')->andReturn('utf8mb4_unicode_ci_bar');
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8mb4_bar');
+        $connection->expects('getConfig')->with('collation')->andReturn('utf8mb4_unicode_ci_bar');
 
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_b');
 
@@ -1452,12 +1464,12 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testCreateTableWithVirtualAsColumn()
+    public function testCreateTableWithVirtualAsColumn(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -1496,7 +1508,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`my_json_column` varchar(255) not null, `my_other_column` varchar(255) as (json_value(`my_json_column`, '$.\"some_attribute\".\"nested\"')))", $statements[0]);
     }
 
-    public function testCreateTableWithVirtualAsColumnWhenJsonColumnHasArrayKey()
+    public function testCreateTableWithVirtualAsColumnWhenJsonColumnHasArrayKey(): void
     {
         $conn = $this->getConnection();
         $conn->shouldReceive('getConfig')->andReturn(null);
@@ -1511,12 +1523,12 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`my_json_column` varchar(255) as (json_value(`my_json_column`, '$.\"foo\"[0][1]')))", $statements[0]);
     }
 
-    public function testCreateTableWithStoredAsColumn()
+    public function testCreateTableWithStoredAsColumn(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8');
-        $conn->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8_unicode_ci');
-        $conn->shouldReceive('getConfig')->once()->with('engine')->andReturn(null);
+        $conn->expects('getConfig')->with('charset')->andReturn('utf8');
+        $conn->expects('getConfig')->with('collation')->andReturn('utf8_unicode_ci');
+        $conn->expects('getConfig')->with('engine')->andReturn(null);
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -1555,7 +1567,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame("create table `users` (`my_json_column` varchar(255) not null, `my_other_column` varchar(255) as (json_value(`my_json_column`, '$.\"some_attribute\".\"nested\"')) stored)", $statements[0]);
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $statement = $this->getGrammar()->compileDropDatabaseIfExists('my_database_a');
 
@@ -1572,7 +1584,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testDropAllTables()
+    public function testDropAllTables(): void
     {
         $connection = $this->getConnection();
         $statement = $this->getGrammar($connection)->compileDropAllTables(['alpha', 'beta', 'gamma']);
@@ -1580,14 +1592,14 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('drop table `alpha`, `beta`, `gamma`', $statement);
     }
 
-    public function testDropAllViews()
+    public function testDropAllViews(): void
     {
         $statement = $this->getGrammar()->compileDropAllViews(['alpha', 'beta', 'gamma']);
 
         $this->assertSame('drop view `alpha`, `beta`, `gamma`', $statement);
     }
 
-    public function testGrammarsAreMacroable()
+    public function testGrammarsAreMacroable(): void
     {
         // compileReplace macro.
         $this->getGrammar()::macro('compileReplace', function () {
@@ -1599,31 +1611,41 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertTrue($c);
     }
 
+    /**
+     * Get a connection mock.
+     */
     protected function getConnection(
         ?MariaDbGrammar $grammar = null,
         ?MariaDbBuilder $builder = null,
         string $prefix = ''
-    ) {
-        $connection = m::mock(Connection::class)
-            ->shouldReceive('getTablePrefix')->andReturn($prefix)
-            ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null)
-            ->getMock();
+    ): Connection&MockInterface {
+        $connection = m::mock(MariaDbConnection::class);
+        $connection->shouldReceive('usesBackslashEscapes')->passthru();
+        $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
+        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
 
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 
-        return $connection
-            ->shouldReceive('getSchemaGrammar')->andReturn($grammar)
-            ->shouldReceive('getSchemaBuilder')->andReturn($builder)
-            ->getMock();
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
+
+        return $connection;
     }
 
-    public function getGrammar(?Connection $connection = null)
+    /**
+     * Get a schema grammar instance.
+     */
+    public function getGrammar(?Connection $connection = null): MariaDbGrammar
     {
         return new MariaDbGrammar($connection ?? $this->getConnection());
     }
 
-    public function getBuilder()
+    /**
+     * Get a schema builder mock.
+     */
+    public function getBuilder(): MariaDbBuilder&MockInterface
     {
         return mock(MariaDbBuilder::class);
     }

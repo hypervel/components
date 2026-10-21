@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Enums;
 
-enum DataPropertyOperation
+enum DataPropertyOperation: string
 {
-    case Copy;
-    case Builtin;
-    case Enum;
-    case Date;
-    case Data;
+    case Copy = 'Copy';
+    case Builtin = 'Builtin';
+    case Enum = 'Enum';
+    case Date = 'Date';
+    case Data = 'Data';
 }

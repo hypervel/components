@@ -31,7 +31,7 @@ Without CSRF protection, a malicious website could create an HTML form that poin
 
 If the malicious website automatically submits the form when the page is loaded, the malicious user only needs to lure an unsuspecting user of your application to visit their website and their email address will be changed in your application.
 
-To prevent this vulnerability, we need to inspect every incoming `POST`, `PUT`, `PATCH`, or `DELETE` request for a secret session value that the malicious application is unable to access.
+To prevent this vulnerability, we need to inspect every incoming `POST`, `PUT`, `PATCH`, `DELETE`, or `QUERY` request for a secret session value that the malicious application is unable to access.
 
 <a name="preventing-csrf-requests"></a>
 ## Preventing CSRF Requests
@@ -147,4 +147,4 @@ Hypervel stores the current CSRF token in an encrypted `XSRF-TOKEN` cookie that 
 This cookie is primarily sent as a developer convenience since some JavaScript frameworks and libraries, like Angular and Axios, automatically place its value in the `X-XSRF-TOKEN` header on same-origin requests.
 
 > [!NOTE]
-> For JavaScript requests, read the `XSRF-TOKEN` cookie and send its value in the `X-XSRF-TOKEN` header on same-origin `POST`, `PUT`, `PATCH`, and `DELETE` requests.
+> For JavaScript requests, read the `XSRF-TOKEN` cookie and send its value in the `X-XSRF-TOKEN` header on same-origin `POST`, `PUT`, `PATCH`, `DELETE`, and `QUERY` requests.

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Coordinator;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Coordinator;
 use Hypervel\Coordinator\CoordinatorManager;
@@ -18,6 +19,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
@@ -335,6 +337,68 @@ class TimerTest extends TestCase
         } finally {
             CoordinatorManager::clear($identifier);
         }
+    }
+
+    public function testTickReleasesResourcesAndStartsWithFreshContext(): void
+    {
+        $timer = new Timer;
+        $result = new Channel(1);
+        $calls = 0;
+        $released = false;
+
+        try {
+            $timer->tick(0.001, static function () use ($result, &$calls, &$released): ?string {
+                if (++$calls === 1) {
+                    CoroutineContext::set('timer.operation', true);
+                    Coroutine::defer(static function () use (&$released): void {
+                        $released = true;
+                    });
+
+                    return null;
+                }
+
+                $result->push([$released, CoroutineContext::has('timer.operation')]);
+
+                return Timer::STOP;
+            }, uniqid());
+
+            $this->assertSame([true, false], $result->pop(1.0));
+        } finally {
+            $timer->clearAll();
+        }
+    }
+
+    #[DataProvider('timerMethods')]
+    public function testTimersDoNotInheritTheCreatingRequestContext(string $method): void
+    {
+        CoroutineContext::set('timer.request', 'request');
+        Coroutine::afterCreated(static function (): void {
+            if (! CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)) {
+                CoroutineContext::set('timer.request', CoroutineContext::get('timer.request', null, Coroutine::parentId()));
+            }
+        });
+        $timer = new Timer;
+        $result = new Channel(1);
+
+        try {
+            $timer->{$method}(0.001, static function () use ($result): string {
+                $result->push([CoroutineContext::get('timer.request')]);
+
+                return Timer::STOP;
+            }, uniqid());
+
+            $this->assertSame([null], $result->pop(1.0));
+        } finally {
+            $timer->clearAll();
+        }
+    }
+
+    /**
+     * Provide the timer creation methods.
+     */
+    public static function timerMethods(): array
+    {
+        return [['after'], ['tick']];
     }
 
     public function testTickWhenReturnStop(): void

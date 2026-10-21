@@ -76,7 +76,7 @@ class MessageSerializerTest extends TestCase
     public function testRejectsAnInvalidGeneratedDeserializerClass(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The generated gRPC deserializer must name a Protocol Buffers message class.',
         );
 
@@ -86,7 +86,7 @@ class MessageSerializerTest extends TestCase
     public function testRejectsANonCallableDeserializerArray(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The gRPC deserializer is not callable.');
+        $this->expectExceptionMessageIs('The gRPC deserializer is not callable.');
 
         MessageSerializer::deserialize([MessageSerializerCallable::class, 'missing'], 'payload');
     }
@@ -94,7 +94,7 @@ class MessageSerializerTest extends TestCase
     public function testRejectsANonMessageDeserializerResult(): void
     {
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The gRPC deserializer must return a Protocol Buffers message.',
         );
 

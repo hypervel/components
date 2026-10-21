@@ -7,16 +7,16 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'reload')]
 class ReloadCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'reload';
+    protected ?string $signature = 'reload {--e|except= : The commands to skip}';
 
     /**
      * The console command description.
@@ -30,7 +30,7 @@ class ReloadCommand extends Command
     {
         $this->components->info('Reloading services.');
 
-        $exceptions = Collection::wrap(explode(',', $this->option('except') ?? ''))
+        $exceptions = (new Stringable($this->option('except') ?? ''))->explode(',')
             ->map(fn ($except) => trim($except))
             ->filter()
             ->unique()
@@ -57,16 +57,6 @@ class ReloadCommand extends Command
             'schedule' => 'schedule:interrupt',
             'server' => 'server:reload',
             ...ServiceProvider::$reloadCommands,
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['except', 'e', InputOption::VALUE_OPTIONAL, 'The commands to skip'],
         ];
     }
 }

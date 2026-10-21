@@ -60,9 +60,10 @@ class ListFailedCommand extends Command
     {
         $failed = $this->hypervel->make(FailedJobProviderInterface::class)->all();
 
-        return Collection::make($failed)->map(function ($failed) {
-            return $this->parseFailedJob((array) $failed);
-        })->filter()->all();
+        return (new Collection($failed))
+            ->map(fn ($failed) => $this->parseFailedJob((array) $failed))
+            ->filter()
+            ->all();
     }
 
     /**
@@ -114,7 +115,7 @@ class ListFailedCommand extends Command
      */
     protected function displayFailedJobs(array $jobs): void
     {
-        Collection::make($jobs)->each(
+        (new Collection($jobs))->each(
             fn (array $job) => $this->components->twoColumnDetail(
                 sprintf('<fg=gray>%s</> %s</>', $job[4], $job[0]),
                 sprintf('<fg=gray>%s@%s</> %s', $job[1], $job[2], $job[3])
@@ -127,7 +128,7 @@ class ListFailedCommand extends Command
      */
     protected function displayFailedJobsAsJson(array $jobs): void
     {
-        $this->output->writeln(Collection::make($jobs)->values()->map(fn (array $job): array => [
+        $this->output->writeln((new Collection($jobs))->values()->map(fn (array $job): array => [
             'id' => $job[0],
             'connection' => $job[1],
             'queue' => $job[2],

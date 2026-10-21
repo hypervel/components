@@ -76,7 +76,7 @@ class MultipartBodyRepository implements BodyRepository, MergeableBody
     /**
      * Add an element to the repository.
      *
-     * @param float|int|resource|StreamInterface|string $contents
+     * @param null|array<array-key, mixed>|bool|float|int|resource|StreamInterface|string $contents
      * @param array<string, list<string>|string> $headers
      * @return $this
      */
@@ -181,7 +181,7 @@ class MultipartBodyRepository implements BodyRepository, MergeableBody
     /**
      * Get the multipart boundary.
      */
-    public function boundary(): string
+    public function getBoundary(): string
     {
         return $this->boundary;
     }
@@ -202,17 +202,20 @@ class MultipartBodyRepository implements BodyRepository, MergeableBody
         $parts = array_map(static function (MultipartValue $value): array {
             $part = [
                 'name' => $value->name,
-                'contents' => is_int($value->value) || is_float($value->value)
-                    ? (string) $value->value
-                    : $value->value,
+                'contents' => $value->contents(),
             ];
 
             if ($value->filename !== null) {
                 $part['filename'] = $value->filename;
             }
 
+            // Guzzle's multipart stream accepts one string per part header, so list values are combined the way
+            // HTTP combines repeated fields.
             if ($value->headers !== []) {
-                $part['headers'] = $value->headers;
+                $part['headers'] = array_map(
+                    static fn (array|string $header): string => is_array($header) ? implode(', ', $header) : $header,
+                    $value->headers,
+                );
             }
 
             return $part;

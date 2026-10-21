@@ -65,7 +65,7 @@ class WithMigrationTest extends TestCase
     public function itRejectsUnknownMigrationSets(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('missing-migration-set');
+        $this->expectExceptionMessageIsOrContains('missing-migration-set');
 
         (new WithMigration('missing-migration-set'))($this->app);
     }

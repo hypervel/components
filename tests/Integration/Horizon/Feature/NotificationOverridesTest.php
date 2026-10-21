@@ -15,7 +15,7 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class NotificationOverridesTest extends IntegrationTestCase
 {
-    public function testCustomNotificationsAreSentIfSpecified()
+    public function testCustomNotificationsAreSentIfSpecified(): void
     {
         Notification::fake();
 
@@ -28,7 +28,7 @@ class NotificationOverridesTest extends IntegrationTestCase
         Notification::assertSentOnDemand(CustomLongWaitDetectedNotification::class);
     }
 
-    public function testNormalNotificationsAreSentIfNotSpecified()
+    public function testNormalNotificationsAreSentIfNotSpecified(): void
     {
         Notification::fake();
 

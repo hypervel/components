@@ -58,7 +58,7 @@ class Processor
      * Process the results of a tables query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string, partition_of: null|string}>
      */
     public function processTables(array $results): array
     {
@@ -73,6 +73,7 @@ class Processor
                 'comment' => $result->comment ?? null, // MySQL and PostgreSQL
                 'collation' => $result->collation ?? null, // MySQL only
                 'engine' => $result->engine ?? null, // MySQL only
+                'partition_of' => $result->partition_of ?? null, // PostgreSQL only
             ];
         }, $results);
     }
@@ -81,7 +82,7 @@ class Processor
      * Process the results of a views query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, schema: string, schema_qualified_name: string, definition: string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, definition: string}>
      */
     public function processViews(array $results): array
     {
@@ -112,7 +113,7 @@ class Processor
      * Process the results of a columns query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>
+     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>
      */
     public function processColumns(array $results, string $sql = ''): array
     {
@@ -134,10 +135,30 @@ class Processor
      * Process the results of a foreign keys query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: null|string, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string}>
      */
     public function processForeignKeys(array $results): array
     {
         return $results;
+    }
+
+    /**
+     * Process the results of a partitions query.
+     *
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, bounds: string}>
+     */
+    public function processPartitions(array $results): array
+    {
+        return array_map(function ($result) {
+            $result = (object) $result;
+
+            return [
+                'name' => $result->name,
+                'schema' => $result->schema,
+                'schema_qualified_name' => $result->schema . '.' . $result->name,
+                'bounds' => $result->bounds,
+            ];
+        }, $results);
     }
 }

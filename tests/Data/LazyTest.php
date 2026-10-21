@@ -12,7 +12,6 @@ use Hypervel\Data\Support\Lazy\DefaultLazy;
 use Hypervel\Data\Support\Lazy\RelationalLazy;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Inertia\DeferProp;
-use Hypervel\Inertia\OptionalProp;
 use Hypervel\Testbench\TestCase;
 
 class LazyTest extends TestCase
@@ -59,15 +58,9 @@ class LazyTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
-    public function testItCreatesInertiaLazyAndDeferredProperties(): void
+    public function testItCreatesInertiaDeferredProperties(): void
     {
-        $lazy = Lazy::inertia(static fn (): string => 'lazy');
         $deferred = Lazy::inertiaDeferred('deferred', 'analytics', true);
-
-        $this->assertTrue($lazy->shouldBeIncluded());
-        $this->assertFalse($lazy->resolvesToData());
-        $this->assertInstanceOf(OptionalProp::class, $lazy->resolve());
-        $this->assertSame('lazy', ($lazy->resolve())());
 
         $prop = $deferred->resolve();
 

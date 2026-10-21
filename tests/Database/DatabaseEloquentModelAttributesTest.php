@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Attributes\DateFormat;
 use Hypervel\Database\Eloquent\Attributes\Fillable;
 use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\Touches;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
@@ -19,8 +20,10 @@ use Hypervel\Database\Eloquent\Attributes\Visible;
 use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
 use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
 class DatabaseEloquentModelAttributesTest extends TestCase
@@ -210,6 +213,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithTimestampsAttributeAndProperty;
 
         $this->assertFalse($model->usesTimestamps());
+        $this->assertTrue($model::isIgnoringTouch());
     }
 
     public function testDateFormatAttribute(): void
@@ -245,6 +249,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithWithoutTimestampsAttributeOverride;
 
         $this->assertFalse($model->usesTimestamps());
+        $this->assertTrue($model::isIgnoringTouch());
     }
 
     public function testFillableAttribute(): void
@@ -302,6 +307,49 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelExtendingGuardedParent;
 
         $this->assertSame(['id', 'secret'], $model->getGuarded());
+    }
+
+    public function testGuardedAttributeOnPivot(): void
+    {
+        $model = new PivotWithGuardedAttribute;
+
+        $this->assertSame(['id', 'secret'], $model->getGuarded());
+    }
+
+    public function testGuardedAttributeOnMorphPivot(): void
+    {
+        $model = new MorphPivotWithGuardedAttribute;
+
+        $this->assertSame(['id', 'secret'], $model->getGuarded());
+    }
+
+    public function testUnguardedAttributeOnPivot(): void
+    {
+        $model = new PivotWithUnguardedAttribute;
+
+        $this->assertSame([], $model->getGuarded());
+        $this->assertFalse($model->isGuarded('anything'));
+    }
+
+    public function testGuardedPropertyTakesPrecedenceOnPivot(): void
+    {
+        $model = new PivotWithGuardedAttributeAndProperty;
+
+        $this->assertSame(['token'], $model->getGuarded());
+    }
+
+    public function testPivotWithoutGuardedAttributeStaysUnguarded(): void
+    {
+        $model = new PivotWithoutGuardedAttribute;
+
+        $this->assertSame([], $model->getGuarded());
+        $this->assertFalse($model->isGuarded('anything'));
+    }
+
+    public function testEmptyGuardedPropertyIsNotTreatedAsUnset(): void
+    {
+        $this->assertSame([], (new ModelWithEmptyGuardedProperty)->getGuarded());
+        $this->assertSame([], (new ModelWithEmptyGuardedPropertyAndAttribute)->getGuarded());
     }
 
     public function testChildGuardedPropertyOverridesInheritedUnguardedAttribute(): void
@@ -455,6 +503,27 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame(['post', 'author'], $model->getTouchedRelations());
     }
 
+    public function testRefreshesAttribute(): void
+    {
+        $model = new ModelWithRefreshesAttribute;
+
+        $this->assertSame(['name', 'slug'], $model->getRefreshes());
+    }
+
+    public function testRefreshesAttributeVariadic(): void
+    {
+        $model = new ModelWithRefreshesAttributeVariadic;
+
+        $this->assertSame(['name', 'slug'], $model->getRefreshes());
+    }
+
+    public function testRefreshesPropertyTakesPrecedence(): void
+    {
+        $model = new ModelWithRefreshesAttributeAndProperty;
+
+        $this->assertSame(['email'], $model->getRefreshes());
+    }
+
     public function testMergeFillableWorksWithAttribute(): void
     {
         $model = new ModelWithFillableAttribute;
@@ -550,11 +619,21 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertFalse(ModelWithFillableAttribute::isIgnoringTouch());
     }
 
-    public function testIsIgnoringTouchWithTimestampsAttributeAfterTableAttributeCacheIsWarmed(): void
+    public function testIsIgnoringTouchAfterModelIsConstructed(): void
     {
-        new ModelWithTimestampsFalseAttribute;
+        new ModelWithTableAndTimestampsFalseAttribute;
 
-        $this->assertTrue(ModelWithTimestampsFalseAttribute::isIgnoringTouch());
+        $this->assertTrue(ModelWithTableAndTimestampsFalseAttribute::isIgnoringTouch());
+    }
+
+    public function testTableAndTimestampsAttributesApplyAfterIsIgnoringTouch(): void
+    {
+        ModelWithTableAndTimestampsFalseAttribute::isIgnoringTouch();
+
+        $model = new ModelWithTableAndTimestampsFalseAttribute;
+
+        $this->assertSame('collision_table', $model->getTable());
+        $this->assertFalse($model->usesTimestamps());
     }
 
     public function testVariadicAttributeWithNoArgumentsDoesNotWarn(): void
@@ -570,6 +649,28 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         } finally {
             restore_error_handler();
         }
+    }
+
+    #[DataProvider('namedAttributeArguments')]
+    public function testVariadicAttributeAcceptsANamedArgument(string $model, string $getter, array $expected): void
+    {
+        $this->assertSame($expected, (new $model)->{$getter}());
+    }
+
+    /**
+     * Supply models whose attributes pass their list as a named argument.
+     */
+    public static function namedAttributeArguments(): array
+    {
+        return [
+            'fillable' => [ModelWithNamedFillableAttribute::class, 'getFillable', ['name', 'email']],
+            'guarded' => [ModelWithNamedGuardedAttribute::class, 'getGuarded', ['id', 'secret']],
+            'hidden' => [ModelWithNamedHiddenAttribute::class, 'getHidden', ['password', 'secret']],
+            'visible' => [ModelWithNamedVisibleAttribute::class, 'getVisible', ['id', 'name']],
+            'appends' => [ModelWithNamedAppendsAttribute::class, 'getAppends', ['full_name', 'is_admin']],
+            'touches' => [ModelWithNamedTouchesAttribute::class, 'getTouchedRelations', ['post', 'author']],
+            'refreshes' => [ModelWithNamedRefreshesAttribute::class, 'getRefreshes', ['name', 'email']],
+        ];
     }
 
     public function testClassAttributesAreInitializedWhenModelIsUnserialized(): void
@@ -650,6 +751,20 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithFillableAttributeAndTrait;
 
         $this->assertEqualsCanonicalizing(['name', 'email', 'phone'], $model->getFillable());
+    }
+
+    public function testTraitWithAttributeAppliesToClass(): void
+    {
+        $model = new ModelUsingWithoutIncrementingTraitWithAttribute;
+
+        $this->assertFalse($model->getIncrementing());
+    }
+
+    public function testClassAttributeTakesPrecedenceOverTrait(): void
+    {
+        $model = new ModelOverridingTraitConnectionAttribute;
+
+        $this->assertSame('primary', $model->getConnectionName());
     }
 }
 
@@ -789,10 +904,15 @@ class ModelWithoutTimestampsAttribute extends Model
 {
 }
 
-#[Table(timestamps: false)]
+#[Table(timestamps: true)]
 class ModelWithTimestampsAttributeAndProperty extends Model
 {
     public bool $timestamps = false;
+}
+
+#[Table(name: 'collision_table', timestamps: false)]
+class ModelWithTableAndTimestampsFalseAttribute extends Model
+{
 }
 
 #[Table(dateFormat: 'U')]
@@ -843,6 +963,42 @@ class ModelExtendingGuardedParent extends GuardedBaseModel
 
 #[Unguarded]
 class ModelWithUnguardedAttribute extends Model
+{
+}
+
+class ModelWithEmptyGuardedProperty extends Model
+{
+    protected array $guarded = [];
+}
+
+#[Guarded(['id', 'secret'])]
+class ModelWithEmptyGuardedPropertyAndAttribute extends Model
+{
+    protected array $guarded = [];
+}
+
+#[Guarded(['id', 'secret'])]
+class PivotWithGuardedAttribute extends Pivot
+{
+}
+
+#[Guarded(['id', 'secret'])]
+class MorphPivotWithGuardedAttribute extends MorphPivot
+{
+}
+
+#[Unguarded]
+class PivotWithUnguardedAttribute extends Pivot
+{
+}
+
+#[Guarded(['id', 'secret'])]
+class PivotWithGuardedAttributeAndProperty extends Pivot
+{
+    protected array $guarded = ['token'];
+}
+
+class PivotWithoutGuardedAttribute extends Pivot
 {
 }
 
@@ -975,6 +1131,29 @@ class ModelWithTouchesAttributeVariadic extends Model
 {
 }
 
+#[Refreshes(['name', 'slug'])]
+class ModelWithRefreshesAttribute extends Model
+{
+    /**
+     * Get the attributes refreshed after writes.
+     */
+    public function getRefreshes(): array
+    {
+        return $this->refreshes;
+    }
+}
+
+#[Refreshes('name', 'slug')]
+class ModelWithRefreshesAttributeVariadic extends ModelWithRefreshesAttribute
+{
+}
+
+#[Refreshes(['name', 'slug'])]
+class ModelWithRefreshesAttributeAndProperty extends ModelWithRefreshesAttribute
+{
+    protected array $refreshes = ['email'];
+}
+
 #[DateFormat('Y-m-d')]
 class ModelWithDedicatedDateFormatAttribute extends Model
 {
@@ -1017,6 +1196,9 @@ class PivotWithIncrementing extends Pivot
 
 trait AddsUrlAppend
 {
+    /**
+     * Append the URL attribute.
+     */
     protected function initializeAddsUrlAppend(): void
     {
         $this->mergeAppends(['url']);
@@ -1025,6 +1207,9 @@ trait AddsUrlAppend
 
 trait AddsApiTokenHidden
 {
+    /**
+     * Hide the API token attribute.
+     */
     protected function initializeAddsApiTokenHidden(): void
     {
         $this->mergeHidden(['api_token']);
@@ -1033,6 +1218,9 @@ trait AddsApiTokenHidden
 
 trait AddsEmailVisible
 {
+    /**
+     * Make the email attribute visible.
+     */
     protected function initializeAddsEmailVisible(): void
     {
         $this->mergeVisible(['email']);
@@ -1041,6 +1229,9 @@ trait AddsEmailVisible
 
 trait AddsPhoneFillable
 {
+    /**
+     * Make the phone attribute fillable.
+     */
     protected function initializeAddsPhoneFillable(): void
     {
         $this->mergeFillable(['phone']);
@@ -1071,8 +1262,64 @@ class ModelWithFillableAttributeAndTrait extends Model
     use AddsPhoneFillable;
 }
 
+#[WithoutIncrementing]
+trait TraitUsingWithoutIncrementingAttribute
+{
+}
+
+class ModelUsingWithoutIncrementingTraitWithAttribute extends Model
+{
+    use TraitUsingWithoutIncrementingAttribute;
+}
+
+#[Connection('secondary')]
+trait TraitUsingConnectionAttribute
+{
+}
+
+#[Connection('primary')]
+class ModelOverridingTraitConnectionAttribute extends Model
+{
+    use TraitUsingConnectionAttribute;
+}
+
 #[Fillable]
 class ModelWithEmptyFillableAttribute extends Model
+{
+}
+
+#[Fillable(columns: ['name', 'email'])]
+class ModelWithNamedFillableAttribute extends Model
+{
+}
+
+#[Guarded(columns: ['id', 'secret'])]
+class ModelWithNamedGuardedAttribute extends Model
+{
+}
+
+#[Hidden(columns: ['password', 'secret'])]
+class ModelWithNamedHiddenAttribute extends Model
+{
+}
+
+#[Visible(columns: ['id', 'name'])]
+class ModelWithNamedVisibleAttribute extends Model
+{
+}
+
+#[Appends(columns: ['full_name', 'is_admin'])]
+class ModelWithNamedAppendsAttribute extends Model
+{
+}
+
+#[Touches(relations: ['post', 'author'])]
+class ModelWithNamedTouchesAttribute extends Model
+{
+}
+
+#[Refreshes(columns: ['name', 'email'])]
+class ModelWithNamedRefreshesAttribute extends ModelWithRefreshesAttribute
 {
 }
 

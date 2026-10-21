@@ -10,11 +10,12 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Header\MailboxListHeader;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\File;
 
 /**
- * @mixin \Symfony\Component\Mime\Email
+ * @mixin Email
  */
 class Message
 {
@@ -88,7 +89,7 @@ class Message
         if ($header = $this->message->getHeaders()->get('To')) {
             $this->addAddressDebugHeader('X-To', $this->message->getTo());
 
-            /* @phpstan-ignore-next-line */
+            /** @var MailboxListHeader $header */
             $header->setAddresses([]);
         }
 
@@ -119,7 +120,7 @@ class Message
         if ($header = $this->message->getHeaders()->get('Cc')) {
             $this->addAddressDebugHeader('X-Cc', $this->message->getCC());
 
-            /* @phpstan-ignore-next-line */
+            /** @var MailboxListHeader $header */
             $header->setAddresses([]);
         }
 
@@ -150,7 +151,7 @@ class Message
         if ($header = $this->message->getHeaders()->get('Bcc')) {
             $this->addAddressDebugHeader('X-Bcc', $this->message->getBcc());
 
-            /* @phpstan-ignore-next-line */
+            /** @var MailboxListHeader $header */
             $header->setAddresses([]);
         }
 
@@ -234,7 +235,7 @@ class Message
     /**
      * Add an address debug header for a list of recipients.
      *
-     * @param \Symfony\Component\Mime\Address[] $addresses
+     * @param Address[] $addresses
      */
     protected function addAddressDebugHeader(string $header, array $addresses): static
     {
@@ -358,7 +359,7 @@ class Message
     /**
      * Dynamically pass missing methods to the Symfony instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }

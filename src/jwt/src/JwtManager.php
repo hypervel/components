@@ -17,11 +17,11 @@ use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
-use RuntimeException;
+use SensitiveParameter;
 
 class JwtManager extends Manager implements ManagerContract
 {
-    protected ?BlacklistContract $blacklist;
+    protected ?BlacklistContract $blacklist = null;
 
     protected bool $blacklistEnabled = false;
 
@@ -37,9 +37,6 @@ class JwtManager extends Manager implements ManagerContract
         parent::__construct($container);
 
         $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled');
-        $this->blacklist = $this->blacklistEnabled
-            ? $container->make(BlacklistContract::class)
-            : null;
     }
 
     /**
@@ -47,13 +44,7 @@ class JwtManager extends Manager implements ManagerContract
      */
     public function createLcobucciDriver(): Lcobucci
     {
-        $class = $this->config->string('jwt.providers.jwt', Lcobucci::class);
-
-        if (! is_a($class, Lcobucci::class, true)) {
-            throw new RuntimeException('JWT provider must be an instance of ' . Lcobucci::class);
-        }
-
-        return new $class(
+        return new Lcobucci(
             (string) $this->config->get('jwt.secret'),
             $this->config->string('jwt.algo'),
             $this->config->array('jwt.keys'),
@@ -83,7 +74,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Decode a token into its payload.
      */
-    public function decode(string $token, bool $validate = true, bool $checkBlacklist = true): array
+    public function decode(#[SensitiveParameter] string $token, bool $validate = true, bool $checkBlacklist = true): array
     {
         $payload = $this->driver()->decode($token);
 
@@ -98,6 +89,9 @@ class JwtManager extends Manager implements ManagerContract
         return $payload;
     }
 
+    /**
+     * Run the configured validations against a decoded payload.
+     */
     protected function validatePayload(array $payload, bool $refresh = false): void
     {
         foreach ($this->config->array('jwt.validations') as $validation) {
@@ -111,19 +105,23 @@ class JwtManager extends Manager implements ManagerContract
         }
     }
 
+    /**
+     * Get the cached validation instance for the given class.
+     */
     protected function getValidation(string $class): ValidationContract
     {
         if ($validation = ($this->validations[$class] ?? null)) {
             return $validation;
         }
 
-        return $this->validations[$class] = new $class($this->config->array('jwt'));
+        return $this->validations[$class] = $this->container->make($class, ['config' => $this->config->array('jwt')]);
     }
 
     /**
      * Refresh a token.
      */
     public function refresh(
+        #[SensitiveParameter]
         string $token,
         bool $forceForever = false,
         bool $resetClaims = false,
@@ -159,7 +157,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Decode a token for refresh.
      */
-    protected function decodeForRefresh(string $token): array
+    protected function decodeForRefresh(#[SensitiveParameter] string $token): array
     {
         $payload = $this->driver()->decode($token);
 
@@ -175,7 +173,7 @@ class JwtManager extends Manager implements ManagerContract
     /**
      * Invalidate a token.
      */
-    public function invalidate(string $token, bool $forceForever = false): bool
+    public function invalidate(#[SensitiveParameter] string $token, bool $forceForever = false): bool
     {
         if (! $this->blacklistEnabled) {
             throw new JwtException('You must have the blacklist enabled to invalidate a token.');
@@ -213,7 +211,13 @@ class JwtManager extends Manager implements ManagerContract
             return;
         }
 
-        if (Date::now() > Date::createFromTimestamp($issuedAt)->addMinutes($refreshTtl)) {
+        // Blacklist retention adds the same leeway to this deadline, so revocations
+        // outlive every refresh attempt they must block.
+        $refreshableUntil = Date::createFromTimestamp($issuedAt)
+            ->addMinutes($refreshTtl)
+            ->addSeconds($this->config->integer('jwt.leeway'));
+
+        if (Date::now() > $refreshableUntil) {
             throw new TokenExpiredException('Token has expired and can no longer be refreshed');
         }
     }
@@ -227,14 +231,10 @@ class JwtManager extends Manager implements ManagerContract
     }
 
     /**
-     * Get the configured blacklist instance.
+     * Get the blacklist instance.
      */
-    protected function blacklist(): BlacklistContract
+    public function blacklist(): BlacklistContract
     {
-        if ($this->blacklist === null) {
-            throw new JwtException('JWT blacklist is not configured.');
-        }
-
-        return $this->blacklist;
+        return $this->blacklist ??= $this->container->make(BlacklistContract::class);
     }
 }

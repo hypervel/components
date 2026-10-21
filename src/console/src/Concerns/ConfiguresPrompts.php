@@ -21,6 +21,7 @@ use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Collection;
+use Hypervel\Validation\Validator;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\InputInterface;
@@ -178,6 +179,8 @@ trait ConfiguresPrompts
      * @param bool|string $required
      * @param null|(Closure(PResult): mixed) $validate
      * @return PResult
+     *
+     * @throws PromptValidationException
      */
     protected function promptUntilValid($prompt, $required, $validate)
     {
@@ -186,7 +189,7 @@ trait ConfiguresPrompts
 
             // Keep this empty set synchronized with Prompt::isInvalidWhenRequired().
             if ($required !== false && ($result === '' || $result === [] || $result === false || $result === null)) {
-                $this->components->error(is_string($required) && strlen($required) > 0 ? $required : 'Required.');
+                $this->components->error(is_string($required) && $required !== '' ? $required : 'Required.');
 
                 if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException;
@@ -196,7 +199,7 @@ trait ConfiguresPrompts
 
             $error = is_callable($validate) ? $validate($result) : $this->validatePrompt($result, $validate);
 
-            if (is_string($error) && strlen($error) > 0) {
+            if (is_string($error) && $error !== '') {
                 $this->components->error($error);
 
                 if ($this->hypervel->runningUnitTests()) {
@@ -279,7 +282,7 @@ trait ConfiguresPrompts
      * @param mixed $field
      * @param mixed $value
      * @param mixed $rules
-     * @return \Hypervel\Validation\Validator
+     * @return Validator
      */
     protected function getPromptValidatorInstance($field, $value, $rules, array $messages = [], array $attributes = [])
     {
@@ -318,7 +321,7 @@ trait ConfiguresPrompts
     {
         $answer = $this->components->ask(
             $prompt->label,
-            $prompt->default === '' ? null : $prompt->default,
+            $prompt->default === '' ? null : (string) $prompt->default,
         ) ?? '';
 
         return NumberPrompt::parseInteger((string) $answer) ?? (string) $answer;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
-use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
+use Hypervel\Tests\Integration\Scout\Typesense\Fixtures\Models\TypesenseSearchableModel;
 
 /**
  * Integration tests for Scout console commands with Typesense.

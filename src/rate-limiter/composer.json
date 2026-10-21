@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.2.2",
+        "ext-swoole": "^6.3.0RC1",
         "hypervel/collections": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
@@ -38,10 +38,11 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/core": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4",
         "psr/log": "^3.0",
-        "symfony/console": "^8.1"
+        "symfony/console": "^8.1.2"
     },
     "config": {
         "sort-packages": true

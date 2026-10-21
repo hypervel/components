@@ -61,6 +61,21 @@ class ValidationPreEvaluatedExclusionsTest extends TestCase
         $this->assertArrayHasKey('publish_date', $v->validated());
     }
 
+    public function testExcludeIfResolvesEmptyWildcardKeys(): void
+    {
+        $validator = $this->makeValidator([
+            'users' => [
+                '' => ['role' => 'admin', 'secret' => 'excluded'],
+                'other' => ['role' => 'user', 'secret' => 'retained'],
+            ],
+        ], ['users.*.secret' => 'exclude_if:users.*.role,admin|string']);
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame([
+            'users' => ['other' => ['secret' => 'retained']],
+        ], $validator->validated());
+    }
+
     public function testActiveExclusionsResetBetweenPasses(): void
     {
         $validator = $this->makeValidator(

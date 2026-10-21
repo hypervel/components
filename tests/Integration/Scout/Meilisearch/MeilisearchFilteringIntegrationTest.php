@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Meilisearch\Exceptions\ApiException;
 
 /**
@@ -147,19 +147,23 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
 
     public function testComparisonFiltersReachMeilisearch(): void
     {
-        SearchableModel::create(['id' => 301, 'title' => 'First', 'body' => 'Body']);
-        SearchableModel::create(['id' => 302, 'title' => 'Second', 'body' => 'Body']);
-        SearchableModel::create(['id' => 303, 'title' => 'Third', 'body' => 'Body']);
+        SearchableModel::create(['id' => 35, 'title' => 'Taylor Otwell', 'body' => 'Body']);
+        SearchableModel::create(['id' => 30, 'title' => 'Abigail Otwell', 'body' => 'Body']);
 
         $this->engine->update(SearchableModel::query()->get());
         $this->waitForMeilisearchTasks();
 
-        $results = SearchableModel::search('')
-            ->where('id', '>', 301)
-            ->where('id', '!=', 303)
-            ->get();
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '>=', 30)->get()->pluck('id')->all());
 
-        $this->assertSame([302], $results->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '<', 35)->get()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([35, 30], SearchableModel::search('')->where('id', '<=', 35)->get()->pluck('id')->all());
+
+        $this->assertSame([30], SearchableModel::search('')->where('id', '!=', 35)->get()->pluck('id')->all());
+        $this->assertSame([35], SearchableModel::search('')->where('id', '!=', 30)->get()->pluck('id')->all());
+
+        $this->assertSame([35], SearchableModel::search('')->where('id', '>', 30)->where('id', '<', 40)->get()->pluck('id')->all());
+        $this->assertSame([30], SearchableModel::search('')->where('id', '>', 25)->where('id', '<', 35)->get()->pluck('id')->all());
     }
 
     public function testBackedEnumsAndEscapedSetValuesReachMeilisearch(): void
@@ -177,6 +181,27 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
             ->get();
 
         $this->assertSame([401, 402], $results->pluck('id')->sort()->values()->all());
+    }
+
+    public function testWhereInAndWhereNotInValuesAreEscaped(): void
+    {
+        SearchableModel::create(['id' => 1, 'title' => 'Hypervel Framework', 'body' => 'Body']);
+        SearchableModel::create(['id' => 2, 'title' => 'Other', 'body' => 'Body']);
+
+        $this->engine->update(SearchableModel::query()->get());
+        $this->waitForMeilisearchTasks();
+
+        $injection = 'x"] OR title IS NOT NULL OR title IN ["y';
+
+        $this->assertSame(
+            [1 => 'Hypervel Framework'],
+            SearchableModel::search('')->whereIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
+        );
+
+        $this->assertSame(
+            [2 => 'Other'],
+            SearchableModel::search('')->whereNotIn('title', ['Hypervel Framework', $injection])->get()->pluck('title', 'id')->all()
+        );
     }
 
     public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void

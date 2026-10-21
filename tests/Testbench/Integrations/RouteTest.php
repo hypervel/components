@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Integrations;
 
 use Exception;
+use Hypervel\Auth\GenericUser;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Facades\RateLimiter;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Workbench\App\Http\Controllers\ExampleController;
 
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
+#[WithConfig('app.url', 'http://localhost:8000')]
 class RouteTest extends TestCase
 {
     #[Override]
@@ -20,6 +29,7 @@ class RouteTest extends TestCase
     {
         $router->middleware('web')->get('web/test', fn () => 'Test using web');
         $router->middleware('api')->get('api/test', fn () => 'Test using api');
+        $router->middleware(['api', 'throttle:api'])->get('api/throttled', fn (): string => 'Test using api throttle');
 
         $router->domain('api.localhost')
             ->group(function (Router $router) {
@@ -39,6 +49,14 @@ class RouteTest extends TestCase
         $router->resource('foo', ExampleController::class);
     }
 
+    /**
+     * Define the test's own api rate limiter.
+     */
+    protected function defineApiRateLimiter(ApplicationContract $app): void
+    {
+        RateLimiter::for('api', static fn (Request $request): Limit => Limit::perMinute(7)->by($request->ip()));
+    }
+
     #[Test]
     public function itCanResolveWebGroupRoute(): void
     {
@@ -53,6 +71,48 @@ class RouteTest extends TestCase
         $crawler = $this->call('GET', 'api/test');
 
         $this->assertEquals('Test using api', $crawler->getContent());
+    }
+
+    #[Test]
+    #[WithConfig('rate-limiter.default', 'worker-array')]
+    public function itDefinesTheDefaultApiRateLimiter(): void
+    {
+        $this->get('api/throttled')
+            ->assertOk()
+            ->assertSee('Test using api throttle')
+            ->assertHeader('X-RateLimit-Limit', '60');
+    }
+
+    #[Test]
+    #[DataProvider('defaultApiRateLimiterKeys')]
+    public function itKeysTheDefaultApiRateLimiterByTheAuthIdentifier(?Authenticatable $user, string $key): void
+    {
+        $request = Request::create('/', server: ['REMOTE_ADDR' => '203.0.113.5']);
+        $request->setUserResolver(static fn (): ?Authenticatable => $user);
+
+        $this->assertSame($key, RateLimiter::limiter('api')($request)->key);
+    }
+
+    /**
+     * Get request users and the default api rate limiter key for each.
+     *
+     * @return iterable<string, array{?Authenticatable, string}>
+     */
+    public static function defaultApiRateLimiterKeys(): iterable
+    {
+        yield 'custom identifier name' => [new CustomIdentifierUser(['uuid' => 'user-uuid']), 'user-uuid'];
+        yield 'zero identifier' => [new GenericUser(['id' => 0]), '0'];
+        yield 'guest' => [null, '203.0.113.5'];
+    }
+
+    #[Test]
+    #[WithConfig('rate-limiter.default', 'worker-array')]
+    #[DefineEnvironment('defineApiRateLimiter')]
+    public function itKeepsTheApiRateLimiterDefinedByTheTest(): void
+    {
+        $this->get('api/throttled')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Limit', '7');
     }
 
     #[Test]
@@ -105,7 +165,7 @@ class RouteTest extends TestCase
         $response = $this->call('GET', route('pass'));
 
         $response->assertStatus(200);
-        $this->assertEquals('http://localhost/goodbye', $response->getContent());
+        $this->assertEquals('http://localhost:8000/goodbye', $response->getContent());
     }
 
     #[Test]
@@ -116,5 +176,16 @@ class RouteTest extends TestCase
         $response = $this->call('GET', route('bad'));
 
         $response->assertStatus(500);
+    }
+}
+
+class CustomIdentifierUser extends GenericUser
+{
+    /**
+     * Get the name of the unique identifier for the user.
+     */
+    public function getAuthIdentifierName(): string
+    {
+        return 'uuid';
     }
 }

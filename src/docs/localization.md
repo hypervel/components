@@ -12,6 +12,7 @@
     - [Replacing Parameters in Translation Strings](#replacing-parameters-in-translation-strings)
     - [Pluralization](#pluralization)
 - [Overriding Package Language Files](#overriding-package-language-files)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -233,10 +234,12 @@ If your placeholder contains all capital letters, or only has its first letter c
 'goodbye' => 'Goodbye, :Name', // Goodbye, Dayle
 ```
 
+You may also pass enum cases as replacements. Backed enums use their value and pure enums use their case name, unless you register a custom formatting handler for the enum as described below.
+
 <a name="object-replacement-formatting"></a>
 #### Object Replacement Formatting
 
-If you attempt to provide an object as a translation placeholder, the object's `__toString` method will be invoked. The [__toString](https://www.php.net/manual/en/language.oop5.magic.php#object.tostring) method is one of PHP's built-in "magic methods". However, sometimes you may not have control over the `__toString` method of a given class, such as when the class that you are interacting with belongs to a third-party library.
+If you attempt to provide any other object as a translation placeholder, the object's `__toString` method will be invoked. The [__toString](https://www.php.net/manual/en/language.oop5.magic.php#object.tostring) method is one of PHP's built-in "magic methods". However, sometimes you may not have control over the `__toString` method of a given class, such as when the class that you are interacting with belongs to a third-party library.
 
 In these cases, Hypervel allows you to register a custom formatting handler for that particular type of object. To accomplish this, you should invoke the translator's `stringable` method. The `stringable` method accepts a closure, which should type-hint the type of object that it is responsible for formatting. Typically, the `stringable` method should be invoked within the `boot` method of your application's `AppServiceProvider` class:
 
@@ -304,3 +307,8 @@ If you would like to display the integer value that was passed to the `trans_cho
 Some packages may ship with their own language files. Instead of changing the package's core files to tweak these lines, you may override them by placing files in the `lang/vendor/{package}/{locale}` directory.
 
 So, for example, if you need to override the English translation strings in `messages.php` for a package named `skyrim/hearthfire`, you should place a language file at: `lang/vendor/hearthfire/en/messages.php`. Within this file, you should only define the translation strings you wish to override. Any translation strings you don't override will still be loaded from the package's original language files.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Translation began as a port of [Laravel Translation](https://github.com/illuminate/translation) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -17,6 +17,7 @@ namespace Hypervel\Support\Facades;
  * @method static mixed then(\Closure $destination)
  * @method static mixed thenReturn()
  * @method static \Hypervel\Pipeline\Pipeline through(mixed $pipes)
+ * @method static \Closure toClosure(\Closure $destination)
  * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static \Hypervel\Pipeline\Pipeline via(string $method)
  * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Filesystem\Filesystem;
+
 class InterfaceMakeCommandTest extends TestCase
 {
     protected array $files = [
@@ -12,7 +14,7 @@ class InterfaceMakeCommandTest extends TestCase
         'app/Interfaces/Gateway.php',
     ];
 
-    public function testItCanGenerateInterfaceFile()
+    public function testItCanGenerateInterfaceFile(): void
     {
         $this->artisan('make:interface', ['name' => 'Gateway'])
             ->assertExitCode(0);
@@ -27,7 +29,7 @@ class InterfaceMakeCommandTest extends TestCase
     {
         $interfacesFolderPath = app_path('Contracts');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($interfacesFolderPath);
@@ -47,7 +49,7 @@ class InterfaceMakeCommandTest extends TestCase
     {
         $interfacesFolderPath = app_path('Interfaces');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($interfacesFolderPath);

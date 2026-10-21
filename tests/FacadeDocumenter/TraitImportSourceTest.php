@@ -199,6 +199,162 @@ class TraitImportSourceTest extends FacadeDocumenterTestCase
         );
     }
 
+    public function testTemplateBoundsUseTheirDeclaringClassOrTraitAndMethodTemplatesTakePrecedence(): void
+    {
+        $this->writeAppFile(
+            'TemplateBounds/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\TemplateBounds\Types {
+                    use DateTimeImmutable as Payload;
+
+                    /**
+                     * @template-covariant TValue of Payload
+                     * @template TSelf of self
+                     * @template TStatic of static
+                     * @template TParent of parent
+                     */
+                    trait HasPayload
+                    {
+                        /** @return TValue|null */
+                        public function payload(): mixed
+                        {
+                            return null;
+                        }
+
+                        /** @return TSelf */
+                        public function boundSelf(): mixed { return null; }
+
+                        /** @return TStatic */
+                        public function boundStatic(): mixed { return null; }
+
+                        /** @return TParent */
+                        public function boundParent(): mixed { return null; }
+                    }
+                }
+
+                namespace App\TemplateBounds\ParentTypes {
+                    use DateTimeZone as Payload;
+
+                    /**
+                     * @template TValue of Payload
+                     * @template T of \stdClass
+                     * @template U of T
+                     * @template TStatic of static
+                     */
+                    class ParentProxy
+                    {
+                        /** @param TValue $value */
+                        public function accept(mixed $value): void
+                        {
+                        }
+
+                        /**
+                         * @template TValue of \stdClass
+                         * @return TValue
+                         */
+                        public function shadowed(): mixed
+                        {
+                            return null;
+                        }
+
+                        /**
+                         * @template T of U
+                         * @return T
+                         */
+                        public function shadowedChain(): mixed { return null; }
+
+                        /** @return TStatic */
+                        public function inheritedStatic(): mixed { return null; }
+                    }
+                }
+
+                namespace App\TemplateBounds {
+                    class Proxy extends \App\TemplateBounds\ParentTypes\ParentProxy
+                    {
+                        use \App\TemplateBounds\Types\HasPayload;
+                    }
+                }
+                PHP,
+        );
+
+        $this->writeAppFile(
+            'TemplateBounds/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\TemplateBounds;
+
+                /** @see \App\TemplateBounds\Proxy */
+                class Facade
+                {
+                }
+                PHP,
+        );
+
+        $process = $this->runDocumenter(['App\TemplateBounds\Facade']);
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $contents = $this->appFileContents('App\TemplateBounds\Facade');
+
+        $this->assertStringContainsString('@method static \DateTimeImmutable|null payload()', $contents);
+        $this->assertStringContainsString('@method static void accept(\DateTimeZone $value)', $contents);
+        $this->assertStringContainsString('@method static \stdClass shadowed()', $contents);
+        $this->assertStringContainsString('@method static \stdClass shadowedChain()', $contents);
+        $this->assertStringContainsString('@method static \App\TemplateBounds\Proxy inheritedStatic()', $contents);
+        $this->assertStringContainsString('@method static \App\TemplateBounds\Proxy boundSelf()', $contents);
+        $this->assertStringContainsString('@method static \App\TemplateBounds\Proxy boundStatic()', $contents);
+        $this->assertStringContainsString('@method static \App\TemplateBounds\ParentTypes\ParentProxy boundParent()', $contents);
+    }
+
+    public function testRecursiveTemplateBoundsTerminateWithoutLosingNonRecursiveBounds(): void
+    {
+        $this->writeAppFile('RecursiveBounds/Proxy.php', <<<'PHP'
+            <?php
+
+            namespace App\RecursiveBounds;
+
+            /** @template T of T */
+            class Proxy
+            {
+                /** @return T */
+                public function recursiveClass(): mixed { return null; }
+
+                /**
+                 * @template TFirst of TSecond
+                 * @template TSecond of TFirst
+                 * @return TFirst
+                 */
+                public function recursiveMethod(): mixed { return null; }
+
+                /**
+                 * @template T of \stdClass
+                 * @return T
+                 */
+                public function independent(): mixed { return null; }
+            }
+            PHP);
+        $this->writeAppFile('RecursiveBounds/Facade.php', <<<'PHP'
+            <?php
+
+            namespace App\RecursiveBounds;
+
+            /** @see \App\RecursiveBounds\Proxy */
+            class Facade {}
+            PHP);
+
+        $process = $this->runDocumenter(['App\RecursiveBounds\Facade']);
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $contents = $this->appFileContents('App\RecursiveBounds\Facade');
+        $this->assertStringContainsString('@method static mixed recursiveClass()', $contents);
+        $this->assertStringContainsString('@method static mixed recursiveMethod()', $contents);
+        $this->assertStringContainsString('@method static \stdClass independent()', $contents);
+    }
+
     public function testSameFileTraitImportsResolveFromTheExactSourceRange(): void
     {
         $this->writeAppFile(

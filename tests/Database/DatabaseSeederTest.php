@@ -145,19 +145,21 @@ class DatabaseSeederTest extends TestCase
         RecordsSeederInstance::$instances = [];
     }
 
-    public function testCallResolvesTheClassAndCallsRun(): void
+    public function testCallResolveTheClassAndCallsRun(): void
     {
         $seeder = new TestSeeder;
-        $seeder->setContainer($container = m::mock(Container::class));
+        $container = m::mock(Container::class);
+        $seeder->setContainer($container);
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('writeln')->times(3);
+        $output->expects('writeln')->times(3);
         $command = m::mock(Command::class);
-        $command->shouldReceive('getOutput')->times(3)->andReturn($output);
+        $command->expects('getOutput')->times(3)->andReturn($output);
         $seeder->setCommand($command);
-        $container->shouldReceive('make')->once()->with('ClassName')->andReturn($child = m::mock(Seeder::class));
-        $child->shouldReceive('setContainer')->once()->with($container)->andReturn($child);
-        $child->shouldReceive('setCommand')->once()->with($command)->andReturn($child);
-        $child->shouldReceive('__invoke')->once();
+        $child = m::mock(Seeder::class);
+        $container->expects('make')->with('ClassName')->andReturn($child);
+        $child->expects('setContainer')->with($container)->andReturn($child);
+        $child->expects('setCommand')->with($command)->andReturn($child);
+        $child->expects('__invoke');
 
         $seeder->call('ClassName');
     }
@@ -179,7 +181,7 @@ class DatabaseSeederTest extends TestCase
     public function testInjectDependenciesOnRunMethod(): void
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('call');
+        $container->expects('call');
 
         $seeder = new TestDepsSeeder;
         $seeder->setContainer($container);
@@ -192,7 +194,7 @@ class DatabaseSeederTest extends TestCase
     public function testSendParamsOnCallMethodWithDeps(): void
     {
         $container = m::mock(Container::class);
-        $container->shouldReceive('call');
+        $container->expects('call');
 
         $seeder = new TestDepsSeeder;
         $seeder->setContainer($container);

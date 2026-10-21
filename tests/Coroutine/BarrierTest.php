@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class BarrierTest extends TestCase
 {
-    public function testBarrier()
+    public function testBarrier(): void
     {
         $barrier = Barrier::create();
         $N = 10;

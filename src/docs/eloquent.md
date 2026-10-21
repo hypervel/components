@@ -9,11 +9,12 @@
     - [Timestamps](#timestamps)
     - [Database Connections](#database-connections)
     - [Default Attribute Values](#default-attribute-values)
+    - [Refreshing Attributes After Writes](#refreshing-attributes-after-writes)
     - [Configuring Eloquent Strictness](#configuring-eloquent-strictness)
 - [Retrieving Models](#retrieving-models)
     - [Collections](#collections)
     - [Chunking Results](#chunking-results)
-    - [Chunk Using Lazy Collections](#chunking-using-lazy-collections)
+    - [Chunking Using Lazy Collections](#chunking-using-lazy-collections)
     - [Cursors](#cursors)
     - [Advanced Subqueries](#advanced-subqueries)
 - [Retrieving Single Models / Aggregates](#retrieving-single-models)
@@ -317,7 +318,7 @@ class Flight extends Model
 }
 ```
 
-If you need to customize the format of your model's timestamps, you may use the `dateFormat` argument on the `Table` attribute. This determines how date attributes are stored in the database as well as their format when the model is serialized to an array or JSON:
+If you need to customize the format of your model's timestamps, you may use the `dateFormat` argument on the `Table` attribute. This determines how date attributes are stored in the database:
 
 ```php
 <?php
@@ -376,6 +377,12 @@ If you would like to perform model operations without the model having its `upda
 Model::withoutTimestamps(fn () => $post->increment('reads'));
 ```
 
+To set one or more timestamp attributes to the current time and save the model, pass the attribute names to the `touch` method:
+
+```php
+$post->touch(['published_at', 'verified_at']);
+```
+
 <a name="database-connections"></a>
 ### Database Connections
 
@@ -395,6 +402,8 @@ class Flight extends Model
     // ...
 }
 ```
+
+The `Connection` attribute also accepts enum cases. Backed enums use their value, while unit enums use their case name.
 
 <a name="default-attribute-values"></a>
 ### Default Attribute Values
@@ -421,6 +430,48 @@ class Flight extends Model
     ];
 }
 ```
+
+If your default values need to be determined at runtime, you may define a `defaults` method on your model instead. Values returned by this method take precedence over the `$attributes` property and should also be in their raw, "storable" format. They only apply to new models; models retrieved from the database keep their stored values:
+
+```php
+/**
+ * Get the default attribute values for the model.
+ *
+ * @return array<string, mixed>
+ */
+protected function defaults(): array
+{
+    return [
+        'delayed' => false,
+        'departs_at' => now()->addDay()->toDateTimeString(),
+    ];
+}
+```
+
+Eloquent still calls the `defaults` method when it hydrates models from query results, so avoid expensive work such as database queries in this method.
+
+<a name="refreshing-attributes-after-writes"></a>
+### Refreshing Attributes After Writes
+
+If your database contains generated columns, you may configure Eloquent to refresh specific attributes after a model is inserted or updated. To do so, define the `Refreshes` attribute on your model:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
+
+#[Refreshes('name')]
+class User extends Model
+{
+    // ...
+}
+```
+
+You may specify multiple attributes as an array:
+
+```php
+#[Refreshes(['name', 'slug'])]
+```
+
+After the model is written, the configured attributes will be refreshed from the database.
 
 <a name="configuring-eloquent-strictness"></a>
 ### Configuring Eloquent Strictness
@@ -459,7 +510,7 @@ If you would like to enable all three strictness behaviors, you may invoke the `
 Model::shouldBeStrict(! $this->app->isProduction());
 ```
 
-Hypervel also allows you to customize how lazy loading violations, discarded attributes, and missing attributes are handled using the `handleLazyLoadingViolationUsing`, `handleDiscardedAttributeViolationUsing`, and `handleMissingAttributeViolationUsing` methods.
+Hypervel also allows you to customize how lazy loading violations, discarded attributes, and missing attributes are handled using the `handleLazyLoadingViolationUsing`, `handleDiscardedAttributeViolationUsing`, and `handleMissingAttributeViolationUsing` methods. Each callback receives the corresponding violation exception as its third argument.
 
 > [!WARNING]
 > Eloquent strictness methods configure worker-wide static state in Hypervel. These methods should be called while your application is booting, such as from a service provider, and not from request-specific code.
@@ -492,6 +543,18 @@ $flights = Flight::where('active', 1)
 > [!NOTE]
 > Since Eloquent models are query builders, you should review all of the methods provided by Hypervel's [query builder](/docs/{{version}}/queries). You may use any of these methods when writing your Eloquent queries.
 
+The `whereKey` and `whereKeyNot` methods constrain a query using the model's primary key. Both accept a single key, multiple keys, or a subquery selecting keys. To join these conditions with `or`, use `orWhereKey` or `orWhereKeyNot`:
+
+```php
+$flights = Flight::where('active', 1)->orWhereKey([1, 2])->get();
+```
+
+To retrieve only the primary keys as an array, call `modelKeys` on the query. Primary key casts are applied to the returned values:
+
+```php
+$flightIds = Flight::where('active', 1)->modelKeys();
+```
+
 <a name="refreshing-models"></a>
 #### Refreshing Models
 
@@ -515,6 +578,16 @@ $flight->number = 'FR 456';
 $flight->refresh();
 
 $flight->number; // "FR 900"
+```
+
+If you need to refresh a model and acquire a pessimistic lock within a transaction, you may use the `refreshForUpdate` method. This method reloads the model using a `FOR UPDATE` lock:
+
+```php
+DB::transaction(function () use ($flight) {
+    $flight->refreshForUpdate();
+
+    // Update the locked model...
+});
 ```
 
 <a name="collections"></a>
@@ -627,7 +700,7 @@ foreach (Flight::where('destination', 'Zurich')->cursor() as $flight) {
 }
 ```
 
-The `cursor` returns an `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Hypervel collections while only loading a single model into memory at a time:
+The `cursor` returns a `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Hypervel collections while only loading a single model into memory at a time:
 
 ```php
 use App\Models\User;
@@ -711,7 +784,7 @@ $flight = Flight::where('legs', '>', 3)->firstOr(function () {
 <a name="not-found-exceptions"></a>
 #### Not Found Exceptions
 
-Sometimes you may wish to throw an exception if a model is not found. This is particularly useful in routes or controllers. The `findOrFail` and `firstOrFail` methods will retrieve the first result of the query; however, if no result is found, an `Hypervel\Database\Eloquent\ModelNotFoundException` will be thrown:
+Sometimes you may wish to throw an exception if a model is not found. This is particularly useful in routes or controllers. The `findOrFail` and `firstOrFail` methods will retrieve the first result of the query; however, if no result is found, a `Hypervel\Database\Eloquent\ModelNotFoundException` will be thrown:
 
 ```php
 $flight = Flight::findOrFail(1);
@@ -732,7 +805,7 @@ Route::get('/api/flights/{id}', function (string $id) {
 <a name="retrieving-or-creating-models"></a>
 ### Retrieving or Creating Models
 
-The `firstOrCreate` method will attempt to locate a database record using the given column / value pairs. If the model cannot be found in the database, a record will be inserted with the attributes resulting from merging the first array argument with the optional second array argument.
+The `firstOrCreate` method will attempt to locate a database record using the given column / value pairs. If the model cannot be found in the database, a record will be inserted with the attributes resulting from merging the first array argument with the optional second argument.
 
 The `firstOrNew` method, like `firstOrCreate`, will attempt to locate a record in the database matching the given attributes. However, if a model is not found, a new model instance will be returned. Note that the model returned by `firstOrNew` has not yet been persisted to the database. You will need to manually call the `save` method to persist it:
 
@@ -762,8 +835,21 @@ $flight = Flight::firstOrNew(
 );
 ```
 
+You may pass a closure as the second argument to `firstOrCreate` or `firstOrNew`. The closure should return an array of attributes and will only be invoked when no matching model is found:
+
+```php
+use Hypervel\Support\Str;
+
+$flight = Flight::firstOrCreate(
+    ['name' => 'London to Paris'],
+    fn () => ['reference' => Str::uuid()->toString()]
+);
+```
+
+The `createOrFirst` method attempts to create the model first, then retrieves a matching record if the insert violates a unique constraint. Ensure the attributes in the first argument are protected by a unique index; otherwise, repeated calls can insert duplicates. Its second argument may also be a closure.
+
 > [!NOTE]
-> If `firstOrCreate` or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction (the default on MySQL and MariaDB), a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
+> If `firstOrCreate`, `createOrFirst`, or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction (the default on MySQL and MariaDB), a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
 
 <a name="retrieving-aggregates"></a>
 ### Retrieving Aggregates
@@ -891,6 +977,8 @@ $flight = Flight::updateOrCreate(
 );
 ```
 
+The second argument may also be a closure returning the attributes to create or update.
+
 When using methods such as `firstOrCreate` or `updateOrCreate`, you may not know whether a new model has been created or an existing one has been updated. The `wasRecentlyCreated` property indicates if the model was created during its current lifecycle:
 
 ```php
@@ -915,6 +1003,21 @@ Flight::where('active', 1)
 ```
 
 The `update` method expects an array of column and value pairs representing the columns that should be updated. The `update` method returns the number of affected rows.
+
+When using PostgreSQL, the `updateFrom` method allows you to update columns using values from joined tables:
+
+```php
+use App\Models\Invoice;
+use Hypervel\Support\Facades\DB;
+
+$affected = Invoice::join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
+```
+
+Like `update`, `updateFrom` applies the model's global scopes and returns the number of affected rows. It also updates the model's `updated_at` column unless timestamps are disabled or you supply that column explicitly.
+
+When using `fromRaw`, supply timestamps yourself or give the raw source an explicit alias with `from(DB::raw(...), 'alias')` to retain automatic timestamps.
 
 > [!WARNING]
 > When issuing a mass update via Eloquent, the `saving`, `saved`, `updating`, and `updated` model events will not be fired for the updated models. This is because the models are never actually retrieved when issuing a mass update.
@@ -1706,6 +1809,8 @@ Once the expected arguments have been added to your scope method's signature, yo
 $users = User::ofType('admin')->get();
 ```
 
+Attributed scope methods should be `protected`. When calling an attributed scope from within the model class, call the scope through a query builder instance, such as `static::query()->ofType('admin')`, to ensure the call is routed through Eloquent's scope handling.
+
 <a name="applying-scope-callbacks"></a>
 ### Applying Scope Callbacks
 
@@ -1795,6 +1900,8 @@ class User extends Model
     // ...
 }
 ```
+
+Child models inherit the attribute unless they declare their own `UseEloquentBuilder` attribute.
 
 Your custom builder should extend Hypervel's base Eloquent builder:
 

@@ -36,6 +36,8 @@ trait WrappableData
      */
     public function getWrap(): Wrap
     {
-        return $this->wrap ?? new Wrap(WrapType::UseGlobal);
+        return $this->wrap ?? (method_exists($this, 'defaultWrap')
+            ? new Wrap(WrapType::Defined, $this->defaultWrap())
+            : new Wrap(WrapType::UseGlobal));
     }
 }

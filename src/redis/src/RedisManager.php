@@ -13,7 +13,6 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolManager;
-use InvalidArgumentException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
@@ -21,7 +20,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Redis\RedisProxy
+ * @mixin RedisProxy
  */
 class RedisManager implements FactoryContract, ConnectionContract
 {

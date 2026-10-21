@@ -67,6 +67,19 @@ class CommandSignatureTest extends TestCase
     {
         $commands = require __DIR__ . '/Fixtures/command_signatures.php';
 
+        // Record the shared option once, independently of the production definition.
+        $dispatcherOption = [
+            'name' => 'disable-event-dispatcher',
+            'shortcut' => null,
+            'negatable' => false,
+            'valueRequired' => false,
+            'valueOptional' => false,
+            'isArray' => false,
+            'acceptValue' => false,
+            'default' => false,
+            'description' => 'Disable the event dispatcher',
+        ];
+
         $cases = [];
 
         foreach ($commands as $class => $expected) {
@@ -77,6 +90,13 @@ class CommandSignatureTest extends TestCase
                 'options' => $expected['options'] ?? [],
                 ...$expected,
             ];
+
+            array_splice(
+                $expected['options'],
+                $expected['dispatcherOptionOffset'] ?? count($expected['options']),
+                0,
+                [$dispatcherOption]
+            );
 
             $cases[$class] = [$class, $expected];
         }

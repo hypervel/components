@@ -16,7 +16,7 @@ class InteractsWithQueueTest extends TestCase
     public function testCreatesAnExceptionFromString(): void
     {
         $queueJob = m::mock(Job::class);
-        $queueJob->shouldReceive('fail')->withArgs(function (Exception $exception): bool {
+        $queueJob->expects('fail')->withArgs(function (Exception $exception): bool {
             $this->assertSame('Whoops!', $exception->getMessage());
 
             return true;
@@ -35,7 +35,7 @@ class InteractsWithQueueTest extends TestCase
     public function testReleasesUsingDateInterval(): void
     {
         $queueJob = m::mock(Job::class);
-        $queueJob->shouldReceive('release')->once()->with(60);
+        $queueJob->expects('release')->with(60);
 
         $job = new class {
             use InteractsWithQueue;

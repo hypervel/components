@@ -310,6 +310,24 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
     }
 
     /**
+     * Create a new session ID.
+     */
+    public function create_sid(): string
+    {
+        return session_create_id() ?: throw new RuntimeException('Unable to create a session ID.');
+    }
+
+    /**
+     * Determine if the session ID exists.
+     */
+    public function validateId(string $id): bool
+    {
+        return $this->withConnection(
+            fn (RedisConnection $connection): bool => $connection->exists($this->payloadKey($id)) > 0,
+        );
+    }
+
+    /**
      * Read the session data.
      */
     public function read(string $sessionId): string

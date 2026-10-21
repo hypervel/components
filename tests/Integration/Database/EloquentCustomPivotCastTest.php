@@ -30,7 +30,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         });
     }
 
-    public function testCastsAreRespectedOnAttach()
+    public function testCastsAreRespectedOnAttach(): void
     {
         $user = CustomPivotCastTestUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -46,7 +46,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         $this->assertEquals(['foo' => 'bar'], $project->collaborators[0]->pivot->permissions);
     }
 
-    public function testCastsAreRespectedOnAttachArray()
+    public function testCastsAreRespectedOnAttachArray(): void
     {
         $user = CustomPivotCastTestUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -70,7 +70,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         $this->assertEquals(['baz' => 'bar'], $project->collaborators[1]->pivot->permissions);
     }
 
-    public function testCastsAreRespectedOnSync()
+    public function testCastsAreRespectedOnSync(): void
     {
         $user = CustomPivotCastTestUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -86,7 +86,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         $this->assertEquals(['foo' => 'bar'], $project->collaborators[0]->pivot->permissions);
     }
 
-    public function testCastsAreRespectedOnSyncArray()
+    public function testCastsAreRespectedOnSyncArray(): void
     {
         $user = CustomPivotCastTestUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -110,7 +110,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         $this->assertEquals(['baz' => 'bar'], $project->collaborators[1]->pivot->permissions);
     }
 
-    public function testCastsAreRespectedOnSyncArrayWhileUpdatingExisting()
+    public function testCastsAreRespectedOnSyncArrayWhileUpdatingExisting(): void
     {
         $user = CustomPivotCastTestUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -140,7 +140,7 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
         $this->assertEquals(['baz2' => 'bar2'], $project->collaborators[1]->pivot->permissions);
     }
 
-    public function testDefaultAttributesAreRespectedAndCastsAreRespected()
+    public function testDefaultAttributesAreRespectedAndCastsAreRespected(): void
     {
         $project = CustomPivotCastTestProject::forceCreate([
             'name' => 'Test Project',

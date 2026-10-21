@@ -29,14 +29,24 @@ class WithConfigTest extends TestCase
         $this->assertTrue(config('testbench.attribute'));
     }
 
+    // REMOVED: Orchestra's deferred WithConfig test conflicts with Hypervel's
+    // process-global worker-startup configuration model.
+
+    #[Test]
+    #[WithConfig('testbench.session.attribute', true)]
+    public function itCanEagerlyResolveDefinedConfiguration(): void
+    {
+        $this->assertTrue(config('testbench.session.attribute'));
+        $this->assertNull(config('testbench.session.report'));
+        $this->assertSame(1, config('testbench.api'));
+    }
+
     #[Test]
     public function itDoesNotPersistDefinedConfigurationBetweenTests(): void
     {
         $this->assertNull(config('testbench.attribute'));
     }
 
-    // REMOVED: Orchestra's deferred WithConfig tests conflict with Hypervel's
-    // process-global worker-startup configuration model.
     #[Test]
     #[WithConfig('testbench.lifecycle_value', 'configured')]
     public function itAppliesConfigurationBeforeProvidersRegisterAndBoot(): void
@@ -71,6 +81,8 @@ class WithConfigTestServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../Fixtures/with-config/testbench.php', 'testbench');
+
         $config = $this->app->make('config');
         $config->set(
             'testbench.provider_observed_during_boot',

@@ -19,7 +19,7 @@ use Hypervel\WebSocketServer\Events\MessageReceived;
 use Mockery as m;
 use ReflectionFunction;
 
-class ServiceProviderListenerRegistrationTest extends SentryTestCase
+class ServiceProviderListenerRegistrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
@@ -28,10 +28,8 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
     public function testQueryExecutedIsNotRegisteredWhenSqlBreadcrumbsAndTracingAreDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => false,
-                'tracing.sql_queries' => false,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => false,
         ]);
 
         $this->assertFalse(app('events')->hasListeners(QueryExecuted::class));
@@ -42,10 +40,8 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
     public function testQueryExecutedIsRegisteredForBreadcrumbsWithoutTracing(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => true,
-                'tracing.sql_queries' => false,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => true,
+            'sentry.tracing.sql_queries' => false,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
@@ -55,10 +51,8 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
     public function testQueryExecutedIsRegisteredForTracingWithoutBreadcrumbs(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.sql_queries' => false,
-                'tracing.sql_queries' => true,
-            ]),
+            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry.tracing.sql_queries' => true,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(QueryExecuted::class));
@@ -68,9 +62,7 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
     public function testMessageLoggedIsNotRegisteredWhenLogBreadcrumbsAreDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.logs' => false,
-            ]),
+            'sentry.breadcrumbs.logs' => false,
         ]);
 
         $this->assertSame(0, $this->countMethodListeners(MessageLogged::class, 'messageLogged'));
@@ -79,9 +71,7 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
     public function testMessageLoggedIsRegisteredWhenLogBreadcrumbsAreEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith([
-                'breadcrumbs.logs' => true,
-            ]),
+            'sentry.breadcrumbs.logs' => true,
         ]);
 
         $this->assertTrue(app('events')->hasListeners(MessageLogged::class));
@@ -120,12 +110,17 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         );
     }
 
+    /**
+     * Get the event dispatcher.
+     */
     private function getEventDispatcher(): Dispatcher
     {
-        /** @var Dispatcher $dispatcher */
         return app('events');
     }
 
+    /**
+     * Count the listeners that call the given method.
+     */
     private function countMethodListeners(string $eventClass, string $method): int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];
@@ -137,6 +132,9 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         }));
     }
 
+    /**
+     * Find the index of the listener that calls the given method.
+     */
     private function findMethodListenerIndex(string $eventClass, string $method): ?int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];
@@ -152,6 +150,9 @@ class ServiceProviderListenerRegistrationTest extends SentryTestCase
         return null;
     }
 
+    /**
+     * Find the index of the Sentry runtime context boundary listener.
+     */
     private function findBoundaryListenerIndex(string $eventClass): ?int
     {
         $listeners = $this->getEventDispatcher()->getRawListeners()[$eventClass] ?? [];

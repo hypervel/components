@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\confirm;
@@ -16,9 +15,13 @@ use function Hypervel\Prompts\confirm;
 class ExceptionMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:exception';
+    protected ?string $signature = 'make:exception
+                    {name : The name of the exception}
+                    {--f|force : Create the class even if the exception already exists}
+                    {--render : Create the exception with an empty render method}
+                    {--report : Create the exception with an empty report method}';
 
     /**
      * The console command description.
@@ -73,17 +76,5 @@ class ExceptionMakeCommand extends GeneratorCommand
 
         $input->setOption('report', confirm('Should the exception have a report method?', default: false));
         $input->setOption('render', confirm('Should the exception have a render method?', default: false));
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the exception already exists'],
-            ['render', null, InputOption::VALUE_NONE, 'Create the exception with an empty render method'],
-            ['report', null, InputOption::VALUE_NONE, 'Create the exception with an empty report method'],
-        ];
     }
 }

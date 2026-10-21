@@ -11,9 +11,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class EnvironmentCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'env';
+    protected ?string $signature = 'env';
 
     /**
      * The console command description.

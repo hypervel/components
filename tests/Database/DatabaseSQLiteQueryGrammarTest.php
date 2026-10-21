@@ -20,10 +20,10 @@ class DatabaseSQLiteQueryGrammarTest extends TestCase
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
-    public function testToRawSql()
+    public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
+        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
         $grammar = new SQLiteGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(

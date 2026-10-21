@@ -40,6 +40,7 @@ class FailOnException
     protected function failForExceptions(array $exceptions): Closure
     {
         return static function (Throwable $throwable) use ($exceptions) {
+            // Keep this loop to avoid an extra callback per item.
             foreach ($exceptions as $exception) {
                 if ($throwable instanceof $exception) {
                     return true;

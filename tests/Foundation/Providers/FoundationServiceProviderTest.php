@@ -76,7 +76,8 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testDefaultDevelopmentProcessesAreRegistered(): void
     {
-        $this->assertSame(['server', 'queue', 'vite'], array_column(DevCommands::commands(), 'name'));
+        $this->assertFileDoesNotExist(base_path('package.json'));
+        $this->assertSame(['server', 'queue'], array_column(DevCommands::commands(), 'name'));
     }
 
     public function testClockSingletonIsRegistered(): void
@@ -168,8 +169,7 @@ class FoundationServiceProviderTest extends TestCase
         $_SERVER['VAR_DUMPER_FORMAT'] = $format;
 
         try {
-            $provider = new FoundationServiceProvider($this->app);
-            (new ReflectionClass($provider))->getMethod('registerDumper')->invoke($provider);
+            (new FoundationServiceProvider($this->app))->registerDumper();
 
             $this->assertSame($format, $_SERVER['VAR_DUMPER_FORMAT']);
             $handler = $handlerProperty->getValue();

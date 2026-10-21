@@ -143,6 +143,8 @@ class DatabaseUserProvider implements UserProvider
 
     /**
      * Rehash the user's password if required and supported.
+     *
+     * @param GenericUser $user
      */
     public function rehashPasswordIfRequired(UserContract $user, #[SensitiveParameter] array $credentials, bool $force = false): void
     {
@@ -150,8 +152,12 @@ class DatabaseUserProvider implements UserProvider
             return;
         }
 
+        $hash = $this->hasher->make($credentials['password']);
+
         $this->getConnection()->table($this->table)
             ->where($user->getAuthIdentifierName(), $user->getAuthIdentifier())
-            ->update([$user->getAuthPasswordName() => $this->hasher->make($credentials['password'])]);
+            ->update([$user->getAuthPasswordName() => $hash]);
+
+        $user->{$user->getAuthPasswordName()} = $hash;
     }
 }

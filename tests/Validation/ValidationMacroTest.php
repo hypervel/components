@@ -9,7 +9,7 @@ use Hypervel\Validation\Rule;
 
 class ValidationMacroTest extends TestCase
 {
-    public function testMacroable()
+    public function testMacroable(): void
     {
         // Define a phone validation macro
         Rule::macro('phone', function () {
@@ -20,7 +20,7 @@ class ValidationMacroTest extends TestCase
         $this->assertSame('regex:/^([0-9\s\-\+\(\)]*)$/', $actualRule);
     }
 
-    public function testMacroArguments()
+    public function testMacroArguments(): void
     {
         Rule::macro('maxLength', function (int $length) {
             return "max:{$length}";
@@ -30,7 +30,7 @@ class ValidationMacroTest extends TestCase
         $this->assertSame('max:10', $actualRule);
     }
 
-    public function testMacroDefaultArguments()
+    public function testMacroDefaultArguments(): void
     {
         Rule::macro('maxLength', function ($length = 255) {
             return "max:{$length}";

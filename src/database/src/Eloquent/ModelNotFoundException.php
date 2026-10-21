@@ -11,7 +11,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  */
 class ModelNotFoundException extends RecordsNotFoundException
 {
@@ -33,16 +33,16 @@ class ModelNotFoundException extends RecordsNotFoundException
      * Set the affected Eloquent model and instance ids.
      *
      * @param class-string<TModel> $model
-     * @param array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
+     * @param null|array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
      */
-    public function setModel(string $model, array|int|string|UnitEnum $ids = []): static
+    public function setModel(string $model, array|int|string|UnitEnum|null $ids = []): static
     {
         $this->model = $model;
         $this->ids = array_map(enum_value(...), Arr::wrap($ids));
 
         $this->message = "No query results for model [{$model}]";
 
-        if (count($this->ids) > 0) {
+        if ($this->ids !== []) {
             $this->message .= ' ' . implode(', ', $this->ids);
         } else {
             $this->message .= '.';

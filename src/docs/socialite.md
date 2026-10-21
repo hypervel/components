@@ -19,6 +19,7 @@
     - [Refreshing Access Tokens](#refreshing-access-tokens)
     - [Stateless Authentication](#stateless-authentication)
 - [Testing](#testing)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -102,6 +103,8 @@ Route::get('/auth/callback', function () {
 ```
 
 The `redirect` method provided by the `Socialite` facade takes care of redirecting the user to the OAuth provider, while the `user` method will examine the incoming request and retrieve the user's information from the provider after they have approved the authentication request.
+
+For OAuth 2.0 providers, after validating the state, the `user` method will throw a `Hypervel\Socialite\Two\Exceptions\InvalidCodeException` if the authorization code is missing, empty, or not a string. This typically happens when the user declines the authentication request.
 
 <a name="authentication-and-storage"></a>
 ### Authentication and Storage
@@ -466,7 +469,11 @@ use Hypervel\Socialite\Socialite;
 $user = Socialite::driver('github')->userFromToken($token);
 ```
 
-If you are using Facebook Limited Login via an iOS application, Facebook will return an OIDC token instead of an access token. Like an access token, the OIDC token can be provided to the `userFromToken` method in order to retrieve user details.
+If you are using Facebook Limited Login via an iOS application, Facebook will return an OIDC token instead of an access token. To retrieve user details from the OIDC token, provide the nonce used to initiate the login to the `userFromToken` method:
+
+```php
+$user = Socialite::driver('facebook')->userFromToken($token, $nonce);
+```
 
 Google ID tokens may also be provided to the `google` driver's `userFromToken` method. Hypervel will verify the JWT token before returning the user details:
 
@@ -581,3 +588,8 @@ Socialite::fake('github', function () {
 ```
 
 The fake replaces the `Hypervel\Socialite\Contracts\Factory` binding used by the facade. Code that resolves `Hypervel\Socialite\SocialiteManager` directly continues to use the real manager, so application code should depend on the factory contract when it needs an injectable Socialite manager.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Socialite began as a port of [Laravel Socialite](https://github.com/laravel/socialite) and has been adapted for Hypervel's framework architecture and coroutine runtime.

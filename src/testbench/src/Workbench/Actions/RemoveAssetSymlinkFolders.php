@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Testbench\is_symlink;
 use function Hypervel\Testbench\package_path;
@@ -37,6 +38,8 @@ final class RemoveAssetSymlinkFolders
         /** @var array<int, array{from: string, to: string, reverse?: bool}> $sync */
         $sync = $this->config->getWorkbenchAttributes()['sync'];
 
+        $failure = null;
+
         (new Collection($sync))
             ->map(function ($pair) {
                 /** @var bool $reverse */
@@ -61,10 +64,19 @@ final class RemoveAssetSymlinkFolders
 
                 return null;
             })->filter()
-            ->each(static function ($payload) {
+            ->each(static function ($payload) use (&$failure) {
                 /** @var array{0: string, 1: Closure(string): void} $payload */
-                value($payload[1], $payload[0]);
+                try {
+                    value($payload[1], $payload[0]);
+                } catch (Throwable $throwable) {
+                    // Remove the remaining links before reporting the first failure.
+                    $failure ??= $throwable;
+                }
             });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
     }
 
     /**

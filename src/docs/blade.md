@@ -29,7 +29,7 @@
     - [Anonymous Index Components](#anonymous-index-components)
     - [Data Properties / Attributes](#data-properties-attributes)
     - [Accessing Parent Data](#accessing-parent-data)
-    - [Anonymous Components Paths](#anonymous-component-paths)
+    - [Anonymous Component Paths](#anonymous-component-paths)
 - [Building Layouts](#building-layouts)
     - [Layouts Using Components](#layouts-using-components)
     - [Layouts Using Template Inheritance](#layouts-using-template-inheritance)
@@ -149,7 +149,7 @@ The `@` symbol may also be used to escape Blade directives:
 
 Sometimes you may pass an array to your view with the intention of rendering it as JSON in order to initialize a JavaScript variable. For example:
 
-```php
+```blade
 <script>
     var app = <?php echo json_encode($array); ?>;
 </script>
@@ -586,7 +586,7 @@ To include the first view that exists from a given array of views, you may use t
 @includeFirst(['custom.admin', 'admin'], ['status' => 'complete'])
 ```
 
-If you would like to include a view without inheriting any variables from the parent view, you may use the `@includeIsolated` directive. The included view will only have access to variables you explicitly pass:
+If you would like to include a view without inheriting any variables from the parent view, you may use the `@includeIsolated` directive. Variables shared with all views remain available, and you may pass additional data as the second argument:
 
 ```blade
 @includeIsolated('view.name', ['user' => $user])
@@ -793,7 +793,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 <x-package-alert/>
 ```
 
-Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
+Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
 
 ```php
 use Hypervel\Support\Facades\Blade;
@@ -1017,13 +1017,13 @@ return function (array $data) {
     // $data['slot'];
 
     return '<div {{ $attributes }}>Components content</div>';
-}
+};
 ```
 
 > [!WARNING]
 > The elements in the `$data` array should never be directly embedded into the Blade string returned by your `render` method, as doing so could allow remote code execution via malicious attribute content.
 
-The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is an `Hypervel\View\ComponentSlot` instance with the contents of the component's slot.
+The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is a `Hypervel\View\ComponentSlot` instance with the contents of the component's slot.
 
 The closure should return a string. If the returned string corresponds to an existing view, that view will be rendered; otherwise, the returned string will be evaluated as an inline Blade view.
 
@@ -1462,7 +1462,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 
 #### Autoloading Package Components
 
-Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
+Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
 
 ```php
 use Hypervel\Support\Facades\Blade;
@@ -1880,6 +1880,8 @@ You may push to a stack as many times as needed. To render the complete stack co
     @stack('scripts')
 </head>
 ```
+
+The `@stack` directive renders the content that has been pushed at the moment it is reached. Content pushed afterwards, such as from a component rendered below the `@stack` directive in the same layout component, will not be included. If you need to push from such components, place the `@stack` directive after them, for example at the end of the `<body>` tag.
 
 If you would like to prepend content onto the beginning of a stack, you should use the `@prepend` directive:
 

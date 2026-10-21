@@ -34,13 +34,5 @@ class DateEquals extends StringValidationAttribute
         return [$this->date];
     }
 
-    /**
-     * Create the attribute from parsed string parameters.
-     */
-    public static function create(string ...$parameters): static
-    {
-        return parent::create(
-            self::parseDateValue($parameters[0]),
-        );
-    }
+    // The inherited create() keeps the parsed date or field name as written, which the validator resolves.
 }

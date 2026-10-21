@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use Swoole\Coroutine\Http2\Client as NativeClient;
 use Swoole\Coroutine\Http2\Client\Exception as NativeHttp2Exception;
+use Swoole\Coroutine\Socket;
 use Swoole\Http2\Request as NativeRequest;
 use Swoole\Http2\Response as NativeResponse;
 
@@ -23,9 +24,17 @@ class Http2ClientTest extends TestCase
 {
     public function testConstructionRejectsAFailedConnection(): void
     {
-        $this->expectException(HttpClientException::class);
+        // Bind without listening so the connection is refused on every Swoole version.
+        $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($socket->bind('127.0.0.1', 0));
 
-        new Client('127.0.0.1', 0);
+        try {
+            $this->expectException(HttpClientException::class);
+
+            new Client('127.0.0.1', $socket->getsockname()['port']);
+        } finally {
+            $socket->close();
+        }
     }
 
     public function testConstructionWrapsNativeHttp2Exceptions(): void
@@ -34,8 +43,12 @@ class Http2ClientTest extends TestCase
             new Client('');
             $this->fail('Expected native construction to fail.');
         } catch (HttpClientException $exception) {
-            $this->assertInstanceOf(NativeHttp2Exception::class, $exception->getPrevious());
-            $this->assertSame('host is empty', $exception->getMessage());
+            $previous = $exception->getPrevious();
+
+            $this->assertInstanceOf(NativeHttp2Exception::class, $previous);
+            $this->assertSame($previous->getMessage(), $exception->getMessage());
+            $this->assertSame($previous->getCode(), $exception->getCode());
+            $this->assertStringContainsStringIgnoringCase('host is empty', $exception->getMessage());
         }
     }
 
@@ -109,9 +122,7 @@ class Http2ClientTest extends TestCase
         $native->errMsg = 'invalid write timeout';
         $client = Http2ClientTestClient::fromNative($native);
 
-        $this->expectException(HttpClientException::class);
-        $this->expectExceptionCode(22);
-        $this->expectExceptionMessage('invalid write timeout');
+        $this->expectExceptionObject(new HttpClientException('invalid write timeout', 22));
 
         $client->send(new Request, 0.1);
     }
@@ -122,7 +133,7 @@ class Http2ClientTest extends TestCase
         $client = Http2ClientTestClient::fromNative(new Http2ClientTestNativeClient);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('positive finite');
+        $this->expectExceptionMessageIsOrContains('positive finite');
 
         $client->send(new Request, $timeout);
     }
@@ -186,9 +197,7 @@ class Http2ClientTest extends TestCase
         $native->errMsg = 'broken pipe';
         $client = Http2ClientTestClient::fromNative($native);
 
-        $this->expectException(HttpClientException::class);
-        $this->expectExceptionCode(32);
-        $this->expectExceptionMessage('broken pipe');
+        $this->expectExceptionObject(new HttpClientException('broken pipe', 32));
 
         $client->write(1, 'frame');
     }
@@ -225,9 +234,7 @@ class Http2ClientTest extends TestCase
         $native->errCode = 5;
         $native->errMsg = 'close failed';
 
-        $this->expectException(HttpClientException::class);
-        $this->expectExceptionCode(5);
-        $this->expectExceptionMessage('close failed');
+        $this->expectExceptionObject(new HttpClientException('close failed', 5));
 
         Http2ClientTestClient::fromNative($native)->close();
     }

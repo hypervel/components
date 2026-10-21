@@ -28,12 +28,11 @@ class Concurrent
     /**
      * Proxy isFull() and isEmpty() to the channel.
      *
-     * @return mixed
      * @throws InvalidArgumentException When method is not supported
      */
-    public function __call(string $name, array $arguments)
+    public function __call(string $name, array $arguments): bool
     {
-        if (in_array($name, ['isFull', 'isEmpty'])) {
+        if (in_array($name, ['isFull', 'isEmpty'], true)) {
             return $this->channel->{$name}(...$arguments);
         }
 
@@ -104,8 +103,9 @@ class Concurrent
     /**
      * Start a coroutine that owns one concurrency slot.
      *
-     * The optional wrapper runs at native child entry. It must not suspend
-     * outside the supplied runner and must invoke that runner exactly once.
+     * The optional wrapper runs at native child entry and must invoke the supplied
+     * runner exactly once. Outside the runner it must not wait for I/O or other work.
+     * Finalize ownership before notifying waiters, which may run immediately.
      *
      * @param array<string>|false $copyContext
      * @param null|Closure(Closure(): void): void $wrapper

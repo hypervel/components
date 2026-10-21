@@ -11,7 +11,7 @@ use Mockery as m;
 
 class ScaleCommandTest extends UnitTestCase
 {
-    public function testScaleCommandTellsSupervisorToScale()
+    public function testScaleCommandTellsSupervisorToScale(): void
     {
         $supervisor = m::mock(Supervisor::class);
         $supervisor->shouldReceive('scale')->once()->with(3);

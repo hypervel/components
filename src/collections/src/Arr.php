@@ -32,19 +32,7 @@ class Arr
     /**
      * Determine whether the given value is arrayable.
      *
-     * @return ($value is array
-     *     ? true
-     *     : ($value is Arrayable
-     *         ? true
-     *         : ($value is Traversable
-     *             ? true
-     *             : ($value is Jsonable
-     *                 ? true
-     *                 : ($value is JsonSerializable ? true : false)
-     *             )
-     *         )
-     *     )
-     * )
+     * @return ($value is array|Arrayable|Jsonable|JsonSerializable|Traversable ? true : false)
      */
     public static function arrayable(mixed $value): bool
     {
@@ -111,7 +99,7 @@ class Arr
         $results = [];
 
         foreach ($array as $values) {
-            if ($values instanceof Collection) {
+            if ($values instanceof Enumerable) {
                 $results[] = $values->all();
             } elseif (is_array($values)) {
                 $results[] = $values;
@@ -299,13 +287,17 @@ class Arr
      * @template TValue
      * @template TLastDefault
      *
-     * @param iterable<TKey, TValue> $array
+     * @param null|iterable<TKey, TValue> $array
      * @param null|(callable(TValue, TKey): bool) $callback
      * @param (Closure(): TLastDefault)|TLastDefault $default
      * @return TLastDefault|TValue
      */
-    public static function last(iterable $array, ?callable $callback = null, mixed $default = null): mixed
+    public static function last(?iterable $array, ?callable $callback = null, mixed $default = null): mixed
     {
+        if ($array === null) {
+            return value($default);
+        }
+
         if (! is_array($array)) {
             if (is_null($callback)) {
                 $found = false;
@@ -364,7 +356,7 @@ class Arr
         $result = [];
 
         foreach ($array as $item) {
-            $item = $item instanceof Collection ? $item->all() : $item;
+            $item = $item instanceof Enumerable ? $item->all() : $item;
 
             if (! is_array($item)) {
                 $result[] = $item;
@@ -409,11 +401,14 @@ class Arr
 
         $keys = (array) $keys;
 
-        if (count($keys) === 0) {
+        if ($keys === []) {
             return;
         }
 
         foreach ($keys as $key) {
+            // clean up before each pass
+            $array = &$original;
+
             // if the exact key exists in the top-level, remove it
             if (static::exists($array, $key)) {
                 unset($array[$key]);
@@ -422,9 +417,6 @@ class Arr
             }
 
             $parts = explode('.', (string) $key);
-
-            // clean up before each pass
-            $array = &$original;
 
             while (count($parts) > 1) {
                 $part = array_shift($parts);
@@ -446,7 +438,7 @@ class Arr
      * @template TKey of array-key = array-key
      * @template TValue = mixed
      *
-     * @param array<TKey, TValue>|Arrayable<TKey, TValue>|Enumerable<TKey, TValue>|Jsonable|JsonSerializable|object|Traversable<TKey, TValue>|WeakMap<object, TValue> $items
+     * @param array<TKey, TValue>|Arrayable<array<TKey, TValue>>|Enumerable<TKey, TValue>|Jsonable|JsonSerializable|object|Traversable<TKey, TValue>|WeakMap<object, TValue> $items
      * @return ($items is WeakMap ? list<TValue> : array<TKey, TValue>)
      *
      * @throws InvalidArgumentException
@@ -540,6 +532,7 @@ class Arr
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (! static::has($array, $key)) {
                 return false;
@@ -568,6 +561,7 @@ class Arr
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (static::has($array, $key)) {
                 return true;
@@ -687,6 +681,11 @@ class Arr
 
     /**
      * Prepend the key names of an associative array.
+     *
+     * @template TValue
+     *
+     * @param array<TValue> $array
+     * @return array<array-key, TValue>
      */
     public static function prependKeysWith(array $array, string $prependWith): array
     {
@@ -834,11 +833,9 @@ class Arr
      * Run a map over each nested chunk of items.
      *
      * @template TKey
-     * @template TValue
      *
      * @param array<TKey, array> $array
-     * @param callable(mixed...): TValue $callback
-     * @return array<TKey, TValue>
+     * @return array<TKey, mixed>
      */
     public static function mapSpread(array $array, callable $callback): array
     {
@@ -857,7 +854,7 @@ class Arr
         if (func_num_args() == 2) {
             array_unshift($array, $value);
         } else {
-            $array = [$key => $value] + $array;
+            $array = [$key ?? '' => $value] + $array;
         }
 
         return $array;
@@ -1024,7 +1021,7 @@ class Arr
      * @template TValue
      *
      * @param iterable<TKey, TValue> $array
-     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @param null|array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @return array<TKey, TValue>
      */
     public static function sort(iterable $array, callable|array|int|string|null $callback = null): array
@@ -1045,7 +1042,7 @@ class Arr
      * @template TValue
      *
      * @param iterable<TKey, TValue> $array
-     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @param null|array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @return array<TKey, TValue>
      */
     public static function sortDesc(iterable $array, callable|array|int|string|null $callback = null): array
@@ -1128,8 +1125,7 @@ class Arr
     /**
      * Conditionally compile classes from an array into a CSS class list.
      *
-     * @param array<int, int|string>|array<string, bool>|string $array
-     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
+     * @param array<array-key, mixed>|string $array
      */
     public static function toCssClasses(array|string $array): string
     {
@@ -1151,8 +1147,7 @@ class Arr
     /**
      * Conditionally compile styles from an array into a style list.
      *
-     * @param array<int, int|string>|array<string, bool>|string $array
-     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
+     * @param array<array-key, mixed>|string $array
      */
     public static function toCssStyles(array|string $array): string
     {

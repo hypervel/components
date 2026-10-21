@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -12,7 +11,6 @@ use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'migrate:fresh')]
 class FreshCommand extends BaseCommand
@@ -21,9 +19,19 @@ class FreshCommand extends BaseCommand
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'migrate:fresh';
+    protected ?string $signature = 'migrate:fresh
+                    {--database= : The default database connection to use}
+                    {--drop-views : Drop all tables and views}
+                    {--drop-types : Drop all tables and types (Postgres only)}
+                    {--force : Force the operation to run when in production}
+                    {--path=* : The path(s) to the migrations files to be executed}
+                    {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
+                    {--schema-path= : The path to a schema dump file}
+                    {--seed : Indicates if the seed task should be re-run}
+                    {--seeder= : The class name of the root seeder}
+                    {--step : Force the migrations to be run so they can be rolled back individually}';
 
     /**
      * The console command description.
@@ -46,7 +54,7 @@ class FreshCommand extends BaseCommand
     public function handle(): int
     {
         if ($this->isProhibited()) {
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         $database = $this->input->getOption('database');
@@ -66,7 +74,7 @@ class FreshCommand extends BaseCommand
         }
 
         if (! $this->confirmToProceed()) {
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         $this->createMissingDatabases($missingDatabases);
@@ -78,7 +86,7 @@ class FreshCommand extends BaseCommand
                     '--drop-views' => $this->option('drop-views'),
                     '--drop-types' => $this->option('drop-types'),
                     '--force' => true,
-                ])) !== Command::SUCCESS) {
+                ])) !== self::SUCCESS) {
                     throw new RuntimeException("Database wipe failed for connection [{$connection}].");
                 }
 
@@ -95,7 +103,7 @@ class FreshCommand extends BaseCommand
             '--schema-path' => $this->input->getOption('schema-path'),
             '--force' => true,
             '--step' => $this->option('step'),
-        ])) !== Command::SUCCESS) {
+        ])) !== self::SUCCESS) {
             throw new RuntimeException('Migration command failed while refreshing the databases.');
         }
 
@@ -111,7 +119,7 @@ class FreshCommand extends BaseCommand
             $this->runSeeder($database);
         }
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 
     /**
@@ -131,27 +139,8 @@ class FreshCommand extends BaseCommand
             '--database' => $database,
             '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
-        ])) !== Command::SUCCESS) {
+        ])) !== self::SUCCESS) {
             throw new RuntimeException('Database seeding failed after the databases were refreshed.');
         }
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The default database connection to use'],
-            ['drop-views', null, InputOption::VALUE_NONE, 'Drop all tables and views'],
-            ['drop-types', null, InputOption::VALUE_NONE, 'Drop all tables and types (Postgres only)'],
-            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
-            ['path', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'The path(s) to the migrations files to be executed'],
-            ['realpath', null, InputOption::VALUE_NONE, 'Indicate any provided migration file paths are pre-resolved absolute paths'],
-            ['schema-path', null, InputOption::VALUE_OPTIONAL, 'The path to a schema dump file'],
-            ['seed', null, InputOption::VALUE_NONE, 'Indicates if the seed task should be re-run'],
-            ['seeder', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder'],
-            ['step', null, InputOption::VALUE_NONE, 'Force the migrations to be run so they can be rolled back individually'],
-        ];
     }
 }

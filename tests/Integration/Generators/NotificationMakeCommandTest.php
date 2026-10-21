@@ -17,6 +17,7 @@ class NotificationMakeCommandTest extends TestCase
     protected $files = [
         'app/Notifications/FooNotification.php',
         'resources/views/foo-notification.blade.php',
+        'resources/views/mail/foo-notification.blade.php',
         'tests/Feature/Notifications/FooNotificationTest.php',
     ];
 
@@ -50,6 +51,45 @@ class NotificationMakeCommandTest extends TestCase
         $this->assertFileContains([
             '<x-mail::message>',
         ], 'resources/views/foo-notification.blade.php');
+    }
+
+    public function testItCanGenerateNotificationFileWithMarkdownOptionWithoutValue(): void
+    {
+        $this->artisan('make:notification', ['name' => 'FooNotification', '--markdown' => null])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Notifications;',
+            'class FooNotification extends Notification',
+            "return (new MailMessage)->markdown('mail.foo-notification')",
+        ], 'app/Notifications/FooNotification.php');
+
+        $this->assertFileContains([
+            '<x-mail::message>',
+        ], 'resources/views/mail/foo-notification.blade.php');
+    }
+
+    public function testErrorsWillBeDisplayedWhenMarkdownsAlreadyExist(): void
+    {
+        $existingMarkdownPath = 'resources/views/mail/foo-notification.blade.php';
+        $files = $this->app->make('files');
+        $files->ensureDirectoryExists(dirname($this->app->basePath($existingMarkdownPath)));
+        $files->put(
+            $this->app->basePath($existingMarkdownPath),
+            '<x-mail::message>My existing markdown</x-mail::message>'
+        );
+
+        $this->artisan('make:notification', ['name' => 'FooNotification', '--markdown' => null])
+            ->expectsOutputToContain('already exists.')
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'class FooNotification extends Notification',
+            "return (new MailMessage)->markdown('mail.foo-notification')",
+        ], 'app/Notifications/FooNotification.php');
+        $this->assertFileContains([
+            '<x-mail::message>My existing markdown</x-mail::message>',
+        ], $existingMarkdownPath);
     }
 
     public function testItCanGenerateNotificationFileWithTest(): void

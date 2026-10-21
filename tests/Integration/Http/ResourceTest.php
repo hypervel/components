@@ -59,6 +59,9 @@ class ResourceTest extends TestCase
     public function testResourceMayBeConvertedToArray(): void
     {
         $resource = new class((new User)->forceFill(['id' => 1, 'name' => 'Taylor Otwell'])) extends JsonResource {
+            /**
+             * Transform the resource into an array.
+             */
             public function toArray(Request $request): array
             {
                 return [
@@ -80,7 +83,7 @@ class ResourceTest extends TestCase
             }
         };
 
-        $request = Request::create('GET', '/users');
+        $request = Request::create('/users', 'GET');
 
         tap($resource->toArray($request), function ($userAsArray) use ($request) {
             $this->assertSame(1, $userAsArray['id']);
@@ -1513,8 +1516,7 @@ class ResourceTest extends TestCase
             new Post(['id' => 2, 'title' => 'Test title 2']),
         ]);
 
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must collect');
+        $this->expectExceptionObject(new LogicException('must collect'));
 
         new PostModelCollectionResource($posts);
     }
@@ -1560,7 +1562,7 @@ class ResourceTest extends TestCase
 
     public function testKeysArePreservedInAnAnonymousCollectionIfTheResourceIsFlaggedToPreserveKeys(): void
     {
-        $data = Collection::make([
+        $data = (new Collection([
             [
                 'id' => 1,
                 'authorId' => 5,
@@ -1576,9 +1578,9 @@ class ResourceTest extends TestCase
                 'authorId' => 42,
                 'bookId' => 12,
             ],
-        ])->keyBy->id;
+        ]))->keyBy->id;
 
-        Route::get('/', function () use ($data) {
+        Route::get('/', function () use ($data): ResourceCollection {
             return ResourceWithPreservedKeys::collection($data);
         });
 
@@ -1594,12 +1596,12 @@ class ResourceTest extends TestCase
 
     public function testKeysArePreservedInAnAnonymousCollectionUsingPreserveKeysMethod(): void
     {
-        $data = Collection::make([
+        $data = (new Collection([
             ['id' => 1, 'title' => 'Test'],
             ['id' => 2, 'title' => 'Test 2'],
-        ])->keyBy->id;
+        ]))->keyBy->id;
 
-        Route::get('/', function () use ($data) {
+        Route::get('/', function () use ($data): ResourceCollection {
             return JsonResource::collection($data)->preserveKeys();
         });
 
@@ -1637,14 +1639,13 @@ class ResourceTest extends TestCase
     {
         $request = new Request(server: ['CONTENT_LENGTH' => '4']);
         $post = new ValidatePostSize;
-        $post->handle($request, fn () => new Response);
+        $post->handle($request, fn (): Response => new Response);
 
-        $this->expectException(PostTooLargeException::class);
-        $this->expectExceptionMessage('The POST data is too large.');
+        $this->expectExceptionObject(new PostTooLargeException('The POST data is too large.'));
 
         $request = new Request(server: ['CONTENT_LENGTH' => '2147483640']);
         $post = new ValidatePostSize;
-        $post->handle($request, fn () => null);
+        $post->handle($request, fn (): Response => new Response);
     }
 
     public function testLeadingMergeKeyedValueIsMergedCorrectlyWhenFirstValueIsMissing(): void

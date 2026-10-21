@@ -29,13 +29,13 @@ class AuthorizationTest extends FeatureTestCase
         Telescope::auth(null);
     }
 
-    public function testCleanTelescopeInstallationDeniesAccessByDefault()
+    public function testCleanTelescopeInstallationDeniesAccessByDefault(): void
     {
         $this->post('/telescope/telescope-api/requests')
             ->assertStatus(403);
     }
 
-    public function testCleanTelescopeInstallationDeniesAccessByDefaultForAnyAuthUser()
+    public function testCleanTelescopeInstallationDeniesAccessByDefaultForAnyAuthUser(): void
     {
         $this->actingAs(new Authenticated);
 
@@ -43,7 +43,7 @@ class AuthorizationTest extends FeatureTestCase
             ->assertStatus(403);
     }
 
-    public function testGuestsGetsUnauthorizedByGate()
+    public function testGuestsGetsUnauthorizedByGate(): void
     {
         Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)
@@ -59,7 +59,7 @@ class AuthorizationTest extends FeatureTestCase
             ->assertStatus(403);
     }
 
-    public function testAuthenticatedUserGetsAuthorizedByGate()
+    public function testAuthenticatedUserGetsAuthorizedByGate(): void
     {
         $this->actingAs(new Authenticated);
 
@@ -77,7 +77,7 @@ class AuthorizationTest extends FeatureTestCase
             ->assertStatus(200);
     }
 
-    public function testGuestsCanBeAuthorized()
+    public function testGuestsCanBeAuthorized(): void
     {
         Telescope::auth(function (Request $request) {
             return $this->app->make(GateContract::class)
@@ -93,7 +93,7 @@ class AuthorizationTest extends FeatureTestCase
             ->assertStatus(200);
     }
 
-    public function testUnauthorizedRequests()
+    public function testUnauthorizedRequests(): void
     {
         Telescope::auth(function () {
             return false;
@@ -103,7 +103,7 @@ class AuthorizationTest extends FeatureTestCase
             ->assertStatus(403);
     }
 
-    public function testAuthorizedRequests()
+    public function testAuthorizedRequests(): void
     {
         Telescope::auth(function () {
             return true;

@@ -22,14 +22,14 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
         EventListCommand::resolveEventsUsing(fn () => $this->dispatcher);
     }
 
-    public function testDisplayEmptyList()
+    public function testDisplayEmptyList(): void
     {
         $this->artisan(EventListCommand::class)
             ->assertSuccessful()
             ->expectsOutputToContain("Your application doesn't have any events matching the given criteria.");
     }
 
-    public function testDisplayEvents()
+    public function testDisplayEvents(): void
     {
         $this->dispatcher->subscribe(ExampleSubscriber::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
@@ -49,7 +49,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('⇂ Closure at: ' . $unixFilePath . ':' . $closureLineNumber);
     }
 
-    public function testDisplayFilteredEvent()
+    public function testDisplayFilteredEvent(): void
     {
         $this->dispatcher->subscribe(ExampleSubscriber::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
@@ -60,7 +60,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('ExampleEvent');
     }
 
-    public function testDisplayFilteredByListener()
+    public function testDisplayFilteredByListener(): void
     {
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleQueueListener::class);
@@ -72,7 +72,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('ExampleQueueListener');
     }
 
-    public function testDisplayFilteredByListenerExcludesNonMatching()
+    public function testDisplayFilteredByListenerExcludesNonMatching(): void
     {
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
         $this->dispatcher->listen(ExampleBroadcastEvent::class, ExampleBroadcastListener::class);
@@ -83,7 +83,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('ExampleBroadcastListener');
     }
 
-    public function testDisplayFilteredByListenerAsJson()
+    public function testDisplayFilteredByListenerAsJson(): void
     {
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleQueueListener::class);
@@ -101,7 +101,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringNotContainsString('ExampleBroadcastListener', $output);
     }
 
-    public function testDisplayEmptyListAsJson()
+    public function testDisplayEmptyListAsJson(): void
     {
         $this->withoutMockingConsoleOutput()->artisan(EventListCommand::class, ['--json' => true]);
         $output = Artisan::output();
@@ -110,7 +110,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertJsonStringEqualsJsonString('[]', $output);
     }
 
-    public function testDisplayEventsAsJson()
+    public function testDisplayEventsAsJson(): void
     {
         $this->dispatcher->subscribe(ExampleSubscriber::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);
@@ -132,7 +132,7 @@ class EventListCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString(json_encode('Closure at: ' . $unixFilePath . ':' . $closureLineNumber), $output);
     }
 
-    public function testDisplayFilteredEventAsJson()
+    public function testDisplayFilteredEventAsJson(): void
     {
         $this->dispatcher->subscribe(ExampleSubscriber::class);
         $this->dispatcher->listen(ExampleEvent::class, ExampleListener::class);

@@ -80,7 +80,7 @@ class DevCommand
      */
     public function blue(): self
     {
-        return $this->color(DevCommandColor::Blue->value);
+        return $this->color(DevCommandColor::BLUE->value);
     }
 
     /**
@@ -88,7 +88,7 @@ class DevCommand
      */
     public function purple(): self
     {
-        return $this->color(DevCommandColor::Purple->value);
+        return $this->color(DevCommandColor::PURPLE->value);
     }
 
     /**
@@ -96,7 +96,7 @@ class DevCommand
      */
     public function pink(): self
     {
-        return $this->color(DevCommandColor::Pink->value);
+        return $this->color(DevCommandColor::PINK->value);
     }
 
     /**
@@ -104,7 +104,7 @@ class DevCommand
      */
     public function orange(): self
     {
-        return $this->color(DevCommandColor::Orange->value);
+        return $this->color(DevCommandColor::ORANGE->value);
     }
 
     /**
@@ -112,7 +112,7 @@ class DevCommand
      */
     public function green(): self
     {
-        return $this->color(DevCommandColor::Green->value);
+        return $this->color(DevCommandColor::GREEN->value);
     }
 
     /**
@@ -120,7 +120,7 @@ class DevCommand
      */
     public function yellow(): self
     {
-        return $this->color(DevCommandColor::Yellow->value);
+        return $this->color(DevCommandColor::YELLOW->value);
     }
 
     /**

@@ -5,7 +5,7 @@
 @if (trim($slot) === 'Hypervel')
 <img src="https://hypervel.org/icon.png" class="logo" alt="Hypervel Logo">
 @else
-{{ $slot }}
+{!! $slot !!}
 @endif
 </a>
 </td>

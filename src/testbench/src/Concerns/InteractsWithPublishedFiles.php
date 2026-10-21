@@ -10,7 +10,7 @@ use RuntimeException;
 use Symfony\Component\Finder\SplFileInfo;
 use Throwable;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 /**
  * Provides assertion helpers and cleanup utilities for testing file publishing.
@@ -63,15 +63,21 @@ trait InteractsWithPublishedFiles
      */
     protected function cacheExistingMigrationsFiles(): void
     {
-        $this->cachedExistingMigrationsFiles ??= (new Collection(
-            $this->app->make('files')->files($this->app->databasePath('migrations'))
-        ))->map($this->publishedFilePath(...))
-            ->filter(static fn (string $file) => str_ends_with($file, '.php'))
-            ->all();
+        $filesystem = $this->app->make('files');
+        $migrationPath = $this->app->databasePath('migrations');
+
+        $this->cachedExistingMigrationsFiles ??= $filesystem->isDirectory($migrationPath)
+            ? (new Collection($filesystem->files($migrationPath)))
+                ->map($this->publishedFilePath(...))
+                ->filter(static fn (string $file) => str_ends_with($file, '.php'))
+                ->all()
+            : [];
     }
 
     /**
      * Assert file contains the given strings.
+     *
+     * @api
      *
      * @param array<int, string> $contains
      */
@@ -91,6 +97,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertFileDoesNotContains(array $contains, string $file, string $message = ''): void
@@ -109,6 +117,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertFileNotContains(array $contains, string $file, string $message = ''): void
@@ -118,6 +128,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration file contains the given strings.
+     *
+     * @api
      *
      * @param array<int, string> $contains
      */
@@ -137,6 +149,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert migration file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertMigrationFileDoesNotContains(array $contains, string $file, string $message = '', ?string $directory = null): void
@@ -155,6 +169,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert migration file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertMigrationFileNotContains(array $contains, string $file, string $message = '', ?string $directory = null): void
@@ -164,6 +180,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename exists.
+     *
+     * @api
      */
     protected function assertFilenameExists(string $file): void
     {
@@ -174,6 +192,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename does not exist.
+     *
+     * @api
      */
     protected function assertFilenameDoesNotExists(string $file): void
     {
@@ -184,6 +204,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename does not exist.
+     *
+     * @api
      */
     protected function assertFilenameNotExists(string $file): void
     {
@@ -192,6 +214,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename exists.
+     *
+     * @api
      */
     protected function assertMigrationFileExists(string $file, ?string $directory = null): void
     {
@@ -202,6 +226,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename does not exist.
+     *
+     * @api
      */
     protected function assertMigrationFileDoesNotExists(string $file, ?string $directory = null): void
     {
@@ -212,6 +238,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename does not exist.
+     *
+     * @api
      */
     protected function assertMigrationFileNotExists(string $file, ?string $directory = null): void
     {
@@ -249,6 +277,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Find the first published migration file matching the filename.
+     *
+     * @api
      */
     protected function findFirstPublishedMigrationFile(string $filename, ?string $directory = null): ?string
     {
@@ -267,7 +297,13 @@ trait InteractsWithPublishedFiles
     protected function cleanUpPublishedMigrationFiles(): void
     {
         $filesystem = $this->app->make(Filesystem::class);
-        $files = (new Collection($filesystem->files($this->app->databasePath('migrations'))))
+        $migrationPath = $this->app->databasePath('migrations');
+
+        if (! $filesystem->isDirectory($migrationPath)) {
+            return;
+        }
+
+        $files = (new Collection($filesystem->files($migrationPath)))
             ->map($this->publishedFilePath(...))
             ->reject(fn (string $file) => in_array($file, $this->cachedExistingMigrationsFiles, true))
             ->filter(static fn (string $file) => str_ends_with($file, '.php'))

@@ -22,7 +22,7 @@ class NotificationRoutesNotificationsTest extends TestCase
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;
-        $factory->shouldReceive('send')->with($notifiable, $instance);
+        $factory->expects('send')->with($notifiable, $instance);
 
         $notifiable->notify($instance);
     }
@@ -34,7 +34,7 @@ class NotificationRoutesNotificationsTest extends TestCase
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;
-        $factory->shouldReceive('sendNow')->with($notifiable, $instance, null);
+        $factory->expects('sendNow')->with($notifiable, $instance, null);
 
         $notifiable->notifyNow($instance);
     }
@@ -43,7 +43,7 @@ class NotificationRoutesNotificationsTest extends TestCase
     {
         $instance = new RoutesNotificationsTestInstance;
         $this->assertSame('bar', $instance->routeNotificationFor('foo'));
-        $this->assertSame('taylor@laravel.com', $instance->routeNotificationFor('mail'));
+        $this->assertSame('taylor@hypervel.com', $instance->routeNotificationFor('mail'));
     }
 
     public function testOnDemandNotificationsCannotUseDatabaseChannel(): void
@@ -60,6 +60,9 @@ class NotificationRoutesNotificationsTest extends TestCase
         $this->assertNull((new AnonymousNotifiable)->getKey());
     }
 
+    /**
+     * Create the notification container.
+     */
     protected function getContainer(): Container
     {
         $container = new Container;
@@ -74,8 +77,11 @@ class RoutesNotificationsTestInstance
 {
     use RoutesNotifications;
 
-    protected string $email = 'taylor@laravel.com';
+    protected string $email = 'taylor@hypervel.com';
 
+    /**
+     * Route notifications for the foo channel.
+     */
     public function routeNotificationForFoo(): string
     {
         return 'bar';

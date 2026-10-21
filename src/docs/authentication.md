@@ -35,6 +35,7 @@
 - [Automatic Password Rehashing](#automatic-password-rehashing)
 - [Social Authentication](/docs/{{version}}/socialite)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -89,7 +90,7 @@ As discussed in this documentation, you can interact with these authentication s
 <a name="hypervels-api-authentication-services"></a>
 #### Hypervel's API Authentication Services
 
-Hypervel provides optional packages to assist you in managing API tokens and authenticating requests made with API tokens, including [Sanctum](/docs/{{version}}/sanctum) and [JWT authentication](/docs/{{version}}/jwt). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
+Hypervel provides optional packages to assist you in managing API tokens and authenticating requests made with API tokens, including [Passport](/docs/{{version}}/passport), [Sanctum](/docs/{{version}}/sanctum) and [JWT authentication](/docs/{{version}}/jwt). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
 
 **Passport**
 
@@ -110,11 +111,11 @@ Hypervel Sanctum is a hybrid web / API authentication package that can manage yo
 
 In summary, if your application will be accessed using a browser and you are building a monolithic Hypervel application, your application will use Hypervel's built-in authentication services.
 
-Next, if your application offers an API that will be consumed by third parties, you will choose between [Sanctum](/docs/{{version}}/sanctum), [JWT authentication](/docs/{{version}}/jwt), or an OAuth2 server to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
+Next, if your application offers an API that will be consumed by third parties, you will choose between [Passport](/docs/{{version}}/passport), [Sanctum](/docs/{{version}}/sanctum), or [JWT authentication](/docs/{{version}}/jwt) to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
 
 If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
-An OAuth2 server may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+Choose Passport when your application needs an OAuth2 server, such as when third-party applications need access to your users' data.
 
 JWT authentication may be chosen when your application wants stateless signed bearer tokens without storing each issued token in the database.
 
@@ -146,7 +147,7 @@ $user = Auth::user();
 $id = Auth::id();
 ```
 
-Alternatively, once a user is authenticated, you may access the authenticated user via an `Hypervel\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Hypervel\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
+Alternatively, once a user is authenticated, you may access the authenticated user via a `Hypervel\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Hypervel\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
 
 ```php
 <?php
@@ -310,9 +311,9 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 
 `clearUserCache` accepts the same identifier as `retrieveById`, which is normally the user's primary key. When the guard argument is omitted, the current default guard is used.
 
-Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Code that needs the uncommitted value should continue using the model or query result it already owns instead of reading through the shared authentication cache.
+Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Calls to the Eloquent provider's `retrieveById` method inside a transaction on that connection bypass the shared cache and read the database, including the transaction's own changes.
 
-Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale user cached.
+Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed. The stale cache entry may remain until it is cleared or expires.
 
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
@@ -462,7 +463,7 @@ Redirect paths may be strings or request-aware callbacks. Passing `null` through
 
 Configure these redirects from `bootstrap/app.php` with the middleware configurator, or from a service provider / package with the `Auth` facade. Both high-level APIs configure the same global redirect callbacks, so an application should generally choose one style for each redirect. If both high-level APIs are called for the same redirect, the most recent registration wins.
 
-Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
+Under the hood, the `auth` middleware throws a `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
 
 <a name="redirecting-authenticated-users"></a>
 #### Redirecting Authenticated Users
@@ -497,6 +498,16 @@ public function boot(): void
 ```
 
 When the `guest` middleware names a guard and the request continues, that guard becomes the current default guard for the request. If multiple guards are listed, the first guard is selected.
+
+You may use the `RedirectIfAuthenticated` middleware's `using` method as an alternative to a middleware alias. For example, the following is equivalent to `guest:admin,web`:
+
+```php
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Support\Facades\Route;
+
+Route::get('/admin/login', fn () => view('auth.login'))
+    ->middleware(RedirectIfAuthenticated::using('admin', 'web'));
+```
 
 <a name="specifying-a-guard"></a>
 #### Specifying a Guard
@@ -638,6 +649,14 @@ if (Auth::guard('admin')->attempt($credentials)) {
 }
 ```
 
+The `guard`, `shouldUse`, and `setDefaultDriver` methods also accept enum cases. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\Guard;
+
+$user = Auth::guard(Guard::Admin)->user();
+```
+
 <a name="remembering-users"></a>
 ### Remembering Users
 
@@ -653,6 +672,8 @@ if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
 }
 ```
 
+Existing remember cookies stop working when a user's password hash changes or when the application key is rotated.
+
 You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. If this option is omitted or `null`, Hypervel uses the built-in 400-day lifetime. For example, the following configuration uses a 30-day lifetime:
 
 ```php
@@ -665,7 +686,7 @@ You may customize the cookie lifetime for a session guard using the `remember` o
 ],
 ```
 
-If your application offers "remember me" functionality, you may use the `viaRemember`  method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
+If your application offers "remember me" functionality, you may use the `viaRemember` method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
 
 ```php
 use Hypervel\Support\Facades\Auth;
@@ -820,6 +841,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 });
 ```
 
+Custom guards used with `auth.session` must provide a `hashPasswordForCookie` method that returns an HMAC of the password hash and use the same value when creating remember cookies. Extending `Hypervel\Auth\SessionGuard` provides this behavior.
+
 Then, you may use the `logoutOtherDevices` method provided by the `Auth` facade. This method requires the user to confirm their current password, which your application should accept through an input form:
 
 ```php
@@ -882,6 +905,8 @@ Route::post('/confirm-password', function (Request $request) {
 ```
 
 Before moving on, let's examine this route in more detail. First, the request's `password` field is determined to actually match the authenticated user's password. If the password is valid, we need to inform Hypervel's session that the user has confirmed their password. The `passwordConfirmed` method will set a timestamp in the user's session that Hypervel can use to determine when the user last confirmed their password. Finally, we can redirect the user to their intended destination.
+
+After storing the timestamp, `passwordConfirmed` dispatches `Hypervel\Auth\Events\PasswordConfirmed` with the guard name and confirmation time in its `guard` and `confirmedAt` properties. It uses the current default guard unless you pass a guard name explicitly. This event is also dispatched when a passkey confirmation records the same session confirmation; it does not identify the authentication method.
 
 <a name="password-confirmation-protecting-routes"></a>
 ### Protecting Routes
@@ -1047,7 +1072,7 @@ Finally, you may reference this provider in your `guards` configuration:
 <a name="the-user-provider-contract"></a>
 ### The User Provider Contract
 
-`Hypervel\Contracts\Auth\UserProvider` implementations are responsible for fetching an `Hypervel\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, LDAP, or an external identity service. These two interfaces allow the Hypervel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
+`Hypervel\Contracts\Auth\UserProvider` implementations are responsible for fetching a `Hypervel\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, LDAP, or an external identity service. These two interfaces allow the Hypervel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
 
 Let's take a look at the `Hypervel\Contracts\Auth\UserProvider` contract:
 
@@ -1147,6 +1172,12 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the a
 | `Hypervel\Auth\Events\OtherDeviceLogout`     |
 | `Hypervel\Auth\Events\Lockout`               |
 | `Hypervel\Auth\Events\PasswordReset`         |
+| `Hypervel\Auth\Events\PasswordConfirmed`     |
 | `Hypervel\Auth\Events\PasswordResetLinkSent` |
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Auth began as a port of [Laravel Auth](https://github.com/illuminate/auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.

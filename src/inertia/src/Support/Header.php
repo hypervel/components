@@ -37,6 +37,11 @@ class Header
     public const string PARTIAL_COMPONENT = 'X-Inertia-Partial-Component';
 
     /**
+     * Header for Hypervel Precognition validation requests.
+     */
+    public const string PRECOGNITION = 'Precognition';
+
+    /**
      * Header specifying which props to include in partial reloads.
      */
     public const string PARTIAL_ONLY = 'X-Inertia-Partial-Data';

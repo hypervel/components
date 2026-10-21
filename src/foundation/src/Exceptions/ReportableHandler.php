@@ -20,10 +20,8 @@ class ReportableHandler
 
     /**
      * Indicates if reporting should stop after invoking this handler.
-     *
-     * @var bool
      */
-    protected $shouldStop = false;
+    protected bool $shouldStop = false;
 
     /**
      * Create a new reportable handler instance.
@@ -36,11 +34,11 @@ class ReportableHandler
     /**
      * Invoke the handler.
      *
-     * @return bool
+     * @param array<array-key, mixed> $context
      */
-    public function __invoke(Throwable $e)
+    public function __invoke(Throwable $e, array $context = []): bool
     {
-        $result = call_user_func($this->callback, $e);
+        $result = call_user_func($this->callback, $e, $context);
 
         if ($result === false) {
             return false;
@@ -65,6 +63,9 @@ class ReportableHandler
 
     /**
      * Indicate that report handling should stop after invoking this callback.
+     *
+     * Boot-only. The flag persists on the registered callback and stops report
+     * handling for every exception it subsequently handles in the worker.
      *
      * @return $this
      */

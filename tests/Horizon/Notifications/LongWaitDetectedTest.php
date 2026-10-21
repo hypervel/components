@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Notifications;
 
+use GuzzleHttp\Client;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Notifications\LongWaitDetected;
+use Hypervel\Notifications\Channels\SlackWebhookChannel;
 use Hypervel\Notifications\Messages\SlackMessage as LegacySlackMessage;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Tests\TestCase;
@@ -43,6 +45,19 @@ class LongWaitDetectedTest extends TestCase
             '[Horizon Test] The "critical" queue on the "redis" connection has a wait time of 90 seconds.',
             $message->attachments[0]->content,
         );
+    }
+
+    public function testWebhookRoutesWithoutAChannelUseTheWebhookDefault(): void
+    {
+        Horizon::routeSlackNotificationsTo('https://hooks.slack.test');
+
+        $message = (new LongWaitDetected('redis', 'critical', 90))->toSlack(null);
+        $payload = (new SlackWebhookChannel(new Client))->buildJsonPayload($message);
+
+        $this->assertInstanceOf(LegacySlackMessage::class, $message);
+        $this->assertArrayNotHasKey('channel', $payload['json']);
+        $this->assertSame('Oh no! Something needs your attention.', $payload['json']['text']);
+        $this->assertSame('Long Wait Detected', $payload['json']['attachments'][0]['title']);
     }
 
     public function testWebApiRoutesRetainTheModernBlockKitPayload(): void

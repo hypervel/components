@@ -36,7 +36,7 @@ class LockTest extends UnitTestCase
         $redis->shouldNotReceive('connection');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Horizon lock [metrics] requires a positive lifetime; 0 given.');
+        $this->expectExceptionMessageIs('Horizon lock [metrics] requires a positive lifetime; 0 given.');
 
         (new Lock($redis))->get('metrics', 0);
     }
@@ -47,7 +47,7 @@ class LockTest extends UnitTestCase
         $redis->shouldNotReceive('connection');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Horizon lock [metrics] requires a positive lifetime; -1 given.');
+        $this->expectExceptionMessageIs('Horizon lock [metrics] requires a positive lifetime; -1 given.');
 
         (new Lock($redis))->with('metrics', static function (): void {
         }, -1);

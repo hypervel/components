@@ -11,6 +11,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
@@ -19,11 +20,13 @@ use InvalidArgumentException;
 use Mockery as m;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\StreamOutput;
+use Throwable;
 
 class HandleExceptionsTest extends TestCase
 {
@@ -64,11 +67,12 @@ class HandleExceptionsTest extends TestCase
     {
         Application::setInstance(null);
         HandleExceptions::flushState($this);
+        Env::getRepository()->clear('LOG_DEPRECATIONS_WHILE_TESTING');
 
         parent::tearDown();
     }
 
-    public function testPhpDeprecations()
+    public function testPhpDeprecations(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -79,14 +83,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
@@ -111,7 +115,7 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testPhpDeprecationsWithStackTraces()
+    public function testPhpDeprecationsWithStackTraces(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -125,29 +129,27 @@ class HandleExceptionsTest extends TestCase
 
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
         $logger->expects('warning')->with(
-            m::on(fn (string $message) => (bool) preg_match(
-                <<<'REGEXP'
-                #ErrorException: str_contains\(\): Passing null to parameter \#2 \(\$needle\) of type string is deprecated in /home/user/laravel/routes/web\.php:17
-                Stack trace:
-                \#0 .*helpers.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions.*
-                \#1 .*HandleExceptions\.php\(.*\): with.*
-                \#2 .*HandleExceptions\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleDeprecation.*
-                \#3 .*HandleExceptionsTest\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleError.*
-                [\s\S]*#i
-                REGEXP,
-                $message
-            ))
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            m::on(function (array $context): bool {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof ErrorException
+                    && $exception->getSeverity() === E_DEPRECATED
+                    && $exception->getFile() === '/home/user/hypervel/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace() !== [];
+            })
         );
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
 
-    public function testEnsuresDeprecationsDriver()
+    public function testEnsuresDeprecationsDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -168,14 +170,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -189,7 +191,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testNullValueAsChannelUsesNullDriver()
+    public function testNullValueAsChannelUsesNullDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -205,14 +207,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -265,7 +267,7 @@ class HandleExceptionsTest extends TestCase
         $this->config->set('logging.deprecations', $configuration);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($key);
+        $this->expectExceptionMessageIsOrContains($key);
 
         $this->handleExceptions()->handleDeprecationError(
             'Deprecated behavior',
@@ -285,7 +287,7 @@ class HandleExceptionsTest extends TestCase
         ];
     }
 
-    public function testUserDeprecations()
+    public function testUserDeprecations(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -296,19 +298,19 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
 
-    public function testUserDeprecationsWithStackTraces()
+    public function testUserDeprecationsWithStackTraces(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -322,29 +324,27 @@ class HandleExceptionsTest extends TestCase
 
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
         $logger->expects('warning')->with(
-            m::on(fn (string $message) => (bool) preg_match(
-                <<<'REGEXP'
-                #ErrorException: str_contains\(\): Passing null to parameter \#2 \(\$needle\) of type string is deprecated in /home/user/laravel/routes/web\.php:17
-                Stack trace:
-                \#0 .*helpers.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions.*
-                \#1 .*HandleExceptions\.php\(.*\): with.*
-                \#2 .*HandleExceptions\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleDeprecation.*
-                \#3 .*HandleExceptionsTest\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleError.*
-                [\s\S]*#i
-                REGEXP,
-                $message
-            ))
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            m::on(function (array $context): bool {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof ErrorException
+                    && $exception->getSeverity() === E_USER_DEPRECATED
+                    && $exception->getFile() === '/home/user/hypervel/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace() !== [];
+            })
         );
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
 
-    public function testEnsuresNullDeprecationsDriver()
+    public function testEnsuresNullDeprecationsDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -357,7 +357,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -367,7 +367,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testEnsuresNullLogDriver()
+    public function testEnsuresNullLogDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -381,7 +381,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -391,7 +391,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testDoNotOverrideExistingNullLogDriver()
+    public function testDoNotOverrideExistingNullLogDriver(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -409,7 +409,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -419,12 +419,48 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testDoesNotCreateDeprecationsDriverBeforeFirstDeprecation(): void
+    public function testDeprecationsDriverIsDerivedAgainFromTheRebuiltConfiguration(): void
+    {
+        $logger = m::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning');
+
+        $this->config->set('logging.channels.single', ['driver' => 'single']);
+        $this->config->set('logging.deprecations', [
+            'channel' => 'single',
+            'trace' => false,
+        ]);
+
+        $this->handleExceptions()->handleError(E_USER_DEPRECATED, 'Deprecated while booting', '/app/boot.php', 1);
+
+        $tracker = $this->app->make(ConfigMutationTracker::class);
+        $workerConfig = new Config(['logging' => [
+            'deprecations' => ['channel' => 'stderr'],
+            'channels' => ['stderr' => ['driver' => 'monolog']],
+        ]]);
+        $explicitWorkerConfig = new Config(['logging' => [
+            'deprecations' => ['channel' => 'stderr'],
+            'channels' => ['deprecations' => ['driver' => 'daily']],
+        ]]);
+
+        $tracker->replay($workerConfig);
+        $tracker->replay($explicitWorkerConfig);
+
+        $this->assertSame(['driver' => 'monolog'], $workerConfig->get('logging.channels.deprecations'));
+        $this->assertSame(NullHandler::class, $workerConfig->get('logging.channels.null.handler'));
+        $this->assertSame(['driver' => 'daily'], $explicitWorkerConfig->get('logging.channels.deprecations'));
+    }
+
+    public function testNoDeprecationsDriverIfNoDeprecationsHereSend(): void
     {
         $this->assertNull($this->config->get('logging.channels.deprecations'));
     }
 
-    public function testErrors()
+    public function testErrors(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -432,13 +468,12 @@ class HandleExceptionsTest extends TestCase
         $logger->shouldNotReceive('channel');
         $logger->shouldNotReceive('warning');
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Something went wrong');
+        $this->expectExceptionObject(new ErrorException('Something went wrong'));
 
         $this->handleExceptions()->handleError(
             E_ERROR,
             'Something went wrong',
-            '/home/user/laravel/src/Providers/AppServiceProvider.php',
+            '/home/user/hypervel/src/Providers/AppServiceProvider.php',
             17
         );
     }
@@ -508,22 +543,6 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testIgnoresDeprecationsWithoutAnApplication(): void
-    {
-        HandleExceptions::flushState($this);
-
-        $handleExceptions = new HandleExceptions;
-        $method = new ReflectionMethod($handleExceptions, 'shouldIgnoreDeprecationErrors');
-
-        $this->assertTrue($method->invoke($handleExceptions));
-
-        $handleExceptions->handleDeprecationError(
-            'Deprecated behavior',
-            __FILE__,
-            __LINE__,
-        );
-    }
-
     public function testIgnoresDeprecationsUntilConfigurationIsBound(): void
     {
         $this->app = m::mock(Application::class);
@@ -539,21 +558,59 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testIgnoreDeprecationIfLoggerUnresolvable()
+    #[TestWith([RuntimeException::class])]
+    #[TestWith([Error::class])]
+    public function testIgnoreDeprecationIfLoggerUnresolvable(string $exceptionClass): void
     {
-        $this->app->bind(LogManager::class, fn () => throw new RuntimeException);
+        $this->app->bind(LogManager::class, static fn (): never => throw new $exceptionClass);
         $this->app->expects('runningUnitTests')->andReturn(false);
         $this->app->expects('hasBeenBootstrapped')->andReturn(true);
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
 
-    public function testItIgnoreDeprecationLoggingWhenRunningUnitTests()
+    public function testIgnoreDeprecationIfLoggingFails(): void
+    {
+        $logger = m::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andThrow(new Error('Class "Monolog\Logger" not found'));
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/hypervel/routes/web.php',
+            17
+        );
+    }
+
+    public function testDeprecationLoggingPreservesCancellationDuringChannelCreation(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $logger = new LogManager($this->app);
+        $logger->extend('canceling', static fn (): never => throw $cancellation);
+        $this->config->set('logging.channels.deprecations', ['driver' => 'canceling']);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->twice()->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        try {
+            $this->handleExceptions()->handleDeprecationError('Deprecated behavior', __FILE__, __LINE__);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testItIgnoreDeprecationLoggingWhenRunningUnitTests(): void
     {
         $resolved = false;
         $this->app->bind(LogManager::class, function () use (&$resolved) {
@@ -567,14 +624,14 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
         $this->assertFalse($resolved);
     }
 
-    public function testItCanForceViaConfigDeprecationLoggingWhenRunningUnitTests()
+    public function testItCanForceViaConfigDeprecationLoggingWhenRunningUnitTests(): void
     {
         $logger = m::mock(LogManager::class);
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
@@ -588,14 +645,13 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
-
-        Env::getRepository()->clear('LOG_DEPRECATIONS_WHILE_TESTING');
     }
 
-    public function testHandlerForgetsPreviousApp()
+    // REMOVED: forgetApp() is deprecated; flushState() owns application cleanup.
+    public function testHandlerForgetsPreviousApp(): void
     {
         $instance = $this->handleExceptions();
 
@@ -610,8 +666,243 @@ class HandleExceptionsTest extends TestCase
         $this->assertNotSame($this->app, $appResolver());
         $this->assertSame($newApp, $appResolver());
     }
+
+    public function testDeprecationErrorsAreIgnoredWhenAppIsNull(): void
+    {
+        $instance = $this->handleExceptions();
+
+        HandleExceptions::flushState($this);
+
+        $this->assertTrue((new ReflectionMethod($instance, 'shouldIgnoreDeprecationErrors'))->invoke($instance));
+
+        // Should not throw when static::$app is null.
+        $instance->handleError(
+            E_USER_DEPRECATED,
+            'Directly setting property "request" of "Hypervel\Http\Request" is deprecated',
+            '/vendor/symfony/http-foundation/Request.php',
+            100
+        );
+    }
+
+    public function testReleaseRestoresThePreviousOwnerAndDisarmsTheReleasedBootstrapper(): void
+    {
+        $previousErrorHandler = get_error_handler();
+        $previousExceptionHandler = get_exception_handler();
+        $errorReporting = error_reporting();
+        $displayErrors = ini_get('display_errors');
+
+        $first = new RecordingHandleExceptions;
+        $second = new RecordingHandleExceptions;
+        $firstApp = $this->bootstrappableApplication();
+        $secondApp = $this->bootstrappableApplication(testing: false);
+        $laterErrorHandler = static fn (): bool => true;
+
+        try {
+            ini_set('display_errors', 'stderr');
+
+            $first->bootstrap($firstApp);
+            $second->bootstrap($secondApp);
+
+            $errorHandler = get_error_handler();
+            $exceptionHandler = get_exception_handler();
+
+            // Bootstrapping the owning application again, as env:encrypt does, keeps its handlers.
+            $second->bootstrap($secondApp);
+            (new RecordingHandleExceptions)->bootstrap($secondApp);
+
+            $this->assertSame($errorHandler, get_error_handler());
+            $this->assertSame($exceptionHandler, get_exception_handler());
+            $this->assertSame('Off', ini_get('display_errors'));
+
+            set_error_handler($laterErrorHandler);
+
+            HandleExceptions::release($secondApp);
+
+            $this->assertSame('stderr', ini_get('display_errors'));
+            $this->assertSame($laterErrorHandler, get_error_handler());
+            $this->assertSame($this->installedHandler($first, 'exceptionHandler'), get_exception_handler());
+
+            // Removing the later handler exposes the released error handler, which defers to the restored owner.
+            restore_error_handler();
+
+            $this->assertSame($errorHandler, get_error_handler());
+
+            get_error_handler()(E_USER_WARNING, 'Retained handler.', __FILE__, __LINE__);
+
+            $this->assertSame(['Retained handler.'], $first->errors);
+            $this->assertSame([], $second->errors);
+
+            restore_error_handler();
+
+            $this->assertSame($this->installedHandler($first, 'errorHandler'), get_error_handler());
+
+            $this->shutdownForwarder($second)();
+            $this->shutdownForwarder($first)();
+
+            $this->assertSame(0, $second->shutdowns);
+            $this->assertSame(1, $first->shutdowns);
+
+            HandleExceptions::release($firstApp);
+
+            $this->assertSame($previousErrorHandler, get_error_handler());
+            $this->assertSame($previousExceptionHandler, get_exception_handler());
+
+            // Without an owner, released handlers leave errors and exceptions to PHP.
+            $exception = new RuntimeException('Released handler.');
+
+            try {
+                $exceptionHandler($exception);
+                $this->fail('Expected the released exception handler to rethrow the exception.');
+            } catch (RuntimeException $caught) {
+                $this->assertSame($exception, $caught);
+            }
+
+            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+            $this->assertSame([], $first->exceptions);
+        } finally {
+            $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
+            error_reporting($errorReporting);
+            ini_set('display_errors', $displayErrors);
+        }
+    }
+
+    public function testReleaseLeavesHandlersAndSettingsChangedAfterTheApplication(): void
+    {
+        $previousErrorHandler = get_error_handler();
+        $previousExceptionHandler = get_exception_handler();
+        $errorReporting = error_reporting();
+        $displayErrors = ini_get('display_errors');
+
+        $owner = new RecordingHandleExceptions;
+        $released = new RecordingHandleExceptions;
+        $ownerApp = $this->bootstrappableApplication();
+        $releasedApp = $this->bootstrappableApplication(testing: false);
+        $laterExceptionHandler = static function (Throwable $exception): void {};
+
+        try {
+            ini_set('display_errors', 'stderr');
+
+            $owner->bootstrap($ownerApp);
+            $released->bootstrap($releasedApp);
+
+            $exceptionHandler = get_exception_handler();
+
+            set_exception_handler($laterExceptionHandler);
+            ini_set('display_errors', '1');
+
+            HandleExceptions::release($releasedApp);
+
+            $this->assertSame($laterExceptionHandler, get_exception_handler());
+            $this->assertSame($this->installedHandler($owner, 'errorHandler'), get_error_handler());
+            $this->assertSame('1', ini_get('display_errors'));
+
+            // Removing the later handler exposes the released exception handler, which defers to the restored owner.
+            restore_exception_handler();
+
+            $this->assertSame($exceptionHandler, get_exception_handler());
+
+            $exception = new RuntimeException('Retained handler.');
+
+            get_exception_handler()($exception);
+
+            $this->assertSame([$exception], $owner->exceptions);
+            $this->assertSame([], $released->exceptions);
+
+            HandleExceptions::release($ownerApp);
+        } finally {
+            $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
+            error_reporting($errorReporting);
+            ini_set('display_errors', $displayErrors);
+        }
+    }
+
+    /**
+     * Create an application mock that the bootstrapper can install its handlers for.
+     */
+    protected function bootstrappableApplication(bool $testing = true): Application
+    {
+        return tap(m::mock(Application::class), function (Application $app) use ($testing): void {
+            $app->allows('environment')->with('testing')->andReturn($testing);
+        });
+    }
+
+    /**
+     * Get a handler installed by the given bootstrapper.
+     */
+    protected function installedHandler(HandleExceptions $bootstrapper, string $property): mixed
+    {
+        return (new ReflectionClass($bootstrapper))->getProperty($property)->getValue($bootstrapper);
+    }
+
+    /**
+     * Get a shutdown forwarder equivalent to the one the bootstrapper registers.
+     */
+    protected function shutdownForwarder(HandleExceptions $bootstrapper): callable
+    {
+        return (new ReflectionMethod($bootstrapper, 'forwardsTo'))->invoke($bootstrapper, 'handleShutdown');
+    }
+
+    /**
+     * Restore the handlers that were active before the test installed its own.
+     */
+    protected function restoreHandlers(?callable $errorHandler, ?callable $exceptionHandler): void
+    {
+        while (get_exception_handler() !== $exceptionHandler && get_exception_handler() !== null) {
+            restore_exception_handler();
+        }
+
+        while (get_error_handler() !== $errorHandler && get_error_handler() !== null) {
+            restore_error_handler();
+        }
+    }
 }
 
 class CustomNullHandler extends NullHandler
 {
+}
+
+class RecordingHandleExceptions extends HandleExceptions
+{
+    /**
+     * The error messages this bootstrapper handled.
+     *
+     * @var list<string>
+     */
+    public array $errors = [];
+
+    /**
+     * The exceptions this bootstrapper handled.
+     *
+     * @var list<Throwable>
+     */
+    public array $exceptions = [];
+
+    /**
+     * The number of shutdowns this bootstrapper handled.
+     */
+    public int $shutdowns = 0;
+
+    /**
+     * Record a PHP error.
+     */
+    public function handleError(int $level, string $message, string $file = '', int $line = 0): void
+    {
+        $this->errors[] = $message;
+    }
+
+    /**
+     * Record an uncaught exception.
+     */
+    public function handleException(Throwable $e): void
+    {
+        $this->exceptions[] = $e;
+    }
+
+    /**
+     * Record the PHP shutdown event.
+     */
+    public function handleShutdown(): void
+    {
+        ++$this->shutdowns;
+    }
 }

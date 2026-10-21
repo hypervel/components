@@ -14,12 +14,17 @@ use function Hypervel\Testbench\hypervel_version_compare;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class RequiresHypervel implements Actionable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $versionRequirement
     ) {
     }
 
     /**
+     * Handle the attribute.
+     *
      * @param Closure(string, array<int, mixed>):void $action
      */
     public function handle(ApplicationContract $app, Closure $action): mixed

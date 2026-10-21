@@ -11,6 +11,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\ModelCacheCoordinator;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Builder;
@@ -28,6 +29,7 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 
@@ -285,7 +287,7 @@ class EloquentUserProviderCacheTest extends TestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Transactions Manager has not been set.');
+            $this->expectExceptionMessageIs('Transactions Manager has not been set.');
 
             $this->fireUserEvent('saved', $user);
         } finally {
@@ -552,6 +554,7 @@ class EloquentUserProviderCacheTest extends TestCase
             ->twice()
             ->with(
                 $repo,
+                m::type(Closure::class),
                 $expectedKey,
                 300,
                 m::type(Closure::class),
@@ -559,7 +562,7 @@ class EloquentUserProviderCacheTest extends TestCase
                 m::type(Closure::class),
             )
             ->andReturnUsing(
-                fn (CacheRepository $cache, string $key, int $ttl, Closure $read) => $read(),
+                fn (CacheRepository $cache, Closure $source, string $key, int $ttl, Closure $read) => $read(),
                 fn () => $user,
             );
 
@@ -597,6 +600,48 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->assertInstanceOf(User::class, $second);
         $this->assertNotSame($first, $second);
         $this->assertSame(0, $this->countQueriesForTable('users'));
+    }
+
+    #[DataProvider('cacheWarmth')]
+    public function testUserCacheFollowsTransactionWritesAndRollback(bool $warm): void
+    {
+        $provider = $this->makeRealCachedProvider();
+        $user = User::query()->firstOrFail();
+        $identifier = $user->getAuthIdentifier();
+        $originalName = $user->name;
+        $connection = $user->getConnection();
+        $originalLevel = $connection->transactionLevel();
+
+        if ($warm) {
+            $this->assertSame($originalName, $provider->retrieveById($identifier)->name);
+        }
+
+        $connection->beginTransaction();
+
+        try {
+            $user->forceFill(['name' => 'Outer'])->save();
+            $this->assertSame('Outer', $provider->retrieveById($identifier)->name);
+            $connection->beginTransaction();
+            $user->forceFill(['name' => 'Inner'])->save();
+            $this->assertSame('Inner', $provider->retrieveById($identifier)->name);
+            $connection->rollBack();
+            $this->assertSame('Outer', $provider->retrieveById($identifier)->name);
+        } finally {
+            $connection->rollBack($originalLevel);
+        }
+
+        $this->assertSame($originalName, $provider->retrieveById($identifier)->name);
+        $connection->transaction(fn (): bool => $user->forceFill(['name' => 'Committed'])->save());
+        $this->assertSame('Committed', $provider->retrieveById($identifier)->name);
+    }
+
+    /**
+     * Cover both an existing cache entry and an unfilled lookup.
+     */
+    public static function cacheWarmth(): iterable
+    {
+        yield 'warm' => [true];
+        yield 'cold' => [false];
     }
 
     #[DefineEnvironment('allowConfiguredSerializableClass')]
@@ -726,12 +771,12 @@ class EloquentUserProviderCacheTest extends TestCase
     /**
      * Create a provider backed by the real serializing cache manager.
      *
-     * @param class-string<\Hypervel\Contracts\Auth\Authenticatable&Model> $model
+     * @param class-string<Authenticatable&Model> $model
      */
     protected function makeRealCachedProvider(string $model = User::class): EloquentUserProvider
     {
         $this->app->instance('cache', $this->realCacheManager);
-        $this->app->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator);
+        $this->app->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator($this->app));
 
         $provider = new EloquentUserProvider($this->app->make('hash'), $model);
         $provider->enableCache('auth-file');

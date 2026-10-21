@@ -16,6 +16,9 @@ use Mockery\LegacyMockInterface;
 
 class CacheSpyMemoTest extends TestCase
 {
+    /**
+     * Set up the cache facade with a plain container.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -39,54 +42,56 @@ class CacheSpyMemoTest extends TestCase
         Facade::setFacadeApplication($container);
     }
 
+    /**
+     * Release the test's facade application.
+     */
     protected function tearDown(): void
     {
-        Facade::clearResolvedInstances();
         Facade::setFacadeApplication(null);
 
         parent::tearDown();
     }
 
-    public function testCacheSpyWorksWithMemoizedCache()
+    public function testCacheSpyWorksWithMemoizedCache(): void
     {
         $cache = Cache::spy();
 
-        Cache::memo()->remember('key', 60, fn () => 'bar');
+        Cache::memo()->remember('key', 60, fn (): string => 'bar');
 
         $cache->shouldHaveReceived('memo')->once();
     }
 
-    public function testCacheSpyTracksRememberOnMemoizedCacheAsDescribedInIssue()
+    public function testCacheSpyTracksRememberOnMemoizedCacheAsDescribedInIssue(): void
     {
-        $cache = Cache::spy();
+        Cache::spy();
 
         $memoizedCache = Cache::memo();
-        $value = $memoizedCache->remember('key', 60, fn () => 'bar');
+        $value = $memoizedCache->remember('key', 60, fn (): string => 'bar');
 
         $this->assertSame('bar', $value);
 
         $memoizedCache->shouldHaveReceived('remember')->once()->with('key', 60, m::type(Closure::class));
     }
 
-    public function testCacheSpyTracksRememberCallsOnMemoizedCache()
+    public function testCacheSpyTracksRememberCallsOnMemoizedCache(): void
     {
-        $cache = Cache::spy();
+        Cache::spy();
 
         $memoizedCache = Cache::memo();
-        $memoizedCache->remember('key', 60, fn () => 'bar');
+        $memoizedCache->remember('key', 60, fn (): string => 'bar');
 
         $memoizedCache->shouldHaveReceived('remember')->once()->with('key', 60, m::type(Closure::class));
     }
 
-    public function testCacheSpyMemoReturnsSpiedRepository()
+    public function testCacheSpyMemoReturnsSpiedRepository(): void
     {
-        $cache = Cache::spy();
+        Cache::spy();
 
         $memoizedCache = Cache::memo();
 
         $this->assertInstanceOf(LegacyMockInterface::class, $memoizedCache);
 
-        $memoizedCache->remember('key', 60, fn () => 'bar');
+        $memoizedCache->remember('key', 60, fn (): string => 'bar');
 
         $memoizedCache->shouldHaveReceived('remember')->once();
     }

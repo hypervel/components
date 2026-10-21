@@ -6,8 +6,12 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Str;
+use ReflectionClass;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'horizon:clear')]
@@ -44,13 +48,24 @@ class ClearCommand extends Command
         }
 
         $queue = $this->getQueue($connection);
+        $queueConnection = $manager->connection($connection);
 
-        if (method_exists($jobRepository, 'purge')) {
-            $jobRepository->purge($queue);
+        if (! $queueConnection instanceof ClearableQueue) {
+            $this->components->error('Clearing queues is not supported on [' . (new ReflectionClass($queueConnection))->getShortName() . ']');
+
+            return 1;
         }
 
-        /** @phpstan-ignore-next-line */
-        $count = $manager->connection($connection)->clear($queue);
+        if ($queueConnection instanceof RedisQueue) {
+            // Horizon records the forwarded destination; clear still needs the original
+            // queue name so the destination is not forwarded a second time.
+            $jobRepository->purge(
+                Str::replaceFirst('queues:', '', $queueConnection->getQueue($queue)),
+                $queueConnection->getConnectionName(),
+            );
+        }
+
+        $count = $queueConnection->clear($queue);
 
         $this->components->info('Cleared ' . $count . ' jobs from the [' . $queue . '] queue.');
 

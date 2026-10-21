@@ -27,15 +27,15 @@
         "composer-runtime-api": "^2.2",
         "ext-filter": "*",
         "ext-posix": "*",
-        "brick/math": "^0.17",
-        "guzzlehttp/guzzle": "^7.15.1",
+        "brick/math": "^1.0",
         "laravel/serializable-closure": "^2.0.11",
         "league/flysystem": "^3.25.1",
         "league/uri": "^7.5.1",
-        "monolog/monolog": "^3.1",
+        "monolog/monolog": "^3.10",
         "nesbot/carbon": "^3.13.1",
         "psr/clock": "^1.0",
-        "symfony/console": "^8.1",
+        "psr/log": "^3.0",
+        "symfony/console": "^8.1.2",
         "symfony/error-handler": "^8.1",
         "symfony/finder": "^8.1",
         "symfony/http-foundation": "^8.1",
@@ -59,10 +59,12 @@
         "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/di": "^0.4",
         "hypervel/encryption": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/events": "^0.4",
         "hypervel/filesystem": "^0.4",
+        "hypervel/guzzle": "^8.3",
         "hypervel/http": "^0.4",
         "hypervel/http-server": "^0.4",
         "hypervel/log": "^0.4",
@@ -80,8 +82,11 @@
         "hypervel/view": "^0.4",
         "hypervel/websocket-server": "^0.4"
     },
+    "require-dev": {
+        "phpstan/phpstan": "^2.3"
+    },
     "suggest": {
-        "algolia/algoliasearch-client-php": "Required to use the InteractsWithAlgolia trait (^4.0).",
+        "algolia/algoliasearch-client-php": "Required to use the InteractsWithAlgolia trait (^4.49.0).",
         "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0).",
         "fakerphp/faker": "Required to use the fake() helper and WithFaker trait (^1.24).",
         "meilisearch/meilisearch-php": "Required to use the InteractsWithMeilisearch trait (^1.16).",
@@ -99,6 +104,11 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Foundation\\Providers\\FoundationServiceProvider"
+            ]
+        },
+        "phpstan": {
+            "includes": [
+                "extension.neon"
             ]
         },
         "branch-alias": {

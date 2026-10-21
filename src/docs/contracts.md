@@ -5,6 +5,7 @@
 - [When to Use Contracts](#when-to-use-contracts)
 - [How to Use Contracts](#how-to-use-contracts)
 - [Contract Reference](#contract-reference)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -161,3 +162,8 @@ This table provides a quick reference to common Hypervel contracts and their equ
 | [Hypervel\Contracts\View\View](https://github.com/hypervel/contracts/blob/{{version}}/View/View.php) | `View::make()` |
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Contracts began as a port of [Laravel Contracts](https://github.com/illuminate/contracts) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -14,10 +14,22 @@ use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
 use Throwable;
 
+/**
+ * @api
+ *
+ * @phpstan-import-type TOptionalExtraConfig from Config
+ *
+ * @phpstan-type TConfig array{
+ *   extra?: TOptionalExtraConfig,
+ *   load_environment_variables?: bool,
+ *   enables_package_discoveries?: bool
+ * }
+ */
 class Application
 {
     use CreatesApplication {
         createApplication as protected createApplicationFromTrait;
+        resolveApplicationResolvingCallback as protected resolveApplicationResolvingCallbackFromTrait;
         resolveApplicationConfiguration as protected resolveApplicationConfigurationFromTrait;
         resolveApplicationConsoleKernel as protected resolveApplicationConsoleKernelFromTrait;
         resolveApplicationHttpKernel as protected resolveApplicationHttpKernelFromTrait;
@@ -73,7 +85,7 @@ class Application
      * Create a new application resolver.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function make(?string $basePath = null, ?callable $resolvingCallback = null, array $options = []): static
     {
@@ -84,7 +96,7 @@ class Application
      * Create a new application resolver from configuration.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function makeFromConfig(ConfigContract $config, ?callable $resolvingCallback = null, array $options = []): static
     {
@@ -100,7 +112,7 @@ class Application
      * Create a new application instance.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function create(?string $basePath = null, ?callable $resolvingCallback = null, array $options = []): ApplicationContract
     {
@@ -111,7 +123,7 @@ class Application
      * Create a new application instance from configuration.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function createFromConfig(ConfigContract $config, ?callable $resolvingCallback = null, array $options = []): ApplicationContract
     {
@@ -161,13 +173,17 @@ class Application
     /**
      * Configure the application options.
      *
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      * @return $this
      */
     public function configure(array $options): static
     {
         if (isset($options['load_environment_variables']) && \is_bool($options['load_environment_variables'])) {
             $this->loadEnvironmentVariables = $options['load_environment_variables'];
+        }
+
+        if (isset($options['enables_package_discoveries']) && \is_bool($options['enables_package_discoveries'])) {
+            Arr::set($options, 'extra.dont-discover', $options['enables_package_discoveries'] ? [] : ['*']);
         }
 
         $config = Arr::only($options['extra'] ?? [], array_keys($this->config));
@@ -195,6 +211,8 @@ class Application
     /**
      * Ignore package discovery from.
      *
+     * @api
+     *
      * @return array<int, string>
      */
     public function ignorePackageDiscoveriesFrom(): array
@@ -208,29 +226,12 @@ class Application
     public function createApplication(): ApplicationContract
     {
         $restoreEnvironment = $this->maskInheritedStandaloneEnvironment();
-        $originalTimezone = date_default_timezone_get();
 
         try {
-            $app = $this->createApplicationFromTrait();
+            return $this->createApplicationFromTrait();
         } finally {
             $restoreEnvironment();
         }
-
-        $this->app = $app;
-
-        try {
-            if (\is_callable($this->resolvingCallback)) {
-                \call_user_func($this->resolvingCallback, $app);
-            }
-        } catch (Throwable $exception) {
-            static::terminateAndFlushApplication($app);
-            date_default_timezone_set($originalTimezone);
-            $this->app = null;
-
-            throw $exception;
-        }
-
-        return $app;
     }
 
     /**
@@ -260,7 +261,6 @@ class Application
         unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
 
         putenv('APP_ENV');
-        Env::flushRepository();
 
         return static function () use ($originalServerValue, $originalEnvironmentValue, $originalProcessValue): void {
             if ($originalServerValue instanceof UndefinedValue) {
@@ -280,8 +280,6 @@ class Application
             } else {
                 putenv("APP_ENV={$originalProcessValue}");
             }
-
-            Env::flushRepository();
         };
     }
 
@@ -306,6 +304,8 @@ class Application
     /**
      * Get the package providers.
      *
+     * @api
+     *
      * @return array<int, class-string>
      */
     protected function getPackageProviders(ApplicationContract $app): array
@@ -315,6 +315,8 @@ class Application
 
     /**
      * Get the package bootstrappers.
+     *
+     * @api
      *
      * @return array<int, class-string>
      */
@@ -330,7 +332,23 @@ class Application
     }
 
     /**
+     * Resolve application resolving callback.
+     *
+     * @internal
+     */
+    protected function resolveApplicationResolvingCallback(ApplicationContract $app): void
+    {
+        $this->resolveApplicationResolvingCallbackFromTrait($app);
+
+        if (\is_callable($this->resolvingCallback)) {
+            \call_user_func($this->resolvingCallback, $app);
+        }
+    }
+
+    /**
      * Resolve the application's base path.
+     *
+     * @api
      */
     protected function getApplicationBasePath(): string
     {
@@ -339,6 +357,8 @@ class Application
 
     /**
      * Resolve application core environment variables implementation.
+     *
+     * @internal
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
@@ -357,6 +377,8 @@ class Application
 
     /**
      * Load configuration and register package providers/aliases.
+     *
+     * @internal
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
@@ -366,6 +388,8 @@ class Application
 
     /**
      * Resolve application console kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
     {
@@ -378,6 +402,8 @@ class Application
 
     /**
      * Resolve application HTTP kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationHttpKernel(ApplicationContract $app): void
     {

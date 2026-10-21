@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use BadMethodCallException;
 use Closure;
+use ErrorException;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\ConnectionPool\PoolOptions;
@@ -22,6 +23,7 @@ use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
@@ -1007,19 +1009,65 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($config, $connection->getConfigForTest());
     }
 
-    public function testNormalizeContextAcceptsEverySupportedShape(): void
+    public function testNormalizeContextWrapsFlatArrayInStream(): void
     {
-        $connection = new class extends PhpRedisConnectionStub {
-            public function normalizeContextForTest(array $context): array
-            {
-                return $this->normalizeContext($context);
-            }
-        };
-        $options = ['verify_peer' => false, 'cafile' => '/tmp/ca.pem'];
+        $result = $this->callNormalizeContext([
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ]);
 
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest($options));
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['ssl' => $options]));
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['stream' => $options]));
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ], $result);
+    }
+
+    public function testNormalizeContextConvertsSslKeyToStream(): void
+    {
+        $result = $this->callNormalizeContext([
+            'ssl' => [
+                'verify_peer' => false,
+                'cafile' => '/path/to/ca.pem',
+            ],
+        ]);
+
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+                'cafile' => '/path/to/ca.pem',
+            ],
+        ], $result);
+    }
+
+    public function testNormalizeContextPassesThroughStreamKey(): void
+    {
+        $context = [
+            'stream' => [
+                'verify_peer' => false,
+            ],
+        ];
+
+        $result = $this->callNormalizeContext($context);
+
+        $this->assertSame($context, $result);
+    }
+
+    public function testNormalizeContextSslKeyTakesPrecedenceOverFlatKeys(): void
+    {
+        $result = $this->callNormalizeContext([
+            'verify_peer' => true,
+            'ssl' => [
+                'verify_peer' => false,
+            ],
+        ]);
+
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+            ],
+        ], $result);
     }
 
     public function testEmptyContextKeepsStandaloneConnectionPlaintext(): void
@@ -1098,12 +1146,6 @@ class RedisConnectionTest extends TestCase
 
     public function testTlsConnectCancellationEscapesFromPhpRedisConnection(): void
     {
-        if (SWOOLE_VERSION_ID <= 60202) {
-            $this->markTestSkipped(
-                'Requires the hooked TLS cancellation fix from https://github.com/swoole/swoole-src/pull/6182.'
-            );
-        }
-
         $autoload = realpath(__DIR__ . '/../../vendor/autoload.php');
         $this->assertIsString($autoload);
         $process = new Process([
@@ -1120,7 +1162,7 @@ class RedisConnectionTest extends TestCase
     public function testClusterReconnectFailureThrowsConnectionException(): void
     {
         $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Connection reconnect failed');
+        $this->expectExceptionMessageIsOrContains('Connection reconnect failed');
 
         new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => []]])) extends PhpRedisClusterConnection {
         };
@@ -1280,6 +1322,59 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zinterstore', ['output', ['set1', 'set2'], ['weights' => [1, 2], 'aggregate' => 'max']]);
 
         $this->assertSame($redis, $result);
+    }
+
+    #[DataProvider('numericCommandArguments')]
+    public function testNumericArgumentsPreserveFailuresAndQueuedReturns(string $method, array $arguments, array $expected): void
+    {
+        foreach ([Redis::ATOMIC, Redis::MULTI, Redis::PIPELINE] as $mode) {
+            $connection = $this->mockRedisConnection(transform: true);
+            $redis = m::mock(Redis::class);
+            $redis->expects('getMode')->andReturn($mode);
+            $result = $mode === Redis::ATOMIC ? false : $redis;
+            $redis->expects($method)->with(...$expected)->andReturn($result);
+            $connection->setActiveConnection($redis);
+
+            $this->assertSame($result, $connection->__call($method, $arguments));
+        }
+    }
+
+    /**
+     * Provide numeric bounds and optional stream arguments.
+     *
+     * @return array<string, array{string, array<mixed>, array<mixed>}>
+     */
+    public static function numericCommandArguments(): array
+    {
+        return [
+            'score count' => ['zCount', ['set', 1, 2.5], ['set', '1', '2.5']],
+            'score removal' => ['zRemRangeByScore', ['set', 1.5, '+inf'], ['set', '1.5', '+inf']],
+            'stream append' => ['xAdd', ['stream', 1.0, ['field' => 'value']], ['stream', '1', ['field' => 'value']]],
+            'stream claim' => ['xAutoClaim', ['stream', 'group', 'consumer', 0, 0, 2, true], ['stream', 'group', 'consumer', 0, '0', 2, true]],
+            'stream group' => ['xGroup', ['CREATE', 'stream', 'group', 0], ['CREATE', 'stream', 'group', '0']],
+            'group help' => ['xGroup', ['HELP'], ['HELP']],
+            'pending range' => ['xPending', ['stream', 'group', 0, 2, 10], ['stream', 'group', '0', '2', 10]],
+            'pending summary' => ['xPending', ['stream', 'group'], ['stream', 'group']],
+            'pending null bounds' => ['xPending', ['stream', 'group', null, null], ['stream', 'group', null, null]],
+            'stream range' => ['xRange', ['stream', 0, 2, 1], ['stream', '0', '2', 1]],
+            'reverse stream range' => ['xRevRange', ['stream', 2, 0], ['stream', '2', '0']],
+            'stream trim' => ['xTrim', ['stream', 1, true, true, 10], ['stream', '1', true, true, 10]],
+        ];
+    }
+
+    public function testClusterScoreRemovalPreservesNamedBoundsAndQueuedReturns(): void
+    {
+        foreach ([Redis::ATOMIC, Redis::MULTI] as $mode) {
+            $connection = new PhpRedisClusterConnectionStub;
+            $connection->shouldTransform();
+            $redis = m::mock(RedisCluster::class);
+            $redis->expects('getMode')->andReturn($mode);
+            $result = $mode === Redis::ATOMIC ? false : $redis;
+            $redis->expects('zRemRangeByScore')->with('set', '1.5', '(2')->andReturn($result);
+            $connection->setActiveConnection($redis);
+
+            $this->assertSame($result, $connection->zRemRangeByScore('set', min: 1.5, max: '(2'));
+        }
     }
 
     public function testPrepareEvalShapesArgumentsForQueueingMode(): void
@@ -1479,10 +1574,10 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
-    // REMOVED: Automatic read/write retries and configured command retries can replay committed commands.
+    // REMOVED: Automatic command retries and reopening pipelines/transactions can replay committed commands.
     #[DataProvider('connectionFailureProvider')]
     public function testConnectionRebuildsItsClientOnNextAcquisitionWithoutReplayingCommand(
-        RedisException|RedisClusterException $exception,
+        RedisException|RedisClusterException|ErrorException $exception,
         string $command,
         array $arguments,
         bool $synchronized,
@@ -1492,7 +1587,9 @@ class RedisConnectionTest extends TestCase
         $this->expectDefaultConnectionOptions($failedClient);
         $this->expectDefaultConnectionOptions($healthyClient);
         $failedClient->expects($command)->once()->with(...$arguments)->andThrow($exception);
-        $failedClient->expects('getLastError')->andReturn($synchronized ? $exception->getMessage() : null);
+        if (! $exception instanceof ErrorException) {
+            $failedClient->expects('getLastError')->andReturn($synchronized ? $exception->getMessage() : null);
+        }
         $failedClient->shouldNotReceive('isConnected');
         $healthyClient->expects('get')->once()->with('foo')->andReturn('bar');
 
@@ -1523,7 +1620,7 @@ class RedisConnectionTest extends TestCase
         try {
             $connection->__call($command, $arguments);
             $this->fail('Expected the command failure to propagate.');
-        } catch (RedisException|RedisClusterException $throwable) {
+        } catch (RedisException|RedisClusterException|ErrorException $throwable) {
             $this->assertSame($exception, $throwable);
         }
 
@@ -1544,10 +1641,34 @@ class RedisConnectionTest extends TestCase
             'read-only replica' => [new RedisException('READONLY replica is read-only'), 'set', ['foo', 'bar'], true],
             'disconnected replica' => [new RedisException('MASTERDOWN link is down'), 'get', ['foo'], true],
             'read failure' => [new RedisException('Connection lost'), 'get', ['foo'], false],
+            'warning-shaped reset' => [new ErrorException('Redis::get(): SSL: Connection reset by peer'), 'get', ['foo'], false],
+            'stream write failure' => [new ErrorException('Redis::get(): Send of 30 bytes failed with errno=32 Broken pipe'), 'get', ['foo'], false],
+            'TLS protocol failure' => [new ErrorException('Redis::get(): SSL operation failed with code 1. OpenSSL Error messages: bad length'), 'get', ['foo'], false],
+            'transaction opening' => [new RedisException('Connection lost'), 'multi', [], false],
             'non-idempotent write' => [new RedisException('Connection lost'), 'incr', ['foo'], false],
             'write with options' => [new RedisException('Connection lost'), 'set', ['foo', 'bar', ['ex' => 60]], false],
             'cluster response error' => [new RedisClusterException('Error processing response from Redis node!'), 'get', ['foo'], false],
         ];
+    }
+
+    public function testConnectionDoesNotRetryUnrelatedWarnings(): void
+    {
+        $exception = new ErrorException('Redis::get(): Undefined variable');
+        $redis = m::mock(Redis::class);
+        $redis->expects('get')->once()->with('foo')->andThrow($exception);
+        $redis->shouldNotReceive('getLastError');
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('get', ['foo']);
+            $this->fail('Expected the unrelated warning to propagate.');
+        } catch (ErrorException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse($connection->isInvalidForTest());
+        $this->assertSame($redis, $connection->client());
     }
 
     #[DataProvider('synchronizedServerErrorDispositionProvider')]
@@ -1944,20 +2065,62 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals(['member1', 'member2'], $result);
     }
 
-    public function testScan(): void
+    #[DataProvider('scanOptions')]
+    public function testScan(array $options, string $pattern, int $count): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = null;
 
         $connection->getConnection()
             ->shouldReceive('scan')
-            ->with(0, '*', 10)
+            ->with(null, $pattern, $count)
             ->once()
-            ->andReturn(['key1', 'key2']);
+            ->andReturnUsing(function (?int &$cursor): array {
+                $cursor = 0;
 
-        $result = $connection->scan($cursor, '*', 10);
+                return ['key1', 'key2'];
+            });
 
-        $this->assertEquals([0, ['key1', 'key2']], $result);
+        $result = $connection->scan($cursor, ...$options);
+
+        $this->assertSame([0, ['key1', 'key2']], $result);
+        $this->assertSame(0, $cursor);
+    }
+
+    /**
+     * Provide positional and array scan options, including omitted defaults.
+     *
+     * @return array<string, array{array, string, int}>
+     */
+    public static function scanOptions(): array
+    {
+        return [
+            'omitted' => [[], '*', 10],
+            'empty options' => [[[]], '*', 10],
+            'null pattern' => [[null, 20], '*', 20],
+        ];
+    }
+
+    public function testTransformedScanInvalidatesOnTransportFailure(): void
+    {
+        $exception = new RedisException('Connection lost');
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('scan')->once()->with(null, '*', 10)->andThrow($exception);
+        $redis->expects('getLastError')->andReturnNull();
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+        $connection->shouldTransform(true);
+        $cursor = null;
+
+        try {
+            $connection->scan($cursor);
+            $this->fail('Expected the scan failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testScanWithOptions(): void
@@ -1995,49 +2158,64 @@ class RedisConnectionTest extends TestCase
     public function testZscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('zscan')
-            ->with('sortedset', 0, '*', 10)
+            ->with('sortedset', 5, '*', 10)
             ->once()
-            ->andReturn(['member1' => 1.0, 'member2' => 2.0]);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
 
-        $result = $connection->zscan('sortedset', $cursor, '*', 10);
+                return ['member1' => 1.0, 'member2' => 2.0];
+            });
 
-        $this->assertEquals([0, ['member1' => 1.0, 'member2' => 2.0]], $result);
+        $result = $connection->zscan('sortedset', $cursor);
+
+        $this->assertSame([0, ['member1' => 1.0, 'member2' => 2.0]], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testHscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('hscan')
-            ->with('hash', 0, '*', 10)
+            ->with('hash', 5, '*', 10)
             ->once()
-            ->andReturn(['field1' => 'value1', 'field2' => 'value2']);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
 
-        $result = $connection->hscan('hash', $cursor, '*', 10);
+                return ['field1' => 'value1', 'field2' => 'value2'];
+            });
 
-        $this->assertEquals([0, ['field1' => 'value1', 'field2' => 'value2']], $result);
+        $result = $connection->hscan('hash', $cursor);
+
+        $this->assertSame([0, ['field1' => 'value1', 'field2' => 'value2']], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testSscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('sscan')
-            ->with('set', 0, '*', 10)
+            ->with('set', 5, '*', 10)
             ->once()
-            ->andReturn(['member1', 'member2']);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
 
-        $result = $connection->sscan('set', $cursor, '*', 10);
+                return ['member1', 'member2'];
+            });
 
-        $this->assertEquals([0, ['member1', 'member2']], $result);
+        $result = $connection->sscan('set', $cursor);
+
+        $this->assertSame([0, ['member1', 'member2']], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testEvalsha(): void
@@ -2442,6 +2620,35 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->compressed());
     }
 
+    #[DataProvider('compressionAlgorithms')]
+    public function testCompressionAlgorithmInspection(string $constant, ?string $enabledMethod): void
+    {
+        if (! defined($constant)) {
+            $this->markTestSkipped("{$constant} is not defined.");
+        }
+
+        $redis = new Redis;
+        $redis->setOption(Redis::OPT_COMPRESSION, constant($constant));
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($redis);
+
+        foreach (['lzfCompressed', 'zstdCompressed', 'lz4Compressed'] as $method) {
+            $this->assertSame($method === $enabledMethod, $connection->{$method}());
+        }
+    }
+
+    /**
+     * Provide native compression settings and their matching inspection methods.
+     */
+    public static function compressionAlgorithms(): array
+    {
+        return [
+            'none' => ['Redis::COMPRESSION_NONE', null],
+            'lzf' => ['Redis::COMPRESSION_LZF', 'lzfCompressed'],
+            'zstd' => ['Redis::COMPRESSION_ZSTD', 'zstdCompressed'],
+            'lz4' => ['Redis::COMPRESSION_LZ4', 'lz4Compressed'],
+        ];
+    }
+
     #[DataProvider('scanPrefixOptions')]
     public function testWithoutScanPrefixPreservesOtherOptionsAndRestores(bool $retry, bool $prefix): void
     {
@@ -2680,10 +2887,14 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($expected, RedisConnection::hasHashTag($key));
     }
 
+    /**
+     * Provide Redis keys with and without valid hash tags.
+     */
     public static function redisClusterHashTagProvider(): array
     {
         return [
             ['plain-key', false],
+            ['my{lock', false],
             ['{}', false],
             ['prefix{}suffix', false],
             ['{queue}', true],
@@ -2779,9 +2990,30 @@ class RedisConnectionTest extends TestCase
             ->andReturn('ERR Error compiling script');
 
         $this->expectException(LuaScriptException::class);
-        $this->expectExceptionMessage('Lua script execution failed: ERR Error compiling script');
+        $this->expectExceptionMessageIs('Lua script execution failed: ERR Error compiling script');
 
         $connection->evalWithShaCache($script, ['mykey']);
+    }
+
+    public function testEvalWithShaCacheInvalidatesAReadOnlyReplica(): void
+    {
+        $exception = new RedisException('READONLY replica is read-only');
+        $redis = m::mock(Redis::class);
+        $redis->expects('clearLastError')->once();
+        $redis->expects('evalSha')->once()->with(sha1('return 1'), [], 0)->andThrow($exception);
+        $redis->expects('getLastError')->andReturn($exception->getMessage());
+        $redis->shouldNotReceive('eval');
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->evalWithShaCache('return 1');
+            $this->fail('Expected the replica error to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testEvalWithShaCacheReturnsLegitimatelyFalseResult(): void
@@ -3046,7 +3278,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection();
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage("Cannot call {$command}() on a pooled RedisConnection.");
+        $this->expectExceptionMessageIsOrContains("Cannot call {$command}() on a pooled RedisConnection.");
 
         $connection->__call(strtoupper($command), [['channel1'], function () {}]);
     }
@@ -3089,52 +3321,6 @@ class RedisConnectionTest extends TestCase
         }
 
         $connection->release();
-    }
-
-    #[DataProvider('hostFormattingProvider')]
-    public function testFormatHost(
-        array $config,
-        ?string $expected,
-        ?string $exceptionMessage,
-    ): void {
-        $connection = new class extends PhpRedisConnectionStub {
-            public function formatHostForTest(array $config): string
-            {
-                return $this->formatHost($config);
-            }
-        };
-
-        if ($exceptionMessage !== null) {
-            $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage($exceptionMessage);
-
-            $connection->formatHostForTest($config);
-
-            return;
-        }
-
-        $this->assertSame($expected, $connection->formatHostForTest($config));
-    }
-
-    public static function hostFormattingProvider(): array
-    {
-        return [
-            'empty host' => [
-                ['host' => ''],
-                null,
-                'Redis host must be a non-empty string.',
-            ],
-            'matching scheme' => [
-                ['host' => 'tls://redis.test', 'scheme' => 'TLS'],
-                'tls://redis.test',
-                null,
-            ],
-            'mismatched scheme' => [
-                ['host' => 'tls://redis.test', 'scheme' => 'tcp'],
-                null,
-                'must match the scheme option',
-            ],
-        ];
     }
 
     public function testReconnectSetsSerializerOption(): void
@@ -3233,7 +3419,7 @@ class RedisConnectionTest extends TestCase
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.');
+        $this->expectExceptionMessageIs('The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.');
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['options' => ['pack_ignore_numbers' => true]]), $redis) extends PhpRedisConnection {
             public function __construct(
@@ -3312,17 +3498,19 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsNumericBackoffAlgorithmAsIs(): void
+    public function testParseBackoffAlgorithmReturnsIntegerAsIs(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
-        $redis->shouldReceive('setOption')
-            ->once()
+        $redis->expects('setOption')
             ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DEFAULT);
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['backoff_algorithm' => Redis::BACKOFF_ALGORITHM_DEFAULT]), $redis) extends PhpRedisConnection {
+            /**
+             * Create the connection with a fake Redis client.
+             */
             public function __construct(
                 ContainerContract $container,
                 ConnectionPool $pool,
@@ -3332,6 +3520,9 @@ class RedisConnectionTest extends TestCase
                 parent::__construct($container, $pool, $config);
             }
 
+            /**
+             * Return the fake Redis client.
+             */
             protected function createRedis(array $config): Redis
             {
                 return $this->fakeRedis;
@@ -3339,17 +3530,31 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectThrowsOnUnknownBackoffAlgorithm(): void
+    public function testParseBackoffAlgorithmParsesValidNames(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_DEFAULT, $connection->parseBackoffAlgorithm('default'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_DECORRELATED_JITTER, $connection->parseBackoffAlgorithm('decorrelated_jitter'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_EQUAL_JITTER, $connection->parseBackoffAlgorithm('equal_jitter'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_EXPONENTIAL, $connection->parseBackoffAlgorithm('exponential'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_UNIFORM, $connection->parseBackoffAlgorithm('uniform'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_CONSTANT, $connection->parseBackoffAlgorithm('constant'));
+    }
+
+    public function testParseBackoffAlgorithmThrowsForInvalidName(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
 
-        $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.');
+        $this->expectExceptionObject(new InvalidRedisOptionException('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.'));
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['backoff_algorithm' => 'bogus']), $redis) extends PhpRedisConnection {
+            /**
+             * Create the connection with a fake Redis client.
+             */
             public function __construct(
                 ContainerContract $container,
                 ConnectionPool $pool,
@@ -3359,11 +3564,90 @@ class RedisConnectionTest extends TestCase
                 parent::__construct($container, $pool, $config);
             }
 
+            /**
+             * Return the fake Redis client.
+             */
             protected function createRedis(array $config): Redis
             {
                 return $this->fakeRedis;
             }
         };
+    }
+
+    public function testFormatHostPrefixesConfiguredSchemeWhenHostHasNoScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('tls://127.0.0.1', $connection->formatHost([
+            'host' => '127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostDoesNotDuplicateMatchingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('tls://127.0.0.1', $connection->formatHost([
+            'host' => 'tls://127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostThrowsOnConflictingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('The scheme configured in the Redis host option must match the scheme option.'));
+
+        $connection->formatHost([
+            'host' => 'tcp://127.0.0.1',
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostAllowsCaseInsensitiveMatchingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('TLS://127.0.0.1', $connection->formatHost([
+            'host' => 'TLS://127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostThrowsWhenHostIsMissing(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostThrowsWhenHostIsNull(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'host' => null,
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostThrowsWhenHostIsEmpty(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'host' => '',
+        ]);
     }
 
     public function testReconnectThrowsOnUnknownOption(): void
@@ -3372,7 +3656,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
 
         $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('The redis option key `bogus` is invalid.');
+        $this->expectExceptionMessageIs('The redis option key `bogus` is invalid.');
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
@@ -3741,6 +4025,7 @@ class RedisConnectionTest extends TestCase
             'backoff_algorithm' => 'decorrelated_jitter',
             'backoff_base' => 100,
             'backoff_cap' => 1000,
+            'tcp_keepalive' => 0,
             'pool' => [
                 'min_retained_connections' => 1,
                 'max_connections' => 10,
@@ -3828,5 +4113,13 @@ class RedisConnectionTest extends TestCase
         }
 
         return $container;
+    }
+
+    /**
+     * Normalize an SSL context for a standalone connection.
+     */
+    protected function callNormalizeContext(array $context): array
+    {
+        return (new ClassInvoker(new PhpRedisConnectionStub))->normalizeContext($context);
     }
 }

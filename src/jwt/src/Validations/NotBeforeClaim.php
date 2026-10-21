@@ -7,14 +7,11 @@ namespace Hypervel\Jwt\Validations;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 
-/**
- * Validate not-before timestamps during normal decoding and refresh.
- *
- * This validation deliberately does not implement TemporalValidation. Skipping
- * it during refresh would replace a future `nbf` with the current time.
- */
 class NotBeforeClaim extends AbstractValidation
 {
+    /**
+     * Validate that the token may already be used.
+     */
     public function validate(array $payload): void
     {
         if (! $nbf = ($payload['nbf'] ?? null)) {

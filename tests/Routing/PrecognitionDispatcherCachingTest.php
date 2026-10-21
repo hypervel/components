@@ -17,7 +17,7 @@ use ReflectionProperty;
 
 class PrecognitionDispatcherCachingTest extends TestCase
 {
-    public function testCallableDispatcherPrecognitionPropertyStartsNull()
+    public function testCallableDispatcherPrecognitionPropertyStartsNull(): void
     {
         $dispatcher = new CallableDispatcher(new Container);
         $ref = new ReflectionProperty($dispatcher, 'precognitionDispatcher');
@@ -25,7 +25,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
         $this->assertNull($ref->getValue($dispatcher));
     }
 
-    public function testControllerDispatcherPrecognitionPropertyStartsNull()
+    public function testControllerDispatcherPrecognitionPropertyStartsNull(): void
     {
         $dispatcher = new ControllerDispatcher(new Container);
         $ref = new ReflectionProperty($dispatcher, 'precognitionDispatcher');
@@ -33,7 +33,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
         $this->assertNull($ref->getValue($dispatcher));
     }
 
-    public function testCallableDispatcherCachesPrecognitionInstanceAcrossDispatches()
+    public function testCallableDispatcherCachesPrecognitionInstanceAcrossDispatches(): void
     {
         $route = Route::get('foo', function () {
             return 'ok';
@@ -60,7 +60,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testControllerDispatcherCachesPrecognitionInstanceAcrossDispatches()
+    public function testControllerDispatcherCachesPrecognitionInstanceAcrossDispatches(): void
     {
         $route = Route::get('foo', [PrecognitionCachingController::class, 'index'])
             ->middleware(HandlePrecognitiveRequests::class);
@@ -86,7 +86,7 @@ class PrecognitionDispatcherCachingTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testNewDispatcherInstancesHaveIndependentCaches()
+    public function testNewDispatcherInstancesHaveIndependentCaches(): void
     {
         $container = new Container;
 

@@ -26,7 +26,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  *
  * @method $this trashed()
  */
@@ -209,6 +209,10 @@ abstract class Factory
             return $this->state($attributes)->getExpandedAttributes($parent);
         }
 
+        if ($this->count < 1) {
+            return [];
+        }
+
         return array_map(function () use ($attributes, $parent) {
             return $this->state($attributes)->getExpandedAttributes($parent);
         }, range(1, $this->count));
@@ -240,7 +244,7 @@ abstract class Factory
      * Create a collection of models and persist them to the database.
      *
      * @param null|int|iterable<int, array<string, mixed>> $records
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return EloquentCollection<int, TModel>
      */
     public function createMany(int|iterable|null $records = null): EloquentCollection
     {
@@ -252,10 +256,12 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
         return new EloquentCollection(
             (new Collection($records))->map(function ($record) {
-                return $this->state($record)->create();
+                /** @var TModel $model */
+                $model = $this->state($record)->create();
+
+                return $model;
             })
         );
     }
@@ -264,7 +270,7 @@ abstract class Factory
      * Create a collection of models and persist them to the database without dispatching any model events.
      *
      * @param null|int|iterable<int, array<string, mixed>> $records
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return EloquentCollection<int, TModel>
      */
     public function createManyQuietly(int|iterable|null $records = null): EloquentCollection
     {
@@ -275,7 +281,7 @@ abstract class Factory
      * Create a collection of models and persist them to the database.
      *
      * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
+     * @return EloquentCollection<int, TModel>|TModel
      */
     public function create(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
@@ -302,7 +308,7 @@ abstract class Factory
      * Create a collection of models and persist them to the database without dispatching any model events.
      *
      * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
+     * @return EloquentCollection<int, TModel>|TModel
      */
     public function createQuietly(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
@@ -313,7 +319,7 @@ abstract class Factory
      * Create a callback that persists a model in the database when invoked.
      *
      * @param array<string, mixed> $attributes
-     * @return Closure(): (\Hypervel\Database\Eloquent\Collection<int, TModel>|TModel)
+     * @return Closure(): (EloquentCollection<int, TModel>|TModel)
      */
     public function lazy(array $attributes = [], ?Model $parent = null): Closure
     {
@@ -323,13 +329,13 @@ abstract class Factory
     /**
      * Set the connection name on the results and store them.
      *
-     * @param \Hypervel\Support\Collection<int, TModel> $results
+     * @param Collection<int, TModel> $results
      */
     protected function store(Collection $results): void
     {
         $results->each(function ($model) {
             if (! isset($this->connection)) {
-                $model->setConnection($model->newQueryWithoutScopes()->getConnection()->getName());
+                $model->setConnection($model->newQueryWithoutScopes()->getConnection()->getWritableName());
             }
 
             $model->save();
@@ -373,7 +379,7 @@ abstract class Factory
      * Create a collection of models.
      *
      * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
+     * @return EloquentCollection<int, TModel>|TModel
      */
     public function make(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
@@ -411,8 +417,9 @@ abstract class Factory
     }
 
     /**
-     * Create a collection of models and persist them to the database.
+     * Create a collection of models.
      *
+     * @param null|int|iterable<int, array<string, mixed>> $records
      * @return EloquentCollection<int, TModel>
      */
     public function makeMany(iterable|int|null $records = null): EloquentCollection
@@ -425,10 +432,12 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
         return new EloquentCollection(
             (new Collection($records))->map(function ($record) {
-                return $this->state($record)->make();
+                /** @var TModel $model */
+                $model = $this->state($record)->make();
+
+                return $model;
             })
         );
     }
@@ -710,7 +719,7 @@ abstract class Factory
     /**
      * Retrieve a random model of a given type from previously provided models to recycle.
      *
-     * @template TClass of \Hypervel\Database\Eloquent\Model
+     * @template TClass of Model
      *
      * @param class-string<TClass> $modelClassName
      * @return null|TClass
@@ -733,7 +742,7 @@ abstract class Factory
     /**
      * Add a new "after creating" callback to the model definition.
      *
-     * @param Closure(TModel, null|\Hypervel\Database\Eloquent\Model): mixed $callback
+     * @param Closure(TModel, null|Model): mixed $callback
      */
     public function afterCreating(Closure $callback): static
     {
@@ -931,10 +940,10 @@ abstract class Factory
     /**
      * Get a new factory instance for the given model name.
      *
-     * @template TClass of \Hypervel\Database\Eloquent\Model
+     * @template TClass of Model
      *
      * @param class-string<TClass> $modelName
-     * @return \Hypervel\Database\Eloquent\Factories\Factory<TClass>
+     * @return Factory<TClass>
      */
     public static function factoryForModel(string $modelName): self
     {
@@ -950,7 +959,7 @@ abstract class Factory
      * worker lifetime and runs on every factory-name guess across all
      * coroutines.
      *
-     * @param callable(class-string<\Hypervel\Database\Eloquent\Model>): class-string<\Hypervel\Database\Eloquent\Factories\Factory> $callback
+     * @param callable(class-string<Model>): class-string<Factory> $callback
      */
     public static function guessFactoryNamesUsing(callable $callback): void
     {
@@ -994,10 +1003,10 @@ abstract class Factory
     /**
      * Get the factory name for the given model name.
      *
-     * @template TClass of \Hypervel\Database\Eloquent\Model
+     * @template TClass of Model
      *
      * @param class-string<TClass> $modelName
-     * @return class-string<\Hypervel\Database\Eloquent\Factories\Factory<TClass>>
+     * @return class-string<Factory<TClass>>
      */
     public static function resolveFactoryName(string $modelName): string
     {

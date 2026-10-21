@@ -8,6 +8,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 
 class RedisWorkloadRepository implements WorkloadRepository
@@ -32,9 +33,9 @@ class RedisWorkloadRepository implements WorkloadRepository
      * @return array<int, array{
      *    "name": string,
      *    "length": int,
-     *    "wait": int,
+     *    "wait": float,
      *    "processes": int,
-     *    "split_queues": null|array<int, array{"name": string, "wait": int, "length": int}>
+     *    "split_queues": null|Collection<array-key, array{"name": string, "wait": float, "length": int}>
      *  }>
      */
     public function get(): array
@@ -48,13 +49,16 @@ class RedisWorkloadRepository implements WorkloadRepository
                 $totalProcesses = $processes[$queue] ?? 0;
 
                 $length = ! Str::contains($queue, ',')
-                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)]) // @phpstan-ignore-line
+                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)]) // @phpstan-ignore method.notFound
                     : collect(explode(',', $queueName))->mapWithKeys(function ($queueName) use ($connection) {
-                        /* @phpstan-ignore-next-line */
+                        // @phpstan-ignore method.notFound
                         return [$queueName => $this->queue->connection($connection)->readyNow($queueName)];
                     });
 
                 $splitQueues = Str::contains($queue, ',') ? $length->map(function ($length, $queueName) use ($connection, $totalProcesses, &$wait) {
+                    // Numeric queue names become integer collection keys.
+                    $queueName = (string) $queueName;
+
                     return [
                         'name' => $queueName,
                         'length' => $length,

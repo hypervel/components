@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -20,9 +21,11 @@ use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
+use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
 class MailMailableTest extends TestCase
@@ -35,6 +38,7 @@ class MailMailableTest extends TestCase
         $mailable->to('taylor@laravel.com');
         $this->assertEquals([['name' => null, 'address' => 'taylor@laravel.com']], $mailable->to);
         $this->assertTrue($mailable->hasTo('taylor@laravel.com'));
+        $this->assertTrue($mailable->hasTo(new Address('taylor@laravel.com')));
         $mailable->assertHasTo('taylor@laravel.com');
         $mailable->to('taylor@laravel.com', 'Taylor Otwell');
 
@@ -47,6 +51,7 @@ class MailMailableTest extends TestCase
         $this->assertEquals([['name' => 'Taylor Otwell', 'address' => 'taylor@laravel.com']], $mailable->to);
         $this->assertTrue($mailable->hasTo('taylor@laravel.com', 'Taylor Otwell'));
         $this->assertTrue($mailable->hasTo('taylor@laravel.com'));
+        $this->assertFalse($mailable->hasTo(new Address('taylor@laravel.com')));
         $mailable->assertHasTo('taylor@laravel.com', 'Taylor Otwell');
         $mailable->assertHasTo('taylor@laravel.com');
 
@@ -573,15 +578,52 @@ class MailMailableTest extends TestCase
         $this->assertSame($expected, $mailable->buildViewData());
     }
 
+    public function testMailableAssertionsRenderHtmlableText(): void
+    {
+        $mailable = new class extends Mailable {
+            /**
+             * Build the view for the message.
+             */
+            protected function buildView(): array
+            {
+                return [
+                    'html' => new HtmlString('<p>HTML content</p>'),
+                    'text' => new class implements Htmlable {
+                        /**
+                         * Get content as a string of HTML.
+                         */
+                        public function toHtml(): string
+                        {
+                            return 'Plain content';
+                        }
+                    },
+                ];
+            }
+        };
+
+        $mailable->from('sender@example.com')->to('recipient@example.com');
+        $mailer = new Mailer('array', $this->app->make(ViewFactory::class), new ArrayTransport);
+        $sentMessage = $mailer->send($mailable);
+
+        $this->assertSame('Plain content', $sentMessage->getOriginalMessage()->getTextBody());
+
+        $mailable->assertSeeInHtml('HTML content')->assertSeeInText('Plain content');
+    }
+
     public function testMailerMayBeSet(): void
     {
         $mailable = new WelcomeMailableStub;
 
         $mailable->mailer('array');
+        $this->assertTrue($mailable->usesMailer('array'));
 
         $mailable = unserialize(serialize($mailable));
 
         $this->assertSame('array', $mailable->mailer);
+
+        $mailable->mailer('smtp');
+        $this->assertTrue($mailable->usesMailer('smtp'));
+        $this->assertFalse($mailable->usesMailer('ses'));
     }
 
     public function testMailablePriorityGetsSent(): void
@@ -771,6 +813,9 @@ class MailMailableTest extends TestCase
         $mailable = new class extends Mailable {
             public int $envelopeCalls = 0;
 
+            /**
+             * Count envelope resolutions during assertions.
+             */
             public function envelope(): Envelope
             {
                 ++$this->envelopeCalls;
@@ -793,6 +838,18 @@ class MailMailableTest extends TestCase
             "Email metadata does not match expected value.\nExpected: [attempts] => [4]\nActual: [attempts] => [3]\nFailed asserting that false is true.",
             $failure->getMessage()
         );
+        $this->assertSame(2, $mailable->envelopeCalls);
+
+        $failure = null;
+
+        try {
+            $mailable->assertHasSubject('Wrong subject');
+        } catch (AssertionFailedError $exception) {
+            $failure = $exception;
+        }
+
+        $this->assertInstanceOf(AssertionFailedError::class, $failure);
+        $this->assertStringContainsString("Email subject does not match expected value.\nExpected: [Wrong subject]\nActual:", $failure->getMessage());
         $this->assertSame(2, $mailable->envelopeCalls);
     }
 
@@ -1165,11 +1222,11 @@ class MailMailableTest extends TestCase
     public function testStorageAttachmentOmitsFailedMimeDetection(): void
     {
         $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldReceive('mimeType')->once()->with('report.txt')->andReturnFalse();
-        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+        $storage->expects('mimeType')->with('report.txt')->andReturnFalse();
+        $storage->expects('get')->with('report.txt')->andReturn('file content');
 
         $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $factory->expects('disk')->with('documents')->andReturn($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
         $mailable = new Mailable;
@@ -1187,10 +1244,10 @@ class MailMailableTest extends TestCase
     {
         $storage = m::mock(FilesystemAdapter::class);
         $storage->shouldNotReceive('mimeType');
-        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+        $storage->expects('get')->with('report.txt')->andReturn('file content');
 
         $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $factory->expects('disk')->with('documents')->andReturn($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
         $mailable = new Mailable;
@@ -1209,6 +1266,9 @@ class MailMailableTest extends TestCase
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
+            /**
+             * Build the message.
+             */
             public function build(): void
             {
             }
@@ -1217,6 +1277,9 @@ class MailMailableTest extends TestCase
         $mailable->assertHasNoAttachments();
 
         $mailableWithAttachment = new class extends Mailable {
+            /**
+             * Build the message.
+             */
             public function build(): void
             {
                 $this->attach('/path/to/foo.jpg');
@@ -1326,7 +1389,7 @@ class MailMailableTest extends TestCase
             $mailable->assertHasSubject('Foo Subject');
             $this->fail();
         } catch (AssertionFailedError $e) {
-            $this->assertSame("Did not see expected text [Foo Subject] in email subject.\nFailed asserting that false is true.", $e->getMessage());
+            $this->assertStringContainsString("Email subject does not match expected value.\nExpected: [Foo Subject]\nActual:", $e->getMessage());
         }
 
         $mailable = new class extends Mailable {
@@ -1337,6 +1400,41 @@ class MailMailableTest extends TestCase
         };
 
         $mailable->assertHasSubject('Foo Subject');
+    }
+
+    public function testSubjectAssertionMatchesTheDeliveredDefaultSubject(): void
+    {
+        $this->mockContainer();
+
+        $mailer = new Mailer('array', $this->mockView(), new ArrayTransport);
+
+        foreach ([new WelcomeMailableStub, (new WelcomeMailableStub)->subject('0')] as $mailable) {
+            $mailable->from('sender@example.com')->to('recipient@example.com')->html('test content');
+
+            $sentMessage = $mailer->send($mailable);
+            $this->assertSame('Welcome Mailable Stub', $sentMessage->getOriginalMessage()->getSubject());
+            $this->assertSame($mailable, $mailable->assertHasSubject('Welcome Mailable Stub'));
+        }
+    }
+
+    public function testSubjectAssertionReportsHydratedEnvelopeSubject(): void
+    {
+        $this->mockContainer();
+
+        $mailable = new class extends Mailable {
+            /**
+             * Get the message envelope.
+             */
+            public function envelope(): Envelope
+            {
+                return new Envelope(subject: 'Envelope Subject');
+            }
+        };
+        $mailable->html('test content');
+
+        $this->expectExceptionObject(new AssertionFailedError("Email subject does not match expected value.\nExpected: [Wrong subject]\nActual: [Envelope Subject]\nFailed asserting that false is true."));
+
+        $mailable->assertHasSubject('Wrong subject');
     }
 
     public function testMailableHeadersGetSent(): void
@@ -1355,12 +1453,12 @@ class MailMailableTest extends TestCase
         $this->assertSame('custom-message-id@example.com', $sentMessage->getMessageId());
 
         $this->assertTrue($sentMessage->getOriginalMessage()->getHeaders()->has('references'));
-        $this->assertEquals('References', $sentMessage->getOriginalMessage()->getHeaders()->get('references')->getName());
-        $this->assertEquals('<previous-message@example.com>', $sentMessage->getOriginalMessage()->getHeaders()->get('references')->getValue());
+        $this->assertSame('References', $sentMessage->getOriginalMessage()->getHeaders()->get('references')->getName());
+        $this->assertSame('<previous-message@example.com>', $sentMessage->getOriginalMessage()->getHeaders()->get('references')->getValue());
 
         $this->assertTrue($sentMessage->getOriginalMessage()->getHeaders()->has('x-custom-header'));
-        $this->assertEquals('X-Custom-Header', $sentMessage->getOriginalMessage()->getHeaders()->get('x-custom-header')->getName());
-        $this->assertEquals('Custom Value', $sentMessage->getOriginalMessage()->getHeaders()->get('x-custom-header')->getValue());
+        $this->assertSame('X-Custom-Header', $sentMessage->getOriginalMessage()->getHeaders()->get('x-custom-header')->getName());
+        $this->assertSame('Custom Value', $sentMessage->getOriginalMessage()->getHeaders()->get('x-custom-header')->getValue());
     }
 
     public function testMailableAttributesInBuild(): void

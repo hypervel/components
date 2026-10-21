@@ -12,7 +12,7 @@ use Hypervel\Tests\TestCase;
 
 class BeforeCommitContractTest extends TestCase
 {
-    public function testJobWithoutContractRespectsBeforeCommit()
+    public function testJobWithoutContractRespectsBeforeCommit(): void
     {
         $job = new class {
             use Dispatchable;
@@ -30,7 +30,7 @@ class BeforeCommitContractTest extends TestCase
         $this->assertFalse($this->shouldDispatchAfterCommit($job));
     }
 
-    public function testJobWithoutContractRespectsAfterCommit()
+    public function testJobWithoutContractRespectsAfterCommit(): void
     {
         $job = new class {
             use Dispatchable;
@@ -50,7 +50,7 @@ class BeforeCommitContractTest extends TestCase
         $this->assertTrue($this->shouldDispatchAfterCommit($job));
     }
 
-    public function testJobWithContractDefaultsToAfterCommit()
+    public function testJobWithContractDefaultsToAfterCommit(): void
     {
         $job = new class implements ShouldQueueAfterCommit {
             use Dispatchable;
@@ -61,7 +61,7 @@ class BeforeCommitContractTest extends TestCase
         $this->assertTrue($this->shouldDispatchAfterCommit($job));
     }
 
-    public function testJobWithContractAndAfterCommitFalseRespectsBeforeCommit()
+    public function testJobWithContractAndAfterCommitFalseRespectsBeforeCommit(): void
     {
         $job = new class implements ShouldQueueAfterCommit {
             use Dispatchable;
@@ -81,7 +81,7 @@ class BeforeCommitContractTest extends TestCase
         $this->assertFalse($this->shouldDispatchAfterCommit($job));
     }
 
-    public function testJobWithContractAndExplicitAfterCommitTrueStillSchedulesAfterCommit()
+    public function testJobWithContractAndExplicitAfterCommitTrueStillSchedulesAfterCommit(): void
     {
         $job = new class implements ShouldQueueAfterCommit {
             use Dispatchable;

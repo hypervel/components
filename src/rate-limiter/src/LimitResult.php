@@ -73,6 +73,20 @@ final readonly class LimitResult implements Decision
     }
 
     /**
+     * Return a copy with the given remaining capacity.
+     */
+    public function withRemaining(int $remaining): self
+    {
+        return new self(
+            $this->allowed,
+            $this->limit,
+            $remaining,
+            $this->retryAfterMicroseconds,
+            $this->resetAfterMicroseconds,
+        );
+    }
+
+    /**
      * Get the number of seconds until the operation may be retried.
      */
     public function retryAfter(): int

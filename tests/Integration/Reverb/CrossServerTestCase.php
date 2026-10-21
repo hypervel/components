@@ -15,8 +15,8 @@ use Swoole\WebSocket\Frame;
  * cross-server Redis pub/sub delivery and RedisSharedState coordination.
  *
  * Start both servers:
- *   REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
- *   REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
+ *   REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/Fixtures/server.php
+ *   REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/Fixtures/server.php
  */
 abstract class CrossServerTestCase extends ReverbIntegrationTestCase
 {

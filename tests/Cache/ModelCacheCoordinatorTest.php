@@ -16,12 +16,14 @@ use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
@@ -32,14 +34,28 @@ use function Hypervel\Coroutine\parallel;
 
 class ModelCacheCoordinatorTest extends TestCase
 {
+    protected Closure $source;
+
+    protected Container $container;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->container = new Container;
+        $this->container->instance('db.transactions', new DatabaseTransactionsManager);
+        $this->source = static fn (): never => throw new RuntimeException('A source model must not be constructed without a transaction.');
+    }
+
     public function testCachedPositiveAndNullValuesReturnWithoutLockingOrReading(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = new Repository(new ArrayStore);
         $reads = 0;
 
         $this->assertSame('user', $coordinator->fill(
             $repository,
+            $this->source,
             'positive',
             300,
             function () use (&$reads): string {
@@ -50,6 +66,7 @@ class ModelCacheCoordinatorTest extends TestCase
         ));
         $this->assertNull($coordinator->fill(
             $repository,
+            $this->source,
             'null',
             300,
             function () use (&$reads): null {
@@ -61,12 +78,14 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('user', $coordinator->fill(
             $repository,
+            $this->source,
             'positive',
             300,
             fn () => throw new RuntimeException('The source must not be read on a cache hit.'),
         ));
         $this->assertNull($coordinator->fill(
             $repository,
+            $this->source,
             'null',
             300,
             fn () => throw new RuntimeException('The source must not be read on a cached-null hit.'),
@@ -76,9 +95,9 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testColdFillDoubleChecksAfterLockAcquisition(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $seedRepository = new Repository(new ArrayStore);
-        $coordinator->fill($seedRepository, 'seed', 300, fn (): string => 'published');
+        $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'published');
         $envelope = $seedRepository->getStore()->get('seed');
 
         $repository = m::mock(CacheRepository::class);
@@ -95,21 +114,123 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('published', $coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             fn () => throw new RuntimeException('The source must not be read after a warm double-check.'),
         ));
     }
 
+    public function testColdFillDoubleChecksPastAMemoizedMissAndRemembersTheFill(): void
+    {
+        $coordinator = new ModelCacheCoordinator($this->container);
+        $backingRepository = new Repository(new ArrayStore);
+        $memoizedRepository = new Repository(new MemoizedStore('array', $backingRepository));
+
+        $this->assertNull($memoizedRepository->get('key'));
+
+        // Another request fills the entry after this coroutine remembered the miss.
+        $coordinator->fill($backingRepository, $this->source, 'key', 300, fn (): string => 'published');
+
+        $this->assertSame('published', $coordinator->fill(
+            $memoizedRepository,
+            $this->source,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The source must not be read after a warm double-check.'),
+        ));
+
+        $backingRepository->forget('key');
+
+        $this->assertSame('published', $coordinator->fill(
+            $memoizedRepository,
+            $this->source,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The double-checked value must be reused without locking.'),
+        ));
+    }
+
+    public function testPublishedFillIsRememberedForTheCurrentCoroutine(): void
+    {
+        $coordinator = new ModelCacheCoordinator($this->container);
+        $backingRepository = new Repository(new ArrayStore);
+        $memoizedRepository = new Repository(new MemoizedStore('array', $backingRepository));
+
+        $this->assertSame('user', $coordinator->fill($memoizedRepository, $this->source, 'key', 300, fn (): string => 'user'));
+
+        $backingRepository->forget('key');
+
+        $this->assertSame('user', $coordinator->fill(
+            $memoizedRepository,
+            $this->source,
+            'key',
+            300,
+            fn (): never => throw new RuntimeException('The published value must be reused without locking.'),
+        ));
+    }
+
+    public function testFailedPublicationIsNotRemembered(): void
+    {
+        $coordinator = new ModelCacheCoordinator($this->container);
+        $memoizedRepository = new Repository(new MemoizedStore(
+            'array',
+            new Repository(new FailingWriteCoordinatorArrayStore),
+        ));
+        $reads = 0;
+
+        for ($iteration = 0; $iteration < 2; ++$iteration) {
+            $this->assertSame('user', $coordinator->fill(
+                $memoizedRepository,
+                $this->source,
+                'key',
+                300,
+                function () use (&$reads): string {
+                    ++$reads;
+
+                    return 'user';
+                },
+            ));
+        }
+
+        $this->assertSame(2, $reads);
+    }
+
+    public function testLazyWriterPublicationIsNotRemembered(): void
+    {
+        $coordinator = new ModelCacheCoordinator($this->container);
+        $memoizedRepository = new Repository(new MemoizedStore('array', new Repository(new ArrayStore)));
+        $writerRepository = new Repository(new ArrayStore);
+        $reads = 0;
+
+        for ($iteration = 0; $iteration < 2; ++$iteration) {
+            $this->assertSame('user', $coordinator->fill(
+                $memoizedRepository,
+                $this->source,
+                'key',
+                300,
+                function () use (&$reads): string {
+                    ++$reads;
+
+                    return 'user';
+                },
+                writeCache: fn (): CacheRepository => $writerRepository,
+            ));
+        }
+
+        $this->assertSame(2, $reads);
+    }
+
     public function testLazyWriterIsResolvedOnlyWhenPublishing(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $plainRepository = new Repository(new ArrayStore);
         $writerRepository = new Repository(new ArrayStore);
         $writerResolutions = 0;
 
         $this->assertSame('user', $coordinator->fill(
             $plainRepository,
+            $this->source,
             'user',
             300,
             fn (): string => 'user',
@@ -126,6 +247,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('user', $coordinator->fill(
             $writerRepository,
+            $this->source,
             'user',
             300,
             fn () => throw new RuntimeException('The source must not be read on a cache hit.'),
@@ -141,13 +263,14 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testNullIsNotPublishedWhenNullCachingIsDisabled(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = new Repository(new ArrayStore);
         $reads = 0;
 
         for ($iteration = 0; $iteration < 2; ++$iteration) {
             $this->assertNull($coordinator->fill(
                 $repository,
+                $this->source,
                 'missing',
                 300,
                 function () use (&$reads): null {
@@ -165,7 +288,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testNonPublishingNullReadDoesNotRefreshTheLease(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -181,6 +304,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertNull($coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             fn (): null => null,
@@ -190,7 +314,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testFailedLockAcquisitionReadsWithoutPublishingOrResolvingWriter(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -204,6 +328,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('database', $coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             fn (): string => 'database',
@@ -218,7 +343,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testColdFillRefreshesAfterReadingAndBeforeResolvingWriterOrPublishing(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -249,6 +374,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('database', $coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             function () use (&$operations): string {
@@ -267,7 +393,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testColdFillThatLostItsLeaseReturnsTheReadValueWithoutPublishing(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -290,6 +416,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('database', $coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             function () use (&$operations): string {
@@ -308,7 +435,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testFalseCallbackResultIsNotMistakenForFailedAcquisition(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -329,6 +456,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $reads = 0;
         $this->assertFalse($coordinator->fill(
             $repository,
+            $this->source,
             'key',
             300,
             function () use (&$reads): false {
@@ -342,7 +470,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testFillPropagatesSourceFailureAndReleasesTheLock(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = new CoordinatorTestLock;
@@ -355,6 +483,7 @@ class ModelCacheCoordinatorTest extends TestCase
         try {
             $coordinator->fill(
                 $repository,
+                $this->source,
                 'key',
                 300,
                 fn () => throw new RuntimeException('source failure'),
@@ -370,7 +499,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testInvalidationUsesTheSameBoundedLockAndForgetsInsideIt(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $fillLock = m::mock(RefreshableLock::class);
@@ -395,6 +524,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('uncached', $coordinator->fill(
             $repository,
+            $this->source,
             'a-very-long-data-key',
             300,
             fn (): string => 'uncached',
@@ -414,12 +544,13 @@ class ModelCacheCoordinatorTest extends TestCase
         $contention = new Channel(1);
         $store = new ContendedCoordinatorWorkerArrayStore($contention);
         $repository = new Repository($store);
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
 
         parallel([
             'fill' => function () use ($contention, $coordinator, $repository, $sourceRead): void {
                 $coordinator->fill(
                     $repository,
+                    $this->source,
                     'user:1',
                     300,
                     static function () use ($contention, $sourceRead): string {
@@ -451,7 +582,7 @@ class ModelCacheCoordinatorTest extends TestCase
     {
         Sleep::fake();
 
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = new CoordinatorTestLock(failFirstAcquisition: true);
@@ -472,7 +603,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testInvalidationPropagatesLockTimeoutWithoutForgetting(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(RefreshableLock::class);
@@ -490,9 +621,9 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testUnsupportedStoreIsRejectedOnlyAfterAMiss(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $seedRepository = new Repository(new ArrayStore);
-        $coordinator->fill($seedRepository, 'seed', 300, fn (): string => 'cached');
+        $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'cached');
         $envelope = $seedRepository->getStore()->get('seed');
 
         $hitRepository = m::mock(CacheRepository::class);
@@ -501,6 +632,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
         $this->assertSame('cached', $coordinator->fill(
             $hitRepository,
+            $this->source,
             'key',
             300,
             fn () => throw new RuntimeException('The source must not be read on a cache hit.'),
@@ -511,9 +643,9 @@ class ModelCacheCoordinatorTest extends TestCase
         $missRepository->shouldReceive('get')->once()->with('key')->andReturnNull();
         $missRepository->shouldReceive('getStore')->once()->andReturn($unsupportedStore);
 
-        $this->expectExceptionMessage('does not provide atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide atomic locks');
 
-        $coordinator->fill($missRepository, 'key', 300, fn (): string => 'database');
+        $coordinator->fill($missRepository, $this->source, 'key', 300, fn (): string => 'database');
     }
 
     public function testStackAndFailoverTopologiesAreRejectedThroughDirectAndMemoizedStores(): void
@@ -535,8 +667,9 @@ class ModelCacheCoordinatorTest extends TestCase
                 "memoized {$name}" => new Repository(new MemoizedStore($name, $repository)),
             ] as $label => $candidate) {
                 try {
-                    (new ModelCacheCoordinator)->fill(
+                    (new ModelCacheCoordinator($this->container))->fill(
                         $candidate,
+                        $this->source,
                         'key',
                         300,
                         fn (): string => 'database',
@@ -558,7 +691,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testNonRefreshableLockIsRejectedOnlyAfterAMiss(): void
     {
-        $coordinator = new ModelCacheCoordinator;
+        $coordinator = new ModelCacheCoordinator($this->container);
         $repository = m::mock(CacheRepository::class);
         $store = m::mock(Store::class, LockProvider::class);
         $lock = m::mock(LockContract::class);
@@ -569,9 +702,9 @@ class ModelCacheCoordinatorTest extends TestCase
         $store->shouldReceive('lock')->once()->with(m::type('string'), 10)->andReturn($lock);
         $lock->shouldNotReceive('get');
 
-        $this->expectExceptionMessage('does not provide refreshable atomic locks');
+        $this->expectExceptionMessageIsOrContains('does not provide refreshable atomic locks');
 
-        $coordinator->fill($repository, 'key', 300, fn (): string => 'database');
+        $coordinator->fill($repository, $this->source, 'key', 300, fn (): string => 'database');
     }
 }
 
@@ -617,6 +750,17 @@ class CoordinatorTestLock extends Lock implements RefreshableLock
     protected function getCurrentOwner(): ?string
     {
         return $this->owner;
+    }
+}
+
+class FailingWriteCoordinatorArrayStore extends ArrayStore
+{
+    /**
+     * Report a failed write without storing the item.
+     */
+    public function put(string $key, mixed $value, int $seconds): bool
+    {
+        return false;
     }
 }
 

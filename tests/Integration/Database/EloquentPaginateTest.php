@@ -7,10 +7,14 @@ namespace Hypervel\Tests\Integration\Database\EloquentPaginateTest;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Guarded\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 class EloquentPaginateTest extends DatabaseTestCase
 {
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -26,7 +30,7 @@ class EloquentPaginateTest extends DatabaseTestCase
         });
     }
 
-    public function testPaginationOnTopOfColumns()
+    public function testPaginationOnTopOfColumns(): void
     {
         for ($i = 1; $i <= 50; ++$i) {
             Post::create([
@@ -37,7 +41,7 @@ class EloquentPaginateTest extends DatabaseTestCase
         $this->assertCount(15, Post::paginate(15, ['id', 'title']));
     }
 
-    public function testPaginationWithDistinct()
+    public function testPaginationWithDistinct(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
@@ -46,14 +50,14 @@ class EloquentPaginateTest extends DatabaseTestCase
 
         $query = Post::query()->distinct();
 
-        $this->assertEquals(6, $query->get()->count());
+        $this->assertCount(6, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertEquals(6, $query->paginate()->total());
     }
 
-    public function testPaginationWithDistinctAndSelect()
+    public function testPaginationWithDistinctAndSelect(): void
     {
-        // This is the 'broken' behaviour, but this test is added to show backwards compatibility.
+        // This is the 'broken' behavior, but this test is added to show backwards compatibility.
         for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
             Post::create(['title' => 'Goodbye world']);
@@ -61,12 +65,12 @@ class EloquentPaginateTest extends DatabaseTestCase
 
         $query = Post::query()->distinct()->select('title');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertEquals(6, $query->paginate()->total());
     }
 
-    public function testPaginationWithDistinctColumnsAndSelect()
+    public function testPaginationWithDistinctColumnsAndSelect(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
@@ -75,12 +79,12 @@ class EloquentPaginateTest extends DatabaseTestCase
 
         $query = Post::query()->distinct('title')->select('title');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertEquals(2, $query->paginate()->total());
     }
 
-    public function testPaginationWithDistinctColumnsAndSelectAndJoin()
+    public function testPaginationWithDistinctColumnsAndSelectAndJoin(): void
     {
         for ($i = 1; $i <= 5; ++$i) {
             $user = User::create();
@@ -95,15 +99,10 @@ class EloquentPaginateTest extends DatabaseTestCase
         $query = User::query()->join('posts', 'posts.user_id', '=', 'users.id')
             ->distinct('users.id')->select('users.*');
 
-        $this->assertEquals(5, $query->get()->count());
+        $this->assertCount(5, $query->get());
         $this->assertEquals(5, $query->count());
         $this->assertEquals(5, $query->paginate()->total());
     }
-}
-
-class Post extends Model
-{
-    protected array $guarded = [];
 }
 
 class User extends Model

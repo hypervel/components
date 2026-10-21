@@ -43,7 +43,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         });
     }
 
-    public function testCursorPaginationOnTopOfColumns()
+    public function testCursorPaginationOnTopOfColumns(): void
     {
         for ($i = 1; $i <= 16; ++$i) {
             $posts[] = [
@@ -66,7 +66,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertEquals(1.5, array_first($page->items()[0]->getAttributes()));
     }
 
-    public function testPaginationWithUnion()
+    public function testPaginationWithUnion(): void
     {
         TestPost::fillAndInsert([
             ['title' => 'Hello world', 'user_id' => 1],
@@ -85,7 +85,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(['user_id'], $result->getOptions()['parameters']);
     }
 
-    public function testPaginationWithDistinct()
+    public function testPaginationWithDistinct(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world'];
@@ -95,12 +95,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->distinct();
 
-        $this->assertEquals(6, $query->get()->count());
+        $this->assertCount(6, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertCount(6, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithWhereClause()
+    public function testPaginationWithWhereClause(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
@@ -110,12 +110,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->whereNull('user_id');
 
-        $this->assertEquals(3, $query->get()->count());
+        $this->assertCount(3, $query->get());
         $this->assertEquals(3, $query->count());
         $this->assertCount(3, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithHasClause()
+    public function testPaginationWithHasClause(): void
     {
         TestUser::fillAndInsert([[], [], []]);
 
@@ -128,12 +128,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestUser::query()->has('posts');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithWhereHasClause()
+    public function testPaginationWithWhereHasClause(): void
     {
         TestUser::fillAndInsert([[], [], []]);
         for ($i = 1; $i <= 3; ++$i) {
@@ -147,12 +147,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             $query->where('title', 'Howdy');
         });
 
-        $this->assertEquals(1, $query->get()->count());
+        $this->assertCount(1, $query->get());
         $this->assertEquals(1, $query->count());
         $this->assertCount(1, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithWhereExistsClause()
+    public function testPaginationWithWhereExistsClause(): void
     {
         TestUser::fillAndInsert([[], [], []]);
         for ($i = 1; $i <= 3; ++$i) {
@@ -168,12 +168,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
                 ->whereColumn('test_posts.user_id', 'test_users.id');
         });
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithMultipleWhereClauses()
+    public function testPaginationWithMultipleWhereClauses(): void
     {
         TestUser::fillAndInsert([[], [], [], []]);
         for ($i = 1; $i <= 4; ++$i) {
@@ -206,7 +206,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         );
     }
 
-    public function testPaginationWithMultipleUnionAndMultipleWhereClauses()
+    public function testPaginationWithMultipleUnionAndMultipleWhereClauses(): void
     {
         TestPost::fillAndInsert([
             ['title' => 'Post A', 'user_id' => 100],
@@ -230,13 +230,13 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(['id'], $result->getOptions()['parameters']);
 
         $postB = $table2->where('id', '>', 1)->first();
-        $this->assertEquals('Post B', $postB->title, 'Expect `Post B` is the result of the second query');
+        $this->assertSame('Post B', $postB->title, 'Expect `Post B` is the result of the second query');
 
         $this->assertCount(1, $result->items(), 'Expect cursor paginated query should have 1 result');
-        $this->assertEquals('Post B', current($result->items())->title, 'Expect the paginated query would return `Post B`');
+        $this->assertSame('Post B', current($result->items())->title, 'Expect the paginated query would return `Post B`');
     }
 
-    public function testPaginationWithMultipleAliases()
+    public function testPaginationWithMultipleAliases(): void
     {
         TestUser::fillAndInsert([
             ['name' => 'A (user)'],
@@ -260,10 +260,10 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(['alias'], $result->getOptions()['parameters']);
 
         $this->assertCount(1, $result->items(), 'Expect cursor paginated query should have 1 result');
-        $this->assertEquals('B (post)', current($result->items())->alias, 'Expect the paginated query would return `B (post)`');
+        $this->assertSame('B (post)', current($result->items())->alias, 'Expect the paginated query would return `B (post)`');
     }
 
-    public function testPaginationWithAliasedOrderBy()
+    public function testPaginationWithAliasedOrderBy(): void
     {
         TestUser::fillAndInsert([[], [], [], [], [], []]);
 
@@ -271,7 +271,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $clonedQuery = $query->clone();
         $anotherQuery = $query->clone();
 
-        $this->assertEquals(6, $query->get()->count());
+        $this->assertCount(6, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertCount(6, $query->cursorPaginate()->items());
         $this->assertCount(3, $clonedQuery->cursorPaginate(3)->items());
@@ -282,7 +282,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         );
     }
 
-    public function testPaginationWithDistinctColumnsAndSelect()
+    public function testPaginationWithDistinctColumnsAndSelect(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world'];
@@ -292,12 +292,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->orderBy('title')->distinct('title')->select('title');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
 
-    public function testPaginationWithDistinctColumnsAndSelectAndJoin()
+    public function testPaginationWithDistinctColumnsAndSelectAndJoin(): void
     {
         TestUser::fillAndInsert([[], [], [], [], []]);
         $users = TestUser::query()->get();
@@ -316,7 +316,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $query = TestUser::query()->join('test_posts', 'test_posts.user_id', '=', 'test_users.id')
             ->distinct('test_users.id')->select('test_users.*');
 
-        $this->assertEquals(5, $query->get()->count());
+        $this->assertCount(5, $query->get());
         $this->assertEquals(5, $query->count());
         $this->assertCount(5, $query->cursorPaginate()->items());
     }

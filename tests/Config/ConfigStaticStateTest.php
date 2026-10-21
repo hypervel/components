@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ConfigStaticStateTest extends TestCase
 {
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         Repository::macro('testingStaticStateProbe', static fn (): string => 'ok');
 

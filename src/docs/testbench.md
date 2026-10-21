@@ -5,6 +5,7 @@
 - [Getting Started](#getting-started)
     - [Unit Tests Without an Application](#unit-tests-without-an-application)
     - [PHPUnit Test Suites](#phpunit-test-suites)
+    - [Test Fixture Files](#test-fixture-files)
 - [How Testbench Works](#how-testbench-works)
     - [Runtime Skeleton Copies](#runtime-skeleton-copies)
     - [Configuration Lifecycle](#configuration-lifecycle)
@@ -30,6 +31,7 @@
     - [Workbench Configuration](#workbench-configuration)
     - [Discovering Workbench Files](#discovering-workbench-files)
     - [Serving the Workbench Application](#serving-the-workbench-application)
+    - [Workbench Authentication](#workbench-authentication)
     - [Syncing Workbench Directories](#syncing-workbench-directories)
 - [Command Line](#command-line)
     - [Running Package Tests](#running-package-tests)
@@ -57,7 +59,7 @@ You may install Testbench into your package using Composer:
 composer require hypervel/testbench --dev
 ```
 
-Your package's `phpunit.xml` file should bootstrap Composer's autoloader and point PHPUnit at your package tests:
+Your package's `phpunit.xml` file should bootstrap Composer's autoloader, point PHPUnit at your package tests, and register Hypervel's PHPUnit extension, which [resets framework state](/docs/{{version}}/testing#test-state-cleanup) after each test:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -67,6 +69,9 @@ Your package's `phpunit.xml` file should bootstrap Composer's autoloader and poi
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+    <extensions>
+        <bootstrap class="Hypervel\Testing\PHPUnit\AfterEachTestExtension" />
+    </extensions>
 </phpunit>
 ```
 
@@ -166,6 +171,47 @@ Run a single suite with PHPUnit's `--testsuite` option:
 ./vendor/bin/phpunit --testsuite=Feature
 ```
 
+<a name="test-fixture-files"></a>
+### Test Fixture Files
+
+Sometimes a single test needs its own helper classes, such as a custom model. Instead of declaring these classes in the test file, you may add the `Hypervel\Testbench\Concerns\WithFixtures` trait to your test and place them in a fixtures file next to it. The fixtures file uses the test's file name with a `.fixtures.php` suffix and is loaded before the test case runs:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature;
+
+use Courier\Tests\TestCase;
+use Hypervel\Testbench\Concerns\WithFixtures;
+
+class AuthenticateUserTest extends TestCase
+{
+    use WithFixtures;
+
+    public function test_user_can_authenticate(): void
+    {
+        $user = new AuthenticateUserTest\User;
+
+        // ...
+    }
+}
+```
+
+The `tests/Feature/AuthenticateUserTest.fixtures.php` file may then declare the `User` class. Using a namespace named after the test keeps its fixtures from colliding with classes of the same name declared for other tests:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature\AuthenticateUserTest;
+
+use Hypervel\Foundation\Auth\User as Authenticatable;
+
+class User extends Authenticatable
+{
+    //
+}
+```
+
 <a name="how-testbench-works"></a>
 ## How Testbench Works
 
@@ -194,7 +240,7 @@ Testbench builds the application in phases so package tests may customize the ap
 1. Environment attributes such as `#[WithEnv]`, `#[RequiresEnv]`, and `#[RequiresHypervel]` are processed before configuration is loaded.
 2. Early application attributes such as `#[ResolvesHypervel]` and `#[UsesFrameworkConfiguration]` are processed just before configuration is loaded.
 3. Hypervel's default configuration is loaded and package / Workbench configuration files are merged over the defaults.
-4. Package providers, aliases, and provider overrides are written into the application configuration.
+4. Package providers and aliases, along with their overrides, are written into the application configuration.
 5. `#[WithConfig]` attributes are applied after configuration is loaded and before service providers are registered.
 6. Service providers are registered.
 7. `defineEnvironment` and `#[DefineEnvironment]` callbacks run between provider registration and provider booting.
@@ -258,7 +304,7 @@ The supported top-level keys are:
 | `bootstrappers` | Additional bootstrappers to run after Hypervel's providers have booted. |
 | `env` | Environment variables for the Testbench CLI application. |
 | `migrations` | Migration paths that should be registered for the Testbench application. |
-| `seeders` | Seeder classes that should run after the database is refreshed. |
+| `seeders` | Seeder classes that should run after the database is refreshed. Use `true` to run the default `Database\Seeders\DatabaseSeeder` class. |
 | `purge` | Files and directories that should be removed by `package:purge-skeleton`. |
 | `workbench` | Workbench-specific configuration. |
 
@@ -365,6 +411,8 @@ protected function overrideApplicationProviders(Application $app): array
 }
 ```
 
+Application aliases may be removed or replaced in the same way by overriding `overrideApplicationAliases`.
+
 You may also override application container bindings before the application is bootstrapped:
 
 ```php
@@ -458,6 +506,8 @@ public static function applicationBasePath(): string
 
 Relative paths in `testbench.yaml` are resolved from the package root.
 
+Tests run on a disposable copy of the skeleton set by the `hypervel` key, just like the default one, while commands you run with `vendor/bin/testbench`, such as `serve` and `package:sync-skeleton`, use it directly. An `applicationBasePath` override or the `APP_BASE_PATH` environment variable is always used directly.
+
 <a name="defining-the-environment"></a>
 ## Defining the Environment
 
@@ -479,7 +529,7 @@ protected function defineEnvironment(Application $app): void
 }
 ```
 
-Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. If a test needs a post-boot value, set it explicitly in the test body using `config()->set()`.
+Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. When a package provider uses shallow configuration merging, a nested key such as `courier.session.driver` replaces the package's default `session` options instead of merging with them. If a test needs a post-boot value, or a nested value alongside the package defaults, set it explicitly in the test body using `config()->set()`.
 
 <a name="using-attributes"></a>
 ### Using Attributes
@@ -572,6 +622,21 @@ class CourierCommandTest extends TestCase
 }
 ```
 
+To test your package against compiled views, as an application would after running `view:cache`, use the `#[WithCachedViews]` attribute. Testbench compiles the application's views before the test and clears them afterwards:
+
+```php
+use Hypervel\Testbench\Attributes\WithCachedViews;
+
+class CourierViewTest extends TestCase
+{
+    #[WithCachedViews]
+    public function test_courier_views_render_when_cached(): void
+    {
+        // ...
+    }
+}
+```
+
 <a name="application-timezone"></a>
 ### Application Timezone
 
@@ -620,7 +685,7 @@ class CustomConfigTest extends TestCase
 <a name="defining-databases"></a>
 ## Defining Databases
 
-Hypervel's normal testing traits may be used in Testbench tests:
+Hypervel's normal [database testing traits](/docs/{{version}}/database-testing#resetting-the-database-after-each-test) may be used in Testbench tests:
 
 ```php
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -850,6 +915,8 @@ class CourierRouteTest extends TestCase
 }
 ```
 
+Testbench defines an `api` rate limiter that allows 60 requests per minute for each user or IP address, so routes using the `throttle:api` middleware work without additional setup. If your test defines its own `api` limiter in `defineEnvironment`, Testbench keeps it. Your package's service providers may also replace the limiter in their `boot` method, or you may override the `resolveApplicationRateLimiting` method on your test case.
+
 <a name="cached-routes"></a>
 ### Cached Routes
 
@@ -904,10 +971,18 @@ vendor/bin/testbench package:install
 
 The command creates a `workbench` directory, writes a `testbench.yaml` file, adds Workbench PSR-4 autoloading to `composer.json`, creates a SQLite database file for the runtime skeleton, and refreshes Composer's autoloader. The default scaffold is auth-ready and includes a `User` model, factory, seeder, route files, and Workbench discovery.
 
+When run interactively, the command also offers to generate `workbench/bootstrap/app.php` and `workbench/bootstrap/providers.php` files. With the default skeleton, Testbench uses these files, when present, to configure the application for `WithWorkbench` tests and Testbench CLI commands such as `serve`. The generated `app.php` doesn't register routes; Workbench discovery loads the route files according to the `discovers` settings in `testbench.yaml`.
+
 Existing files are not overwritten unless you pass the `--force` option. To generate only the core Workbench model, factory, seeder, provider, and `testbench.yaml` file, pass the `--basic` option:
 
 ```shell
 vendor/bin/testbench package:install --basic
+```
+
+To see what the command would do without changing any files, pass the `--pretend` option:
+
+```shell
+vendor/bin/testbench package:install --pretend
 ```
 
 > [!NOTE]
@@ -920,16 +995,22 @@ The supported `workbench` keys are:
 
 | Key | Description |
 | --- | --- |
+| `start` | The path that `/` redirects to while serving. Defaults to `/`. |
+| `user` | The ID or email address of a user to log in automatically when a guest opens `/` while serving. |
+| `guard` | The authentication guard used to log in the `user`. Defaults to the application's default guard. |
 | `install` | Whether Hypervel's default testing migrations should be included when Workbench migrations are loaded. |
-| `auth` | Whether Workbench should include Hypervel's auth service provider when available. |
+| `auth` | Whether Workbench should register the [authentication pages](#workbench-authentication) from the `hypervel/workbench` package. |
+| `welcome` | Whether the welcome page should be shown when nothing handles `/` while serving. By default, it is shown when `install` is enabled. |
 | `health` | Whether Workbench should register the `/up` health route. |
-| `sync` | Directory symlinks that should be created by `package:sync-skeleton`. |
+| `sync` | Directory symlinks that should be created while `serve` runs. |
 | `discovers` | Workbench files that should be discovered automatically. |
 
 For example:
 
 ```yaml
 workbench:
+  start: /dashboard
+  user: taylor@example.com
   install: true
   auth: true
   health: true
@@ -998,7 +1079,7 @@ If your package defines a Composer script, you may run it through Composer:
 composer run serve
 ```
 
-The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application.
+The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application. Like Laravel's `serve` command, it listens on `127.0.0.1` unless you set the `SERVER_HOST` environment variable.
 
 You may pass `--host` and `--port` to temporarily override the configured HTTP server address for the current process:
 
@@ -1006,8 +1087,38 @@ You may pass `--host` and `--port` to temporarily override the configured HTTP s
 vendor/bin/testbench serve --host=127.0.0.1 --port=8001
 ```
 
-> [!NOTE]
-> Unlike Orchestra Testbench, Hypervel's `serve` command does not provide preview-only conveniences such as a welcome page or automatic login.
+When the `hypervel/workbench` package is installed, `serve` also provides a few preview conveniences. If the `user` option is set, opening `/` as a guest logs that user in and redirects to the `start` path. If nothing handles `/`, it redirects to the `start` path, or shows the application's `welcome` view when `start` is `/` and the `welcome` option allows it. You may also switch users while serving:
+
+| Route | Description |
+| --- | --- |
+| `/_workbench` | Log in the configured `user`, or log out when no user is configured, then redirect to `start`. |
+| `/_workbench/login/{user}/{guard?}` | Log in the user with the given ID or email address, then redirect to `start`. |
+| `/_workbench/logout/{guard?}` | Log out the current user, then redirect to `start`. |
+| `/_workbench/user/{guard?}` | Return the authenticated user's ID and class name as JSON. |
+
+<a name="workbench-authentication"></a>
+### Workbench Authentication
+
+The `hypervel/workbench` package provides login, registration, password reset, email verification, password confirmation, profile, and dashboard pages for packages that need an authenticated user while previewing. Install it as a development dependency:
+
+```shell
+composer require hypervel/workbench --dev
+```
+
+Then enable the `auth` option in your `testbench.yaml` file:
+
+```yaml
+workbench:
+  auth: true
+```
+
+The pages are available when serving and in test cases that use the `WithWorkbench` concern. After logging in or registering, users are sent to the dashboard, or to the `start` path when it is not `/`. New users are created with your Workbench user model.
+
+The pages use prebuilt styles and scripts. When `serve` runs the default skeleton, Workbench copies them to `public/vendor/workbench/build` automatically. When serving a [custom skeleton](#custom-application-skeletons), publish them yourself:
+
+```shell
+vendor/bin/testbench vendor:publish --provider="Hypervel\Workbench\AuthServiceProvider" --tag=hypervel-assets
+```
 
 <a name="syncing-workbench-directories"></a>
 ### Syncing Workbench Directories
@@ -1022,13 +1133,17 @@ workbench:
       reverse: true
 ```
 
-Run `package:sync-skeleton` to copy the Testbench configuration into the runtime skeleton and create configured symlinks:
+The `serve` command creates these symlinks when it starts and removes them when it stops. If you use a [custom skeleton](#custom-application-skeletons) that persists between commands, you may also run `package:sync-skeleton` to copy the Testbench configuration into the skeleton and create the configured symlinks:
 
 ```shell
 vendor/bin/testbench package:sync-skeleton
 ```
 
+The default skeleton is recreated for every command and deleted when the command exits, so `package:sync-skeleton` does not sync it.
+
 The `reverse` option changes the direction of the symlink. When `reverse` is `false` or omitted, `from` is resolved from the package root and `to` is resolved from the runtime skeleton. When `reverse` is `true`, `from` is resolved from the runtime skeleton and `to` is resolved from the package root.
+
+An existing symlink at a `to` path is always replaced. An existing file or directory that isn't a symlink is only replaced inside the disposable runtime copy. Anywhere else, such as in your package or a custom skeleton, the command stops with an error naming the path, so you can move or remove it first.
 
 <a name="command-line"></a>
 ## Command Line
@@ -1041,7 +1156,7 @@ vendor/bin/testbench about
 vendor/bin/testbench migrate
 ```
 
-Testbench also provides commands specifically for package development.
+Testbench also provides commands specifically for package development. When the `hypervel/workbench` package is installed, the `workbench:create-sqlite-db`, `workbench:drop-sqlite-db`, `workbench:purge-skeleton`, and `workbench:sync-skeleton` commands are also available as aliases of the matching `package:*` commands.
 
 <a name="running-package-tests"></a>
 ### Running Package Tests
@@ -1098,7 +1213,7 @@ Both commands accept a `--database` option:
 vendor/bin/testbench package:create-sqlite-db --database=courier.sqlite
 ```
 
-The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`.
+The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`. Both commands accept `--pretend` to show the changes without making them.
 
 <a name="purging-the-skeleton"></a>
 ### Purging the Skeleton
@@ -1109,7 +1224,7 @@ The `package:purge-skeleton` command clears generated files from the runtime ske
 vendor/bin/testbench package:purge-skeleton
 ```
 
-It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks.
+It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks. Pass the `--pretend` option to preview the purge without changing anything.
 
 <a name="testing-published-files"></a>
 ## Testing Published Files
@@ -1173,7 +1288,7 @@ Testbench provides several helpers for package tests and command-line tooling:
 | `package_path()` | Resolve a path relative to the package root. |
 | `testbench_path()` | Resolve a path relative to the installed Testbench package. |
 | `workbench_path()` | Resolve a path relative to the package's Workbench directory. |
-| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton copy. |
+| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton. |
 | `default_migration_path()` | Resolve one of Testbench's default migration paths. |
 | `artisan()` | Run an Artisan command against a Testbench application or test case. |
 | `remote()` | Run a Testbench CLI command in a subprocess. |
@@ -1196,4 +1311,4 @@ The `remote` helper reuses the active Testbench runtime skeleton so subprocesses
 <a name="credits"></a>
 ## Credits
 
-Hypervel Testbench began as a port of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel Testbench and Workbench began as ports of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and [Orchestra Workbench](https://github.com/orchestral/workbench), and have been adapted for Hypervel's framework architecture and coroutine runtime.

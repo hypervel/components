@@ -12,6 +12,8 @@ use Hypervel\Testbench\Features\FeaturesCollection;
 
 /**
  * Handles parsing and executing test method attributes.
+ *
+ * @internal
  */
 trait HandlesAttributes
 {
@@ -24,6 +26,7 @@ trait HandlesAttributes
      * @internal
      *
      * @param class-string $attribute
+     * @return FeaturesCollection<int, mixed>
      */
     protected function parseTestMethodAttributes(ApplicationContract $app, string $attribute): FeaturesCollection
     {
@@ -50,7 +53,7 @@ trait HandlesAttributes
     /**
      * Resolve PHPUnit method attributes.
      *
-     * @return \Hypervel\Support\Collection<class-string, \Hypervel\Support\Collection<int, object>>
+     * @return Collection<class-string, Collection<int, object>>
      */
     abstract protected function resolvePhpUnitAttributes(): Collection;
 }

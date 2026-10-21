@@ -6,7 +6,9 @@ namespace Hypervel\Routing;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\InvalidValueException;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
@@ -47,8 +49,8 @@ class ImplicitRouteBinding
     /**
      * Resolve the implicit route bindings for the given route.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws ModelNotFoundException<Model>
+     * @throws BackedEnumCaseNotFoundException
      */
     public static function resolveForRoute(Container $container, Route $route): void
     {
@@ -96,26 +98,41 @@ class ImplicitRouteBinding
 
             $parent = $route->parentOfParameter($parameterName);
 
-            $routeBindingMethod = $route->allowsTrashedBindings() && $instance::isSoftDeletable()
+            // Soft-delete resolution exists only on models; other UrlRoutable implementations use the contract methods.
+            $routeBindingMethod = $route->allowsTrashedBindings() && $instance instanceof Model && $instance::isSoftDeletable()
                 ? 'resolveSoftDeletableRouteBinding'
                 : 'resolveRouteBinding';
 
-            if ($parent instanceof UrlRoutable
-                && ! $route->preventsScopedBindings()
-                && ($route->enforcesScopedBindings() || array_key_exists($parameterName, $route->bindingFields()))) {
-                $childRouteBindingMethod = $route->allowsTrashedBindings() && $instance::isSoftDeletable()
-                    ? 'resolveSoftDeletableChildRouteBinding'
-                    : 'resolveChildRouteBinding';
+            try {
+                if ($parent instanceof UrlRoutable
+                    && ! $route->preventsScopedBindings()
+                    && ($route->enforcesScopedBindings() || array_key_exists($parameterName, $route->bindingFields()))) {
+                    $childRouteBindingMethod = $route->allowsTrashedBindings()
+                        && $parent instanceof Model
+                        && $instance instanceof Model
+                        && $instance::isSoftDeletable()
+                            ? 'resolveSoftDeletableChildRouteBinding'
+                            : 'resolveChildRouteBinding';
 
-                if (! $model = $parent->{$childRouteBindingMethod}( /* @phpstan-ignore method.notFound (resolveSoftDeletableChildRouteBinding exists on Model via SoftDeletes trait, not on UrlRoutable contract) */
-                    $parameterName,
-                    $parameterValue,
-                    $route->bindingFieldFor($parameterName)
-                )) {
-                    throw (new ModelNotFoundException)->setModel(get_class($instance), [$parameterValue]);
+                    if (! $model = $parent->{$childRouteBindingMethod}(
+                        $parameterName,
+                        $parameterValue,
+                        $route->bindingFieldFor($parameterName)
+                    )) {
+                        throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
+                    }
+                } elseif (! $model = $instance->{$routeBindingMethod}($parameterValue, $route->bindingFieldFor($parameterName))) {
+                    throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
                 }
-            } elseif (! $model = $instance->{$routeBindingMethod}($parameterValue, $route->bindingFieldFor($parameterName))) {
-                throw (new ModelNotFoundException)->setModel(get_class($instance), [$parameterValue]);
+            } catch (InvalidValueException $e) {
+                report_if(
+                    $instance instanceof Model
+                        ? $instance::reportsRouteModelBindingExceptions()
+                        : Model::reportsRouteModelBindingExceptions(),
+                    $e
+                );
+
+                throw (new ModelNotFoundException)->setModel(get_class($instance), $parameterValue === null ? [] : [$parameterValue]);
             }
 
             $route->setParameter($parameterName, $model);
@@ -125,7 +142,7 @@ class ImplicitRouteBinding
     /**
      * Resolve the backed enum route bindings for the route.
      *
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws BackedEnumCaseNotFoundException
      */
     protected static function resolveBackedEnumsForRoute(Route $route, array $parameters, array $backedEnumParameters): void
     {

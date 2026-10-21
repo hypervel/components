@@ -21,6 +21,7 @@ use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue
 {
@@ -64,7 +65,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         $queue = $this->getQueueRedisKey($queue);
 
@@ -80,7 +81,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getConnection()->llen($this->getQueueRedisKey($queue));
     }
@@ -88,7 +89,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getConnection()->zcard($this->getQueueRedisKey($queue) . ':delayed');
     }
@@ -96,7 +97,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getConnection()->zcard($this->getQueueRedisKey($queue) . ':reserved');
     }
@@ -107,7 +108,18 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->size($name)),
+            fn (): int => $this->allQueueNames()->sum(function (string $name): int {
+                // Discovered names identify storage; forwarding them again would count the destination twice.
+                $queue = $this->formatQueueRedisKey($name);
+
+                return $this->getConnection()->eval(
+                    LuaScripts::size(),
+                    3,
+                    $queue,
+                    $queue . ':delayed',
+                    $queue . ':reserved',
+                );
+            }),
         );
     }
 
@@ -117,7 +129,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalPendingSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->pendingSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->llen($this->formatQueueRedisKey($name))),
         );
     }
 
@@ -127,7 +139,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalDelayedSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->delayedSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->zcard($this->formatQueueRedisKey($name) . ':delayed')),
         );
     }
 
@@ -137,7 +149,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalReservedSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->reservedSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->zcard($this->formatQueueRedisKey($name) . ':reserved')),
         );
     }
 
@@ -146,7 +158,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      *
      * @return Collection<int, InspectedJob>
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->inspectJobs($queue);
     }
@@ -156,7 +168,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      *
      * @return Collection<int, InspectedJob>
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->inspectJobs($queue, ':delayed');
     }
@@ -166,7 +178,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      *
      * @return Collection<int, InspectedJob>
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->inspectJobs($queue, ':reserved');
     }
@@ -247,7 +259,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             $names[$name] = $name;
         }
 
-        return Collection::make(array_values($names));
+        return new Collection(array_values($names));
     }
 
     /**
@@ -255,8 +267,9 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      *
      * @return Collection<int, InspectedJob>
      */
-    protected function inspectJobs(?string $queue, string $suffix = ''): Collection
+    protected function inspectJobs(UnitEnum|string|null $queue, string $suffix = ''): Collection
     {
+        $queue = $this->normalizeQueue($queue);
         $name = $queue === null || $queue === '' ? $this->default : $queue;
 
         return $this->getConnection()->withConnection(
@@ -276,9 +289,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function inspectAllQueues(string $suffix = ''): Collection
     {
+        // Scan results already name physical queues, including backlogs left before forwarding was configured.
         return $this->getConnection()->withConnection(
             fn (RedisConnection $connection): Collection => $this->allQueueNamesUsing($connection)
-                ->flatMap(fn (string $name): Collection => $this->inspectJobsUsing($connection, $name, $suffix)),
+                ->flatMap(fn (string $name): Collection => $this->inspectJobsAtKey($connection, $this->formatQueueRedisKey($name), $name, $suffix)),
             transform: false,
         );
     }
@@ -290,19 +304,29 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function inspectJobsUsing(RedisConnection $connection, string $name, string $suffix): Collection
     {
-        $key = $this->getQueueRedisKey($name) . $suffix;
+        return $this->inspectJobsAtKey($connection, $this->getQueueRedisKey($name), $name, $suffix);
+    }
+
+    /**
+     * Inspect a formatted storage key while retaining the requested queue identity.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    protected function inspectJobsAtKey(RedisConnection $connection, string $key, string $name, string $suffix): Collection
+    {
+        $key .= $suffix;
         $payloads = $suffix === ''
             ? $connection->lrange($key, 0, -1)
             : $connection->zRange($key, 0, -1);
 
-        return Collection::make($payloads ?: [])
+        return (new Collection($payloads ?: []))
             ->map(fn (string $payload): InspectedJob => InspectedJob::fromPayload($payload, queue: $name));
     }
 
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         $payload = $this->getConnection()->lindex($this->getQueueRedisKey($queue), 0);
 
@@ -318,8 +342,9 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
         $jobs = array_values($jobs);
 
         if ($jobs === []) {
@@ -367,7 +392,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function (object|string $job) use ($data, $queue): array {
                 $delay = $this->getJobDelay($job);
 
@@ -461,8 +486,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data),
@@ -477,7 +504,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         $queue = $this->getQueueRedisKey($queue);
 
@@ -493,8 +520,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Push a new job onto the queue after a delay.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
@@ -541,8 +570,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?JobContract
     {
+        $queue = $this->normalizeQueue($queue);
+
         $this->migrate($prefixed = $this->getQueueRedisKey($queue));
 
         $block = ! $this->secondaryQueueHadJob && $index === 0;
@@ -659,7 +690,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(?string $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
         $queue = $this->getQueueRedisKey($queue);
 
@@ -685,25 +716,36 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Get the queue or return the default.
      */
-    public function getQueue(?string $queue): string
+    public function getQueue(UnitEnum|string|null $queue): string
     {
-        return 'queues:' . ($queue === null || $queue === '' ? $this->default : $queue);
+        $queue = $this->normalizeQueue($queue);
+
+        return 'queues:' . $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**
      * Get the cluster-safe Redis key for the given queue.
      *
-     * Redis Cluster requires every key passed to a multi-key Lua script to live
-     * on the same hash slot. Queue payloads keep the logical queue name via
-     * getQueue(); only storage keys are hash-tagged here.
+     * Queue names are forwarded once before adding the storage prefix and hash tag.
      */
-    protected function getQueueRedisKey(?string $queue = null): string
+    protected function getQueueRedisKey(UnitEnum|string|null $queue = null): string
     {
-        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        $queue = $this->normalizeQueue($queue);
 
+        return $this->formatQueueRedisKey($this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue));
+    }
+
+    /**
+     * Format a physical queue name as a cluster-safe Redis key.
+     *
+     * Redis Cluster requires every key passed to a multi-key Lua script to live
+     * on the same hash slot. Only storage keys are hash-tagged here.
+     */
+    protected function formatQueueRedisKey(string $queue): string
+    {
         return $this->isClusterConnection() && ! RedisConnection::hasHashTag($queue)
-            ? $this->getQueue('{' . $queue . '}')
-            : $this->getQueue($queue);
+            ? 'queues:{' . $queue . '}'
+            : 'queues:' . $queue;
     }
 
     /**

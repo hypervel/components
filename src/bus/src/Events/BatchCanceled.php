@@ -11,6 +11,8 @@ class BatchCanceled
 {
     /**
      * Create a new event instance.
+     *
+     * @param null|Throwable $exception the exception that caused the cancellation
      */
     public function __construct(
         public Batch $batch,

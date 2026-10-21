@@ -9,6 +9,7 @@ use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;
@@ -22,10 +23,10 @@ use function Hypervel\Support\now;
  * @property array $abilities
  * @property string $token
  * @property string $name
- * @property \Hypervel\Database\Eloquent\Model $tokenable
+ * @property Model $tokenable
  * @property ?CarbonInterface $last_used_at
  * @property ?CarbonInterface $expires_at
- * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
+ * @method static Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
 class PersonalAccessToken extends Model implements HasAbilities
@@ -112,9 +113,10 @@ class PersonalAccessToken extends Model implements HasAbilities
             return null;
         }
 
+        // Read the writer so replica lag cannot hide new tokens or delay revocation.
         $accessToken = config()->boolean('sanctum.cache.enabled', false)
             ? static::findTokenUsingCache($id)
-            : static::find($id);
+            : static::query()->useWritePdo()->find($id);
 
         if (! $accessToken) {
             return null;
@@ -134,6 +136,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         return static::getCacheCoordinator()->fill(
             static::getCache(),
+            static fn (): static => new static,
             static::getCacheKey($id),
             config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL),
             fn () => static::query()->useWritePdo()->find($id)?->unsetRelation('tokenable'),
@@ -159,6 +162,7 @@ class PersonalAccessToken extends Model implements HasAbilities
 
         $tokenable = static::getCacheCoordinator()->fill(
             static::getCache(),
+            static fn (): Model => $accessToken->newRelatedInstance($accessToken->getActualClassNameForMorph($morphType)),
             static::getTokenableCacheKey($morphType, $morphId),
             config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL),
             function () use ($accessToken): ?Authenticatable {

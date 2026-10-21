@@ -10,6 +10,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Stringable;
 use Override;
 use RuntimeException;
 
@@ -177,6 +178,10 @@ class MySqlGrammar extends Grammar
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
+        if (! is_null($blueprint->rangePartitionColumns)) {
+            throw new RuntimeException('This database driver does not support table partitioning.');
+        }
+
         $sql = $this->compileCreateTable(
             $blueprint,
             $command
@@ -378,10 +383,11 @@ class MySqlGrammar extends Grammar
     public function compilePrimary(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf(
-            'alter table %s add primary key %s(%s)%s',
+            'alter table %s add primary key %s(%s)%s%s',
             $this->wrapTable($blueprint),
             $command->algorithm ? 'using ' . $command->algorithm : '',
             $this->columnize($command->columns),
+            $command->inplace ? ', algorithm=inplace' : '',
             $command->lock ? ', lock=' . $command->lock : ''
         );
     }
@@ -424,12 +430,13 @@ class MySqlGrammar extends Grammar
     protected function compileKey(Blueprint $blueprint, Fluent $command, string $type): string
     {
         return sprintf(
-            'alter table %s add %s %s%s(%s)%s',
+            'alter table %s add %s %s%s(%s)%s%s',
             $this->wrapTable($blueprint),
             $type,
             $this->wrap($command->index),
             $command->algorithm ? ' using ' . $command->algorithm : '',
             $this->columnize($command->columns),
+            $command->inplace ? ', algorithm=inplace' : '',
             $command->lock ? ', lock=' . $command->lock : ''
         );
     }
@@ -521,6 +528,10 @@ class MySqlGrammar extends Grammar
     {
         $sql = parent::compileForeign($blueprint, $command);
 
+        if ($command->inplace) {
+            $sql .= ', algorithm=inplace';
+        }
+
         if ($command->lock) {
             $sql .= ', lock=' . $command->lock;
         }
@@ -603,7 +614,7 @@ class MySqlGrammar extends Grammar
         return sprintf(
             'alter table %s comment = %s',
             $this->wrapTable($blueprint),
-            "'" . str_replace("'", "''", $command->comment) . "'"
+            $this->quoteString($command->comment)
         );
     }
 
@@ -613,7 +624,7 @@ class MySqlGrammar extends Grammar
     public function escapeNames(array $names): array
     {
         return array_map(
-            fn ($name) => (new Collection(explode('.', $name)))->map($this->wrapValue(...))->implode('.'),
+            fn ($name) => (new Stringable($name))->explode('.')->map($this->wrapValue(...))->implode('.'),
             $names
         );
     }
@@ -889,6 +900,22 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Create the column definition for a medium binary type.
+     */
+    protected function typeMediumBinary(Fluent $column): string
+    {
+        return 'mediumblob';
+    }
+
+    /**
+     * Create the column definition for a long binary type.
+     */
+    protected function typeLongBinary(Fluent $column): string
+    {
+        return 'longblob';
+    }
+
+    /**
      * Create the column definition for a uuid type.
      */
     protected function typeUuid(Fluent $column): string
@@ -942,15 +969,7 @@ class MySqlGrammar extends Grammar
         return $this->typeGeometry($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     *
-     * @throws RuntimeException
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver requires a type, see the virtualAs / storedAs modifiers.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Create the column definition for a vector type.
@@ -1137,10 +1156,26 @@ class MySqlGrammar extends Grammar
     protected function modifyComment(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->comment)) {
-            return " comment '" . addslashes($column->comment) . "'";
+            return ' comment ' . $this->quoteString($column->comment);
         }
 
         return null;
+    }
+
+    /**
+     * Quote the given string literal.
+     *
+     * @param array<string>|string $value
+     */
+    #[Override]
+    public function quoteString(string|array $value): string
+    {
+        // The parent quotes array members through this method.
+        if (is_string($value) && $this->connection->usesBackslashEscapes()) {
+            $value = str_replace('\\', '\\\\', $value);
+        }
+
+        return parent::quoteString($value);
     }
 
     /**

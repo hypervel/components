@@ -91,8 +91,8 @@ class Touch
 
             $args = [
                 $seconds,
-                $this->context->fullTagPrefix(),
-                $this->context->fullRegistryKey(),
+                $this->context->fullTagPrefix($connection),
+                $this->context->fullRegistryKey($connection),
                 time(),
                 $key,
                 $this->context->tagHashSuffix(),

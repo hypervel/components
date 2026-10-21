@@ -11,7 +11,7 @@ class ListenerMakeCommandTest extends TestCase
         'tests/Feature/Listeners/FooListenerTest.php',
     ];
 
-    public function testItCanGenerateListenerFile()
+    public function testItCanGenerateListenerFile(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener'])
             ->assertExitCode(0);
@@ -27,7 +27,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateListenerFileForEvent()
+    public function testItCanGenerateListenerFileForEvent(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--event' => 'FooListenerCreated'])
             ->assertExitCode(0);
@@ -40,7 +40,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateListenerFileForHypervelEvent()
+    public function testItCanGenerateListenerFileForHypervelEvent(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--event' => 'Hypervel\Auth\Events\Login'])
             ->assertExitCode(0);
@@ -53,7 +53,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateQueuedListenerFile()
+    public function testItCanGenerateQueuedListenerFile(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--queued' => true])
             ->assertExitCode(0);
@@ -67,7 +67,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateQueuedListenerFileForEvent()
+    public function testItCanGenerateQueuedListenerFileForEvent(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--queued' => true, '--event' => 'FooListenerCreated'])
             ->assertExitCode(0);
@@ -82,7 +82,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateQueuedListenerFileForHypervelEvent()
+    public function testItCanGenerateQueuedListenerFileForHypervelEvent(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--queued' => true, '--event' => 'Hypervel\Auth\Events\Login'])
             ->assertExitCode(0);
@@ -97,7 +97,7 @@ class ListenerMakeCommandTest extends TestCase
         ], 'app/Listeners/FooListener.php');
     }
 
-    public function testItCanGenerateListenerFileWithTest()
+    public function testItCanGenerateListenerFileWithTest(): void
     {
         $this->artisan('make:listener', ['name' => 'FooListener', '--test' => true])
             ->assertExitCode(0);

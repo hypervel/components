@@ -13,7 +13,7 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class AuthTest extends IntegrationTestCase
 {
-    public function testAuthenticationCallbackWorks()
+    public function testAuthenticationCallbackWorks(): void
     {
         Horizon::auth(function (Request $request) {
             return $request->attributes->get('user') === 'foo';
@@ -29,7 +29,7 @@ class AuthTest extends IntegrationTestCase
         $this->assertFalse(Horizon::check($barRequest));
     }
 
-    public function testAuthenticationMiddlewareCanPass()
+    public function testAuthenticationMiddlewareCanPass(): void
     {
         Horizon::auth(function () {
             return true;
@@ -47,7 +47,7 @@ class AuthTest extends IntegrationTestCase
         $this->assertEquals($response, $responseFromMiddleware);
     }
 
-    public function testAuthenticationMiddlewareThrowsOnFailure()
+    public function testAuthenticationMiddlewareThrowsOnFailure(): void
     {
         $this->expectException(ForbiddenException::class);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Console;
 
+use Dotenv\Parser\Parser;
 use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Sentry\SentryServiceProvider;
@@ -26,6 +27,9 @@ COMMAND;
 
     protected string $description = 'Publish and configure the Sentry config.';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         $arg = [];
@@ -91,6 +95,9 @@ COMMAND;
         return 0;
     }
 
+    /**
+     * Write the given values to the `.env` file.
+     */
     private function setEnvValues(array $values): bool
     {
         $envFilePath = app()->environmentFilePath();
@@ -110,18 +117,27 @@ COMMAND;
         return true;
     }
 
+    /**
+     * Determine if the given key has a value in the `.env` file contents.
+     */
     private function isEnvKeySet(string $envKey, ?string $envFileContents = null): bool
     {
         $envFileContents = $envFileContents ?? file_get_contents(app()->environmentFilePath());
+        $value = null;
 
-        return (bool) preg_match($this->getEnvKeyPattern($envKey), $envFileContents);
+        // The loader uses the last assignment, and an empty value leaves the option unset.
+        foreach ((new Parser)->parse($envFileContents) as $entry) {
+            if ($entry->getName() === $envKey) {
+                $value = $entry->getValue()->getOrElse(null);
+            }
+        }
+
+        return $value !== null && $value->getChars() !== '';
     }
 
-    private function getEnvKeyPattern(string $envKey): string
-    {
-        return '/^' . preg_quote($envKey, '/') . '="?.*?"?(\s|$)/m';
-    }
-
+    /**
+     * Ask the user for a valid DSN.
+     */
     private function askForDsnInput(): string
     {
         if ($this->option('no-interaction')) {

@@ -11,7 +11,7 @@ use Hypervel\Testbench\TestCase;
 
 class DatabaseSoftDeletingTest extends TestCase
 {
-    public function testDeletedAtIsAddedToCastsAsDefaultType()
+    public function testDeletedAtIsAddedToCastsAsDefaultType(): void
     {
         $model = new SoftDeletingModel;
 
@@ -28,7 +28,7 @@ class DatabaseSoftDeletingTest extends TestCase
         $this->assertTrue($expected->eq($model->deleted_at));
     }
 
-    public function testExistingCastOverridesAddedDateCast()
+    public function testExistingCastOverridesAddedDateCast(): void
     {
         $model = new class(['deleted_at' => '2018-12-29 13:59:39']) extends SoftDeletingModel {
             protected array $casts = ['deleted_at' => 'bool'];
@@ -37,7 +37,7 @@ class DatabaseSoftDeletingTest extends TestCase
         $this->assertTrue($model->deleted_at);
     }
 
-    public function testExistingMutatorOverridesAddedDateCast()
+    public function testExistingMutatorOverridesAddedDateCast(): void
     {
         $model = new class(['deleted_at' => '2018-12-29 13:59:39']) extends SoftDeletingModel {
             protected function getDeletedAtAttribute()
@@ -49,7 +49,7 @@ class DatabaseSoftDeletingTest extends TestCase
         $this->assertSame('expected', $model->deleted_at);
     }
 
-    public function testCastingToStringOverridesAutomaticDateCastingToRetainPreviousBehaviour()
+    public function testCastingToStringOverridesAutomaticDateCastingToRetainPreviousBehaviour(): void
     {
         $model = new class(['deleted_at' => '2018-12-29 13:59:39']) extends SoftDeletingModel {
             protected array $casts = ['deleted_at' => 'string'];

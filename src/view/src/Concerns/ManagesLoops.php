@@ -21,8 +21,8 @@ trait ManagesLoops
     public function addLoop(mixed $data): void
     {
         $length = is_countable($data) && ! $data instanceof LazyCollection
-                            ? count($data)
-                            : null;
+            ? count($data)
+            : null;
 
         $loopsStack = CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
         $parent = array_last($loopsStack);

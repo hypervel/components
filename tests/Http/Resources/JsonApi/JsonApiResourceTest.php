@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http\Resources\JsonApi;
 
 use BadMethodCallException;
+use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
@@ -14,6 +15,8 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Tests\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class JsonApiResourceTest extends TestCase
 {
@@ -26,27 +29,24 @@ class JsonApiResourceTest extends TestCase
 
     public function testUnableToSetWrapper(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::wrap() method is not allowed.');
+        $this->expectExceptionObject(new BadMethodCallException('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::wrap() method is not allowed.'));
 
         JsonApiResource::wrap('hypervel');
     }
 
     public function testUnableToUnsetWrapper(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::withoutWrapping() method is not allowed.');
+        $this->expectExceptionObject(new BadMethodCallException('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::withoutWrapping() method is not allowed.'));
 
         JsonApiResource::withoutWrapping();
     }
 
-    public function testFlushStateRestoresDefaultRelationshipDepth(): void
+    public function testFlushStateResetsMaxRelationshipDepthToDefault(): void
     {
         $this->assertSame(5, JsonApiResource::$maxRelationshipDepth);
 
-        JsonApiResource::maxRelationshipDepth(2);
-
-        $this->assertSame(2, JsonApiResource::$maxRelationshipDepth);
+        JsonApiResource::maxRelationshipDepth(10);
+        $this->assertSame(10, JsonApiResource::$maxRelationshipDepth);
 
         JsonApiResource::flushState();
 
@@ -114,6 +114,69 @@ class JsonApiResourceTest extends TestCase
         ], $resource->resolveResourceData($request));
     }
 
+    public function testDefaultAttributesExcludeReservedAndDeclaredRelationshipNames(): void
+    {
+        $child = new class extends JsonApiResourceTestModel {
+            /**
+             * Reject serialization of a discarded relationship.
+             */
+            #[Override]
+            public function toArray(): array
+            {
+                throw new RuntimeException('The declared relationship should not be serialized as an attribute.');
+            }
+        };
+
+        $model = (new JsonApiResourceTestModel)->forceFill([
+            'id' => 1,
+            'type' => 'record',
+            'name' => 'Example',
+            'secret' => 'Hidden',
+        ])->makeHidden('secret')->setRelation('childRecords', $child);
+
+        $resource = new class($model) extends JsonApiResource {
+            protected array $relationships = ['childRecords'];
+        };
+
+        $this->assertSame(['name' => 'Example'], $resource->toAttributes(new JsonApiRequest));
+        $this->assertSame(['secret'], $model->getHidden());
+
+        $authored = new class([]) extends JsonApiResource {
+            /**
+             * Supply an explicitly authored attribute array.
+             */
+            #[Override]
+            public function toArray(Request $request): array
+            {
+                return ['id' => 'authored'];
+            }
+        };
+
+        $this->assertSame(['id' => 'authored'], $authored->toAttributes(new JsonApiRequest));
+    }
+
+    #[TestWith([['comments', 'unlisted'], ['comments']])]
+    #[TestWith([['unlisted'], []])]
+    #[TestWith([['comments.author'], ['comments']])]
+    public function testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations(array $requested, array $expected): void
+    {
+        $resource = new class([]) extends JsonApiResource {
+            protected array $relationships = ['comments'];
+
+            /**
+             * Inspect declaration selection without invoking model methods.
+             */
+            public function selectedRelationships(array $requested): array
+            {
+                $this->requestedRelationships = $requested;
+
+                return $this->getResourceRelationships(new JsonApiRequest)->keys()->all();
+            }
+        };
+
+        $this->assertSame($expected, $resource->selectedRelationships($requested));
+    }
+
     public function testNullRelationshipKeyCannotBecomeAnEmptyResourceIdentifier(): void
     {
         $parent = (new JsonApiResourceParentModel)->forceFill(['id' => 1]);
@@ -125,9 +188,27 @@ class JsonApiResourceTest extends TestCase
 
         $resource->resolveResourceData($request);
     }
+
+    public function testRelatedModelWithAPlainResourceIsIdentifiedAsAJsonApiResource(): void
+    {
+        $parent = (new JsonApiResourceParentModel)->forceFill(['id' => 1]);
+        $parent->setRelation('child', (new JsonApiResourcePlainResourceModel)->forceFill(['id' => 2]));
+        $resource = new JsonApiGuessedChildParentResource($parent);
+
+        $data = $resource->resolveResourceData(JsonApiRequest::create('/?include=child'));
+
+        $this->assertSame([
+            'data' => ['id' => '2', 'type' => 'json_api_resource_plain_resource_models'],
+        ], $data['relationships']->child);
+    }
 }
 
 class JsonApiResourceTestModel extends Model
+{
+}
+
+#[UseResource(JsonApiPlainResource::class)]
+class JsonApiResourcePlainResourceModel extends JsonApiResourceTestModel
 {
 }
 
@@ -209,4 +290,27 @@ class JsonApiChildResource extends JsonApiResource
     {
         return [];
     }
+}
+
+class JsonApiGuessedChildParentResource extends JsonApiResource
+{
+    /**
+     * Transform the resource into an array.
+     */
+    public function toAttributes(Request $request): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the resource's relationships.
+     */
+    public function toRelationships(Request $request): array
+    {
+        return ['child'];
+    }
+}
+
+class JsonApiPlainResource extends JsonResource
+{
 }

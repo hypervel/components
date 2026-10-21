@@ -26,7 +26,7 @@ class LimitTest extends TestCase
     public function testFactoryOverflowNamesItsPublicDecayUnit(callable $factory, string $unit): void
     {
         $this->expectException(InvalidRateLimitException::class);
-        $this->expectExceptionMessage("The rate limit decay {$unit} exceeds the maximum supported duration.");
+        $this->expectExceptionMessageIs("The rate limit decay {$unit} exceeds the maximum supported duration.");
 
         $factory();
     }

@@ -15,11 +15,17 @@ class ListCommandTest extends TestCase
 {
     protected string $integrationsPath;
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,6 +34,9 @@ class ListCommandTest extends TestCase
         (new Filesystem)->deleteDirectory($this->integrationsPath);
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         (new Filesystem)->deleteDirectory($this->integrationsPath);
@@ -60,7 +69,7 @@ class GitHubConnector
 {
     public function resolveBaseUrl(): string
     {
-        return 'https://api.github.com';
+        return "https://api.github.com";
     }
 }
 PHP);
@@ -75,7 +84,46 @@ class GetUser
 
     public function resolveEndpoint(): string
     {
-        return '/users/{$this->user}';
+        return "/users/{$this->user}";
+    }
+}
+PHP);
+        $files->put($this->integrationsPath . '/GitHub/Requests/Users/StarRepository.php', <<<'PHP'
+<?php
+
+class StarRepository
+{
+    protected Method $method = Method::PUT;
+
+    public function resolveEndpoint(): string
+    {
+        return '/v1.0/users/' . $this->user . '/stars.json';
+    }
+}
+PHP);
+        $files->put($this->integrationsPath . '/GitHub/Requests/Users/GetStarred.php', <<<'PHP'
+<?php
+
+class GetStarred
+{
+    protected Method $method = Method::GET;
+
+    public function resolveEndpoint(): string
+    {
+        return '/users/$this->user/starred';
+    }
+}
+PHP);
+        $files->put($this->integrationsPath . '/GitHub/Requests/GetListItems.php', <<<'PHP'
+<?php
+
+class GetListItems
+{
+    protected Method $method = Method::GET;
+
+    public function resolveEndpoint(): string
+    {
+        return '/_api/web/lists/getbytitle(\'Docs.v2\')/items';
     }
 }
 PHP);
@@ -89,11 +137,13 @@ PHP);
         $this->assertStringContainsString('GitHub', $output);
         $this->assertStringContainsString('Authenticators: 1', $output);
         $this->assertStringContainsString('Connectors: 1', $output);
-        $this->assertStringContainsString('Requests: 1', $output);
+        $this->assertStringContainsString('Requests: 4', $output);
         $this->assertStringContainsString('Plugins: 1', $output);
         $this->assertStringContainsString('Responses: 1', $output);
-        $this->assertStringContainsString('api.github.com', $output);
-        $this->assertStringContainsString('/users/{user}', $output);
-        $this->assertStringContainsString('GET', $output);
+        $this->assertStringContainsString(' api.github.com', $output);
+        $this->assertStringContainsString(' /users/{user} GET', $output);
+        $this->assertStringContainsString(' /v1.0/users/{user}/stars.json PUT', $output);
+        $this->assertStringContainsString(' /users/$this->user/starred GET', $output);
+        $this->assertStringContainsString(" /_api/web/lists/getbytitle(\\'Docs.v2\\')/items GET", $output);
     }
 }

@@ -184,9 +184,7 @@ abstract class Seeder implements Transient
             ? $this->container->call([$this, 'run'], $parameters)
             : $this->run(...$parameters);
 
-        $uses = array_flip(class_uses_recursive(static::class));
-
-        if (isset($uses[WithoutModelEvents::class])) {
+        if (isset(class_uses_recursive(static::class)[WithoutModelEvents::class])) {
             // @phpstan-ignore method.notFound (method provided by WithoutModelEvents trait when used)
             $callback = $this->withoutModelEvents($callback);
         }

@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
+use Aws\Middleware;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -41,12 +45,12 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @method \Hypervel\Contracts\Filesystem\Filesystem|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method \Hypervel\Contracts\Filesystem\Filesystem|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method Filesystem|mixed when(null|Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method Filesystem|mixed unless(null|Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  *
- * @mixin \Hypervel\Contracts\Filesystem\Filesystem
- * @mixin \Hypervel\Filesystem\FilesystemAdapter
- * @mixin \Hypervel\Filesystem\ClientPooledFilesystem
+ * @mixin Filesystem
+ * @mixin FilesystemAdapter
+ * @mixin ClientPooledFilesystem
  */
 class FilesystemManager implements FactoryContract
 {
@@ -57,6 +61,11 @@ class FilesystemManager implements FactoryContract
      * The logical name used while resolving on-demand disks.
      */
     protected const string ON_DEMAND_DISK_NAME = 'ondemand';
+
+    /**
+     * The coroutine-local construction stack prefix for each manager.
+     */
+    protected const string READ_THROUGH_CONTEXT_KEY_PREFIX = '__filesystem.read-through.construction.';
 
     /**
      * Google Cloud Storage client constructor options supported by the installed SDK.
@@ -98,7 +107,7 @@ class FilesystemManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolableDrivers = ['s3', 'gcs'];
+    protected array $poolableDrivers = ['s3', 'gcs', 'ftp', 'sftp'];
 
     /**
      * Create a new filesystem manager instance.
@@ -137,6 +146,10 @@ class FilesystemManager implements FactoryContract
      */
     public function build(array|string $config, ?string $name = null): Filesystem
     {
+        if ($name === null && isset($this->disks[self::ON_DEMAND_DISK_NAME])) {
+            return $this->disks[self::ON_DEMAND_DISK_NAME];
+        }
+
         $config = is_array($config) ? $config : [
             'driver' => 'local',
             'root' => $config,
@@ -170,8 +183,8 @@ class FilesystemManager implements FactoryContract
     /**
      * Resolve the given disk while preserving its logical construction name.
      *
-     * The configured disk name "ondemand" is valid, so build() enters this
-     * method directly to carry anonymous construction as a separate value.
+     * Anonymous builds carry a null logical name through custom creators
+     * and pool identity, independently of their internal construction name.
      */
     private function resolveWithLogicalName(string $name, ?array $config, ?string $logicalName): Filesystem
     {
@@ -233,14 +246,15 @@ class FilesystemManager implements FactoryContract
                     $descriptor['servingRoutePrefix'],
                     fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
                 )
-                : $resolver($this->callCustomCreator($constructionConfig, $logicalName));
+                // The manager only consumes the pool options of poolable drivers.
+                : $resolver($this->callCustomCreator($config, $logicalName));
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
             return $this->createClientPooledDisk($driver, $config);
         }
 
-        $driverMethod = 'create' . ucfirst($driver) . 'Driver';
+        $driverMethod = 'create' . Str::studly($driver) . 'Driver';
 
         if (! method_exists($this, $driverMethod)) {
             throw new InvalidArgumentException("Driver [{$driver}] is not supported.");
@@ -396,10 +410,9 @@ class FilesystemManager implements FactoryContract
             $config['root'] = '';
         }
 
-        /* @phpstan-ignore-next-line */
-        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config));
+        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config)); // @phpstan-ignore class.notFound, class.notFound
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
     }
 
     /**
@@ -407,8 +420,7 @@ class FilesystemManager implements FactoryContract
      */
     public function createSftpDriver(array $config): Filesystem
     {
-        /* @phpstan-ignore-next-line */
-        $provider = SftpConnectionProvider::fromArray($config);
+        $provider = SftpConnectionProvider::fromArray($config); // @phpstan-ignore class.notFound
 
         $root = $config['root'] ?? '';
 
@@ -416,10 +428,9 @@ class FilesystemManager implements FactoryContract
             $config['permissions'] ?? []
         );
 
-        /* @phpstan-ignore-next-line */
-        $adapter = new SftpAdapter($provider, $root, $visibility);
+        $adapter = new SftpAdapter($provider, $root, $visibility); // @phpstan-ignore class.notFound
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
     }
 
     /**
@@ -431,6 +442,95 @@ class FilesystemManager implements FactoryContract
             $this->createS3Client($this->s3ClientConfig($config)),
             $config,
         );
+    }
+
+    /**
+     * Create an instance of the read-through driver.
+     */
+    public function createReadThroughDriver(array $config, string $name = 'read-through'): Filesystem
+    {
+        if (! isset($config['primary']) || $config['primary'] === '' || $config['primary'] === []) {
+            throw new InvalidArgumentException('Read-through disk is missing "primary" configuration option.');
+        }
+        if (! isset($config['fallback']) || $config['fallback'] === '' || $config['fallback'] === []) {
+            throw new InvalidArgumentException('Read-through disk is missing "fallback" configuration option.');
+        }
+        if ($config['primary'] === $config['fallback']) {
+            throw new InvalidArgumentException('Read-through disk requires distinct "primary" and "fallback" disks.');
+        }
+
+        // Scoped inline sides can re-enter construction without resolving a named disk.
+        $contextKey = self::READ_THROUGH_CONTEXT_KEY_PREFIX . spl_object_id($this);
+        $stack = CoroutineContext::get($contextKey, []);
+        $label = $name === self::ON_DEMAND_DISK_NAME ? '(on-demand)' : $name;
+
+        foreach ($stack as $entry) {
+            if ($entry['config'] !== $config) {
+                continue;
+            }
+
+            if (count($stack) === 1) {
+                throw new InvalidArgumentException("Read-through disk [{$label}] cannot reference itself.");
+            }
+
+            $cycle = [...array_column($stack, 'name'), $label];
+
+            throw new InvalidArgumentException('Circular read-through disk definition detected: ' . implode(' -> ', $cycle) . '.');
+        }
+
+        CoroutineContext::set($contextKey, [...$stack, ['config' => $config, 'name' => $label]]);
+
+        try {
+            $primary = is_array($config['primary'])
+                ? $this->resolveWithLogicalName(self::ON_DEMAND_DISK_NAME, $config['primary'], null)
+                : $this->disk($config['primary']);
+            $fallback = is_array($config['fallback'])
+                ? $this->resolveWithLogicalName(self::ON_DEMAND_DISK_NAME, $config['fallback'], null)
+                : $this->disk($config['fallback']);
+
+            if (! $primary instanceof Cloud || ! $fallback instanceof Cloud) {
+                throw new InvalidArgumentException('Read-through disks must implement the cloud filesystem contract.');
+            }
+
+            $adapter = new ReadThroughFilesystemAdapter(
+                $this->readThroughOperator($primary),
+                $this->readThroughOperator($fallback),
+                $config['throw_on_promotion_failure'] ?? false,
+                $config['copy'] ?? true,
+            );
+
+            return new ReadThroughFilesystem(
+                $this->createFlysystem($adapter, $config),
+                $primary instanceof FilesystemAdapter ? $primary->getAdapter() : $adapter,
+                array_replace($primary->getConfig(), $config), // @phpstan-ignore method.notFound (Pooled decorators forward adapter accessors.)
+                $primary,
+                $fallback,
+                $config['prefix'] ?? '',
+                $adapter,
+            );
+        } finally {
+            if ($stack === []) {
+                CoroutineContext::forget($contextKey);
+            } else {
+                CoroutineContext::set($contextKey, $stack);
+            }
+        }
+    }
+
+    /**
+     * Get a side operator without exposing borrowed clients or losing native cloud reads.
+     */
+    protected function readThroughOperator(Cloud $disk): FilesystemOperator
+    {
+        if ($disk instanceof AwsS3V3Adapter || $disk instanceof GoogleCloudStorageAdapter) {
+            return new FilesystemOperatorAdapter(
+                static fn (Closure $operation): mixed => $operation($disk->getDriver()),
+                $disk->readStreamRangeOrFail(...),
+                $disk->readStreamRangeOrFail(...),
+            );
+        }
+
+        return $disk instanceof FilesystemAdapter ? $disk->getDriver() : $disk->getOperator(); // @phpstan-ignore method.notFound (Pooled decorators forward the borrow-safe accessor.)
     }
 
     /**
@@ -464,7 +564,17 @@ class FilesystemManager implements FactoryContract
      */
     protected function createS3Client(array $clientConfig): S3Client
     {
-        return new S3Client($clientConfig);
+        if (is_callable($clientConfig['credentials'] ?? null)) {
+            $clientConfig['credentials'] = new SerializedCredentialProvider($clientConfig['credentials']);
+        }
+
+        $client = new S3Client($clientConfig);
+        $client->getHandlerList()->prependInit(
+            Middleware::tap(ConnectionResolver::releaseIdleConnections(...)),
+            'release_idle_database_connections',
+        );
+
+        return $client;
     }
 
     /**
@@ -837,7 +947,13 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
+        $config = $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
+
+        if ($name === self::ON_DEMAND_DISK_NAME && $config !== []) {
+            throw new InvalidArgumentException('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
+        }
+
+        return $config;
     }
 
     /**
@@ -903,9 +1019,14 @@ class FilesystemManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * (and the poolable list if $poolable is true) for the worker lifetime and
      * applies to every subsequent disk resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
@@ -948,10 +1069,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @return mixed
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->disk()->{$method}(...$parameters);
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Json;
@@ -50,10 +51,23 @@ class FileBasedMaintenanceMode implements MaintenanceModeContract
 
     /**
      * Get the data array which was provided when the application was placed into maintenance.
+     *
+     * @throws FileNotFoundException
      */
     public function data(): array
     {
-        $data = Json::decode($this->files->get($this->path()));
+        try {
+            $contents = $this->files->get($this->path());
+        } catch (FileNotFoundException $exception) {
+            if ($this->active()) {
+                throw $exception;
+            }
+
+            // The cached snapshot and middleware recheck activity for an empty payload.
+            return [];
+        }
+
+        $data = Json::decode($contents);
 
         if (! is_array($data)) {
             throw new RuntimeException('The maintenance mode file does not contain a valid payload.');

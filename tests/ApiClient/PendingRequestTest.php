@@ -336,7 +336,7 @@ class PendingRequestTest extends TestCase
         });
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('middleware ahead of the API bridge short-circuited');
+        $this->expectExceptionMessageIsOrContains('middleware ahead of the API bridge short-circuited');
 
         $pending->get('https://example.test/short-circuit');
     }

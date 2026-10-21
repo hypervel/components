@@ -17,6 +17,9 @@ use Throwable;
 #[WithConfig('cache.default', 'file')]
 class FileCacheLockTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,7 +43,7 @@ class FileCacheLockTest extends TestCase
 
     public function testLocksCanBlockForSeconds(): void
     {
-        $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function () {
+        $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function (): string {
             return 'taylor';
         }));
 
@@ -112,7 +115,7 @@ class FileCacheLockTest extends TestCase
         $lock = Cache::lock('my-key', 5);
         $this->assertTrue($lock->get());
 
-        $value = Cache::remember('my-key', 60, fn () => 'expected-value');
+        $value = Cache::remember('my-key', 60, fn (): string => 'expected-value');
 
         $this->assertSame('expected-value', $value);
 
@@ -165,7 +168,10 @@ class FileCacheLockTest extends TestCase
         $lock = Cache::lock('foo', 10);
         $this->assertTrue($lock->get());
 
+        // Refresh the lock for another 20 seconds
         $this->assertTrue($lock->refresh(20));
+
+        // Lock should still be held
         $this->assertFalse(Cache::lock('foo', 10)->get());
 
         $lock->release();
@@ -176,9 +182,13 @@ class FileCacheLockTest extends TestCase
         $firstLock = Cache::lock('foo', 10);
         $this->assertTrue($firstLock->get());
 
+        // Create a new lock with a different owner
         $secondLock = Cache::store('file')->restoreLock('foo', 'other_owner');
 
+        // Second lock should not be able to refresh
         $this->assertFalse($secondLock->refresh(20));
+
+        // Original lock should still be able to refresh
         $this->assertTrue($firstLock->refresh(20));
 
         $firstLock->release();
@@ -193,8 +203,12 @@ class FileCacheLockTest extends TestCase
 
         $this->travel(5)->seconds();
 
+        // Refresh without specifying seconds should use the original duration
         $this->assertTrue($lock->refresh());
         $this->assertSame(10.0, $lock->getRemainingLifetime());
+
+        // Lock should still be held
+        $this->assertFalse(Cache::lock('foo', 10)->get());
 
         $lock->release();
     }
@@ -225,7 +239,7 @@ class FileCacheLockTest extends TestCase
         $lock = Cache::lock('foo', 10);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(0);
     }
@@ -257,6 +271,9 @@ class FileCacheLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         try {

@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\ModelInfo;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\suggest;
@@ -20,11 +21,6 @@ use function Hypervel\Prompts\suggest;
 class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMissingInput
 {
     use FindsAvailableModels;
-
-    /**
-     * The console command name.
-     */
-    protected ?string $name = 'model:show {model}';
 
     /**
      * The console command description.
@@ -51,12 +47,12 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
         } catch (BindingResolutionException $e) {
             $this->components->error($e->getMessage());
 
-            return 1;
+            return self::FAILURE;
         }
 
         $this->display($info);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
@@ -74,8 +70,10 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
      */
     protected function displayJson(ModelInfo $modelData): void
     {
+        // Formatting would strip console style tags, and backslashes before < or >, from attribute defaults.
         $this->output->writeln(
-            (new Collection($modelData))->toJson()
+            (new Collection($modelData))->toJson(),
+            OutputInterface::OUTPUT_RAW
         );
     }
 
@@ -120,7 +118,7 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
 
             if ($attribute['default'] !== null) {
                 $this->components->bulletList(
-                    [sprintf('default: %s', $attribute['default'])],
+                    [OutputFormatter::escape(sprintf('default: %s', $attribute['default']))],
                     OutputInterface::VERBOSITY_VERBOSE
                 );
             }
@@ -141,7 +139,7 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
 
         $this->components->twoColumnDetail('<fg=green;options=bold>Events</>');
 
-        if ($modelData->events->count()) {
+        if ($modelData->events->isNotEmpty()) {
             foreach ($modelData->events as $event) {
                 $this->components->twoColumnDetail(
                     sprintf('%s', $event['event']),
@@ -154,7 +152,7 @@ class ShowModelCommand extends DatabaseInspectionCommand implements PromptsForMi
 
         $this->components->twoColumnDetail('<fg=green;options=bold>Observers</>');
 
-        if ($modelData->observers->count()) {
+        if ($modelData->observers->isNotEmpty()) {
             foreach ($modelData->observers as $observer) {
                 $this->components->twoColumnDetail(
                     sprintf('%s', $observer['event']),

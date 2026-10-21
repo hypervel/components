@@ -13,39 +13,6 @@ use LogicException;
 class InvalidDataDeclaration extends LogicException
 {
     /**
-     * Create an exception for a non-public promoted property.
-     *
-     * @param class-string $class
-     */
-    public static function nonPublicPromotedProperty(
-        string $class,
-        DataParameter $parameter,
-    ): self {
-        $declaringClass = $parameter->reflection->getDeclaringClass()?->getName() ?? $class;
-
-        return new self(
-            "Data class [{$class}] promotes non-public property [{$declaringClass}::\${$parameter->name}]. "
-            . 'Promoted data properties must be public.'
-        );
-    }
-
-    /**
-     * Create an exception for a constructor parameter without a data property.
-     *
-     * @param class-string $class
-     */
-    public static function missingDataProperty(string $class, DataParameter $parameter): self
-    {
-        $declaringClass = $parameter->reflection->getDeclaringClass()?->getName() ?? $class;
-
-        return new self(
-            "Data class [{$class}] constructor parameter [{$declaringClass}::\${$parameter->name}] has no "
-            . 'corresponding public data property or contextual attribute. Promote the parameter, declare a '
-            . 'public property with the same name, or use a named factory.'
-        );
-    }
-
-    /**
      * Create an exception for a non-promoted readonly input property.
      *
      * @param class-string $class

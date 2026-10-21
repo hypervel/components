@@ -82,9 +82,9 @@ class Numeric implements Stringable
     /**
      * The field under validation must be an integer.
      */
-    public function integer(): static
+    public function integer(bool $strict = false): static
     {
-        return $this->addRule('integer');
+        return $this->addRule($strict ? 'integer:strict' : 'integer');
     }
 
     /**

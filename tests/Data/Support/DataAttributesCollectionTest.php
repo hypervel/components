@@ -2,11 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Data\Support;
+namespace Hypervel\Tests\Data\Support\DataAttributesCollectionTest;
 
 use Attribute;
+use Hypervel\Data\Attributes\AutoClosureLazy;
+use Hypervel\Data\Attributes\AutoLazy;
+use Hypervel\Data\Attributes\GetsCast;
+use Hypervel\Data\Attributes\MapInputName;
+use Hypervel\Data\Attributes\MapOutputName;
+use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Mappers\CamelCaseMapper;
 use Hypervel\Data\Support\Factories\DataAttributesCollectionFactory;
+use Hypervel\Tests\Data\Fixtures\Casts\ConfidentialDataCast;
 use Hypervel\Tests\TestCase;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -14,6 +23,98 @@ use RuntimeException;
 
 class DataAttributesCollectionTest extends TestCase
 {
+    // The collection holds attribute recipes, which create the attribute on newInstance(), where Spatie's holds
+    // the attribute objects.
+
+    public function testCanGetTheAttributesFromAReflectionClass(): void
+    {
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionClass(
+            new ReflectionClass(TestClassWithAttribute::class)
+        );
+
+        $this->assertTrue($attributes->has(MapInputName::class));
+        $this->assertInstanceOf(MapInputName::class, $attributes->first(MapInputName::class)?->newInstance());
+    }
+
+    public function testCanGetAttributesFromAReflectionClassAndItsParents(): void
+    {
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionClass(
+            new ReflectionClass(TestInheritedClassWithAttribute::class)
+        );
+
+        $this->assertTrue($attributes->has(MapInputName::class));
+        $this->assertInstanceOf(MapInputName::class, $attributes->first(MapInputName::class)?->newInstance());
+
+        $this->assertTrue($attributes->has(MapOutputName::class));
+        $this->assertInstanceOf(MapOutputName::class, $attributes->first(MapOutputName::class)?->newInstance());
+    }
+
+    public function testCanGetAttributesForAReflectionProperty(): void
+    {
+        $class = new class {
+            #[MapInputName(CamelCaseMapper::class)]
+            protected string $first_name;
+        };
+
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty(
+            new ReflectionProperty($class, 'first_name')
+        );
+
+        $this->assertTrue($attributes->has(MapInputName::class));
+        $this->assertInstanceOf(MapInputName::class, $attributes->first(MapInputName::class)?->newInstance());
+    }
+
+    public function testCanGetMultipleVersionsOfAnAttributeAttributesForAReflectionProperty(): void
+    {
+        $class = new class {
+            #[RepeatableAttribute('a')]
+            #[RepeatableAttribute('b')]
+            protected string $first_name;
+        };
+
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty(
+            new ReflectionProperty($class, 'first_name')
+        );
+
+        $this->assertTrue($attributes->has(RepeatableAttribute::class));
+        $this->assertEquals(
+            [new RepeatableAttribute('a'), new RepeatableAttribute('b')],
+            array_map(fn (ReflectionAttribute $attribute): object => $attribute->newInstance(), $attributes->all(RepeatableAttribute::class)),
+        );
+    }
+
+    public function testCanGetTheAttributeByItsParentClass(): void
+    {
+        $class = new class {
+            #[AutoClosureLazy]
+            protected string $first_name;
+        };
+
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty(
+            new ReflectionProperty($class, 'first_name')
+        );
+
+        $this->assertTrue($attributes->has(AutoLazy::class));
+        $this->assertInstanceOf(AutoClosureLazy::class, $attributes->first(AutoLazy::class)?->newInstance());
+        $this->assertSame($attributes->first(AutoClosureLazy::class), $attributes->first(AutoLazy::class));
+    }
+
+    public function testCanGetTheAttributeByItsInterface(): void
+    {
+        $class = new class {
+            #[WithCast(ConfidentialDataCast::class)]
+            protected string $first_name;
+        };
+
+        $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty(
+            new ReflectionProperty($class, 'first_name')
+        );
+
+        $this->assertTrue($attributes->has(GetsCast::class));
+        $this->assertInstanceOf(WithCast::class, $attributes->first(GetsCast::class)?->newInstance());
+        $this->assertSame($attributes->first(WithCast::class), $attributes->first(GetsCast::class));
+    }
+
     /**
      * Test that attribute constructors remain lazy recipes.
      */
@@ -28,26 +129,6 @@ class DataAttributesCollectionTest extends TestCase
         $this->expectException(RuntimeException::class);
 
         $attributes->first(DataAttributesThrowingAttribute::class)?->newInstance();
-    }
-
-    /**
-     * Test that recipes are grouped by concrete, parent, and interface types.
-     */
-    public function testAttributesAreGroupedByConcreteParentAndInterfaceTypes(): void
-    {
-        $attributes = DataAttributesCollectionFactory::buildFromReflectionProperty(
-            new ReflectionProperty(DataAttributesPropertyFixture::class, 'value'),
-        );
-
-        $concrete = $attributes->first(DataAttributesConcreteAttribute::class);
-
-        $this->assertNotNull($concrete);
-        $this->assertSame($concrete, $attributes->first(DataAttributesBaseAttribute::class));
-        $this->assertSame($concrete, $attributes->first(DataAttributesAttributeContract::class));
-        $this->assertSame(['first', 'second'], array_map(
-            fn ($attribute): string => $attribute->newInstance()->name,
-            $attributes->all(DataAttributesConcreteAttribute::class),
-        ));
     }
 
     /**
@@ -74,7 +155,7 @@ class DataAttributesCollectionTest extends TestCase
             new ReflectionClass(DataAttributesUnknownAttributeFixture::class),
         );
 
-        $this->assertFalse($attributes->has('Hypervel\Tests\Data\Support\MissingAttribute'));
+        $this->assertFalse($attributes->has('Hypervel\Tests\Data\Support\DataAttributesCollectionTest\MissingAttribute'));
     }
 
     /**
@@ -98,16 +179,29 @@ class DataAttributesCollectionTest extends TestCase
     }
 }
 
-interface DataAttributesAttributeContract
+#[MapInputName(CamelCaseMapper::class)]
+class TestClassWithAttribute
 {
 }
 
-class DataAttributesBaseAttribute
+#[MapOutputName(CamelCaseMapper::class)]
+class TestInheritedClassWithAttribute extends TestClassWithAttribute
 {
 }
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_PROPERTY | Attribute::IS_REPEATABLE)]
-class DataAttributesConcreteAttribute extends DataAttributesBaseAttribute implements DataAttributesAttributeContract
+class RepeatableAttribute
+{
+    /**
+     * Create a repeatable test attribute.
+     */
+    public function __construct(public string $name)
+    {
+    }
+}
+
+#[Attribute(Attribute::TARGET_CLASS)]
+class DataAttributesConcreteAttribute
 {
     /**
      * Create a new concrete test attribute.
@@ -153,13 +247,6 @@ class DataAttributesObjectAttribute
 #[DataAttributesThrowingAttribute]
 class DataAttributesClassWithThrowingAttribute
 {
-}
-
-class DataAttributesPropertyFixture
-{
-    #[DataAttributesConcreteAttribute('first')]
-    #[DataAttributesConcreteAttribute('second')]
-    public string $value;
 }
 
 #[DataAttributesConcreteAttribute('parent')]

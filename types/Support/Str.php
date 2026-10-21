@@ -121,6 +121,8 @@ assertType('array<string>', Str::numbers(['(555) 123-4567']));
 
 assertType('numeric-string', Str::password(letters: false, symbols: false, spaces: false));
 assertType('string', Str::password());
+assertType("''", Str::password(0, letters: false, symbols: false, spaces: false));
+assertType("''", Str::password(-2));
 
 assertType('int', Str::position('Taylor Otwell', ''));
 assertType('int', Str::position('', ''));
@@ -146,6 +148,18 @@ assertType('true', Str::doesntStartWith('', 'Taylor'));
 assertType('bool', Str::doesntStartWith('Taylor Otwell', 'Taylor'));
 assertType('bool', Str::doesntStartWith(123, '1'));
 assertType('bool', Str::of('123')->doesntStartWith(1));
+
+Str::of('123')->whenStartsWith([1], static fn (): null => null);
+Str::of('123')->whenDoesntStartWith([1], static fn (): null => null);
+Str::of('123')->whenEndsWith($stringable, static fn (): null => null);
+Str::of('123')->whenDoesntEndWith($stringable, static fn (): null => null);
+
+assertType('bool', Str::is($stringable, '123'));
+assertType('bool', Str::of('123')->is([123]));
+Str::of('123')->whenIs([123], static fn (): null => null);
+
+Str::createUuidsUsing(static fn (): string => '00000000-0000-0000-0000-000000000000');
+Str::createUuidsUsingSequence(['00000000-0000-0000-0000-000000000000'], static fn (): string => '00000000-0000-0000-0000-000000000000');
 
 assertType('\'\'', Str::studly(''));
 assertType('string', Str::studly('Taylor Otwell'));

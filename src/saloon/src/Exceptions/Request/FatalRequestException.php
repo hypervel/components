@@ -9,7 +9,8 @@ use Hypervel\Saloon\Http\PendingRequest;
 use Throwable;
 
 /**
- * Report a transport failure that occurred before an API returned a response.
+ * Report a request exchange that could not complete, such as a failed connection or a transfer that broke while
+ * receiving the response.
  */
 class FatalRequestException extends SaloonException
 {

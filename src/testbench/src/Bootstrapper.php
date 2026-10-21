@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench;
 
 use Composer\InstalledVersions;
+use FilesystemIterator;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
@@ -13,6 +14,7 @@ use Hypervel\Testbench\Foundation\EnvironmentFile;
 use Hypervel\Testing\ParallelTesting;
 use JsonException;
 use RuntimeException;
+use SplFileInfo;
 use Throwable;
 
 class Bootstrapper
@@ -43,11 +45,19 @@ class Bootstrapper
 
         static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
-        if (! defined('SWOOLE_HOOK_FLAGS')) {
-            define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+        if (defined('BASE_PATH')) {
+            return;
         }
 
-        if (defined('BASE_PATH')) {
+        /** @var ConfigContract $configuration */
+        $configuration = static::$configuration;
+
+        // Testbench commands run directly on an explicit or configured skeleton. Tests
+        // and the default skeleton use a disposable copy.
+        if (is_testbench_cli()
+            && ($commandBasePath = static::commandApplicationBasePath($configuration, $workingPath)) !== null) {
+            define('BASE_PATH', $commandBasePath);
+
             return;
         }
 
@@ -63,6 +73,8 @@ class Bootstrapper
 
     /**
      * Get the configuration attributes as an array.
+     *
+     * @return array<string, mixed>
      */
     public static function getConfig(): array
     {
@@ -80,6 +92,71 @@ class Bootstrapper
     }
 
     /**
+     * Determine if the given path is the disposable runtime copy created by this process.
+     *
+     * Remote child processes and predefined base paths use a runtime they do not own.
+     */
+    public static function ownsRuntimePath(string $path): bool
+    {
+        if (static::$runtimePath === null) {
+            return false;
+        }
+
+        $runtimePath = realpath(static::$runtimePath);
+
+        return $runtimePath !== false && realpath($path) === $runtimePath;
+    }
+
+    /**
+     * Determine if the given path is a disposable runtime copy.
+     *
+     * A remote child may borrow its parent's copy; the parent reports that when it
+     * starts the child. Borrowing a copy does not make the child its owner.
+     */
+    public static function isRuntimeCopy(string $path): bool
+    {
+        if (static::ownsRuntimePath($path)) {
+            return true;
+        }
+
+        $parentBasePath = static::parentBasePath();
+        $isCopy = ($_SERVER['TESTBENCH_RUNTIME_COPY'] ?? $_ENV['TESTBENCH_RUNTIME_COPY'] ?? null) === '(true)';
+
+        if ($parentBasePath === null || ! $isCopy) {
+            return false;
+        }
+
+        $resolvedParentBasePath = realpath($parentBasePath);
+
+        return $resolvedParentBasePath !== false && realpath($path) === $resolvedParentBasePath;
+    }
+
+    /**
+     * Get the application base path set explicitly through APP_BASE_PATH.
+     *
+     * The lookup order matches the framework's base path inference, so the value
+     * is found whether or not PHP copies the process environment into $_ENV.
+     */
+    public static function explicitApplicationBasePath(): ?string
+    {
+        $basePath = $_ENV['APP_BASE_PATH'] ?? $_SERVER['APP_BASE_PATH'] ?? Env::get('APP_BASE_PATH');
+
+        return is_string($basePath) && $basePath !== '' ? $basePath : null;
+    }
+
+    /**
+     * Get the persistent application base path a Testbench command runs on.
+     *
+     * An explicit APP_BASE_PATH takes precedence over the configured skeleton. Tests
+     * never use the configured skeleton directly; they run on a disposable copy.
+     */
+    public static function commandApplicationBasePath(ConfigContract $config, string $workingPath): ?string
+    {
+        return static::explicitApplicationBasePath()
+            ?? transform_relative_path($config['hypervel'] ?? null, $workingPath);
+    }
+
+    /**
      * Get the filesystem instance.
      */
     protected static function getFilesystem(): Filesystem
@@ -91,6 +168,11 @@ class Bootstrapper
         return static::$filesystem = new Filesystem;
     }
 
+    /**
+     * Load and cache the configuration from the Yaml file.
+     *
+     * @param array<string, mixed> $defaults
+     */
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void
     {
         static::$configuration = Config::cacheFromYaml($workingPath, $filename, $defaults);
@@ -160,7 +242,7 @@ class Bootstrapper
                 throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
             }
 
-            if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
+            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, join_paths($workingPath, 'vendor'))) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
 
@@ -204,6 +286,56 @@ class Bootstrapper
         });
 
         return $runtimePath;
+    }
+
+    /**
+     * Copy the skeleton into the runtime copy.
+     *
+     * Preserve a configured skeleton's vendor link, or link the package's dependencies
+     * when the skeleton has none. Each worker can then discover installed packages
+     * without changing the shared skeleton or copying its dependencies.
+     */
+    protected static function copySkeleton(Filesystem $filesystem, string $sourcePath, string $runtimePath, string $workingVendorPath): bool
+    {
+        $vendorPath = join_paths($sourcePath, 'vendor');
+
+        if (! is_symlink($vendorPath)) {
+            if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
+                return false;
+            }
+
+            $target = join_paths($runtimePath, 'vendor');
+
+            if (! file_exists($target) && ! is_symlink($target) && is_dir($workingVendorPath)) {
+                return $filesystem->link($workingVendorPath, $target) !== false && is_symlink($target);
+            }
+
+            return true;
+        }
+
+        $vendorTarget = realpath($vendorPath);
+
+        if ($vendorTarget === false) {
+            throw new RuntimeException("Unable to resolve the skeleton's vendor link [{$vendorPath}].");
+        }
+
+        foreach (new FilesystemIterator($sourcePath, FilesystemIterator::SKIP_DOTS) as $item) {
+            /** @var SplFileInfo $item */
+            $target = join_paths($runtimePath, $item->getBasename());
+
+            $copied = match (true) {
+                // A reused runtime keeps its own vendor link; booting the application checks it.
+                $item->getBasename() === 'vendor' => is_symlink($target) || ($filesystem->link($vendorTarget, $target) !== false && is_symlink($target)),
+                $item->isDir() => $filesystem->copyDirectory($item->getPathname(), $target),
+                default => $filesystem->copy($item->getPathname(), $target),
+            };
+
+            if (! $copied) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -292,14 +424,20 @@ class Bootstrapper
      */
     protected static function resolveRuntimeBasePath(string $sourcePath, string $workingPath): string
     {
-        $existingRuntimePath = $_SERVER['TESTBENCH_BASE_PATH'] ?? $_ENV['TESTBENCH_BASE_PATH'] ?? null;
+        return static::parentBasePath() ?? static::createRuntimeCopy($sourcePath, $workingPath);
+    }
+
+    /**
+     * Get the parent's base path that a remote child process shares.
+     */
+    protected static function parentBasePath(): ?string
+    {
+        $parentBasePath = $_SERVER['TESTBENCH_BASE_PATH'] ?? $_ENV['TESTBENCH_BASE_PATH'] ?? null;
         $isRemoteProcess = ($_SERVER['TESTBENCH_PACKAGE_REMOTE'] ?? $_ENV['TESTBENCH_PACKAGE_REMOTE'] ?? null) === '(true)';
 
-        if ($isRemoteProcess && is_string($existingRuntimePath) && static::getFilesystem()->isDirectory($existingRuntimePath)) {
-            return $existingRuntimePath;
-        }
-
-        return static::createRuntimeCopy($sourcePath, $workingPath);
+        return $isRemoteProcess && is_string($parentBasePath) && static::getFilesystem()->isDirectory($parentBasePath)
+            ? $parentBasePath
+            : null;
     }
 
     /**

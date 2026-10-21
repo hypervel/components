@@ -7,6 +7,11 @@ namespace Hypervel\Sentry\Tracing;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\Sentry\Http\HypervelRequestFetcher;
+use Hypervel\Sentry\Http\SensitiveCookieFilter;
+use Sentry\DataCollection\DataCollectionPolicy;
+use Sentry\DataCollection\HttpMessageType;
+use Sentry\DataCollection\HttpSpanDataCollector;
 use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\Span;
@@ -22,15 +27,6 @@ use function Sentry\continueTrace;
  */
 class Middleware
 {
-    /**
-     * The timestamp of application bootstrap completion.
-     *
-     * Static because it's set once during worker boot (before any request
-     * coroutine exists) and consumed by the first request. Scoped instances
-     * created per-coroutine read this shared value.
-     */
-    private static ?float $bootedTimestamp = null;
-
     /**
      * The current active transaction.
      */
@@ -75,6 +71,7 @@ class Middleware
      */
     public function terminate(Request $request, Response $response): void
     {
+        // If there is no transaction there is nothing for us to do
         if ($this->transaction === null) {
             return;
         }
@@ -90,53 +87,13 @@ class Middleware
             $this->appSpan = null;
         }
 
+        $this->transaction->setData($this->collectRequestData());
+
         $this->hydrateResponseData($response);
 
         if (! $this->continueAfterResponse) {
             $this->finishTransaction();
         }
-    }
-
-    /**
-     * Set the timestamp of application bootstrap completion.
-     *
-     * Boot-only. Sets a process-wide static used by the first-request boot
-     * span. Runtime use would race across coroutines.
-     *
-     * @internal this method should only be invoked right after the application has finished "booting"
-     */
-    public static function setBootedTimestamp(?float $timestamp = null): void
-    {
-        self::$bootedTimestamp = $timestamp ?? microtime(true);
-    }
-
-    /**
-     * Signal that a route was matched for the current request.
-     */
-    public static function signalRouteWasMatched(): void
-    {
-        if (! app()->bound(self::class)) {
-            return;
-        }
-
-        app(self::class)->internalSignalRouteWasMatched();
-    }
-
-    /**
-     * Finish the current transaction.
-     */
-    public function finishTransaction(): void
-    {
-        if ($this->transaction === null) {
-            return;
-        }
-
-        // Make sure we set the transaction and not have a child span in the Sentry SDK.
-        // If the transaction is not on the scope during finish, the trace.context is wrong.
-        SentrySdk::getCurrentHub()->setSpan($this->transaction);
-
-        $this->transaction->finish();
-        $this->transaction = null;
     }
 
     /**
@@ -157,6 +114,9 @@ class Middleware
             $request->header('baggage', '')
         );
 
+        // OTLP external propagation relies on the scope not already carrying a Sentry span,
+        // but continueTrace() still needs to run so incoming distributed trace headers can
+        // populate the scope propagation context while tracing is disabled.
         if ($client === null || ! $client->getOptions()->isTracingEnabled()) {
             return;
         }
@@ -188,20 +148,21 @@ class Middleware
         $this->transaction = $transaction;
 
         if ($this->continueAfterResponse) {
-            // This runs before the outer runtime context ends and after later
-            // after-response work because coroutine defers are LIFO.
+            // Upstream's TransactionFinisher is not ported: it finishes the transaction from a terminating callback
+            // on the application, which lives for the whole worker here, so each request coroutine finishes its own.
+            // This runs before the outer runtime context ends and after later after-response work because
+            // coroutine defers are LIFO.
             Coroutine::defer(function (): void {
                 $this->finishTransaction();
             });
         }
 
-        $bootstrapSpan = $this->addAppBootstrapSpan();
-
+        // Upstream's `app.bootstrap` span is not ported: workers boot once before serving
+        // requests, so no request includes application bootstrap.
         $this->appSpan = $this->transaction->startChild(
             SpanContext::make()
                 ->setOp('middleware.handle')
                 ->setOrigin('auto.http.server')
-                ->setStartTimestamp($bootstrapSpan ? $bootstrapSpan->getEndTimestamp() : microtime(true))
         );
 
         $hub->setSpan($this->appSpan);
@@ -220,49 +181,25 @@ class Middleware
     }
 
     /**
-     * Add the application bootstrap span to the transaction.
+     * Collect the request data for the transaction.
+     *
+     * @return array<string, mixed>
      */
-    private function addAppBootstrapSpan(): ?Span
+    private function collectRequestData(): array
     {
-        if (self::$bootedTimestamp === null) {
-            return null;
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+
+        // The legacy options only collected the request data on the event
+        if ($policy->isLegacyMode()) {
+            return [];
         }
 
-        $span = $this->transaction->startChild(
-            SpanContext::make()
-                ->setOp('app.bootstrap')
-                ->setOrigin('auto.http.server')
-                ->setStartTimestamp($this->transaction->getStartTimestamp())
-                ->setEndTimestamp(self::$bootedTimestamp)
-        );
-
-        $this->addBootDetailTimeSpans($span);
-
-        // Consume the booted timestamp — this worker boot span is best-effort
-        // and only the first request after worker boot gets it.
-        self::$bootedTimestamp = null;
-
-        return $span;
-    }
-
-    /**
-     * Add detail spans for the boot process.
-     */
-    private function addBootDetailTimeSpans(Span $bootstrap): void
-    {
-        // This constant should be defined right after the composer `autoload.php` require statement
-        // define('SENTRY_AUTOLOAD', microtime(true));
-        if (! defined('SENTRY_AUTOLOAD') || ! SENTRY_AUTOLOAD) {
-            return;
+        $request = (new HypervelRequestFetcher)->fetchRequest();
+        if ($request === null) {
+            return [];
         }
 
-        $bootstrap->startChild(
-            SpanContext::make()
-                ->setOp('app.php.autoload')
-                ->setOrigin('auto.http.server')
-                ->setStartTimestamp($this->transaction->getStartTimestamp())
-                ->setEndTimestamp(SENTRY_AUTOLOAD)
-        );
+        return HttpSpanDataCollector::collectServerRequest($policy, $request);
     }
 
     /**
@@ -274,6 +211,52 @@ class Middleware
         $this->transaction->setData([
             'http.response.status_code' => $response->getStatusCode(),
         ]);
+
+        $this->transaction->setData($this->collectResponseData($response));
+    }
+
+    /**
+     * Collect the response data for the transaction.
+     *
+     * @return array<string, mixed>
+     */
+    private function collectResponseData(Response $response): array
+    {
+        $policy = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub());
+
+        // The legacy options never collected any response data
+        if ($policy->isLegacyMode()) {
+            return [];
+        }
+
+        $type = HttpMessageType::outgoingResponse();
+
+        $cookies = [];
+        foreach ($response->headers->getCookies() as $cookie) {
+            $cookies[] = [$cookie->getName(), SensitiveCookieFilter::filterValue($cookie->getName(), $cookie->getValue())];
+        }
+
+        // Streamed and file responses have no content (`false`), which the collector skips
+        return HttpSpanDataCollector::collectHeaders($policy, $type, $response->headers->all())
+            + HttpSpanDataCollector::collectCookiePairs($policy, $type, $cookies)
+            + HttpSpanDataCollector::collectBody($policy, $type, $response->getContent(), (string) $response->headers->get('Content-Type', ''));
+    }
+
+    /**
+     * Finish the current transaction.
+     */
+    public function finishTransaction(): void
+    {
+        if ($this->transaction === null) {
+            return;
+        }
+
+        // Make sure we set the transaction and not have a child span in the Sentry SDK.
+        // If the transaction is not on the scope during finish, the trace.context is wrong.
+        SentrySdk::getCurrentHub()->setSpan($this->transaction);
+
+        $this->transaction->finish();
+        $this->transaction = null;
     }
 
     /**
@@ -289,14 +272,19 @@ class Middleware
      */
     private function shouldRouteBeIgnored(): bool
     {
+        // If a route has not been matched we ignore unless we are configured to trace missing routes
         return ! $this->didRouteMatch && ! $this->traceMissingRoutes;
     }
 
     /**
-     * Flush all static state.
+     * Signal that a route was matched for the current request.
      */
-    public static function flushState(): void
+    public static function signalRouteWasMatched(): void
     {
-        self::$bootedTimestamp = null;
+        if (! app()->bound(self::class)) {
+            return;
+        }
+
+        app(self::class)->internalSignalRouteWasMatched();
     }
 }

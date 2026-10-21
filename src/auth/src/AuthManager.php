@@ -72,7 +72,9 @@ class AuthManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->guards[$name] ??= $this->resolve($name);
     }
@@ -179,11 +181,8 @@ class AuthManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if (CoroutineContext::has(self::DEFAULT_GUARD_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY);
-        }
-
-        return $this->app->make('config')->string('auth.defaults.guard');
+        return CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY)
+            ?? $this->app->make('config')->string('auth.defaults.guard');
     }
 
     /**
@@ -195,7 +194,9 @@ class AuthManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         $this->setDefaultDriver($name);
 
@@ -330,8 +331,13 @@ class AuthManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent guard resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {

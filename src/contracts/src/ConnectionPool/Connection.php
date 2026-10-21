@@ -13,6 +13,8 @@ interface Connection
 
     /**
      * Reconnect the connection.
+     *
+     * Return true if the connection is available for use when reconnection completes.
      */
     public function reconnect(): bool;
 

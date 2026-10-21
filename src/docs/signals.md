@@ -101,6 +101,8 @@ use App\Signals\WriteDiagnostics;
 
 If a handler throws an exception, Hypervel reports the exception and continues running the remaining handlers. Once every handler has finished, Hypervel listens for the next delivery of the signal.
 
+Artisan commands invoked in the same process may also register traps for these signals. Their newer traps run before the configured handlers and are removed when the command finishes, leaving the configured handlers registered.
+
 <a name="signal-lifecycle"></a>
 ## Signal Lifecycle
 
@@ -114,6 +116,8 @@ Keep signal handlers short. While a handler is running, another delivery of the 
 Swoole manages normal worker shutdown through `SIGTERM`. Registering an application handler for this signal replaces that native behavior within the worker, so your handler becomes responsible for completing the required shutdown.
 
 Swoole does not handle `SIGINT` in workers. If your application registers a handler for this signal, Hypervel handles an interrupt that would otherwise terminate the worker.
+
+When a `SWOOLE_BASE` server runs as a single worker process without a manager, that process also coordinates server shutdown. Hypervel's built-in `SIGINT` shutdown is registered alongside your handlers in that process, so your handler still runs but does not prevent the server from shutting down.
 
 <a name="server-process-signals"></a>
 ### Server Process Signals

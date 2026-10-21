@@ -11,6 +11,7 @@ use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CallbackEvent extends Event
@@ -126,6 +127,9 @@ class CallbackEvent extends Event
             ]);
 
             return $result === false ? 1 : 0;
+        } catch (CanceledException $e) {
+            // Cancellation must unwind the mutex without running failure callbacks.
+            throw $e;
         } catch (Throwable $e) {
             CoroutineContext::set($this->callbackContextKey(), [
                 'result' => null,

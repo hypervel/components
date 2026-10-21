@@ -27,7 +27,7 @@ interface SearchableInterface
      *
      * @return Builder<Model&static>
      */
-    public static function search(string $query = '', ?Closure $callback = null): Builder;
+    public static function search(?string $query = '', ?Closure $callback = null): Builder;
 
     /**
      * Get the requested models from an array of object IDs.
@@ -94,6 +94,11 @@ interface SearchableInterface
      * Get the index name for the model when indexing.
      */
     public function indexableAs(): string;
+
+    /**
+     * Get the database column that stores the searchable embedding.
+     */
+    public function searchableEmbeddingColumn(): string;
 
     /**
      * Get the indexable data array for the model.

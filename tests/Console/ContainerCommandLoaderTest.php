@@ -37,7 +37,7 @@ class ContainerCommandLoaderTest extends TestCase
         ]);
 
         $this->expectException(CommandNotFoundException::class);
-        $this->expectExceptionMessage('Command "unknown:command" does not exist.');
+        $this->expectExceptionMessageIs('Command "unknown:command" does not exist.');
 
         $loader->get('unknown:command');
     }

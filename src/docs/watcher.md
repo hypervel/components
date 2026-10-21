@@ -81,6 +81,7 @@ return [
     'watch' => [
         'app/**/*.php',
         'config/**/*.php',
+        'resources/skills/**',
         '.env',
     ],
 
@@ -119,6 +120,8 @@ Use `.` to watch the application root. A path may also begin with `..` to watch 
 A directory entry watches every file within that directory recursively, while a specific file entry watches only that file. When the watcher starts, it treats a plain path that names an existing directory as a directory. Otherwise, it treats the path as a file. If you create a configured directory after starting the watcher, restart the command so the path can be classified as a directory.
 
 Glob patterns use Symfony Finder's glob syntax. A single `*` matches within one directory, while `**` may match across directories. You may also use `?` to match one character, braces to match one of several values, and brackets to match a character range.
+
+Agent skill files under `resources/skills` are watched by default. If your skills live elsewhere, add a glob such as `custom/skills/**` to the `watch` array or pass it through `--path`. Using a glob also identifies the watch root as a directory before it exists.
 
 A directory given directly as a watch path may be a symbolic link. The watcher follows that root, but does not traverse symbolic links found inside a watched directory.
 
@@ -174,6 +177,10 @@ The `FindDriver` uses your system's `find` executable and is a good polling choi
 If `find` cannot finish listing the watched files, such as when a watched directory cannot be read, deletions are not reported until a later scan completes. If it also cannot finish checking for changes, changes that were already detected may be reported again until the filesystem error is fixed.
 
 The `FswatchDriver` uses operating system events instead of repeatedly scanning your files, giving it the lowest steady-state resource usage on local filesystems. This driver requires the `fswatch` executable and depends on your operating system delivering file events. On Linux, Hypervel registers only the directories required by your watch patterns, reducing inotify usage. On macOS, each watch root is observed recursively, so you should avoid unnecessarily broad roots.
+
+With the `FswatchDriver`, creating a directory under a recursive watch root also triggers a restart, even if it contains no matching files. Prefer specific roots such as `app/**/*.php` over `**/*.php` to avoid restarts from unrelated directories.
+
+On Linux, fswatch can miss files written immediately after a missing watch root is created. Moving or renaming directories can also lose events, including later edits inside them, or report edits under an old path. Restart the watcher command to rebuild its watches; restarting only the managed server does not do this. Prefer `ScanFileDriver` or `FindDriver` when your workflow creates watch roots that did not exist when the watcher started, or moves or renames directories.
 
 Polling is generally safer when files live in containers, virtual machines, or network mounts that do not reliably forward operating system events.
 

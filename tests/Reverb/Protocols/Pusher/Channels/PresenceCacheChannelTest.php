@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Channels;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceCacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
+use Hypervel\Reverb\Protocols\Pusher\EventDispatcher;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
@@ -175,7 +176,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
 
     public function testReceivesNoDataWhenNoPreviousEventTriggered(): void
     {
-        $channel = new PresenceCacheChannel('presence-cache-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
 
         $this->channelConnectionManager->shouldReceive('add')
             ->once()
@@ -196,5 +197,38 @@ class PresenceCacheChannelTest extends ReverbTestCase
 
         $this->assertTrue($channel->hasCachedPayload());
         $this->assertEquals(['foo' => 'bar'], $channel->cachedPayload());
+    }
+
+    public function testDoesNotCacheInternalEventsOnAPresenceCacheChannel(): void
+    {
+        $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Joe'], 'user_id' => 1]);
+
+        $this->channelConnectionManager->shouldReceive('all')->andReturn([]);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-cache-test-channel', $data),
+            $data
+        );
+
+        $this->assertFalse($channel->hasCachedPayload());
+
+        // Hypervel removes a vacated channel, so dispatch the remote member
+        // event while the channel is still registered.
+        EventDispatcher::dispatchInternallySynchronously($this->connection->app(), [
+            'event' => 'pusher_internal:member_added',
+            'data' => json_encode(['user_id' => 2]),
+            'channel' => 'presence-cache-test-channel',
+        ]);
+
+        $this->assertFalse($channel->hasCachedPayload());
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Joe'], 'user_id' => 1]));
+
+        $channel->unsubscribe($this->connection);
+
+        $this->assertFalse($channel->hasCachedPayload());
     }
 }

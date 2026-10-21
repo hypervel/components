@@ -20,6 +20,8 @@ class ParseEnvironmentVariablesTest extends TestCase
             'APP_KEY' => null,
             'APP_DEBUG' => true,
             'APP_PRODUCTION' => false,
+            'OTEL_SDK_DISABLED' => 'true',
+            'FEATURE_ENABLED' => 'false',
             'APP_NAME' => 'Testbench',
             'APP_EMPTY' => '',
             'APP_ZERO' => '0',
@@ -27,8 +29,10 @@ class ParseEnvironmentVariablesTest extends TestCase
 
         $expected = [
             'APP_KEY=(null)',
-            'APP_DEBUG=(true)',
-            'APP_PRODUCTION=(false)',
+            'APP_DEBUG=true',
+            'APP_PRODUCTION=false',
+            'OTEL_SDK_DISABLED=true',
+            'FEATURE_ENABLED=false',
             'APP_NAME="Testbench"',
             'APP_EMPTY=(empty)',
             'APP_ZERO="0"',

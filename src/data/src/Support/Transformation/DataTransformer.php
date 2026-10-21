@@ -21,6 +21,7 @@ use Hypervel\Data\Contracts\WrappableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\DataPropertyOperation;
+use Hypervel\Data\Exceptions\CannotPerformPartialOnDataField;
 use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
@@ -31,12 +32,15 @@ use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Lazy\DefaultLazy;
-use Hypervel\Data\Support\Partials\PartialDefinition;
+use Hypervel\Data\Support\Partials\PartialsDefinition;
+use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
 class DataTransformer
@@ -62,10 +66,12 @@ class DataTransformer
             : new DateTimeZone($config->dateTimezone);
         $this->defaultContext = new TransformationContext(
             maxDepth: $config->maxTransformationDepth,
+            throwWhenMaxDepthReached: $config->throwWhenMaxTransformationDepthReached,
         );
         $this->allContext = new TransformationContext(
             transformValues: false,
             maxDepth: $config->maxTransformationDepth,
+            throwWhenMaxDepthReached: $config->throwWhenMaxTransformationDepthReached,
         );
         $this->persistenceContext = TransformationContextFactory::persistenceContext(
             $config->maxTransformationDepth,
@@ -126,6 +132,8 @@ class DataTransformer
 
     /**
      * Transform the root payload for Hypervel's resource response pipeline.
+     *
+     * The resource wraps the root and adds its additional and pagination data, so the root leaves them out.
      */
     public function transformForResourceResponse(
         (BaseData&TransformableData)|(BaseDataCollectable&TransformableData) $data,
@@ -139,10 +147,10 @@ class DataTransformer
                 $data,
                 $context,
                 $extensions,
-                includePaginationData: false,
+                resourceRoot: true,
                 rootItems: $rootItems,
             )
-            : $this->transformData($data, $context, $extensions, includeAdditionalData: false);
+            : $this->transformData($data, $context, $extensions, resourceRoot: true);
     }
 
     /**
@@ -155,10 +163,10 @@ class DataTransformer
         BaseData&TransformableData $data,
         TransformationContext $context,
         array &$extensions,
-        bool $includeAdditionalData = true,
+        bool $resourceRoot = false,
     ): array {
-        if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
-            throw MaxTransformationDepthReached::create($context->maxDepth);
+        if ($this->reachedMaxDepth($context)) {
+            return [];
         }
 
         $dataClass = $this->dataClasses->get($data::class);
@@ -173,7 +181,7 @@ class DataTransformer
                     $data,
                     $context,
                     $this->transformBulkCopy($data, $dataClass),
-                    $includeAdditionalData,
+                    $resourceRoot,
                 );
             }
         } elseif (($recipe = $dataClass->transformationRecipe) !== null) {
@@ -186,9 +194,18 @@ class DataTransformer
                     $data,
                     $context,
                     $this->transformUsingRecipe($data, $recipe, $context, $extensions),
-                    $includeAdditionalData,
+                    $resourceRoot,
                 );
             }
+        }
+
+        if (! $this->config->ignoreInvalidPartials
+            && (($context->include->nestedProperties ?? []) !== []
+                || ($context->exclude->nestedProperties ?? []) !== []
+                || ($context->only->nestedProperties ?? []) !== []
+                || ($context->except->nestedProperties ?? []) !== [])
+        ) {
+            $this->ensureNestedPartialsExist($dataClass, $context);
         }
 
         // Raw storage keeps excluded property hooks from running as a side effect.
@@ -214,16 +231,16 @@ class DataTransformer
                 continue;
             }
 
-            if ($value instanceof Optional) {
-                continue;
-            }
-
             if ($value instanceof Lazy) {
                 if (! $this->includesLazy($value, $property, $context)) {
                     continue;
                 }
 
                 $value = $value->resolve();
+            }
+
+            if ($value instanceof Optional) {
+                continue;
             }
 
             $value = $this->transformPropertyValue(
@@ -244,7 +261,7 @@ class DataTransformer
             $data,
             $context,
             $transformed,
-            $includeAdditionalData,
+            $resourceRoot,
         );
     }
 
@@ -257,11 +274,11 @@ class DataTransformer
         BaseDataCollectable&TransformableData $data,
         TransformationContext $context,
         array &$extensions,
-        bool $includePaginationData = true,
+        bool $resourceRoot = false,
         ?Collection $rootItems = null,
     ): array {
-        if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
-            throw MaxTransformationDepthReached::create($context->maxDepth);
+        if ($this->reachedMaxDepth($context)) {
+            return [];
         }
 
         $transformed = [];
@@ -288,9 +305,11 @@ class DataTransformer
             );
         }
 
-        if ($includePaginationData
-            && ($data instanceof PaginatedDataCollection
-                || $data instanceof CursorPaginatedDataCollection)
+        if ($resourceRoot) {
+            return $transformed;
+        }
+
+        if (($data instanceof PaginatedDataCollection || $data instanceof CursorPaginatedDataCollection)
             && $context->transformValues
         ) {
             return $this->transformPaginatorCollectable($data, $transformed);
@@ -299,6 +318,22 @@ class DataTransformer
         return $data instanceof WrappableData && $context->wrapExecutionType->shouldExecute()
             ? $data->getWrap()->wrap($transformed, $this->config->wrap)
             : $transformed;
+    }
+
+    /**
+     * Determine whether a data value lies at the maximum depth, throwing when configured to.
+     */
+    protected function reachedMaxDepth(TransformationContext $context): bool
+    {
+        if ($context->maxDepth === null || $context->depth < $context->maxDepth) {
+            return false;
+        }
+
+        if ($context->throwWhenMaxDepthReached) {
+            throw MaxTransformationDepthReached::create($context->maxDepth);
+        }
+
+        return true;
     }
 
     /**
@@ -324,7 +359,7 @@ class DataTransformer
     }
 
     /**
-     * Transform a paginator while retaining its native metadata.
+     * Transform a paginated data collection with its pagination links and metadata.
      *
      * @param array<array-key, mixed> $items
      * @return array<string, mixed>
@@ -333,21 +368,15 @@ class DataTransformer
         PaginatedDataCollection|CursorPaginatedDataCollection $data,
         array $items,
     ): array {
-        $transformed = $this->transformPaginator($data->items(), $items);
-        $wrapKey = $data->getWrap()->getKey($this->config->wrap) ?? 'data';
-
-        if ($wrapKey === 'data') {
-            return $transformed;
-        }
-
-        $items = $transformed['data'];
-        unset($transformed['data']);
-
-        return [$wrapKey => $items, ...$transformed];
+        return $this->transformPaginator(
+            $data->items(),
+            $items,
+            $data->getWrap()->getKey($this->config->wrap),
+        );
     }
 
     /**
-     * Serialize a paginator clone with replacement items while retaining native metadata.
+     * Transform a paginator into its wrapped items, links, and metadata.
      *
      * @param array<array-key, mixed> $items
      * @return array<string, mixed>
@@ -355,10 +384,66 @@ class DataTransformer
     protected function transformPaginator(
         AbstractPaginator|AbstractCursorPaginator $paginator,
         array $items,
+        ?string $wrapKey,
     ): array {
-        return (clone $paginator)
+        return [
+            $wrapKey ?? 'data' => $items,
+            ...$this->paginationInformation($paginator, $items),
+        ];
+    }
+
+    /**
+     * Get the links and metadata describing a paginator's current page.
+     *
+     * @param array<array-key, mixed> $items the transformed items of the current page
+     * @return array{links: array<array-key, mixed>, meta: array<string, mixed>}
+     */
+    public function paginationInformation(
+        AbstractPaginator|AbstractCursorPaginator $paginator,
+        array $items,
+    ): array {
+        if ($paginator instanceof LengthAwarePaginator) {
+            return [
+                'links' => $paginator->linkCollection()->toArray(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'first_page_url' => $paginator->url(1),
+                    'from' => $paginator->firstItem(),
+                    'last_page' => $paginator->lastPage(),
+                    'last_page_url' => $paginator->url($paginator->lastPage()),
+                    'next_page_url' => $paginator->nextPageUrl(),
+                    'path' => $paginator->path(),
+                    'per_page' => $paginator->perPage(),
+                    'prev_page_url' => $paginator->previousPageUrl(),
+                    'to' => $paginator->lastItem(),
+                    'total' => $paginator->total(),
+                ],
+            ];
+        }
+
+        if ($paginator instanceof AbstractCursorPaginator) {
+            return [
+                'links' => [],
+                'meta' => [
+                    'path' => $paginator->path(),
+                    'per_page' => $paginator->perPage(),
+                    'next_cursor' => $paginator->nextCursor()?->encode(),
+                    'next_page_url' => $paginator->nextPageUrl(),
+                    'prev_cursor' => $paginator->previousCursor()?->encode(),
+                    'prev_page_url' => $paginator->previousPageUrl(),
+                ],
+            ];
+        }
+
+        // Other paginators describe their own page; the transformed items keep serialization from repeating.
+        $paginated = (clone $paginator)
             ->setCollection(new Collection($items))
             ->toArray();
+
+        return [
+            'links' => $paginated['links'] ?? [],
+            'meta' => Arr::except($paginated, ['data', 'links']),
+        ];
     }
 
     /**
@@ -368,9 +453,12 @@ class DataTransformer
      */
     protected function collectableItems(BaseDataCollectable $data): iterable
     {
-        return $data instanceof DataCollection
-            ? $data->toCollection()
-            : $data;
+        return match (true) {
+            $data instanceof DataCollection => $data->toCollection(),
+            $data instanceof PaginatedDataCollection,
+            $data instanceof CursorPaginatedDataCollection => $data->items()->getCollection(),
+            default => $data,
+        };
     }
 
     /**
@@ -380,14 +468,17 @@ class DataTransformer
         BaseData $data,
         TransformationContext $context,
         array $transformed,
-        bool $includeAdditionalData,
+        bool $resourceRoot,
     ): array {
+        if ($resourceRoot) {
+            return $transformed;
+        }
+
         if ($data instanceof WrappableData && $context->wrapExecutionType->shouldExecute()) {
             $transformed = $data->getWrap()->wrap($transformed, $this->config->wrap);
         }
 
-        if (! $includeAdditionalData
-            || $context->constructable
+        if ($context->constructable
             || ! $data instanceof AppendableData
         ) {
             return $transformed;
@@ -545,24 +636,38 @@ class DataTransformer
 
         $iterableType = $this->iterableTypeForValue($property, $value);
 
-        if ($iterableType !== null) {
+        if ($iterableType?->iterableItemType !== null) {
             if (! $context->transformValues) {
                 $this->propagateIterablePartials($value, $context, $property->name);
 
                 return $value;
             }
 
+            $iterableContext = $context->child($property->name);
+
+            // Data items in any container count as one level, as they do in a DataCollection.
+            if ($iterableType->kind->isDataCollectable() && $this->reachedMaxDepth($iterableContext)) {
+                return [];
+            }
+
             $transformed = $this->transformIterable(
                 $property,
                 $value,
-                $iterableType,
-                $context->child($property->name),
+                $iterableType->iterableItemType,
+                $iterableContext,
                 $extensions,
             );
 
-            return $value instanceof AbstractPaginator || $value instanceof AbstractCursorPaginator
-                ? $this->transformPaginator($value, $transformed)
-                : $transformed;
+            if ($value instanceof AbstractPaginator || $value instanceof AbstractCursorPaginator) {
+                return $this->transformPaginator($value, $transformed, $this->config->wrap);
+            }
+
+            // Once wrapping applies, as in a response, a nested data iterable takes the global wrap key, as in Spatie.
+            return $iterableType->kind->isDataCollectable()
+                && $context->wrapExecutionType !== WrapExecutionType::Disabled
+                && $this->config->wrap !== null
+                    ? [$this->config->wrap => $transformed]
+                    : $transformed;
         }
 
         if (is_array($value)) {
@@ -598,6 +703,33 @@ class DataTransformer
         return $context->wrapExecutionType === WrapExecutionType::Enabled
             ? WrapExecutionType::Enabled
             : WrapExecutionType::TemporarilyDisabled;
+    }
+
+    /**
+     * Ensure every nested partial path starts with a visible property of the data class.
+     *
+     * Flat selections of unknown names select nothing, as upstream allows.
+     */
+    protected function ensureNestedPartialsExist(DataClass $dataClass, TransformationContext $context): void
+    {
+        foreach ([
+            'include' => $context->include,
+            'exclude' => $context->exclude,
+            'only' => $context->only,
+            'except' => $context->except,
+        ] as $operation => $tree) {
+            if ($tree === null) {
+                continue;
+            }
+
+            foreach ($tree->nestedProperties as $name) {
+                $property = $dataClass->properties[$name] ?? null;
+
+                if ($property === null || ($property->hidden && ! $context->constructable)) {
+                    throw CannotPerformPartialOnDataField::missingProperty($operation, $name, $dataClass->name);
+                }
+            }
+        }
     }
 
     /**
@@ -709,17 +841,19 @@ class DataTransformer
     }
 
     /**
-     * Get iterable item metadata accepted by the runtime value.
+     * Get the declared iterable type, with item metadata, that receives the runtime value.
      */
-    protected function iterableTypeForValue(DataProperty $property, mixed $value): ?Type
+    protected function iterableTypeForValue(DataProperty $property, mixed $value): ?NamedType
     {
         foreach ($property->type->getIterableTypes() as $type) {
             if ($type->acceptsValue($value)) {
-                return $type->iterableItemType;
+                return $type;
             }
         }
 
-        return null;
+        // A lazy closure's result is not checked against the declared container, so data items in another
+        // iterable are still transformed rather than output as objects.
+        return is_iterable($value) ? $property->type->getDataCollectableType() : null;
     }
 
     /**
@@ -835,7 +969,7 @@ class DataTransformer
 
         $definitions = $context->partialsForNestedProperty($property);
 
-        if (! self::hasResolvedPartials($definitions)) {
+        if (! PartialsDefinition::hasResolved($definitions)) {
             return;
         }
 
@@ -856,7 +990,7 @@ class DataTransformer
 
         $definitions = $context->partialsForNestedProperty($property);
 
-        if (! self::hasResolvedPartials($definitions)) {
+        if (! PartialsDefinition::hasResolved($definitions)) {
             return;
         }
 
@@ -865,19 +999,6 @@ class DataTransformer
                 $item->getPartialsDefinition()->addResolved($definitions);
             }
         }
-    }
-
-    /**
-     * Determine whether a resolved partial set contains any definitions.
-     *
-     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $definitions
-     */
-    private static function hasResolvedPartials(array $definitions): bool
-    {
-        return $definitions['include'] !== []
-            || $definitions['exclude'] !== []
-            || $definitions['only'] !== []
-            || $definitions['except'] !== [];
     }
 
     /**

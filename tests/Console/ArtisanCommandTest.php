@@ -33,8 +33,7 @@ class ArtisanCommandTest extends TestCase
     {
         Artisan::command('exit', fn () => 1);
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Expected status code 0 but received 1.');
+        $this->expectExceptionObject(new AssertionFailedError('Expected status code 0 but received 1.'));
 
         $this->artisan('exit')
             ->assertOk();
@@ -71,8 +70,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Your name is Albert and you prefer PHP." was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Your name is Albert and you prefer PHP." was printed.'));
 
         $this->artisan('survey')
             ->expectsQuestion('What is your name?', 'Albert')
@@ -85,8 +83,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerContainsCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Albert Chen" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Albert Chen" was printed.'));
 
         $this->artisan('contains')
             ->doesntExpectOutputToContain('Albert Chen')
@@ -97,8 +94,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Your name is Albert Chen and you prefer PHP." was not printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Your name is Albert Chen and you prefer PHP." was not printed.'));
 
         $this->ignoringMockOnceExceptions(function () {
             $this->artisan('survey')
@@ -113,8 +109,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Expected status code 1 but received 0.');
+        $this->expectExceptionObject(new AssertionFailedError('Expected status code 1 but received 0.'));
 
         $this->artisan('survey')
             ->expectsQuestion('What is your name?', 'Albert Chen')
@@ -273,8 +268,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerContainsCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output does not contain "Chen Albert".');
+        $this->expectExceptionObject(new AssertionFailedError('Output does not contain "Chen Albert".'));
 
         $this->ignoringMockOnceExceptions(function () {
             $this->artisan('contains')
@@ -283,7 +277,7 @@ class ArtisanCommandTest extends TestCase
         });
     }
 
-    public function testPendingCommandCanBeRapped(): void
+    public function testPendingCommandCanBeTapped(): void
     {
         Artisan::command('new-england', function () {
             $this->line('The region of New England consists of the following states:');
@@ -314,6 +308,31 @@ class ArtisanCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    public function testConsoleCommandReturnsCodeWithDisabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->withoutMockingConsoleOutput();
+
+        $this->assertSame(0, $this->artisan('exit', ['code' => 0]));
+    }
+
+    public function testMockConsoleCommandReturnsPendingCommandWithDisabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->withoutMockingConsoleOutput();
+
+        $this->mockArtisan('exit', ['code' => 0])->assertOk();
+    }
+
+    public function testRealConsoleCommandReturnsCodeWithEnabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->assertSame(0, $this->realArtisan('exit', ['code' => 0]));
+    }
+
     /**
      * PromptValidationException is intentional control flow for prompt validation failures.
      * It should produce a FAILURE exit code and show the validation message, not render
@@ -332,24 +351,22 @@ class ArtisanCommandTest extends TestCase
 
     public function testForbiddenOutputNamedStringZeroIsReported(): void
     {
-        Artisan::command('zero-output', function () {
+        Artisan::command('zero-output', function (): void {
             $this->line('0');
         });
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "0" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "0" was printed.'));
 
         $this->artisan('zero-output')->doesntExpectOutput('0')->run();
     }
 
     public function testForbiddenOutputSubstringNamedStringZeroIsReported(): void
     {
-        Artisan::command('zero-substring', function () {
+        Artisan::command('zero-substring', function (): void {
             $this->line('value 0');
         });
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "0" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "0" was printed.'));
 
         $this->artisan('zero-substring')->doesntExpectOutputToContain('0')->run();
     }
@@ -534,6 +551,10 @@ class ArtisanCommandTest extends TestCase
         m::close();
     }
 
+    /**
+     * Don't allow Mockery's InvalidCountException to be reported. Mocks setup
+     * in PendingCommand cause PHPUnit tearDown() to later throw the exception.
+     */
     protected function ignoringMockOnceExceptions(callable $callback): void
     {
         try {

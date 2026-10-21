@@ -6,7 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -17,6 +17,7 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Cloud createGcsDriver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createReadThroughDriver(array $config, string $name = 'read-through')
  * @method static \Hypervel\Contracts\Filesystem\Cloud createS3Driver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createScopedDriver(array $config, string|null $name = null)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createSftpDriver(array $config)
@@ -36,15 +37,17 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static array allDirectories(string|null $directory = null)
- * @method static array allFiles(string|null $directory = null)
+ * @method static array<string> allDirectories(string|null $directory = null)
+ * @method static array<string> allFiles(string|null $directory = null)
  * @method static bool append(string $path, string $data, string $separator = "\n")
  * @method static bool copy(string $from, string $to)
  * @method static bool delete(array|string $paths)
  * @method static bool deleteDirectory(string $directory)
- * @method static array directories(string|null $directory = null, bool $recursive = false)
+ * @method static array<string> directories(string|null $directory = null, bool $recursive = false)
+ * @method static bool directoryExists(string $path)
  * @method static bool exists(string $path)
- * @method static array files(string|null $directory = null, bool $recursive = false)
+ * @method static bool fileExists(string $path)
+ * @method static array<string> files(string|null $directory = null, bool $recursive = false)
  * @method static string|null get(string $path)
  * @method static string getVisibility(string $path)
  * @method static int lastModified(string $path)
@@ -68,16 +71,16 @@ use function Hypervel\Support\enum_value;
  * @method static void buildTemporaryUploadUrlsUsing(\Closure|null $callback)
  * @method static void buildTemporaryUrlsUsing(\Closure|null $callback)
  * @method static string|false checksum(string $path, array $options = [])
- * @method static bool directoryExists(string $path)
+ * @method static bool copyToDisk(\Hypervel\Contracts\Filesystem\Filesystem|UnitEnum|string $disk, string $from, string|null $to = null)
  * @method static bool directoryMissing(string $path)
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse download(string $path, string|null $name = null, array $headers = [])
- * @method static bool fileExists(string $path)
  * @method static bool fileMissing(string $path)
  * @method static array getConfig()
  * @method static \Hypervel\Image\Image image(string $path)
  * @method static array|string|int|float|bool|null json(string $path, int $flags = 0)
  * @method static string|false mimeType(string $path)
  * @method static bool missing(string $path)
+ * @method static bool moveToDisk(\Hypervel\Contracts\Filesystem\Filesystem|UnitEnum|string $disk, string $from, string|null $to = null)
  * @method static bool providesTemporaryUploadUrls()
  * @method static bool providesTemporaryUrls()
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse response(string $path, string|null $name = null, array $headers = [], string $disposition = 'inline')
@@ -86,6 +89,8 @@ use function Hypervel\Support\enum_value;
  * @method static array|string temporaryUploadUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static string temporaryUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static string url(string $path)
+ * @method static mixed withAdapter(\Closure $callback)
+ * @method static mixed withDriver(\Closure $callback)
  * @method static void createDirectory(string $location, array $config = [])
  * @method static int fileSize(string $path)
  * @method static bool has(string $location)
@@ -93,11 +98,10 @@ use function Hypervel\Support\enum_value;
  * @method static string visibility(string $path)
  * @method static void write(string $location, string $contents, array $config = [])
  * @method static \Hypervel\ObjectPool\PoolDefinition getDefinition()
+ * @method static \League\Flysystem\FilesystemOperator getOperator()
  * @method static string getPoolName()
  * @method static bool invalidatePool()
- * @method static mixed withAdapter(\Closure $callback)
  * @method static mixed withClient(\Closure $callback)
- * @method static mixed withDriver(\Closure $callback)
  *
  * @see \Hypervel\Filesystem\FilesystemManager
  */
@@ -108,10 +112,8 @@ class Storage extends Facade
      *
      * Tests only. Swaps a cached filesystem disk on the shared filesystem
      * manager for the worker lifetime.
-     *
-     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
-    public static function fake(UnitEnum|string|null $disk = null, array $config = [])
+    public static function fake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
@@ -134,7 +136,7 @@ class Storage extends Facade
             self::buildDiskConfiguration($disk, $config, root: $root)
         ));
 
-        /** @var FilesystemAdapter $fake */
+        /** @var LocalFilesystemAdapter $fake */
         return tap($fake, function ($fake) {
             $fake->buildTemporaryUrlsUsing(function ($path, $expiration) {
                 return URL::to($path . '?expiration=' . $expiration->getTimestamp());
@@ -151,10 +153,8 @@ class Storage extends Facade
      *
      * Tests only. Swaps a cached filesystem disk on the shared filesystem
      * manager for the worker lifetime.
-     *
-     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
-    public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
+    public static function persistentFake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
@@ -170,6 +170,7 @@ class Storage extends Facade
             self::buildDiskConfiguration($disk, $config, root: self::getRootPath($disk))
         ));
 
+        /** @var LocalFilesystemAdapter $fake */
         return $fake;
     }
 

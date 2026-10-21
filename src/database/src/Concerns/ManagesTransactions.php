@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Concerns;
 
 use Closure;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DeadlockException;
 use LogicException;
 use RuntimeException;
@@ -12,7 +13,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Database\Connection
+ * @mixin Connection
  */
 trait ManagesTransactions
 {
@@ -28,14 +29,25 @@ trait ManagesTransactions
      */
     public function transaction(Closure $callback, int $attempts = 1): mixed
     {
+        // Only the outermost transaction can replay all enclosing work, even if failed cleanup resets its level.
+        if ($this->transactionLevel() > 0) {
+            $attempts = min(1, $attempts);
+        }
+
         for ($currentAttempt = 1; $currentAttempt <= $attempts; ++$currentAttempt) {
             $this->beginTransaction();
+            $transactionLevel = $this->transactions;
 
             // We'll simply execute the given callback within a try / catch block and if we
             // catch any exception we can rollback this transaction so that none of this
             // gets actually persisted to a database or stored in a permanent fashion.
             try {
                 $callbackResult = $callback($this);
+
+                // A caught nested cleanup failure can destroy the enclosing transaction and its writes.
+                if ($this->transactions < $transactionLevel) {
+                    throw new RuntimeException('The transaction ended before its callback completed.');
+                }
 
                 if ($this->transactions === 1) {
                     $this->fireConnectionEvent('committing');
@@ -112,33 +124,15 @@ trait ManagesTransactions
      */
     protected function handleTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
-        // On a deadlock, MySQL rolls back the entire transaction so we can't just
-        // retry the query. We have to throw this exception all the way out and
-        // let the developer handle it in another way. We will decrement too.
+        // Roll back failed nested work before propagating it to the outer retry boundary.
+        // If the server already discarded its savepoints, rollback disconnects the unusable session.
         if ($this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
-            $this->invalidateCurrentSessionState();
-
-            --$this->transactions;
-
-            $exception = new DeadlockException(
+            $e = new DeadlockException(
                 $e->getMessage(),
-                is_int($e->getCode()) ? $e->getCode() : 0,
+                $e->getCode(),
                 $e
             );
-
-            try {
-                $this->transactionsManager?->rollback(
-                    $this->getName() ?? '',
-                    $this->transactions
-                );
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
-                // Preserve the transaction failure.
-            }
-
-            throw $exception;
         }
 
         // If there was an exception we will rollback this transaction and then we
@@ -158,8 +152,11 @@ trait ManagesTransactions
             $cleanedUp = false;
         }
 
+        // Only retry after all failed work is closed; a callback may leave manual transaction levels open.
+        // Nested deadlocks already passed the driver's policy, which may not recognize our wrapper.
         if ($cleanedUp
-            && $this->causedByConcurrencyError($e)
+            && $this->transactions === 0
+            && ($e instanceof DeadlockException || $this->causedByConcurrencyError($e))
             && $currentAttempt < $maxAttempts) {
             return;
         }
@@ -351,6 +348,19 @@ trait ManagesTransactions
         try {
             $this->performRollBack($toLevel);
         } catch (Throwable $exception) {
+            if ($toLevel > 0 && ! $this->causedByLostConnection($exception)) {
+                // A missing or failed savepoint cannot safely preserve the enclosing transaction.
+                try {
+                    $this->disconnect();
+                } catch (CanceledException $cancellation) {
+                    if (! $exception instanceof CanceledException) {
+                        throw $cancellation;
+                    }
+                } catch (Throwable) {
+                    // Preserve the rollback failure after detaching the unusable connection.
+                }
+            }
+
             $this->handleRollBackException($exception);
         }
 
@@ -407,9 +417,14 @@ trait ManagesTransactions
     protected function forgetLostConnection(): void
     {
         try {
-            $this->resetTransactionState();
-        } finally {
             $this->forgetDriverResources();
+        } finally {
+            try {
+                $this->notifyResourceReleaser();
+            } finally {
+                // Rollback callbacks may reconnect; only forget the failed session.
+                $this->resetTransactionState();
+            }
         }
     }
 
@@ -419,6 +434,20 @@ trait ManagesTransactions
     public function transactionLevel(): int
     {
         return $this->transactions;
+    }
+
+    /**
+     * Determine whether this connection has a transaction that delays after-commit callbacks.
+     *
+     * Without a transaction manager, any open transaction counts.
+     */
+    public function hasApplicableTransaction(): bool
+    {
+        if ($this->transactionLevel() === 0) {
+            return false;
+        }
+
+        return $this->transactionsManager?->hasApplicableTransaction($this->getName() ?? '') ?? true;
     }
 
     /**

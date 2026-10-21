@@ -20,7 +20,7 @@ class CoroutineNonCoroutineTest extends TestCase
     public function testParentCoroutineIdRequiresCoroutineContext(): void
     {
         $this->expectException(RunningInNonCoroutineException::class);
-        $this->expectExceptionMessage('Cannot retrieve a parent coroutine ID outside a coroutine.');
+        $this->expectExceptionMessageIs('Cannot retrieve a parent coroutine ID outside a coroutine.');
 
         Coroutine::pid();
     }

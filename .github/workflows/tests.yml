@@ -15,6 +15,7 @@ env:
 jobs:
   linux_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
 
     strategy:
@@ -22,26 +23,19 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (Swoole 6.2.2)
+    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v5
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: |
@@ -52,6 +46,9 @@ jobs:
 
       - name: Run framework test suite
         run: vendor/bin/paratest -c phpunit.xml.dist
+
+      - name: Run Permission suite with the database cache store
+        run: CACHE_STORE=database vendor/bin/paratest -c phpunit.xml.dist tests/Permission
 
       - name: Run Testbench package-mode suite
         run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
@@ -67,45 +64,50 @@ jobs:
           OTEL_SDK_DISABLED: true
         run: vendor/bin/testbench package:test --parallel
 
+      - name: Install AI demo dependencies
+        working-directory: dogfood/ai
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Run AI demo suite
+        working-directory: dogfood/ai
+        run: vendor/bin/testbench package:test --no-progress
+
   wayfinder_tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-    name: Wayfinder
+    name: JavaScript
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@v5
-        with:
-          path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
-
       - name: Install Composer dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
 
       - name: Install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@10.24.0 --activate
+          corepack prepare pnpm@12.10.1 --activate
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Run MCP browser SDK tests
+        run: pnpm test:mcp
 
       - name: Run Wayfinder tests
         run: pnpm test:wayfinder
@@ -115,3 +117,15 @@ jobs:
 
       - name: Type-check generated Wayfinder output
         run: pnpm typecheck:wayfinder
+
+      # Telescope's dashboard is a standalone npm package whose devEngines require npm 11.10 or newer.
+      - name: Install npm for Telescope
+        run: npm install --global npm@11.21.0
+
+      - name: Install Telescope dependencies
+        working-directory: src/telescope
+        run: npm ci
+
+      - name: Run Telescope dashboard tests
+        working-directory: src/telescope
+        run: npm test

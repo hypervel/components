@@ -12,7 +12,7 @@ class AuthHandlesAuthorizationTest extends TestCase
 {
     use HandlesAuthorization;
 
-    public function testAllowMethod()
+    public function testAllowMethod(): void
     {
         $response = $this->allow('some message', 'some_code');
 
@@ -22,7 +22,7 @@ class AuthHandlesAuthorizationTest extends TestCase
         $this->assertSame('some_code', $response->code());
     }
 
-    public function testDenyMethod()
+    public function testDenyMethod(): void
     {
         $response = $this->deny('some message', 'some_code');
 
@@ -32,7 +32,7 @@ class AuthHandlesAuthorizationTest extends TestCase
         $this->assertSame('some_code', $response->code());
     }
 
-    public function testDenyHasNullStatus()
+    public function testDenyHasNullStatus(): void
     {
         $class = new class {
             use HandlesAuthorization;
@@ -52,7 +52,7 @@ class AuthHandlesAuthorizationTest extends TestCase
         }
     }
 
-    public function testItCanDenyWithStatus()
+    public function testItCanDenyWithStatus(): void
     {
         $class = new class {
             use HandlesAuthorization;
@@ -93,7 +93,7 @@ class AuthHandlesAuthorizationTest extends TestCase
         }
     }
 
-    public function testItCanDenyAsNotFound()
+    public function testItCanDenyAsNotFound(): void
     {
         $class = new class {
             use HandlesAuthorization;

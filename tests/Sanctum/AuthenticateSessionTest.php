@@ -149,6 +149,23 @@ class AuthenticateSessionTest extends TestCase
         $this->assertSame($this->passwordHash('admin', 'admin-password'), $request->session()->get('password_hash_admin'));
     }
 
+    public function testUserWithoutPasswordKeepsMatchingPasswordHash(): void
+    {
+        $this->configureWebAndAdminSanctumGuards();
+
+        $auth = $this->app->make('auth');
+        $auth->forgetGuards();
+        $auth->guard('web')->setUser($this->user(null));
+
+        $request = $this->requestWithSession();
+        $request->session()->put('password_hash_web', $this->passwordHash('web', null));
+
+        $response = $this->middleware()->handle($request, fn (): Response => new Response('next'));
+
+        $this->assertSame('next', $response->getContent());
+        $this->assertSame($this->passwordHash('web', null), $request->session()->get('password_hash_web'));
+    }
+
     public function testRawPasswordHashIsRejected(): void
     {
         $this->configureWebAndAdminSanctumGuards();
@@ -373,11 +390,11 @@ class AuthenticateSessionTest extends TestCase
         return $this->app->make('auth')->guard($guard)->hashPasswordForCookie($password);
     }
 
-    private function user(string $password): AuthenticatableContract
+    private function user(?string $password): AuthenticatableContract
     {
         return new class($password) implements AuthenticatableContract {
             public function __construct(
-                private readonly string $password,
+                private readonly ?string $password,
             ) {
             }
 
@@ -396,7 +413,7 @@ class AuthenticateSessionTest extends TestCase
                 return 'password';
             }
 
-            public function getAuthPassword(): string
+            public function getAuthPassword(): ?string
             {
                 return $this->password;
             }

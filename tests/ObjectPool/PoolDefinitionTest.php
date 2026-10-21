@@ -31,7 +31,7 @@ class PoolDefinitionTest extends TestCase
         string $message,
     ): void {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         new PoolDefinition($identity, $resourceType, $fingerprint, PoolOptions::fromArray([]));
     }

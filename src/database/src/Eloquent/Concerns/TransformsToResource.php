@@ -18,7 +18,7 @@ trait TransformsToResource
     /**
      * Create a new resource object for the given resource.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resourceClass
+     * @param null|class-string<JsonResource> $resourceClass
      */
     public function toResource(?string $resourceClass = null): JsonResource
     {
@@ -31,6 +31,8 @@ trait TransformsToResource
 
     /**
      * Guess the resource class for the model.
+     *
+     * @throws LogicException
      */
     protected function guessResource(): JsonResource
     {
@@ -41,7 +43,6 @@ trait TransformsToResource
         }
 
         foreach (static::guessResourceName() as $resourceClass) {
-            /* @phpstan-ignore-next-line function.alreadyNarrowedType */
             if (is_string($resourceClass) && class_exists($resourceClass)) {
                 return $resourceClass::make($this);
             }
@@ -53,7 +54,7 @@ trait TransformsToResource
     /**
      * Guess the resource class name for the model.
      *
-     * @return array<int, class-string<\Hypervel\Http\Resources\Json\JsonResource>>
+     * @return array<int, class-string<JsonResource>>
      */
     public static function guessResourceName(): array
     {
@@ -72,7 +73,7 @@ trait TransformsToResource
         $potentialResource = sprintf(
             '%s\Http\Resources\%s%s',
             Str::before($modelClass, '\Models'),
-            strlen($relativeNamespace) > 0 ? $relativeNamespace . '\\' : '',
+            $relativeNamespace !== '' ? $relativeNamespace . '\\' : '',
             class_basename($modelClass)
         );
 
@@ -83,7 +84,7 @@ trait TransformsToResource
      * Get the resource class from the UseResource attribute.
      *
      * @param class-string $class
-     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     * @return null|class-string<JsonResource>
      */
     protected function resolveResourceFromAttribute(string $class): ?string
     {

@@ -12,15 +12,14 @@ use Mockery\MockInterface;
 
 class InteractsWithContainerTest extends TestCase
 {
-    public function testSwap()
+    public function testSwap(): void
     {
         $this->app->instance(InstanceStub::class, new InstanceStub);
 
         $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
 
         $stub = m::mock(InstanceStub::class);
-        $stub->shouldReceive('execute')
-            ->once()
+        $stub->expects('execute')
             ->andReturn('bar');
 
         $this->swap(InstanceStub::class, $stub);
@@ -28,22 +27,18 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
     }
 
-    public function testMock()
+    public function testMock(): void
     {
         $this->mock(InstanceStub::class)
-            ->shouldReceive('execute')
-            ->once()
+            ->expects('execute')
             ->andReturn('bar');
 
         $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
-
-        $this->forgetMock(InstanceStub::class);
-        $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
     }
 
-    public function testPartialMock()
+    public function testPartialMock(): void
     {
-        $this->partialMock(InstanceStub::class, function (MockInterface $mock) {
+        $this->partialMock(InstanceStub::class, function (MockInterface $mock): void {
             $mock->shouldReceive('partialExecute')->andReturn('mocked');
         });
 
@@ -51,7 +46,7 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame('mocked', $this->app->make(InstanceStub::class)->partialExecute());
     }
 
-    public function testWithoutViteBindsEmptyHandlerAndReturnsInstance()
+    public function testWithoutViteBindsEmptyHandlerAndReturnsInstance(): void
     {
         $instance = $this->withoutVite();
 
@@ -59,7 +54,7 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame($this, $instance);
     }
 
-    public function testWithoutViteHandlesReactRefresh()
+    public function testWithoutViteHandlesReactRefresh(): void
     {
         $instance = $this->withoutVite();
 
@@ -67,7 +62,7 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame($this, $instance);
     }
 
-    public function testWithoutViteHandlesAsset()
+    public function testWithoutViteHandlesAsset(): void
     {
         $instance = $this->withoutVite();
 
@@ -75,7 +70,7 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame($this, $instance);
     }
 
-    public function testWithViteRestoresOriginalHandlerAndReturnsInstance()
+    public function testWithViteRestoresOriginalHandlerAndReturnsInstance(): void
     {
         $handler = new Vite;
         $this->app->instance(Vite::class, $handler);
@@ -87,7 +82,7 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame($this, $instance);
     }
 
-    public function testWithoutViteReturnsEmptyArrayForPreloadedAssets()
+    public function testWithoutViteReturnsEmptyArrayForPreloadedAssets(): void
     {
         $instance = $this->withoutVite();
 
@@ -95,11 +90,13 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame($this, $instance);
     }
 
-    public function testWithoutDefer()
+    // REMOVED: Mix helpers and tests; Hypervel uses Vite.
+
+    public function testWithoutDefer(): void
     {
         $called = [];
 
-        defer(function () use (&$called) {
+        defer(function () use (&$called): void {
             $called[] = 1;
         });
 
@@ -107,7 +104,7 @@ class InteractsWithContainerTest extends TestCase
 
         $instance = $this->withoutDefer();
 
-        defer(function () use (&$called) {
+        defer(function () use (&$called): void {
             $called[] = 2;
         });
 
@@ -123,11 +120,10 @@ class InteractsWithContainerTest extends TestCase
         $this->assertSame([2, 1], $called);
     }
 
-    public function testForgetMock()
+    public function testForgetMock(): void
     {
         $this->mock(InstanceStub::class)
-            ->shouldReceive('execute')
-            ->once()
+            ->expects('execute')
             ->andReturn('bar');
 
         $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
@@ -139,12 +135,18 @@ class InteractsWithContainerTest extends TestCase
 
 class InstanceStub
 {
-    public function execute()
+    /**
+     * Execute the stub.
+     */
+    public function execute(): string
     {
         return 'foo';
     }
 
-    public function partialExecute()
+    /**
+     * Execute the partially mocked method.
+     */
+    public function partialExecute(): string
     {
         return 'partial';
     }

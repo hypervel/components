@@ -6,6 +6,7 @@ namespace Hypervel\Notifications;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
@@ -13,7 +14,6 @@ use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Channels\MailChannel;
-use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Traits\Macroable;
@@ -72,6 +72,14 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container;
+    }
+
+    /**
      * Get a channel instance.
      */
     public function channel(UnitEnum|string|null $name = null): mixed
@@ -101,14 +109,6 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     protected function createMailDriver(): MailChannel
     {
         return $this->container->make(MailChannel::class);
-    }
-
-    /**
-     * Create an instance of the slack driver.
-     */
-    protected function createSlackDriver(): SlackNotificationRouterChannel
-    {
-        return $this->container->make(SlackNotificationRouterChannel::class);
     }
 
     /**

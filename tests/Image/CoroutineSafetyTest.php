@@ -8,13 +8,19 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Image\Driver;
 use Hypervel\Contracts\Image\Transformation;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Image\Image;
+use Hypervel\Image\ImageException;
 use Hypervel\Image\ImageManager;
 use Hypervel\Image\ImagePipeline;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
+use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;
 
 class CoroutineSafetyTest extends TestCase
@@ -77,6 +83,75 @@ class CoroutineSafetyTest extends TestCase
 
         $this->assertSame($terminalException, $results['first']);
         $this->assertSame($terminalException, $results['second']);
+        $this->assertSame(1, $resolutionCalls);
+    }
+
+    public function testOwnerCancellationReachesOnlyTheOwnerAndOthersGetTheCachedFailure(): void
+    {
+        $container = new Container;
+        $container->instance('config', new Repository([
+            'images' => ['default' => 'interleaving'],
+        ]));
+        $manager = new ImageManager($container);
+        $manager->extend('interleaving', static fn (): Driver => new InterleavingImageDriver);
+        $container->instance('image', $manager);
+        Container::setInstance($container);
+
+        $resolutionCalls = 0;
+        $release = new Channel(1);
+        $image = new Image(function () use (&$resolutionCalls, $release): string {
+            ++$resolutionCalls;
+            $release->pop();
+
+            return 'shared image';
+        });
+        $processed = $image->toPng();
+        $failures = new Channel(2);
+
+        // The owner processes the image, so its cancellation also passes through processing.
+        $ownerId = go(static function () use ($processed, $failures): void {
+            try {
+                $processed->toBytes();
+            } catch (Throwable $exception) {
+                $failures->push(['owner', $exception]);
+            }
+        });
+        $waiterId = go(static function () use ($image, $failures): void {
+            try {
+                $image->toBytes();
+            } catch (Throwable $exception) {
+                $failures->push(['waiter', $exception]);
+            }
+        });
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($ownerId, throwException: true));
+
+            $first = $failures->pop(1);
+            $second = $failures->pop(1);
+            $results = [$first[0] => $first[1], $second[0] => $second[1]];
+
+            $this->assertInstanceOf(CanceledException::class, $results['owner']);
+            $this->assertInstanceOf(ImageException::class, $results['waiter']);
+            $this->assertSame($results['owner'], $results['waiter']->getPrevious());
+        } finally {
+            $release->push(true, 0.001);
+
+            foreach ([$ownerId, $waiterId] as $coroutineId) {
+                if (Coroutine::exists($coroutineId)) {
+                    EngineCoroutine::cancelById($coroutineId, throwException: true);
+                    Coroutine::join([$coroutineId], 1);
+                }
+            }
+        }
+
+        try {
+            $image->toBytes();
+            $this->fail('Expected the cached source failure.');
+        } catch (ImageException $exception) {
+            $this->assertSame($results['waiter'], $exception);
+        }
+
         $this->assertSame(1, $resolutionCalls);
     }
 

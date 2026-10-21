@@ -2,6 +2,10 @@ The MIT License (MIT)
 
 Copyright (c) 2017 Alexander Kalnoy
 
+Copyright (c) 2026 Aimeos and contributors
+
+Copyright (c) 2026 Neon Digital (maintenance for Lunar)
+
 Copyright (c) Hypervel
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

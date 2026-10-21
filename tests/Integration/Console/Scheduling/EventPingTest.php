@@ -10,19 +10,18 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Mockery as m;
 
 class EventPingTest extends TestCase
 {
-    public function testPingRescuesTransferExceptions()
+    public function testPingRescuesTransferExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
-            ->shouldReceive('report')
-            ->once()
+            ->expects('report')
             ->with(m::type(ServerException::class));
 
         $httpMock = new HttpClient([
@@ -33,12 +32,12 @@ class EventPingTest extends TestCase
 
         $this->swap(HttpClient::class, $httpMock);
 
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $thenCalled = false;
 
         $event->pingBefore('https://httpstat.us/500')
-            ->then(function () use (&$thenCalled) {
+            ->then(function () use (&$thenCalled): void {
                 $thenCalled = true;
             });
 

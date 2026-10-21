@@ -90,6 +90,35 @@ trait HasHeaders
     }
 
     /**
+     * Remove a header from the request.
+     *
+     * @return $this
+     */
+    public function withoutHeader(string $name): static
+    {
+        return $this->withoutHeaders([$name]);
+    }
+
+    /**
+     * Remove the given headers from the request.
+     *
+     * @param array<int, string> $names
+     * @return $this
+     */
+    public function withoutHeaders(array $names): static
+    {
+        $names = array_map(strtolower(...), $names);
+
+        $this->headerRepository()->set(array_filter(
+            $this->headers(),
+            static fn (string $header): bool => ! in_array(strtolower($header), $names, true),
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        return $this;
+    }
+
+    /**
      * Specify the request content type.
      *
      * @return $this

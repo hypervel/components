@@ -28,6 +28,8 @@ class ThrottlesExceptions
 
     /**
      * The number of minutes to wait before retrying the job after an exception.
+     *
+     * @var (Closure(Throwable): int)|int
      */
     protected Closure|int $retryAfterMinutes = 0;
 
@@ -83,6 +85,8 @@ class ThrottlesExceptions
 
     /**
      * Process the job.
+     *
+     * @throws Throwable
      */
     public function handle(mixed $job, callable $next): mixed
     {
@@ -174,6 +178,7 @@ class ThrottlesExceptions
      */
     protected function shouldDelete(Throwable $throwable): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($this->deleteWhenCallbacks as $callback) {
             if (call_user_func($callback, $throwable)) {
                 return true;
@@ -188,6 +193,7 @@ class ThrottlesExceptions
      */
     protected function shouldFail(Throwable $throwable): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($this->failWhenCallbacks as $callback) {
             if (call_user_func($callback, $throwable)) {
                 return true;
@@ -221,6 +227,8 @@ class ThrottlesExceptions
 
     /**
      * Specify the number of minutes a job should be delayed when it is released (before it has reached its max exceptions).
+     *
+     * @param (Closure(Throwable): int)|int $backoff
      */
     public function backoff(Closure|int $backoff): static
     {

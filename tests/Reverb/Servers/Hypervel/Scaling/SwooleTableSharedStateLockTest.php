@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
 use Hypervel\Core\Swoole\StripedLock;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
@@ -18,6 +19,8 @@ use function Hypervel\Coroutine\run;
 
 class SwooleTableSharedStateLockTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testFailedLockRowsAreReportedOnlyAfterTheirStripeIsReleased(): void
@@ -93,6 +96,8 @@ class SwooleTableSharedStateLockTest extends TestCase
         $lockTable = new Table(128);
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
+
+        $this->trackSwooleTable($table, $lockTable);
 
         return new $class($table, $lockTable, $locks);
     }

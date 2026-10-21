@@ -174,6 +174,15 @@ class ForeverTest extends RedisCacheTestCase
         ));
     }
 
+    public function testForeverInClusterModeDoesNotPublishTagsWhenTheValueWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->expects('set')->with('prefix:mykey', serialize('myvalue'))->andReturnFalse();
+        $connection->shouldNotReceive('zadd');
+
+        $this->assertFalse($store->allTagOps()->forever()->execute('mykey', 'myvalue', ['_all:tag:users:entries']));
+    }
+
     public function testForeverReturnsFalseWhenClusterMembershipWriteFails(): void
     {
         [$store, , $connection] = $this->createClusterStore();

@@ -14,21 +14,21 @@ use ReflectionProperty;
 
 class GenerateProxiesBootstrapTest extends TestCase
 {
-    public function testHttpKernelIncludesGenerateProxies()
+    public function testHttpKernelIncludesGenerateProxies(): void
     {
         $bootstrappers = $this->getBootstrappers(HttpKernel::class);
 
         $this->assertContains(GenerateProxies::class, $bootstrappers);
     }
 
-    public function testConsoleKernelIncludesGenerateProxies()
+    public function testConsoleKernelIncludesGenerateProxies(): void
     {
         $bootstrappers = $this->getBootstrappers(ConsoleKernel::class);
 
         $this->assertContains(GenerateProxies::class, $bootstrappers);
     }
 
-    public function testGenerateProxiesRunsAfterRegisterProviders()
+    public function testGenerateProxiesRunsAfterRegisterProviders(): void
     {
         $bootstrappers = $this->getBootstrappers(HttpKernel::class);
 
@@ -40,7 +40,7 @@ class GenerateProxiesBootstrapTest extends TestCase
         $this->assertGreaterThan($registerIndex, $generateIndex);
     }
 
-    public function testGenerateProxiesRunsBeforeBootProviders()
+    public function testGenerateProxiesRunsBeforeBootProviders(): void
     {
         $bootstrappers = $this->getBootstrappers(HttpKernel::class);
 

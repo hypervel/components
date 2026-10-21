@@ -9,7 +9,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class PruneCommandTest extends FeatureTestCase
 {
-    public function testPruneCommandWillClearOldRecords()
+    public function testPruneCommandWillClearOldRecords(): void
     {
         $recent = EntryModelFactory::new()->create(['created_at' => now()]);
 
@@ -22,7 +22,7 @@ class PruneCommandTest extends FeatureTestCase
         $this->assertDatabaseMissing('telescope_entries', ['uuid' => $old->uuid]);
     }
 
-    public function testPruneCommandCanVaryHours()
+    public function testPruneCommandCanVaryHours(): void
     {
         $recent = EntryModelFactory::new()->create(['created_at' => now()->subHours(5)]);
 

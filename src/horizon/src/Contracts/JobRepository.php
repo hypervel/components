@@ -155,4 +155,9 @@ interface JobRepository
      * Delete a failed job by ID.
      */
     public function deleteFailed(string $id): int;
+
+    /**
+     * Delete pending and reserved jobs for a queue, optionally on one connection.
+     */
+    public function purge(string $queue, ?string $connection = null): int;
 }

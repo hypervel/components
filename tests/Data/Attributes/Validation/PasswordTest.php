@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Attributes\Validation;
 
+use Closure;
 use Hypervel\Data\Attributes\Validation\Password as PasswordAttribute;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
@@ -84,18 +85,37 @@ class PasswordTest extends TestCase
         ], $rule->appliedRules());
     }
 
-    /**
-     * Test the attribute uses the framework's default password rule.
-     */
-    public function testUsesDefaultPasswordRule(): void
+    #[DataProvider('preconfiguredPasswordValidators')]
+    public function testPasswordRuleReturnsPreconfiguredPasswordValidators(Closure $setDefaults, array $expectedConfig): void
     {
-        PasswordRule::defaults(fn () => PasswordRule::min(42)->uncompromised(7));
+        $setDefaults();
 
         $rule = (new PasswordAttribute(default: true))->getRule(ValidationPath::create());
 
-        $this->assertSame(42, $rule->appliedRules()['min']);
-        $this->assertTrue($rule->appliedRules()['uncompromised']);
-        $this->assertSame(7, $rule->appliedRules()['compromisedThreshold']);
+        foreach ($expectedConfig as $key => $expected) {
+            $this->assertSame($expected, $rule->appliedRules()[$key]);
+        }
+    }
+
+    /**
+     * Provide framework password defaults and the configuration they give the default rule.
+     */
+    public static function preconfiguredPasswordValidators(): iterable
+    {
+        yield 'min length set to 42' => [
+            static fn (): ?PasswordRule => PasswordRule::defaults(static fn (): PasswordRule => PasswordRule::min(42)),
+            ['min' => 42],
+        ];
+
+        yield 'unconfigured' => [
+            static fn (): null => null,
+            ['min' => 8],
+        ];
+
+        yield 'uncompromised' => [
+            static fn (): ?PasswordRule => PasswordRule::defaults(static fn (): PasswordRule => PasswordRule::min(69)->uncompromised(7)),
+            ['min' => 69, 'uncompromised' => true, 'compromisedThreshold' => 7],
+        ];
     }
 
     /**

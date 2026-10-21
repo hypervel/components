@@ -11,12 +11,14 @@ final readonly class PartialTree
     /**
      * Create a compiled partial tree.
      *
-     * @param array<string, self> $children
+     * @param array<array-key, self> $children numeric segments, which select array items, are integer keys
+     * @param list<string> $nestedProperties the children whose selection continues into their own value
      */
     private function __construct(
         public bool $selected,
         public bool $all,
         public array $children,
+        public array $nestedProperties = [],
     ) {
     }
 
@@ -61,7 +63,7 @@ final readonly class PartialTree
     /**
      * Get the nested selection for a property.
      */
-    public function child(string $property): ?self
+    public function child(string|int $property): ?self
     {
         if (isset($this->children[$property])) {
             return $this->children[$property];
@@ -99,6 +101,7 @@ final readonly class PartialTree
             $this->selected || $other->selected,
             $this->all || $other->all,
             $children,
+            array_values(array_unique([...$this->nestedProperties, ...$other->nestedProperties])),
         );
     }
 
@@ -179,7 +182,7 @@ final readonly class PartialTree
     /**
      * Insert one parsed path into the mutable build tree.
      *
-     * @param array{selected: bool, all: bool, children: array<string, array>} $tree
+     * @param array{selected: bool, all: bool, children: array<array-key, array>} $tree
      * @param non-empty-list<string> $segments
      */
     private static function insert(array &$tree, array $segments): void
@@ -210,17 +213,23 @@ final readonly class PartialTree
     /**
      * Hydrate an immutable tree from its mutable build representation.
      *
-     * @param array{selected: bool, all: bool, children: array<string, array>} $tree
+     * @param array{selected: bool, all: bool, children: array<array-key, array>} $tree
      */
     private static function hydrate(array $tree, bool $inheritedAll = false): self
     {
         $all = $inheritedAll || $tree['all'];
         $children = [];
+        $nestedProperties = [];
 
         foreach ($tree['children'] as $property => $child) {
             $children[$property] = self::hydrate($child, $all);
+
+            // A child's own terminal * continues the selection; one inherited from its parent does not.
+            if ($child['children'] !== [] || $child['all']) {
+                $nestedProperties[] = (string) $property;
+            }
         }
 
-        return new self($tree['selected'], $all, $children);
+        return new self($tree['selected'], $all, $children, $nestedProperties);
     }
 }

@@ -79,6 +79,7 @@ class ConfigApplicationProvider implements ApplicationProvider
             $app['allowed_origins'],
             (int) $app['max_message_size'],
             $maxConnections === null ? null : (int) $maxConnections,
+            // Laravel falls back to "all" for records that predate this option; omission keeps the secure default here.
             $app['accept_client_events_from'] ?? Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
             $app['rate_limiting'] ?? null,
             $app['options'] ?? [],

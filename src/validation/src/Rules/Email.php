@@ -132,7 +132,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Ensure that the email address has a valid MX record.
+     * Check the email domain's MX records, with A or AAAA records as a fallback.
      *
      * Requires the PHP intl extension.
      */
@@ -187,8 +187,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore-line
-            $this->validator->customAttributes // @phpstan-ignore-line
+            $this->validator->customMessages, // @phpstan-ignore property.notFound
+            $this->validator->customAttributes // @phpstan-ignore property.notFound
         );
 
         if ($validator->fails()) {

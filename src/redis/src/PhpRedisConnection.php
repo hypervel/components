@@ -145,6 +145,7 @@ class PhpRedisConnection extends RedisConnection
             $parameters[] = $this->normalizeContext($config['context']);
         }
 
+        // REMOVED: Native persistent/persistent_id options; the pool owns connection reuse.
         $redis = new Redis;
         if (! $redis->connect(...$parameters)) {
             throw new ConnectionException('Connection reconnect failed.');
@@ -187,6 +188,8 @@ class PhpRedisConnection extends RedisConnection
 
     /**
      * Normalize the SSL context for a standalone Redis connection.
+     *
+     * Redis::connect() expects the context as ['stream' => ['verify_peer' => false, ...]].
      *
      * @param array<string, mixed> $context
      * @return array<string, mixed>

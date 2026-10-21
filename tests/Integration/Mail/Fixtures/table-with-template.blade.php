@@ -1,4 +1,4 @@
-<x-mail::message subcopy="This is a subcopy">
+<x-mail::message subcopy="This is a <em>subcopy</em>">
 
 <x-mail::table>
 *Hi* {{ $user->name }}

@@ -15,8 +15,10 @@ use IteratorAggregate;
 use JsonException;
 use JsonSerializable;
 use SortDirection;
+use Stringable as BaseStringable;
 use Traversable;
 use UnexpectedValueException;
+use UnitEnum;
 
 /**
  * Some transformations may return a base collection when an implementation
@@ -26,7 +28,7 @@ use UnexpectedValueException;
  *
  * @template-covariant TValue
  *
- * @extends Arrayable<TKey, TValue>
+ * @extends Arrayable<array<TKey, TValue>>
  * @extends IteratorAggregate<TKey, TValue>
  */
 interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, JsonSerializable
@@ -37,8 +39,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMakeKey of array-key
      * @template TMakeValue
      *
-     * @param null|Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue> $items
-     * @return static<TMakeKey, TMakeValue>
+     * @param null|Arrayable<array<array-key, mixed>>|iterable<TMakeKey, TMakeValue> $items
+     * @return ($items is Arrayable<array<TMakeKey, TMakeValue>> ? static<TMakeKey, TMakeValue> : static<TMakeKey, TMakeValue>)
      */
     public static function make(Arrayable|iterable|null $items = []): static;
 
@@ -48,9 +50,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TTimesValue
      *
      * @param null|(callable(int): TTimesValue) $callback
-     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
+     * @return ($callback is null ? static<int, int> : Collection<int, TTimesValue>|static<int, TTimesValue>)
      */
-    public static function times(int $number, ?callable $callback = null): static;
+    public static function times(int $number, ?callable $callback = null): Collection|static;
 
     /**
      * Create a collection with the given range.
@@ -152,10 +154,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Cross join with the given lists, returning all possible permutations.
      *
-     * @template TCrossJoinKey of array-key
      * @template TCrossJoinValue
      *
-     * @param Arrayable<TCrossJoinKey, TCrossJoinValue>|iterable<TCrossJoinKey, TCrossJoinValue> ...$lists
+     * @param Arrayable<array<array-key, TCrossJoinValue>>|iterable<array-key, TCrossJoinValue> ...$lists
      * @return static<int, array<int, TCrossJoinValue|TValue>>
      */
     public function crossJoin(Arrayable|iterable ...$lists): static;
@@ -173,14 +174,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the items that are not present in the given items.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      */
     public function diff(mixed $items): static;
 
     /**
      * Get the items that are not present in the given items, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function diffUsing(mixed $items, callable $callback): static;
@@ -188,14 +189,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the items whose keys and values are not present in the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function diffAssoc(Arrayable|iterable $items): static;
 
     /**
      * Get the items whose keys and values are not present in the given items, using the callback.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      * @param callable(TKey, TKey): int $callback
      */
     public function diffAssocUsing(Arrayable|iterable $items, callable $callback): static;
@@ -203,14 +204,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the items whose keys are not present in the given items.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      */
     public function diffKeys(Arrayable|iterable $items): static;
 
     /**
      * Get the items whose keys are not present in the given items, using the callback.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      * @param callable(TKey, TKey): int $callback
      */
     public function diffKeysUsing(Arrayable|iterable $items, callable $callback): static;
@@ -218,16 +219,22 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Retrieve duplicate items.
      *
-     * @param null|(callable(TValue): bool)|string $callback
+     * @template TMapValue
+     *
+     * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicates(callable|string|null $callback = null, bool $strict = false): static;
+    public function duplicates(callable|string|null $callback = null, bool $strict = false): Collection|static;
 
     /**
      * Retrieve duplicate items using strict comparison.
      *
-     * @param null|(callable(TValue): bool)|string $callback
+     * @template TMapValue
+     *
+     * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicatesStrict(callable|string|null $callback = null): static;
+    public function duplicatesStrict(callable|string|null $callback = null): Collection|static;
 
     /**
      * Execute a callback over each item.
@@ -416,8 +423,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Flip the values with their keys.
      *
-     * @return static<TValue, TKey>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<array-key, TKey>
      */
     public function flip(): Collection|static;
 
@@ -435,26 +441,27 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Group an associative array by a field or using a callback.
      *
-     * @template TGroupKey of array-key|\UnitEnum|\Stringable
+     * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
-     * @return static<
-     *  ($groupBy is (array|string)
-     *      ? array-key
-     *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
-     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
-     * >
-     * @phpstan-ignore generics.notSubtype (PHPStan cannot prove normalized conditional group keys satisfy array-key)
+     * @return ($groupBy is array
+     *  ? Collection<array-key, Collection<array-key, mixed>>|static<array-key, Collection<array-key, mixed>>
+     *  : static<
+     *      ($groupBy is string
+     *          ? array-key
+     *          : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *      Collection<($preserveKeys is true ? TKey : int), TValue>
+     *  >)
      */
-    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static;
+    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): Collection|static;
 
     /**
      * Key an associative array by a field or using a callback.
      *
-     * @template TNewKey of array-key
+     * @template TNewKey of array-key|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is string ? array-key : ($keyBy is array ? array-key : TNewKey)), TValue>
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is BaseStringable ? string : array-key))), TValue>
      */
     public function keyBy(callable|array|string $keyBy): static;
 
@@ -480,14 +487,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Intersect the collection with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function intersect(mixed $items): static;
 
     /**
      * Intersect the collection with the given items, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function intersectUsing(mixed $items, callable $callback): static;
@@ -495,14 +502,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Intersect the collection with the given items with additional index check.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function intersectAssoc(mixed $items): static;
 
     /**
      * Intersect the collection with the given items with additional index check, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function intersectAssocUsing(mixed $items, callable $callback): static;
@@ -510,7 +517,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Intersect the collection with the given items by key.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      */
     public function intersectByKeys(mixed $items): static;
 
@@ -575,8 +582,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Run a map over each nested chunk of items.
+     *
+     * @return Collection<TKey, mixed>|static<TKey, mixed>
      */
-    public function mapSpread(callable $callback): static;
+    public function mapSpread(callable $callback): Collection|static;
 
     /**
      * Run a dictionary map over the items.
@@ -600,9 +609,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMapToGroupsValue
      *
      * @param callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue> $callback
-     * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
+     * @return Collection<TMapToGroupsKey, static<int, TMapToGroupsValue>>|static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
      */
-    public function mapToGroups(callable $callback): static;
+    public function mapToGroups(callable $callback): Collection|static;
 
     /**
      * Run an associative map over each of the items.
@@ -623,7 +632,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
-     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
+     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
     public function flatMap(callable $callback): Collection|static;
@@ -643,7 +652,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @template TMergeValue
      *
-     * @param Arrayable<TKey, TMergeValue>|iterable<TKey, TMergeValue> $items
+     * @param Arrayable<array<TKey, TMergeValue>>|iterable<TKey, TMergeValue> $items
      * @return static<TKey, TMergeValue|TValue>
      */
     public function merge(mixed $items): static;
@@ -653,8 +662,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @template TMergeRecursiveValue
      *
-     * @param Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue> $items
-     * @return static<TKey, TMergeRecursiveValue|TValue>
+     * @param Arrayable<array<TKey, TMergeRecursiveValue>>|iterable<TKey, TMergeRecursiveValue> $items
+     * @return static<TKey, (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
      */
     public function mergeRecursive(mixed $items): static;
 
@@ -663,7 +672,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @template TCombineValue
      *
-     * @param Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue> $values
+     * @param Arrayable<array<array-key, TCombineValue>>|iterable<array-key, TCombineValue> $values
      * @return static<TValue, TCombineValue>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
@@ -672,7 +681,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Union the collection with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function union(mixed $items): static;
 
@@ -774,14 +783,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Replace the collection items with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function replace(mixed $items): static;
 
     /**
      * Recursively replace the collection items with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function replaceRecursive(mixed $items): static;
 
@@ -822,9 +831,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Create chunks representing a "sliding window" view of the items in the collection.
      *
-     * @return static<int, static>
+     * @return Collection<int, static>|static<int, static>
      */
-    public function sliding(int $size = 2, int $step = 1): static;
+    public function sliding(int $size = 2, int $step = 1): Collection|static;
 
     /**
      * Skip the first {$count} items.
@@ -894,6 +903,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     public function chunkWhile(callable $callback): static;
 
     /**
+     * Chunk the collection into chunks by comparing adjacent values using the given key or callback.
+     *
+     * @param (callable(TValue, TKey): mixed)|string $key
+     * @return static<int, static<TKey, TValue>>
+     */
+    public function chunkBy(callable|string $key): static;
+
+    /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
      *
      * @return static<int, static>
@@ -917,7 +934,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Sort the collection using the given callback.
      *
-     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortBy(array|callable|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static;
@@ -925,7 +942,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Sort the collection in descending order using the given callback.
      *
-     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortByDesc(array|callable|int|string $callback, int $options = SORT_REGULAR): static;
@@ -957,7 +974,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TReturnType
      *
      * @param null|(callable(TValue, TKey): TReturnType)|string $callback
-     * @return ($callback is callable ? float|int|TReturnType : mixed)
+     * @return ($callback is string ? mixed : ($callback is callable ? float|int|TReturnType : mixed))
      */
     public function sum(callable|int|string|null $callback = null): mixed;
 
@@ -983,7 +1000,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Pass the collection to the given callback and then return it.
      *
-     * @param callable(TValue): mixed $callback
+     * @param callable($this): mixed $callback
      */
     public function tap(callable $callback): static;
 
@@ -1066,7 +1083,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TPadValue
      *
      * @param TPadValue $value
-     * @return static<int, TPadValue|TValue>
+     * @return static<int|TKey, TPadValue|TValue>
      */
     public function pad(int $size, mixed $value): Collection|static;
 
@@ -1085,8 +1102,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Count the number of items in the collection by a field or using a callback.
      *
-     * @param null|(callable(TValue, TKey): array-key)|string $countBy
-     * @return static<array-key, int>
+     * @param null|(callable(TValue, TKey): (array-key|bool|UnitEnum))|string $countBy
+     * @return Collection<array-key, int>|static<array-key, int>
      */
     public function countBy(callable|string|null $countBy = null): Collection|static;
 
@@ -1098,7 +1115,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @template TZipValue
      *
-     * @param Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue> ...$items
+     * @param Arrayable<array<array-key, TZipValue>>|iterable<array-key, TZipValue> ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
     public function zip(Arrayable|iterable ...$items): Collection|static;

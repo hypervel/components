@@ -9,6 +9,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Handler\CurlShareHandleState;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Multiplexing;
@@ -16,8 +17,10 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
-use GuzzleHttp\Utils;
+use GuzzleHttp\TransportSharing;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -29,13 +32,15 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @mixin \Hypervel\Http\Client\PendingRequest
+ * @mixin PendingRequest
  */
 class Factory
 {
     use Macroable {
         __call as macroCall;
     }
+
+    protected const string GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX = '__http.global_configuration_disabled.';
 
     /**
      * The middleware to apply to every request.
@@ -88,6 +93,11 @@ class Factory
      * @var array<string, callable>
      */
     protected array $connectionHandlers = [];
+
+    /**
+     * The transport shared by requests without a named connection.
+     */
+    protected ?Closure $defaultHandler = null;
 
     /**
      * Create a new factory instance.
@@ -150,6 +160,29 @@ class Factory
     }
 
     /**
+     * Execute a callback while requests are created without global middleware or global options.
+     *
+     * @template TReturn
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public function withoutGlobalConfiguration(Closure $callback): mixed
+    {
+        // Callbacks may yield while this factory is shared by other coroutines.
+        $contextKey = self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this);
+        $wasDisabled = CoroutineContext::has($contextKey);
+        CoroutineContext::set($contextKey, true);
+
+        try {
+            return $callback();
+        } finally {
+            if (! $wasDisabled) {
+                CoroutineContext::forget($contextKey);
+            }
+        }
+    }
+
+    /**
      * Create a new response instance for use during stubbing.
      *
      * @param null|array|resource|StreamInterface|string $body
@@ -200,16 +233,21 @@ class Factory
      */
     protected static function normalizeResponseHeaders(array $headers): array
     {
+        $normalized = [];
+
+        // Fresh arrays never write through, or keep, references in the caller's data.
         foreach ($headers as $name => $value) {
             if (is_array($value)) {
                 if ($value === []) {
-                    $headers[$name] = '';
+                    $normalized[$name] = '';
 
                     continue;
                 }
 
+                $normalizedValue = [];
+
                 foreach ($value as $key => $item) {
-                    $value[$key] = match (true) {
+                    $normalizedValue[$key] = match (true) {
                         $item === null => '',
                         is_scalar($item) => static::normalizeScalarString($item),
                         $item instanceof Stringable => $item->toString(),
@@ -217,12 +255,12 @@ class Factory
                     };
                 }
 
-                $headers[$name] = $value;
+                $normalized[$name] = $normalizedValue;
 
                 continue;
             }
 
-            $headers[$name] = match (true) {
+            $normalized[$name] = match (true) {
                 $value === null => '',
                 is_scalar($value) => static::normalizeScalarString($value),
                 $value instanceof Stringable => $value->toString(),
@@ -230,7 +268,7 @@ class Factory
             };
         }
 
-        return $headers;
+        return $normalized;
     }
 
     /**
@@ -355,6 +393,8 @@ class Factory
      *
      * Tests only. The stub persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @throws InvalidArgumentException
      */
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
@@ -454,7 +494,7 @@ class Factory
     public function assertSent(callable $callback): void
     {
         PHPUnit::assertTrue(
-            $this->recorded($callback)->count() > 0,
+            $this->recorded($callback)->isNotEmpty(),
             'An expected request was not recorded.'
         );
     }
@@ -486,8 +526,8 @@ class Factory
      */
     public function assertNotSent(callable $callback): void
     {
-        PHPUnit::assertFalse(
-            $this->recorded($callback)->count() > 0,
+        PHPUnit::assertTrue(
+            $this->recorded($callback)->isEmpty(),
             'Unexpected request was recorded.'
         );
     }
@@ -533,16 +573,19 @@ class Factory
             return new Collection;
         }
 
-        $callback = $callback ?: function () {
-            return true;
-        };
+        $collect = new Collection($this->recorded);
 
-        return (new Collection($this->recorded))
-            ->filter(fn ($pair) => $callback($pair[0], $pair[1]));
+        if ($callback) {
+            return $collect->filter(fn ($pair) => $callback($pair[0], $pair[1]));
+        }
+
+        return $collect;
     }
 
     /**
      * Create a new pending request instance for this factory.
+     *
+     * @return PendingRequest<false>
      */
     public function createPendingRequest(): PendingRequest
     {
@@ -556,16 +599,22 @@ class Factory
 
     /**
      * Instantiate a new pending request instance for this factory.
+     *
+     * @return PendingRequest<false>
      */
     protected function newPendingRequest(): PendingRequest
     {
-        $options = value($this->globalOptions);
+        $withoutGlobalConfiguration = CoroutineContext::has(self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this));
+        $options = $withoutGlobalConfiguration ? [] : value($this->globalOptions);
 
         if (! is_array($options)) {
             throw new InvalidArgumentException('The global HTTP client options callback must return an array.');
         }
 
-        return new PendingRequest($this, $this->globalMiddleware, $options);
+        /** @var PendingRequest<false> $request */
+        $request = new PendingRequest($this, $withoutGlobalConfiguration ? [] : $this->globalMiddleware, $options);
+
+        return $request;
     }
 
     /**
@@ -577,11 +626,24 @@ class Factory
     }
 
     /**
+     * Set the event dispatcher implementation.
+     *
+     * Boot or tests only. The dispatcher persists on the factory for the
+     * worker lifetime and receives every subsequent HTTP client event.
+     */
+    public function setDispatcher(?Dispatcher $dispatcher): void
+    {
+        $this->dispatcher = $dispatcher;
+    }
+
+    /**
      * Get the array of global middleware.
      */
     public function getGlobalMiddleware(): array
     {
-        return $this->globalMiddleware;
+        return CoroutineContext::has(self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this))
+            ? []
+            : $this->globalMiddleware;
     }
 
     /**
@@ -604,34 +666,72 @@ class Factory
     }
 
     /**
+     * Get the shared low-level transport handler for default requests.
+     */
+    public function getDefaultHandler(): callable
+    {
+        return $this->defaultHandler ??= $this->createConnectionHandler([])(...);
+    }
+
+    /**
      * Get the shared low-level transport handler for a connection.
      */
     public function getConnectionHandler(string $name): callable
     {
-        $this->ensureConnectionIsRegistered($name);
+        return $this->connectionHandlers[$name] ??= $this->createConnectionHandler($this->connectionHandlerOptions($name));
+    }
 
-        if (isset($this->connectionHandlers[$name])) {
-            return $this->connectionHandlers[$name];
+    /**
+     * Create a request-owned transport whose DNS pins cannot reach shared caches.
+     *
+     * @internal
+     */
+    public function newIsolatedHandler(?string $connection = null): callable
+    {
+        $options = $this->connectionHandlerOptions($connection);
+        $sharing = CurlShareHandleState::normalizeMode($options['transport_sharing'] ?? null, 'transport_sharing');
+
+        if ($sharing === TransportSharing::PERSISTENT_REQUIRE) {
+            throw new InvalidArgumentException("HTTP connection [{$connection}] requires persistent transport sharing, which cannot be used with destination pinning.");
         }
 
+        $options['transport_sharing'] = $sharing === TransportSharing::PERSISTENT_PREFER
+            ? TransportSharing::HANDLER_PREFER
+            : $sharing;
+
+        return $this->createConnectionHandler($options);
+    }
+
+    /**
+     * Get the transport options owned by a registered connection.
+     */
+    protected function connectionHandlerOptions(?string $name): array
+    {
+        if ($name === null) {
+            return [];
+        }
+
+        $this->ensureConnectionIsRegistered($name);
+
         $config = $this->connectionConfigs[$name];
-        $handlerOptions = Arr::only($config, ['transport_sharing']);
+        $handlerOptions = Arr::only($config, ['transport_sharing', 'max_idle_handles', 'max_idle_multi_handlers']);
 
         if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
             $handlerOptions['multiplex'] = Multiplexing::NONE;
         }
 
-        return $this->connectionHandlers[$name] = $this->createConnectionHandler(
-            $handlerOptions,
-        );
+        return $handlerOptions;
     }
 
     /**
-     * Create a low-level transport handler for a connection.
+     * Create a reusable transport handler with incremental streaming support.
      */
     protected function createConnectionHandler(array $options): callable
     {
-        return Utils::chooseHandler($options);
+        $handler = HandlerFactory::create($options);
+        unset($options['max_idle_handles'], $options['max_idle_multi_handlers']);
+
+        return CurlStreamingHandler::wrap($handler, $options, CurlStreamingHandler::MAX_IDLE_CONNECTIONS);
     }
 
     /**
@@ -668,7 +768,7 @@ class Factory
     {
         $this->ensureConnectionIsRegistered($name);
 
-        return Arr::except($this->connectionConfigs[$name], ['transport_sharing']);
+        return Arr::except($this->connectionConfigs[$name], ['transport_sharing', 'max_idle_handles', 'max_idle_multi_handlers']);
     }
 
     /**
@@ -688,7 +788,7 @@ class Factory
     }
 
     /**
-     * Forget all resolved connection handlers.
+     * Forget the resolved default and connection handlers.
      *
      * Boot or tests only. Request-time use forces subsequent requests to
      * rebuild warmed keep-alive, DNS, and TLS session state.
@@ -696,6 +796,7 @@ class Factory
     public function forgetConnectionHandlers(): static
     {
         $this->connectionHandlers = [];
+        $this->defaultHandler = null;
 
         return $this;
     }
@@ -716,6 +817,12 @@ class Factory
     protected function validateConnectionConfig(array $config): void
     {
         ReservedOptions::reject($config, true, 'registered connection configuration');
+
+        foreach (['max_idle_handles', 'max_idle_multi_handlers'] as $option) {
+            if (array_key_exists($option, $config) && (! is_int($config[$option]) || $config[$option] < 0)) {
+                throw new InvalidArgumentException("The [{$option}] connection option must be an integer of 0 or more.");
+            }
+        }
     }
 
     /**

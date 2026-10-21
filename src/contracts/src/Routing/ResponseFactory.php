@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Routing;
 
 use BackedEnum;
 use Closure;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Response;
@@ -44,6 +45,8 @@ interface ResponseFactory
 
     /**
      * Create a new event stream response.
+     *
+     * @return IterableStreamedResponse
      */
     public function eventStream(Closure $callback, array $headers = [], StreamedEvent|string|null $endStreamWith = '</stream>'): StreamedResponse;
 

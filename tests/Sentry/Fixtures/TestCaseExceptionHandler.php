@@ -1,0 +1,102 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Sentry\Fixtures;
+
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Http\Request;
+use Hypervel\Sentry\Integration;
+use Psr\Log\LogLevel;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
+
+/**
+ * This is a proxy class, so we can inject the Sentry bits while running tests and handle exceptions like "normal".
+ */
+class TestCaseExceptionHandler implements ExceptionHandler
+{
+    /**
+     * Create the exception handler proxy.
+     */
+    public function __construct(
+        private readonly ExceptionHandler $handler,
+    ) {
+    }
+
+    /**
+     * Report or log an exception.
+     *
+     * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
+     *
+     * @throws Throwable
+     */
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
+    {
+        Integration::captureUnhandledException($e);
+
+        $this->handler->report($e, $context, $level);
+    }
+
+    /**
+     * Determine if the exception should be reported.
+     */
+    public function shouldReport(Throwable $e): bool
+    {
+        return $this->handler->shouldReport($e);
+    }
+
+    /**
+     * Render an exception into an HTTP response.
+     *
+     * @throws Throwable
+     */
+    public function render(Request $request, Throwable $e): Response
+    {
+        return $this->handler->render($request, $e);
+    }
+
+    /**
+     * Render an exception to the console.
+     */
+    public function renderForConsole(OutputInterface $output, Throwable $e): void
+    {
+        $this->handler->renderForConsole($output, $e);
+    }
+
+    /**
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return $this->handler->isReporting($e);
+    }
+
+    /**
+     * Create the context for an exception.
+     *
+     * @return array<array-key, mixed>
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return $this->handler->buildContextForException($e);
+    }
+
+    /**
+     * Register a callback to run after an HTTP error response is rendered.
+     */
+    public function afterResponse(callable $callback): void
+    {
+        $this->handler->afterResponse($callback);
+    }
+
+    /**
+     * Forward calls to the wrapped handler.
+     */
+    public function __call(string $name, array $arguments): mixed
+    {
+        return $this->handler->{$name}(...$arguments);
+    }
+}

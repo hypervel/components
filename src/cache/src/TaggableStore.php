@@ -25,8 +25,8 @@ abstract class TaggableStore implements Store
      * Stores whose tag support depends on configuration or composition
      * override this; for everything else extending TaggableStore, tag
      * support is unconditional. A store that can return false here must
-     * also throw a NotSupportedException from tags() because Repository
-     * relies on the store to enforce its own conditional support.
+     * also throw from tags() because Repository relies on the store to
+     * enforce its own conditional support.
      */
     public function supportsTags(): bool
     {

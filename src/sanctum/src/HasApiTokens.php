@@ -13,7 +13,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TToken of \Hypervel\Sanctum\Contracts\HasAbilities = \Hypervel\Sanctum\PersonalAccessToken
+ * @template TToken of HasAbilities = PersonalAccessToken
  */
 trait HasApiTokens
 {

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Worker;
@@ -33,13 +35,79 @@ class WorkCommandTest extends TestCase
         $config->set('cache.default', 'array');
     }
 
+    #[DataProvider('jobOutputProvider')]
+    public function testJobOutputIncludesVerboseDetailsOnlyWhenRequested(bool $verbose, int|string|null $jobId): void
+    {
+        $job = m::mock(Job::class);
+        $job->shouldReceive('getJobId')->andReturn($jobId);
+        $job->shouldReceive('resolveName')->andReturn('App\Jobs\SendInvoice');
+        $job->shouldReceive('getConnectionName')->andReturn('redis');
+        $job->shouldReceive('getQueue')->andReturn('invoices');
+
+        $command = new WorkCommandOutputStub(
+            $this->app,
+            $this->app->make('config'),
+            m::mock(Worker::class),
+            $this->app->make('cache'),
+        );
+        $output = new BufferedOutput($verbose ? OutputInterface::VERBOSITY_VERBOSE : OutputInterface::VERBOSITY_NORMAL);
+        $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
+        $command->writeJobOutput($job, 'starting');
+        $command->writeJobOutput($job, 'success');
+        $lines = explode("\n", trim($output->fetch()));
+
+        $this->assertCount(2, $lines);
+        $this->assertStringContainsString('App\Jobs\SendInvoice', $lines[0]);
+        $this->assertStringEndsWith('RUNNING', $lines[0]);
+        $this->assertStringEndsWith('DONE', $lines[1]);
+
+        if ($verbose) {
+            $this->assertStringContainsString("{$jobId} redis invoices", $lines[0]);
+            $this->assertStringContainsString("{$jobId} redis invoices", $lines[1]);
+            $this->assertStringNotContainsString('MB', $lines[0]);
+            $this->assertMatchesRegularExpression('/ [0-9]+(?:\.[0-9]+)?MB DONE$/', $lines[1]);
+        } else {
+            $this->assertStringNotContainsString('redis invoices', implode("\n", $lines));
+            $this->assertStringNotContainsString('MB', $lines[1]);
+        }
+    }
+
+    /**
+     * Provide supported job identifiers and output verbosity.
+     */
+    public static function jobOutputProvider(): array
+    {
+        return [
+            'normal' => [false, 'job-123'],
+            'verbose string ID' => [true, 'job-123'],
+            'verbose integer ID' => [true, 123],
+            'verbose missing ID' => [true, null],
+        ];
+    }
+
+    public function testFractionalSleepAndRestSecondsAreKept(): void
+    {
+        $command = new WorkCommandOutputStub(
+            $this->app,
+            $this->app->make('config'),
+            m::mock(Worker::class),
+            $this->app->make('cache'),
+        );
+        $command->setInput(new ArrayInput(['--sleep' => '0.5', '--rest' => '0.25'], $command->getDefinition()));
+
+        $options = $command->workerOptions();
+
+        $this->assertSame(0.5, $options->sleep);
+        $this->assertSame(0.25, $options->rest);
+    }
+
     #[DataProvider('queueStatusOutputProvider')]
     public function testQueueStatusOutputUsesTheCurrentCommand(bool $json): void
     {
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         $arguments = ['--once' => true, '--sleep' => 0, '--json' => $json];
 
-        Queue::pause('sync', 'default');
+        Queue::pause('default', 'sync');
         $firstOutput = new BufferedOutput;
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $firstOutput));
 
@@ -54,7 +122,7 @@ class WorkCommandTest extends TestCase
             $this->assertSame("  2023-01-18 10:10:11 Queue default PAUSED\n", $firstOutput->fetch());
         }
 
-        Queue::resume('sync', 'default');
+        Queue::resume('default', 'sync');
         $secondOutput = new BufferedOutput;
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $secondOutput));
 
@@ -89,10 +157,10 @@ class WorkCommandTest extends TestCase
         $output = new BufferedOutput;
         $arguments = ['--once' => true, '--sleep' => 0, '--json' => true, $option => true];
 
-        Queue::pause('sync', 'default');
+        Queue::pause('default', 'sync');
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
 
-        Queue::resume('sync', 'default');
+        Queue::resume('default', 'sync');
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
 
         $this->assertSame('', $output->fetch());
@@ -216,5 +284,24 @@ class WorkCommandTest extends TestCase
         );
         $command->setHypervel($this->app);
         $command->run(new ArrayInput($arguments), $output);
+    }
+}
+
+class WorkCommandOutputStub extends WorkCommand
+{
+    /**
+     * Expose job output without starting a queue worker.
+     */
+    public function writeJobOutput(Job $job, string $status): void
+    {
+        $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Expose the worker options the command gathers from its input.
+     */
+    public function workerOptions(): WorkerOptions
+    {
+        return $this->gatherWorkerOptions();
     }
 }

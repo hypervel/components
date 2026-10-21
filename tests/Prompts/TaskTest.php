@@ -101,15 +101,35 @@ class TaskTest extends TestCase
         Prompt::assertStrippedOutputContains('✔ My Task');
     }
 
+    public function testProcessSettlementPrintsCompletionLineOnlyAfterSuccess(): void
+    {
+        Prompt::fake();
+        $originalAsync = pcntl_async_signals();
+        $originalHandler = pcntl_signal_get_handler(SIGINT);
+
+        try {
+            (new Task(label: 'Failed Task', keepSummary: true))->applyMessage('reset', "\x00");
+            (new Task(label: 'Succeeded Task', keepSummary: true))->applyMessage('reset', "\x01");
+        } finally {
+            pcntl_async_signals($originalAsync);
+            pcntl_signal(SIGINT, $originalHandler);
+        }
+
+        Prompt::assertStrippedOutputDoesntContain('✔ Failed Task');
+        Prompt::assertStrippedOutputContains('✔ Succeeded Task');
+    }
+
     public function testUndecoratedTaskWritesPlainStartAndCompletionLines(): void
     {
         Prompt::fake();
         Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
 
-        $result = (new Task(label: 'My Task', keepSummary: true))
-            ->run(fn (Logger $logger): string => 'done');
+        $task = new Task(label: 'My Task', keepSummary: true);
+
+        $result = $task->run(fn (Logger $logger): string => 'done');
 
         $this->assertSame('done', $result);
+        $this->assertTrue($task->static);
         $this->assertSame(2, substr_count(Prompt::content(), 'My Task'));
         $this->assertStringEndsWith(' ✔ My Task' . PHP_EOL, Prompt::content());
         $this->assertStringNotContainsString("\e", Prompt::content());
@@ -139,7 +159,7 @@ class TaskTest extends TestCase
     public function testRejectsNegativeLogLimit(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The task log limit must be zero or greater.');
+        $this->expectExceptionMessageIs('The task log limit must be zero or greater.');
 
         new Task(limit: -1);
     }
@@ -215,7 +235,7 @@ class TaskTest extends TestCase
         $this->assertSame(10, $task->limit);
     }
 
-    public function testRendersTaskAndReturnsValue()
+    public function testRendersTaskAndReturnsValue(): void
     {
         Prompt::fake();
 
@@ -233,7 +253,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('Running...');
     }
 
-    public function testReturnsNullWhenCallbackDoesNotReturnValue()
+    public function testReturnsNullWhenCallbackDoesNotReturnValue(): void
     {
         Prompt::fake();
 
@@ -247,7 +267,27 @@ class TaskTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testCoroutinePathRendersLoggerOutput()
+    public function testRestoresThePreviousSignalHandler(): void
+    {
+        Prompt::fake();
+
+        $originalSignalHandler = pcntl_signal_get_handler(SIGINT);
+        $signalHandler = fn (): null => null;
+        pcntl_signal(SIGINT, $signalHandler);
+
+        try {
+            task(
+                label: 'Running...',
+                callback: fn (Logger $logger): null => null,
+            );
+
+            $this->assertSame($signalHandler, pcntl_signal_get_handler(SIGINT));
+        } finally {
+            pcntl_signal(SIGINT, $originalSignalHandler);
+        }
+    }
+
+    public function testCoroutinePathRendersLoggerOutput(): void
     {
         Prompt::fake();
 
@@ -264,7 +304,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('hello world');
     }
 
-    public function testCoroutinePathRendersStableMessages()
+    public function testCoroutinePathRendersStableMessages(): void
     {
         Prompt::fake();
 
@@ -282,7 +322,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('✔');
     }
 
-    public function testCoroutinePathUpdatesLabel()
+    public function testCoroutinePathUpdatesLabel(): void
     {
         Prompt::fake();
 
@@ -357,7 +397,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('after commit');
     }
 
-    public function testReceivesLogLinesIntoRingBuffer()
+    public function testReceivesLogLinesIntoRingBuffer(): void
     {
         $task = new Task(label: 'Test', limit: 3);
 
@@ -374,7 +414,7 @@ class TaskTest extends TestCase
         $this->assertSame('line four', $task->logs[2]);
     }
 
-    public function testWrapsLongLinesAndRespectsLimit()
+    public function testWrapsLongLinesAndRespectsLimit(): void
     {
         Prompt::fake();
 
@@ -390,7 +430,7 @@ class TaskTest extends TestCase
         $this->assertLessThanOrEqual(3, count($task->logs));
     }
 
-    public function testReplacesPartialLinesOnEachUpdate()
+    public function testReplacesPartialLinesOnEachUpdate(): void
     {
         Prompt::fake();
 
@@ -856,6 +896,8 @@ class TaskTest extends TestCase
             "a\n\e[31mb\e[0m",
             "a\n\e]8;;https://example.com\e\\b\e]8;;\e\\",
             "aaa\n\e[31mbb bb bb\e[0m",
+            '<info>literal</info>',
+            "\e[31m<fg=black;bg=black>literal\e[0m",
         ];
 
         foreach ($cases as $output) {
@@ -876,6 +918,23 @@ class TaskTest extends TestCase
                 );
             }
         }
+    }
+
+    public function testLogMarkupStaysLiteralInRenderedOutput(): void
+    {
+        Prompt::fake();
+        $task = new Task(label: 'Logs', limit: 2);
+        $logger = new InProcessLogger($task);
+        $logger->line('<fg=black;bg=black>Hidden');
+        $logger->partial('<info>Literal');
+        $logger->partial('</info>');
+        $logger->commitPartial();
+
+        (new ReflectionMethod($task, 'render'))->invoke($task);
+
+        $this->assertStringContainsString('<fg=black;bg=black>Hidden', Prompt::content());
+        $this->assertStringContainsString('<info>Literal</info>', Prompt::content());
+        $this->assertStringNotContainsString("\e[30;40m", Prompt::content());
     }
 
     public function testCompleteAndIncrementalGraphemeWrappingMatchesAcrossEveryChunkBoundary(): void

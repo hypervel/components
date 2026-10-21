@@ -17,11 +17,6 @@ interface Repository extends CacheInterface
      *
      * When an array is given, return a key-value map. Numeric entries are
      * requested keys, while string-keyed entries use their values as defaults.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed;
 
@@ -62,11 +57,6 @@ interface Repository extends CacheInterface
 
     /**
      * Retrieve an item from the cache and delete it.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function pull(UnitEnum|string $key, mixed $default = null): mixed;
 
@@ -183,14 +173,14 @@ interface Repository extends CacheInterface
     public function rememberForeverNullable(UnitEnum|string $key, Closure $callback): mixed;
 
     /**
-     * Set the expiration of a cached item; null TTL will retain the item forever.
+     * Set the expiration of a cached item.
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool;
 
     /**
      * Remove an item from the cache.
      */
-    public function forget(UnitEnum|string $key): bool;
+    public function forget(array|UnitEnum|string $key): bool;
 
     /**
      * Get the cache store implementation.

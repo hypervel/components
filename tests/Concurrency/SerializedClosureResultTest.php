@@ -280,7 +280,7 @@ class SerializedClosureResultTest extends TestCase
     public function testItUsesTheGenericFailureFallback(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Serialized closure execution failed.');
+        $this->expectExceptionMessageIs('Serialized closure execution failed.');
 
         $this->decodePayload(['successful' => false]);
     }

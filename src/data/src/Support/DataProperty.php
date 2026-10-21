@@ -32,6 +32,7 @@ class DataProperty
      * @param null|non-empty-list<array-key> $inputMappedPath
      * @param null|'array'|'bool'|'float'|'int'|'string'|class-string $constructionTarget
      * @param list<class-string<Cast>> $configuredCasts
+     * @param array<string, non-empty-list<class-string<Cast>>> $configuredItemCasts configured item casts keyed by plain iterable type name
      * @param list<class-string<Transformer>> $configuredTransformers
      */
     public function __construct(
@@ -58,6 +59,7 @@ class DataProperty
         public readonly ?array $inputMappedPath,
         public readonly string|int|null $outputMappedName,
         public readonly array $configuredCasts,
+        public readonly array $configuredItemCasts,
         public readonly array $configuredTransformers,
         public readonly DataAttributesCollection $attributes,
         public readonly ReflectionProperty $reflection,

@@ -42,7 +42,7 @@ class AutoScaler
     /**
      * Get the process pools keyed by their queue name.
      *
-     * @return Collection<string, ProcessPool>
+     * @return Collection<array-key, ProcessPool>
      */
     protected function poolsByQueue(Supervisor $supervisor): Collection
     {
@@ -57,8 +57,9 @@ class AutoScaler
     protected function timeToClearPerQueue(Supervisor $supervisor, Collection $pools): Collection
     {
         return $pools->mapWithKeys(function ($pool, $queue) use ($supervisor) {
-            $queues = collect(explode(',', $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
-                // @phpstan-ignore-next-line RedisQueue has readyNow method
+            // Numeric queue names become integer collection keys.
+            $queues = collect(explode(',', (string) $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
+                // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
                 $size = $this->queue->connection($supervisor->options->connection)->readyNow($_queue);
 
                 return [
@@ -77,15 +78,24 @@ class AutoScaler
     /**
      * Get the number of workers needed per queue for proper balance.
      *
-     * @return Collection<string, float>
+     * @return Collection<array-key, float|int>
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {
         /** @var float $timeToClearAll */
         $timeToClearAll = $queues->sum('time');
         $totalJobs = $queues->sum('size');
+        $totalLogJobs = $supervisor->options->autoScaleLogarithmically()
+            ? $queues->sum(fn (array $queue): float => log1p($queue['size']))
+            : 0;
 
-        return $queues->mapWithKeys(function ($timeToClear, $queue) use ($supervisor, $timeToClearAll, $totalJobs) {
+        // The size and log strategies don't use runtimes, so they can balance queued
+        // jobs before any runtime has been recorded.
+        $canBalanceByStrategy = $supervisor->options->autoScaleByNumberOfJobs() || $supervisor->options->autoScaleLogarithmically()
+            ? $totalJobs > 0
+            : $timeToClearAll > 0;
+
+        return $queues->mapWithKeys(function ($timeToClear, $queue) use ($supervisor, $timeToClearAll, $totalJobs, $totalLogJobs, $canBalanceByStrategy) {
             if (! $supervisor->options->balancing()) {
                 $targetProcesses = min(
                     $supervisor->options->maxProcesses,
@@ -95,12 +105,16 @@ class AutoScaler
                 return [$queue => $targetProcesses];
             }
 
-            if ($timeToClearAll > 0
+            if ($canBalanceByStrategy
                 && $supervisor->options->autoScaling()
             ) {
-                $numberOfProcesses = $supervisor->options->autoScaleByNumberOfJobs()
-                    ? ($timeToClear['size'] / $totalJobs)
-                    : ($timeToClear['time'] / $timeToClearAll);
+                if ($supervisor->options->autoScaleByNumberOfJobs()) {
+                    $numberOfProcesses = $timeToClear['size'] / $totalJobs;
+                } elseif ($supervisor->options->autoScaleLogarithmically()) {
+                    $numberOfProcesses = log1p($timeToClear['size']) / $totalLogJobs;
+                } else {
+                    $numberOfProcesses = $timeToClear['time'] / $timeToClearAll;
+                }
 
                 return [$queue => $numberOfProcesses *= $supervisor->options->maxProcesses];
             }
@@ -127,7 +141,7 @@ class AutoScaler
 
         $totalProcessCount = $pool->totalProcessCount();
 
-        $desiredProcessCount = ceil($workers);
+        $desiredProcessCount = (int) ceil($workers);
 
         if ($desiredProcessCount > $totalProcessCount) {
             $maxUpShift = min(

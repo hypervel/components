@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\PasswordBroker;
 use Hypervel\Contracts\Auth\PasswordBrokerFactory;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
@@ -54,18 +55,18 @@ class FoundationApplicationTest extends TestCase
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent(): void
     {
         $translator = m::mock(TranslatorContract::class);
-        $translator->shouldReceive('getLocale')->once()->andReturn('bar')->globally()->ordered();
-        $translator->shouldReceive('setLocale')->once()->with('foo')->globally()->ordered();
+        $translator->expects('getLocale')->andReturn('bar')->globally()->ordered();
+        $translator->expects('setLocale')->with('foo')->globally()->ordered();
         $events = m::mock(DispatcherContract::class);
-        $events->shouldReceive('hasListeners')->once()->with(LocaleUpdated::class)->andReturn(true)->globally()->ordered();
-        $events->shouldReceive('dispatch')->once()->with(m::on(function (LocaleUpdated $event): bool {
+        $events->expects('hasListeners')->with(LocaleUpdated::class)->andReturn(true)->globally()->ordered();
+        $events->expects('dispatch')->with(m::on(function (LocaleUpdated $event): bool {
             return $event->locale === 'foo' && $event->previousLocale === 'bar';
         }))->globally()->ordered();
         $config = new Repository(['app' => ['locale' => 'en']]);
 
         $app = new Application;
-        $app->singleton('translator', fn () => $translator);
-        $app->singleton('events', fn () => $events);
+        $app->singleton('translator', fn (): TranslatorContract => $translator);
+        $app->singleton('events', fn (): DispatcherContract => $events);
         $app->instance('config', $config);
 
         $app->setLocale('foo');
@@ -77,15 +78,15 @@ class FoundationApplicationTest extends TestCase
     public function testSetLocaleDoesNotDispatchWhenLocaleEventHasNoListeners(): void
     {
         $translator = m::mock(TranslatorContract::class);
-        $translator->shouldReceive('getLocale')->once()->andReturn('bar');
-        $translator->shouldReceive('setLocale')->once()->with('foo');
+        $translator->expects('getLocale')->andReturn('bar');
+        $translator->expects('setLocale')->with('foo');
         $events = m::mock(DispatcherContract::class);
-        $events->shouldReceive('hasListeners')->once()->with(LocaleUpdated::class)->andReturn(false);
+        $events->expects('hasListeners')->with(LocaleUpdated::class)->andReturn(false);
         $events->shouldReceive('dispatch')->never();
 
         $app = new Application;
-        $app->singleton('translator', fn () => $translator);
-        $app->singleton('events', fn () => $events);
+        $app->singleton('translator', fn (): TranslatorContract => $translator);
+        $app->singleton('events', fn (): DispatcherContract => $events);
 
         $app->setLocale('foo');
     }
@@ -93,11 +94,11 @@ class FoundationApplicationTest extends TestCase
     public function testSetFallbackLocaleSetsTranslatorFallback(): void
     {
         $translator = m::mock(TranslatorContract::class);
-        $translator->shouldReceive('setFallback')->once()->with('fr');
+        $translator->expects('setFallback')->with('fr');
         $config = new Repository(['app' => ['fallback_locale' => 'en']]);
 
         $app = new Application;
-        $app->singleton('translator', fn () => $translator);
+        $app->singleton('translator', fn (): TranslatorContract => $translator);
         $app->instance('config', $config);
 
         $app->setFallbackLocale('fr');
@@ -106,10 +107,10 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame('en', $config->string('app.fallback_locale'));
     }
 
-    public function testLoggerInterfaceResolvesAfterFacadesAreRegisteredBeforeConfiguredProviders()
+    public function testLoggerInterfaceResolvesAfterFacadesAreRegisteredBeforeConfiguredProviders(): void
     {
         $app = new Application;
-        $app->singleton('config', fn () => new Repository([
+        $app->singleton('config', fn (): Repository => new Repository([
             'app' => [
                 'aliases' => [
                     'Log' => Log::class,
@@ -118,8 +119,8 @@ class FoundationApplicationTest extends TestCase
         ]));
 
         $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('aliases')->once()->andReturn([]);
-        $app->singleton(PackageManifest::class, fn () => $manifest);
+        $manifest->expects('aliases')->andReturn([]);
+        $app->singleton(PackageManifest::class, fn (): PackageManifest => $manifest);
 
         (new RegisterFacades)->bootstrap($app);
 
@@ -133,10 +134,10 @@ class FoundationApplicationTest extends TestCase
     public function testGetLocaleReadsFromTranslator(): void
     {
         $translator = m::mock(TranslatorContract::class);
-        $translator->shouldReceive('getLocale')->once()->andReturn('en');
+        $translator->expects('getLocale')->andReturn('en');
 
         $app = new Application;
-        $app->singleton('translator', fn () => $translator);
+        $app->singleton('translator', fn (): TranslatorContract => $translator);
 
         $this->assertSame('en', $app->getLocale());
     }
@@ -144,27 +145,27 @@ class FoundationApplicationTest extends TestCase
     public function testGetFallbackLocaleReadsFromTranslator(): void
     {
         $translator = m::mock(TranslatorContract::class);
-        $translator->shouldReceive('getFallback')->once()->andReturn('en');
+        $translator->expects('getFallback')->andReturn('en');
 
         $app = new Application;
-        $app->singleton('translator', fn () => $translator);
+        $app->singleton('translator', fn (): TranslatorContract => $translator);
 
         $this->assertSame('en', $app->getFallbackLocale());
     }
 
-    public function testServiceProvidersAreCorrectlyRegistered()
+    public function testServiceProvidersAreCorrectlyRegistered(): void
     {
         $provider = m::mock(ApplicationBasicServiceProviderStub::class);
         $class = get_class($provider);
         $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->shouldReceive('register')->once();
+        $provider->expects('register');
         $app = new Application;
         $app->register($provider);
 
         $this->assertArrayHasKey($class, $app->getLoadedProviders());
     }
 
-    public function testClassesAreBoundWhenServiceProviderIsRegistered()
+    public function testClassesAreBoundWhenServiceProviderIsRegistered(): void
     {
         $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
@@ -181,7 +182,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertNotSame($instance, $app->make(AbstractClass::class));
     }
 
-    public function testSingletonsAreCreatedWhenServiceProviderIsRegistered()
+    public function testSingletonsAreCreatedWhenServiceProviderIsRegistered(): void
     {
         $app = new Application;
         $app->register($provider = new class($app) extends ServiceProvider {
@@ -204,24 +205,24 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame($instance, $app->make(NonContractBackedClass::class));
     }
 
-    public function testServiceProvidersAreCorrectlyRegisteredWhenRegisterMethodIsNotFilled()
+    public function testServiceProvidersAreCorrectlyRegisteredWhenRegisterMethodIsNotFilled(): void
     {
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
         $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->shouldReceive('register')->once();
+        $provider->expects('register');
         $app = new Application;
         $app->register($provider);
 
         $this->assertArrayHasKey($class, $app->getLoadedProviders());
     }
 
-    public function testServiceProvidersCouldBeLoaded()
+    public function testServiceProvidersCouldBeLoaded(): void
     {
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
         $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->shouldReceive('register')->once();
+        $provider->expects('register');
         $app = new Application;
         $app->register($provider);
 
@@ -229,7 +230,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->providerIsLoaded(ApplicationBasicServiceProviderStub::class));
     }
 
-    public function testDisabledServiceProviderIsNotRegisteredOrTracked()
+    public function testDisabledServiceProviderIsNotRegisteredOrTracked(): void
     {
         $app = new Application;
         $app->register($provider = new ApplicationDisabledServiceProviderStub($app));
@@ -240,7 +241,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame([], $app->getProviders(get_class($provider)));
     }
 
-    public function testDisabledServiceProviderBindingsArrayIsSkipped()
+    public function testDisabledServiceProviderBindingsArrayIsSkipped(): void
     {
         $app = new Application;
         $app->register(new class($app) extends ServiceProvider {
@@ -257,7 +258,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->bound(AbstractClass::class));
     }
 
-    public function testDisabledServiceProviderSingletonsArrayIsSkipped()
+    public function testDisabledServiceProviderSingletonsArrayIsSkipped(): void
     {
         $app = new Application;
         $app->register(new class($app) extends ServiceProvider {
@@ -274,7 +275,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->bound(AbstractClass::class));
     }
 
-    public function testDisabledServiceProviderIsNotBootedWhenAppAlreadyBooted()
+    public function testDisabledServiceProviderIsNotBootedWhenAppAlreadyBooted(): void
     {
         $app = new Application;
         $app->boot();
@@ -286,7 +287,9 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($app->isBooted());
     }
 
-    public function testEnvironment()
+    // REMOVED: Deferred-provider tests; providers register once when the worker boots.
+
+    public function testEnvironment(): void
     {
         $app = new Application;
         $app->instance('env', 'foo');
@@ -304,7 +307,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->environment(['qux', 'bar']));
     }
 
-    public function testEnvironmentHelpers()
+    public function testEnvironmentHelpers(): void
     {
         $local = new Application;
         $local->instance('env', 'local');
@@ -328,7 +331,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($testing->isProduction());
     }
 
-    public function testDebugHelper()
+    public function testDebugHelper(): void
     {
         $debugOff = new Application;
         $debugOff->instance('config', new Repository(['app' => ['debug' => false]]));
@@ -363,7 +366,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
-    public function testTerminationTests()
+    public function testTerminationTests(): void
     {
         $app = new Application;
 
@@ -444,7 +447,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame(['first', 'cancelling'], $called);
     }
 
-    public function testTerminationCallbacksCanAcceptAtNotation()
+    public function testTerminationCallbacksCanAcceptAtNotation(): void
     {
         $app = new Application;
         $app->terminating(ConcreteTerminator::class . '@terminate');
@@ -454,7 +457,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(1, ConcreteTerminator::$counter);
     }
 
-    public function testBootingCallbacks()
+    public function testBootingCallbacks(): void
     {
         $application = new Application;
 
@@ -477,7 +480,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(2, $counter);
     }
 
-    public function testBootedCallbacks()
+    public function testBootedCallbacks(): void
     {
         $application = new Application;
 
@@ -509,13 +512,34 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(4, $counter);
     }
 
-    public function testGetNamespaceFromStringMapping(): void
+    public function testBootResolvesTheBoundHttpKernelBeforeBootingCallbacks(): void
     {
-        $app = $this->makeNamespaceApplication(json_encode([
-            'autoload' => ['psr-4' => ['App\\' => 'app/']],
-        ], JSON_THROW_ON_ERROR));
+        $application = new Application;
+        $events = [];
 
-        $this->assertSame('App\\', $app->getNamespace());
+        $application->singleton(HttpKernelContract::class, function () use (&$events): HttpKernelContract {
+            $events[] = 'kernel';
+
+            return m::mock(HttpKernelContract::class);
+        });
+        $application->booting(function () use (&$events): void {
+            $events[] = 'booting';
+        });
+
+        $application->boot();
+
+        $this->assertSame(['kernel', 'booting'], $events);
+    }
+
+    public function testGetNamespace(): void
+    {
+        foreach (['Hypervel\One\\', 'Hypervel\Two\\'] as $namespace) {
+            $app = $this->makeNamespaceApplication(json_encode([
+                'autoload' => ['psr-4' => [$namespace => 'app/']],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->assertSame($namespace, $app->getNamespace());
+        }
     }
 
     public function testGetNamespaceFromArrayMapping(): void
@@ -603,9 +627,11 @@ class FoundationApplicationTest extends TestCase
         $app->getNamespace();
     }
 
-    public function testCachePathsResolveToBootstrapCacheDirectory()
+    // REMOVED: services.php assertions; there is no deferred-provider manifest.
+
+    public function testCachePathsResolveToBootstrapCacheDirectory(): void
     {
-        $envKeys = ['APP_CONFIG_CACHE', 'APP_ROUTES_CACHE', 'APP_EVENTS_CACHE'];
+        $envKeys = ['APP_CONFIG_CACHE', 'APP_PACKAGES_CACHE', 'APP_ROUTES_CACHE', 'APP_EVENTS_CACHE'];
         $saved = [];
 
         foreach ($envKeys as $key) {
@@ -620,6 +646,7 @@ class FoundationApplicationTest extends TestCase
 
             $ds = DIRECTORY_SEPARATOR;
             $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/packages.php', $app->getCachedPackagesPath());
             $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/routes-v7.php', $app->getCachedRoutesPath());
             $this->assertSame('/base/path' . $ds . 'bootstrap' . $ds . 'cache/events.php', $app->getCachedEventsPath());
         } finally {
@@ -629,121 +656,142 @@ class FoundationApplicationTest extends TestCase
         }
     }
 
-    public function testEnvPathsAreUsedForCachePathsWhenSpecified()
+    public function testEnvPathsAreUsedForCachePathsWhenSpecified(): void
     {
         $app = new Application('/base/path');
         $_SERVER['APP_CONFIG_CACHE'] = '/absolute/path/config.php';
+        $_SERVER['APP_PACKAGES_CACHE'] = '/absolute/path/packages.php';
         $_SERVER['APP_ROUTES_CACHE'] = '/absolute/path/routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = '/absolute/path/events.php';
 
         try {
             $this->assertSame('/absolute/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/absolute/path/packages.php', $app->getCachedPackagesPath());
             $this->assertSame('/absolute/path/routes.php', $app->getCachedRoutesPath());
             $this->assertSame('/absolute/path/events.php', $app->getCachedEventsPath());
         } finally {
             unset(
                 $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_PACKAGES_CACHE'],
                 $_SERVER['APP_ROUTES_CACHE'],
                 $_SERVER['APP_EVENTS_CACHE'],
             );
         }
     }
 
-    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelative()
+    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelative(): void
     {
         $app = new Application('/base/path');
         $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
+        $_SERVER['APP_PACKAGES_CACHE'] = 'relative/path/packages.php';
         $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
 
         try {
             $ds = DIRECTORY_SEPARATOR;
             $this->assertSame('/base/path' . $ds . 'relative/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame('/base/path' . $ds . 'relative/path/packages.php', $app->getCachedPackagesPath());
             $this->assertSame('/base/path' . $ds . 'relative/path/routes.php', $app->getCachedRoutesPath());
             $this->assertSame('/base/path' . $ds . 'relative/path/events.php', $app->getCachedEventsPath());
         } finally {
             unset(
                 $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_PACKAGES_CACHE'],
                 $_SERVER['APP_ROUTES_CACHE'],
                 $_SERVER['APP_EVENTS_CACHE'],
             );
         }
     }
 
-    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithEmptyBasePath()
+    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithEmptyBasePath(): void
     {
         $app = new Application('');
         $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
+        $_SERVER['APP_PACKAGES_CACHE'] = 'relative/path/packages.php';
         $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
 
         try {
             $ds = DIRECTORY_SEPARATOR;
             $this->assertSame($ds . 'relative/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame($ds . 'relative/path/packages.php', $app->getCachedPackagesPath());
             $this->assertSame($ds . 'relative/path/routes.php', $app->getCachedRoutesPath());
             $this->assertSame($ds . 'relative/path/events.php', $app->getCachedEventsPath());
         } finally {
             unset(
                 $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_PACKAGES_CACHE'],
                 $_SERVER['APP_ROUTES_CACHE'],
                 $_SERVER['APP_EVENTS_CACHE'],
             );
         }
     }
 
-    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithNullBasePath()
+    public function testEnvPathsAreUsedAndMadeAbsoluteForCachePathsWhenSpecifiedAsRelativeWithNullBasePath(): void
     {
         $app = new Application;
         $_SERVER['APP_CONFIG_CACHE'] = 'relative/path/config.php';
+        $_SERVER['APP_PACKAGES_CACHE'] = 'relative/path/packages.php';
         $_SERVER['APP_ROUTES_CACHE'] = 'relative/path/routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = 'relative/path/events.php';
 
         try {
             $ds = DIRECTORY_SEPARATOR;
             $this->assertSame($ds . 'relative/path/config.php', $app->getCachedConfigPath());
+            $this->assertSame($ds . 'relative/path/packages.php', $app->getCachedPackagesPath());
             $this->assertSame($ds . 'relative/path/routes.php', $app->getCachedRoutesPath());
             $this->assertSame($ds . 'relative/path/events.php', $app->getCachedEventsPath());
         } finally {
             unset(
                 $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_PACKAGES_CACHE'],
                 $_SERVER['APP_ROUTES_CACHE'],
                 $_SERVER['APP_EVENTS_CACHE'],
             );
         }
     }
 
-    public function testEnvPathsAreAbsoluteInWindows()
+    public function testEnvPathsAreAbsoluteInWindows(): void
     {
         $app = new Application(__DIR__);
         $app->addAbsoluteCachePathPrefix('C:');
         $_SERVER['APP_CONFIG_CACHE'] = 'C:\framework\config.php';
+        $_SERVER['APP_PACKAGES_CACHE'] = 'C:\framework\packages.php';
         $_SERVER['APP_ROUTES_CACHE'] = 'C:\framework\routes.php';
         $_SERVER['APP_EVENTS_CACHE'] = 'C:\framework\events.php';
 
         try {
             $this->assertSame('C:\framework\config.php', $app->getCachedConfigPath());
+            $this->assertSame('C:\framework\packages.php', $app->getCachedPackagesPath());
             $this->assertSame('C:\framework\routes.php', $app->getCachedRoutesPath());
             $this->assertSame('C:\framework\events.php', $app->getCachedEventsPath());
         } finally {
             unset(
                 $_SERVER['APP_CONFIG_CACHE'],
+                $_SERVER['APP_PACKAGES_CACHE'],
                 $_SERVER['APP_ROUTES_CACHE'],
                 $_SERVER['APP_EVENTS_CACHE'],
             );
         }
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         $app = new Application;
-        $app->macro('foo', function () {
-            return 'bar';
+        $app->instance('env', 'foo');
+
+        $app->macro('foo', function (): bool {
+            return $this->environment('foo');
         });
 
-        $this->assertSame('bar', $app->foo());
+        $this->assertTrue($app->foo());
+
+        $app->instance('env', 'bar');
+
+        $this->assertFalse($app->foo());
     }
 
-    public function testUseConfigPath()
+    public function testUseConfigPath(): void
     {
         $app = new Application;
         $app->useConfigPath(__DIR__ . '/Fixtures/config');
@@ -814,11 +862,6 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame(['merge' => true], $config->get('rate-limiter.stores.new'));
     }
 
-    protected function assertExpectationCount(int $times): void
-    {
-        $this->assertSame($times, m::getContainer()->mockery_getExpectationCount());
-    }
-
     public function testAbortThrowsNotFoundHttpException(): void
     {
         $this->expectExceptionObject(new NotFoundHttpException('Page was not found'));
@@ -835,7 +878,7 @@ class FoundationApplicationTest extends TestCase
         $app->abort(400, 'Request is bad');
     }
 
-    public function testAbortAcceptsHeaders()
+    public function testAbortAcceptsHeaders(): void
     {
         try {
             $app = new Application;
@@ -907,22 +950,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($freshApp->configurationIsCached());
     }
 
-    public function testRoutesAreCachedReturnsFalseWhenNoCacheFile(): void
-    {
-        $app = $this->makeCacheApplication();
-
-        $this->assertFalse($app->routesAreCached());
-    }
-
-    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists(): void
-    {
-        $app = $this->makeCacheApplication();
-        file_put_contents($this->cacheApplicationPath . '/bootstrap/cache/routes-v7.php', '<?php return [];');
-
-        $this->assertTrue($app->routesAreCached());
-    }
-
-    public function testRoutesAreCachedUsesBoundState(): void
+    public function testRoutesAreCached(): void
     {
         $app = $this->makeCacheApplication();
         $app->instance('routes.cached', true);
@@ -933,6 +961,21 @@ class FoundationApplicationTest extends TestCase
         $app->instance('routes.cached', false);
 
         $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreNotCachedByInstanceFallsBackToFile(): void
+    {
+        $app = $this->makeCacheApplication();
+
+        $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists(): void
+    {
+        $app = $this->makeCacheApplication();
+        file_put_contents($app->getCachedRoutesPath(), '<?php return [];');
+
+        $this->assertTrue($app->routesAreCached());
     }
 
     public function testRoutesAreCachedMemoizesFilesystemResult(): void
@@ -1019,7 +1062,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame('auth.password.broker', $app->getAlias(PasswordBroker::class));
     }
 
-    public function testAddAbsoluteCachePathPrefixReturnsSelf()
+    public function testAddAbsoluteCachePathPrefixReturnsSelf(): void
     {
         $app = new Application;
 
@@ -1037,9 +1080,17 @@ class FoundationApplicationTest extends TestCase
         $files->deleteDirectory($this->cacheApplicationPath);
         $files->makeDirectory($this->cacheApplicationPath . '/bootstrap/cache', 0755, true);
 
-        return new Application($this->cacheApplicationPath);
+        $app = new Application($this->cacheApplicationPath);
+
+        // Testbench keeps a worker-specific route cache path for the rest of a ParaTest worker.
+        $files->ensureDirectoryExists(dirname($app->getCachedRoutesPath()));
+
+        return $app;
     }
 
+    /**
+     * Create an application with an isolated Composer namespace mapping.
+     */
     private function makeNamespaceApplication(?string $composerContents, bool $createAppPath = true): Application
     {
         $this->namespaceApplicationPath = ParallelTesting::tempDir('FoundationApplicationNamespaceTest');

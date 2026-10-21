@@ -88,6 +88,15 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->assertSame('0', $factory->supervisor->options->queue);
     }
 
+    public function testSupervisorCommandKeepsFractionalSleepAndRestSeconds(): void
+    {
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
+        $this->artisan('horizon:supervisor', ['--sleep' => '0.5', '--rest' => '0.25'] + static::OPTIONS);
+
+        $this->assertSame(0.5, $factory->supervisor->options->sleep);
+        $this->assertSame(0.25, $factory->supervisor->options->rest);
+    }
+
     public function testSupervisorCommandDefaultsEmptyQueue(): void
     {
         $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);

@@ -10,10 +10,10 @@
     - [Missing Equivalents](#missing-equivalents)
 - [Type Declarations](#type-declarations)
     - [Inherited Properties](#inherited-properties)
+    - [Inherited Methods](#inherited-methods)
 - [Service Providers](#service-providers)
     - [Registering Bindings](#registering-bindings)
     - [Bootstrapping Services](#bootstrapping-services)
-    - [Conditional Providers](#conditional-providers)
     - [Deferred Providers](#deferred-providers)
 - [Coroutine Safety](#coroutine-safety)
     - [Request-Specific State](#request-specific-state)
@@ -22,10 +22,28 @@
     - [Coroutine-Aware Dependencies](#coroutine-aware-dependencies)
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
+    - [Development Processes](#development-processes)
+    - [Scheduling](#scheduling)
+    - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Streamed Responses](#streamed-responses)
+    - [AI SDK](#ai-sdk)
+    - [MCP](#mcp)
+    - [Saloon](#saloon)
+    - [Broadcasting](#broadcasting)
+    - [JSON:API Resources](#jsonapi-resources)
+    - [CSRF Protection](#csrf-protection)
+    - [Fortify](#fortify)
+    - [Passport](#passport)
+    - [Pennant](#pennant)
+    - [Permission](#permission)
+    - [JWT Authentication](#jwt-authentication)
     - [Scout](#scout)
+    - [Sentry](#sentry)
+    - [Socialite](#socialite)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
+    - [Request and Input Data](#request-and-input-data)
     - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
@@ -101,7 +119,7 @@ When porting imports, update the import list first, then read the class again an
 
 For applications, use the `composer.json` file from a fresh Hypervel application as your starting point. Do not copy a Laravel application's framework dependencies, Composer scripts, or bootstrap files over the Hypervel skeleton.
 
-For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
+For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. Testbench provides Workbench itself. Require `hypervel/workbench` in place of `orchestra/workbench` only for its authentication pages, preview login helpers and `workbench:*` command aliases. The `workbench:build`, `workbench:devtool` and `workbench:install` commands are not available; use Testbench's `package:install` command to set up Workbench. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
 
 Laravel package discovery metadata under `extra.laravel` does not register providers in Hypervel. Move Hypervel provider discovery to `extra.hypervel.providers` as described in the [package development documentation](/docs/{{version}}/packages#package-discovery).
 
@@ -164,6 +182,8 @@ Some packages also define package-local contracts, such as `Hypervel\Permission\
 Not every Laravel class has a one-for-one replacement. If a class or method is absent, first check the relevant Hypervel documentation and current source for the supported approach. If there is no equivalent, remove the integration or raise the concrete use case with the maintainers.
 
 Do not recreate missing Laravel framework internals or add local classes under `Hypervel` namespaces merely to make a mechanical namespace replacement pass. An intentional adapter around a public contract may be appropriate for an application-owned or third-party integration, but it should adapt that integration to Hypervel's documented API instead of imitating missing framework internals.
+
+Replace Laravel's real-time facades (`Facades\...`) with [explicit facade classes](/docs/{{version}}/facades#how-facades-work) or dependency injection.
 
 <a name="type-declarations"></a>
 ## Type Declarations
@@ -231,6 +251,11 @@ When a ported command accesses the application instance directly, replace Larave
 Models and commands are common examples, but they are not an exhaustive list. Audit properties declared by mailables, form requests, queueable jobs, and any other class that extends a Hypervel class or composes a Hypervel trait. Inspect the current parent class and every composed trait before adding or retaining a property declaration.
 
 Some typed properties have no default value. For example, a Hypervel mailable's `$markdown`, `$view`, and `$textView` properties must not be read directly before they have been initialized. Use `isset()` or `??` when testing an optional value, or assign a valid string before reading it.
+
+<a name="inherited-methods"></a>
+### Inherited Methods
+
+When overriding a framework method, use a signature compatible with its Hypervel declaration, including the return type. For example, a model's `boot()` override must declare `protected static function boot(): void`. Copying Laravel's untyped override causes a fatal error when PHP loads the class.
 
 <a name="service-providers"></a>
 ## Service Providers
@@ -309,23 +334,6 @@ public function boot(): void
 ```
 
 Do not store request-specific state on service provider properties. When serving HTTP requests, the application registers and boots its providers once before the server workers are forked, not once per request.
-
-<a name="conditional-providers"></a>
-### Conditional Providers
-
-Hypervel service providers may override the `isEnabled` method to opt out of registration based on configuration, environment, or feature flags. When this method returns `false`, the provider's `register` and `boot` methods will not be called:
-
-```php
-/**
- * Determine whether this provider should be registered and booted.
- */
-public function isEnabled(): bool
-{
-    return config()->boolean('courier.enabled', false);
-}
-```
-
-Hypervel calls `isEnabled` before the provider's `register` method. Configuration merged by that provider is not available yet, so this method may only read configuration already loaded by the application or framework. The fallback above is intentional because an unpublished package option may be absent.
 
 <a name="deferred-providers"></a>
 ### Deferred Providers
@@ -473,10 +481,12 @@ Start from Hypervel's shipped configuration files and reapply your application o
 When porting Laravel configuration, pay particular attention to these current differences:
 
 - Hypervel password broker records explicitly declare their `database` or `cache` driver.
+- Replace Laravel 6-style `mail.driver` and top-level mail transport settings with `mail.default` and named `mail.mailers` entries. See the [mail configuration guide](/docs/{{version}}/mail#configuration).
 - Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
 - Laravel silently sends SQS FIFO jobs immediately when they request a positive per-message delay. Hypervel rejects that dispatch. Remove the delay or use a queue transport that supports delayed jobs.
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
 - Hypervel Socialite's X OAuth 2 driver reads `services.x`. Rename Laravel's legacy `services.x-oauth-2` configuration key when porting an application.
+- The Postmark and Cloudflare mail transports read their credential from `key`. Rename a Laravel `token` entry in `config/services.php` or the mailer configuration to `key`. See the [mail driver guide](/docs/{{version}}/mail#driver-prerequisites).
 
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
@@ -485,17 +495,176 @@ Application code should keep request-specific values in the request, session, co
 
 Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespace. The following differences commonly require more than a namespace replacement.
 
+<a name="development-processes"></a>
+### Development Processes
+
+For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn. The default server process uses `hypervel/watcher`; Pail is not included. See [The Dev Command](/docs/{{version}}/artisan#the-dev-command).
+
+<a name="scheduling"></a>
+### Scheduling
+
+Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
+
+Replace scheduled task `user()` calls by running the scheduler as the required OS user, or by using `exec()` with an explicit command to run that task as another user. See [Scheduling Shell Commands](/docs/{{version}}/scheduling#scheduling-shell-commands).
+
+Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
+
+<a name="maintenance-mode"></a>
+### Maintenance Mode
+
+Maintenance views prepared with `down --render` are served by running Hypervel workers. To serve a static page while Hypervel is unavailable during deployment, configure your reverse proxy or load balancer. See [Pre-Rendering the Maintenance Mode View](/docs/{{version}}/configuration#pre-rendering-the-maintenance-mode-view).
+
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
 
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
+Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`, and `hypervel/guzzle-promises`, which replaces `guzzlehttp/promises`. Widen or remove direct `guzzlehttp/guzzle ^7`, `guzzlehttp/promises ^2` and `guzzlehttp/psr7 ^2` requirements; SDKs must support Guzzle 8, promises 3 and PSR-7 3. Create and finish pending Guzzle operations within one coroutine, then share completed results. See [Guzzle promises](/docs/{{version}}/http-client#guzzle-promises).
+
+`withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
+
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="streamed-responses"></a>
+### Streamed Responses
+
+`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
+
+<a name="ai-sdk"></a>
+### AI SDK
+
+Agent and stream-event `broadcast` calls send immediately by default; pass `now: false` where you relied on queued delivery. See [broadcasting](/docs/{{version}}/ai-sdk#broadcasting).
+
+Agent broadcasts also batch adjacent text/reasoning deltas by default. Each batch retains the first delta's ID and timestamp; the response's original events remain unchanged. Clients that depend on individual provider chunks, match broadcasts one-for-one against response events, or order their own broadcasts against those deltas should set `ai.broadcasting.batching.enabled` to `false` or adapt to [batched delivery](/docs/{{version}}/ai-sdk#broadcast-batching).
+
+Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered list of provider/model pairs, such as `[['openai', 'gpt-4o']]`, instead of `['openai' => 'gpt-4o']`. The provider may also be a `Provider` object, preserving its credentials. Failover lists retain repeated entries as separate attempts. See [failover](/docs/{{version}}/ai-sdk#failover).
+
+Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. The default `ai.remote_files.max_size` is 32 MiB (`32 * 1024` kilobytes) instead of Laravel's 100 MB; raise it if your downloads are larger. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
+
+Skill definitions in `resources/skills` are cached across requests. If your application changes them at runtime, use a closure or an uncached directory, or set `ai.skills.cached_paths` to `[]`. See [skills](/docs/{{version}}/ai-sdk#skills).
+
+Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).
+
+Custom conversation stores must implement `ClaimsPendingApprovals` to resume stored approvals. Move overrides of the removed `ResumesToolApprovals::storeApprovalResultRecorderFor()` into your store's `ClaimsPendingApprovals::recordApprovalResult()` method. In `RememberConversation` subclasses, replace `openTurn()` overrides with `rememberTurn(): StoredTurn`. See [custom conversation stores](/docs/{{version}}/ai-sdk#custom-conversation-stores).
+
+<a name="mcp"></a>
+### MCP
+
+For direct browser clients from another origin, add their origins to `mcp.allowed_origins`; `app.url` is allowed automatically. See [allowed origins](/docs/{{version}}/mcp#allowed-origins).
+
+Local OAuth discovery is served by Passport's `passport.metadata` route, using its explicitly configured HTTPS issuer. Replace references to `mcp.oauth.register` with `passport.clients.register`; MCP no longer defines authorization-server metadata routes. Choose one registration endpoint, using `Mcp::oauthRoutes(registration: false)` with native Passport registration or an external server. Register MCP resource identifiers in Passport and enforce both audience and `mcp:use` on the MCP routes. See [OAuth setup](/docs/{{version}}/mcp#oauth).
+
+Republish `mcp-views` or update your published `mcp/authorize.blade.php` to display the callback destination and requested resources and remove window-closing timers that can interrupt callback delivery. See [authorization view setup](/docs/{{version}}/mcp#oauth).
+
+MCP's anonymous client registrations receive explicit scope allowances from `passport.registration.scopes` plus `mcp:use`. Use Hypervel's full Passport schema when importing client data; see [Passport](#passport). The wildcard redirect allowance accepts HTTPS and HTTP loopback callbacks; remote HTTP callbacks require explicit administrator configuration. See [registration policy](/docs/{{version}}/mcp#oauth).
+
+OAuth clients check resolved destinations before sending, including when HTTP responses are faked. Explicitly allow private DNS destinations and substitute DNS for invented test hostnames; see [OAuth destinations](/docs/{{version}}/mcp#oauth-destinations) and [OAuth tests](/docs/{{version}}/mcp#testing-oauth). The Inspector also keeps HTTPS verification enabled; configure `NODE_EXTRA_CA_CERTS` for locally issued certificates.
+
+If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
+
+Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
+
+MCP servers do not negotiate protocol revision `2025-03-26`. Clients limited to that revision cannot connect; use clients that support `2025-06-18` or newer. See [protocol versions](/docs/{{version}}/mcp#protocol-versions).
+
+Reformat `LastModified` attribute values as complete date-times with seconds and a timezone, such as `2025-01-12T15:00:58Z`. Other ISO 8601 representations accepted by Laravel are rejected to keep responses compatible with TypeScript-SDK clients. See [resource annotations](/docs/{{version}}/mcp#resource-annotations).
+
+If subclasses redeclare protected properties, use `mixed` for `JsonRpcException::$data` and `?Hypervel\Mcp\Client\Transport\StdioInput` for the client `StdioTransport::$input`. Error data preserves all JSON values, and stdio uses a live input queue so notifications can be sent without waiting for the next request.
+
+<a name="saloon"></a>
+### Saloon
+
+Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, pagination, and rate limit plugins use the single `hypervel/saloon` package. Replace the `Saloon\` and `Saloon\Laravel\` namespaces with `Hypervel\Saloon\`, and the plugins' `Saloon\CachePlugin\`, `Saloon\PaginationPlugin\`, and `Saloon\RateLimitPlugin\` namespaces with `Hypervel\Saloon\Cache\`, `Hypervel\Saloon\Pagination\`, and `Hypervel\Saloon\RateLimit\`.
+
+Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
+
+<a name="broadcasting"></a>
+### Broadcasting
+
+For Pusher and Reverb, replace Guzzle's `max_host_connections` and `max_total_connections` client options with bounded coroutine concurrency or rate limiting. The default client rejects these options because their shared transport cannot be driven safely by concurrent coroutines. See [Pusher broadcasting](/docs/{{version}}/broadcasting#pusher-manual-installation).
+
+Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoole and does not use FrankenPHP's in-process `mercure_publish()` integration. See [Mercure broadcasting](/docs/{{version}}/broadcasting#mercure).
+
+<a name="jsonapi-resources"></a>
+### JSON:API Resources
+
+[Requested relationships](/docs/{{version}}/eloquent-resources#including-jsonapi-relationships) load before attribute callbacks, so a `whenLoaded()` attribute can appear when the client requests that relationship. [Default attributes](/docs/{{version}}/eloquent-resources#defining-jsonapi-attributes) omit `id`, `type`, and declared relationship names; explicit attribute definitions remain under your control.
+
+<a name="csrf-protection"></a>
+### CSRF Protection
+
+Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware with `Hypervel\Foundation\Http\Middleware\PreventRequestForgery`. If your application extends either class, extend `PreventRequestForgery` instead and declare any overridden exclusions as `protected array $except`. Replace `validateCsrfTokens()` configuration calls with `preventRequestForgery()`. See the [CSRF protection documentation](/docs/{{version}}/csrf).
+
+<a name="fortify"></a>
+### Fortify
+
+User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
+
+Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
+<a name="passport"></a>
+### Passport
+
+Replace `laravel/passport` with `hypervel/passport` and the `Laravel\Passport` namespace with `Hypervel\Passport`. Hypervel ships a `passport` guard; `actingAs()` and `actingAsClient()` default to it, and personal access clients without a provider use its provider. Use `auth:passport` with this guard. Other guard names remain supported.
+
+The implicit and password grants are not available. Use authorization code with PKCE, the device grant, or Sanctum for first-party authentication. PKCE clients must use `S256`. Replace deprecated JSON API routes and repository helpers with application-owned routes using model relations and `ClientRepository::create*Client()`. Replace `clients()` with `oauthApps()` and revoke clients with `Client::revoke()`.
+
+Use Hypervel's migrations: clients use UUIDs, JSON columns use each database's supported JSON type, tokens record their user provider, and refresh tokens belong to a refresh-token family. Only guards using a token's provider accept it, and a client's configured provider restricts who may authorize it. Regenerate confidential client secrets, which now use SHA-256. Reissue Laravel access tokens, including personal access tokens: Hypervel requires a separate `client_id` claim and reserves `aud` for the token's audience. Custom token issuers and consumers must preserve that distinction. Laravel-issued authorization codes and refresh tokens cannot be decrypted, so users must authorize again. The API cookie is named `hypervel_token`. See [resource indicators](/docs/{{version}}/passport#resource-indicators).
+
+Remembered approvals use the `oauth_consents` table instead of being inferred from active tokens. Use `$user->oauthConsents()` to manage them: `forget()` requires consent next time without revoking credentials, while `revoke()` revokes the authorization and deletes its approval. If several authentication providers use the same user model, override `getProviderName()` explicitly; ambiguous provider inference now throws.
+
+Consent forms still use the named `passport.authorizations.approve` and `passport.authorizations.deny` routes, but their URL is `/oauth/authorize/consent`. Update hardcoded URLs and submit `auth_token` with a CSRF token; protocol parameters are retained in the session. POST `/oauth/authorize` now accepts protocol authorization requests. Use server-side sessions with a shared session blocking store for one-time decisions and independent browser tabs.
+
+`prompt=login` requests fresh confirmation without logging the user out. Provide a `password.confirm` route, such as Fortify's confirmation flow, or bind `Hypervel\Passport\Contracts\ReauthenticationResponse` for your application's confirmation UI. Custom flows record successful confirmation with `$request->session()->passwordConfirmed($guard)`. Account switching is a separate explicit interaction. See [authorization interactions](/docs/{{version}}/passport#requesting-tokens-redirecting-for-authorization).
+
+Exchange each authorization code once: authenticated reuse revokes its issued access token and refresh family. If the exchange outcome is unknown, start a new authorization rather than retrying the code. Clients must also serialize refresh requests: reusing a refresh token revokes its grant. Rotation can only be disabled for confidential clients or public clients using [DPoP-bound refresh tokens](/docs/{{version}}/passport#proof-bound-tokens). Keep the token endpoint outside application transactions, including transaction-per-request middleware. Credential, consent, pushed-authorization-request and database signing-key models must share a connection; clients and users may use separate connections.
+
+Confidential device clients must authenticate when requesting a device code, as well as when polling the token endpoint. Include their client secret or use their registered authentication method. See [the device authorization grant](/docs/{{version}}/passport#device-authorization-grant).
+
+Missing authentication for a confidential client returns `invalid_client` with HTTP 401, rather than `invalid_request` with HTTP 400. Update client error handling that distinguishes these responses.
+
+Import Laravel data into Hypervel's schema using its migrations, rather than adding only selected columns to the Laravel tables. Client authentication, registration and credential storage require Hypervel's full schema. Set `third_party` to `true` for externally registered clients so `firstParty()` does not classify them as trusted merely because they have no owner. See [installation](/docs/{{version}}/passport#installation) and [consent](/docs/{{version}}/passport#approving-the-request).
+
+Restart the server and other long-running processes after changing file or environment signing keys. `server:reload` is not sufficient. See [signing-key rotation](/docs/{{version}}/passport#rotating-signing-keys).
+
+Custom guards, controllers, middleware and cookie-factory subclasses must match Hypervel's constructor and protected method signatures. In particular, guards read `RequestContext` instead of accepting `setRequest()`, `CreateFreshApiToken` passes its guard explicitly, and server-building methods live on `ServerFactory`. Consult the package's [API differences](https://github.com/hypervel/passport#differences-from-laravel) and [Passport documentation](/docs/{{version}}/passport) when porting extensions.
+
+<a name="pennant"></a>
+### Pennant
+
+Replace `laravel/pennant` with `hypervel/pennant` and the `Laravel\Pennant` namespace with `Hypervel\Pennant`. Use Hypervel's Pennant migration, or convert an existing table's `name` and `scope` columns to match it: on MySQL and MariaDB, it uses binary columns so names and scopes that differ only by case, accents, or trailing spaces are stored separately. Checking a feature for an Eloquent model without a key throws an exception, so pass a saved model or an explicit scope. Changing `pennant.stores` configuration at runtime has no effect on stores that have already been resolved; see [configuration](/docs/{{version}}/pennant#configuration). Subclasses of Pennant's drivers, decorator, or manager must match Hypervel's constructors and protected methods; see the package's [API differences](https://github.com/hypervel/pennant#differences-from-laravel).
+
+<a name="permission"></a>
+### Permission
+
+Replace the cache configuration's `expiration_time` with `expiration_seconds`, and use a cache store that keeps values and atomic locks on the same backend. See [cache configuration](/docs/{{version}}/permission#cache). Roles and permissions returned by lookups are shared within the current request or job, so code that changes one must save it before looking up roles or permissions again. See [caching](/docs/{{version}}/permission#caching).
+
+<a name="jwt-authentication"></a>
+### JWT Authentication
+
+Applications using `tymon/jwt-auth` or `php-open-source-saver/jwt-auth` can switch to `hypervel/jwt`. Publish its `config/jwt.php` file and copy your values into it instead of reusing the old file, since some options have been renamed or removed. Replace the `JWTAuth` and `JWTFactory` facades with guard methods such as `fromUser` and `payload`, which returns the claims as an array. Set options such as subject locking and the blacklist in configuration instead of calling setters at runtime. Hypervel already ships a `jwt` guard, so you do not need the usual `api` guard entry. Replace the `jwt.auth` middleware with `auth:jwt`, remove `jwt.check` from routes that allow guests, and replace `jwt.refresh` and `jwt.renew` with a [refresh endpoint](/docs/{{version}}/jwt#refreshing-tokens).
+
+Only the `Authorization` header is read by default. If clients send tokens in the query string, request body, or a cookie, add the matching parser to the `parser` option. See [token sources](/docs/{{version}}/jwt#token-sources).
+
+Rotate `JWT_SECRET` or your key pair when you switch, so clients sign in again. Hypervel stores revocations under different cache keys, so tokens revoked by the old application would be accepted again if they still verified.
 
 <a name="scout"></a>
 ### Scout
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
+
+<a name="sentry"></a>
+### Sentry
+
+Applications using `sentry/sentry-laravel` can switch to `hypervel/sentry` and replace the `Sentry\Laravel\` namespace with `Hypervel\Sentry\`. Hypervel's Sentry configuration reads the DSN from `SENTRY_HYPERVEL_DSN`, falling back to `SENTRY_DSN`, so rename `SENTRY_LARAVEL_DSN` in your environment files; otherwise, Sentry stays disabled. Likewise, replace `SENTRY_LOGS_LEVEL` with `SENTRY_LOG_LEVEL`. See the [Sentry documentation](/docs/{{version}}/sentry).
+
+<a name="socialite"></a>
+### Socialite
+
+Custom Socialite providers should read request-specific state through getters such as `getRequest()`, `getParameters()`, `getScopes()`, and `getClientId()`. Properties such as `$parameters`, `$scopes`, and `$clientId` only hold the defaults shared by every request, so reading them directly ignores `with()`, `scopes()`, and `setConfig()` calls. Build custom OAuth 2.0 drivers with `buildOAuth2Provider()` instead of `buildProvider()`. See [custom providers](/docs/{{version}}/socialite#custom-providers).
+
+Google users' raw data does not include Laravel's deprecated `id`, `verified_email`, and `link` keys. Read `sub`, `email_verified`, and `profile` instead.
 
 <a name="json-schema"></a>
 ### JSON Schema
@@ -507,14 +676,40 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
+`FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
+
+Laravel's deprecated `InvokableRule` contract is not available. Change rules that implement it to implement `Hypervel\Contracts\Validation\ValidationRule` and rename their `__invoke` method to `validate`; code that calls such a rule object directly must call `validate` or keep its own `__invoke` method. See [rule objects](/docs/{{version}}/validation#using-rule-objects).
+
+<a name="request-and-input-data"></a>
+### Request and Input Data
+
+`all([])` on requests, validated input, `Fluent`, URI query strings, and command input returns an empty array. Check dynamically constructed key lists; use `all()` to retrieve every field. See [retrieving input](/docs/{{version}}/requests#retrieving-all-input-data).
+
 <a name="data-objects"></a>
 ### Data Objects
 
 When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
 
-Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes. `UnserializeCast` is not included; write a custom cast that passes `allowed_classes` to `unserialize()` for trusted values. Livewire and TypeScript integrations are also not included.
 
-Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
+In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. If you enabled Spatie's optional `FormRequestNormalizer`, keep it as `Hypervel\Data\Normalizers\FormRequestNormalizer`. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection.
+
+Review these behavior differences in ported code:
+
+- `Resource` authorizes and validates request input, like `Data` and `Dto`.
+- A named factory that receives a request and returns the finished object must validate the request itself.
+- When `from()` receives several payloads, the combined input is validated once, and a later explicit `null` replaces an earlier value.
+- Responses use the `200` status code for `POST` requests. Set `201` in `withResponse()` instead of overriding `calculateResponseStatus()`.
+- Data classes whose properties share an input path or output key are rejected when first used.
+- Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
+- A value that a union property already accepts is kept, such as a string for `string|SongData` or an array for `array|Collection`, and validation applies the rules of the declared type that holds it. Declare `Collection` alone when the property should always hold a collection. See [type conversion](/docs/{{version}}/data-objects#type-conversion).
+- A model attribute holding `null` is passed as `null` instead of falling back to the property's default or `Optional`. Columns that were not selected still count as missing.
+- A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
+- `CreationContext::$dataClass` is the class the creation started with, even while nested objects are created, and the context has no `from()`, `collect()`, or `currentPath`. Replace `$context->from()` with `TargetData::factory($context)->from()`, which copies the context's options but not its hooks. A cast can read `$property->className` for the class that declares the property.
+- An array or collection cannot be collected into a paginator target or given to a paginator property. Pass a Hypervel paginator so its pagination details are kept.
+- A required property declared outside the constructor that receives no input, and no value from its default or the constructor, fails with `CannotCreateData` instead of staying uninitialized.
+- Casts and transformers that read Spatie's metadata need small changes. `DataProperty` has `hasDefaultValue` but no `defaultValue`. Hypervel reads defaults from reflection when it needs them, so a default such as `new Money(0)` is never one object shared by every request in the worker; read it from the constructor parameter's or property's reflection. `DataClass` exposes `constructor` and `constructorParameters` instead of `constructorMethod`, and `TransformationContext::$transformers` is an array of factory transformers keyed by type instead of a `GlobalTransformersCollection`. Likewise, `withCastCollection()` and `CreationContext::$casts` use an array of casts keyed by type instead of a `GlobalCastsCollection`. Create factories with `Data::factory()` instead of `CreationContextFactory::createFromConfig()`, and read their options through `get()`.
+- Replace `getDataContext()` with `getPartialsDefinition()` and `getWrap()`, and `make:data --namespace` with `--target-namespace` and a complete namespace.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting
@@ -523,7 +718,7 @@ Laravel's `Illuminate\Cache\RateLimiter` maps to `Hypervel\RateLimiter\RateLimit
 
 The lower-level API is intentionally different. Hypervel uses admission policies such as `Limit`, `SlidingWindow`, and `LeakyBucket` with operations including `consume`, `inspect`, `attempt`, and `clear`. Laravel's counter methods, including `tooManyAttempts`, `hit`, `remaining`, `availableIn`, `resetAttempts`, and `retriesLeft`, are not available. Although `attempt` and `clear` exist in both frameworks, their signatures and behavior differ; do not port those calls by name alone.
 
-When porting custom throttling code, rebuild it using Hypervel's policy API described in the [rate limiting documentation](/docs/{{version}}/rate-limiting). Replace Laravel's `RateLimitedWithRedis` and `ThrottlesExceptionsWithRedis` queue middleware with `Hypervel\Queue\Middleware\RateLimited` or `ThrottlesExceptions` and select the Redis limiter store using `store('redis')`.
+When porting custom throttling code, rebuild it using Hypervel's policy API described in the [rate limiting documentation](/docs/{{version}}/rate-limiting). Replace Laravel's `RateLimitedWithRedis` and `ThrottlesExceptionsWithRedis` queue middleware with `Hypervel\Queue\Middleware\RateLimited` or `ThrottlesExceptions` and select the Redis limiter store using `store('redis')`. For HTTP routes, remove `throttleWithRedis()` and the `redis` argument to `throttleApi()` from `bootstrap/app.php`, then [select Redis](/docs/{{version}}/routing#attaching-rate-limiters-to-routes) on the named limiter or as the default limiter store.
 
 <a name="pagination"></a>
 ### Pagination
@@ -548,12 +743,20 @@ Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `S
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
 
+`Carbon::createFromId()` accepts ULIDs and v1, v6, and v7 UUIDs. Symfony UID does not provide timestamps for UUIDv2, so code that reads dates from UUIDv2 values needs another source.
+
 <a name="filesystem"></a>
 ### Filesystem
 
 Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
 
+Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
+
+S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
+
+Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
 
 <a name="tinker"></a>
 ### Tinker
@@ -570,24 +773,46 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
+Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
+
+Custom non-PDO drivers that relied on generic exception messages for recovery must provide an explicit detector policy. Extend the default detectors and bind them to the existing contracts to preserve recovery for built-in drivers; see [detecting database failures](/docs/{{version}}/database#detecting-database-failures).
+
+MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
+
+SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
+
+Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
+
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
+
+To use a custom query grammar on every connection, register a connection subclass with `Connection::resolverFor()` that overrides `getDefaultQueryGrammar()`. On connections that support early release, `setQueryGrammar()` changes only the current coroutine's connection, and `ConnectionEstablished` runs only when a new database session opens, so neither applies a grammar to every caller. See [extending database connections](/docs/{{version}}/database#extending-database-connections).
+
+Framework operations release idle database sessions at the boundaries listed in [releasing and pinning connections](/docs/{{version}}/database#releasing-and-pinning-connections). Wrap code that depends on the same session across those boundaries, such as temporary tables, session locks or retained raw PDOs, in `DB::withPinnedSession()`. Active transactions remain pinned automatically.
+
+Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
+Custom base query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
+
 Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
 
 Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
+
+Eloquent `updateOrInsert` and `updateFrom` honor global scopes, including soft deletes. Review calls that rely on matching rows excluded by those scopes. Both methods return their write result, so do not chain another query onto them. Eloquent `updateFrom` also maintains `updated_at`, like `update`; supply that column explicitly if it must stay unchanged. See [mass updates](/docs/{{version}}/eloquent#mass-updates).
 
 Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
 
 <a name="redis"></a>
 ### Redis
 
-Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
+Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported. Omit `persistent` and `persistent_id`; the connection pool owns connection reuse.
 
 Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` or `command_retries` settings and does not replay failed commands; configure PhpRedis connection retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+
+Redis connections use the application's event dispatcher; replace `setEventDispatcher()` and `unsetEventDispatcher()` calls with [command-event configuration](/docs/{{version}}/redis#redis-command-events). Call `Redis::enableEvents()` and `Redis::disableEvents()` only during boot, since they affect every request in the worker.
 
 <a name="cache"></a>
 ### Cache
@@ -596,12 +821,18 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
-The Redis cache store supports two tag modes. The default `all` mode follows Laravel's classic tagged-cache behavior. In `any` mode, tags are invalidation indexes: retrieve values by their plain keys, and flushing any one assigned tag removes the value. Review the [Redis tag mode documentation](/docs/{{version}}/cache#redis-tag-modes) before changing `REDIS_CACHE_TAG_MODE`.
+If your application uses Redis cache tags, review [Redis Tag Modes](/docs/{{version}}/cache#redis-tag-modes) before porting. Hypervel's tagged-cache storage is not interchangeable with Laravel's.
+
+Hypervel's named Redis connections share `REDIS_DB` by default, and its Redis cache store uses the `cache` connection for locks. Before using Redis `Cache::flushLocks()` or `cache:clear --locks`, configure a lock connection to a database used only for locks. See [Flushing Locks](/docs/{{version}}/cache#flushing-locks).
 
 Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 
 <a name="sessions"></a>
 ### Sessions
+
+Custom guards used with `auth.session` must provide `hashPasswordForCookie()`; Hypervel does not fall back to raw password hashes when the method is missing. Guards extending `SessionGuard` already support it. See [session authentication](/docs/{{version}}/authentication#invalidating-sessions-on-other-devices).
+
+Password confirmation is guard-scoped. Replace direct writes to Laravel's `auth.password_confirmed_at` session key with `$request->session()->passwordConfirmed($guard)`, which records the correct key and dispatches the confirmation event. Middleware tests may seed `Hypervel\Auth\PasswordConfirmation::sessionKey($guard)`; tests that exercise confirmation listeners should call `passwordConfirmed`.
 
 Hypervel's persistent application session drivers are `file`, `cookie`, `database`, and `redis`. The non-persistent `array` and `null` drivers are available for testing. Redis sessions are stored directly in Redis and may select a named Redis connection using `SESSION_CONNECTION`.
 
@@ -614,6 +845,8 @@ Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, 
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 
+With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
+
 When a Laravel package offers optional support for an unsupported driver, remove that integration from the Hypervel port unless the package can safely provide it through a separate optional dependency.
 
 <a name="testing-ports"></a>
@@ -622,6 +855,8 @@ When a Laravel package offers optional support for an unsupported driver, remove
 Tests are part of the port. When porting Laravel package functionality, port the relevant Laravel tests and adjust them to Hypervel's namespaces, stricter types, and coroutine-aware test lifecycle.
 
 Laravel tests often rely on loose PHPDoc types or mocks that return values too broad for Hypervel's native type declarations. Fix the source type or test mock so it matches the real runtime behavior. Do not weaken the test just to make it pass.
+
+Unlike Laravel, `Sleep::fake()` evaluates `while()` predicates; ensure they can terminate, using `syncWithCarbon: true` when they depend on Carbon time.
 
 <a name="application-tests"></a>
 ### Application Tests
@@ -658,6 +893,8 @@ abstract class TestCase extends BaseTestCase
     }
 }
 ```
+
+Add Hypervel's PHPUnit extension to the package's `phpunit.xml` file. Orchestra Testbench resets framework state from its test case, while Hypervel resets it from this extension. See [Test State Cleanup](/docs/{{version}}/testing#test-state-cleanup).
 
 For package testing details, see the [Testbench documentation](/docs/{{version}}/testbench).
 
@@ -697,7 +934,7 @@ The `usleep` call gives the runtime an opportunity to switch between coroutines 
 
 When porting an application, start from a fresh Hypervel application skeleton and move code over intentionally. Hypervel has a familiar application structure, but it is not a drop-in replacement for a Laravel `public/index.php` application.
 
-Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, or `.env.example` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
+Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, `.env.example`, or `phpunit.xml` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
 
 Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
 

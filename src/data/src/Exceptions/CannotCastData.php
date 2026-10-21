@@ -89,29 +89,13 @@ class CannotCastData extends Exception
     }
 
     /**
-     * Create an exception for an unknown data morph alias.
+     * Create an exception for a stored data type that names no valid class.
      */
-    public static function unknownMorphAlias(string $alias, string $dataClass): self
-    {
-        return new self("Data morph alias `{$alias}` is not registered for `{$dataClass}`");
-    }
-
-    /**
-     * Create an exception for an invalid data morph class.
-     */
-    public static function invalidMorphClass(string $class, string $dataClass): self
+    public static function invalidMorphClass(string $type, string $dataClass): self
     {
         return new self(
-            "Data morph class `{$class}` should be a concrete transformable subtype of `{$dataClass}`",
+            "Data morph type `{$type}` should be a registered alias or a concrete transformable subtype of `{$dataClass}`",
         );
-    }
-
-    /**
-     * Create an exception for a data class without an enforced morph alias.
-     */
-    public static function morphAliasRequired(string $class): self
-    {
-        return new self("Data class `{$class}` should have an enforced morph alias");
     }
 
     /**

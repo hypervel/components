@@ -11,6 +11,7 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelBroker;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager as ChannelManagerInterface;
 use Hypervel\Support\Arr;
+use Throwable;
 
 class ArrayChannelManager implements ChannelManagerInterface
 {
@@ -91,7 +92,13 @@ class ArrayChannelManager implements ChannelManagerInterface
         $connections = [];
 
         foreach ($channels as $channel) {
-            $connections += $channel->connections();
+            foreach ($channel->connections() as $identifier => $connection) {
+                // Prefer connections with user data when a socket has multiple channel subscriptions...
+                if (! isset($connections[$identifier])
+                    || ($connections[$identifier]->data('user_id') === null && $connection->data('user_id') !== null)) {
+                    $connections[$identifier] = $connection;
+                }
+            }
         }
 
         return $connections;
@@ -116,8 +123,19 @@ class ArrayChannelManager implements ChannelManagerInterface
      */
     public function unsubscribeFromAllChannels(string $appId, Connection $connection): void
     {
+        $exception = null;
+
+        // A failed unsubscription must not leave the connection in later channels.
         foreach ($this->channels($appId) as $channel) {
-            $channel->unsubscribe($connection);
+            try {
+                $channel->unsubscribe($connection);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

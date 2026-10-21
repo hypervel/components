@@ -11,7 +11,7 @@ use Mockery as m;
 
 class ScheduleInterruptCommandTest extends TestCase
 {
-    public function testInterruptCommandBroadcastsSignal()
+    public function testInterruptCommandBroadcastsSignal(): void
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('put')
@@ -24,31 +24,31 @@ class ScheduleInterruptCommandTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function testInterruptCommandRejectsZeroMinutes()
+    public function testInterruptCommandRejectsZeroMinutes(): void
     {
         $this->artisan('schedule:interrupt', ['--minutes' => '0'])
             ->assertFailed();
     }
 
-    public function testInterruptCommandRejectsNegativeMinutes()
+    public function testInterruptCommandRejectsNegativeMinutes(): void
     {
         $this->artisan('schedule:interrupt', ['--minutes' => '-1'])
             ->assertFailed();
     }
 
-    public function testInterruptCommandRejectsNonNumericMinutes()
+    public function testInterruptCommandRejectsNonNumericMinutes(): void
     {
         $this->artisan('schedule:interrupt', ['--minutes' => 'abc'])
             ->assertFailed();
     }
 
-    public function testInterruptCommandRejectsDecimalMinutes()
+    public function testInterruptCommandRejectsDecimalMinutes(): void
     {
         $this->artisan('schedule:interrupt', ['--minutes' => '1.5'])
             ->assertFailed();
     }
 
-    public function testInterruptCommandAcceptsCustomMinutes()
+    public function testInterruptCommandAcceptsCustomMinutes(): void
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('put')

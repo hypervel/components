@@ -17,6 +17,9 @@ use function Hypervel\Testbench\is_symlink;
  */
 final class CreateVendorSymlink
 {
+    /**
+     * Construct a new action.
+     */
     public function __construct(
         private readonly string $workingPath
     ) {

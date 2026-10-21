@@ -47,23 +47,23 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of($originalUri = 'https://hypervel.org/docs/installation');
 
-        $this->assertEquals('https', $uri->scheme());
+        $this->assertSame('https', $uri->scheme());
         $this->assertNull($uri->user());
         $this->assertNull($uri->password());
-        $this->assertEquals('hypervel.org', $uri->host());
+        $this->assertSame('hypervel.org', $uri->host());
         $this->assertNull($uri->port());
-        $this->assertEquals('docs/installation', $uri->path());
-        $this->assertEquals([], $uri->query()->toArray());
-        $this->assertEquals('', (string) $uri->query());
-        $this->assertEquals('', $uri->query()->decode());
+        $this->assertSame('docs/installation', $uri->path());
+        $this->assertSame([], $uri->query()->toArray());
+        $this->assertSame('', (string) $uri->query());
+        $this->assertSame('', $uri->query()->decode());
         $this->assertNull($uri->fragment());
         $this->assertEquals($originalUri, (string) $uri);
 
         $uri = Uri::of('https://taylor:password@hypervel.org/docs/installation?version=1#hello');
 
-        $this->assertEquals('taylor', $uri->user());
-        $this->assertEquals('password', $uri->password());
-        $this->assertEquals('hello', $uri->fragment());
+        $this->assertSame('taylor', $uri->user());
+        $this->assertSame('password', $uri->password());
+        $this->assertSame('hello', $uri->fragment());
         $this->assertEquals(['version' => 1], $uri->query()->all());
         $this->assertEquals(1, $uri->query()->integer('version'));
         $this->assertSame('taylor:password@hypervel.org', $uri->authority());
@@ -103,6 +103,16 @@ class SupportUriTest extends TestCase
         $this->assertSame('https://hypervel.org/docs', $withoutFragment->value());
     }
 
+    public function testQueryAllSelectsZeroKeys(): void
+    {
+        $query = Uri::of('https://hypervel.org/?0=first&name=Taylor')->query();
+
+        $this->assertSame([0 => 'first'], $query->all(0));
+        $this->assertSame($query->all([0]), $query->all('0'));
+        $this->assertSame([0 => 'first', 'missing' => null], $query->all('0', 'missing'));
+        $this->assertSame([], $query->all([]));
+    }
+
     public function testComplicatedQueryStringParsing(): void
     {
         $uri = Uri::of('https://example.com/users?key_1=value&key_2[sub_field]=value&key_3[]=value&key_4[9]=value&key_5[][][foo][9]=bar&key.6=value&flag_value');
@@ -131,7 +141,7 @@ class SupportUriTest extends TestCase
             'flag_value' => '',
         ], $uri->query()->all());
 
-        $this->assertEquals('key_1=value&key_2[sub_field]=value&key_3[]=value&key_4[9]=value&key_5[][][foo][9]=bar&key.6=value&flag_value', $uri->query()->decode());
+        $this->assertSame('key_1=value&key_2[sub_field]=value&key_3[]=value&key_4[9]=value&key_5[][][foo][9]=bar&key.6=value&flag_value', $uri->query()->decode());
     }
 
     public function testUriBuilding(): void
@@ -151,8 +161,17 @@ class SupportUriTest extends TestCase
         $this->assertEquals($expected, (string) $uri);
         $this->assertEquals($expected, $uri->value());
         $this->assertEquals($expected, $uri->toString());
-        $this->assertInstanceOf(HypervelStringable::class, $uri->toStringable());
-        $this->assertSame($expected, $uri->toStringable()->toString());
+    }
+
+    public function testToStringable(): void
+    {
+        $uri = Uri::of('https://taylor:password@hypervel.org:80/docs/installation?version=1#hello');
+
+        $stringable = $uri->toStringable();
+
+        $this->assertInstanceOf(HypervelStringable::class, $stringable);
+        $this->assertSame('https://taylor:password@hypervel.org:80/docs/installation?version=1#hello', (string) $stringable);
+        $this->assertSame($uri->value(), (string) $stringable);
     }
 
     public function testComplicatedQueryStringManipulation(): void
@@ -173,8 +192,8 @@ class SupportUriTest extends TestCase
             'flag' => '',
         ])->withoutQuery(['name']);
 
-        $this->assertEquals('age=38&role[title]=Developer&role[focus]=PHP&tags[0]=person&tags[1]=employee&flag=', $uri->query()->decode());
-        $this->assertEquals('name=Taylor', $uri->replaceQuery(['name' => 'Taylor'])->query()->decode());
+        $this->assertSame('age=38&role[title]=Developer&role[focus]=PHP&tags[0]=person&tags[1]=employee&flag=', $uri->query()->decode());
+        $this->assertSame('name=Taylor', $uri->replaceQuery(['name' => 'Taylor'])->query()->decode());
 
         // Push onto multi-value and missing items...
         $uri = Uri::of('https://hypervel.org?tags[]=foo');
@@ -193,15 +212,56 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of('https://dot.test/?foo.bar=baz');
 
-        $this->assertEquals('foo.bar=baz&foo[bar]=zab', $uri->withQuery(['foo.bar' => 'zab'])->query()->decode());
-        $this->assertEquals('foo[bar]=zab', $uri->replaceQuery(['foo.bar' => 'zab'])->query()->decode());
+        $this->assertSame('foo.bar=baz&foo[bar]=zab', $uri->withQuery(['foo.bar' => 'zab'])->query()->decode());
+        $this->assertSame('foo[bar]=zab', $uri->replaceQuery(['foo.bar' => 'zab'])->query()->decode());
+    }
+
+    public function testQueryStringsWithAsterisksAreTreatedAsLiteralKeys(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?role=user&tenant=10');
+
+        $this->assertEquals(['role' => 'user', 'tenant' => '10', '*' => 'admin'], $uri->withQuery(['*' => 'admin'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/');
+
+        $this->assertEquals(['*' => 'admin'], $uri->withQuery(['*' => 'admin'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter[name]=taylor&filter[role]=user');
+
+        $this->assertEquals(['filter' => ['name' => 'taylor', 'role' => 'user', '*' => 'masked']], $uri->withQuery(['filter.*' => 'masked'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?role=user');
+
+        $this->assertEquals(['*' => 'admin'], $uri->withQuery(['*' => 'admin'], merge: false)->query()->all());
+    }
+
+    public function testWithQueryIfMissingTreatsAsterisksAsLiteralKeys(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?role=user&tenant=10');
+
+        $this->assertEquals(['role' => 'user', 'tenant' => '10', '*' => 'admin'], $uri->withQueryIfMissing(['*' => 'admin'])->query()->all());
+    }
+
+    public function testPushOntoQueryReadsTheSameLiteralSegmentsItWrites(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?page=1');
+
+        $this->assertSame(['page' => '1', '*' => ['first', 'second']], $uri->pushOntoQuery('*', 'first')->pushOntoQuery('*', 'second')->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter[name]=taylor');
+
+        $this->assertSame(['filter' => ['name' => 'taylor', '*' => ['first', 'second']]], $uri->pushOntoQuery('filter.*', 'first')->pushOntoQuery('filter.*', 'second')->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter.name=literal&filter[name]=nested');
+
+        $this->assertSame(['filter.name' => 'literal', 'filter' => ['name' => ['nested', 'next']]], $uri->pushOntoQuery('filter.name', 'next')->query()->all());
     }
 
     public function testDecodingTheEntireUri(): void
     {
         $uri = Uri::of('https://hypervel.org/docs/11.x/installation')->withQuery(['tags' => ['first', 'second']]);
 
-        $this->assertEquals('https://hypervel.org/docs/11.x/installation?tags[0]=first&tags[1]=second', $uri->decode());
+        $this->assertSame('https://hypervel.org/docs/11.x/installation?tags[0]=first&tags[1]=second', $uri->decode());
     }
 
     public function testDecodingTheEntireUriPreservesTheFragment(): void
@@ -221,7 +281,7 @@ class SupportUriTest extends TestCase
             'existing' => 'new_value',
         ]);
 
-        $this->assertEquals('existing=value&new=parameter', $uri->query()->decode());
+        $this->assertSame('existing=value&new=parameter', $uri->query()->decode());
 
         // Test adding complex nested arrays to empty query string
         $uri = Uri::of('https://hypervel.org');
@@ -238,7 +298,7 @@ class SupportUriTest extends TestCase
             ],
         ]);
 
-        $this->assertEquals('name=Taylor&role[title]=Developer&role[focus]=PHP&tags[0]=person&tags[1]=employee', $uri->query()->decode());
+        $this->assertSame('name=Taylor&role[title]=Developer&role[focus]=PHP&tags[0]=person&tags[1]=employee', $uri->query()->decode());
 
         // Test partial array merging and preserving indexed arrays
         $uri = Uri::of('https://hypervel.org?name=Taylor&tags[0]=person');
@@ -249,7 +309,7 @@ class SupportUriTest extends TestCase
             'tags' => ['should', 'not', 'change'],
         ]);
 
-        $this->assertEquals('name=Taylor&tags[0]=person&age=38', $uri->query()->decode());
+        $this->assertSame('name=Taylor&tags[0]=person&age=38', $uri->query()->decode());
         $this->assertEquals(['name' => 'Taylor', 'tags' => ['person'], 'age' => 38], $uri->query()->all());
 
         $uri = Uri::of('https://hypervel.org?user[name]=Taylor');
@@ -277,8 +337,8 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of('https://hypervel.org');
 
-        $this->assertEquals('https://hypervel.org', (string) $uri);
-        $this->assertEquals('https://hypervel.org', (string) $uri->withQuery([]));
+        $this->assertSame('https://hypervel.org', (string) $uri);
+        $this->assertSame('https://hypervel.org', (string) $uri->withQuery([]));
     }
 
     public function testUriHelperCastsStringableInputsExactlyOnce(): void
@@ -330,24 +390,24 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of('https://hypervel.org');
 
-        $this->assertEquals([], $uri->pathSegments()->toArray());
+        $this->assertSame([], $uri->pathSegments()->toArray());
 
         $uri = Uri::of('https://hypervel.org/one/two/three');
 
         $this->assertEquals(['one', 'two', 'three'], $uri->pathSegments()->toArray());
-        $this->assertEquals('one', $uri->pathSegments()->first());
+        $this->assertSame('one', $uri->pathSegments()->first());
 
         $uri = Uri::of('https://hypervel.org/one/two/three?foo=bar');
 
-        $this->assertEquals(3, $uri->pathSegments()->count());
+        $this->assertCount(3, $uri->pathSegments());
 
         $uri = Uri::of('https://hypervel.org/one/two/three/?foo=bar');
 
-        $this->assertEquals(3, $uri->pathSegments()->count());
+        $this->assertCount(3, $uri->pathSegments());
 
         $uri = Uri::of('https://hypervel.org/one/two/three/#foo=bar');
 
-        $this->assertEquals(3, $uri->pathSegments()->count());
+        $this->assertCount(3, $uri->pathSegments());
     }
 
     public function testMacroable(): void

@@ -1,8 +1,8 @@
 {
     "name": "hypervel/http",
-    "type": "library",
     "description": "The Hypervel HTTP package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "swoole",
@@ -23,52 +23,55 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Http\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
+        "ext-curl": "*",
         "ext-filter": "*",
         "fruitcake/php-cors": "^1.3",
-        "guzzlehttp/guzzle": "^7.15.1",
-        "guzzlehttp/promises": "^2.5.2",
-        "guzzlehttp/psr7": "^2.13",
-        "guzzlehttp/uri-template": "^1.0",
-        "nesbot/carbon": "^3.13.1",
-        "psr/http-message": "^2.0",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1",
-        "symfony/mime": "^8.1",
+        "guzzlehttp/psr7": "^3.1",
+        "guzzlehttp/uri-template": "^1.0 || ^2.0",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/guzzle": "^8.3",
+        "hypervel/guzzle-promises": "^3.1",
         "hypervel/macroable": "^0.4",
         "hypervel/object-pool": "^0.4",
         "hypervel/pagination": "^0.4",
         "hypervel/session": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1",
+        "psr/http-message": "^2.0",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
+        "symfony/mime": "^8.1"
     },
     "suggest": {
         "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
         "hypervel/image": "Required for image() method on requests (^0.4).",
         "hypervel/validation": "Required for validate() method on requests."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Http\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Http\\HttpServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

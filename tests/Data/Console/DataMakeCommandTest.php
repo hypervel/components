@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Data\Console;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -35,20 +36,69 @@ class DataMakeCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testDataIsGeneratedWithoutAnImplicitSuffix(): void
+    public function testDataIsGeneratedWithTheConfiguredSuffix(): void
     {
         $this->artisan('make:data', [
             'name' => 'User',
             '--no-interaction' => true,
         ])->assertSuccessful();
+        $this->artisan('make:data', [
+            'name' => 'TeamData',
+            '--no-interaction' => true,
+        ])->assertSuccessful();
 
-        $path = app_path('Data/User.php');
-        $contents = $this->generatedFile($path);
+        $contents = $this->generatedFile(app_path('Data/UserData.php'));
+        $suffixed = $this->generatedFile(app_path('Data/TeamData.php'));
 
         $this->assertStringContainsString('namespace App\Data;', $contents);
         $this->assertStringContainsString('use Hypervel\Data\Data;', $contents);
-        $this->assertStringContainsString('class User extends Data', $contents);
+        $this->assertStringContainsString('class UserData extends Data', $contents);
         $this->assertStringContainsString('declare(strict_types=1);', $contents);
+        $this->assertStringContainsString('class TeamData extends Data', $suffixed);
+    }
+
+    public function testNamespaceAndSuffixOptionsOverrideTheConfiguredDefaults(): void
+    {
+        $this->artisan('make:data', [
+            'name' => 'Invoice',
+            '--target-namespace' => 'App\Transfer',
+            '--suffix' => 'Dto',
+            '--no-interaction' => true,
+        ])->assertSuccessful();
+        $this->artisan('make:data', [
+            'name' => 'Receipt',
+            '--suffix' => '',
+            '--no-interaction' => true,
+        ])->assertSuccessful();
+
+        $custom = $this->generatedFile(app_path('Transfer/InvoiceDto.php'));
+        $unsuffixed = $this->generatedFile(app_path('Data/Receipt.php'));
+
+        $this->assertStringContainsString('namespace App\Transfer;', $custom);
+        $this->assertStringContainsString('class InvoiceDto extends Data', $custom);
+        $this->assertStringContainsString('class Receipt extends Data', $unsuffixed);
+    }
+
+    #[DefineEnvironment('withoutConfiguredSuffix')]
+    public function testConfiguredDefaultsApplyWhenNoOptionIsGiven(): void
+    {
+        $this->artisan('make:data', [
+            'name' => 'Profile',
+            '--no-interaction' => true,
+        ])->assertSuccessful();
+
+        $contents = $this->generatedFile(app_path('Dto/Profile.php'));
+
+        $this->assertStringContainsString('namespace App\Dto;', $contents);
+        $this->assertStringContainsString('class Profile extends Data', $contents);
+    }
+
+    /**
+     * Configure an unsuffixed generator namespace.
+     */
+    protected function withoutConfiguredSuffix(ApplicationContract $app): void
+    {
+        $app->make('config')->set('data.commands.make', ['namespace' => 'Dto', 'suffix' => '']);
     }
 
     public function testNestedAndQualifiedNamesUseTheirDeclaredNamespaces(): void

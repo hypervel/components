@@ -15,7 +15,7 @@ use ReflectionMethod;
 
 class ViewComponentTest extends TestCase
 {
-    public function testDataExposure()
+    public function testDataExposure(): void
     {
         $component = new TestViewComponent;
 
@@ -103,7 +103,7 @@ class ViewComponentTest extends TestCase
         $this->assertSame('class="override" type="submit"', (string) $slot->attributes);
     }
 
-    public function testPublicMethodsWithNoArgsAreConvertedToStringableCallablesInvokedAndNotCached()
+    public function testPublicMethodsWithNoArgsAreConvertedToStringableCallablesInvokedAndNotCached(): void
     {
         $component = new TestSampleViewComponent;
 
@@ -135,7 +135,7 @@ class ViewComponentTest extends TestCase
         $this->assertEquals(2, $component->counter);
     }
 
-    public function testItIgnoresExceptedMethodsAndProperties()
+    public function testItIgnoresExceptedMethodsAndProperties(): void
     {
         $component = new TestExceptedViewComponent;
         $variables = $component->data();
@@ -148,7 +148,7 @@ class ViewComponentTest extends TestCase
         $this->assertArrayNotHasKey('taylor', $variables);
     }
 
-    public function testMethodsOverridePropertyValues()
+    public function testMethodsOverridePropertyValues(): void
     {
         $component = new TestHelloPropertyHelloMethodComponent;
         $variables = $component->data();

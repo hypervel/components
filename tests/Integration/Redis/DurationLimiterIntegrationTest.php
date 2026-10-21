@@ -56,6 +56,8 @@ class DurationLimiterIntegrationTest extends TestCase
     {
         $store = [];
 
+        $this->waitForNextSecond();
+
         (new DurationLimiter($this->redis(), 'key', 1, 1))->block(2, function () use (&$store) {
             $store[] = 1;
         });
@@ -193,6 +195,8 @@ class DurationLimiterIntegrationTest extends TestCase
     {
         $limiter = new DurationLimiter($this->redis(), 'reset-after-decay-key', 1, 1);
 
+        $this->waitForNextSecond();
+
         $this->assertTrue($limiter->acquire());
         $this->assertFalse($limiter->acquire());
 
@@ -222,6 +226,17 @@ class DurationLimiterIntegrationTest extends TestCase
         } finally {
             $plain->del('duration-limiter:selected-connection', 'selected-connection');
         }
+    }
+
+    /**
+     * Wait until just after the next whole second.
+     *
+     * One-second windows end on a whole second, so starting just after one
+     * keeps an immediate second attempt inside the first window.
+     */
+    private function waitForNextSecond(): void
+    {
+        usleep((int) ((1.05 - fmod(microtime(true), 1)) * 1_000_000));
     }
 
     /**

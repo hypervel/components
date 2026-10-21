@@ -23,14 +23,14 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Http\Request create(string $uri, string $method = 'GET', array $parameters = [], array $cookies = [], array $files = [], array $server = [], string|resource|null $content = null)
  * @method static \Hypervel\Http\Request createFrom(\Hypervel\Http\Request $from, \Hypervel\Http\Request|null $to = null)
  * @method static \Hypervel\Http\Request createFromBase(\Symfony\Component\HttpFoundation\Request $request)
- * @method static \Hypervel\Http\Request createFromGlobals()
+ * @method static never createFromGlobals()
  * @method static \Carbon\CarbonInterface|null date(string $key, string|null $format = null, \UnitEnum|string|null $tz = null)
  * @method static never dd(mixed ...$args)
  * @method static string decodedPath()
  * @method static \Hypervel\Http\Request dump(mixed $keys = [])
  * @method static \Hypervel\Http\Request duplicate(array|null $query = null, array|null $request = null, array|null $attributes = null, array|null $cookies = null, array|null $files = null, array|null $server = null)
  * @method static void enableHttpMethodParameterOverride()
- * @method static null|\BackedEnum enum(string $key, string $enumClass, null|\BackedEnum $default = null)
+ * @method static \BackedEnum|null enum(string $key, string $enumClass, \BackedEnum|null $default = null)
  * @method static \BackedEnum[] enums(string $key, string $enumClass)
  * @method static array except(mixed $keys)
  * @method static bool exists(array|string $key)
@@ -145,7 +145,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool missing(array|string $key)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static string normalizeQueryString(string|null $qs)
- * @method static array|string|null old(string|null $key = null, \Hypervel\Database\Eloquent\Model|array|string|null $default = null)
+ * @method static mixed old(string|null $key = null, mixed $default = null)
  * @method static array only(mixed $keys)
  * @method static void overrideGlobals()
  * @method static string path()
@@ -168,6 +168,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setAllowedHttpMethodOverride(string[]|null $methods)
  * @method static void setDefaultLocale(string $locale)
  * @method static void setDefaultRequestLocale(string $locale)
+ * @method static void setDefaultUserResolver(\Closure $callback)
  * @method static void setFactory(callable|null $callable)
  * @method static void setFormat(string $format, string|string[] $mimeTypes)
  * @method static void setHypervelSession(\Hypervel\Contracts\Session\Session $session)
@@ -195,15 +196,25 @@ namespace Hypervel\Support\Facades;
  * @method static bool wantsJson()
  * @method static bool wantsMarkdown()
  * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static mixed whenEnum(string $key, string $enumClass, callable $callback, callable|null $default = null)
- * @method static mixed whenFilled(string $key, callable $callback, callable|null $default = null)
- * @method static mixed whenHas(string $key, callable $callback, callable|null $default = null)
- * @method static mixed whenMissing(string $key, callable $callback, callable|null $default = null)
+ * @method static mixed whenEnum(string $key, string $enumClass, callable $callback, null|callable $default = null)
+ * @method static mixed whenFilled(string $key, callable $callback, null|callable $default = null)
+ * @method static mixed whenHas(string $key, callable $callback, null|callable $default = null)
+ * @method static mixed whenMissing(string $key, callable $callback, null|callable $default = null)
  *
  * @see \Hypervel\Http\Request
  */
 class Request extends Facade
 {
+    /**
+     * Indicates if the resolved instance should be cached.
+     *
+     * The request binding reads coroutine context; caching its result would retain another request.
+     */
+    protected static bool $cached = false;
+
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'request';

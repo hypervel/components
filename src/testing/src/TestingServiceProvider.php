@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testing;
 
 use Hypervel\Support\AggregateServiceProvider;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\Console\TestCommand;
 
 class TestingServiceProvider extends AggregateServiceProvider
@@ -12,7 +13,7 @@ class TestingServiceProvider extends AggregateServiceProvider
     /**
      * The provider class names.
      *
-     * @var array<int, class-string<\Hypervel\Support\ServiceProvider>>
+     * @var array<int, class-string<ServiceProvider>>
      */
     protected array $providers = [
         ParallelTestingServiceProvider::class,

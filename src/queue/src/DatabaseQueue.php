@@ -12,8 +12,11 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\DetectsConcurrencyErrors;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -22,9 +25,12 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    use DetectsConcurrencyErrors;
+    use DetectsLostConnections;
     use InsertsDatabaseRows;
 
     public const int DEFAULT_RETRY_AFTER = 60;
@@ -51,7 +57,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -61,7 +67,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -73,7 +79,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -85,7 +91,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -138,7 +144,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -158,7 +164,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -178,7 +184,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -251,7 +257,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -264,8 +270,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data),
@@ -280,7 +288,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return $this->pushToDatabase($queue, $payload);
     }
@@ -288,8 +296,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
@@ -313,8 +323,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      * Deferred groups reacquire the queue through the after-commit dispatcher,
      * and the return value remains null when every job is deferred.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
         $jobs = array_values($jobs);
 
         if ($jobs === []) {
@@ -361,7 +372,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function (object|string $job) use ($data, $queue): array {
                 $delay = $this->getJobDelay($job);
 
@@ -404,7 +415,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             $this->insertDatabaseRows(
                 $connection,
                 $this->table,
-                Collection::make($jobs)
+                (new Collection($jobs))
                     ->map(fn (array $job): array => $this->buildDatabaseRecord(
                         $this->getQueue($queue),
                         $job['payload'],
@@ -445,7 +456,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a raw payload to the database with a given delay of (n) seconds.
      */
-    protected function pushToDatabase(?string $queue, string $payload, DateInterval|DateTimeInterface|int $delay = 0, int $attempts = 0): mixed
+    protected function pushToDatabase(UnitEnum|string|null $queue, string $payload, DateInterval|DateTimeInterface|int $delay = 0, int $attempts = 0): mixed
     {
         return $this->getDatabase()->table($this->table)->insertGetId($this->buildDatabaseRecord(
             $this->getQueue($queue),
@@ -475,15 +486,55 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @throws Throwable
      */
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
-        $queue = $this->getQueue($queue);
+        $queue = $this->normalizeQueue($queue);
 
-        return $this->getDatabase()->transaction(function () use ($queue) {
-            if ($job = $this->getNextAvailableJob($queue)) {
-                return $this->marshalJob($queue, $job);
+        // Keep the logical name on the job so reservation and release each forward it once.
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        $database = $this->getDatabase();
+        $transactionLevel = $database->transactionLevel();
+        /** @var null|DatabaseJobRecord $jobRecord */
+        $jobRecord = null;
+
+        try {
+            return $database->transaction(function () use ($queue, &$jobRecord) {
+                if ($jobRecord = $this->getNextAvailableJob($queue)) {
+                    $job = $this->marshalJob($queue, $jobRecord);
+
+                    // A commit or completion callback failure does not make this job invalid.
+                    $jobRecord = null;
+
+                    return $job;
+                }
+            });
+        } catch (QueryException $exception) {
+            // Recovery requires our transaction to have unwound. Transient database
+            // failures leave the job available for another reservation attempt.
+            // Non-query callback failures do not establish an invalid job record.
+            // Observers can run their own failing SQL, so match the reservation update.
+            if ($jobRecord !== null
+                && $database->transactionLevel() === $transactionLevel
+                && ! $this->causedByConcurrencyError($exception)
+                && ! $this->causedByLostConnection($exception)
+                && $this->causedByReservationQuery($exception, $database, $jobRecord)) {
+                try {
+                    (new DatabaseJob(
+                        $this->container,
+                        $this,
+                        $jobRecord,
+                        $this->connectionName,
+                        $queue
+                    ))->fail($exception);
+                } catch (CanceledException $cancellation) {
+                    throw $cancellation;
+                } catch (Throwable) {
+                    // Preserve the original reservation failure if failing the job also fails.
+                }
             }
-        });
+
+            throw $exception;
+        }
     }
 
     /**
@@ -569,6 +620,30 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Determine whether the exception matches this job's reservation update.
+     *
+     * Override this alongside markJobAsReserved when changing its SQL or bindings.
+     */
+    protected function causedByReservationQuery(
+        QueryException $exception,
+        ConnectionInterface $database,
+        DatabaseJobRecord $jobRecord
+    ): bool {
+        if ($exception->getConnectionName() !== $database->getNameWithReadWriteType()) {
+            return false;
+        }
+
+        $query = $database->table($this->table)->where('id', $jobRecord->id);
+        $values = ['reserved_at' => $jobRecord->reserved_at, 'attempts' => $jobRecord->attempts];
+        $grammar = $query->getGrammar();
+
+        return $exception->getSql() === $grammar->compileUpdate($query, $values)
+            && $exception->getBindings() === $database->prepareBindings($query->cleanBindings(
+                $grammar->prepareBindingsForUpdate($query->getRawBindings(), $values)
+            ));
+    }
+
+    /**
      * Delete a reserved job from the queue.
      *
      * @throws Throwable
@@ -599,7 +674,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(?string $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -609,9 +684,11 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the queue or return the default.
      */
-    public function getQueue(?string $queue): string
+    public function getQueue(UnitEnum|string|null $queue): string
     {
-        return $queue === null || $queue === '' ? $this->default : $queue;
+        $queue = $this->normalizeQueue($queue);
+
+        return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**

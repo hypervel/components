@@ -13,7 +13,7 @@ interface EntriesRepository
     /**
      * Return an entry with the given ID.
      */
-    public function find(mixed $id): EntryResult;
+    public function find(string $id): EntryResult;
 
     /**
      * Return all the entries of a given type.

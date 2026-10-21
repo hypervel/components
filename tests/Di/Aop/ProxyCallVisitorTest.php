@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Di\Aop;
 use Attribute;
 use Closure;
 use Error;
+use Hypervel\Container\Container;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\Ast;
@@ -14,15 +15,67 @@ use Hypervel\Di\Aop\AstVisitorRegistry;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Di\Aop\ProxyCallVisitor;
 use Hypervel\Di\Aop\ProxyMarker;
+use Hypervel\Di\Aop\ProxySource;
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
 use ValueError;
 
 class ProxyCallVisitorTest extends TestCase
 {
+    public function testConstructorInterceptionDoesNotOptClassAspectsIntoTheConstructor(): void
+    {
+        $className = $this->className();
+        $source = $this->classSource($className, <<<'PHP'
+    public function __construct(public string $value)
+    {
+    }
+
+    public function value(): string
+    {
+        return $this->value;
+    }
+PHP);
+        AspectCollector::setAround(ConstructorRecordingAspect::class, [$className . '::__construct']);
+        $this->evaluate($this->generate($className, '/original/MixedRules.php', $source, ClassRecordingAspect::class));
+
+        $target = new $className('original');
+
+        $this->assertSame('original', $target->value());
+        $this->assertSame(['__construct'], Container::getInstance()->make(ConstructorRecordingAspect::class)->methods);
+        $this->assertSame(['value'], Container::getInstance()->make(ClassRecordingAspect::class)->methods);
+        $this->assertSame([$target], Container::getInstance()->make(ConstructorRecordingAspect::class)->instances);
+        $this->assertSame([$target], Container::getInstance()->make(ClassRecordingAspect::class)->instances);
+    }
+
+    public function testPassesTheInterceptedInstanceForEachObjectAndNullForStaticMethods(): void
+    {
+        $class = $this->proxyClass(<<<'PHP'
+    public function value(): string
+    {
+        return 'instance';
+    }
+
+    public static function staticValue(): string
+    {
+        return 'static';
+    }
+PHP, ClassRecordingAspect::class);
+        $first = new $class;
+        $second = new $class;
+
+        $this->assertSame('instance', $first->value());
+        $this->assertSame('instance', $second->value());
+        $this->assertSame('static', $class::staticValue());
+        $this->assertSame(
+            [$first, $second, null],
+            Container::getInstance()->make(ClassRecordingAspect::class)->instances
+        );
+    }
+
     public function testPreservesArgumentIntrospectionAcrossCallShapes(): void
     {
         $method = <<<'PHP'
@@ -257,14 +310,14 @@ PHP,
         $this->assertSame(2, $value);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('stopped');
+        $this->expectExceptionMessageIs('stopped');
         $instance->stop();
     }
 
     public function testUsesCollisionFreeGeneratedNames(): void
     {
         $className = $this->className();
-        $hash = substr(hash('sha256', $className . '::target'), 0, 12);
+        $hash = substr(hash('xxh128', $className . '::target'), 0, 12);
         $source = $this->classSource($className, <<<PHP
     public function target(int \$value): int
     {
@@ -319,6 +372,10 @@ PHP);
         $this->assertSame('proxied-trait', $instance->aliasedValue());
         $this->assertSame("{closure:{$traitName}::descriptor():{$closureLine}}", $instance->descriptor());
         $this->assertContains(ProxyMarker::class, class_uses_recursive($instance));
+        $this->assertSame(
+            ['/original/GeneratedTrait.php'],
+            (new ReflectionClass($traitName))->getAttributes(ProxySource::class)[0]->getArguments()
+        );
         $this->assertFalse(method_exists($instance, '__proxyCall'));
     }
 
@@ -503,7 +560,7 @@ PHP);
 
         $this->assertInstanceOf(Closure::class, $callback);
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Cannot call func_num_args() dynamically');
+        $this->expectExceptionMessageIsOrContains('Cannot call func_num_args() dynamically');
         $callback();
     }
 
@@ -599,7 +656,7 @@ PHP;
         $source = $this->classSource($className, $method);
 
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->generate($className, '/original/Unsupported.php', $source);
     }
@@ -677,7 +734,7 @@ PHP,
 PHP) . "\nclass AnotherNamedClass {}\n";
 
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage('contains multiple named classes, interfaces, traits, or enums');
+        $this->expectExceptionMessageIsOrContains('contains multiple named classes, interfaces, traits, or enums');
 
         $this->generate($className, '/original/Multiple.php', $source);
     }
@@ -794,6 +851,28 @@ class MutatingArgumentsAspect extends AbstractAspect
 
         return $proceedingJoinPoint->process();
     }
+}
+
+class ClassRecordingAspect extends AbstractAspect
+{
+    public array $methods = [];
+
+    public array $instances = [];
+
+    /**
+     * Record the intercepted method before continuing.
+     */
+    public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
+    {
+        $this->methods[] = $proceedingJoinPoint->methodName;
+        $this->instances[] = $proceedingJoinPoint->getInstance();
+
+        return $proceedingJoinPoint->process();
+    }
+}
+
+class ConstructorRecordingAspect extends ClassRecordingAspect
+{
 }
 
 #[Attribute]

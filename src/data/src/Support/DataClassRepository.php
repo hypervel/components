@@ -90,19 +90,8 @@ class DataClassRepository
             return $this->dynamicRuleGraphs[$class] = true;
         }
 
-        $contextualProperties = [];
-
-        foreach ($dataClass->constructorParameters as $parameter) {
-            if ($parameter->isPromoted && $parameter->contextualAttribute !== null) {
-                $contextualProperties[$parameter->name] = true;
-            }
-        }
-
         foreach ($dataClass->properties as $property) {
-            if ($property->computed
-                || ! $property->validate
-                || isset($contextualProperties[$property->name])
-            ) {
+            if ($property->computed || ! $property->validate) {
                 continue;
             }
 
@@ -114,8 +103,11 @@ class DataClassRepository
                 $nestedClasses[$dataObjectTypes[0]->dataClass] = true;
             }
 
-            if (count($dataCollectableTypes) === 1 && $dataCollectableTypes[0]->dataClass !== null) {
-                $nestedClasses[$dataCollectableTypes[0]->dataClass] = true;
+            // Each collection type of a container union can be selected by its input value.
+            foreach ($dataCollectableTypes as $dataCollectableType) {
+                if ($dataCollectableType->dataClass !== null) {
+                    $nestedClasses[$dataCollectableType->dataClass] = true;
+                }
             }
 
             foreach (array_keys($nestedClasses) as $nestedClass) {

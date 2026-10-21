@@ -37,7 +37,7 @@ class ConnectionPoolTest extends TestCase
     public function testUnknownPoolOptionsAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown connection pool option(s) [max_conections]');
+        $this->expectExceptionMessageIsOrContains('Unknown connection pool option(s) [max_conections]');
 
         $this->createPool(['max_conections' => 10]);
     }
@@ -239,7 +239,7 @@ class ConnectionPoolTest extends TestCase
         $pool->close();
 
         $this->expectException(PoolClosedException::class);
-        $this->expectExceptionMessage('Cannot borrow from a closed connection pool.');
+        $this->expectExceptionMessageIs('Cannot borrow from a closed connection pool.');
 
         $pool->borrow();
     }
@@ -392,7 +392,7 @@ class ConnectionPoolTest extends TestCase
         }
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not manage');
+        $this->expectExceptionMessageIsOrContains('does not manage');
 
         $pool->release(new PoolConnectionStub);
     }
@@ -488,7 +488,7 @@ class ConnectionPoolTest extends TestCase
         $pool->borrow();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('already manages');
+        $this->expectExceptionMessageIsOrContains('already manages');
 
         $pool->borrow();
     }
@@ -566,7 +566,7 @@ class ConnectionPoolTest extends TestCase
         $pool->borrow();
 
         $this->expectException(PoolExhaustedException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Connection pool exhausted. Cannot establish new connection before wait_timeout.'
         );
 

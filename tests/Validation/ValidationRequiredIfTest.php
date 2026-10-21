@@ -42,7 +42,7 @@ class ValidationRequiredIfTest extends TestCase
         $this->assertSame('', (string) $rule);
     }
 
-    public function testItOnlyClosureBooleanAndNullAreAcceptableArgumentsOfTheRule(): void
+    public function testItOnlyCallableAndBooleanAreAcceptableArgumentsOfTheRule(): void
     {
         new RequiredIf(false);
         new RequiredIf(true);
@@ -87,6 +87,11 @@ class ValidationRequiredIfTest extends TestCase
         $this->assertTrue($v->passes());
 
         $rule = new RequiredIf(false);
+
+        $v = new Validator($trans, ['x' => 'foo'], ['x' => ['string', $rule]]);
+        $this->assertTrue($v->passes());
+
+        $rule = new RequiredIf(null);
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => ['string', $rule]]);
         $this->assertTrue($v->passes());

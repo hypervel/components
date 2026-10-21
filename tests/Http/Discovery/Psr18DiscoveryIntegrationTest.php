@@ -12,14 +12,14 @@ use Hypervel\Testbench\TestCase;
 
 class Psr18DiscoveryIntegrationTest extends TestCase
 {
-    public function testDiscoveryReturnsGuzzleNotSymfony()
+    public function testDiscoveryReturnsGuzzleNotSymfony(): void
     {
         $client = Psr18ClientDiscovery::find();
 
         $this->assertInstanceOf(GuzzleClient::class, $client);
     }
 
-    public function testStrategyIsRegisteredByHttpServiceProvider()
+    public function testStrategyIsRegisteredByHttpServiceProvider(): void
     {
         // HttpServiceProvider runs during app boot, so the strategy
         // should already be registered by the time we get here.

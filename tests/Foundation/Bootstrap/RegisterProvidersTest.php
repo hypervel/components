@@ -14,7 +14,7 @@ use Mockery as m;
 
 class RegisterProvidersTest extends TestCase
 {
-    public function testRegisterProviders()
+    public function testRegisterProviders(): void
     {
         $mergedProviders = null;
         $config = m::mock(Repository::class);

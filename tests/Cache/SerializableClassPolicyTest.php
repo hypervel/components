@@ -186,7 +186,7 @@ class SerializableClassPolicyTest extends TestCase
         $policy->finalize();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('service provider boot()');
+        $this->expectExceptionMessageIsOrContains('service provider boot()');
 
         $policy->allowUsing(static fn (): array => [SerializablePolicyAllowedClass::class]);
     }
@@ -197,7 +197,7 @@ class SerializableClassPolicyTest extends TestCase
         $policy->allowUsing(static fn (): never => throw new RuntimeException('Resolver failed.'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Resolver failed.');
+        $this->expectExceptionMessageIs('Resolver failed.');
 
         $policy->finalize();
     }
@@ -207,7 +207,7 @@ class SerializableClassPolicyTest extends TestCase
         $policy = new SerializableClassPolicy(static fn (): string => 'invalid');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('cache.serializable_classes');
+        $this->expectExceptionMessageIsOrContains('cache.serializable_classes');
 
         $policy->finalize();
     }
@@ -218,7 +218,7 @@ class SerializableClassPolicyTest extends TestCase
         $policy->allowUsing(static fn (): false => false);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('resolver');
+        $this->expectExceptionMessageIsOrContains('resolver');
 
         $policy->finalize();
     }
@@ -248,7 +248,7 @@ class SerializableClassPolicyTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('cache.serializable_classes configuration entry [invalid]');
+        $this->expectExceptionMessageIsOrContains('cache.serializable_classes configuration entry [invalid]');
 
         $policy->finalize();
     }
@@ -261,7 +261,7 @@ class SerializableClassPolicyTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('serializable class resolver [0] entry [invalid]');
+        $this->expectExceptionMessageIsOrContains('serializable class resolver [0] entry [invalid]');
 
         $policy->finalize();
     }

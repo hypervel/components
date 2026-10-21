@@ -77,6 +77,7 @@ class Guard
             return self::$providerModels[$provider];
         }
 
+        // Get the provider configuration
         $providerConfig = self::config()->array("auth.providers.{$provider}", []);
 
         // Handle LDAP provider or standard Eloquent provider
@@ -174,6 +175,8 @@ class Guard
 
     /**
      * Get the model associated with a given guard name.
+     *
+     * @return null|class-string<Model>
      */
     public static function getModelForGuard(string $guard): ?string
     {
@@ -181,6 +184,7 @@ class Guard
             return self::$modelsForGuards[$guard];
         }
 
+        // Get the provider configuration for the given guard
         $provider = self::config()->get("auth.guards.{$guard}.provider");
 
         if ($provider === null || $provider === '') {
@@ -210,6 +214,7 @@ class Guard
 
         $possibleGuards = static::getNames($class);
 
+        // Return the current default guard if it matches one of those that have been checked
         if ($possibleGuards->contains($default)) {
             return $default;
         }

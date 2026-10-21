@@ -5,9 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Webhooks;
 
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Str;
 
 class WebhookBatchBuffer
 {
+    /**
+     * The age in seconds after which a claimed batch is treated as abandoned.
+     */
+    protected const int CLAIM_TIMEOUT_SECONDS = 60;
+
+    /**
+     * The lifetime in milliseconds of the key that marks a flush as scheduled.
+     */
+    protected const int FLUSH_LOCK_MILLISECONDS = 30000;
+
     public function __construct(
         protected RedisProxy $redis,
     ) {
@@ -29,76 +40,90 @@ class WebhookBatchBuffer
         return (bool) $this->redis->evalWithShaCache(
             $this->appendAndLockScript(),
             [$bufferKey, $lockKey],
-            [json_encode($eventData, JSON_THROW_ON_ERROR), 30000],
+            [json_encode($eventData, JSON_THROW_ON_ERROR), self::FLUSH_LOCK_MILLISECONDS],
         );
     }
 
     /**
-     * Atomically claim events from the buffer into a processing hash.
+     * Atomically claim a batch of events from the buffer into a processing hash.
      *
-     * A single Lua script handles everything in one Redis round-trip:
-     * - Guards against concurrent flushes (returns empty if processing hash exists)
-     * - Claims up to $maxEvents from the buffer
-     * - Applies $maxPayloadBytes limit, pushing overflow back to the buffer
-     * - Stores only the retained events + timestamp in the processing hash
+     * The batch's webhook ID, time and events are stored with a claim token.
+     * A batch claimed longer ago than the claim timeout is taken over with a
+     * new token and its stored identity, so a re-sent batch has the same body
+     * and receivers can recognize it. Returns null when the buffer is empty or
+     * another flush holds a current claim.
      *
-     * Returns the retained events as decoded arrays. Empty return means either
-     * the buffer is empty or another flush is in-flight.
-     *
-     * @return array<int, array<string, mixed>>
+     * @return null|array{token: string, payload: WebhookPayload}
      */
-    public function claim(string $appId, int $maxEvents, int $maxPayloadBytes): array
+    public function claim(string $appId, int $maxEvents, int $maxPayloadBytes): ?array
     {
         $tag = $this->appHashTag($appId);
-        $bufferKey = "reverb:webhook:{{$tag}}:buffer";
-        $processingKey = "reverb:webhook:{{$tag}}:processing";
+        $token = Str::random();
 
-        $rawEvents = $this->redis->evalWithShaCache(
+        $batch = $this->redis->evalWithShaCache(
             $this->claimScript(),
-            [$bufferKey, $processingKey],
-            [$maxEvents, $maxPayloadBytes, 100],
+            ["reverb:webhook:{{$tag}}:buffer", "reverb:webhook:{{$tag}}:processing"],
+            [
+                $maxEvents,
+                $maxPayloadBytes,
+                100,
+                self::CLAIM_TIMEOUT_SECONDS,
+                $token,
+                (string) Str::orderedUuid(),
+                (int) (microtime(true) * 1000),
+            ],
         );
 
-        if (empty($rawEvents)) {
-            return [];
+        if ($batch === []) {
+            return null;
         }
 
-        return array_map(
-            fn (string $raw) => json_decode($raw, true, 512, JSON_THROW_ON_ERROR),
-            $rawEvents,
-        );
+        return [
+            'token' => $token,
+            'payload' => new WebhookPayload(
+                webhookId: $batch[0],
+                timeMs: (int) $batch[1],
+                events: json_decode($batch[2], true, 512, JSON_THROW_ON_ERROR),
+            ),
+        ];
     }
 
     /**
-     * Recover stale processing keys from crashed flush jobs.
+     * Determine whether a flush job should be scheduled for recovery.
      *
-     * Uses an atomic Lua script so multiple workers calling this
-     * concurrently don't duplicate events — the first worker recovers
-     * the events, the rest no-op because the key is already deleted.
-     *
-     * Returns true if events were recovered (caller should schedule a flush).
+     * A flush is needed for a batch claimed longer ago than the claim timeout,
+     * or for buffered events that no flush has claimed. The scheduling key is
+     * taken atomically, so only one of the workers checking at once schedules it.
      */
-    public function recoverStaleProcessingKeys(string $appId, int $maxAgeSeconds = 60): bool
+    public function shouldScheduleFlush(string $appId): bool
     {
         $tag = $this->appHashTag($appId);
-        $processingKey = "reverb:webhook:{{$tag}}:processing";
-        $bufferKey = "reverb:webhook:{{$tag}}:buffer";
 
         return (bool) $this->redis->evalWithShaCache(
-            $this->recoverScript(),
-            [$processingKey, $bufferKey],
-            [(string) $maxAgeSeconds],
+            $this->scheduleFlushScript(),
+            [
+                "reverb:webhook:{{$tag}}:processing",
+                "reverb:webhook:{{$tag}}:buffer",
+                "reverb:webhook:{{$tag}}:flush",
+            ],
+            [self::CLAIM_TIMEOUT_SECONDS, self::FLUSH_LOCK_MILLISECONDS],
         );
     }
 
     /**
-     * Acknowledge successful processing — delete the processing key.
+     * Acknowledge a sent batch by deleting its processing hash.
+     *
+     * The hash is kept when another flush has since taken the batch over.
      */
-    public function acknowledge(string $appId): void
+    public function acknowledge(string $appId, string $token): void
     {
         $tag = $this->appHashTag($appId);
 
-        $this->redis->del("reverb:webhook:{{$tag}}:processing");
+        $this->redis->evalWithShaCache(
+            $this->acknowledgeScript(),
+            ["reverb:webhook:{{$tag}}:processing"],
+            [$token],
+        );
     }
 
     /**
@@ -148,107 +173,116 @@ class WebhookBatchBuffer
     }
 
     /**
-     * Lua script: atomically claim, trim by byte budget, and store in processing hash.
+     * Lua script: atomically claim a batch, or take over an abandoned one.
      *
      * KEYS[1] = buffer list key
      * KEYS[2] = processing hash key
      * ARGV[1] = max events to claim
      * ARGV[2] = max payload bytes
      * ARGV[3] = envelope overhead bytes
+     * ARGV[4] = claim timeout in seconds
+     * ARGV[5] = claim token
+     * ARGV[6] = webhook ID for a new batch
+     * ARGV[7] = time in milliseconds for a new batch
      *
      * Uses redis.call('TIME') for claimed_at so all nodes sharing Redis
      * use the same clock source for staleness detection.
      *
-     * Guards against concurrent flushes: returns empty if processing hash exists.
-     * Claims up to max events, applies byte budget, pushes overflow back to the
-     * buffer, and stores only the retained events in the processing hash.
-     * Returns the retained event strings.
+     * A current claim returns empty, and an abandoned one gets the new token and
+     * keeps its stored batch. Otherwise the batch is the longest prefix of the
+     * buffer within the event and byte limits, keeping the buffer's order; an
+     * oversized first event is still taken so the buffer always progresses.
+     * Returns the webhook ID, time and JSON events array of the claimed batch.
      */
     protected function claimScript(): string
     {
         return <<<'LUA'
-            if redis.call('EXISTS', KEYS[2]) == 1 then
-                return {}
+            local now = tonumber(redis.call('TIME')[1])
+            local claimedAt = redis.call('HGET', KEYS[2], 'claimed_at')
+
+            if claimedAt then
+                if now - tonumber(claimedAt) < tonumber(ARGV[4]) then
+                    return {}
+                end
+
+                redis.call('HSET', KEYS[2], 'token', ARGV[5], 'claimed_at', now)
+
+                return redis.call('HMGET', KEYS[2], 'webhook_id', 'time_ms', 'events')
             end
 
-            local count = tonumber(ARGV[1])
             local maxBytes = tonumber(ARGV[2])
             local totalBytes = tonumber(ARGV[3])
+            local candidates = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[1]) - 1)
+            local retained = {}
 
-            local len = redis.call('LLEN', KEYS[1])
-            if len == 0 then
+            for _, raw in ipairs(candidates) do
+                local eventBytes = string.len(raw) + 1
+
+                if totalBytes + eventBytes > maxBytes and #retained > 0 then
+                    break
+                end
+
+                totalBytes = totalBytes + eventBytes
+                table.insert(retained, raw)
+            end
+
+            if #retained == 0 then
                 return {}
             end
 
-            local actual = math.min(count, len)
-            local claimed = redis.call('LRANGE', KEYS[1], 0, actual - 1)
-            redis.call('LTRIM', KEYS[1], actual, -1)
+            redis.call('LTRIM', KEYS[1], #retained, -1)
 
-            local retained = {}
-            local overflow = {}
+            local events = '[' .. table.concat(retained, ',') .. ']'
+            redis.call('HSET', KEYS[2], 'token', ARGV[5], 'webhook_id', ARGV[6], 'time_ms', ARGV[7], 'events', events, 'claimed_at', now)
 
-            for i, raw in ipairs(claimed) do
-                local eventBytes = string.len(raw) + 1
-
-                if (totalBytes + eventBytes > maxBytes) and (#retained > 0) then
-                    table.insert(overflow, raw)
-                else
-                    totalBytes = totalBytes + eventBytes
-                    table.insert(retained, raw)
-                end
-            end
-
-            for i = #overflow, 1, -1 do
-                redis.call('LPUSH', KEYS[1], overflow[i])
-            end
-
-            if #retained > 0 then
-                local now = redis.call('TIME')[1]
-                redis.call('HSET', KEYS[2], 'events', cjson.encode(retained), 'claimed_at', now)
-            end
-
-            return retained
+            return {ARGV[6], ARGV[7], events}
         LUA;
     }
 
     /**
-     * Lua script: atomically recover stale processing events to the buffer.
+     * Lua script: decide whether recovery should schedule a flush.
      *
      * KEYS[1] = processing hash key
      * KEYS[2] = buffer list key
-     * ARGV[1] = max age in seconds
+     * KEYS[3] = lock key
+     * ARGV[1] = claim timeout in seconds
+     * ARGV[2] = lock TTL in milliseconds
      *
-     * Uses redis.call('TIME') for the current timestamp so all nodes
-     * sharing Redis use the same clock source as the claim script.
-     *
-     * If the processing hash exists and claimed_at is older than max age,
-     * pushes all events back to the front of the buffer and deletes the
-     * hash. Returns 1 if recovered, 0 if no-op. Safe for concurrent calls.
+     * A claimed batch needs a flush once its claim is older than the timeout,
+     * and unclaimed events need one whenever the buffer is non-empty. Returns 1
+     * if the lock was newly acquired for that flush, 0 otherwise.
      */
-    protected function recoverScript(): string
+    protected function scheduleFlushScript(): string
     {
         return <<<'LUA'
             local claimedAt = redis.call('HGET', KEYS[1], 'claimed_at')
-            if not claimedAt then
-                return 0
-            end
 
-            local maxAge = tonumber(ARGV[1])
-            local now = tonumber(redis.call('TIME')[1])
-            if (now - tonumber(claimedAt)) < maxAge then
-                return 0
-            end
-
-            local eventsJson = redis.call('HGET', KEYS[1], 'events')
-            if eventsJson then
-                local events = cjson.decode(eventsJson)
-                for i = #events, 1, -1 do
-                    redis.call('LPUSH', KEYS[2], events[i])
+            if claimedAt then
+                if tonumber(redis.call('TIME')[1]) - tonumber(claimedAt) < tonumber(ARGV[1]) then
+                    return 0
                 end
+            elseif redis.call('LLEN', KEYS[2]) == 0 then
+                return 0
             end
 
-            redis.call('DEL', KEYS[1])
-            return 1
+            return redis.call('SET', KEYS[3], '1', 'NX', 'PX', ARGV[2]) and 1 or 0
+        LUA;
+    }
+
+    /**
+     * Lua script: delete the processing hash if the token still owns it.
+     *
+     * KEYS[1] = processing hash key
+     * ARGV[1] = claim token
+     */
+    protected function acknowledgeScript(): string
+    {
+        return <<<'LUA'
+            if redis.call('HGET', KEYS[1], 'token') == ARGV[1] then
+                return redis.call('DEL', KEYS[1])
+            end
+
+            return 0
         LUA;
     }
 }

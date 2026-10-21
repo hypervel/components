@@ -12,11 +12,14 @@ use Hypervel\Database\Events\MigrationsStarted;
 use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
 class MigratorEventsTest extends TestCase
 {
+    use DatabaseMigrations;
+
     protected function migrateOptions()
     {
         return [
@@ -25,7 +28,7 @@ class MigratorEventsTest extends TestCase
         ];
     }
 
-    public function testMigrationEventsAreFired()
+    public function testMigrationEventsAreFired(): void
     {
         Event::fake();
 
@@ -63,7 +66,7 @@ class MigratorEventsTest extends TestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testMigrationEventsContainTheOptionsAndPretendFalse()
+    public function testMigrationEventsContainTheOptionsAndPretendFalse(): void
     {
         Event::fake();
 
@@ -96,7 +99,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationEventsContainTheOptionsAndPretendTrue()
+    public function testMigrationEventsContainTheOptionsAndPretendTrue(): void
     {
         Event::fake();
 
@@ -118,7 +121,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationEventsContainTheMigrationAndMethod()
+    public function testMigrationEventsContainTheMigrationAndMethod(): void
     {
         Event::fake();
 
@@ -160,7 +163,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testTheNoMigrationEventIsFiredWhenNothingToMigrate()
+    public function testTheNoMigrationEventIsFiredWhenNothingToMigrate(): void
     {
         Event::fake();
 
@@ -175,7 +178,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationSkippedEventIsFired()
+    public function testMigrationSkippedEventIsFired(): void
     {
         Event::fake();
 
@@ -184,8 +187,8 @@ class MigratorEventsTest extends TestCase
             '--realpath' => true,
         ]);
 
-        Event::assertDispatched(MigrationSkipped::class, function ($event) {
-            return $event->migrationName === '2014_10_13_000000_skipped_migration';
+        Event::assertDispatched(MigrationSkipped::class, function (MigrationSkipped $event): bool {
+            return $event->name === '2014_10_13_000000_skipped_migration';
         });
     }
 }

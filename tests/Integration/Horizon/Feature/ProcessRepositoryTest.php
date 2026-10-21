@@ -10,7 +10,7 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class ProcessRepositoryTest extends IntegrationTestCase
 {
-    public function testExpiredOrphansCanBeFound()
+    public function testExpiredOrphansCanBeFound(): void
     {
         $repo = resolve(ProcessRepository::class);
 
@@ -30,7 +30,7 @@ class ProcessRepositoryTest extends IntegrationTestCase
         }
     }
 
-    public function testOrphansCanBeDeleted()
+    public function testOrphansCanBeDeleted(): void
     {
         $repo = resolve(ProcessRepository::class);
         $repo->orphaned('foo', ['1', '2', '3']);

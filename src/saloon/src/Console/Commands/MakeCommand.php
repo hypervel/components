@@ -11,6 +11,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use LogicException;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Filesystem\Path;
 
 use function Hypervel\Prompts\suggest;
 
@@ -96,14 +97,39 @@ abstract class MakeCommand extends GeneratorCommand
     }
 
     /**
+     * Get the configured integrations path.
+     *
+     * Dot segments are removed so the path can be compared with the application directory and mapped to a namespace.
+     */
+    protected function integrationsPath(): string
+    {
+        return Path::canonicalize($this->config->string('saloon.integrations_path'));
+    }
+
+    /**
      * Get the configured integrations namespace.
+     *
+     * Without a configured namespace, the integrations path must be inside the application directory, whose
+     * subdirectories follow the application's root namespace.
      */
     protected function integrationNamespace(): string
     {
         $namespace = $this->config->get('saloon.integrations_namespace');
 
         if ($namespace === null) {
-            return rtrim($this->rootNamespace(), '\\') . '\Http\Integrations';
+            $rootNamespace = rtrim($this->rootNamespace(), '\\');
+            $appPath = Path::canonicalize($this->hypervel->path());
+            $integrationsPath = $this->integrationsPath();
+
+            if ($integrationsPath === $appPath) {
+                return $rootNamespace;
+            }
+
+            if (! str_starts_with($integrationsPath, $appPath . '/')) {
+                throw new LogicException('The [saloon.integrations_namespace] configuration value is required when the integrations path is outside the application directory.');
+            }
+
+            return $rootNamespace . '\\' . str_replace('/', '\\', substr($integrationsPath, strlen($appPath) + 1));
         }
 
         if (! is_string($namespace) || $namespace === '') {
@@ -164,7 +190,7 @@ abstract class MakeCommand extends GeneratorCommand
      */
     protected function getExistingIntegrations(string $search = ''): array
     {
-        $integrationsPath = $this->config->string('saloon.integrations_path');
+        $integrationsPath = $this->integrationsPath();
 
         if (! $this->files->isDirectory($integrationsPath)) {
             return [];
@@ -201,9 +227,6 @@ abstract class MakeCommand extends GeneratorCommand
             $relativeName = Str::after($name, $this->integrationNamespace() . '\\');
         }
 
-        return rtrim($this->config->string('saloon.integrations_path'), '/\\')
-            . DIRECTORY_SEPARATOR
-            . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativeName)
-            . '.php';
+        return $this->integrationsPath() . '/' . str_replace('\\', '/', $relativeName) . '.php';
     }
 }

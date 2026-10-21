@@ -92,12 +92,11 @@ trait SerializesAndRestoresModelIdentifiers
         )->useWritePdo()->get();
 
         if (is_a($class, Pivot::class, true)
-            || in_array(AsPivot::class, class_uses($class))
+            || isset(class_uses_recursive($class)[AsPivot::class])
         ) {
-            return $collection;
+            return $collection->loadMissing($value->relations ?? []);
         }
 
-        /* @phpstan-ignore-next-line */
         $collection = $collection->keyBy->getKey();
 
         /** @var class-string<EloquentCollection<int, Model>> $collectionClass */
@@ -105,9 +104,9 @@ trait SerializesAndRestoresModelIdentifiers
 
         /** @var EloquentCollection<int, Model> $restoredCollection */
         $restoredCollection = new $collectionClass(
-            SupportCollection::make($value->id)->map(function ($id) use ($collection) {
-                return $collection[$id] ?? null;
-            })->filter()
+            (new SupportCollection($value->id))
+                ->map(fn (mixed $id): ?Model => $collection[$id] ?? null)
+                ->filter()
         );
 
         return $restoredCollection->loadMissing($value->relations ?? []);
@@ -129,6 +128,11 @@ trait SerializesAndRestoresModelIdentifiers
 
     /**
      * Get the query for model restoration.
+     *
+     * @template TModel of Model
+     *
+     * @param TModel $model
+     * @return Builder<TModel>
      */
     protected function getQueryForModelRestoration(Model $model, array|int|string $ids): Builder
     {

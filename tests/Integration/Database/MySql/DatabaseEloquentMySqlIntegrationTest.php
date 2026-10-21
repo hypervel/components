@@ -28,7 +28,7 @@ class DatabaseEloquentMySqlIntegrationTest extends MySqlTestCase
         Schema::drop('database_eloquent_mysql_integration_users');
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $user1 = DatabaseEloquentMySqlIntegrationUser::createOrFirst(['email' => 'taylorotwell@gmail.com']);
 
@@ -61,7 +61,7 @@ class DatabaseEloquentMySqlIntegrationTest extends MySqlTestCase
         $this->assertSame('Nuno Maduro', $user4->name);
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $user1 = DatabaseEloquentMySqlIntegrationUser::createOrFirst(['email' => 'taylor@laravel.com']);
 

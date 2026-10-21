@@ -66,7 +66,7 @@ class FrameDecoderTest extends TestCase
         $decoder = new FrameDecoder(Compression::Identity, 1024);
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage('The gRPC compressed flag must be 0 or 1.');
+        $this->expectExceptionMessageIs('The gRPC compressed flag must be 0 or 1.');
 
         iterator_to_array($decoder->push(pack('CN', 2, 0)));
     }
@@ -92,7 +92,7 @@ class FrameDecoderTest extends TestCase
         $decoder = new FrameDecoder(Compression::Identity, 1024);
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage('A compressed gRPC frame was received without a negotiated encoding.');
+        $this->expectExceptionMessageIs('A compressed gRPC frame was received without a negotiated encoding.');
 
         iterator_to_array($decoder->push(pack('CN', 1, 0)));
     }

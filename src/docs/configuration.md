@@ -14,6 +14,7 @@
 - [Configuration Publishing](#configuration-publishing)
 - [Debug Mode](#debug-mode)
 - [Maintenance Mode](#maintenance-mode)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -204,6 +205,8 @@ To overwrite an existing encrypted environment file, provide the `--force` optio
 php artisan env:encrypt --force
 ```
 
+Readable files can instead be [updated while preserving unchanged values](#updating-readable-environment-files).
+
 To delete the original environment file after writing the encrypted file, provide the `--prune` option:
 
 ```shell
@@ -234,7 +237,24 @@ Using the readable format allows you to see which environment variables exist wi
 When decrypting environment files, Hypervel automatically detects which format was used, so no additional options are needed for the `env:decrypt` command.
 
 > [!NOTE]
-> When using the `--readable` option, comments, and blank lines from the original environment file are not included in the encrypted output.
+> When using the `--readable` option, comments and blank lines from the original environment file are not included in the encrypted output.
+
+<a name="updating-readable-environment-files"></a>
+#### Updating Readable Environment Files
+
+When updating a readable encrypted environment file, Hypervel preserves unchanged values and removes variables that no longer exist in the source environment file:
+
+```shell
+php artisan env:encrypt --readable --key=3UVsEgGVK36XN82KKeyLFMhvosbZN1aF
+```
+
+The encrypted file will be created if it does not exist. When updating an existing file, provide the same encryption key and cipher used to create it. If the file cannot be decrypted, the command will fail without overwriting it.
+
+To encrypt all values again, use the `--force` option. This allows you to change the encryption key or replace an invalid encrypted file:
+
+```shell
+php artisan env:encrypt --readable --force --key=3UVsEgGVK36XN82KKeyLFMhvosbZN1aF
+```
 
 <a name="decryption"></a>
 #### Decryption
@@ -414,6 +434,23 @@ The `retry` option may be specified as a number of seconds or as a date / time s
 php artisan down --retry="tomorrow 14:00"
 ```
 
+You may run the `down` command again to change the maintenance mode options without bringing the application back online. The new options replace the previous ones, so include any options you want to keep, such as `secret` or `redirect`.
+
+<a name="excluding-urls-from-maintenance-mode"></a>
+#### Excluding URLs From Maintenance Mode
+
+You may allow specific URLs during maintenance by configuring the `preventRequestsDuringMaintenance` method in your application's `bootstrap/app.php` file:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->preventRequestsDuringMaintenance(except: [
+        'webhooks/*',
+    ]);
+})
+```
+
 <a name="bypassing-maintenance-mode"></a>
 #### Bypassing Maintenance Mode
 
@@ -504,3 +541,8 @@ php artisan up
 #### Maintenance Mode and Queues
 
 While your application is in maintenance mode, no [queued jobs](/docs/{{version}}/queues) will be handled. The jobs will continue to be handled as normal once the application is out of maintenance mode.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Config began as a port of [Laravel Config](https://github.com/illuminate/config) and has been adapted for Hypervel's framework architecture and coroutine runtime.

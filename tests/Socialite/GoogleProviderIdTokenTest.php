@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
+use Exception;
 use Firebase\JWT\JWT;
+use Firebase\JWT\SignatureInvalidException;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
@@ -20,6 +22,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use ReflectionMethod;
+use UnexpectedValueException;
 
 class GoogleProviderIdTokenTest extends TestCase
 {
@@ -34,6 +37,19 @@ class GoogleProviderIdTokenTest extends TestCase
 
         $this->assertTrue($method->invoke($provider, $this->createSignedToken($key)));
         $this->assertFalse($method->invoke($provider, 'ya29.a0AfH6SMCxyz123456789'));
+    }
+
+    public function testItUsesJwtVerificationForIdTokens(): void
+    {
+        $provider = $this->getProvider();
+        $publishedKey = $this->createRsaKeyPair('current-key');
+        $signingKey = $this->createRsaKeyPair('current-key');
+
+        // The signature failure refreshes the key set once before it is reported.
+        $this->expectJwksResponses($provider, [$publishedKey, $publishedKey]);
+        $this->expectException(SignatureInvalidException::class);
+
+        $provider->userFromToken($this->createSignedToken($signingKey));
     }
 
     #[DataProvider('validIssuerProvider')]
@@ -55,28 +71,6 @@ class GoogleProviderIdTokenTest extends TestCase
             'bare issuer' => ['accounts.google.com'],
             'HTTPS issuer' => ['https://accounts.google.com'],
         ];
-    }
-
-    public function testItRejectsAnInvalidIssuerWithTheNamedException(): void
-    {
-        $provider = $this->getProvider();
-        $key = $this->createRsaKeyPair('current-key');
-
-        $this->expectJwksResponses($provider, [$key]);
-        $this->expectException(InvalidIssuerException::class);
-
-        $provider->userFromToken($this->createSignedToken($key, issuer: 'https://invalid-issuer.example'));
-    }
-
-    public function testItRejectsAnInvalidAudienceWithTheNamedException(): void
-    {
-        $provider = $this->getProvider();
-        $key = $this->createRsaKeyPair('current-key');
-
-        $this->expectJwksResponses($provider, [$key]);
-        $this->expectException(InvalidAudienceException::class);
-
-        $provider->userFromToken($this->createSignedToken($key, audience: 'another-client'));
     }
 
     public function testItAcceptsConfiguredTrustedAudiences(): void
@@ -160,6 +154,39 @@ class GoogleProviderIdTokenTest extends TestCase
         $this->assertSame('Test User', $user->getName());
     }
 
+    #[DataProvider('invalidJwtProvider')]
+    public function testItHandlesInvalidJwtTokens(array $tokenOverrides, Exception $expectedException): void
+    {
+        $provider = $this->getProvider();
+        $key = $this->createRsaKeyPair('current-key');
+
+        $this->expectJwksResponses($provider, [$key]);
+        $this->expectExceptionObject($expectedException);
+
+        $provider->userFromToken($this->createSignedToken($key, ...$tokenOverrides));
+    }
+
+    /**
+     * Get the invalid ID tokens and the exceptions they raise.
+     */
+    public static function invalidJwtProvider(): array
+    {
+        return [
+            'invalid issuer' => [
+                ['issuer' => 'https://invalid-issuer.com'],
+                new InvalidIssuerException,
+            ],
+            'invalid audience' => [
+                ['audience' => 'wrong-client-id'],
+                new InvalidAudienceException,
+            ],
+            'missing key id' => [
+                ['includeKid' => false],
+                new UnexpectedValueException('"kid" empty, unable to lookup correct key'),
+            ],
+        ];
+    }
+
     public function testUserMappingWorksWithIdTokenFormat(): void
     {
         $provider = $this->getProvider();
@@ -181,6 +208,8 @@ class GoogleProviderIdTokenTest extends TestCase
         $this->assertSame('testuser@gmail.com', $user->getEmail());
         $this->assertSame('Test User', $user->getName());
         $this->assertSame('https://lh3.googleusercontent.com/photo.jpg', $user->getAvatar());
+
+        // REMOVED: upstream's raw "id" and "verified_email" assertions; Hypervel omits Laravel's deprecated aliases.
     }
 
     /**
@@ -213,10 +242,14 @@ class GoogleProviderIdTokenTest extends TestCase
             ));
     }
 
+    /**
+     * Create an ID token signed with the given key.
+     */
     private function createSignedToken(
         array $key,
         string $issuer = 'https://accounts.google.com',
         array|string $audience = 'test-client-id',
+        bool $includeKid = true,
     ): string {
         return JWT::encode([
             'iss' => $issuer,
@@ -228,6 +261,6 @@ class GoogleProviderIdTokenTest extends TestCase
             'picture' => 'https://lh3.googleusercontent.com/photo.jpg',
             'iat' => time(),
             'exp' => time() + 3600,
-        ], $key['private'], 'RS256', $key['kid']);
+        ], $key['private'], 'RS256', $includeKid ? $key['kid'] : null);
     }
 }

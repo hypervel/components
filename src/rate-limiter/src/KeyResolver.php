@@ -72,6 +72,12 @@ class KeyResolver
                 . $this->segment('max-attempts', (string) $policy->maxAttempts)
                 . $this->segment('decay-seconds', (string) $policy->decaySeconds)
                 . $this->segment('global', $policy->global ? '1' : '0'),
+            $policy instanceof CalendarWindow => $this->segment('policy', 'calendar-window')
+                . $this->segment('max-attempts', (string) $policy->maxAttempts)
+                . $this->segment('period', $policy->period)
+                . $this->segment('at', $policy->at)
+                . $this->segment('timezone', $policy->timezone)
+                . $this->segment('global', $policy->global ? '1' : '0'),
             $policy instanceof SlidingWindow => $this->segment('policy', 'sliding-window')
                 . $this->segment('max-attempts', (string) $policy->maxAttempts)
                 . $this->segment('window-seconds', (string) $policy->windowSeconds)

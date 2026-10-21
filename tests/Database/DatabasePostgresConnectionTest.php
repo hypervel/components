@@ -11,7 +11,7 @@ use PDO;
 
 class DatabasePostgresConnectionTest extends TestCase
 {
-    public function testPrepareBindingsConvertsBooleansToPostgresLiteralsWhenEmulatedPreparesAreEnabled(): void
+    public function testBooleanBindingsAreStringifiedWhenUsingEmulatedPrepares(): void
     {
         $connection = $this->newConnection(emulatePrepares: true);
 
@@ -28,38 +28,14 @@ class DatabasePostgresConnectionTest extends TestCase
         ], $bindings);
     }
 
-    public function testPrepareBindingsConvertsBooleansForTruthyEmulatedPreparesConfiguration(): void
+    public function testBooleanBindingsAreStringifiedWhenUsingTruthyEmulatedPreparesOption(): void
     {
         $connection = $this->newConnection(emulatePrepares: 1);
 
         $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
     }
 
-    public function testPrepareBindingsUsesActiveReadConnectionConfiguration(): void
-    {
-        $connection = $this->newConnection(emulatePrepares: false, readWriteType: 'read');
-        $connection->setReadPdoConfig([
-            'options' => [
-                PDO::ATTR_EMULATE_PREPARES => true,
-            ],
-        ]);
-
-        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
-    }
-
-    public function testPrepareBindingsUsesWriteConnectionConfiguration(): void
-    {
-        $connection = $this->newConnection(emulatePrepares: true, readWriteType: 'write');
-        $connection->setReadPdoConfig([
-            'options' => [
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ],
-        ]);
-
-        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
-    }
-
-    public function testPrepareBindingsFallsBackToDefaultBooleanCastingWhenEmulatedPreparesAreDisabled(): void
+    public function testBooleanBindingsUseDefaultIntegerConversionWhenNotUsingEmulatedPrepares(): void
     {
         $connection = $this->newConnection(emulatePrepares: false);
 
@@ -76,6 +52,34 @@ class DatabasePostgresConnectionTest extends TestCase
         ], $bindings);
     }
 
+    public function testBooleanBindingsUseReadPdoConfigWhenReadConnectionIsActive(): void
+    {
+        $connection = $this->newConnection(emulatePrepares: false);
+        $connection->setReadPdoConfig([
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => true,
+            ],
+        ]);
+        $connection->setReadWriteType('read');
+
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
+    // REMOVED: Direct PDO configuration; use a separate named connection for that endpoint.
+
+    public function testPrepareBindingsUsesWriteConnectionConfiguration(): void
+    {
+        $connection = $this->newConnection(emulatePrepares: true);
+        $connection->setReadPdoConfig([
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ],
+        ]);
+        $connection->setReadWriteType('write');
+
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
     public function testEscapeUsesPostgresBooleanLiterals(): void
     {
         $connection = $this->newConnection(emulatePrepares: true);
@@ -84,7 +88,10 @@ class DatabasePostgresConnectionTest extends TestCase
         $this->assertSame('false', $connection->escape(false));
     }
 
-    protected function newConnection(bool|int $emulatePrepares, ?string $readWriteType = null): PostgresConnection
+    /**
+     * Create a connection with the configured prepare mode.
+     */
+    protected function newConnection(bool|int $emulatePrepares): PostgresConnection
     {
         return new PostgresConnection(
             new DatabasePostgresConnectionPdoStub,
@@ -93,7 +100,6 @@ class DatabasePostgresConnectionTest extends TestCase
             [
                 'name' => 'test',
                 'driver' => 'pgsql',
-                PostgresConnection::READ_WRITE_TYPE_CONFIG_KEY => $readWriteType,
                 'options' => [
                     PDO::ATTR_EMULATE_PREPARES => $emulatePrepares,
                 ],

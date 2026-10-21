@@ -8,7 +8,6 @@ use Hypervel\Console\GeneratorCommand;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\suggest;
@@ -17,9 +16,12 @@ use function Hypervel\Prompts\suggest;
 class ObserverMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:observer';
+    protected ?string $signature = 'make:observer
+                    {name : The name of the observer}
+                    {--f|force : Create the class even if the observer already exists}
+                    {--m|model= : The model that the observer applies to}';
 
     /**
      * The console command description.
@@ -109,17 +111,6 @@ class ObserverMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Observers';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the observer already exists'],
-            ['model', 'm', InputOption::VALUE_OPTIONAL, 'The model that the observer applies to'],
-        ];
     }
 
     /**

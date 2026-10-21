@@ -8,7 +8,7 @@ use Hypervel\Support\Facades\DB;
 
 class RefreshCommandTest extends DatabaseTestCase
 {
-    public function testRefreshWithoutRealpath()
+    public function testRefreshWithoutRealpath(): void
     {
         $this->app->setBasePath(__DIR__);
 
@@ -19,7 +19,7 @@ class RefreshCommandTest extends DatabaseTestCase
         $this->migrateRefreshWith($options);
     }
 
-    public function testRefreshWithRealpath()
+    public function testRefreshWithRealpath(): void
     {
         $options = [
             '--path' => realpath(__DIR__ . '/Fixtures/'),

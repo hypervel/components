@@ -25,7 +25,7 @@ class DatabaseMariaDbQueryGrammarTest extends TestCase
     public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
+        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
         $grammar = new MariaDbGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(

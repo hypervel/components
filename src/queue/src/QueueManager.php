@@ -12,13 +12,20 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
-use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\QueuePaused;
 use Hypervel\Queue\Events\QueueResumed;
 use Hypervel\Queue\Events\QueuesPaused;
 use Hypervel\Queue\Events\QueuesResumed;
+use Hypervel\Queue\Events\WorkerStarting;
+use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
@@ -27,7 +34,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Queue\Queue
+ * @mixin QueueContract
  */
 class QueueManager implements FactoryContract, MonitorContract
 {
@@ -81,7 +88,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function before(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobProcessing::class, $callback);
+            ->listen(JobProcessing::class, $callback);
     }
 
     /**
@@ -93,7 +100,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function after(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobProcessed::class, $callback);
+            ->listen(JobProcessed::class, $callback);
     }
 
     /**
@@ -105,7 +112,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function exceptionOccurred(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobExceptionOccurred::class, $callback);
+            ->listen(JobExceptionOccurred::class, $callback);
     }
 
     /**
@@ -117,7 +124,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function looping(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\Looping::class, $callback);
+            ->listen(Looping::class, $callback);
     }
 
     /**
@@ -129,7 +136,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function failing(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobFailed::class, $callback);
+            ->listen(JobFailed::class, $callback);
     }
 
     /**
@@ -141,7 +148,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function starting(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\WorkerStarting::class, $callback);
+            ->listen(WorkerStarting::class, $callback);
     }
 
     /**
@@ -153,7 +160,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function stopping(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\WorkerStopping::class, $callback);
+            ->listen(WorkerStopping::class, $callback);
     }
 
     /**
@@ -170,10 +177,35 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Pause a queue by its connection and name.
+     * Forward the given queue to another queue and/or connection.
+     *
+     * Boot-only. Forwards persist on the singleton QueueRoutes registry for
+     * the worker lifetime and affect every subsequent dispatch and queue operation.
+     *
+     * @param array<array-key, string|UnitEnum>|string|UnitEnum $queue
      */
-    public function pause(string $connection, string $queue): void
+    public function forward(array|string|UnitEnum $queue, UnitEnum|string|null $to = null, UnitEnum|string|null $connection = null): void
     {
+        $this->queueRoutes()->forward($queue, $to, $connection);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
+    }
+
+    /**
+     * Pause a queue by its name and connection.
+     */
+    public function pause(UnitEnum|string $queue, UnitEnum|string|null $connection = null): void
+    {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -188,10 +220,14 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Pause a queue by its connection and name for a given amount of time.
+     * Pause a queue by its name and connection for a given amount of time.
      */
-    public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
+    public function pauseFor(UnitEnum|string $queue, DateInterval|DateTimeInterface|int $ttl, UnitEnum|string|null $connection = null): void
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -224,10 +260,14 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Resume a paused queue by its connection and name.
+     * Resume a paused queue by its name and connection.
      */
-    public function resume(string $connection, string $queue): void
+    public function resume(UnitEnum|string $queue, UnitEnum|string|null $connection = null): void
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -264,8 +304,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine if a queue is paused.
      */
-    public function isPaused(string $connection, string $queue): bool
+    public function isPaused(string $queue, ?string $connection = null): bool
     {
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $cache = $this->app->make('cache')->store();
 
@@ -276,8 +318,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine which of the given queues are currently paused.
      */
-    public function getPausedQueues(string $connection, array $queues): array
+    public function getPausedQueues(array $queues, ?string $connection = null): array
     {
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
+
         $cache = $this->app->make('cache')->store();
 
         // Keep the global key separate: cluster proxies may reject cross-slot batches.
@@ -300,6 +344,8 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Indicate that queue workers should not poll for restart or pause signals.
+     *
+     * This prevents the workers from hitting the application cache to determine if they need to pause or restart.
      *
      * Boot-only. Mutates process-global worker flags; runtime use races across
      * coroutines and changes every concurrent worker pause or restart check.
@@ -329,7 +375,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Resolve a queue connection instance.
      */
-    public function connection(UnitEnum|string|null $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): QueueContract
     {
         if ($name instanceof UnitEnum) {
             $name = (string) enum_value($name);
@@ -354,7 +400,7 @@ class QueueManager implements FactoryContract, MonitorContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name): Queue
+    protected function resolve(string $name): QueueContract
     {
         $config = $this->getConfig($name);
 
@@ -543,9 +589,21 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Register a callback to be executed when creating job payloads.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent payload creation across all
+     * coroutines. Passing null clears the registry.
+     */
+    public function createPayloadUsing(?callable $callback): void
+    {
+        Queue::createPayloadUsing($callback);
+    }
+
+    /**
      * Dynamically pass calls to the default connection.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->connection()->{$method}(...$parameters);
     }

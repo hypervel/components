@@ -44,7 +44,7 @@ class ServeFile
                 // The contract omits adapter response methods, which every shipped disk provides.
                 // @phpstan-ignore method.notFound
                 $disk->serve($request, $path, headers: $headers),
-                function ($response) use ($headers) {
+                function (Response $response) use ($headers): void {
                     if (! $response->headers->has('Content-Security-Policy')) {
                         $response->headers->replace($headers);
                     }
@@ -60,7 +60,8 @@ class ServeFile
      */
     protected function hasValidSignature(Request $request): bool
     {
-        return ! $request->boolean('upload') && (
+        // The upload flag belongs to the signed query, not the request body.
+        return ! filter_var($request->query('upload'), FILTER_VALIDATE_BOOLEAN) && (
             ($this->config['visibility'] ?? 'private') === 'public'
             || $request->hasValidRelativeSignature()
         );

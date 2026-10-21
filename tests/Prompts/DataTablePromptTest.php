@@ -6,16 +6,39 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\DataTablePrompt;
 use Hypervel\Prompts\Key;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\DataTableRenderer;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
+use Symfony\Component\Console\Formatter\OutputFormatterStyle;
 
 use function Hypervel\Prompts\datatable;
 
 class DataTablePromptTest extends TestCase
 {
+    public function testCustomStyledCellsAreMeasuredAndTruncatedAsVisibleText(): void
+    {
+        Prompt::fake([Key::ENTER]);
+        Prompt::terminal()->shouldReceive('cols')->andReturn(30); // @phpstan-ignore-line
+        $output = new BufferedConsoleOutput(decorated: true);
+        $output->getFormatter()->setStyle('warning', new OutputFormatterStyle('yellow'));
+        Prompt::setOutput($output);
+
+        $prompt = new DataTablePrompt(headers: ['Name'], rows: [['<warning>OK'], ['</info><warning>' . str_repeat('A', 40) . '</warning>']], scroll: 2);
+        $this->assertSame(['columns' => 1, 'widths' => [40]], $prompt->naturalColumnMetrics());
+        $prompt->prompt();
+
+        $content = Prompt::content();
+        $visible = Utils::stripTerminalControls($content);
+        $this->assertStringContainsString('OK', $visible);
+        $this->assertMatchesRegularExpression('/A+…/', $visible);
+        $this->assertStringNotContainsString('<warning', $content);
+        $this->assertStringNotContainsString('</warning', $content);
+        $this->assertStringContainsString("\e[33m", $content);
+    }
+
     public function testHelperRendersEmptyTableInActiveAndCancelStates(): void
     {
         Prompt::fake([Key::CTRL_C]);
@@ -38,7 +61,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertOutputContains('Cancelled.');
     }
 
-    public function testRendersTableWithHeadersAndSearchLine()
+    public function testRendersTableWithHeadersAndSearchLine(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -60,7 +83,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Bob');
     }
 
-    public function testReturnsIndexForListArrays()
+    public function testReturnsIndexForListArrays(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -78,7 +101,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testReturnsKeyForAssociativeArrays()
+    public function testReturnsKeyForAssociativeArrays(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -96,7 +119,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('b', $result);
     }
 
-    public function testNavigatesWithArrowKeys()
+    public function testNavigatesWithArrowKeys(): void
     {
         Prompt::fake([Key::DOWN, Key::DOWN, Key::UP, Key::ENTER]);
 
@@ -114,7 +137,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('b', $result);
     }
 
-    public function testWrapsAroundWhenNavigatingPastEnd()
+    public function testWrapsAroundWhenNavigatingPastEnd(): void
     {
         Prompt::fake([Key::UP, Key::ENTER]);
 
@@ -132,7 +155,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('c', $result);
     }
 
-    public function testSupportsPageUpAndPageDown()
+    public function testSupportsPageUpAndPageDown(): void
     {
         Prompt::fake([Key::PAGE_DOWN, Key::ENTER]);
 
@@ -153,7 +176,18 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('d', $result);
     }
 
-    public function testSupportsHomeAndEndKeys()
+    public function testPageDownWithoutMatchingRowsKeepsTheHighlightInRange(): void
+    {
+        $prompt = new DataTablePrompt(rows: [['Alice'], ['Bob'], ['Charlie']], scroll: 2);
+
+        foreach (['/', 'z', Key::ENTER, Key::PAGE_DOWN, '/'] as $key) {
+            $prompt->emit('key', $key);
+        }
+
+        $this->assertSame([0 => ['Alice'], 1 => ['Bob']], $prompt->visible());
+    }
+
+    public function testSupportsHomeAndEndKeys(): void
     {
         Prompt::fake([Key::END[0], Key::ENTER]);
 
@@ -169,9 +203,24 @@ class DataTablePromptTest extends TestCase
         );
 
         $this->assertSame('c', $result);
+
+        Prompt::fake([Key::DOWN, Key::DOWN, Key::HOME[0], Key::ENTER]);
+
+        $result = datatable(
+            label: 'Pick one',
+            headers: ['Name'],
+            rows: [
+                'a' => ['Alice'],
+                'b' => ['Bob'],
+                'c' => ['Charlie'],
+            ],
+            scroll: 5,
+        );
+
+        $this->assertSame('a', $result);
     }
 
-    public function testEntersSearchModeWithSlashAndFiltersRows()
+    public function testEntersSearchModeWithSlashAndFiltersRows(): void
     {
         Prompt::fake(['/', 'b', 'o', Key::ENTER, Key::ENTER]);
 
@@ -188,7 +237,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('b', $result);
     }
 
-    public function testReturnsOriginalKeyAfterFilteringListArray()
+    public function testReturnsOriginalKeyAfterFilteringListArray(): void
     {
         Prompt::fake(['/', 'c', 'h', Key::ENTER, Key::ENTER]);
 
@@ -207,7 +256,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame(2, $result);
     }
 
-    public function testCancelsSearchWithEscape()
+    public function testCancelsSearchWithEscape(): void
     {
         Prompt::fake(['/', 'x', 'y', 'z', Key::ESCAPE, Key::ENTER]);
 
@@ -225,7 +274,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('a', $result);
     }
 
-    public function testShowsNoResultsMessageWhenSearchMatchesNothing()
+    public function testShowsNoResultsMessageWhenSearchMatchesNothing(): void
     {
         Prompt::fake(['/', 'z', 'z', 'z', Key::ESCAPE, Key::ENTER]);
 
@@ -242,7 +291,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('No results found.');
     }
 
-    public function testRendersColumnAwareBorders()
+    public function testRendersColumnAwareBorders(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -261,7 +310,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('┴');
     }
 
-    public function testShowsSimpleBordersWhenNoResults()
+    public function testShowsSimpleBordersWhenNoResults(): void
     {
         Prompt::fake(['/', 'z', 'z', 'z', Key::ESCAPE, Key::ENTER]);
 
@@ -274,12 +323,19 @@ class DataTablePromptTest extends TestCase
             scroll: 5,
         );
 
-        $content = Prompt::strippedContent();
+        // When showing "No results found", the border should not have column separators
+        $lines = explode("\n", Prompt::strippedContent());
+        $messageLines = array_keys(array_filter($lines, fn (string $line): bool => str_contains($line, 'No results found.')));
 
-        $this->assertStringContainsString('No results found.', $content);
+        $this->assertNotSame([], $messageLines);
+
+        $border = $lines[max($messageLines) - 1];
+
+        $this->assertStringContainsString('├', $border);
+        $this->assertStringNotContainsString('┬', $border);
     }
 
-    public function testShowsViewingInfoOnlyWhenScrollingNeeded()
+    public function testShowsViewingInfoOnlyWhenScrollingNeeded(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -297,7 +353,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputDoesntContain('Viewing');
     }
 
-    public function testShowsViewingInfoWhenMoreRowsThanScroll()
+    public function testShowsViewingInfoWhenMoreRowsThanScroll(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -321,7 +377,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('6');
     }
 
-    public function testHandlesMultilineCells()
+    public function testHandlesMultilineCells(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -340,7 +396,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Alice');
     }
 
-    public function testKeepsHighlightedMultilineRowFullyVisible()
+    public function testKeepsHighlightedMultilineRowFullyVisible(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -361,7 +417,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Developer');
     }
 
-    public function testUsesComfortableWidthAndDoesNotStretchToTerminal()
+    public function testUsesComfortableWidthAndDoesNotStretchToTerminal(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -383,7 +439,7 @@ class DataTablePromptTest extends TestCase
         $this->assertLessThan(70, $maxLen);
     }
 
-    public function testHandlesOutlierColumnWidthsGracefully()
+    public function testHandlesOutlierColumnWidthsGracefully(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -409,7 +465,7 @@ class DataTablePromptTest extends TestCase
         $this->assertLessThan(76, $maxLen);
     }
 
-    public function testSupportsCustomFilterClosure()
+    public function testSupportsCustomFilterClosure(): void
     {
         Prompt::fake(['/', 'a', Key::ENTER, Key::ENTER]);
 
@@ -428,7 +484,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('x', $result);
     }
 
-    public function testRendersCancelStateWithStrikethroughData()
+    public function testRendersCancelStateWithStrikethroughData(): void
     {
         Prompt::fake([Key::CTRL_C]);
 
@@ -442,10 +498,11 @@ class DataTablePromptTest extends TestCase
             scroll: 5,
         );
 
+        Prompt::assertOutputContains("\e[9mAlice");
         Prompt::assertOutputContains('Cancelled.');
     }
 
-    public function testRendersSubmitStateWithSelectedRow()
+    public function testRendersSubmitStateWithSelectedRow(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);
 
@@ -462,7 +519,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Bob, Developer');
     }
 
-    public function testScrollsAndShowsScrollbarWhenNeeded()
+    public function testScrollsAndShowsScrollbarWhenNeeded(): void
     {
         Prompt::fake([Key::DOWN, Key::DOWN, Key::DOWN, Key::ENTER]);
 
@@ -485,7 +542,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertOutputContains('┃');
     }
 
-    public function testWorksWithoutHeaders()
+    public function testWorksWithoutHeaders(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -503,7 +560,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Designer');
     }
 
-    public function testDimsRowsDuringSearch()
+    public function testDimsRowsDuringSearch(): void
     {
         Prompt::fake(['/', Key::ESCAPE, Key::ENTER]);
 
@@ -518,11 +575,10 @@ class DataTablePromptTest extends TestCase
         );
 
         // During search state, rows should be dimmed
-        // We just verify the search mode was entered and exited cleanly
-        Prompt::assertStrippedOutputContains('Alice');
+        Prompt::assertOutputContains("\e[2m Alice");
     }
 
-    public function testHandlesBlankCellsInWidthCalculation()
+    public function testHandlesBlankCellsInWidthCalculation(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -543,7 +599,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Charlie');
     }
 
-    public function testRendersSearchLineInCancelStateToPreventLayoutShift()
+    public function testRendersSearchLineInCancelStateToPreventLayoutShift(): void
     {
         Prompt::fake([Key::CTRL_C]);
 
@@ -561,7 +617,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertOutputContains('Cancelled.');
     }
 
-    public function testMaintainsFixedVisualHeight()
+    public function testMaintainsFixedVisualHeight(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -576,26 +632,19 @@ class DataTablePromptTest extends TestCase
         );
 
         // Even with only 2 rows, the data area should be padded to scroll height (5 lines)
-        $content = Prompt::strippedContent();
+        $lines = explode("\n", Prompt::strippedContent());
 
-        // Count lines between the header separator (┼ or ┬) and bottom border (┴)
-        $lines = explode("\n", $content);
-        $dataStart = null;
-        $dataEnd = null;
+        // Count lines between the first frame's header separator and its bottom border
+        $dataEnd = array_find_key($lines, fn (string $line): bool => str_contains($line, '└'));
 
-        foreach ($lines as $i => $line) {
-            if (str_contains($line, '┼') || (str_contains($line, '┬') && $dataStart === null)) {
-                $dataStart = $i;
-            }
-            if (str_contains($line, '┴')) {
-                $dataEnd = $i;
-            }
-        }
+        $this->assertNotNull($dataEnd);
 
-        if ($dataStart !== null && $dataEnd !== null) {
-            $dataLineCount = $dataEnd - $dataStart - 1;
-            $this->assertSame(5, $dataLineCount);
-        }
+        $separators = array_filter(
+            array_slice($lines, 0, $dataEnd, preserve_keys: true),
+            fn (string $line): bool => str_contains($line, '├'),
+        );
+
+        $this->assertSame(5, $dataEnd - array_key_last($separators) - 1);
     }
 
     public function testRestoresBrowseStateAfterANonRevertibleError(): void

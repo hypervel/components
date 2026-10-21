@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ExtensionTest extends TestCase
 {
-    public function testExtensionLoaded()
+    public function testExtensionLoaded(): void
     {
         $this->assertTrue(Extension::isLoaded());
     }

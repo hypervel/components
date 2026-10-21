@@ -7,12 +7,13 @@ namespace Hypervel\Tests\Integration\Horizon\Controller;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use Mockery as m;
 
 class MonitoringControllerTest extends ControllerTestCase
 {
-    public function testMonitoredTagsAndJobCountsAreReturned()
+    public function testMonitoredTagsAndJobCountsAreReturned(): void
     {
         $tags = m::mock(TagRepository::class);
 
@@ -24,7 +25,7 @@ class MonitoringControllerTest extends ControllerTestCase
 
         $this->app->instance(TagRepository::class, $tags);
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/monitoring');
 
         $response->assertJson([
@@ -33,7 +34,7 @@ class MonitoringControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testMonitoredJobsCanBePaginatedByTag()
+    public function testMonitoredJobsCanBePaginatedByTag(): void
     {
         $tags = resolve(TagRepository::class);
         $jobs = resolve(JobRepository::class);
@@ -48,7 +49,7 @@ class MonitoringControllerTest extends ControllerTestCase
         }
 
         // Paginate first set...
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/monitoring/tag?tag=tag');
 
         $results = $response->json('jobs');
@@ -58,7 +59,7 @@ class MonitoringControllerTest extends ControllerTestCase
         $this->assertSame('25', $results[24]['id']);
 
         // Paginate second set...
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/monitoring/tag?starting_at=25&tag=tag');
 
         $results = $response->json('jobs');
@@ -70,7 +71,7 @@ class MonitoringControllerTest extends ControllerTestCase
         $this->assertSame(49, $results[24]['index']);
     }
 
-    public function testCanPaginateWhereJobsDontExist()
+    public function testCanPaginateWhereJobsDontExist(): void
     {
         $tags = resolve(TagRepository::class);
 
@@ -78,23 +79,23 @@ class MonitoringControllerTest extends ControllerTestCase
             $tags->add((string) $i, ['tag']);
         }
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/monitoring/tag?starting_at=1000');
 
         $this->assertCount(0, $response->json('jobs'));
     }
 
-    public function testCanStartMonitoringTags()
+    public function testCanStartMonitoringTags(): void
     {
         $tags = resolve(TagRepository::class);
 
-        $this->actingAs(new Fakes\User)
+        $this->actingAs(new User)
             ->post('/horizon/api/monitoring', ['tag' => 'taylor']);
 
         $this->assertEquals(['taylor'], $tags->monitoring());
     }
 
-    public function testCanStopMonitoringTags()
+    public function testCanStopMonitoringTags(): void
     {
         $tags = resolve(TagRepository::class);
         $jobs = resolve(JobRepository::class);
@@ -108,11 +109,11 @@ class MonitoringControllerTest extends ControllerTestCase
             ));
         }
 
-        $this->actingAs(new Fakes\User)
+        $this->actingAs(new User)
             ->delete('/horizon/api/monitoring/tag');
 
         // Ensure monitored jobs were deleted...
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/monitoring/tag?tag=tag');
 
         $results = $response->json('jobs');

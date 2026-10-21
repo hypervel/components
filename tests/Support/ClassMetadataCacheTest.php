@@ -74,6 +74,19 @@ class ClassMetadataCacheTest extends TestCase
         $this->assertSame(ClassMetadataCacheAttributedFixture::class, $first?->declaringClass->getName());
     }
 
+    public function testTraitMembershipIncludesNestedAndInheritedTraitsWithoutCachingMisses(): void
+    {
+        $fixture = new ClassMetadataCacheInheritedTraitFixture;
+
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture, ClassMetadataCacheTrait::class));
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture::class, ClassMetadataCacheNestedTrait::class));
+        $this->assertTrue(ClassMetadataCache::usesTrait($fixture, ClassMetadataCacheLeafTrait::class));
+        $traits = $this->staticProperty('traits');
+        $this->assertFalse(ClassMetadataCache::usesTrait($fixture, RuntimeException::class));
+        $this->assertSame($traits, $this->staticProperty('traits'));
+        $this->assertFalse(ClassMetadataCache::usesTrait(ClassMetadataCacheFixture::class, ClassMetadataCacheTrait::class));
+    }
+
     public function testMissingClassAttributeIsCachedAsNull(): void
     {
         $this->assertNull(ClassMetadataCache::getAttribute(ClassMetadataCacheFixture::class, ClassMetadataCacheAttribute::class));
@@ -130,7 +143,20 @@ class ClassMetadataCacheTest extends TestCase
         $classAttributePresence = $this->staticProperty('classAttributePresence');
 
         $this->assertArrayHasKey(ClassMetadataCacheAttribute::class, $classAttributePresence[ClassMetadataCacheChildFixture::class]);
-        $this->assertFalse($classAttributePresence[ClassMetadataCacheChildFixture::class][ClassMetadataCacheAttribute::class]);
+        $this->assertFalse($classAttributePresence[ClassMetadataCacheChildFixture::class][ClassMetadataCacheAttribute::class][0]);
+    }
+
+    public function testInheritedClassAttributePresenceIsCachedSeparately(): void
+    {
+        $this->assertFalse(ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class));
+        $this->assertTrue(ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class, ascend: true));
+        $this->assertFalse(ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class));
+        $this->assertFalse(ClassMetadataCache::hasClassAttribute(ClassMetadataCacheTraitFixture::class, ClassMetadataCacheAttribute::class, ascend: true));
+
+        $classAttributePresence = $this->staticProperty('classAttributePresence');
+
+        $this->assertSame([false, true], $classAttributePresence[ClassMetadataCacheChildFixture::class][ClassMetadataCacheAttribute::class]);
+        $this->assertFalse($classAttributePresence[ClassMetadataCacheTraitFixture::class][ClassMetadataCacheAttribute::class][1]);
     }
 
     public function testPropertyAttributePresenceIsCached(): void
@@ -169,11 +195,14 @@ class ClassMetadataCacheTest extends TestCase
 
         ClassMetadataCache::getAttribute(ClassMetadataCacheAttributedFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheParentFixture::class, ClassMetadataCacheAttribute::class);
+        ClassMetadataCache::hasClassAttribute(ClassMetadataCacheChildFixture::class, ClassMetadataCacheAttribute::class, ascend: true);
+        ClassMetadataCache::usesTrait(ClassMetadataCacheTraitFixture::class, ClassMetadataCacheTrait::class);
         ClassMetadataCache::flushState();
 
         $this->assertSame([], $this->staticProperty('methods'));
         $this->assertSame([], $this->staticProperty('attributes'));
         $this->assertSame([], $this->staticProperty('classAttributePresence'));
+        $this->assertSame([], $this->staticProperty('traits'));
 
         $classAfter = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
         $methodAfter = ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'greet');
@@ -213,6 +242,9 @@ class ClassMetadataCacheFixture
 {
     public string $name = 'hypervel';
 
+    /**
+     * Return a greeting.
+     */
     public function greet(): string
     {
         return 'hello';
@@ -243,6 +275,20 @@ class ClassMetadataCacheTraitFixture
     use ClassMetadataCacheTrait;
 }
 
+trait ClassMetadataCacheLeafTrait
+{
+}
+
+trait ClassMetadataCacheNestedTrait
+{
+    use ClassMetadataCacheLeafTrait;
+}
+
+class ClassMetadataCacheInheritedTraitFixture extends ClassMetadataCacheTraitFixture
+{
+    use ClassMetadataCacheNestedTrait;
+}
+
 class ClassMetadataCachePropertyFixture
 {
     #[ClassMetadataCachePropertyAttribute]
@@ -268,6 +314,9 @@ class ClassMetadataCacheErrorFixture
 #[Attribute(Attribute::TARGET_CLASS)]
 readonly class ClassMetadataCacheAttribute
 {
+    /**
+     * Create an attribute with the given value.
+     */
     public function __construct(
         public string $value,
     ) {
@@ -282,6 +331,9 @@ readonly class ClassMetadataCachePropertyAttribute
 #[Attribute(Attribute::TARGET_CLASS)]
 readonly class ClassMetadataCacheExceptionAttribute
 {
+    /**
+     * Throw an exception while constructing the attribute.
+     */
     public function __construct()
     {
         throw new RuntimeException('Cached as null.');
@@ -291,6 +343,9 @@ readonly class ClassMetadataCacheExceptionAttribute
 #[Attribute(Attribute::TARGET_CLASS)]
 readonly class ClassMetadataCacheErrorAttribute
 {
+    /**
+     * Throw an error while constructing the attribute.
+     */
     public function __construct()
     {
         throw new Error('Uncached attribute error.');

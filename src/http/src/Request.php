@@ -7,7 +7,9 @@ namespace Hypervel\Http;
 use ArrayAccess;
 use Closure;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Routing\Route;
 use Hypervel\Session\SymfonySessionDecorator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
@@ -93,6 +95,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      * The user resolver callback.
      */
     protected ?Closure $userResolver = null;
+
+    /**
+     * The default user resolver callback.
+     */
+    protected static ?Closure $defaultUserResolver = null;
 
     /**
      * The route resolver callback.
@@ -299,7 +306,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      *
      * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
-    public static function createFromGlobals(): static
+    public static function createFromGlobals(): never
     {
         throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
     }
@@ -786,6 +793,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $this->headers->get('User-Agent');
     }
 
+    /**
+     * Get the content types accepted by the request.
+     */
     #[Override]
     public function getAcceptableContentTypes(): array
     {
@@ -807,10 +817,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function merge(array $input): static
     {
-        return tap($this, function (Request $request) use ($input) {
+        return tap($this, function (Request $request) use ($input): void {
             $request->getInputSource()
                 ->replace((new Collection($input))->reduce(
-                    fn ($requestInput, $value, $key) => data_set($requestInput, $key, $value),
+                    function (array $requestInput, mixed $value, int|string $key): array {
+                        Arr::set($requestInput, $key, $value);
+
+                        return $requestInput;
+                    },
                     $this->getInputSource()->all()
                 ));
         });
@@ -947,6 +961,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $newRequest;
     }
 
+    /**
+     * Duplicate the request with the given parameters.
+     */
     #[Override]
     public function duplicate(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null): static
     {
@@ -957,7 +974,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      * Clone the current request.
      */
     #[Override]
-    public function __clone()
+    public function __clone(): void
     {
         parent::__clone();
 
@@ -1156,6 +1173,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     }
 
     /**
+     * Determine if the request has an attached session.
+     *
      * @phpstan-assert-if-true SymfonySessionDecorator $this->session
      */
     #[Override]
@@ -1164,6 +1183,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $this->session instanceof SymfonySessionDecorator;
     }
 
+    /**
+     * Get the Symfony session decorator for the request.
+     *
+     * @throws SessionNotFoundException
+     */
     #[Override]
     public function getSession(): SessionInterface
     {
@@ -1175,7 +1199,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Get the session associated with the request.
      *
-     * @return \Hypervel\Contracts\Session\Session
+     * @return Session
      *
      * @throws RuntimeException
      */
@@ -1191,7 +1215,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Set the session instance on the request.
      *
-     * @param \Hypervel\Contracts\Session\Session $session
+     * @param Session $session
      */
     public function setHypervelSession($session): void
     {
@@ -1225,7 +1249,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Get the route handling the request.
      *
-     * @return ($param is null ? null|\Hypervel\Routing\Route : null|object|string)
+     * @return ($param is null ? null|Route : null|object|string)
      */
     public function route(?string $param = null, mixed $default = null): mixed
     {
@@ -1279,7 +1303,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function getUserResolver(): Closure
     {
-        return $this->userResolver ?: function () {
+        return $this->userResolver ?? static::$defaultUserResolver ?? function () {
         };
     }
 
@@ -1293,6 +1317,17 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         $this->userResolver = $callback;
 
         return $this;
+    }
+
+    /**
+     * Set the default user resolver callback.
+     *
+     * Boot-only. The callback persists for the worker lifetime and applies to
+     * every request without an instance-specific user resolver.
+     */
+    public static function setDefaultUserResolver(Closure $callback): void
+    {
+        static::$defaultUserResolver = $callback;
     }
 
     /**
@@ -1369,6 +1404,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         static::$formats = null;
         static::$httpMethodParameterOverride = false;
         static::$allowedHttpMethodOverride = null;
+        static::$defaultUserResolver = null;
 
         // Symfony keeps the factory slot private, so reset it through the inherited setter.
         static::setFactory(null);

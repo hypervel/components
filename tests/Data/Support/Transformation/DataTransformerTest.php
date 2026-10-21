@@ -24,7 +24,9 @@ use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
+use Hypervel\Data\Exceptions\CannotPerformPartialOnDataField;
 use Hypervel\Data\Exceptions\CannotTransformData;
+use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
@@ -40,6 +42,8 @@ use Hypervel\Inertia\DeferProp;
 use Hypervel\Inertia\OptionalProp;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Pagination\Paginator;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use ReflectionProperty;
 use RuntimeException;
@@ -47,8 +51,6 @@ use Traversable;
 
 class DataTransformerTest extends TestCase
 {
-    // REMOVED: SerializeTransformer tests; native PHP serialization owns object serialization.
-
     /**
      * Get package providers for the transformation test application.
      */
@@ -173,12 +175,13 @@ class DataTransformerTest extends TestCase
     }
 
     /**
-     * Test nested paginator properties retain native metadata.
+     * Test nested paginator properties transform into their items, links, and metadata.
      */
-    public function testTransformsNestedOffsetAndCursorPaginatorsWithMetadata(): void
+    public function testTransformsNestedPaginatorsWithLinksAndMetadata(): void
     {
         $offsetItem = new PaginatorItemData(1, 'offset');
         $cursorItem = new PaginatorItemData(2, 'cursor');
+        $simpleItem = new PaginatorItemData(4, 'simple');
         $offset = new LengthAwarePaginator(
             [$offsetItem],
             12,
@@ -195,25 +198,76 @@ class DataTransformerTest extends TestCase
                 'parameters' => ['id'],
             ],
         );
+        $simple = new Paginator(
+            [$simpleItem, new PaginatorItemData(5, 'more')],
+            1,
+            3,
+            ['path' => '/simple'],
+        );
 
-        $transformed = (new PaginatorOwnerData($offset, $cursor))->toArray();
+        $transformed = (new PaginatorOwnerData($offset, $cursor, $simple))->toArray();
 
+        $this->assertSame([['id' => 1, 'label_text' => 'offset']], $transformed['offset']['data']);
+        $this->assertCount(5, $transformed['offset']['links']);
         $this->assertSame([
-            'id' => 1,
-            'label_text' => 'offset',
-        ], $transformed['offset']['data'][0]);
-        $this->assertSame(2, $transformed['offset']['current_page']);
-        $this->assertSame(12, $transformed['offset']['total']);
-        $this->assertSame('/offset', $transformed['offset']['path']);
+            'current_page' => 2,
+            'first_page_url' => '/offset?tenant=one&page=1',
+            'from' => 6,
+            'last_page' => 3,
+            'last_page_url' => '/offset?tenant=one&page=3',
+            'next_page_url' => '/offset?tenant=one&page=3',
+            'path' => '/offset',
+            'per_page' => 5,
+            'prev_page_url' => '/offset?tenant=one&page=1',
+            'to' => 6,
+            'total' => 12,
+        ], $transformed['offset']['meta']);
+
+        $this->assertSame([['id' => 2, 'label_text' => 'cursor']], $transformed['cursor']['data']);
+        $this->assertSame([], $transformed['cursor']['links']);
+        $this->assertSame(
+            ['path', 'per_page', 'next_cursor', 'next_page_url', 'prev_cursor', 'prev_page_url'],
+            array_keys($transformed['cursor']['meta']),
+        );
+        $this->assertSame('/cursor', $transformed['cursor']['meta']['path']);
+        $this->assertSame($cursor->nextCursor()?->encode(), $transformed['cursor']['meta']['next_cursor']);
+        $this->assertStringContainsString('tenant=one', $transformed['cursor']['meta']['next_page_url']);
+        $this->assertNull($transformed['cursor']['meta']['prev_cursor']);
+
+        $this->assertSame([['id' => 4, 'label_text' => 'simple']], $transformed['simple']['data']);
+        $this->assertSame([], $transformed['simple']['links']);
         $this->assertSame([
-            'id' => 2,
-            'label_text' => 'cursor',
-        ], $transformed['cursor']['data'][0]);
-        $this->assertSame('/cursor', $transformed['cursor']['path']);
-        $this->assertNotNull($transformed['cursor']['next_cursor']);
-        $this->assertStringContainsString('tenant=one', $transformed['cursor']['next_page_url']);
+            'current_page' => 3,
+            'current_page_url' => '/simple?page=3',
+            'first_page_url' => '/simple?page=1',
+            'from' => 3,
+            'next_page_url' => '/simple?page=4',
+            'path' => '/simple',
+            'per_page' => 1,
+            'prev_page_url' => '/simple?page=2',
+            'to' => 3,
+        ], $transformed['simple']['meta']);
+
         $this->assertSame($offsetItem, $offset->items()[0]);
         $this->assertSame($cursorItem, $cursor->items()[0]);
+        $this->assertSame($simpleItem, $simple->items()[0]);
+    }
+
+    /**
+     * Test nested plain paginators use the configured global wrap key for their items.
+     */
+    #[WithConfig('data.wrap', 'items')]
+    public function testNestedPaginatorsUseTheGlobalWrapKey(): void
+    {
+        $transformed = (new PaginatorOwnerData(
+            new LengthAwarePaginator([new PaginatorItemData(1, 'offset')], 1, 5),
+            new CursorPaginator([new PaginatorItemData(2, 'cursor')], 5),
+            new Paginator([new PaginatorItemData(3, 'simple')], 5),
+        ))->toArray();
+
+        $this->assertSame(['items', 'links', 'meta'], array_keys($transformed['offset']));
+        $this->assertSame(['items', 'links', 'meta'], array_keys($transformed['cursor']));
+        $this->assertSame(['items', 'links', 'meta'], array_keys($transformed['simple']));
     }
 
     /**
@@ -455,6 +509,13 @@ class DataTransformerTest extends TestCase
             ['value' => 'second'],
         ], $collection->toArray());
         $this->assertFalse($this->partialDefinitionsState($collection));
+        $this->assertFalse($this->partialDefinitionsState($first));
+        $this->assertFalse($this->partialDefinitionsState($second));
+
+        $collection->onlyWhen('value', static fn (): bool => false);
+
+        $this->assertSame($first, $collection[0]);
+        $this->assertSame([$first, $second], iterator_to_array($collection));
         $this->assertFalse($this->partialDefinitionsState($first));
         $this->assertFalse($this->partialDefinitionsState($second));
     }
@@ -802,6 +863,17 @@ class DataTransformerTest extends TestCase
     }
 
     /**
+     * Test items whose declared type mixes a Data class with other types transform by value.
+     */
+    public function testTransformsMixedDataAndValueItems(): void
+    {
+        $data = new MixedItemsData(['bug', new SimpleData('feature')]);
+
+        $this->assertSame(['labels' => ['bug', ['value' => 'feature']]], $data->toArray());
+        $this->assertSame('{"labels":["bug",{"value":"feature"}]}', $data->toJson());
+    }
+
+    /**
      * Test a modular collectable without transformation capability remains unchanged.
      */
     public function testRetainsNonTransformableCustomDataCollectables(): void
@@ -900,16 +972,48 @@ class DataTransformerTest extends TestCase
         ], $returned->toArray());
     }
 
-    /**
-     * Test nested transformation stops at the configured depth.
-     */
-    public function testThrowsAtMaximumTransformationDepth(): void
+    public function testReturnsAnEmptyArrayForADataCollectionAtMaximumDepthWhenNotThrowing(): void
+    {
+        $data = new NestedCollectionOwnerData(
+            new DataCollection(NestedLazyData::class, [new NestedLazyData('first', 'kept')]),
+        );
+
+        $this->assertSame(
+            ['collection' => []],
+            $data->transform(TransformationContextFactory::create()->maxDepth(1, throw: false)),
+        );
+    }
+
+    public function testNestedPartialsOnHiddenPropertiesThrow(): void
+    {
+        $this->expectException(CannotPerformPartialOnDataField::class);
+
+        PartialTargetData::make()->include('secret.value')->toArray();
+    }
+
+    public function testFlatUnknownPartialsSelectNothing(): void
+    {
+        $this->assertSame(
+            ['string' => 'World'],
+            PartialTargetData::make()->include('missing', 'string')->toArray(),
+        );
+        $this->assertSame(
+            ['simple' => ['value' => 'Hello'], 'string' => 'World'],
+            PartialTargetData::make()->include('*', 'missing')->toArray(),
+        );
+    }
+
+    #[WithConfig('data.max_transformation_depth', 1)]
+    #[WithConfig('data.throw_when_max_transformation_depth_reached', false)]
+    public function testConfiguredDepthReturnsEmptyArraysButPersistenceStillThrows(): void
     {
         $data = new NestedData(new NestedData(new SimpleData('deep')));
 
-        $this->expectExceptionMessageIsOrContains('Max transformation depth of 1 reached.');
+        $this->assertSame(['nested' => []], $data->toArray());
 
-        $data->transform(TransformationContextFactory::create()->maxDepth(1));
+        $this->expectException(MaxTransformationDepthReached::class);
+
+        $data->transform(TransformationContextFactory::forPersistence());
     }
 
     /**
@@ -1095,6 +1199,31 @@ class SimpleData extends Data
 {
     public function __construct(public string $value)
     {
+    }
+}
+
+class PartialTargetData extends Data
+{
+    /**
+     * Create a partial target fixture.
+     */
+    public function __construct(
+        public Lazy|SimpleData $simple,
+        public Lazy|string $string,
+        #[Hidden]
+        public ?SimpleData $secret = null,
+    ) {
+    }
+
+    /**
+     * Create the partial target with lazy values.
+     */
+    public static function make(): self
+    {
+        return new self(
+            Lazy::create(static fn (): SimpleData => new SimpleData('Hello')),
+            Lazy::create(static fn (): string => 'World'),
+        );
     }
 }
 
@@ -1374,10 +1503,12 @@ class PaginatorOwnerData extends Data
      *
      * @param LengthAwarePaginator<int, PaginatorItemData> $offset
      * @param CursorPaginator<int, PaginatorItemData> $cursor
+     * @param Paginator<int, PaginatorItemData> $simple
      */
     public function __construct(
         public LengthAwarePaginator $offset,
         public CursorPaginator $cursor,
+        public Paginator $simple,
     ) {
     }
 }
@@ -1554,6 +1685,17 @@ class DataArrayOwner extends Data
     public function __construct(
         #[DataCollectionOf(NestedLazyData::class)]
         public array $items,
+    ) {
+    }
+}
+
+class MixedItemsData extends Data
+{
+    /**
+     * @param list<SimpleData|string> $labels
+     */
+    public function __construct(
+        public array $labels,
     ) {
     }
 }

@@ -10,7 +10,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -23,6 +22,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PDO;
+use RuntimeException;
 
 class DatabaseTruncationTest extends TestCase
 {
@@ -64,7 +64,7 @@ class DatabaseTruncationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testTruncateTables()
+    public function testTruncateTables(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
             ['schema' => null, 'name' => 'foo', 'schema_qualified_name' => 'foo'],
@@ -76,7 +76,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithTablesToTruncateProperty()
+    public function testTruncateTablesWithTablesToTruncateProperty(): void
     {
         $this->tablesToTruncate = ['foo', 'bar', 'qux'];
 
@@ -92,7 +92,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithExceptTablesProperty()
+    public function testTruncateTablesWithExceptTablesProperty(): void
     {
         $this->exceptTables = ['baz', 'qux'];
 
@@ -108,7 +108,24 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithSchema()
+    public function testTruncateTablesLeavesPartitionsToTheirPartitionedTable(): void
+    {
+        $this->exceptTables = ['baz'];
+
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'bar', 'schema_qualified_name' => 'public.bar'],
+            ['schema' => 'public', 'name' => 'baz', 'schema_qualified_name' => 'public.baz'],
+            ['schema' => 'public', 'name' => 'baz_1', 'schema_qualified_name' => 'public.baz_1', 'partition_of' => 'public.baz'],
+            ['schema' => 'public', 'name' => 'foo', 'schema_qualified_name' => 'public.foo'],
+            ['schema' => 'public', 'name' => 'foo_1', 'schema_qualified_name' => 'public.foo_1', 'partition_of' => 'public.foo'],
+        ]);
+
+        $this->truncateTablesForConnection($connection, 'test');
+
+        $this->assertEquals(['public.bar', 'public.foo'], $truncatedTables);
+    }
+
+    public function testTruncateTablesWithSchema(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
             ['schema' => 'public', 'name' => 'migrations', 'schema_qualified_name' => 'public.migrations'],
@@ -124,7 +141,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.foo', 'public.bar', 'private.foo', 'private.baz'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithSchemaTablesToTruncateProperty()
+    public function testTruncateTablesWithSchemaTablesToTruncateProperty(): void
     {
         $this->tablesToTruncate = ['foo', 'public.bar'];
 
@@ -143,7 +160,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.foo', 'public.bar', 'private.foo'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithSchemaAndExceptTablesProperty()
+    public function testTruncateTablesWithSchemaAndExceptTablesProperty(): void
     {
         $this->exceptTables = ['foo', 'public.bar'];
 
@@ -162,7 +179,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.baz', 'private.bar'], $truncatedTables);
     }
 
-    public function testTruncateTablesWithConnectionPrefix()
+    public function testTruncateTablesWithConnectionPrefix(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
             ['schema' => 'public', 'name' => 'my_migrations', 'schema_qualified_name' => 'public.my_migrations'],
@@ -177,7 +194,7 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.my_foo', 'public.my_baz', 'private.my_foo'], $truncatedTables);
     }
 
-    public function testTruncateTablesOnPgsqlWithSearchPath()
+    public function testTruncateTablesOnPgsqlWithSearchPath(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
             ['schema' => 'public', 'name' => 'migrations', 'schema_qualified_name' => 'public.migrations'],
@@ -195,6 +212,23 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.foo', 'public.bar', 'my_schema.foo', 'my_schema.baz'], $truncatedTables);
     }
 
+    public function testTruncationRestoresTheDispatcherWhenItFails(): void
+    {
+        $failure = new RuntimeException('Truncation failed.');
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'foo', 'schema_qualified_name' => 'public.foo'],
+        ], failure: $failure);
+
+        try {
+            $this->truncateTablesForConnection($connection, 'test');
+            $this->fail('Expected the truncation failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(['public.foo'], $truncatedTables);
+    }
+
     public function testRestoreSkipsDatabaseResolutionWhenNoInMemoryConnectionIsCached(): void
     {
         $this->restoreInMemoryDatabases();
@@ -208,12 +242,12 @@ class DatabaseTruncationTest extends TestCase
         $namedPdo = m::mock(PDO::class);
         $sourceDefault = m::mock(PdoConnection::class);
         $sourceNamed = m::mock(PdoConnection::class);
-        $sourceDefault->shouldReceive('getPdo')->once()->andReturn($defaultPdo);
-        $sourceNamed->shouldReceive('getPdo')->once()->andReturn($namedPdo);
+        $sourceDefault->expects('getPdo')->andReturn($defaultPdo);
+        $sourceNamed->expects('getPdo')->andReturn($namedPdo);
 
         $sourceDatabase = m::mock(DatabaseManager::class);
-        $sourceDatabase->shouldReceive('connection')->once()->with(null)->andReturn($sourceDefault);
-        $sourceDatabase->shouldReceive('connection')->once()->with('named')->andReturn($sourceNamed);
+        $sourceDatabase->expects('connection')->with(null)->andReturn($sourceDefault);
+        $sourceDatabase->expects('connection')->with('named')->andReturn($sourceNamed);
         $sourceDatabase->shouldNotReceive('connection')->with('file');
 
         $this->app->instance('config', new Repository([
@@ -234,14 +268,14 @@ class DatabaseTruncationTest extends TestCase
         $dispatcher = m::mock(Dispatcher::class);
         $restoredDefault = m::mock(PdoConnection::class);
         $restoredNamed = m::mock(PdoConnection::class);
-        $restoredDefault->shouldReceive('setPdo')->once()->with($defaultPdo)->andReturnSelf();
-        $restoredDefault->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
-        $restoredNamed->shouldReceive('setPdo')->once()->with($namedPdo)->andReturnSelf();
-        $restoredNamed->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
+        $restoredDefault->expects('setPdo')->with($defaultPdo)->andReturnSelf();
+        $restoredDefault->expects('setEventDispatcher')->with($dispatcher)->andReturnSelf();
+        $restoredNamed->expects('setPdo')->with($namedPdo)->andReturnSelf();
+        $restoredNamed->expects('setEventDispatcher')->with($dispatcher)->andReturnSelf();
 
         $restoredDatabase = m::mock(DatabaseManager::class);
-        $restoredDatabase->shouldReceive('connection')->once()->with(null)->andReturn($restoredDefault);
-        $restoredDatabase->shouldReceive('connection')->once()->with('named')->andReturn($restoredNamed);
+        $restoredDatabase->expects('connection')->with(null)->andReturn($restoredDefault);
+        $restoredDatabase->expects('connection')->with('named')->andReturn($restoredNamed);
         $restoredDatabase->shouldNotReceive('connection')->with('file');
 
         $this->app->instance('db', $restoredDatabase);
@@ -274,11 +308,11 @@ class DatabaseTruncationTest extends TestCase
         ]));
 
         $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $database->expects('connection')->with(null)->andReturn(m::mock(Connection::class));
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->cacheInMemoryDatabases();
     }
@@ -296,11 +330,11 @@ class DatabaseTruncationTest extends TestCase
         RefreshDatabaseState::$inMemoryConnections = ['default' => m::mock(PDO::class)];
 
         $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $database->expects('connection')->with(null)->andReturn(m::mock(Connection::class));
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+        $this->expectExceptionMessageIs('In-memory SQLite database testing requires a PDO-backed connection.');
 
         $this->restoreInMemoryDatabases();
     }
@@ -318,7 +352,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with DatabaseMigrations.');
+        $this->expectExceptionMessageIs('DatabaseTruncation cannot be combined with DatabaseMigrations.');
 
         $testCase->truncate();
     }
@@ -336,7 +370,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
+        $this->expectExceptionMessageIs('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
 
         $testCase->truncate();
     }
@@ -356,7 +390,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
         );
 
@@ -378,7 +412,7 @@ class DatabaseTruncationTest extends TestCase
         };
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
         );
 
@@ -389,10 +423,10 @@ class DatabaseTruncationTest extends TestCase
     {
         $pdo = m::mock(PDO::class);
         $connection = m::mock(PdoConnection::class);
-        $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
+        $connection->expects('getPdo')->andReturn($pdo);
 
         $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $database->expects('connection')->with(null)->andReturn($connection);
 
         $app = new Container;
         $app->instance('config', new Repository([
@@ -441,42 +475,59 @@ class DatabaseTruncationTest extends TestCase
         $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
     }
 
+    /**
+     * Arrange a connection that records truncated tables.
+     *
+     * @param null|class-string<Builder> $builder
+     */
     private function arrangeConnection(
         ?array &$actual,
         array $allTables,
         string $prefix = '',
         ?string $builder = null,
-        ?array $schemas = []
+        ?array $schemas = [],
+        ?RuntimeException $failure = null
     ): Connection {
         $actual = [];
+        $allTables = array_map(fn (array $table): array => $table + ['partition_of' => null], $allTables);
 
-        $schema = m::mock($builder ?? Builder::class);
-        $schema->shouldReceive('getTables')->with($schemas)->once()->andReturn(
+        $schema = m::mock($builder ?? Builder::class)->makePartial();
+        $schema->expects('getTables')->with($schemas)->andReturn(
             empty($schemas)
                 ? $allTables
-                : array_filter($allTables, fn ($table) => in_array($table['schema'], $schemas))
+                : array_filter($allTables, fn (array $table): bool => in_array($table['schema'], $schemas, true))
         );
-        $schema->shouldReceive('getCurrentSchemaListing')->once()->andReturn($schemas);
+        $schema->expects('getCurrentSchemaListing')->andReturn($schemas);
+        $withoutPrefix = false;
+        $schema->expects('truncateTables')->andReturnUsing(
+            function (array $tables) use (&$actual, &$withoutPrefix, $failure): void {
+                $this->assertTrue($withoutPrefix);
+                $actual = $tables;
+
+                if ($failure !== null) {
+                    throw $failure;
+                }
+            }
+        );
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $connection->shouldReceive('unsetEventDispatcher')->once();
-        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher);
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
-        $connection->shouldReceive('withoutTablePrefix')->andReturnUsing(function ($callback) use ($connection) {
-            $callback($connection);
-        });
-        $connection->shouldReceive('table')
-            ->andReturnUsing(function (string $tableName) use (&$actual) {
-                $actual[] = $tableName;
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection->expects('getEventDispatcher')->andReturn($dispatcher);
+        $connection->expects('unsetEventDispatcher');
+        $connection->expects('setEventDispatcher')->with($dispatcher);
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($schema);
+        $connection->expects('withoutTablePrefix')->andReturnUsing(
+            function (callable $callback) use ($connection, &$withoutPrefix): void {
+                $withoutPrefix = true;
 
-                $table = m::mock(QueryBuilder::class);
-                $table->shouldReceive('exists')->andReturnTrue();
-                $table->shouldReceive('truncate');
-
-                return $table;
-            });
+                try {
+                    $callback($connection);
+                } finally {
+                    $withoutPrefix = false;
+                }
+            }
+        );
 
         return $connection;
     }

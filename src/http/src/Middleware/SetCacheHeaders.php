@@ -83,6 +83,7 @@ class SetCacheHeaders
      */
     protected function parseOptions(string $options): array
     {
+        // Keep this explode() to avoid an extra Stringable allocation per call.
         return (new Collection(explode(';', rtrim($options, ';'))))->mapWithKeys(function ($option) {
             $data = explode('=', $option, 2);
 

@@ -41,6 +41,18 @@ class DropSqliteDbCommandTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToDropDatabaseUsingCommand(): void
+    {
+        $this->withSqliteDatabase(function (): void {
+            $this->artisan('package:drop-sqlite-db', ['--pretend' => true])
+                ->expectsOutputToContain('File [@hypervel/database/database.sqlite] would be deleted')
+                ->assertOk();
+
+            $this->assertTrue(file_exists(database_path('database.sqlite')));
+        });
+    }
+
+    #[Test]
     public function itCannotDropDatabaseUsingCommandWhenDatabaseDoesntExists(): void
     {
         $this->withoutSqliteDatabase(function (): void {

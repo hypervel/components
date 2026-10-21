@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\InteractsWithSockets;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;

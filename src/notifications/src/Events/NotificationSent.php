@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Events;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Notifications\Concerns\SerializesTransport;
 use Hypervel\Notifications\Notification;
-use Hypervel\Queue\SerializesModels;
 
 class NotificationSent
 {
     use Queueable;
-    use SerializesModels;
+    use SerializesTransport;
 
     /**
      * Create a new event instance.

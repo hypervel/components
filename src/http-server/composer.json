@@ -31,12 +31,13 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.2.2",
+        "ext-swoole": "^6.3.0RC1",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/http": "^0.4",
+        "hypervel/server": "^0.4",
         "symfony/http-foundation": "^8.1"
     },
     "config": {

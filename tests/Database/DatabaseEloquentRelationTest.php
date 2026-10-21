@@ -5,24 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentRelationTest;
 
 use Exception;
-use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\Relation;
-use Hypervel\Database\Query\Builder as QueryBuilder;
-use Hypervel\Database\Query\Grammars\Grammar;
-use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class DatabaseEloquentRelationTest extends TestCase
 {
-    public function testSetRelationFail()
+    public function testSetRelationFail(): void
     {
         $parent = new ResetModelStub;
         $relation = new ResetModelStub;
@@ -31,7 +28,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertArrayNotHasKey('foo', $parent->toArray());
     }
 
-    public function testUnsetExistingRelation()
+    public function testUnsetExistingRelation(): void
     {
         $parent = new ResetModelStub;
         $relation = new ResetModelStub;
@@ -40,22 +37,21 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($parent->relationLoaded('foo'));
     }
 
-    public function testTouchMethodUpdatesRelatedTimestamps()
+    public function testTouchMethodUpdatesRelatedTimestamps(): void
     {
         $builder = m::mock(Builder::class);
         $parent = m::mock(Model::class);
-        $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+        $parent->expects('getAttribute')->with('id')->andReturn(1);
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $builder->shouldReceive('getModel')->andReturn($related);
-        $builder->shouldReceive('whereNotNull');
-        $builder->shouldReceive('where');
-        $builder->shouldReceive('withoutGlobalScopes')->andReturn($builder);
+        $builder->expects('getModel')->andReturn($related);
+        $builder->expects('whereNotNull');
+        $builder->expects('where');
+        $builder->expects('withoutGlobalScopes')->andReturn($builder);
         $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
-        $related->shouldReceive('getTable')->andReturn('table');
-        $related->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
-        $now = CarbonImmutable::now();
-        $related->shouldReceive('freshTimestampString')->andReturn($now);
-        $builder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+        $related->expects('getUpdatedAtColumn')->andReturn('updated_at');
+        $now = CarbonImmutable::now()->toDateTimeString();
+        $related->expects('freshTimestampString')->andReturn($now);
+        $builder->expects('update')->with(['updated_at' => $now])->andReturn(1);
 
         $relation->touch();
     }
@@ -68,17 +64,16 @@ class DatabaseEloquentRelationTest extends TestCase
 
         $this->assertFalse($related::isIgnoringTouch());
 
-        Model::withoutTouching(function () use ($related) {
+        Model::withoutTouching(function () use ($related): void {
             $this->assertTrue($related::isIgnoringTouch());
 
             $builder = m::mock(Builder::class);
             $parent = m::mock(Model::class);
 
-            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-            $builder->shouldReceive('getModel')->andReturn($related);
-            $builder->shouldReceive('whereNotNull');
-            $builder->shouldReceive('where');
-            $builder->shouldReceive('withoutGlobalScopes')->andReturn($builder);
+            $parent->expects('getAttribute')->with('id')->andReturn(1);
+            $builder->expects('getModel')->andReturn($related);
+            $builder->expects('whereNotNull');
+            $builder->expects('where');
             $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
             $builder->shouldReceive('update')->never();
 
@@ -88,7 +83,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($related::isIgnoringTouch());
     }
 
-    public function testCanDisableTouchingForSpecificModel()
+    public function testCanDisableTouchingForSpecificModel(): void
     {
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
@@ -99,18 +94,17 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($anotherRelated::isIgnoringTouch());
 
-        NoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated) {
+        NoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated): void {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertFalse($anotherRelated::isIgnoringTouch());
 
             $builder = m::mock(Builder::class);
             $parent = m::mock(Model::class);
 
-            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-            $builder->shouldReceive('getModel')->andReturn($related);
-            $builder->shouldReceive('whereNotNull');
-            $builder->shouldReceive('where');
-            $builder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $parent->expects('getAttribute')->with('id')->andReturn(1);
+            $builder->expects('getModel')->andReturn($related);
+            $builder->expects('whereNotNull');
+            $builder->expects('where');
             $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
             $builder->shouldReceive('update')->never();
 
@@ -119,15 +113,15 @@ class DatabaseEloquentRelationTest extends TestCase
             $anotherBuilder = m::mock(Builder::class);
             $anotherParent = m::mock(Model::class);
 
-            $anotherParent->shouldReceive('getAttribute')->with('id')->andReturn(2);
-            $anotherBuilder->shouldReceive('getModel')->andReturn($anotherRelated);
-            $anotherBuilder->shouldReceive('whereNotNull');
-            $anotherBuilder->shouldReceive('where');
-            $anotherBuilder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $anotherParent->expects('getAttribute')->with('id')->andReturn(2);
+            $anotherBuilder->expects('getModel')->andReturn($anotherRelated);
+            $anotherBuilder->expects('whereNotNull');
+            $anotherBuilder->expects('where');
+            $anotherBuilder->expects('withoutGlobalScopes')->andReturnSelf();
             $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
-            $now = CarbonImmutable::now();
-            $anotherRelated->shouldReceive('freshTimestampString')->andReturn($now);
-            $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+            $now = CarbonImmutable::now()->toDateTimeString();
+            $anotherRelated->expects('freshTimestampString')->andReturn($now);
+            $anotherBuilder->expects('update')->with(['updated_at' => $now])->andReturn(1);
 
             $anotherRelation->touch();
         });
@@ -136,7 +130,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($anotherRelated::isIgnoringTouch());
     }
 
-    public function testParentModelIsNotTouchedWhenChildModelIsIgnored()
+    public function testParentModelIsNotTouchedWhenChildModelIsIgnored(): void
     {
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
@@ -149,18 +143,17 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
-        NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
+        NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild): void {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertTrue($relatedChild::isIgnoringTouch());
 
             $builder = m::mock(Builder::class);
             $parent = m::mock(Model::class);
 
-            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-            $builder->shouldReceive('getModel')->andReturn($related);
-            $builder->shouldReceive('whereNotNull');
-            $builder->shouldReceive('where');
-            $builder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $parent->expects('getAttribute')->with('id')->andReturn(1);
+            $builder->expects('getModel')->andReturn($related);
+            $builder->expects('whereNotNull');
+            $builder->expects('where');
             $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
             $builder->shouldReceive('update')->never();
 
@@ -169,11 +162,10 @@ class DatabaseEloquentRelationTest extends TestCase
             $anotherBuilder = m::mock(Builder::class);
             $anotherParent = m::mock(Model::class);
 
-            $anotherParent->shouldReceive('getAttribute')->with('id')->andReturn(2);
-            $anotherBuilder->shouldReceive('getModel')->andReturn($relatedChild);
-            $anotherBuilder->shouldReceive('whereNotNull');
-            $anotherBuilder->shouldReceive('where');
-            $anotherBuilder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
+            $anotherParent->expects('getAttribute')->with('id')->andReturn(2);
+            $anotherBuilder->expects('getModel')->andReturn($relatedChild);
+            $anotherBuilder->expects('whereNotNull');
+            $anotherBuilder->expects('where');
             $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
             $anotherBuilder->shouldReceive('update')->never();
 
@@ -184,7 +176,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }
 
-    public function testIgnoredModelsStateIsResetWhenThereAreExceptions()
+    public function testIgnoredModelsStateIsResetWhenThereAreExceptions(): void
     {
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
@@ -263,7 +255,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertSame('Does\Not\Exist', Relation::getMorphAlias('Does\Not\Exist'));
     }
 
-    public function testWithoutRelations()
+    public function testWithoutRelations(): void
     {
         $original = new NoTouchingModelStub;
 
@@ -319,29 +311,21 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertTrue($model->relationLoaded('bam'));
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         Relation::macro('foo', function () {
             return 'foo';
         });
 
         $model = new ResetModelStub;
-        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
-        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
-        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
-            return new QueryBuilder($connection, $grammar, $processor);
-        });
-
-        $relation = new RelationStub($model->newQuery(), $model);
+        $builder = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel($model);
+        $relation = new RelationStub($builder, $model);
 
         $result = $relation->foo();
         $this->assertSame('foo', $result);
     }
 
-    public function testIsRelationIgnoresAttribute()
+    public function testIsRelationIgnoresAttribute(): void
     {
         $model = new RelationAndAttributeModelStub;
 

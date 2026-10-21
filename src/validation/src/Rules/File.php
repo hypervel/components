@@ -206,8 +206,12 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Convert a potentially human-friendly file size to kilobytes.
+     *
+     * @return ($size is int ? int : float|int)
+     *
+     * @throws InvalidArgumentException
      */
-    protected function toKilobytes(int|string $size): mixed
+    protected function toKilobytes(int|string $size): int|float
     {
         if (! is_string($size)) {
             return $size;
@@ -215,7 +219,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
         $size = strtolower(trim($size));
 
-        $value = floatval($size);
+        $value = (float) $size;
 
         return round(match (true) {
             Str::endsWith($size, 'kb') => $value * 1,
@@ -246,8 +250,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore-line
-            $this->validator->customAttributes // @phpstan-ignore-line
+            $this->validator->customMessages, // @phpstan-ignore property.notFound
+            $this->validator->customAttributes // @phpstan-ignore property.notFound
         );
 
         if ($validator->fails()) {
@@ -286,7 +290,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Separate the given mimetypes from extensions and return an array of correct rules to validate against.
+     * Separate the given MIME types from extensions and return an array of correct rules to validate against.
      */
     protected function buildMimetypes(): array
     {
@@ -303,11 +307,11 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
         $mimes = array_diff($this->allowedMimetypes, $mimetypes);
 
-        if (count($mimetypes) > 0) {
+        if ($mimetypes !== []) {
             $rules[] = 'mimetypes:' . implode(',', $mimetypes);
         }
 
-        if (count($mimes) > 0) {
+        if ($mimes !== []) {
             $rules[] = 'mimes:' . implode(',', $mimes);
         }
 

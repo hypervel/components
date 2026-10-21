@@ -13,7 +13,7 @@ use LogicException;
 
 class DatabaseEloquentResourceModelTest extends TestCase
 {
-    public function testItCanTransformToExplicitResource()
+    public function testItCanTransformToExplicitResource(): void
     {
         $model = new EloquentResourceTestResourceModel;
         $resource = $model->toResource(EloquentResourceTestJsonResource::class);
@@ -22,16 +22,15 @@ class DatabaseEloquentResourceModelTest extends TestCase
         $this->assertSame($model, $resource->resource);
     }
 
-    public function testItThrowsExceptionWhenResourceCannotBeFound()
+    public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].'));
 
         $model = new EloquentResourceTestResourceModel;
         $model->toResource();
     }
 
-    public function testItCanGuessResourceWhenNotProvided()
+    public function testItCanGuessResourceWhenNotProvided(): void
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource;
 
@@ -43,7 +42,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
         $this->assertSame($model, $resource->resource);
     }
 
-    public function testItCanGuessResourceWhenNotProvidedWithNonResourceSuffix()
+    public function testItCanGuessResourceWhenNotProvidedWithNonResourceSuffix(): void
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource;
 
@@ -55,7 +54,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
         $this->assertSame($model, $resource->resource);
     }
 
-    public function testItCanGuessResourceName()
+    public function testItCanGuessResourceName(): void
     {
         $model = new EloquentResourceTestResourceModel;
         $this->assertEquals([
@@ -64,7 +63,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
         ], $model::guessResourceName());
     }
 
-    public function testItCanTransformToResourceViaUseResourceAttribute()
+    public function testItCanTransformToResourceViaUseResourceAttribute(): void
     {
         $model = new EloquentResourceTestResourceModelWithUseResourceAttribute;
 

@@ -10,7 +10,8 @@ import lightPlus from '@shikijs/themes/light-plus';
 
 tippy('[data-tippy-content]', {
     arrow: false,
-    allowHTML: true,
+    // Tooltip values include request data, so render them as text.
+    allowHTML: false,
     animation: 'shift-away',
     delay: [300, 0],
     duration: 200,

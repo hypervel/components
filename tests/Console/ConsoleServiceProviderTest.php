@@ -29,7 +29,7 @@ use Symfony\Component\Process\Process;
 
 class ConsoleServiceProviderTest extends TestCase
 {
-    public function testScheduleCommandsAreRegistered()
+    public function testScheduleCommandsAreRegistered(): void
     {
         $kernel = $this->app->make(KernelContract::class);
         $artisan = $kernel->getArtisan();

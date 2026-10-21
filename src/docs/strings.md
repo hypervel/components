@@ -650,6 +650,16 @@ $result = Str::deduplicate('The---Hypervel---Framework', '-');
 // The-Hypervel-Framework
 ```
 
+You may also pass an array of characters to deduplicate each of them:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::deduplicate('The---Hypervel   Framework', ['-', ' ']);
+
+// The-Hypervel Framework
+```
+
 <a name="method-str-doesnt-end-with"></a>
 #### `Str::doesntEndWith()` {.collection-method}
 
@@ -877,7 +887,7 @@ $matches = Str::is('*.jpg', 'photo.JPG', ignoreCase: true);
 <a name="method-str-is-ascii"></a>
 #### `Str::isAscii()` {.collection-method}
 
-The `Str::isAscii` method determines if a given string is 7 bit ASCII:
+The `Str::isAscii` method determines if a given string is 7-bit ASCII:
 
 ```php
 use Hypervel\Support\Str;
@@ -1083,6 +1093,17 @@ $html = Str::markdown('# Taylor <b>Otwell</b>', [
 // <h1>Taylor Otwell</h1>
 ```
 
+The `markdown` and `inlineMarkdown` methods, including their fluent equivalents, accept [CommonMark extensions](https://commonmark.thephpleague.com/extensions/overview/) through the `extensions` argument:
+
+```php
+use Hypervel\Support\Str;
+use League\CommonMark\Extension\Footnote\FootnoteExtension;
+
+$html = Str::markdown("Hello[^1]\n\n[^1]: A footnote.", extensions: [
+    new FootnoteExtension,
+]);
+```
+
 #### Markdown Security
 
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
@@ -1111,7 +1132,7 @@ $string = Str::mask('taylor@example.com', '*', 3);
 // tay***************
 ```
 
-If needed, you provide a negative number as the third argument to the `mask` method, which will instruct the method to begin masking at the given distance from the end of the string:
+If needed, you may provide a negative number as the third argument to the `mask` method, which will instruct the method to begin masking at the given distance from the end of the string:
 
 ```php
 $string = Str::mask('taylor@example.com', '*', -15, 3);
@@ -1286,7 +1307,7 @@ $converted = Str::pascal('ALL_CAPS', normalize: true);
 <a name="method-str-password"></a>
 #### `Str::password()` {.collection-method}
 
-The `Str::password` method may be used to generate a secure, random password of a given length. The password will consist of a combination of letters, numbers, symbols, and spaces. By default, passwords are 32 characters long:
+The `Str::password` method may be used to generate a secure, random password of a given length. The password will consist of a combination of letters, numbers, and symbols. By default, passwords are 32 characters long:
 
 ```php
 use Hypervel\Support\Str;
@@ -1572,7 +1593,7 @@ $replaced = Str::replaceMatches(
     pattern: '/[^A-Za-z0-9]++/',
     replace: '',
     subject: '(+1) 501-555-1000'
-)
+);
 
 // '15015551000'
 ```
@@ -1656,7 +1677,7 @@ $singular = Str::singular('children');
 <a name="method-str-slug"></a>
 #### `Str::slug()` {.collection-method}
 
-The `Str::slug` method generates a URL friendly "slug" from the given string:
+The `Str::slug` method generates a URL-friendly "slug" from the given string:
 
 ```php
 use Hypervel\Support\Str;
@@ -2176,7 +2197,7 @@ $string = str('Taylor')->append(' Otwell');
 // 'Taylor Otwell'
 ```
 
-If no argument is provided to the `str` function, the function returns an instance of `Hypervel\Support\Str`:
+If no argument is provided to the `str` function, the function returns an object that proxies method calls to `Hypervel\Support\Str`:
 
 ```php
 $snake = str()->snake('FooBar');
@@ -2533,7 +2554,7 @@ $result = Str::of('The   Hypervel   Framework')->deduplicate();
 // The Hypervel Framework
 ```
 
-You may specify a different character to deduplicate by passing it in as the second argument to the method:
+You may specify a different character to deduplicate by passing it in as the first argument to the method:
 
 ```php
 use Hypervel\Support\Str;
@@ -2541,6 +2562,16 @@ use Hypervel\Support\Str;
 $result = Str::of('The---Hypervel---Framework')->deduplicate('-');
 
 // The-Hypervel-Framework
+```
+
+You may also pass an array of characters to deduplicate each of them:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::of('The---Hypervel   Framework')->deduplicate(['-', ' ']);
+
+// The-Hypervel Framework
 ```
 
 <a name="method-fluent-str-dirname"></a>
@@ -2821,12 +2852,16 @@ $headline = Str::of('EmailNotificationSent')->headline();
 <a name="method-fluent-str-initials"></a>
 #### `initials` {.collection-method}
 
-The `initials` method will convert the string to its initials:
+The `initials` method will convert the string to its initials, optionally capitalizing them:
 
 ```php
 use Hypervel\Support\Str;
 
-$initials = Str::of('Taylor Otwell')->initials()->upper();
+$initials = Str::of('taylor otwell')->initials();
+
+// to
+
+$initials = Str::of('taylor otwell')->initials(capitalize: true);
 
 // TO
 ```
@@ -2862,7 +2897,7 @@ Str::of('Inject: <script>alert("Hello XSS!");</script>')->inlineMarkdown([
 <a name="method-fluent-str-is"></a>
 #### `is` {.collection-method}
 
-The `is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values
+The `is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values:
 
 ```php
 use Hypervel\Support\Str;
@@ -2874,6 +2909,16 @@ $matches = Str::of('foobar')->is('foo*');
 $matches = Str::of('foobar')->is('baz*');
 
 // false
+```
+
+You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
+
+```php
+use Hypervel\Support\Str;
+
+$matches = Str::of('photo.JPG')->is('*.jpg', ignoreCase: true);
+
+// true
 ```
 
 <a name="method-fluent-str-is-ascii"></a>
@@ -3147,7 +3192,7 @@ $string = Str::of('taylor@example.com')->mask('*', 3);
 // tay***************
 ```
 
-If needed, you may provide negative numbers as the third or fourth argument to the `mask` method, which will instruct the method to begin masking at the given distance from the end of the string:
+If needed, you may provide negative numbers as the second or third argument to the `mask` method, which will instruct the method to begin masking at the given distance from the end of the string:
 
 ```php
 $string = Str::of('taylor@example.com')->mask('*', -15, 3);
@@ -3558,7 +3603,7 @@ The `replaceMatches` method replaces all portions of a string matching a pattern
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::of('(+1) 501-555-1000')->replaceMatches('/[^A-Za-z0-9]++/', '')
+$replaced = Str::of('(+1) 501-555-1000')->replaceMatches('/[^A-Za-z0-9]++/', '');
 
 // '15015551000'
 ```
@@ -3655,7 +3700,7 @@ $singular = Str::of('children')->singular();
 <a name="method-fluent-str-slug"></a>
 #### `slug` {.collection-method}
 
-The `slug` method generates a URL friendly "slug" from the given string:
+The `slug` method generates a URL-friendly "slug" from the given string:
 
 ```php
 use Hypervel\Support\Str;
@@ -4370,7 +4415,7 @@ $string = Str::of('foo/bar')->whenIs('foo/*', function (Stringable $string) {
 <a name="method-fluent-str-when-is-ascii"></a>
 #### `whenIsAscii` {.collection-method}
 
-The `whenIsAscii` method invokes the given closure if the string is 7 bit ASCII. The closure will receive the fluent string instance:
+The `whenIsAscii` method invokes the given closure if the string is 7-bit ASCII. The closure will receive the fluent string instance:
 
 ```php
 use Hypervel\Support\Str;
@@ -4390,6 +4435,7 @@ The `whenIsUlid` method invokes the given closure if the string is a valid ULID.
 
 ```php
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('01gd6r360bp37zj17nxb55yv40')->whenIsUlid(function (Stringable $string) {
     return $string->substr(0, 8);

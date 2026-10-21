@@ -27,7 +27,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->routeCollection = new RouteCollection;
     }
 
-    public function testRouteCollectionCanAddRoute()
+    public function testRouteCollectionCanAddRoute(): void
     {
         $this->routeCollection->add(new Route('GET', 'foo', [
             'uses' => 'FooController@index',
@@ -36,7 +36,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertCount(1, $this->routeCollection);
     }
 
-    public function testRouteCollectionAddReturnsTheRoute()
+    public function testRouteCollectionAddReturnsTheRoute(): void
     {
         $outputRoute = $this->routeCollection->add($inputRoute = new Route('GET', 'foo', [
             'uses' => 'FooController@index',
@@ -46,7 +46,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertEquals($inputRoute, $outputRoute);
     }
 
-    public function testRouteCollectionCanRetrieveByName()
+    public function testRouteCollectionCanRetrieveByName(): void
     {
         $this->routeCollection->add($routeIndex = new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -58,7 +58,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routeIndex, $this->routeCollection->getByName('route_name'));
     }
 
-    public function testRouteCollectionCanRetrieveByAction()
+    public function testRouteCollectionCanRetrieveByAction(): void
     {
         $this->routeCollection->add($routeIndex = new Route('GET', 'foo/index', $action = [
             'uses' => 'FooController@index',
@@ -68,7 +68,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertSame($action, $routeIndex->getAction());
     }
 
-    public function testRouteCollectionCanRetrieveByMethod()
+    public function testRouteCollectionCanRetrieveByMethod(): void
     {
         $this->routeCollection->add($routeIndex = new Route('GET', 'foo/index', $action = [
             'uses' => 'FooController@index',
@@ -86,7 +86,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertCount(2, $this->routeCollection->get('GET'));
     }
 
-    public function testRouteCollectionCanGetIterator()
+    public function testRouteCollectionCanGetIterator(): void
     {
         $this->routeCollection->add(new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -95,13 +95,13 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $this->routeCollection->getIterator());
     }
 
-    public function testRouteCollectionCanGetIteratorWhenEmpty()
+    public function testRouteCollectionCanGetIteratorWhenEmpty(): void
     {
         $this->assertCount(0, $this->routeCollection);
         $this->assertInstanceOf(ArrayIterator::class, $this->routeCollection->getIterator());
     }
 
-    public function testRouteCollectionCanGetIteratorWhenRouteAreAdded()
+    public function testRouteCollectionCanGetIteratorWhenRouteAreAdded(): void
     {
         $this->routeCollection->add($routeIndex = new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -118,7 +118,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $this->routeCollection->getIterator());
     }
 
-    public function testRouteCollectionCanHandleSameRoute()
+    public function testRouteCollectionCanHandleSameRoute(): void
     {
         $routeIndex = new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -140,19 +140,19 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertCount(2, $this->routeCollection);
     }
 
-    public function testRouteCollectionCanRefreshNameLookups()
+    public function testRouteCollectionCanRefreshNameLookups(): void
     {
         $routeIndex = new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
         ]);
 
-        // The name of the route is not yet set. It will be while adding if to the RouteCollection.
+        // The name of the route is not yet set. It will be set after adding it to the RouteCollection.
         $this->assertNull($routeIndex->getName());
 
-        // The route name is set by calling \Illuminate\Routing\Route::name()
+        // The route name is set by calling Route::name()
         $this->routeCollection->add($routeIndex)->name('route_name');
 
-        // No route is found. This is normal, as no refresh as been done.
+        // No route is found. This is normal, as no refresh has been done.
         $this->assertNull($this->routeCollection->getByName('route_name'));
 
         // After the refresh, the name will be properly set to the route.
@@ -160,7 +160,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routeIndex, $this->routeCollection->getByName('route_name'));
     }
 
-    public function testRouteCollectionCanGetAllRoutes()
+    public function testRouteCollectionCanGetAllRoutes(): void
     {
         $this->routeCollection->add($routeIndex = new Route('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -185,7 +185,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertEquals($allRoutes, $this->routeCollection->getRoutes());
     }
 
-    public function testRouteCollectionCanGetRoutesByName()
+    public function testRouteCollectionCanGetRoutesByName(): void
     {
         $routesByName = [
             'foo_index' => new Route('GET', 'foo/index', [
@@ -209,7 +209,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertSame($routesByName, $this->routeCollection->getRoutesByName());
     }
 
-    public function testRouteCollectionCanGetRoutesByMethod()
+    public function testRouteCollectionCanGetRoutesByMethod(): void
     {
         $routes = [
             'foo_index' => new Route('GET', 'foo/index', [
@@ -245,7 +245,7 @@ class RouteCollectionTest extends RoutingTestCase
         ], $this->routeCollection->getRoutesByMethod());
     }
 
-    public function testRouteCollectionCleansUpOverwrittenRoutes()
+    public function testRouteCollectionCleansUpOverwrittenRoutes(): void
     {
         // Create two routes with the same path and method.
         $routeA = new Route('GET', 'product', ['controller' => 'View@view', 'as' => 'routeA']);
@@ -290,7 +290,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertSame($route, $this->routeCollection->getByName('0'));
     }
 
-    public function testCannotCacheDuplicateRouteNames()
+    public function testCannotCacheDuplicateRouteNames(): void
     {
         $this->routeCollection->add(
             new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
@@ -321,10 +321,9 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertSame(['title' => 'Users'], $route->getMetadata('head'));
     }
 
-    public function testRouteCollectionDontMatchNonMatchingDoubleSlashes()
+    public function testRouteCollectionDontMatchNonMatchingDoubleSlashes(): void
     {
-        $this->expectException(NotFoundHttpException::class);
-        $this->expectExceptionMessage('The route foo could not be found.');
+        $this->expectExceptionObject(new NotFoundHttpException('The route foo could not be found.'));
 
         $this->routeCollection->add(new Route('GET', 'foo', [
             'uses' => 'FooController@index',
@@ -340,10 +339,9 @@ class RouteCollectionTest extends RoutingTestCase
         $this->routeCollection->match($request);
     }
 
-    public function testRouteCollectionRequestMethodNotAllowed()
+    public function testRouteCollectionRequestMethodNotAllowed(): void
     {
-        $this->expectException(MethodNotAllowedHttpException::class);
-        $this->expectExceptionMessage('The POST method is not supported for route users. Supported methods: GET, HEAD.');
+        $this->expectExceptionObject(new MethodNotAllowedHttpException(['GET', 'HEAD'], 'The POST method is not supported for route users. Supported methods: GET, HEAD.'));
 
         $this->routeCollection->add(
             new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
@@ -354,7 +352,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->routeCollection->match($request);
     }
 
-    public function testHasNameRouteMethod()
+    public function testHasNameRouteMethod(): void
     {
         $this->routeCollection->add(
             new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
@@ -373,7 +371,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertFalse($this->routeCollection->hasNamedRoute('books'));
     }
 
-    public function testToSymfonyRouteCollection()
+    public function testToSymfonyRouteCollection(): void
     {
         $this->routeCollection->add(
             new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
@@ -394,7 +392,7 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertNotNull($symfonyRoutes->get('0'));
     }
 
-    public function testOverlappingRoutesMatchesFirstRoute()
+    public function testOverlappingRoutesMatchesFirstRoute(): void
     {
         $this->routeCollection->add(
             new Route('GET', 'users/{id}/{other}', ['uses' => 'UsersController@other', 'as' => 'first'])
@@ -407,10 +405,10 @@ class RouteCollectionTest extends RoutingTestCase
         $request = Request::create('users/1/show', 'GET');
 
         $this->assertCount(2, $this->routeCollection->getRoutes());
-        $this->assertEquals('first', $this->routeCollection->match($request)->getName());
+        $this->assertSame('first', $this->routeCollection->match($request)->getName());
     }
 
-    public function testPrependsRoutesWithDomain()
+    public function testPrependsRoutesWithDomain(): void
     {
         $this->routeCollection->add(
             $noDomainGet1 = new Route('GET', 'no-domain-get1', ['uses' => 'NoDomainController@index'])

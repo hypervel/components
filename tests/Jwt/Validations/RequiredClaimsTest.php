@@ -7,22 +7,40 @@ namespace Hypervel\Tests\Jwt\Validations;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Validations\RequiredClaims;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RequiredClaimsTest extends TestCase
 {
+    private const array PAYLOAD = ['sub' => 1, 'iss' => 'http://example.com', 'exp' => 200, 'nbf' => 100, 'iat' => 100, 'jti' => 'foo'];
+
     public function testValid(): void
     {
         $this->expectNotToPerformAssertions();
 
         (new RequiredClaims([]))->validate([]);
-        (new RequiredClaims(['required_claims' => ['sub']]))->validate(['sub' => 'foo']);
+        (new RequiredClaims(['required_claims' => ['sub', 'iss']]))->validate(self::PAYLOAD);
+        (new RequiredClaims(['required_claims' => ['sub', 'iss', 'exp', 'nbf', 'iat', 'jti']]))->validate(self::PAYLOAD);
     }
 
-    public function testInvalid(): void
+    #[DataProvider('missingClaimsProvider')]
+    public function testInvalid(array $requiredClaims, string $message): void
     {
         $this->expectException(TokenInvalidException::class);
-        $this->expectExceptionMessage('Claims are missing: ["sub"]');
+        $this->expectExceptionMessageIs($message);
 
-        (new RequiredClaims(['required_claims' => ['sub']]))->validate([]);
+        (new RequiredClaims(['required_claims' => $requiredClaims]))->validate(self::PAYLOAD);
+    }
+
+    /**
+     * Provide required claims and the error each set produces.
+     *
+     * @return array<string, array{array<int, string>, string}>
+     */
+    public static function missingClaimsProvider(): array
+    {
+        return [
+            'one missing after present claims' => [['sub', 'iss', 'exp', 'nbf', 'iat', 'jti', 'abc'], 'Claims are missing: ["abc"]'],
+            'several missing' => [['foo', 'bar'], 'Claims are missing: ["foo","bar"]'],
+        ];
     }
 }

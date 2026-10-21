@@ -112,7 +112,7 @@ class StorePasskeyTest extends TestCase
             ->getMock();
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to register this passkey.');
+        $this->expectExceptionMessageIs('Unable to register this passkey.');
 
         $action($user, 'Duplicate Passkey', $credential, $options);
     }
@@ -131,7 +131,7 @@ class StorePasskeyTest extends TestCase
         $this->assertTrue($passkey->user->is($user));
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to register this passkey.');
+        $this->expectExceptionMessageIs('Unable to register this passkey.');
 
         $action->createPasskey($user, 'Laptop again', $source);
     }
@@ -175,7 +175,7 @@ class StorePasskeyTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to register passkey. Please try again.');
+        $this->expectExceptionMessageIs('Unable to register passkey. Please try again.');
 
         app(StorePasskey::class)($user, 'Laptop', $credential, $this->createRegistrationOptions($user));
     }
@@ -199,7 +199,7 @@ class StorePasskeyTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to configure the ceremony factory.');
+        $this->expectExceptionMessageIs('Unable to configure the ceremony factory.');
 
         app(StorePasskey::class)($user, 'Laptop', $credential, $this->createRegistrationOptions($user));
     }
@@ -226,7 +226,7 @@ class StorePasskeyTest extends TestCase
         );
 
         $this->expectException(InvalidPasskeyException::class);
-        $this->expectExceptionMessage('Unable to register passkey');
+        $this->expectExceptionMessageIsOrContains('Unable to register passkey');
 
         app(StorePasskey::class)($user, 'Test Passkey', $credential, $options);
     }
@@ -259,7 +259,7 @@ class StorePasskeyTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Passkey registration options must contain a relying party ID.');
+        $this->expectExceptionMessageIs('Passkey registration options must contain a relying party ID.');
 
         (new ExposesStorePasskeyHost)->host($options);
     }

@@ -39,6 +39,7 @@ final readonly class CreationContext
         public ValidationStrategy $validationStrategy = ValidationStrategy::OnlyRequests,
         public bool $mapPropertyNames = true,
         public bool $disableMagicalCreation = false,
+        public bool $useOptionalValues = true,
         public array $ignoredMagicalMethods = [],
         public array $casts = [],
         public array $normalizers = [],

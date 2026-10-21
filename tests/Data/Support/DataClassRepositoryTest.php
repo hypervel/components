@@ -78,7 +78,16 @@ class DataClassRepositoryTest extends TestCase
         $repository = $this->repository();
 
         $this->assertFalse($repository->hasDynamicRuleGraph(SkippedDynamicRepositoryDataFixture::class));
-        $this->assertFalse($repository->hasDynamicRuleGraph(ContextualDynamicRepositoryDataFixture::class));
+    }
+
+    /**
+     * Test contextual properties, which are validated with the object, join the rule graph.
+     */
+    public function testDynamicRuleGraphsFollowContextualProperties(): void
+    {
+        $this->assertTrue(
+            $this->repository()->hasDynamicRuleGraph(ContextualDynamicRepositoryDataFixture::class),
+        );
     }
 
     /**
@@ -110,7 +119,7 @@ class DataClassRepositoryTest extends TestCase
         $defaults = require __DIR__ . '/../../../src/data/config/data.php';
         $config = new DataConfig(new Repository(['data' => $defaults]));
         $nameMapperResolver = new NameMapperResolver(new Container);
-        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver);
+        $typeFactory = new DataTypeFactory(new PhpDocTypeNameResolver, new DataIterableAnnotationReader);
         $parameterFactory = new DataParameterFactory($typeFactory);
 
         return new DataClassRepository(new DataClassFactory(

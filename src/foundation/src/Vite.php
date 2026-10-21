@@ -680,6 +680,8 @@ class Vite implements Htmlable
         return $attributes;
     }
 
+    // Laravel's deprecated makeTag(), makeScriptTag() and makeStylesheetTag() are omitted; use the *WithAttributes methods.
+
     /**
      * Generate a script tag with attributes for the given URL.
      */
@@ -764,6 +766,21 @@ class Vite implements Htmlable
      */
     protected function hotAsset(string $asset): string
     {
+        $url = $this->devServerUrl()
+            ?? throw new ViteException("Unable to read the Vite hot file at [{$this->hotFile()}].");
+
+        return $url . '/' . $asset;
+    }
+
+    /**
+     * Get the URL of the running Vite development server.
+     */
+    public function devServerUrl(): ?string
+    {
+        if (! $this->isRunningHot()) {
+            return null;
+        }
+
         $path = $this->hotFile();
         $contents = @file_get_contents($path);
 
@@ -771,7 +788,7 @@ class Vite implements Htmlable
             throw new ViteException("Unable to read the Vite hot file at [{$path}].");
         }
 
-        return rtrim($contents) . '/' . $asset;
+        return rtrim($contents);
     }
 
     /**
@@ -1041,11 +1058,11 @@ class Vite implements Htmlable
         ];
 
         foreach ($this->preloadTagAttributesResolvers as $resolver) {
-            if (false === ($resolvedAttributes = $resolver('fonts', $url, [], []))) {
+            if (false === ($resolved = $resolver('fonts', $url, [], []))) {
                 return false;
             }
 
-            $attributes = array_merge($attributes, $resolvedAttributes);
+            $attributes = array_merge($attributes, $resolved);
         }
 
         return $attributes;

@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\RelationNotFoundException;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
@@ -15,6 +19,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class EloquentBelongsToManyTest extends DatabaseTestCase
 {
@@ -74,7 +79,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         });
     }
 
-    public function testBasicCreateAndRetrieve()
+    public function testBasicCreateAndRetrieve(): void
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
@@ -111,7 +116,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testRefreshOnOtherModelWorks()
+    public function testRefreshOnOtherModelWorks(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $tag = Tag::create(['name' => $tagName = Str::random()]);
@@ -139,7 +144,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('newName', $post->tags[0]->name);
     }
 
-    public function testCustomPivotClass()
+    public function testCustomPivotClass(): void
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
@@ -169,7 +174,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals(2, PostTagPivot::first()->tag_id);
     }
 
-    public function testCustomPivotClassUsingSync()
+    public function testCustomPivotClassUsingSync(): void
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
@@ -194,7 +199,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotEmpty($results['detached']);
     }
 
-    public function testCustomPivotClassUsingUpdateExistingPivot()
+    public function testCustomPivotClassUsingUpdateExistingPivot(): void
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
@@ -221,7 +226,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testCustomPivotClassUpdatesTimestamps()
+    public function testCustomPivotClassUpdatesTimestamps(): void
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
@@ -245,17 +250,12 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         foreach ($post->tagsWithCustomExtraPivot as $tag) {
             $this->assertSame('exclude', $tag->pivot->flag);
 
-            if ($this->driver === 'sqlsrv') {
-                $this->assertSame('2017-10-10 10:10:10.000', $tag->pivot->getAttributes()['created_at']);
-                $this->assertSame('2017-10-10 10:10:20.000', $tag->pivot->getAttributes()['updated_at']); // +10 seconds
-            } else {
-                $this->assertSame('2017-10-10 10:10:10', $tag->pivot->getAttributes()['created_at']);
-                $this->assertSame('2017-10-10 10:10:20', $tag->pivot->getAttributes()['updated_at']); // +10 seconds
-            }
+            $this->assertSame('2017-10-10 10:10:10', $tag->pivot->getAttributes()['created_at']);
+            $this->assertSame('2017-10-10 10:10:20', $tag->pivot->getAttributes()['updated_at']); // +10 seconds
         }
     }
 
-    public function testAttachMethod()
+    public function testAttachMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -295,7 +295,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($tag8->name, $post->tags[7]->name);
     }
 
-    public function testDetachMethod()
+    public function testDetachMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -338,7 +338,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(0, $post->tags);
     }
 
-    public function testDetachMethodWithCustomPivot()
+    public function testDetachMethodWithCustomPivot(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -381,7 +381,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(0, $post->tagsWithCustomPivot);
     }
 
-    public function testFirstMethod()
+    public function testFirstMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -392,7 +392,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($tag->name, $post->tags()->first()->name);
     }
 
-    public function testFirstOrFailMethod()
+    public function testFirstOrFailMethod(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
@@ -401,7 +401,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->firstOrFail(['id']);
     }
 
-    public function testFindMethod()
+    public function testFindMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -417,7 +417,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
-    public function testFindMethodStringyKey()
+    public function testFindMethodStringyKey(): void
     {
         Schema::create('post_string_key', function (Blueprint $table) {
             $table->string('id', 1)->primary();
@@ -459,7 +459,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
-    public function testFindSoleMethod()
+    public function testFindSoleMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -477,15 +477,16 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         try {
             $post->tags()->findSole($tag);
             $this->fail('Expected RecordsNotFoundException was not thrown.');
-        } catch (RecordsNotFoundException $e) {
+        } catch (RecordsNotFoundException) {
             $this->assertTrue(true);
         }
     }
 
-    public function testFindOrFailMethod()
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFindOrFailMethod(bool $model): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10'));
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -493,13 +494,12 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $post->tags()->attach(Tag::all());
 
-        $post->tags()->findOrFail(10);
+        $post->tags()->findOrFail($model ? (new Tag)->forceFill(['id' => 10]) : 10);
     }
 
-    public function testFindOrFailMethodWithMany()
+    public function testFindOrFailMethodWithMany(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11'));
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -510,10 +510,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->findOrFail([10, 11]);
     }
 
-    public function testFindOrFailMethodWithManyUsingCollection()
+    public function testFindOrFailMethodWithManyUsingCollection(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11'));
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -524,7 +523,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->findOrFail(new Collection([10, 11]));
     }
 
-    public function testFindOrNewMethod()
+    public function testFindOrNewMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -533,12 +532,14 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->attach(Tag::all());
 
         $this->assertEquals($tag->id, $post->tags()->findOrNew($tag->id)->id);
+        $this->assertSame($tag->id, $post->tags()->findOrNew($tag)->id);
 
         $this->assertNull($post->tags()->findOrNew(666)->id);
         $this->assertInstanceOf(Tag::class, $post->tags()->findOrNew(666));
+        $this->assertNull($post->tags()->findOrNew((new Tag)->forceFill(['id' => 666]))->id);
     }
 
-    public function testFindOrMethod()
+    public function testFindOrMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $post->tags()->create(['name' => Str::random()]);
@@ -557,7 +558,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFindOrMethodWithMany()
+    public function testFindOrMethodWithMany(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $post->tags()->createMany([
@@ -583,7 +584,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFindOrMethodWithManyUsingCollection()
+    public function testFindOrMethodWithManyUsingCollection(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $post->tags()->createMany([
@@ -609,7 +610,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFirstOrNewMethod()
+    public function testFirstOrNewMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -636,7 +637,31 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
     //     $this->assertTrue($tag->is($post->tags()->first()));
     // }
 
-    public function testFirstOrCreateMethod()
+    public function testCreateQuietlyMethods(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $creating = [];
+        Tag::creating(function (Tag $tag) use (&$creating): void {
+            $creating[] = $tag->name;
+        });
+
+        $tag = $post->tags()->createQuietly(['name' => 'quiet'], ['flag' => 'taylor']);
+        $tags = $post->tags()->createManyQuietly(
+            [['name' => 'first'], ['name' => 'second']],
+            [['flag' => 'one'], ['flag' => 'two']],
+        );
+
+        $attached = $post->tags()->orderBy('tags.id')->get();
+
+        $this->assertSame([], $creating);
+        $this->assertTrue($tag->exists);
+        $this->assertCount(2, $tags);
+        $this->assertSame(['quiet', 'first', 'second'], $attached->pluck('name')->all());
+        $this->assertSame(['taylor', 'one', 'two'], $attached->pluck('pivot.flag')->all());
+    }
+
+    public function testFirstOrCreateMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -651,7 +676,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotNull($new->id);
     }
 
-    public function testFirstOrCreateUnrelatedExisting()
+    public function testFirstOrCreateUnrelatedExisting(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -664,7 +689,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertTrue($tag->is($post->tags()->first()));
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -679,7 +704,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotNull($new->id);
     }
 
-    public function testCreateOrFirstUnrelatedExisting()
+    public function testCreateOrFirstUnrelatedExisting(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -692,7 +717,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertTrue($tag->is($post->tagsUnique()->first()));
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -705,7 +730,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         });
     }
 
-    public function testFirstOrNewMethodWithValues()
+    public function testFirstOrNewMethodWithValues(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $tag = Tag::create(['name' => Str::random()]);
@@ -735,7 +760,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('bar', $new->name);
     }
 
-    public function testFirstOrCreateMethodWithValues()
+    public function testFirstOrCreateMethodWithValues(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $tag = Tag::create(['name' => Str::random()]);
@@ -767,7 +792,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotNull($new->id);
     }
 
-    public function testUpdateOrCreateMethod()
+    public function testUpdateOrCreateMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -782,7 +807,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotNull($post->tags()->whereName('dives')->first());
     }
 
-    public function testUpdateOrCreateUnrelatedExisting()
+    public function testUpdateOrCreateUnrelatedExisting(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -796,7 +821,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertTrue($tag->is($post->tags()->first()));
     }
 
-    public function testUpdateOrCreateMethodCreate()
+    public function testUpdateOrCreateMethodCreate(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -808,7 +833,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('wavez', $tag->name);
     }
 
-    public function testSyncMethod()
+    public function testSyncMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -851,7 +876,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('mohamed', $post->tags[1]->pivot->flag);
     }
 
-    public function testSyncMethodWithModels()
+    public function testSyncMethodWithModels(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -889,7 +914,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testSyncWithoutDetachingMethod()
+    public function testSyncWithoutDetachingMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -911,7 +936,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testSyncMethodWithEmptyValueDoesNotQueryWhenDetachingDisabled()
+    public function testSyncMethodWithEmptyValueDoesNotQueryWhenDetachingDisabled(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -932,7 +957,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         DB::disableQueryLog();
     }
 
-    public function testToggleMethod()
+    public function testToggleMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -962,7 +987,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('taylor', $post->tags[0]->pivot->flag);
     }
 
-    public function testTouchingParent()
+    public function testTouchingParent(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -981,7 +1006,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
     }
 
-    public function testTouchingRelatedModelsOnSync()
+    public function testTouchingRelatedModelsOnSync(): void
     {
         $tag = TouchingTag::create(['name' => Str::random()]);
 
@@ -998,7 +1023,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('2017-10-10 10:10:10', $tag->fresh()->updated_at->toDateTimeString());
     }
 
-    public function testNoTouchingHappensIfNotConfigured()
+    public function testNoTouchingHappensIfNotConfigured(): void
     {
         $tag = Tag::create(['name' => Str::random()]);
 
@@ -1015,7 +1040,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', $tag->fresh()->updated_at->toDateTimeString());
     }
 
-    public function testCanRetrieveRelatedIds()
+    public function testCanRetrieveRelatedIds(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -1033,7 +1058,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals([1, 3], $post->tags()->allRelatedIds()->toArray());
     }
 
-    public function testCanTouchRelatedModels()
+    public function testCanTouchRelatedModels(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -1059,7 +1084,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', Tag::find(2)->updated_at?->toDateTimeString());
     }
 
-    public function testCanTouchRelatedModelsUsingCustomRelatedKey()
+    public function testCanTouchRelatedModelsUsingCustomRelatedKey(): void
     {
         $post = Post::create(['title' => Str::random()]);
         $tag = Tag::create(['name' => 'first']);
@@ -1078,7 +1103,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', $untouchedTag->fresh()->updated_at?->toDateTimeString());
     }
 
-    public function testWherePivotOnString()
+    public function testWherePivotOnString(): void
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1094,7 +1119,48 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testFirstWhere()
+    public function testWherePivotWithClosure(): void
+    {
+        $tag1 = Tag::create(['name' => Str::random()])->fresh();
+        $tag2 = Tag::create(['name' => Str::random()])->fresh();
+        $post = Post::create(['title' => Str::random()]);
+
+        DB::table('posts_tags')->insert([
+            ['post_id' => $post->id, 'tag_id' => $tag1->id, 'flag' => 'foo'],
+            ['post_id' => $post->id, 'tag_id' => $tag2->id, 'flag' => 'bar'],
+        ]);
+
+        $tags = $post->tagsWithCustomExtraPivot()->wherePivot(function (Builder $query): void {
+            $query->active();
+        })->get();
+
+        $this->assertCount(1, $tags);
+        $this->assertEquals($tag1->id, $tags->first()->id);
+    }
+
+    public function testOrWherePivotWithClosure(): void
+    {
+        $tag1 = Tag::create(['name' => Str::random()])->fresh();
+        $tag2 = Tag::create(['name' => Str::random()])->fresh();
+        $tag3 = Tag::create(['name' => Str::random()])->fresh();
+        $post = Post::create(['title' => Str::random()]);
+
+        DB::table('posts_tags')->insert([
+            ['post_id' => $post->id, 'tag_id' => $tag1->id, 'flag' => 'foo'],
+            ['post_id' => $post->id, 'tag_id' => $tag2->id, 'flag' => 'bar'],
+            ['post_id' => $post->id, 'tag_id' => $tag3->id, 'flag' => 'baz'],
+        ]);
+
+        $tags = $post->tagsWithCustomExtraPivot()->wherePivot('flag', 'bar')->orWherePivot(function (Builder $query): void {
+            $query->active();
+        })->get();
+
+        $this->assertCount(2, $tags);
+        $this->assertTrue($tags->contains('id', $tag1->id));
+        $this->assertTrue($tags->contains('id', $tag2->id));
+    }
+
+    public function testFirstWhere(): void
     {
         $tag = Tag::create(['name' => 'foo'])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1110,7 +1176,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testWherePivotOnBoolean()
+    public function testWherePivotOnBoolean(): void
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1126,7 +1192,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testOrWherePivotOnBoolean()
+    public function testOrWherePivotOnBoolean(): void
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1139,7 +1205,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testWherePivotNotBetween()
+    public function testWherePivotNotBetween(): void
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1156,7 +1222,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testWherePivotInMethod()
+    public function testWherePivotInMethod(): void
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();
         $post = Post::create(['title' => Str::random()]);
@@ -1169,7 +1235,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
-    public function testOrWherePivotInMethod()
+    public function testOrWherePivotInMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()]);
         $tag2 = Tag::create(['name' => Str::random()]);
@@ -1190,7 +1256,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTags->pluck('id')->toArray(), [$tag1->id, $tag3->id]);
     }
 
-    public function testWherePivotNotInMethod()
+    public function testWherePivotNotInMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()]);
         $tag2 = Tag::create(['name' => Str::random()])->fresh();
@@ -1207,7 +1273,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag2->getAttributes());
     }
 
-    public function testOrWherePivotNotInMethod()
+    public function testOrWherePivotNotInMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()]);
         $tag2 = Tag::create(['name' => Str::random()]);
@@ -1228,7 +1294,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTags->pluck('id')->toArray(), [$tag1->id, $tag2->id]);
     }
 
-    public function testWherePivotNullMethod()
+    public function testWherePivotNullMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()]);
         $tag2 = Tag::create(['name' => Str::random()])->fresh();
@@ -1245,7 +1311,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag2->getAttributes());
     }
 
-    public function testWherePivotNotNullMethod()
+    public function testWherePivotNotNullMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()])->fresh();
         $tag2 = Tag::create(['name' => Str::random()]);
@@ -1262,7 +1328,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag1->getAttributes());
     }
 
-    public function testCanUpdateExistingPivot()
+    public function testCanUpdateExistingPivot(): void
     {
         $tag = Tag::create(['name' => Str::random()]);
         $post = Post::create(['title' => Str::random()]);
@@ -1278,7 +1344,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testCanUpdateExistingPivotUsingArrayableOfIds()
+    public function testCanUpdateExistingPivotUsingArrayableOfIds(): void
     {
         $tags = new Collection([
             $tag1 = Tag::create(['name' => Str::random()]),
@@ -1298,7 +1364,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testCanUpdateExistingPivotUsingModel()
+    public function testCanUpdateExistingPivotUsingModel(): void
     {
         $tag = Tag::create(['name' => Str::random()]);
         $post = Post::create(['title' => Str::random()]);
@@ -1314,12 +1380,31 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testCustomRelatedKey()
+    public function testCustomRelatedKey(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
         $tag = $post->tagsWithCustomRelatedKey()->create(['name' => Str::random()]);
         $this->assertEquals($tag->name, $post->tagsWithCustomRelatedKey()->first()->pivot->tag_name);
+
+        $other = $post->tagsWithCustomRelatedKey()->create(['name' => Str::random()]);
+        $tag->setAttribute('other_id', $other->id);
+
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->find($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findSole($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findOrFail($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findOr($tag, fn (): string => 'missing')->id);
+
+        foreach ([[$tag], new Collection([$tag]), collect([$tag])] as $models) {
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findMany($models)->modelKeys());
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findOrFail($models)->modelKeys());
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findOr($models, fn (): string => 'missing')->modelKeys());
+        }
+
+        $missing = (new Tag)->forceFill(['id' => 1000]);
+        $this->assertSame('missing', $post->tagsWithCustomRelatedKey()->findOr($missing, fn (): string => 'missing'));
+
+        $post->tagsWithCustomRelatedKey()->detach($other);
 
         $post->tagsWithCustomRelatedKey()->detach($tag);
 
@@ -1335,7 +1420,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('exclude', $post->tagsWithCustomRelatedKey()->first()->pivot->flag);
     }
 
-    public function testGlobalScopeColumns()
+    public function testGlobalScopeColumns(): void
     {
         $tag = Tag::create(['name' => Str::random()]);
         $post = Post::create(['title' => Str::random()]);
@@ -1349,7 +1434,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals(['id' => 1], $tags[0]->getAttributes());
     }
 
-    public function testPivotDoesntHavePrimaryKey()
+    public function testPivotDoesntHavePrimaryKey(): void
     {
         $user = User::create(['name' => Str::random()]);
         $post1 = Post::create(['title' => Str::random()]);
@@ -1369,7 +1454,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals(0, $user->postsWithCustomPivot()->first()->pivot->is_draft);
     }
 
-    public function testOrderByPivotMethod()
+    public function testOrderByPivotMethod(): void
     {
         $tag1 = Tag::create(['name' => Str::random()]);
         $tag2 = Tag::create(['name' => Str::random()])->fresh();
@@ -1391,7 +1476,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag2->getAttributes(), $tag3->getAttributes());
     }
 
-    public function testFirstOrMethod()
+    public function testFirstOrMethod(): void
     {
         $user1 = User::create(['name' => Str::random()]);
         $user2 = User::create(['name' => Str::random()]);
@@ -1418,7 +1503,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testUpdateOrCreateQueryBuilderIsolation()
+    public function testUpdateOrCreateQueryBuilderIsolation(): void
     {
         $user = User::create(['name' => Str::random()]);
         $post = Post::create(['title' => Str::random()]);
@@ -1436,7 +1521,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         );
     }
 
-    public function testFirstOrCreateQueryBuilderIsolation()
+    public function testFirstOrCreateQueryBuilderIsolation(): void
     {
         $user = User::create(['name' => Str::random()]);
         $post = Post::create(['title' => Str::random()]);
@@ -1452,6 +1537,233 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             'user_uuid',
             $instance->toArray(),
         );
+    }
+
+    public function testChaperoneSetsDeclaringAndRelatedOnPivot(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tagsWithChaperoneCustomPivot()->attach($tag);
+
+        $post = Post::first();
+        $tags = $post->tagsWithChaperoneCustomPivot;
+
+        $this->assertCount(1, $tags);
+        $pivot = $tags[0]->pivot;
+        $this->assertInstanceOf(ChaperonePostTagPivot::class, $pivot);
+        $this->assertTrue($pivot->relationLoaded('post'));
+        $this->assertTrue($pivot->relationLoaded('tag'));
+        $this->assertTrue($post->is($pivot->post));
+        $this->assertTrue($tag->is($pivot->tag));
+    }
+
+    public function testChaperoneWithExplicitRelationNames(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tagsWithChaperoneExplicit()->attach($tag);
+
+        $post = Post::first();
+        $tags = $post->tagsWithChaperoneExplicit;
+
+        $pivot = $tags[0]->pivot;
+        $this->assertTrue($pivot->relationLoaded('post'));
+        $this->assertTrue($pivot->relationLoaded('tag'));
+        $this->assertTrue($post->is($pivot->post));
+        $this->assertTrue($tag->is($pivot->tag));
+    }
+
+    public function testChaperoneGuessesOnlyExistingRelations(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tagsWithChaperonePartialPivot()->attach($tag);
+
+        $post = Post::first();
+        $tags = $post->tagsWithChaperonePartialPivot;
+
+        $pivot = $tags[0]->pivot;
+        $this->assertInstanceOf(ChaperonePartialPivot::class, $pivot);
+        $this->assertTrue($pivot->relationLoaded('post'));
+        $this->assertFalse($pivot->relationLoaded('tag'));
+        $this->assertTrue($post->is($pivot->post));
+    }
+
+    public function testChaperoneOnSelfReferencingRelationGuessesFromPivotKeys(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperonePartialPivot::class)
+            ->chaperone();
+        $relation->attach($relatedPost);
+
+        $pivot = $relation->first()->pivot;
+
+        $this->assertSame($post, $pivot->post);
+    }
+
+    public function testChaperonePreservesUnambiguousSelfReferencingModelName(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        Schema::table('posts_tags', function (Blueprint $table): void {
+            $table->renameColumn('post_id', 'owner_id');
+        });
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'owner_id', 'tag_id')
+            ->using(ChaperoneNamedSelfPivot::class)
+            ->chaperone();
+        $relation->attach($relatedPost);
+        $result = $relation->first();
+
+        $this->assertSame($post, $result->pivot->post);
+        $this->assertSame($result, $result->pivot->tag);
+    }
+
+    public function testChaperoneExplicitDeclaringNameTakesPrecedenceOverKeyGuess(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id')
+            ->using(ChaperoneReversedSelfPivot::class)
+            ->chaperone(declaring: 'post');
+        $relation->attach($relatedPost);
+        $result = $relation->first();
+
+        $this->assertSame($post, $result->pivot->post);
+    }
+
+    #[TestWith(['postsWithChaperoneExplicitRelated'])]
+    #[TestWith(['postsWithChaperoneRelatedPivotKey'])]
+    public function testChaperoneKeepsRelatedInverseWhenEagerLoading(string $relation): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+        $post->{$relation}()->attach($relatedPost);
+
+        // Eager matching would overwrite the related inverse if a declaring guess remained.
+        $result = Post::with($relation)->find($post->id)->{$relation}->first();
+
+        $this->assertSame($result, $result->pivot->post);
+    }
+
+    public function testChaperoneWithEagerLoading(): void
+    {
+        $post1 = Post::create(['title' => Str::random()]);
+        $post2 = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post1->tagsWithChaperoneCustomPivot()->attach($tag);
+        $post2->tagsWithChaperoneCustomPivot()->attach($tag);
+
+        $posts = Post::with('tagsWithChaperoneCustomPivot')->get();
+
+        foreach ($posts as $post) {
+            $this->assertCount(1, $post->tagsWithChaperoneCustomPivot);
+            $pivot = $post->tagsWithChaperoneCustomPivot[0]->pivot;
+            $this->assertTrue($pivot->relationLoaded('post'));
+            $this->assertTrue($pivot->relationLoaded('tag'));
+            $this->assertTrue($post->is($pivot->post));
+            $this->assertTrue($tag->is($pivot->tag));
+        }
+    }
+
+    public function testChaperoneWithoutCustomPivotIsNoop(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach($tag, ['flag' => 'test']);
+
+        $post = Post::first();
+        $relation = $post->tags()->chaperone();
+
+        $this->assertInstanceOf(BelongsToMany::class, $relation);
+    }
+
+    public function testWithoutChaperoneClearsInverseRelations(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tagsWithChaperoneCustomPivot()->attach($tag);
+
+        $post = Post::first();
+        $tags = $post->tagsWithChaperoneCustomPivot()->withoutChaperone()->get();
+
+        $pivot = $tags[0]->pivot;
+        $this->assertFalse($pivot->relationLoaded('post'));
+        $this->assertFalse($pivot->relationLoaded('tag'));
+    }
+
+    public function testChaperoneThrowsForExplicitInvalidRelation(): void
+    {
+        $this->expectException(RelationNotFoundException::class);
+
+        $post = Post::create(['title' => Str::random()]);
+        $post->tagsWithChaperoneCustomPivot()->chaperone('nonexistent');
+    }
+
+    public function testChaperoneFromRelatedSide(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $tag->postsWithChaperone()->attach($post);
+
+        $tag = Tag::first();
+        $posts = $tag->postsWithChaperone;
+
+        $this->assertCount(1, $posts);
+        $pivot = $posts[0]->pivot;
+        $this->assertInstanceOf(ChaperonePostTagPivot::class, $pivot);
+        $this->assertTrue($pivot->relationLoaded('tag'));
+        $this->assertTrue($pivot->relationLoaded('post'));
+        $this->assertTrue($tag->is($pivot->tag));
+        $this->assertTrue($post->is($pivot->post));
+    }
+
+    public function testChaperoneFromRelatedSideWithEagerLoading(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag1 = Tag::create(['name' => Str::random()]);
+        $tag2 = Tag::create(['name' => Str::random()]);
+
+        $tag1->postsWithChaperone()->attach($post);
+        $tag2->postsWithChaperone()->attach($post);
+
+        $tags = Tag::with('postsWithChaperone')->get();
+
+        foreach ($tags as $tag) {
+            $this->assertCount(1, $tag->postsWithChaperone);
+            $pivot = $tag->postsWithChaperone[0]->pivot;
+            $this->assertTrue($pivot->relationLoaded('tag'));
+            $this->assertTrue($pivot->relationLoaded('post'));
+            $this->assertTrue($tag->is($pivot->tag));
+            $this->assertTrue($post->is($pivot->post));
+        }
+    }
+
+    public function testChaperoneWithoutCustomPivotStillReturnsResults(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach($tag, ['flag' => 'test']);
+
+        $post = Post::first();
+        $tags = $post->tags()->chaperone()->get();
+
+        $this->assertCount(1, $tags);
+        $this->assertTrue($tag->is($tags[0]));
+        $this->assertInstanceOf(Pivot::class, $tags[0]->pivot);
     }
 }
 
@@ -1615,6 +1927,56 @@ class Post extends Model
     {
         return $this->belongsToMany(TagWithGlobalScope::class, 'posts_tags', 'post_id', 'tag_id');
     }
+
+    /**
+     * Get tags with automatically hydrated pivot relationships.
+     */
+    public function tagsWithChaperoneCustomPivot(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperonePostTagPivot::class)
+            ->chaperone();
+    }
+
+    /**
+     * Get tags with explicit inverse relationship names.
+     */
+    public function tagsWithChaperoneExplicit(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperonePostTagPivot::class)
+            ->chaperone('post', 'tag');
+    }
+
+    /**
+     * Get tags whose pivot defines only the declaring relationship.
+     */
+    public function tagsWithChaperonePartialPivot(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperonePartialPivot::class)
+            ->chaperone();
+    }
+
+    /**
+     * Get posts with an explicitly named related pivot inverse.
+     */
+    public function postsWithChaperoneExplicitRelated(): BelongsToMany
+    {
+        return $this->belongsToMany(Post::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperoneReversedSelfPivot::class)
+            ->chaperone(related: 'post');
+    }
+
+    /**
+     * Get posts whose related pivot key identifies the inverse.
+     */
+    public function postsWithChaperoneRelatedPivotKey(): BelongsToMany
+    {
+        return $this->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id')
+            ->using(ChaperonePartialPivot::class)
+            ->chaperone();
+    }
 }
 
 class Tag extends Model
@@ -1628,6 +1990,16 @@ class Tag extends Model
     public function posts()
     {
         return $this->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id');
+    }
+
+    /**
+     * Get posts with automatically hydrated pivot relationships.
+     */
+    public function postsWithChaperone(): BelongsToMany
+    {
+        return $this->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id')
+            ->using(ChaperonePostTagPivot::class)
+            ->chaperone();
     }
 }
 
@@ -1688,6 +2060,17 @@ class PostTagPivot extends Pivot
     {
         return CarbonImmutable::parse($value)->format('U');
     }
+
+    /**
+     * Restrict the query to active tags.
+     *
+     * @param Builder<static> $query
+     * @return Builder<static>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('flag', 'foo');
+    }
 }
 
 class TagWithGlobalScope extends Model
@@ -1705,5 +2088,73 @@ class TagWithGlobalScope extends Model
         static::addGlobalScope(function ($query) {
             $query->select('tags.id');
         });
+    }
+}
+
+class ChaperonePostTagPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the post associated with the pivot.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class);
+    }
+
+    /**
+     * Get the tag associated with the pivot.
+     */
+    public function tag(): BelongsTo
+    {
+        return $this->belongsTo(Tag::class);
+    }
+}
+
+class ChaperonePartialPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the post associated with the pivot.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class);
+    }
+}
+
+class ChaperoneNamedSelfPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the declaring post associated with the pivot.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'owner_id');
+    }
+
+    /**
+     * Get the related post associated with the pivot.
+     */
+    public function tag(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'tag_id');
+    }
+}
+
+class ChaperoneReversedSelfPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the post identified by the opposite pivot key.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'tag_id');
     }
 }

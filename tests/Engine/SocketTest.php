@@ -11,6 +11,7 @@ use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -18,6 +19,7 @@ use Swoole\Coroutine\Server;
 use Swoole\Coroutine\Socket as SwooleSocket;
 use Swoole\Coroutine\WaitGroup;
 use Throwable;
+use ValueError;
 
 use function Hypervel\Coroutine\go;
 
@@ -236,13 +238,35 @@ class SocketTest extends TestCase
         );
     }
 
+    #[RunInSeparateProcess]
+    public function testSocketOptionsAcceptObjectsAndReportTheInvalidLingerField(): void
+    {
+        $socket = new Socket(AF_INET, SOCK_STREAM, SOL_TCP);
+
+        try {
+            $timeout = (object) ['sec' => 1, 'usec' => 0];
+
+            $this->assertTrue($socket->setOption(SOL_SOCKET, SO_RCVTIMEO, $timeout));
+            $this->assertTrue($socket->setOption(SOL_SOCKET, SO_SNDTIMEO, $timeout));
+
+            try {
+                $socket->setOption(SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 65536]);
+                $this->fail('Expected an invalid linger value to be rejected.');
+            } catch (ValueError $exception) {
+                $this->assertStringContainsString('"l_linger"', $exception->getMessage());
+            }
+        } finally {
+            $socket->close();
+        }
+    }
+
     public function testServerHandlerExceptionSurfacesInTheParent(): void
     {
         $server = new Server('127.0.0.1', 0);
         $handled = new Channel(1);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('expected server handler failure');
+        $this->expectExceptionMessageIs('expected server handler failure');
 
         $this->withServer(
             $server,

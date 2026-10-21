@@ -110,7 +110,7 @@ class HandlesDatabaseConnectionsTest extends TestCase
 
         try {
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage(
+            $this->expectExceptionMessageIs(
                 "Environment variable [MYSQL_PORT] must be a decimal port between 1 and 65535; {$rendered} given."
             );
 

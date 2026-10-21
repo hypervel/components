@@ -19,7 +19,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
         Relation::requireMorphMap();
     }
 
-    public function testStrictModeThrowsAnExceptionOnClassMap()
+    public function testStrictModeThrowsAnExceptionOnClassMap(): void
     {
         $this->expectException(ClassMorphViolationException::class);
 
@@ -28,7 +28,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
         $model->getMorphClass();
     }
 
-    public function testStrictModeDoesNotThrowExceptionWhenMorphMap()
+    public function testStrictModeDoesNotThrowExceptionWhenMorphMap(): void
     {
         $model = new ModelStub;
 
@@ -40,7 +40,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
         $this->assertSame('test', $morphName);
     }
 
-    public function testMapsCanBeEnforcedInOneMethod()
+    public function testMapsCanBeEnforcedInOneMethod(): void
     {
         $model = new ModelStub;
 
@@ -54,14 +54,14 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
         $this->assertSame('test', $morphName);
     }
 
-    public function testMapIgnoreGenericPivotClass()
+    public function testMapIgnoreGenericPivotClass(): void
     {
         $pivotModel = new Pivot;
 
         $pivotModel->getMorphClass();
     }
 
-    public function testMapCanBeEnforcedToCustomPivotClass()
+    public function testMapCanBeEnforcedToCustomPivotClass(): void
     {
         $this->expectException(ClassMorphViolationException::class);
 

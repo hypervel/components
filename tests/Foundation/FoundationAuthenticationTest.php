@@ -17,97 +17,97 @@ class FoundationAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;
 
-    protected $app;
+    protected Application $app;
 
     protected array $credentials = [
         'email' => 'someone@hypervel.org',
         'password' => 'secret_password',
     ];
 
+    /**
+     * Mock the authentication guard resolved by the application.
+     */
     protected function mockGuard(): Guard
     {
         $guard = m::mock(Guard::class);
 
         $auth = m::mock(AuthManager::class);
-        $auth->shouldReceive('guard')
-            ->once()
+        $auth->expects('guard')
             ->andReturn($guard);
 
         $this->app = m::mock(Application::class);
-        $this->app->shouldReceive('make')
-            ->once()
+        $this->app->expects('make')
             ->withArgs(['auth'])
             ->andReturn($auth);
 
         return $guard;
     }
 
-    public function testAssertAuthenticated()
+    public function testAssertAuthenticated(): void
     {
         $this->mockGuard()
-            ->shouldReceive('check')
-            ->once()
+            ->expects('check')
             ->andReturn(true);
 
         $this->assertAuthenticated();
     }
 
-    public function testAssertGuest()
+    public function testAssertGuest(): void
     {
         $this->mockGuard()
-            ->shouldReceive('check')
-            ->once()
+            ->expects('check')
             ->andReturn(false);
 
         $this->assertGuest();
     }
 
-    public function testAssertAuthenticatedAs()
+    public function testAssertAuthenticatedAs(): void
     {
         $expected = m::mock(Authenticatable::class);
-        $expected->shouldReceive('getAuthIdentifier')
+        $expected->expects('getAuthIdentifier')
             ->andReturn('1');
 
         $this->mockGuard()
-            ->shouldReceive('user')
-            ->once()
+            ->expects('user')
             ->andReturn($expected);
 
         $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')
+        $user->expects('getAuthIdentifier')
             ->andReturn('1');
 
         $this->assertAuthenticatedAs($user);
     }
 
+    /**
+     * Set up the user provider for the given credentials.
+     */
     protected function setupProvider(array $credentials): void
     {
         $user = m::mock(Authenticatable::class);
 
         $provider = m::mock(UserProvider::class);
 
-        $provider->shouldReceive('retrieveByCredentials')
+        $provider->expects('retrieveByCredentials')
             ->with($credentials)
             ->andReturn($user);
 
-        $provider->shouldReceive('validateCredentials')
+        $provider->expects('validateCredentials')
             ->with($user, $credentials)
             ->andReturn($this->credentials === $credentials);
 
         $this->mockGuard()
-            ->shouldReceive('getProvider')
-            ->once()
+            ->expects('getProvider')
             ->andReturn($provider);
     }
 
-    public function testAssertCredentials()
+    public function testAssertCredentials(): void
     {
         $this->setupProvider($this->credentials);
 
         $this->assertCredentials($this->credentials);
     }
 
-    public function testAssertCredentialsMissing()
+    public function testAssertCredentialsMissing(): void
     {
         $credentials = [
             'email' => 'invalid',

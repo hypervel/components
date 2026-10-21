@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
+use ArrayIterator;
 use Countable;
 use Hypervel\Contracts\Process\InvokedProcess;
 use Hypervel\Support\Collection;
+use IteratorAggregate;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
+use Traversable;
 
-class InvokedProcessPool implements Countable
+/**
+ * @implements IteratorAggregate<int|string, InvokedProcess>
+ */
+class InvokedProcessPool implements Countable, IteratorAggregate
 {
     /**
      * Create a new invoked process pool.
@@ -47,7 +54,10 @@ class InvokedProcessPool implements Countable
                     $running[] = $process;
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null
+                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
 
             if (! $shouldStop) {
@@ -57,7 +67,10 @@ class InvokedProcessPool implements Countable
             try {
                 $process->stop($timeout, $signal);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null
+                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
         }
 
@@ -73,8 +86,10 @@ class InvokedProcessPool implements Countable
      */
     public function running(): Collection
     {
-        /* @phpstan-ignore-next-line */
-        return (new Collection($this->invokedProcesses))->filter->running()->values();
+        /** @var Collection<int|string, InvokedProcess> $running */
+        $running = (new Collection($this->invokedProcesses))->filter->running();
+
+        return $running->values();
     }
 
     /**
@@ -92,8 +107,10 @@ class InvokedProcessPool implements Countable
             try {
                 // Stopping bounds cleanup when a sibling depends on external progress that may never arrive.
                 $this->stop(0);
-            } catch (Throwable) {
-                // Preserve the wait failure.
+            } catch (Throwable $cleanupException) {
+                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
+                    throw $cleanupException;
+                }
             }
 
             throw $exception;
@@ -108,5 +125,15 @@ class InvokedProcessPool implements Countable
     public function count(): int
     {
         return count($this->invokedProcesses);
+    }
+
+    /**
+     * Get an iterator for the invoked processes.
+     *
+     * @return ArrayIterator<int|string, InvokedProcess>
+     */
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator($this->invokedProcesses);
     }
 }

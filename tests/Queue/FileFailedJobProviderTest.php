@@ -25,6 +25,9 @@ class FileFailedJobProviderTest extends TestCase
 
     protected Filesystem $filesystem;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,6 +40,9 @@ class FileFailedJobProviderTest extends TestCase
         $this->provider = new FileFailedJobProvider($this->path);
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         $this->filesystem->deleteDirectory($this->tempDirectory);
@@ -73,6 +79,9 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame($payload, $this->provider->find($id)->payload);
     }
 
+    /**
+     * Provide payloads without usable identifiers.
+     */
     public static function payloadsWithoutUsableIdentifiers(): array
     {
         return [
@@ -86,37 +95,33 @@ class FileFailedJobProviderTest extends TestCase
 
     public function testCanRetrieveAllFailedJobs(): void
     {
-        try {
-            CarbonImmutable::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
 
-            [$uuidOne, $exceptionOne] = $this->logFailedJob();
-            [$uuidTwo, $exceptionTwo] = $this->logFailedJob();
+        [$uuidOne, $exceptionOne] = $this->logFailedJob();
+        [$uuidTwo, $exceptionTwo] = $this->logFailedJob();
 
-            $failedJobs = $this->provider->all();
+        $failedJobs = $this->provider->all();
 
-            $this->assertEquals([
-                (object) [
-                    'id' => $uuidTwo,
-                    'connection' => 'connection',
-                    'queue' => 'queue',
-                    'payload' => json_encode(['uuid' => $uuidTwo]),
-                    'exception' => (string) mb_convert_encoding((string) $exceptionTwo, 'UTF-8'),
-                    'failed_at' => $failedJobs[1]->failed_at,
-                    'failed_at_timestamp' => $failedJobs[1]->failed_at_timestamp,
-                ],
-                (object) [
-                    'id' => $uuidOne,
-                    'connection' => 'connection',
-                    'queue' => 'queue',
-                    'payload' => json_encode(['uuid' => $uuidOne]),
-                    'exception' => (string) mb_convert_encoding((string) $exceptionOne, 'UTF-8'),
-                    'failed_at' => $failedJobs[0]->failed_at,
-                    'failed_at_timestamp' => $failedJobs[0]->failed_at_timestamp,
-                ],
-            ], $failedJobs);
-        } finally {
-            CarbonImmutable::setTestNow();
-        }
+        $this->assertEquals([
+            (object) [
+                'id' => $uuidTwo,
+                'connection' => 'connection',
+                'queue' => 'queue',
+                'payload' => json_encode(['uuid' => $uuidTwo]),
+                'exception' => (string) mb_convert_encoding((string) $exceptionTwo, 'UTF-8'),
+                'failed_at' => $failedJobs[1]->failed_at,
+                'failed_at_timestamp' => $failedJobs[1]->failed_at_timestamp,
+            ],
+            (object) [
+                'id' => $uuidOne,
+                'connection' => 'connection',
+                'queue' => 'queue',
+                'payload' => json_encode(['uuid' => $uuidOne]),
+                'exception' => (string) mb_convert_encoding((string) $exceptionOne, 'UTF-8'),
+                'failed_at' => $failedJobs[0]->failed_at,
+                'failed_at_timestamp' => $failedJobs[0]->failed_at_timestamp,
+            ],
+        ], $failedJobs);
     }
 
     public function testCanFindFailedJobs(): void
@@ -173,14 +178,14 @@ class FileFailedJobProviderTest extends TestCase
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->addDay(1));
+        $this->provider->prune(now()->addDay());
         $failedJobs = $this->provider->all();
         $this->assertEmpty($failedJobs);
 
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->subDay(1));
+        $this->provider->prune(now()->subDay());
         $failedJobs = $this->provider->all();
         $this->assertCount(2, $failedJobs);
     }
@@ -190,14 +195,14 @@ class FileFailedJobProviderTest extends TestCase
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->addHour(1));
+        $this->provider->prune(now()->addHour());
         $failedJobs = $this->provider->all();
         $this->assertEmpty($failedJobs);
 
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->subHour(1));
+        $this->provider->prune(now()->subHour());
         $failedJobs = $this->provider->all();
         $this->assertCount(2, $failedJobs);
     }
@@ -240,7 +245,7 @@ class FileFailedJobProviderTest extends TestCase
         file_put_contents($this->path, '{"id":"job"}');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("The failed jobs file [{$this->path}] does not contain a JSON array.");
+        $this->expectExceptionMessageIs("The failed jobs file [{$this->path}] does not contain a JSON array.");
 
         $this->provider->all();
     }
@@ -336,7 +341,11 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame(2, $this->provider->count('connection-2', 'queue-1'));
     }
 
-    /** @return array{string, Exception} */
+    /**
+     * Log a failed job.
+     *
+     * @return array{string, Exception}
+     */
     public function logFailedJob(string $connection = 'connection', string $queue = 'queue'): array
     {
         $uuid = Str::uuid();
@@ -345,7 +354,10 @@ class FileFailedJobProviderTest extends TestCase
 
         $this->provider->log($connection, $queue, json_encode(['uuid' => (string) $uuid]), $exception);
 
-        return [(string) $uuid, $exception];
+        return [
+            (string) $uuid,
+            $exception,
+        ];
     }
 }
 

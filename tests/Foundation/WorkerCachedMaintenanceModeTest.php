@@ -10,10 +10,11 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class WorkerCachedMaintenanceModeTest extends TestCase
 {
-    public function testActiveCallsDriverOnlyOnceAndCachesResult()
+    public function testActiveCallsDriverOnlyOnceAndCachesResult(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->once()->andReturn(true);
@@ -26,7 +27,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertTrue($cached->active());
     }
 
-    public function testDataReturnsCachedPayloadWithoutRereadingDriver()
+    public function testDataReturnsCachedPayloadWithoutRereadingDriver(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->once()->andReturn(true);
@@ -38,7 +39,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertSame(['status' => 503, 'retry' => 60], $cached->data());
     }
 
-    public function testActiveAndDataAreLoadedAtomically()
+    public function testActiveAndDataAreLoadedAtomically(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->once()->andReturn(true);
@@ -50,6 +51,22 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertSame(['status' => 503], $cached->data());
         $this->assertTrue($cached->active());
         $this->assertSame(['status' => 503], $cached->data());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEmptyPayloadRechecksActivityBeforeCachingTheSnapshot(bool $remainsActive): void
+    {
+        $driver = m::mock(MaintenanceModeContract::class);
+        $driver->shouldReceive('active')->twice()->andReturn(true, $remainsActive);
+        $driver->shouldReceive('data')->once()->andReturn([]);
+
+        $cached = new WorkerCachedMaintenanceMode($driver);
+
+        $this->assertSame($remainsActive, $cached->active());
+        $this->assertSame([], $cached->data());
+        $this->assertSame($remainsActive, $cached->active());
+        $this->assertSame([], $cached->data());
     }
 
     public function testSnapshotIsReusedWithinRefreshInterval(): void
@@ -172,7 +189,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertFalse($cached->active());
     }
 
-    public function testFlushCacheResetsSnapshot()
+    public function testFlushCacheResetsSnapshot(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->twice()->andReturn(true, false);
@@ -205,7 +222,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertTrue($cached->active());
     }
 
-    public function testActivateDelegatesToDriverAndFlushesCache()
+    public function testActivateDelegatesToDriverAndFlushesCache(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->twice()->andReturn(false, true);
@@ -221,7 +238,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertTrue($cached->active());
     }
 
-    public function testDeactivateDelegatesToDriverAndFlushesCache()
+    public function testDeactivateDelegatesToDriverAndFlushesCache(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->twice()->andReturn(true, false);
@@ -237,7 +254,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertFalse($cached->active());
     }
 
-    public function testWhenNotActiveDataReturnsEmptyArrayWithoutCallingDriverData()
+    public function testWhenNotActiveDataReturnsEmptyArrayWithoutCallingDriverData(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->once()->andReturn(false);
@@ -248,7 +265,7 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertSame([], $cached->data());
     }
 
-    public function testAfterFlushAndRereadDecoratorReflectsUpdatedState()
+    public function testAfterFlushAndRereadDecoratorReflectsUpdatedState(): void
     {
         $driver = m::mock(MaintenanceModeContract::class);
         $driver->shouldReceive('active')->twice()->andReturn(true, false);

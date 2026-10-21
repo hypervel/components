@@ -52,7 +52,7 @@ class PrecognitionTest extends RoutingTestCase
         $this->assertTrue($this->app->make('ClassWasInstantiated'));
     }
 
-    public function testItCanCheckPrecognitiveStateOnTheRequest()
+    public function testItCanCheckPrecognitiveStateOnTheRequest(): void
     {
         // Capture request state inside the handler since request() is coroutine-scoped
         // and the test runs in a different coroutine than the HTTP handler.
@@ -76,7 +76,7 @@ class PrecognitionTest extends RoutingTestCase
         $this->assertTrue($state['isPrecognitive']);
     }
 
-    public function testItReturnsTheEmptyResponseWhenNotBailing()
+    public function testItReturnsTheEmptyResponseWhenNotBailing(): void
     {
         Route::get('test-route', function () {
             precognitive(function () {
@@ -93,7 +93,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Vary', 'Precognition');
     }
 
-    public function testItCanBailDuringPrecognitionRequest()
+    public function testItCanBailDuringPrecognitionRequest(): void
     {
         Route::get('test-route', function () {
             precognitive(function ($bail) {
@@ -111,7 +111,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanExcludeValidationRulesWhenPrecognitiveWithFormRequest()
+    public function testItCanExcludeValidationRulesWhenPrecognitiveWithFormRequest(): void
     {
         Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
             ->middleware(PrecognitionInvokingController::class);
@@ -132,7 +132,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItRunsExcludedRulesWhenNotPrecognitiveForFormRequest()
+    public function testItRunsExcludedRulesWhenNotPrecognitiveForFormRequest(): void
     {
         Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
             ->middleware(PrecognitionInvokingController::class);
@@ -154,7 +154,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyInputToValidate()
+    public function testClientCanSpecifyInputToValidate(): void
     {
         Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
             ->middleware(PrecognitionInvokingController::class);
@@ -180,7 +180,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyNoInputsToValidate()
+    public function testClientCanSpecifyNoInputsToValidate(): void
     {
         Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
             ->middleware(PrecognitionInvokingController::class);
@@ -199,7 +199,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItAppliesHeadersWhenExceptionThrownInPrecognition()
+    public function testItAppliesHeadersWhenExceptionThrownInPrecognition(): void
     {
         Route::get('test-route', function () {
             precognitive(function () {
@@ -216,7 +216,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItAppliesHeadersWhenFlowControlExceptionIsThrown()
+    public function testItAppliesHeadersWhenFlowControlExceptionIsThrown(): void
     {
         // Check with Authorize middleware first...
         Gate::define('alwaysDeny', fn () => false);
@@ -242,7 +242,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanReturnValuesFromPrecognitionClosure()
+    public function testItCanReturnValuesFromPrecognitionClosure(): void
     {
         Route::get('test-route', function () {
             [$first, $second, $third] = precognitive(function () {
@@ -267,7 +267,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItCanBailWithResponseDuringNormalRequest()
+    public function testItCanBailWithResponseDuringNormalRequest(): void
     {
         Route::get('test-route', function () {
             precognitive(function ($bail) {
@@ -287,7 +287,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testArbitraryBailResponseIsParsedToResponse()
+    public function testArbitraryBailResponseIsParsedToResponse(): void
     {
         Route::get('test-route', function () {
             precognitive(function ($bail) {
@@ -309,7 +309,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidate()
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidate(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -336,7 +336,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithBag()
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithBag(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidateWithBag'])
             ->middleware(PrecognitionInvokingController::class);
@@ -363,7 +363,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidate()
+    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidate(): void
     {
         Route::post('test-route', function (Request $request) {
             precognitive(function () use ($request) {
@@ -401,7 +401,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidateWithBag()
+    public function testClientCanSpecifyInputsToValidateWhenUsingRequestValidateWithBag(): void
     {
         Route::post('test-route', function (Request $request) {
             precognitive(function () use ($request) {
@@ -440,7 +440,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithPassingArrayOfRules()
+    public function testClientCanSpecifyInputsToValidateWhenUsingControllerValidateWithPassingArrayOfRules(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionValidatesViaControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
@@ -467,7 +467,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItCanValidateArrayWithWildcard()
+    public function testItCanValidateArrayWithWildcard(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereArrayRulesAreValidateViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -488,7 +488,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItCanValidateNestedArrayWithWildcard()
+    public function testItCanValidateNestedArrayWithWildcard(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereArrayRulesAreValidateViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -512,7 +512,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItCanValidateNestedObjectFieldsWithWildcard()
+    public function testItCanValidateNestedObjectFieldsWithWildcard(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereProfileIsValidated'])
             ->middleware(PrecognitionInvokingController::class);
@@ -532,7 +532,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItDoesNotMatchWildcardAgainstOtherRootKeys()
+    public function testItDoesNotMatchWildcardAgainstOtherRootKeys(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWithMultipleRootKeys'])
             ->middleware(PrecognitionInvokingController::class);
@@ -555,7 +555,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItDoesNotMatchWildcardAcrossSegments()
+    public function testItDoesNotMatchWildcardAcrossSegments(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
             ->middleware(PrecognitionInvokingController::class);
@@ -573,7 +573,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItCanValidateAllNestedFieldsWithDoubleWildcard()
+    public function testItCanValidateAllNestedFieldsWithDoubleWildcard(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
             ->middleware(PrecognitionInvokingController::class);
@@ -594,7 +594,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItCanValidateSpecificIndexWithoutWildcard()
+    public function testItCanValidateSpecificIndexWithoutWildcard(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereUsersAreValidated'])
             ->middleware(PrecognitionInvokingController::class);
@@ -637,7 +637,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders()
+    public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders(): void
     {
         Route::get('test-route', function () {
             precognitive(function ($bail) {
@@ -653,7 +653,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testSpacesAreImportantInValidationFilterLogicForJsonRequests()
+    public function testSpacesAreImportantInValidationFilterLogicForJsonRequests(): void
     {
         Route::post('test-route', fn (PrecognitionTestRequest $request) => fail())
             ->middleware(PrecognitionInvokingController::class);
@@ -674,7 +674,7 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testVaryHeaderIsAppliedToNonPrecognitionResponses()
+    public function testVaryHeaderIsAppliedToNonPrecognitionResponses(): void
     {
         Route::get('test-route', fn () => 'ok')
             ->middleware(PrecognitionInvokingController::class);
@@ -708,7 +708,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingFormRequest()
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingFormRequest(): void
     {
         Route::post('test-route', function (NestedPrecognitionTestRequest $request) {
             fail();
@@ -740,7 +740,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingRequestValidate()
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingRequestValidate(): void
     {
         Route::post('test-route', function (Request $request) {
             $request->validate([
@@ -776,7 +776,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidate()
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidate(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereNestedRulesAreValidatedViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -807,7 +807,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidateWith()
+    public function testItStopsExecutionAfterFailedValidationWithNestedValidationFilteringUsingControllerValidateWith(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereNestedRulesAreValidatedViaControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
@@ -838,7 +838,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanPassValidationForEscapedDotsAfterFilteringWithPrecognition()
+    public function testItCanPassValidationForEscapedDotsAfterFilteringWithPrecognition(): void
     {
         Route::post('test-route', function (PrecognitionRequestWithEscapedDots $request) {
             fail();
@@ -856,7 +856,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItCanFilterRulesWithEscapedDotsUsingFormRequest()
+    public function testItCanFilterRulesWithEscapedDotsUsingFormRequest(): void
     {
         Route::post('test-route', function (PrecognitionRequestWithEscapedDots $request) {
             fail();
@@ -880,7 +880,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanFilterRulesWithEscapedDotsWhenUsingRequestValidate()
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingRequestValidate(): void
     {
         Route::post('test-route', function (Request $request) {
             $request->validate([
@@ -908,7 +908,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidate()
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidate(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -931,7 +931,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidateWith()
+    public function testItCanFilterRulesWithEscapedDotsWhenUsingControllerValidateWith(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWhereEscapedDotRuleIsValidatedViaControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
@@ -977,7 +977,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidate()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidate(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -995,7 +995,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidate()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidate(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidate'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1012,7 +1012,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithBag()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithBag(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithBag'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1030,7 +1030,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithBag()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithBag(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithBag'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1047,7 +1047,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWith()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWith(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1065,7 +1065,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithXXXX()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithXXXX(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWith'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1082,7 +1082,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithPassingValidator()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndControllerValidateWithPassingValidator(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithPassingValidator'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1100,7 +1100,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithPassingValidator()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndControllerValidateWithPassingValidator(): void
     {
         Route::post('test-route', [PrecognitionTestController::class, 'methodWherePredictionReturnsResponseWithControllerValidateWithPassingValidator'])
             ->middleware(PrecognitionInvokingController::class);
@@ -1117,7 +1117,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndRequestValidate()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndRequestValidate(): void
     {
         Route::post('test-route', function (Request $request) {
             precognitive(function ($bail) use ($request) {
@@ -1149,7 +1149,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition-Success', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndRequestValidate()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndRequestValidate(): void
     {
         Route::post('test-route', function (Request $request) {
             precognitive(function ($bail) use ($request) {
@@ -1226,7 +1226,7 @@ class PrecognitionTest extends RoutingTestCase
         $this->assertSame('http://localhost/expected-route-1', $previousUrls['after_route_2']);
     }
 
-    public function testItAppendsVaryHeaderToSymfonyResponse()
+    public function testItAppendsVaryHeaderToSymfonyResponse(): void
     {
         Route::get('test-route', function () {
             return response()->streamDownload(function () {
@@ -1240,7 +1240,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItAppendsPrecognitionHeaderToSymfonyResponse()
+    public function testItAppendsPrecognitionHeaderToSymfonyResponse(): void
     {
         Route::get('test-route', function () {
         })->middleware([
@@ -1254,7 +1254,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition', 'true');
     }
 
-    public function testItCanNoContentWhileAlsoNotBeingPrecognitive()
+    public function testItCanNoContentWhileAlsoNotBeingPrecognitive(): void
     {
         Route::get('test-route', function () {
         })->middleware([HandlePrecognitiveRequests::class, MiddlewareThatReturnsNoContent::class]);
@@ -1265,7 +1265,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success', 'true');
     }
 
-    public function testDispatcherBindingsAreUnchangedAfterPrecognitiveRequest()
+    public function testDispatcherBindingsAreUnchangedAfterPrecognitiveRequest(): void
     {
         Route::get('test-route', fn () => 'ok')
             ->middleware(HandlePrecognitiveRequests::class);

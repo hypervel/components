@@ -7,8 +7,9 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-
-include_once 'Enums.php';
+use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 
 class QueryingWithEnumsTest extends DatabaseTestCase
 {
@@ -22,7 +23,7 @@ class QueryingWithEnumsTest extends DatabaseTestCase
         });
     }
 
-    public function testCanQueryWithEnums()
+    public function testCanQueryWithEnums(): void
     {
         DB::table('enum_casts')->insert([
             'string_status' => 'pending',
@@ -44,7 +45,7 @@ class QueryingWithEnumsTest extends DatabaseTestCase
         $this->assertSame('pending', $record4->non_backed_status);
     }
 
-    public function testCanInsertWithEnums()
+    public function testCanInsertWithEnums(): void
     {
         DB::table('enum_casts')->insert([
             'string_status' => StringStatus::Pending,

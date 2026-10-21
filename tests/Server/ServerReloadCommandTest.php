@@ -25,7 +25,7 @@ class ServerReloadCommandTest extends TestCase
         $command = $this->reloadCommand([], $filesystem);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [server.settings.pid_file] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [server.settings.pid_file] must be a string, NULL given.');
 
         (new CommandTester($command))->execute([]);
     }

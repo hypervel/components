@@ -11,6 +11,7 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\AbstractProvider as BaseProvider;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
+use Hypervel\Socialite\Two\Exceptions\InvalidCodeException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use SensitiveParameter;
@@ -146,6 +147,9 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Get the User instance for the authenticated user.
+     *
+     * @throws InvalidStateException
+     * @throws InvalidCodeException
      */
     public function user(): User
     {
@@ -226,7 +230,13 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
         $state = $this->getRequest()->session()->pull('state');
 
-        return empty($state) || ! hash_equals($state, (string) $this->getRequest()->input('state'));
+        if (empty($state)) {
+            return true;
+        }
+
+        $requestState = $this->getRequest()->input('state');
+
+        return ! is_string($requestState) || ! hash_equals($state, $requestState);
     }
 
     /**
@@ -352,10 +362,19 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Get the code from the request.
+     *
+     * @throws InvalidCodeException
      */
     protected function getCode(): string
     {
-        return $this->getRequest()->input('code');
+        $code = $this->getRequest()->input('code');
+
+        // Declined authorization can omit the code; throw an Exception rather than letting the return type raise a TypeError.
+        if (! is_string($code) || $code === '') {
+            throw new InvalidCodeException('The authorization code is missing or invalid.');
+        }
+
+        return $code;
     }
 
     /**
@@ -424,19 +443,29 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      */
     protected function getRedirectUrl(): string
     {
-        return $this->getOrSetContext('resolvedRedirectUrl', function (): string {
-            $redirect = $this->getContext('redirectUrl', $this->redirectUrl);
+        // Stateless redirects need no request; copied contexts must not reuse another request's origin.
+        $request = $this->getContext('request');
+        $resolved = $this->getContext('resolvedRedirectUrl');
 
-            if ($this->redirectFormatter === null) {
-                return value($redirect);
-            }
+        if ($resolved !== null && $resolved['request'] === $request) {
+            return $resolved['value'];
+        }
 
+        $redirect = $this->getContext('redirectUrl', $this->redirectUrl);
+
+        if ($this->redirectFormatter === null) {
+            $url = value($redirect);
+        } else {
             /** @var array $config */
             $config = $this->getConfig();
             $config['redirect'] = $redirect;
 
-            return ($this->redirectFormatter)($config);
-        });
+            $url = ($this->redirectFormatter)($config);
+        }
+
+        $this->setContext('resolvedRedirectUrl', ['request' => $request, 'value' => $url]);
+
+        return $url;
     }
 
     /**

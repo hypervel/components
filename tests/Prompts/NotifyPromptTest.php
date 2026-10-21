@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\NotifyPrompt;
 use Hypervel\Tests\TestCase;
+use ReflectionMethod;
 
 class TestableNotifyPrompt extends NotifyPrompt
 {
@@ -22,7 +23,7 @@ class TestableNotifyPrompt extends NotifyPrompt
 
 class NotifyPromptTest extends TestCase
 {
-    public function testSetsTheTitle()
+    public function testSetsTheTitle(): void
     {
         $prompt = new NotifyPrompt('Hello');
 
@@ -30,7 +31,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('', $prompt->body);
     }
 
-    public function testSetsTheTitleAndBody()
+    public function testSetsTheTitleAndBody(): void
     {
         $prompt = new NotifyPrompt('Hello', 'World');
 
@@ -38,7 +39,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('World', $prompt->body);
     }
 
-    public function testSetsMacosOptions()
+    public function testSetsMacosOptions(): void
     {
         $prompt = new NotifyPrompt(
             title: 'Hello',
@@ -51,7 +52,7 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('Glass', $prompt->sound);
     }
 
-    public function testSetsLinuxOptions()
+    public function testSetsLinuxOptions(): void
     {
         $prompt = new NotifyPrompt(
             title: 'Hello',
@@ -62,15 +63,11 @@ class NotifyPromptTest extends TestCase
         $this->assertSame('/path/to/icon.png', $prompt->icon);
     }
 
-    public function testBuildsCorrectMacosCommand()
+    public function testBuildsCorrectMacosCommand(): void
     {
-        if (PHP_OS_FAMILY !== 'Darwin') {
-            $this->markTestSkipped('macOS only');
-        }
-
         $prompt = new TestableNotifyPrompt('Hello', 'World');
 
-        $prompt->prompt();
+        (new ReflectionMethod($prompt, 'sendMacOS'))->invoke($prompt);
 
         $this->assertSame('osascript', $prompt->executedCommand[0]);
         $this->assertSame('-e', $prompt->executedCommand[1]);
@@ -80,12 +77,8 @@ class NotifyPromptTest extends TestCase
         $this->assertStringNotContainsString('sound name', $prompt->executedCommand[2]);
     }
 
-    public function testIncludesSubtitleAndSoundInMacosCommand()
+    public function testIncludesSubtitleAndSoundInMacosCommand(): void
     {
-        if (PHP_OS_FAMILY !== 'Darwin') {
-            $this->markTestSkipped('macOS only');
-        }
-
         $prompt = new TestableNotifyPrompt(
             title: 'Hello',
             body: 'World',
@@ -93,9 +86,39 @@ class NotifyPromptTest extends TestCase
             sound: 'Glass',
         );
 
-        $prompt->prompt();
+        (new ReflectionMethod($prompt, 'sendMacOS'))->invoke($prompt);
 
         $this->assertStringContainsString('subtitle "Sub"', $prompt->executedCommand[2]);
         $this->assertStringContainsString('sound name "Glass"', $prompt->executedCommand[2]);
+    }
+
+    public function testEscapesQuotesAndBackslashesInMacosCommand(): void
+    {
+        $prompt = new TestableNotifyPrompt('Say "hi"', 'C:\path');
+
+        (new ReflectionMethod($prompt, 'sendMacOS'))->invoke($prompt);
+
+        $this->assertSame(
+            'display notification "C:\\\path" with title "Say \"hi\""',
+            $prompt->executedCommand[2],
+        );
+    }
+
+    public function testBuildsNotifySendCommand(): void
+    {
+        $prompt = new TestableNotifyPrompt(title: 'Hello', body: 'World', icon: 'dialog-information');
+
+        (new ReflectionMethod($prompt, 'sendLinuxNotifySend'))->invoke($prompt);
+
+        $this->assertSame(['notify-send', '--icon', 'dialog-information', 'Hello', 'World'], $prompt->executedCommand);
+    }
+
+    public function testBuildsKdialogCommand(): void
+    {
+        $prompt = new TestableNotifyPrompt('Hello', 'World');
+
+        (new ReflectionMethod($prompt, 'sendLinuxKDialog'))->invoke($prompt);
+
+        $this->assertSame(['kdialog', '--passivepopup', 'Hello: World', '5', '--title', 'Hello'], $prompt->executedCommand);
     }
 }

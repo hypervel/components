@@ -17,6 +17,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 abstract class Controller
 {
     /**
+     * The number of seconds either side of the current time a request signature remains valid.
+     */
+    protected const int SIGNATURE_TOLERANCE = 600;
+
+    /**
      * Verify that the incoming request is valid.
      *
      * Returns a per-request context DTO instead of storing state on instance
@@ -88,6 +93,8 @@ abstract class Controller
         if (! is_string($authSignature) || ! hash_equals($signature, $authSignature)) {
             throw new HttpException(401, 'Authentication signature invalid.');
         }
+
+        $this->verifySignatureTimestamp($query);
     }
 
     /**
@@ -102,5 +109,19 @@ abstract class Controller
 
             return "{$key}={$value}";
         })->implode('&');
+    }
+
+    /**
+     * Verify that the request signature has not expired.
+     *
+     * @throws HttpException
+     */
+    protected function verifySignatureTimestamp(array $query): void
+    {
+        $timestamp = $query['auth_timestamp'] ?? null;
+
+        if (! is_numeric($timestamp) || abs(time() - (int) $timestamp) > static::SIGNATURE_TOLERANCE) {
+            throw new HttpException(401, 'Authentication signature invalid.');
+        }
     }
 }

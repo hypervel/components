@@ -76,6 +76,16 @@ class SupportMacroableTest extends TestCase
 
         $result = TestMacroable::tryStatic();
         $this->assertSame('static', $result);
+
+        TestMacroable::macro('tryPrivateInstance', function (): string {
+            return $this->privateVariable;
+        });
+        TestMacroable::macro('tryPrivateStatic', function (): string {
+            return $this::getPrivateStatic();
+        });
+
+        $this->assertSame('private instance', $instance->tryPrivateInstance());
+        $this->assertSame('private static', $instance->tryPrivateStatic());
     }
 
     public function testClassBasedMacros(): void
@@ -263,9 +273,19 @@ class TestMacroable
 
     protected string $protectedVariable = 'instance';
 
+    private string $privateVariable = 'private instance';
+
     protected static function getProtectedStatic(): string
     {
         return 'static';
+    }
+
+    /**
+     * Get a value only visible inside the class.
+     */
+    private static function getPrivateStatic(): string
+    {
+        return 'private static';
     }
 }
 

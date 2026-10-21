@@ -207,6 +207,16 @@ echo route('post.show', ['post' => 1, 'search' => 'rocket']);
 // http://example.com/post/1?search=rocket
 ```
 
+You may also pass enum cases as route or query parameters, including values in nested query arrays. Backed enums use their backing value, while unit enums use their case name.
+
+Route parameters should normally contain unencoded values. If a value is already URL-encoded, wrap it in an `EncodedParameter` to avoid encoding it again:
+
+```php
+use Hypervel\Routing\EncodedParameter;
+
+echo route('post.show', ['post' => new EncodedParameter('hello%20world')]);
+```
+
 <a name="eloquent-models"></a>
 #### Eloquent Models
 
@@ -329,6 +339,9 @@ ValidateSignature::except(['page']);
 ```
 
 The `except` method stores the ignored parameters for the worker lifetime, so it should be called during application boot, not from request-specific code.
+
+> [!WARNING]
+> A signature only covers the URL, including its query string. Any other request input, such as a form or JSON request body, is not signed and can be freely modified by the user. Since Hypervel merges these input sources together and gives the request body precedence over the query string, retrieving input with any method other than `query`, such as `input`, `all`, or a dynamic request property, may return unsigned values that override your signed query string values. Therefore, you should always retrieve signed values using the `query` method, such as `$request->query('email')`. This includes `GET` requests, as a specially crafted `GET` request can still contain a JSON request body.
 
 <a name="responding-to-invalid-signed-routes"></a>
 #### Responding to Invalid Signed Routes

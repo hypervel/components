@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\StreamOutput;
 
 class ConsoleOutputTest extends TestCase
 {
-    public function testCorrectlyCountsTrailingNewlinesWithUnixLineEndings()
+    public function testCorrectlyCountsTrailingNewlinesWithUnixLineEndings(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -26,7 +26,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(2, $ref->getValue($output));
     }
 
-    public function testCorrectlyCountsTrailingNewlinesWithWindowsLineEndings()
+    public function testCorrectlyCountsTrailingNewlinesWithWindowsLineEndings(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -41,9 +41,14 @@ class ConsoleOutputTest extends TestCase
 
         // Regardless of platform, a single writeln should count as 1 trailing newline
         $this->assertSame(1, $count);
+
+        // Write CRLF endings explicitly so this case runs on every platform.
+        $ref->setValue($output, 0);
+        $output->write("Hello\r\n\r\n");
+        $this->assertSame(2, $ref->getValue($output));
     }
 
-    public function testAccumulatesNewlinesForBlankLines()
+    public function testAccumulatesNewlinesForBlankLines(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -56,7 +61,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(3, $ref->getValue($output));
     }
 
-    public function testResetsNewlineCountForNonBlankLines()
+    public function testResetsNewlineCountForNonBlankLines(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -70,7 +75,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(1, $ref->getValue($output));
     }
 
-    public function testCountsZeroTrailingNewlinesForMessagesWithoutNewlineFlag()
+    public function testCountsZeroTrailingNewlinesForMessagesWithoutNewlineFlag(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');

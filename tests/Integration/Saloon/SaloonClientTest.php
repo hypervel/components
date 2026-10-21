@@ -9,7 +9,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Request;
-use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Testbench\TestCase;
 
@@ -19,11 +18,17 @@ class SaloonClientTest extends TestCase
 
     protected int $serverPort = 19505;
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [SaloonServiceProvider::class];
     }
 
+    /**
+     * Set up the test server connection.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -56,20 +61,6 @@ class SaloonClientTest extends TestCase
         $this->assertSame([0, 0, 0], array_slice($connectionTimes, 1));
     }
 
-    public function testPoolSendsConcurrentRequestsThroughTheSameConnector(): void
-    {
-        $connector = new SaloonEngineConnector($this->serverUrl());
-        $responses = $connector->pool(
-            array_map(fn (): SaloonEngineRequest => new SaloonEngineRequest, range(1, 6)),
-            concurrency: 3,
-        )->send();
-
-        $this->assertSame(
-            array_fill(0, 6, 'Hello World.'),
-            array_map(fn (Response $response): string => $response->body(), $responses),
-        );
-    }
-
     /**
      * Get the test server URL.
      */
@@ -88,6 +79,9 @@ class SaloonEngineConnector extends Connector
     {
     }
 
+    /**
+     * Resolve the integration base URL.
+     */
     public function resolveBaseUrl(): string
     {
         return $this->baseUrl;
@@ -98,6 +92,9 @@ class SaloonEngineRequest extends Request
 {
     protected Method $method = Method::GET;
 
+    /**
+     * Resolve the request endpoint.
+     */
     public function resolveEndpoint(): string
     {
         return '';

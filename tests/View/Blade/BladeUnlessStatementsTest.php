@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeUnlessStatementsTest extends AbstractBladeTestCase
 {
-    public function testUnlessStatementsAreCompiled()
+    public function testUnlessStatementsAreCompiled(): void
     {
         $string = '@unless (name(foo(bar)))
 breeze

@@ -34,12 +34,7 @@ trait AsPivot
     /**
      * The relation-owned predicates that identify this pivot row.
      *
-     * @var null|array{
-     *     wheres: array<int, array<int, mixed>>,
-     *     whereIns: array<int, array<int, mixed>>,
-     *     whereNulls: array<int, array<int, mixed>>,
-     *     whereBetweens: array<int, array<int, mixed>>
-     * }
+     * @var null|list<array{string, array<int, mixed>}>
      */
     protected ?array $pivotConstraints = null;
 
@@ -90,8 +85,8 @@ trait AsPivot
     /**
      * Set the keys for a select query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
@@ -109,8 +104,8 @@ trait AsPivot
     /**
      * Set the keys for a save update query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
@@ -145,7 +140,7 @@ trait AsPivot
     /**
      * Get the query builder for a delete operation on the pivot.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     protected function getDeleteQuery(): Builder
     {
@@ -160,8 +155,8 @@ trait AsPivot
     /**
      * Apply the relation-owned predicates to a pivot identity query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function applyPivotConstraints(Builder $query): Builder
     {
@@ -170,20 +165,8 @@ trait AsPivot
         }
 
         return $query->where(function (Builder $query): void {
-            foreach ($this->pivotConstraints['wheres'] as $arguments) {
-                $query->where(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereIns'] as $arguments) {
-                $query->whereIn(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereNulls'] as $arguments) {
-                $query->whereNull(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereBetweens'] as $arguments) {
-                $query->whereBetween(...$arguments);
+            foreach ($this->pivotConstraints as [$method, $arguments]) {
+                $query->{$method}(...$arguments);
             }
         });
     }
@@ -261,19 +244,12 @@ trait AsPivot
     /**
      * Set the relation-owned predicates for the pivot model.
      *
-     * @param array<int, array<int, mixed>> $wheres
-     * @param array<int, array<int, mixed>> $whereIns
-     * @param array<int, array<int, mixed>> $whereNulls
-     * @param array<int, array<int, mixed>> $whereBetweens
+     * @param list<array{string, array<int, mixed>}> $constraints
      * @return $this
      */
-    public function setPivotConstraints(
-        array $wheres,
-        array $whereIns,
-        array $whereNulls,
-        array $whereBetweens,
-    ): static {
-        $this->pivotConstraints = compact('wheres', 'whereIns', 'whereNulls', 'whereBetweens');
+    public function setPivotConstraints(array $constraints): static
+    {
+        $this->pivotConstraints = $constraints;
 
         return $this;
     }
@@ -342,7 +318,7 @@ trait AsPivot
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
     {
@@ -350,7 +326,7 @@ trait AsPivot
             return $this->newQueryForCollectionRestoration($ids);
         }
 
-        if (! str_contains($ids, ':')) {
+        if (! str_contains((string) $ids, ':')) {
             return parent::newQueryForRestoration($ids);
         }
 
@@ -365,13 +341,13 @@ trait AsPivot
      * Get a new query to restore multiple models by their queueable IDs.
      *
      * @param int[]|string[] $ids
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     protected function newQueryForCollectionRestoration(array $ids): Builder
     {
         $ids = array_values($ids);
 
-        if (! str_contains($ids[0], ':')) {
+        if (! str_contains((string) $ids[0], ':')) {
             return parent::newQueryForRestoration($ids);
         }
 

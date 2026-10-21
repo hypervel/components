@@ -25,6 +25,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\DebounceFor;
@@ -33,7 +34,6 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
-use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Attributes\UniqueFor;
@@ -42,6 +42,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use Hypervel\Support\Traits\ReflectsClosures;
 use LogicException;
 use ReflectionClass;
@@ -55,7 +56,7 @@ use function Hypervel\Support\enum_value;
 class Dispatcher implements DispatcherContract
 {
     use Macroable;
-    use ReadsQueueAttributes;
+    use ReadsClassAttributes;
     use ReflectsClosures;
     use ResolvesQueueRoutes;
 
@@ -87,7 +88,7 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event listeners.
      *
-     * @var array<string, array<int, null|array|callable|string>>
+     * @var array<array-key, array<int, null|array|callable|string>>
      */
     protected array $listeners = [];
 
@@ -305,6 +306,7 @@ class Dispatcher implements DispatcherContract
      */
     public function hasWildcardListeners(string $eventName): bool
     {
+        // Keep this loop to avoid an extra callback per wildcard.
         foreach ($this->wildcards as $key => $listeners) {
             if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 return true;
@@ -965,10 +967,6 @@ class Dispatcher implements DispatcherContract
                 $connectionName = (string) enum_value($connectionName);
             }
 
-            $connection = $this->resolveQueue()->connection(
-                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
-            );
-
             $queue = method_exists($listener, 'viaQueue')
                 ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
                 : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
@@ -978,12 +976,16 @@ class Dispatcher implements DispatcherContract
                 : $this->getAttributeValue($listener, Delay::class, 'delay');
 
             if (is_null($queue)) {
-                $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
+                $queue = $this->resolveQueueFromQueueRoute($listener);
             }
 
             if ($queue instanceof UnitEnum) {
                 $queue = (string) enum_value($queue);
             }
+
+            $connection = $this->resolveQueue()->connection(
+                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener, $queue)
+            );
 
             if ($debounceFor !== null) {
                 $debounce = (new DebounceLock($this->container->make(Cache::class)))->acquireForDispatch(
@@ -1125,6 +1127,14 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): ContainerContract
+    {
+        return $this->container;
+    }
+
+    /**
      * Set the queue resolver implementation.
      *
      * Boot-only. The resolver persists on the singleton Dispatcher for the
@@ -1142,7 +1152,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Get the database transaction manager implementation from the resolver.
      */
-    protected function resolveTransactionManager(): ?\Hypervel\Database\DatabaseTransactionsManager
+    protected function resolveTransactionManager(): ?DatabaseTransactionsManager
     {
         if ($this->transactionManagerResolver === null) {
             return null;
@@ -1157,7 +1167,7 @@ class Dispatcher implements DispatcherContract
      * Boot-only. The resolver persists on the singleton Dispatcher for the
      * worker lifetime and is consulted for every transaction-aware dispatch.
      *
-     * @param callable(): ?\Hypervel\Database\DatabaseTransactionsManager $resolver
+     * @param callable(): ?DatabaseTransactionsManager $resolver
      */
     public function setTransactionManagerResolver(callable $resolver): static
     {
@@ -1218,6 +1228,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Get the raw, unprepared listeners.
+     *
+     * @return array<array-key, array<int, null|array|callable|string>>
      */
     public function getRawListeners(): array
     {

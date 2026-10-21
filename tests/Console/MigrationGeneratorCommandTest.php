@@ -20,7 +20,7 @@ class MigrationGeneratorCommandTest extends TestCase
         $command = new TestMigrationGeneratorCommand($files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to read migration files matching [/app/database/migrations/*.php].');
+        $this->expectExceptionMessageIs('Unable to read migration files matching [/app/database/migrations/*.php].');
 
         $command->matchingMigrationFilesForTest('/app/database/migrations/*.php');
     }

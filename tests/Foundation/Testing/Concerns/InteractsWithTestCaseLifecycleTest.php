@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Closure;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Pool\PoolManager;
@@ -31,11 +32,13 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
     public function testFoundationTeardownAttemptsEveryPhaseAndPreservesTheEarliestFailure(): void
     {
         $steps = [];
+        $applicationAtFlush = null;
         $callbackException = new RuntimeException('callback failed');
         $databaseException = new RuntimeException('database cleanup failed');
         $poolException = new RuntimeException('pool cleanup failed');
         $parallelException = new RuntimeException('parallel cleanup failed');
         $applicationException = new RuntimeException('application cleanup failed');
+        $flushException = new RuntimeException('state cleanup failed');
 
         $staticProperties = [];
 
@@ -104,6 +107,12 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 $steps[] = 'callback:second';
             });
             $testCase->markSetupAsRun();
+            $testCase->registerFlushStateCallback(function () use (&$steps, &$applicationAtFlush, $flushException, $testCase): never {
+                $steps[] = 'flushState';
+                $applicationAtFlush = $testCase->lifecycleState()['app'];
+
+                throw $flushException;
+            });
 
             try {
                 $testCase->tearDownEnvironment();
@@ -119,7 +128,9 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 'pool',
                 'parallel',
                 'application',
+                'flushState',
             ], $steps);
+            $this->assertNull($applicationAtFlush);
             $this->assertSame([
                 'app' => null,
                 'afterCallbacks' => [],
@@ -133,6 +144,22 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             foreach ($staticProperties as $property => $value) {
                 (new ReflectionProperty(DatabaseConnectionResolver::class, $property))->setValue(null, $value);
             }
+        }
+    }
+
+    public function testFoundationTeardownReportsStateCleanupFailure(): void
+    {
+        $flushException = new RuntimeException('state cleanup failed');
+        $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
+        $testCase->registerFlushStateCallback(static function () use ($flushException): never {
+            throw $flushException;
+        });
+
+        try {
+            $testCase->tearDownEnvironment();
+            $this->fail('Expected teardown to rethrow the state cleanup failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($flushException, $exception);
         }
     }
 
@@ -173,6 +200,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
 
 class FoundationLifecycleTestCaseFixture extends FoundationTestCase
 {
+    protected ?Closure $flushStateCallback = null;
+
     public function testPlaceholder(): void
     {
     }
@@ -211,6 +240,24 @@ class FoundationLifecycleTestCaseFixture extends FoundationTestCase
             'callbackException' => $this->callbackException,
             'setUpHasRun' => $this->setUpHasRun,
         ];
+    }
+
+    /**
+     * Register the callback used to observe state cleanup.
+     */
+    public function registerFlushStateCallback(callable $callback): void
+    {
+        $this->flushStateCallback = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Reset static state between test executions.
+     */
+    protected function flushState(): void
+    {
+        parent::flushState();
+
+        $this->flushStateCallback?->__invoke();
     }
 }
 

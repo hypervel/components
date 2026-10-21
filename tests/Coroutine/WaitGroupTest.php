@@ -12,7 +12,7 @@ use Swoole\Coroutine\CanceledException;
 
 class WaitGroupTest extends TestCase
 {
-    public function testWaitAgain()
+    public function testWaitAgain(): void
     {
         $wg = new WaitGroup;
         $wg->add(2);

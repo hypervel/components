@@ -16,45 +16,49 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationResetCommandTest extends TestCase
 {
-    public function testResetCommandCallsMigratorWithProperArguments()
+    public function testResetCommandCallsMigratorWithProperArguments(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new ResetCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->with(null, m::type(Closure::class))->andReturnUsing(function ($connection, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->with(null, m::type(Closure::class))->andReturnUsing(function (?string $connection, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('reset')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], false);
+        $migrator->expects('repositoryExists')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('reset')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], false);
 
         $this->runCommand($command);
     }
 
-    public function testResetCommandCanBePretended()
+    public function testResetCommandCanBePretended(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new ResetCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->with('foo', m::type(Closure::class))->andReturnUsing(function ($connection, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->with('foo', m::type(Closure::class))->andReturnUsing(function (?string $connection, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('reset')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], true);
+        $migrator->expects('repositoryExists')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('reset')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], true);
 
         $this->runCommand($command, ['--pretend' => true, '--database' => 'foo']);
     }
 
-    public function testResetCommandExitsWhenProhibited()
+    public function testResetCommandExitsWhenProhibited(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new ResetCommand($migrator);
+
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new ResetCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
 
         ResetCommand::prohibit();
@@ -63,10 +67,13 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
         $this->assertSame(1, $code);
 
-        $migrator->shouldNotHaveBeenCalled();
+        $migrator->shouldNotHaveReceived('paths');
     }
 
-    protected function runCommand($command, $input = [])
+    /**
+     * Run the reset command.
+     */
+    protected function runCommand(ResetCommand $command, array $input = []): int
     {
         return $command->run(new ArrayInput($input), new NullOutput);
     }
@@ -74,6 +81,9 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
 class ApplicationDatabaseResetStub extends Application
 {
+    /**
+     * Create a new test application instance.
+     */
     public function __construct(array $data = [])
     {
         $mutex = m::mock(CommandMutex::class);
@@ -89,7 +99,10 @@ class ApplicationDatabaseResetStub extends Application
         static::setInstance($this);
     }
 
-    public function environment(...$environments): bool|string
+    /**
+     * Get the application environment.
+     */
+    public function environment(array|string ...$environments): bool|string
     {
         return 'development';
     }

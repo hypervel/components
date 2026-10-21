@@ -100,6 +100,12 @@ Before moving on, let's take a closer look at this route. First, you'll notice w
 
 Next, we can proceed directly to calling the `fulfill` method on the request. This method will call the `markEmailAsVerified` method on the authenticated user and dispatch the `Hypervel\Auth\Events\Verified` event. The `markEmailAsVerified` method is available to the default `App\Models\User` model via the `Hypervel\Foundation\Auth\User` base class. Once the user's email address has been verified, you may redirect them wherever you wish.
 
+You may reset a user's email verification status using the `markEmailAsUnverified` method, for example, after the user changes their email address. This clears the stored verification timestamp and saves the user:
+
+```php
+$user->markEmailAsUnverified();
+```
+
 By default, verification links expire after 60 minutes. You may change this duration using the `auth.verification.expire` configuration option.
 
 <a name="resending-the-verification-email"></a>

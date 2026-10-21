@@ -60,6 +60,27 @@ class DeleteFilesTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToDeleteFiles(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+
+        $filesystem->shouldReceive('isFile')->once()->with('a')->andReturnTrue()
+            ->shouldReceive('isFile')->once()->with('b')->andReturnFalse()
+            ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
+            ->shouldReceive('delete')->never();
+
+        $components->shouldReceive('task')->once()->with('File [a] would be deleted')->andReturnNull()
+            ->shouldReceive('twoColumnDetail')->once()->with('File [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
+
+        (new DeleteFiles(
+            filesystem: $filesystem,
+            components: $components,
+            pretending: true,
+        ))->handle(['a', 'b']);
+    }
+
+    #[Test]
     public function itAttemptsEveryFileBeforeReportingDeletionFailures(): void
     {
         $filesystem = m::mock(Filesystem::class);
@@ -72,7 +93,7 @@ class DeleteFilesTest extends TestCase
         $components->expects('task')->with('File [b] has been deleted');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to delete files [a].');
+        $this->expectExceptionMessageIs('Unable to delete files [a].');
 
         (new DeleteFiles(
             filesystem: $filesystem,

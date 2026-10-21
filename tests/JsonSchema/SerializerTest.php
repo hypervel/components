@@ -80,8 +80,7 @@ class SerializerTest extends TestCase
 
     public function testItDoesNotKnowHowToSerializeUnknownTypes(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unsupported [Hypervel\JsonSchema\Types\Type@anonymous');
+        $this->expectExceptionObject(new RuntimeException('Unsupported [Hypervel\JsonSchema\Types\Type@anonymous'));
 
         $type = new class extends Type {
             // anonymous type for triggering serializer failure

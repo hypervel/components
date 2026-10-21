@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 {
@@ -74,7 +79,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItLoadsAHasManyThroughRelationWithCustomKeys()
+    public function testItLoadsAHasManyThroughRelationWithCustomKeys(): void
     {
         $this->seedData();
         $posts = Country::first()->posts;
@@ -83,7 +88,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testItLoadsADefaultHasManyThroughRelation()
+    public function testItLoadsADefaultHasManyThroughRelation(): void
     {
         $this->migrateDefault();
         $this->seedDefaultData();
@@ -95,7 +100,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->resetDefault();
     }
 
-    public function testItLoadsARelationWithCustomIntermediateAndLocalKey()
+    public function testItLoadsARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $posts = IntermediateCountry::first()->posts;
@@ -104,7 +109,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey()
+    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $posts = IntermediateCountry::with('posts')->first()->posts;
@@ -113,7 +118,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $country = IntermediateCountry::whereHas('posts', function ($query) {
@@ -123,7 +128,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(1, $country);
     }
 
-    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $country = IntermediateCountry::withWhereHas('posts', function ($query) {
@@ -132,10 +137,10 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
         $this->assertCount(1, $country);
         $this->assertTrue($country->first()->relationLoaded('posts'));
-        $this->assertEquals($country->first()->posts->pluck('title')->unique()->toArray(), ['A title']);
+        $this->assertEquals(['A title'], $country->first()->posts->pluck('title')->unique()->toArray());
     }
 
-    public function testFindMethod()
+    public function testFindMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -152,9 +157,15 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
         $this->assertCount(2, $country->posts()->find([1, 2]));
         $this->assertCount(2, $country->posts()->find(new Collection([1, 2])));
+
+        $post->setAttribute('other_id', 2);
+        $this->assertSame(1, $country->posts()->find($post)->id);
+        $this->assertSame(1, $country->posts()->findSole($post)->id);
+        $this->assertSame(1, $country->posts()->findOrFail($post)->id);
+        $this->assertSame(1, $country->posts()->findOr($post, fn (): string => 'missing')->id);
     }
 
-    public function testFindManyMethod()
+    public function testFindManyMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -169,10 +180,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts()->findMany(new Collection([1, 2])));
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -180,21 +190,21 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->firstOrFail();
     }
 
-    public function testFindOrFailThrowsAnException()
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFindOrFailThrowsAnException(bool $model): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
 
-        Country::first()->posts()->findOrFail(1);
+        Country::first()->posts()->findOrFail($model ? (new Post)->forceFill(['id' => 1]) : 1);
     }
 
-    public function testFindOrFailWithManyThrowsAnException()
+    public function testFindOrFailWithManyThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -203,10 +213,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail([1, 2]);
     }
 
-    public function testFindOrFailWithManyUsingCollectionThrowsAnException()
+    public function testFindOrFailWithManyUsingCollectionThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -215,27 +224,32 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail(new Collection([1, 2]));
     }
 
-    public function testFindOrMethod()
+    public function testFindOrMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->create(['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
 
-        $result = Country::first()->posts()->findOr(1, fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(1, fn (): string => 'callback result');
         $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertSame('A title', $result->title);
 
-        $result = Country::first()->posts()->findOr(1, ['posts.id'], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(1, ['posts.id'], fn (): string => 'callback result');
         $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertNull($result->title);
 
-        $result = Country::first()->posts()->findOr(2, fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(2, fn (): string => 'callback result');
         $this->assertSame('callback result', $result);
+
+        $this->assertSame('callback result', Country::first()->posts()->findOr(
+            (new Post)->forceFill(['id' => 2]),
+            fn (): string => 'callback result'
+        ));
     }
 
-    public function testFindOrMethodWithMany()
+    public function testFindOrMethodWithMany(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -262,7 +276,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFindOrMethodWithManyUsingCollection()
+    public function testFindOrMethodWithManyUsingCollection(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -289,7 +303,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testFirstRetrievesFirstRecord()
+    public function testFirstRetrievesFirstRecord(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first();
@@ -298,7 +312,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $post->title);
     }
 
-    public function testAllColumnsAreRetrievedByDefault()
+    public function testAllColumnsAreRetrievedByDefault(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first();
@@ -314,7 +328,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         ], array_keys($post->getAttributes()));
     }
 
-    public function testOnlyProperColumnsAreSelectedIfProvided()
+    public function testOnlyProperColumnsAreSelectedIfProvided(): void
     {
         $this->seedData();
         $post = Country::first()->posts()->first(['title', 'body']);
@@ -326,7 +340,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         ], array_keys($post->getAttributes()));
     }
 
-    public function testChunkReturnsCorrectModels()
+    public function testChunkReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -347,7 +361,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testChunkById()
+    public function testChunkById(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -365,7 +379,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertEquals(6, $count);
     }
 
-    public function testCursorReturnsCorrectModels()
+    public function testCursorReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -389,7 +403,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         }
     }
 
-    public function testEachReturnsCorrectModels()
+    public function testEachReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -409,7 +423,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testEachByIdReturnsCorrectModels()
+    public function testEachByIdReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -429,7 +443,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testLazyReturnsCorrectModels()
+    public function testLazyReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -449,7 +463,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testLazyById()
+    public function testLazyById(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -475,7 +489,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertEquals(6, $i);
     }
 
-    public function testIntermediateSoftDeletesAreIgnored()
+    public function testIntermediateSoftDeletesAreIgnored(): void
     {
         $this->seedData();
         SoftDeletesUser::first()->delete();
@@ -486,13 +500,22 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $posts);
     }
 
-    public function testEagerLoadingLoadsRelatedModelsCorrectly()
+    public function testEagerLoadingLoadsRelatedModelsCorrectly(): void
     {
         $this->seedData();
         $country = SoftDeletesCountry::with('posts')->first();
 
         $this->assertSame('us', $country->shortname);
         $this->assertSame('A title', $country->posts[0]->title);
+        $this->assertCount(2, $country->posts);
+    }
+
+    public function testEagerLoadingDoesNotReadTheEmptyFarParentKey(): void
+    {
+        $this->seedData();
+
+        $country = StrictKeyCountry::with('posts')->first();
+
         $this->assertCount(2, $country->posts);
     }
 
@@ -581,20 +604,16 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }
@@ -644,6 +663,17 @@ class Country extends Eloquent
     public function users()
     {
         return $this->hasMany(User::class, 'country_id');
+    }
+}
+
+class StrictKeyCountry extends Country
+{
+    /**
+     * Reject a missing key, like a strict value-object cast.
+     */
+    protected function id(): Attribute
+    {
+        return Attribute::get(fn (?int $value): int => $value ?? throw new RuntimeException('The country key is missing.'));
     }
 }
 

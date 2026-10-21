@@ -5,23 +5,28 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Closure;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthenticationProviderContract;
-use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
-use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\FortifyServiceProvider;
-use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
-use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
+use Hypervel\Fortify\RecoveryCode;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Session\Store;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
+use Mockery as m;
+use Nyholm\Psr7\Response as PsrResponse;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
@@ -60,17 +65,30 @@ class FortifyServiceProviderTest extends TestCase
         $response->assertExactJson(['foo' => 'bar']);
     }
 
-    public function testTwoFactorResponseBindingsUseMatchingContracts(): void
+    public function testNamedViewsReceiveTheRequest(): void
     {
-        $this->assertInstanceOf(
-            TwoFactorEnabledResponse::class,
-            $this->app->make(TwoFactorEnabledResponseContract::class)
-        );
+        $factory = m::mock(ResponseFactory::class);
+        $factory->shouldReceive('view')->once()->with('auth.login', m::on(
+            static fn (array $parameters): bool => $parameters['request'] instanceof Request,
+        ))->andReturn(new HttpResponse('Login'));
+        $this->app->instance(ResponseFactory::class, $factory);
+        Fortify::loginView('auth.login');
 
-        $this->assertInstanceOf(
-            TwoFactorDisabledResponse::class,
-            $this->app->make(TwoFactorDisabledResponseContract::class)
-        );
+        $this->get('/login')->assertOk()->assertSee('Login');
+    }
+
+    public function testCustomizedViewsCanReturnArrays(): void
+    {
+        Fortify::loginView(fn (): array => ['page' => 'login']);
+
+        $this->get('/login')->assertOk()->assertExactJson(['page' => 'login']);
+    }
+
+    public function testCustomizedViewsCanReturnPsrResponses(): void
+    {
+        Fortify::loginView(fn (): PsrResponse => new PsrResponse(202, ['X-Login' => 'pending'], 'Login'));
+
+        $this->get('/login')->assertStatus(202)->assertHeader('X-Login', 'pending')->assertSee('Login');
     }
 
     public function testTwoFactorAuthenticationProviderUsesFrameworkClock(): void
@@ -164,6 +182,36 @@ class FortifyServiceProviderTest extends TestCase
         $this->assertSame(Passkeys::DEFAULT_TIMEOUT, config('passkeys.timeout'));
     }
 
+    public function testPasskeySettingsAreComputedAgainAgainstTheRebuiltConfiguration(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'app' => ['url' => 'https://old.example.test', 'key' => 'old-key'],
+            'fortify' => ['passkeys' => ['timeout' => 30000]],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturnFalse();
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new ReflectionMethod(FortifyServiceProvider::class, 'configurePasskeys'))->invoke(new FortifyServiceProvider($app));
+
+        $this->assertSame('old.example.test', $masterConfig->get('passkeys.relying_party_id'));
+
+        // A worker whose environment changed the application URL and key derives the defaults from them, keeping explicit settings.
+        $workerConfig = new ConfigRepository([
+            'app' => ['url' => 'https://new.example.test', 'key' => 'new-key'],
+            'fortify' => ['passkeys' => ['relying_party_id' => 'passkeys.example.test', 'timeout' => 30000]],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('passkeys.example.test', $workerConfig->get('passkeys.relying_party_id'));
+        $this->assertSame(['https://new.example.test'], $workerConfig->get('passkeys.allowed_origins'));
+        $this->assertSame('new-key', $workerConfig->get('passkeys.user_handle_secret'));
+        $this->assertSame(30000, $workerConfig->get('passkeys.timeout'));
+    }
+
     #[DefineEnvironment('withTwoFactorAuthentication')]
     public function testRedirectIfTwoFactorAuthenticatableIsResolvedFreshAfterFlushingScopedInstances(): void
     {
@@ -200,6 +248,32 @@ class FortifyServiceProviderTest extends TestCase
         $instanceB = $this->app->make(RedirectsIfTwoFactorAuthenticatable::class);
 
         $this->assertNotSame($instanceA, $instanceB);
+    }
+
+    public function testRecoveryCodeGenerationCanBeCustomized(): void
+    {
+        Fortify::generateRecoveryCodesUsing(fn (): string => 'recovery-code');
+
+        $this->assertSame('recovery-code', RecoveryCode::generate());
+    }
+
+    public function testActionsCanBeRegisteredWithNonClosureCallables(): void
+    {
+        $creator = m::mock(CreatesNewUsers::class);
+
+        Fortify::createUsersUsing(new class($creator) {
+            public function __construct(
+                private readonly CreatesNewUsers $creator,
+            ) {
+            }
+
+            public function __invoke(): CreatesNewUsers
+            {
+                return $this->creator;
+            }
+        });
+
+        $this->assertSame($creator, $this->app->make(CreatesNewUsers::class));
     }
 
     /**

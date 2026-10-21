@@ -14,6 +14,7 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\MessageConverter;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -39,6 +40,8 @@ class CloudflareTransport extends AbstractTransport
     }
 
     /**
+     * Send the given message.
+     *
      * @throws TransportException
      */
     protected function doSend(SentMessage $message): void
@@ -62,12 +65,12 @@ class CloudflareTransport extends AbstractTransport
             );
         }
 
-        throw_if(
-            $response->getStatusCode() !== Response::HTTP_OK,
-            TransportException::class,
-            $result['errors'][0]['message'] ?? 'Unknown error',
-            $response->getStatusCode(),
-        );
+        if ($response->getStatusCode() !== Response::HTTP_OK) {
+            throw new TransportException(
+                $result['errors'][0]['message'] ?? 'Unknown error',
+                $response->getStatusCode(),
+            );
+        }
     }
 
     /**
@@ -75,8 +78,9 @@ class CloudflareTransport extends AbstractTransport
      */
     protected function getPayload(SentMessage $message): array
     {
-        /* @phpstan-ignore-next-line */
-        $email = MessageConverter::toEmail($message->getOriginalMessage());
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+        $email = MessageConverter::toEmail($originalMessage);
 
         $envelope = $message->getEnvelope();
 

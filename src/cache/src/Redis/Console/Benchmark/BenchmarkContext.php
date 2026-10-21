@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Benchmark;
 
-use Exception;
 use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Redis\Support\TagKeyBuilder;
 use Hypervel\Cache\RedisStore;

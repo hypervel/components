@@ -14,7 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Session\UserSessions forUser(\Hypervel\Contracts\Auth\Authenticatable|string|int $user, \UnitEnum|string|null $guard = null)
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static array getSessionConfig()
  * @method static \Hypervel\Session\SessionManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static void setDefaultDriver(\UnitEnum|string $name)
@@ -23,7 +23,7 @@ namespace Hypervel\Support\Facades;
  * @method static void ageFlashData()
  * @method static array all()
  * @method static \Hypervel\Contracts\Cache\Repository cache()
- * @method static int decrement(\UnitEnum|string $key, int $amount = 1)
+ * @method static int|float decrement(\UnitEnum|string $key, int $amount = 1)
  * @method static array except(array $keys)
  * @method static bool exists(\UnitEnum|array|string $key)
  * @method static void flash(\UnitEnum|string $key, mixed $value = true)
@@ -44,12 +44,14 @@ namespace Hypervel\Support\Facades;
  * @method static bool hasOldInput(\UnitEnum|string|null $key = null)
  * @method static bool hasPreviousUri()
  * @method static string id()
- * @method static mixed increment(\UnitEnum|string $key, int $amount = 1)
+ * @method static int|float increment(\UnitEnum|string $key, int $amount = 1)
  * @method static bool invalidate()
+ * @method static bool isReadOnly()
  * @method static bool isStarted()
  * @method static bool isValidId(string|null $id)
  * @method static void keep(mixed $keys = null)
  * @method static void macro(string $name, callable|object $macro)
+ * @method static void markAsReadOnly()
  * @method static bool migrate(bool $destroy = false)
  * @method static bool missing(\UnitEnum|array|string $key)
  * @method static void mixin(object $mixin, bool $replace = true)
@@ -83,6 +85,9 @@ namespace Hypervel\Support\Facades;
  */
 class Session extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'session';

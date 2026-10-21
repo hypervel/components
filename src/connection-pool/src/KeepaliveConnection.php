@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ConnectionPool;
 
 use Closure;
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\ConnectionPool\Exceptions\InvalidArgumentException;
 use Hypervel\ConnectionPool\Exceptions\SocketPopException;
 use Hypervel\Contracts\ConnectionPool\Connection as ConnectionContract;
@@ -126,7 +127,7 @@ abstract class KeepaliveConnection implements ConnectionContract
             $previousChannel?->close();
         }
 
-        return true;
+        return $this->isConnected();
     }
 
     /**
@@ -136,8 +137,8 @@ abstract class KeepaliveConnection implements ConnectionContract
      */
     public function call(Closure $closure, bool $refresh = true): mixed
     {
-        if (! $this->isConnected()) {
-            $this->reconnect();
+        if (! $this->isConnected() && ! $this->reconnect()) {
+            throw new ConnectionException(sprintf('Socket of %s could not be reconnected.', $this->name));
         }
 
         $channel = $this->channel;

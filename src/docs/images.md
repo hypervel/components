@@ -17,6 +17,7 @@
 - [Image Drivers](#image-drivers)
     - [Custom Image Drivers](#custom-image-drivers)
     - [Custom Transformations](#custom-transformations)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -449,6 +450,8 @@ class VipsDriver implements Driver
 > [!NOTE]
 > To see how a complete driver applies transformations and output options, review Hypervel's built-in `Hypervel\Image\Drivers\InterventionDriver`. Only the bundled GD and Imagick drivers depend on Intervention Image.
 
+If your driver defines a public `ensureRequirementsAreMet` method, the image manager calls it before caching the driver, so it may throw when a required dependency is missing.
+
 Image managers and resolved drivers are cached for the worker lifetime. Drivers must remain stateless and coroutine-safe: retain only immutable configuration or a concurrency-safe client. Do not retain image contents, request or tenant data, pipelines, native image handles, or decoded images. Treat the `ImagePipeline` passed to `process` as read-only and do not retain it after the call returns.
 
 Register custom drivers during worker boot, typically in a service provider's `boot` method. The registration and resolved driver affect every subsequent request handled by that worker:
@@ -529,3 +532,8 @@ $image = $request->image('avatar')
     ->transform(new Pixelate(12))
     ->store('avatars');
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Image began as a port of [Laravel Image](https://github.com/illuminate/image) and has been adapted for Hypervel's framework architecture and coroutine runtime.

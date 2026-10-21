@@ -40,14 +40,20 @@ class RenderableViewExceptionTest extends TestCase
         $response->assertSee('This is a response renderable exception.');
     }
 
+    /**
+     * Configure the exception view fixture.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app->make('config')->set('view.paths', [__DIR__ . '/templates']);
+        $app->make('config')->set('view.paths', [__DIR__ . '/Fixtures/templates']);
     }
 }
 
 class RenderableException extends Exception
 {
+    /**
+     * Render the exception as text.
+     */
     public function render(Request $request): string
     {
         return 'This is a renderable exception.';
@@ -56,6 +62,9 @@ class RenderableException extends Exception
 
 class ResponseRenderableException extends Exception
 {
+    /**
+     * Render the exception as a response.
+     */
     public function render(Request $request): Response
     {
         return new Response(

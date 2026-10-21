@@ -9,7 +9,7 @@ use Hypervel\Tests\Routing\RoutingTestCase;
 
 class RoutingSortedMiddlewareTest extends RoutingTestCase
 {
-    public function testMiddlewareCanBeSortedByPriority()
+    public function testMiddlewareCanBeSortedByPriority(): void
     {
         $priority = [
             'First',
@@ -43,12 +43,12 @@ class RoutingSortedMiddlewareTest extends RoutingTestCase
 
         $this->assertEquals($expected, (new SortedMiddleware($priority, $middleware))->all());
 
-        $this->assertEquals([], (new SortedMiddleware(['First'], []))->all());
+        $this->assertSame([], (new SortedMiddleware(['First'], []))->all());
         $this->assertEquals(['First'], (new SortedMiddleware(['First'], ['First']))->all());
         $this->assertEquals(['First', 'Second'], (new SortedMiddleware(['First', 'Second'], ['Second', 'First']))->all());
     }
 
-    public function testItDoesNotMoveNonStringValues()
+    public function testItDoesNotMoveNonStringValues(): void
     {
         $closure = function () {
             return 'foo';
@@ -67,7 +67,7 @@ class RoutingSortedMiddlewareTest extends RoutingTestCase
         $this->assertEquals([$closure, $closure2, 'foo', 'a'], (new SortedMiddleware(['a', 'b'], [$closure, $closure2, 'foo', 'a']))->all());
     }
 
-    public function testItSortsUsingParentsAndContracts()
+    public function testItSortsUsingParentsAndContracts(): void
     {
         $priority = [
             FirstContractStub::class,

@@ -121,6 +121,22 @@ class RequestQueryStringPartialsResolverTest extends TestCase
         ], $response->getData(true));
     }
 
+    public function testNumericPathSegmentsAreTreatedAsUnknownNames(): void
+    {
+        $response = $this->makeData()->toResponse($this->request([
+            'only' => 'display_name,0,nested.0',
+        ]));
+
+        $this->assertSame([
+            'display_name' => 'Taylor',
+            'nested' => [
+                'id' => 2,
+                'display_name' => 'Abigail',
+                'default_secret' => 'nested-default-secret',
+            ],
+        ], $response->getData(true));
+    }
+
     public function testNullAllowlistPermitsWildcardSelection(): void
     {
         $data = new UnrestrictedRequestPartialData(

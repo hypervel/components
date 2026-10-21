@@ -7,10 +7,12 @@ namespace Hypervel\Reverb\Webhooks\Jobs;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Reverb\Webhooks\Events\WebhookFailed;
 use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Http;
+use InvalidArgumentException;
 use Throwable;
 
 class WebhookDeliveryJob implements ShouldQueue
@@ -47,9 +49,14 @@ class WebhookDeliveryJob implements ShouldQueue
         int $timeout = 5,
         public array $headers = [],
     ) {
+        if ($retries < 0) {
+            throw new InvalidArgumentException('The retry count must not be negative.');
+        }
+
         $this->connection = 'redis';
         $this->queue = 'reverb-webhooks';
-        $this->tries = $retries;
+        // The queue treats zero tries as unlimited, and the first attempt is not a retry.
+        $this->tries = $retries + 1;
         $this->backoff = $retryDelay;
         $this->httpTimeout = $timeout;
     }
@@ -69,7 +76,10 @@ class WebhookDeliveryJob implements ShouldQueue
             ARRAY_FILTER_USE_BOTH
         );
 
+        // A followed 301, 302 or 303 turns the POST into a body-less GET, so the
+        // webhook counts as delivered only when the endpoint itself returns 2xx.
         $response = Http::timeout($this->httpTimeout)
+            ->withoutRedirecting()
             ->withHeaders(array_merge(
                 $safeHeaders,
                 [
@@ -80,7 +90,9 @@ class WebhookDeliveryJob implements ShouldQueue
             ->withBody($body, 'application/json')
             ->post($this->url);
 
-        $response->throw();
+        if (! $response->successful()) {
+            throw new RequestException($response);
+        }
     }
 
     /**

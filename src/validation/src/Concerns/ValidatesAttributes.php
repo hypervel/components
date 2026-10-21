@@ -113,7 +113,7 @@ trait ValidatesAttributes
             try {
                 $records = $this->getDnsRecords($url . '.', DNS_A | DNS_AAAA);
 
-                if (is_array($records) && count($records) > 0) {
+                if (is_array($records) && $records !== []) {
                     return true;
                 }
             } catch (Exception) {
@@ -355,6 +355,8 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute contains only alphabetic characters.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alphabetic characters.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlpha(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -369,6 +371,8 @@ trait ValidatesAttributes
      * Validate that an attribute contains only alpha-numeric characters, dashes, and underscores.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alpha-numeric characters,
      * dashes, and underscores.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlphaDash(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -386,6 +390,8 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute contains only alpha-numeric characters.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alpha-numeric characters.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlphaNum(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -467,6 +473,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (! Arr::exists($value, $parameter) && ! Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return false;
@@ -532,6 +539,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (! in_array($parameter, $value)) {
                 return false;
@@ -552,8 +560,9 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
-            if (in_array($parameter, $value)) {
+            if (in_array($parameter, $value, true)) {
                 return false;
             }
         }
@@ -870,13 +879,76 @@ trait ValidatesAttributes
      */
     public function validateDistinct(string $attribute, mixed $value, mixed $parameters): bool
     {
-        $data = Arr::except($this->getDistinctValues($attribute), $attribute);
+        $values = $this->getDistinctValues($attribute);
 
-        if (in_array('ignore_case', $parameters)) {
-            return empty(preg_grep('/^' . preg_quote((string) $value, '/') . '$/iu', $data));
+        if (is_float($value) && is_nan($value) && in_array('strict', $parameters, true)) {
+            return true;
         }
 
-        return ! in_array($value, array_values($data), in_array('strict', $parameters));
+        if (! is_string($value) || ! in_array('ignore_case', $parameters, true)) {
+            $primary = $this->getPrimaryAttribute($attribute);
+
+            if (! array_key_exists($primary, $this->distinctValueCounts)) {
+                $counts = [];
+                $looseType = $values === [] ? null : gettype(reset($values));
+                $looseType = in_array($looseType, ['string', 'integer'], true) ? $looseType : null;
+
+                foreach ($values as $other) {
+                    if (($looseType === 'string' && (! is_string($other) || is_numeric($other)))
+                        || ($looseType === 'integer' && ! is_int($other))) {
+                        $looseType = null;
+                    }
+
+                    if (($key = $this->getDistinctValueKey($other)) !== null) {
+                        $counts[$key] = ($counts[$key] ?? 0) + 1;
+                    }
+                }
+
+                $this->distinctValueCounts[$primary] = ['counts' => $counts, 'looseType' => $looseType];
+            }
+
+            $cached = $this->distinctValueCounts[$primary];
+            $key = $this->getDistinctValueKey($value);
+
+            // Mixed loose equality is not transitive, so only homogeneous ints and nonnumeric strings can use counts.
+            if ($key !== null && (in_array('strict', $parameters, true) || $cached['looseType'] === gettype($value))) {
+                $self = array_key_exists($attribute, $values) && $values[$attribute] === $value;
+
+                return ($cached['counts'][$key] ?? 0) <= (int) $self;
+            }
+        }
+
+        $data = Arr::except($values, $attribute);
+
+        if (in_array('ignore_case', $parameters, true) && is_string($value)) {
+            foreach ($data as $key => $other) {
+                if (! is_scalar($other) && $other !== null && ! $other instanceof Stringable) {
+                    unset($data[$key]);
+                }
+            }
+
+            return empty(preg_grep('/^' . preg_quote($value, '/') . '$/iu', $data));
+        }
+
+        return ! in_array($value, array_values($data), in_array('strict', $parameters, true));
+    }
+
+    /**
+     * Identify values whose strict equality can be counted without comparing every sibling.
+     */
+    protected function getDistinctValueKey(mixed $value): ?string
+    {
+        return match (gettype($value)) {
+            'string' => 's' . $value,
+            'integer' => 'i' . $value,
+            'boolean' => $value ? 'b1' : 'b0',
+            'NULL' => 'n',
+            // Binary floats preserve precision; PHP considers the two signed zeros equal.
+            'double' => is_nan($value) ? null : 'f' . pack('e', $value === 0.0 ? 0.0 : $value),
+            'object' => 'o' . spl_object_id($value),
+            'array' => $value === [] ? 'a' : null,
+            default => null,
+        };
     }
 
     /**
@@ -908,7 +980,7 @@ trait ValidatesAttributes
             $this->data
         );
 
-        $pattern = str_replace('\*', '[^.]+', preg_quote($attribute, '#'));
+        $pattern = str_replace('\*', '[^.]*', preg_quote($attribute, '#'));
 
         return Arr::where(Arr::dot($attributeData), function ($value, $key) use ($pattern) {
             return (bool) preg_match('#^' . $pattern . '\z#u', (string) $key);
@@ -945,7 +1017,6 @@ trait ValidatesAttributes
                     is_string($validation) ? $validation : get_debug_type($validation),
                 )),
             })
-            ->values()
             ->all() ?: [new RFCValidation];
 
         $emailValidator = Container::getInstance()->make(EmailValidator::class);
@@ -972,7 +1043,7 @@ trait ValidatesAttributes
     }
 
     /**
-     * Validate that a value has a specific character encoding.
+     * Validate the encoding of an attribute.
      *
      * @param array<int, int|string> $parameters
      *
@@ -982,11 +1053,17 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'encoding');
 
-        if (! in_array(mb_strtolower($parameters[0]), array_map(mb_strtolower(...), mb_list_encodings()))) {
+        static::$encodingNames ??= array_fill_keys(array_map(mb_strtolower(...), mb_list_encodings()), true);
+
+        if (! isset(static::$encodingNames[mb_strtolower($parameters[0])])) {
             throw new InvalidArgumentException("Validation rule encoding parameter [{$parameters[0]}] is not a valid encoding.");
         }
 
-        return mb_check_encoding($value instanceof File ? $value->getContent() : $value, $parameters[0]);
+        if ($value instanceof File) {
+            $value = $value->getContent();
+        }
+
+        return (is_string($value) || is_array($value)) && mb_check_encoding($value, $parameters[0]);
     }
 
     /**
@@ -1476,7 +1553,7 @@ trait ValidatesAttributes
                 }
             }
 
-            return count(array_diff($value, $parameters)) === 0;
+            return array_diff($value, $parameters) === [];
         }
 
         $parameters = array_map(
@@ -1507,7 +1584,7 @@ trait ValidatesAttributes
             return Str::is($parameters[0], $key);
         });
 
-        return in_array($value, $otherValues);
+        return in_array($value, $otherValues, true);
     }
 
     /**
@@ -1525,6 +1602,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (Arr::exists($value, $parameter) || Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return true;
@@ -1841,6 +1919,8 @@ trait ValidatesAttributes
      * Validate the value of an attribute is a multiple of a given value.
      *
      * @param array<int, int|string> $parameters
+     *
+     * @throws MathException
      */
     public function validateMultipleOf(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -1852,11 +1932,7 @@ trait ValidatesAttributes
     /**
      * Determine if a value is an exact multiple of a divisor.
      *
-     * Uses BigDecimal remainder for arbitrary-precision comparison. Both
-     * value and divisor must be numeric; the exception translation wrapping
-     * stays in the caller (validateMultipleOf) for non-numeric cases, but
-     * the BigDecimal exception is thrown from here since that's where the
-     * math operation lives.
+     * @throws MathException
      */
     protected function isMultipleOf(mixed $value, mixed $divisor): bool
     {
@@ -2296,15 +2372,10 @@ trait ValidatesAttributes
      */
     protected function convertValuesToBoolean(array $values): array
     {
-        return array_map(function ($value) {
-            if ($value === 'true') {
-                return true;
-            }
-            if ($value === 'false') {
-                return false;
-            }
-
-            return $value;
+        return array_map(fn ($value) => match ($value) {
+            'true' => true,
+            'false' => false,
+            default => $value,
         }, $values);
     }
 
@@ -2371,6 +2442,7 @@ trait ValidatesAttributes
      */
     protected function anyFailingRequired(array $attributes): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($attributes as $key) {
             if (! $this->validateRequired($key, $this->getValue($key))) {
                 return true;
@@ -2385,6 +2457,7 @@ trait ValidatesAttributes
      */
     protected function allFailingRequired(array $attributes): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($attributes as $key) {
             if ($this->validateRequired($key, $this->getValue($key))) {
                 return false;
@@ -2501,10 +2574,17 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is a valid timezone.
      *
-     * @param array<string, null|string> $parameters
+     * @param array<int, string> $parameters
      */
     public function validateTimezone(string $attribute, mixed $value, array $parameters = []): bool
     {
+        // Only the complete list is reused, so rule parameters cannot grow the cached state.
+        if (! isset($parameters[1]) && Str::upper($parameters[0] ?? 'ALL') === 'ALL') {
+            static::$timezoneIdentifiers ??= array_fill_keys(timezone_identifiers_list(), true);
+
+            return is_string($value) && isset(static::$timezoneIdentifiers[$value]);
+        }
+
         return in_array($value, timezone_identifiers_list(
             constant(DateTimeZone::class . '::' . Str::upper($parameters[0] ?? 'ALL')),
             isset($parameters[1]) ? Str::upper($parameters[1]) : null,

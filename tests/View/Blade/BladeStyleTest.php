@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeStyleTest extends AbstractBladeTestCase
 {
-    public function testStylesAreConditionallyCompiledFromArray()
+    public function testStylesAreConditionallyCompiledFromArray(): void
     {
         $string = "<span @style(['font-weight: bold', 'text-decoration: underline', 'color: red' => true, 'margin-top: 10px' => false])></span>";
         $expected = "<span style=\"<?php echo \\Hypervel\\Support\\Arr::toCssStyles(['font-weight: bold', 'text-decoration: underline', 'color: red' => true, 'margin-top: 10px' => false]) ?>\"></span>";

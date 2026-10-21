@@ -1,8 +1,8 @@
 {
     "name": "hypervel/cookie",
-    "type": "library",
     "description": "The Hypervel Cookie package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "cookie",
@@ -23,11 +23,6 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Cookie\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "hypervel/collections": "^0.4",
@@ -38,17 +33,22 @@
         "hypervel/support": "^0.4",
         "symfony/http-foundation": "^8.1"
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Cookie\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Cookie\\CookieServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

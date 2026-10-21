@@ -13,10 +13,13 @@ use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Workbench\AuthServiceProvider;
+use Hypervel\Workbench\WorkbenchServiceProvider;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
 
@@ -28,7 +31,7 @@ use function Hypervel\Testbench\workbench_relative_path;
 /**
  * @api
  *
- * @phpstan-import-type TWorkbenchDiscoversConfig from \Hypervel\Testbench\Foundation\Config
+ * @phpstan-import-type TWorkbenchDiscoversConfig from Config
  */
 class Workbench
 {
@@ -73,6 +76,8 @@ class Workbench
      *
      * @internal
      *
+     * @param array<int, class-string<ServiceProvider>|string> $providers
+     *
      * @codeCoverageIgnore
      */
     public static function start(ApplicationContract $app, ConfigContract $config, array $providers = []): void
@@ -95,15 +100,12 @@ class Workbench
      */
     public static function startWithProviders(ApplicationContract $app, ConfigContract $config): void
     {
-        $providers = $config->getExtraAttributes()['providers'];
+        $hasAuthentication = $config->getWorkbenchAttributes()['auth'];
 
-        if ($config->getWorkbenchAttributes()['auth'] === true
-            && class_exists(\Hypervel\Auth\AuthServiceProvider::class)
-            && ! in_array(\Hypervel\Auth\AuthServiceProvider::class, $providers, true)) {
-            $providers[] = \Hypervel\Auth\AuthServiceProvider::class;
-        }
-
-        static::start($app, $config, $providers);
+        static::start($app, $config, array_filter([
+            $hasAuthentication === true ? AuthServiceProvider::class : null,
+            WorkbenchServiceProvider::class,
+        ]));
     }
 
     /**

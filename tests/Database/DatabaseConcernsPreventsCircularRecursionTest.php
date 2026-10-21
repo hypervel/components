@@ -11,6 +11,9 @@ use Mockery as m;
 
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -18,7 +21,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         RecursiveMethodStub::$globalStack = 0;
     }
 
-    public function testRecursiveCallsArePreventedWithoutPreventingSubsequentCalls()
+    public function testRecursiveCallsArePreventedWithoutPreventingSubsequentCalls(): void
     {
         $instance = new RecursiveMethodStub;
 
@@ -34,7 +37,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(2, $instance->instanceStack);
     }
 
-    public function testRecursiveDefaultCallbackIsCalledOnlyOnRecursion()
+    public function testRecursiveDefaultCallbackIsCalledOnlyOnRecursion(): void
     {
         $instance = new RecursiveMethodStub;
 
@@ -53,7 +56,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(2, $instance->defaultStack);
     }
 
-    public function testRecursiveDefaultCallbackIsCalledOnlyOncePerCallStack()
+    public function testRecursiveDefaultCallbackIsCalledOnlyOncePerCallStack(): void
     {
         $instance = new RecursiveMethodStub;
 
@@ -86,7 +89,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(2, $instance->defaultStack);
     }
 
-    public function testRecursiveCallsAreLimitedToIndividualInstances()
+    public function testRecursiveCallsAreLimitedToIndividualInstances(): void
     {
         $instance = new RecursiveMethodStub;
         $other = $instance->other;
@@ -116,7 +119,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(2, $other->instanceStack);
     }
 
-    public function testRecursiveCallsToCircularReferenceCallsOtherInstanceOnce()
+    public function testRecursiveCallsToCircularReferenceCallsOtherInstanceOnce(): void
     {
         $instance = new RecursiveMethodStub;
         $other = $instance->other;
@@ -146,7 +149,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
         $this->assertEquals(4, $instance->instanceStack);
     }
 
-    public function testRecursiveCallsToCircularLinkedListCallsEachInstanceOnce()
+    public function testRecursiveCallsToCircularLinkedListCallsEachInstanceOnce(): void
     {
         $instance = new RecursiveMethodStub;
         $second = $instance->other;
@@ -183,10 +186,10 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
         // Model toArray method implementation
         $toArray = $mock->withoutRecursion(
-            fn () => array_merge($mock->attributesToArray(), $mock->relationsToArray()),
-            fn () => $mock->attributesToArray(),
+            fn (): array => array_merge($mock->attributesToArray(), $mock->relationsToArray()),
+            fn (): array => $mock->attributesToArray(),
         );
-        $this->assertEquals([], $toArray);
+        $this->assertSame([], $toArray);
     }
 }
 
@@ -194,6 +197,9 @@ class RecursiveMethodStub
 {
     use PreventsCircularRecursion;
 
+    /**
+     * Create a circularly linked fixture.
+     */
     public function __construct(
         public ?RecursiveMethodStub $other = null,
     ) {
@@ -206,10 +212,13 @@ class RecursiveMethodStub
 
     public int $defaultStack = 0;
 
+    /**
+     * Reenter the method with a scalar default.
+     */
     public function callStack(): int
     {
         return $this->withoutRecursion(
-            function () {
+            function (): int {
                 ++static::$globalStack;
                 ++$this->instanceStack;
 
@@ -219,26 +228,32 @@ class RecursiveMethodStub
         );
     }
 
+    /**
+     * Reenter the method with a callable default.
+     */
     public function callCallableDefaultStack(): array
     {
         return $this->withoutRecursion(
-            function () {
+            function (): array {
                 ++static::$globalStack;
                 ++$this->instanceStack;
 
                 return $this->callCallableDefaultStack();
             },
-            fn () => [
+            fn (): array => [
                 'instance' => $this->instanceStack,
                 'default' => $this->defaultStack++,
             ],
         );
     }
 
+    /**
+     * Reenter the method repeatedly within one call stack.
+     */
     public function callCallableDefaultStackRepeatedly(): array
     {
         return $this->withoutRecursion(
-            function () {
+            function (): array {
                 ++static::$globalStack;
                 ++$this->instanceStack;
 
@@ -248,17 +263,20 @@ class RecursiveMethodStub
                     $this->callCallableDefaultStackRepeatedly(),
                 ];
             },
-            fn () => [
+            fn (): array => [
                 'instance' => $this->instanceStack,
                 'default' => $this->defaultStack++,
             ],
         );
     }
 
+    /**
+     * Reenter the method through the linked fixture.
+     */
     public function callOtherStack(): int
     {
         return $this->withoutRecursion(
-            function () {
+            function (): int {
                 $this->other->callStack();
 
                 return $this->other->callOtherStack();

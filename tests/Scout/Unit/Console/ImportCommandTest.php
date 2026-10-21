@@ -17,7 +17,7 @@ use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use Mockery as m;
 use RuntimeException;
@@ -28,7 +28,7 @@ class ImportCommandTest extends ScoutTestCase
     public function testItThrowsScoutExceptionForNonExistentModelClass(): void
     {
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Model [NonExistentModel] not found.');
+        $this->expectExceptionMessageIs('Model [NonExistentModel] not found.');
 
         $this->artisan('scout:import', ['model' => 'NonExistentModel'])->run();
     }
@@ -112,6 +112,7 @@ class ImportCommandTest extends ScoutTestCase
 
         $failure = new RuntimeException('Search transport failed.');
         $failingEngine = m::mock(Engine::class);
+        $failingEngine->shouldReceive('importConcurrency')->once()->passthru();
         $failingEngine->shouldReceive('runUpdate')->once()->andThrow($failure);
 
         $manager = m::mock(EngineManager::class);
@@ -135,6 +136,7 @@ class ImportCommandTest extends ScoutTestCase
         $this->assertFalse(CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY));
 
         $successfulEngine = m::mock(Engine::class);
+        $successfulEngine->shouldReceive('importConcurrency')->once()->passthru();
         $successfulEngine->shouldReceive('runUpdate')->times(3);
 
         $manager = m::mock(EngineManager::class);

@@ -32,8 +32,8 @@ class Limiter
     }
 
     // One-call decisions replace Laravel's split tooManyAttempts(), hit(),
-    // increment(), attempts(), resetAttempts(), retriesLeft(), availableIn(),
-    // cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
+    // increment(), decrement(), attempts(), resetAttempts(), remaining(),
+    // retriesLeft(), availableIn(), cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
 
     /**
      * Atomically consume capacity from an admission policy.
@@ -52,6 +52,51 @@ class Limiter
             $this->resolveKey($policy, $limiterName),
             $policy,
         );
+    }
+
+    /**
+     * Consume a group, returning decisions through the first denied policy.
+     *
+     * Groups are atomic except on Redis Cluster, where a concurrent denial
+     * during consumption may leave earlier policies charged.
+     *
+     * @param list<AdmissionPolicy> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies, UnitEnum|string|null $limiterName = null): array
+    {
+        if (count($policies) === 1) {
+            return [$this->consume(reset($policies), $limiterName)];
+        }
+
+        $entries = [];
+
+        foreach ($policies as $policy) {
+            if (! $policy instanceof Unlimited) {
+                $this->validateAdmission($policy);
+                $entries[] = ['key' => $this->resolveKey($policy, $limiterName), 'policy' => $policy];
+            }
+        }
+
+        $decisions = match (count($entries)) {
+            0 => [],
+            1 => [$this->store->consume($entries[0]['key'], $entries[0]['policy'])],
+            default => $this->store->consumeMany($entries),
+        };
+
+        $results = [];
+        $index = 0;
+
+        foreach ($policies as $policy) {
+            $result = $policy instanceof Unlimited ? $this->unlimitedResult() : $decisions[$index++];
+            $results[] = $result;
+
+            if ($result->denied()) {
+                break;
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -158,6 +203,7 @@ class Limiter
     {
         $duration = match (true) {
             $policy instanceof Limit => $this->validateFixedWindow($policy),
+            $policy instanceof CalendarWindow => $this->validateCalendarWindow($policy),
             $policy instanceof SlidingWindow => $this->validateSlidingWindow($policy),
             $policy instanceof LeakyBucket => $this->validateLeakyBucket($policy),
             default => throw new InvalidRateLimitException(sprintf(
@@ -181,6 +227,22 @@ class Limiter
         }
 
         return $policy->decaySeconds * 1_000_000;
+    }
+
+    /**
+     * Validate a calendar-window policy's capacity.
+     *
+     * Calendar windows vary in length, so this returns no duration and stores range-check each window's end when they create it.
+     */
+    protected function validateCalendarWindow(CalendarWindow $policy): int
+    {
+        if ($policy->cost > $policy->maxAttempts) {
+            throw new InvalidRateLimitException(
+                'The rate limit cost may not exceed the calendar-window capacity.'
+            );
+        }
+
+        return 0;
     }
 
     /**

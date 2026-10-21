@@ -6,15 +6,17 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:cast')]
 class CastMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:cast';
+    protected ?string $signature = 'make:cast
+                    {name : The name of the cast}
+                    {--f|force : Create the class even if the cast already exists}
+                    {--inbound : Generate an inbound cast class}';
 
     /**
      * The console command description.
@@ -52,16 +54,5 @@ class CastMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Casts';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the cast already exists'],
-            ['inbound', null, InputOption::VALUE_NONE, 'Generate an inbound cast class'],
-        ];
     }
 }

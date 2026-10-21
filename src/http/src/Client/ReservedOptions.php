@@ -18,18 +18,20 @@ final class ReservedOptions
     /**
      * Reject options whose ownership belongs to dedicated APIs.
      */
-    public static function reject(array $options, bool $allowTransportSharing, string $source): void
+    public static function reject(array $options, bool $allowHandlerOptions, string $source): void
     {
         $messages = [
             'pool' => 'HTTP clients are not object-pooled; named connections share their low-level transport handler automatically.',
             'handler' => 'Use PendingRequest::setHandler() to provide a request-specific handler.',
-            'cookies' => 'Use PendingRequest::withCookies() to seed the request-owned cookie jar.',
+            'cookies' => 'Use PendingRequest::withCookie() or withCookies() to seed the request-owned cookie jar.',
             'max_host_connections' => 'Guzzle applies connection caps through a shared multi-handler, which cannot be driven safely by concurrent coroutines. Use bounded coroutine fan-out or rate limiting instead.',
             'max_total_connections' => 'Guzzle applies connection caps through a shared multi-handler, which cannot be driven safely by concurrent coroutines. Use bounded coroutine fan-out or rate limiting instead.',
         ];
 
-        if (! $allowTransportSharing) {
+        if (! $allowHandlerOptions) {
             $messages['transport_sharing'] = 'Configure transport sharing through Factory::registerConnection().';
+            $messages['max_idle_handles'] = 'Configure idle handle retention through Factory::registerConnection().';
+            $messages['max_idle_multi_handlers'] = 'Configure idle multi-handler retention through Factory::registerConnection().';
         }
 
         foreach ($messages as $key => $remedy) {

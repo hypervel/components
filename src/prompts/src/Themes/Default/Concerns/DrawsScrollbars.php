@@ -13,7 +13,7 @@ trait DrawsScrollbars
     /**
      * Render a scrollbar beside the visible items.
      *
-     * @template T of array<int, string>|\Hypervel\Support\Collection<int, string>
+     * @template T of array<int, string>|Collection<int, string>
      *
      * @param T $visible
      * @return T

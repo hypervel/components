@@ -148,7 +148,7 @@ class GrpcServiceProviderTest extends TestCase
         string $message,
     ): void {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->registerEnabledProvider([$key => $value]);
     }
@@ -244,7 +244,7 @@ PHP);
         $this->registerEnabledProvider(['name' => 'grpc']);
 
         $this->expectException(ServerInvalidArgumentException::class);
-        $this->expectExceptionMessage('Server name [grpc] is duplicated.');
+        $this->expectExceptionMessageIs('Server name [grpc] is duplicated.');
 
         new ServerConfig($config->array('server'));
     }

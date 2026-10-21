@@ -1,8 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// Root Vitest config. Each subpackage with TS tests is listed explicitly
-// in `projects` and brings its own vitest.config.ts (and any globalSetup,
-// environment, etc.). Adding a new package requires adding it here too.
+// Each JavaScript test project is listed here, either inline or through
+// its package's vitest.config.ts and any package-specific setup.
 //
 // Run `pnpm test` from the repo root to execute every listed package's
 // tests. Scope to one package by passing it as a project name, e.g.
@@ -11,6 +10,13 @@ export default defineConfig({
     test: {
         projects: [
             'src/wayfinder',
+            {
+                test: {
+                    name: 'mcp',
+                    include: ['tests/Mcp/**/*.test.js'],
+                    environment: 'node',
+                },
+            },
         ],
     },
 });

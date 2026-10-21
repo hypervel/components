@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
+use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Support\Sleep;
@@ -116,7 +117,7 @@ final class ExpirationCheck implements CheckInterface
         );
 
         // Run cleanup to remove stale entries
-        /** @var \Hypervel\Cache\Redis\AllTaggedCache $taggedCache */
+        /** @var AllTaggedCache $taggedCache */
         $taggedCache = $context->cache->tags([$tag]);
         $taggedCache->flushStale();
 

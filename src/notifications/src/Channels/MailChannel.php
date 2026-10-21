@@ -15,6 +15,7 @@ use Hypervel\Mail\SentMessage;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
@@ -35,8 +36,7 @@ class MailChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?SentMessage
     {
-        /* @phpstan-ignore-next-line */
-        $message = $notification->toMail($notifiable);
+        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound
 
         if (! $notifiable->routeNotificationFor('mail', $notification)
             && ! $message instanceof Mailable
@@ -203,17 +203,19 @@ class MailChannel
     /**
      * Get the recipients of the given message.
      */
-    protected function getRecipients(mixed $notifiable, Notification $notification, MailMessage $message): mixed
+    protected function getRecipients(mixed $notifiable, Notification $notification, MailMessage $message): array
     {
         if (is_string($recipients = $notifiable->routeNotificationFor('mail', $notification))) {
             $recipients = [$recipients];
         }
 
-        return collect($recipients)->mapWithKeys(function ($recipient, $email) {
-            return is_numeric($email)
-                ? [$email => (is_string($recipient) ? $recipient : $recipient->email)]
-                : [$email => $recipient];
-        })->all();
+        return (new Collection($recipients))
+            ->mapWithKeys(function (mixed $recipient, int|string $email): array {
+                return is_numeric($email)
+                    ? [$email => (is_string($recipient) ? $recipient : $recipient->email)]
+                    : [$email => $recipient];
+            })
+            ->all();
     }
 
     /**

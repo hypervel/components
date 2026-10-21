@@ -59,7 +59,7 @@ class DatabaseServiceProviderTest extends TestCase
         $this->app->forgetInstance('migration.repository');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('database.migrations.table');
+        $this->expectExceptionMessageIsOrContains('database.migrations.table');
 
         $this->app->make('migration.repository');
     }
@@ -165,7 +165,7 @@ class DatabaseServiceProviderTest extends TestCase
             };
 
             $this->assertTrue($concurrencySubject->detects(new PDOException('database is locked')));
-            $this->assertTrue($lostConnectionSubject->detects(new RuntimeException('server has gone away')));
+            $this->assertTrue($lostConnectionSubject->detects(new PDOException('server has gone away')));
         } finally {
             Container::setInstance($originalContainer);
         }

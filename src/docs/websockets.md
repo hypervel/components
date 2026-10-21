@@ -36,7 +36,6 @@ use Hypervel\WebSocketServer\Server as WebSocketServer;
         'port' => (int) env('WEBSOCKET_SERVER_PORT', 8080),
         'sock_type' => SWOOLE_SOCK_TCP,
         'callbacks' => [
-            Event::ON_REQUEST => [Hypervel\HttpServer\Server::class, 'onRequest'],
             Event::ON_HANDSHAKE => [WebSocketServer::class, 'onHandshake'],
             Event::ON_MESSAGE => [WebSocketServer::class, 'onMessage'],
             Event::ON_CLOSE => [WebSocketServer::class, 'onClose'],
@@ -121,6 +120,8 @@ class ChatSocket implements OnOpenInterface, OnMessageInterface, OnCloseInterfac
 ```
 
 The handler's `__invoke` method handles ordinary HTTP requests because the route is also visible to your application's HTTP server. WebSocket handshakes run the route's middleware but use the handler's lifecycle methods instead of invoking the controller.
+
+Terminable route middleware runs after `onOpen`, or after a rejected handshake response has been sent. [Deferred functions](/docs/{{version}}/helpers#deferred-functions) registered during the handshake or `onOpen` run after this cleanup. Functions deferred by `onMessage` or `onClose` run after the callback and its lifecycle events finish. They follow the usual success and `always()` rules; coroutine cancellation skips deferred work.
 
 Handlers are resolved through the service container and normally live for the lifetime of a worker. Do not store connection-specific data on handler properties.
 

@@ -24,78 +24,59 @@ class Flush
      * Flush all cache entries for the given tags.
      *
      * @param array<string> $tagIds Array of tag identifiers (e.g., "_all:tag:users:entries")
-     * @param array<string> $tagNames Array of tag names (e.g., ["users", "posts"])
      */
-    public function execute(array $tagIds, array $tagNames): void
-    {
-        $this->flushValues($tagIds);
-        $this->flushTags($tagNames);
-    }
-
-    /**
-     * Flush the individual cache entries for the tags.
-     *
-     * @param array<string> $tagIds Array of tag identifiers
-     */
-    private function flushValues(array $tagIds): void
+    public function execute(array $tagIds): void
     {
         $prefix = $this->context->prefix();
         $isCluster = $this->context->isCluster();
 
-        $entries = $this->getEntries->execute($tagIds)
-            ->map(fn (string $key): string => $prefix . $key);
+        $tagKeys = array_map(fn (string $tagId): string => $prefix . $tagId, $tagIds);
+        $entries = $this->getEntries->execute($tagIds);
 
         foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
-            $keys = $chunk->all();
+            $members = array_values($chunk->all());
 
-            if (empty($keys)) {
+            if ($members === []) {
                 continue;
             }
 
-            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $isCluster): void {
-                // Cluster keys may occupy different slots and cannot share a pipeline.
+            $keys = array_map(fn (string $key): string => $prefix . $key, $members);
+
+            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $members, $tagKeys, $isCluster): void {
                 if ($isCluster) {
+                    // Remove memberships first so a racing writer can leave only
+                    // orphaned metadata for Prune, never an unindexed live value.
+                    foreach ($tagKeys as $tagKey) {
+                        $connection->zrem($tagKey, ...$members);
+                    }
+
                     $connection->del(...$keys);
                 } else {
-                    $this->deleteChunkPipelined($connection, $keys);
+                    $connection->evalWithShaCache(
+                        $this->flushChunkScript(),
+                        [...$tagKeys, ...$keys],
+                        [count($tagKeys), ...$members],
+                    );
                 }
             });
         }
     }
 
     /**
-     * Delete a chunk of keys using pipeline.
-     *
-     * @param RedisConnection $connection The Redis connection
-     * @param array<string> $keys Keys to delete
+     * Atomically delete scanned values and memberships, preserving concurrent additions.
      */
-    private function deleteChunkPipelined(RedisConnection $connection, array $keys): void
+    protected function flushChunkScript(): string
     {
-        $pipeline = $connection->pipeline();
-        $pipeline->del(...$keys);
-        $pipeline->exec();
-    }
+        return <<<'LUA'
+            local tagCount = tonumber(ARGV[1])
 
-    /**
-     * Delete the tag sorted sets.
-     *
-     * Uses variadic del() to delete all tag keys in a single Redis call.
-     *
-     * @param array<string> $tagNames Array of tag names
-     */
-    private function flushTags(array $tagNames): void
-    {
-        if (empty($tagNames)) {
-            return;
-        }
+            redis.call('DEL', unpack(KEYS, tagCount + 1, #KEYS))
 
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagNames): void {
-            $tagKeys = array_map(
-                fn (string $name): string => $this->context->tagHashKey($name),
-                $tagNames
-            );
+            for i = 1, tagCount do
+                redis.call('ZREM', KEYS[i], unpack(ARGV, 2, #ARGV))
+            end
 
-            $connection->del(...$tagKeys);
-        });
+            return 1
+            LUA;
     }
 }

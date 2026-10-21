@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Support\Facades\Route;
-use Hypervel\Tests\Integration\Routing\Fixtures\CreatableSingletonTestController;
-use Hypervel\Tests\Integration\Routing\Fixtures\NestedSingletonTestController;
-use Hypervel\Tests\Integration\Routing\Fixtures\SingletonTestController;
+use Hypervel\Tests\Routing\Fixtures\CreatableSingletonTestController;
+use Hypervel\Tests\Routing\Fixtures\NestedSingletonTestController;
+use Hypervel\Tests\Routing\Fixtures\SingletonTestController;
 
 class RouteSingletonTest extends RoutingTestCase
 {
-    public function testSingletonDefaults()
+    public function testSingletonDefaults(): void
     {
         Route::singleton('avatar', SingletonTestController::class);
 
@@ -43,7 +43,7 @@ class RouteSingletonTest extends RoutingTestCase
         // $this->assertSame('singleton destroy', $response->getContent());
     }
 
-    public function testCreatableSingleton()
+    public function testCreatableSingleton(): void
     {
         Route::singleton('avatar', CreatableSingletonTestController::class)->creatable();
 
@@ -63,7 +63,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton destroy', $response->getContent());
     }
 
-    public function testCreatableSingletonOnly()
+    public function testCreatableSingletonOnly(): void
     {
         Route::singleton('avatar', CreatableSingletonTestController::class)->creatable()->only('show');
 
@@ -89,7 +89,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testCreatableSingletonExcept()
+    public function testCreatableSingletonExcept(): void
     {
         Route::singleton('avatar', CreatableSingletonTestController::class)->creatable()->except('show');
 
@@ -115,7 +115,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function testDestroyableSingleton()
+    public function testDestroyableSingleton(): void
     {
         Route::singleton('avatar', CreatableSingletonTestController::class)->destroyable();
 
@@ -140,7 +140,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton destroy', $response->getContent());
     }
 
-    public function testDestroyableSingletonOnly()
+    public function testDestroyableSingletonOnly(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->destroyable()->only('destroy');
 
@@ -166,7 +166,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function testDestroyableSingletonExcept()
+    public function testDestroyableSingletonExcept(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->destroyable()->except('destroy');
 
@@ -192,7 +192,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testCreatableDestroyableSingletonOnlyExceptTest()
+    public function testCreatableDestroyableSingletonOnlyExceptTest(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->creatable()->destroyable()->only(['show'])->except(['destroy']);
 
@@ -218,7 +218,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testApiSingleton()
+    public function testApiSingleton(): void
     {
         Route::apiSingleton('avatar', SingletonTestController::class);
 
@@ -234,7 +234,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton update', $response->getContent());
     }
 
-    public function testCreatableApiSingleton()
+    public function testCreatableApiSingleton(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->creatable();
 
@@ -252,7 +252,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton update', $response->getContent());
     }
 
-    public function testCreatableApiSingletonOnly()
+    public function testCreatableApiSingletonOnly(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->creatable()->only(['create', 'store']);
 
@@ -278,7 +278,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testCreatableApiSingletonExcept()
+    public function testCreatableApiSingletonExcept(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->creatable()->except(['create', 'store']);
 
@@ -304,7 +304,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function testDestroyableApiSingleton()
+    public function testDestroyableApiSingleton(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->destroyable();
 
@@ -324,7 +324,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton destroy', $response->getContent());
     }
 
-    public function testDestroyableApiSingletonOnly()
+    public function testDestroyableApiSingletonOnly(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->destroyable()->only(['destroy']);
 
@@ -350,7 +350,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function testDestroyableApiSingletonExcept()
+    public function testDestroyableApiSingletonExcept(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->destroyable()->except(['destroy', 'show']);
 
@@ -376,7 +376,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testCreatableDestroyableApiSingletonOnlyExceptTest()
+    public function testCreatableDestroyableApiSingletonOnlyExceptTest(): void
     {
         Route::apiSingleton('avatar', CreatableSingletonTestController::class)->creatable()->destroyable()->only(['show'])->except(['destroy']);
 
@@ -402,7 +402,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testSingletonOnly()
+    public function testSingletonOnly(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->only('show');
 
@@ -422,7 +422,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testSingletonExcept()
+    public function testSingletonExcept(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->except('show');
 
@@ -446,21 +446,21 @@ class RouteSingletonTest extends RoutingTestCase
         // $this->assertSame('singleton destroy', $response->getContent());
     }
 
-    public function testSingletonName()
+    public function testSingletonName(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->name('show', 'foo.show');
 
         $this->assertSame('http://localhost/avatar', route('foo.show'));
     }
 
-    public function testSingletonNames()
+    public function testSingletonNames(): void
     {
         Route::singleton('avatar', SingletonTestController::class)->names(['show' => 'foo.show']);
 
         $this->assertSame('http://localhost/avatar', route('foo.show'));
     }
 
-    public function testNestedSingleton()
+    public function testNestedSingleton(): void
     {
         Route::singleton('videos.thumbnail', NestedSingletonTestController::class);
 
@@ -484,7 +484,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(405, $response->getStatusCode());
     }
 
-    public function testCreatableNestedSingleton()
+    public function testCreatableNestedSingleton(): void
     {
         Route::singleton('videos.thumbnail', NestedSingletonTestController::class)->creatable();
 
@@ -509,7 +509,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton destroy for 123', $response->getContent());
     }
 
-    public function testDestroyableNestedSingleton()
+    public function testDestroyableNestedSingleton(): void
     {
         Route::singleton('videos.thumbnail', NestedSingletonTestController::class)->destroyable();
 
@@ -534,7 +534,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton destroy for 123', $response->getContent());
     }
 
-    public function testNestedSingletonParameter()
+    public function testNestedSingletonParameter(): void
     {
         Route::singleton('v.thumbnail', NestedSingletonTestController::class)->parameter('v', 'video');
 
@@ -544,7 +544,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton show for 123', $response->getContent());
     }
 
-    public function testNestedSingletonParameters()
+    public function testNestedSingletonParameters(): void
     {
         Route::singleton('v.thumbnail', NestedSingletonTestController::class)->parameters(['v' => 'video']);
 
@@ -554,7 +554,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertSame('singleton show for 123', $response->getContent());
     }
 
-    public function testNestedSingletonWhere()
+    public function testNestedSingletonWhere(): void
     {
         Route::singleton('videos.thumbnail', NestedSingletonTestController::class)->where(['video' => '[a-z]+']);
 
@@ -563,7 +563,7 @@ class RouteSingletonTest extends RoutingTestCase
         $this->assertEquals(404, $response->getStatusCode());
     }
 
-    public function testPrefixedSingleton()
+    public function testPrefixedSingleton(): void
     {
         Route::singleton('/user/avatar', SingletonTestController::class);
 

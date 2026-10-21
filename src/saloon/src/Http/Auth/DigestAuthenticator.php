@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class DigestAuthenticator implements Authenticator
+class DigestAuthenticator implements Authenticator
 {
     /**
      * Create a digest authenticator.
      */
     public function __construct(
-        public string $username,
+        public readonly string $username,
         #[SensitiveParameter]
-        public string $password,
+        public readonly string $password,
     ) {
     }
 

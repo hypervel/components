@@ -19,13 +19,13 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static \Hypervel\Notifications\ChannelManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static string|null getLocale()
  * @method static bool hasMacro(string $name)
  * @method static \Hypervel\Notifications\ChannelManager locale(string $locale)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static void send(mixed $notifiables, mixed $notification)
  * @method static void sendNow(mixed $notifiables, mixed $notification, array|null $channels = null)
@@ -35,9 +35,11 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static void assertNothingSentTo(mixed $notifiable)
  * @method static void assertNotSentTo(mixed $notifiable, \Closure|string $notification, callable|null $callback = null)
  * @method static void assertSentOnDemand(\Closure|string $notification, callable|null $callback = null)
+ * @method static void assertSentOnDemandOnce(string $notification)
  * @method static void assertSentOnDemandTimes(string $notification, int $times = 1)
  * @method static void assertSentTimes(string $notification, int $expectedCount)
  * @method static void assertSentTo(mixed $notifiable, \Closure|string $notification, callable|int|null $callback = null)
+ * @method static void assertSentToOnce(mixed $notifiable, string $notification)
  * @method static void assertSentToTimes(mixed $notifiable, string $notification, int $times = 1)
  * @method static bool hasSent(mixed $notifiable, string $notification)
  * @method static \Hypervel\Support\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
@@ -81,6 +83,9 @@ class Notification extends Facade
         return (new AnonymousNotifiable)->route($channel, $route);
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return ChannelManager::class;

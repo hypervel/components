@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ApplicationBuilder;
+use Hypervel\Foundation\Configuration\Exceptions;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Tests\TestCase;
@@ -13,6 +19,9 @@ use ReflectionClass;
 
 class FoundationApplicationBuilderTest extends TestCase
 {
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         unset($_ENV['HYPERVEL_STORAGE_PATH'], $_SERVER['HYPERVEL_STORAGE_PATH']);
@@ -109,6 +118,59 @@ class FoundationApplicationBuilderTest extends TestCase
         $this->assertSame(__DIR__ . '/custom-storage', $app->storagePath());
     }
 
+    public function testKernelContractResolvesToSameInstanceAsConcrete(): void
+    {
+        $app = Application::configure()->create();
+
+        $this->assertSame($app->make(HttpKernelContract::class), $app->make(HttpKernel::class));
+        $this->assertSame($app->make(ConsoleKernelContract::class), $app->make(ConsoleKernel::class));
+    }
+
+    public function testKernelAbstractCanBeBoundToCustomConcrete(): void
+    {
+        $app = Application::configure()->create();
+
+        $app->singleton(HttpKernelContract::class, CustomHttpKernelStub::class);
+
+        $this->assertInstanceOf(CustomHttpKernelStub::class, $app->make(HttpKernelContract::class));
+    }
+
+    public function testKernelContractResolvesToSameInstanceThroughOtherBindings(): void
+    {
+        $app = Application::configure()->create();
+
+        $app->singleton('kernel.consumer', HttpKernelContract::class);
+
+        $this->assertSame($app->make(HttpKernelContract::class), $app->make('kernel.consumer'));
+        $this->assertSame($app->make(HttpKernelContract::class), $app->makeTransient(HttpKernelContract::class));
+    }
+
+    public function testExceptionHandlerContractAndConcreteShareTheConfiguredInstance(): void
+    {
+        $configured = [];
+
+        $app = Application::configure()
+            ->withExceptions(function (Exceptions $exceptions) use (&$configured): void {
+                $configured[] = $exceptions->handler;
+            })
+            ->create();
+
+        $handler = $app->make(ExceptionHandler::class);
+
+        $this->assertSame($handler, $app->make(Handler::class));
+        $this->assertSame([$handler], $configured);
+
+        $app->singleton('handler.consumer', ExceptionHandler::class);
+
+        $this->assertSame($handler, $app->make('handler.consumer'));
+    }
+
+    public function testConfigureUsesTheApplicationBuilderDeclaredBySubclass(): void
+    {
+        $this->assertInstanceOf(CustomApplicationBuilderStub::class, CustomApplicationStub::configure());
+        $this->assertNotInstanceOf(CustomApplicationBuilderStub::class, Application::configure());
+    }
+
     public function testPrefersJsonResponsesIsFluent(): void
     {
         $builder = Application::configure();
@@ -152,8 +214,11 @@ class FoundationApplicationBuilderTest extends TestCase
     {
         $app->singleton(HttpKernelContract::class, HttpKernel::class);
 
-        // The builder registers its wiring inside booted callbacks. Invoking them
-        // directly keeps this unit test from booting the full provider chain.
+        // The builder registers its wiring inside $app->booted() callbacks.
+        // We can't call $app->boot() from a unit test — it runs the full
+        // provider chain which expects a real application — so invoke the
+        // booted callbacks directly. Real boot behavior is covered by the
+        // PrefersJson integration tests.
         $property = (new ReflectionClass(Application::class))->getProperty('bootedCallbacks');
 
         foreach ($property->getValue($app) as $callback) {
@@ -162,4 +227,17 @@ class FoundationApplicationBuilderTest extends TestCase
 
         return $app->make(HttpKernelContract::class);
     }
+}
+
+class CustomHttpKernelStub extends HttpKernel
+{
+}
+
+class CustomApplicationBuilderStub extends ApplicationBuilder
+{
+}
+
+class CustomApplicationStub extends Application
+{
+    protected static string $applicationBuilder = CustomApplicationBuilderStub::class;
 }

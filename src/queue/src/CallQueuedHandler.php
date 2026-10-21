@@ -75,7 +75,7 @@ class CallQueuedHandler
         }
 
         if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command, $job);
+            $this->ensureUniqueJobLockIsReleased($command, job: $job);
         }
 
         if (! $job->hasFailed() && ! $job->isReleased()) {
@@ -124,12 +124,12 @@ class CallQueuedHandler
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
             ->finally(function ($command) use ($job, &$lockReleased) {
                 if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $job->isReleased() && $this->uniqueJobLockShouldBeReleased($job, $command)) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
-                    $this->ensureUniqueJobLockIsReleased($command, $job);
+                    $this->ensureUniqueJobLockIsReleased($command, job: $job);
                 }
             })
             ->then(function ($command) use ($job, &$lockReleased) {
                 if ($this->commandShouldBeUniqueUntilProcessing($command) && $this->uniqueJobLockShouldBeReleased($job, $command)) {
-                    $this->ensureUniqueJobLockIsReleased($command, $job);
+                    $this->ensureUniqueJobLockIsReleased($command, job: $job);
 
                     $lockReleased = true;
                 }
@@ -152,7 +152,7 @@ class CallQueuedHandler
     {
         $handler = $this->dispatcher->getCommandHandler($command) ?: null;
 
-        if ($handler && in_array(InteractsWithQueue::class, class_uses_recursive($handler))) {
+        if ($handler && isset(class_uses_recursive($handler)[InteractsWithQueue::class])) {
             // Mapped handlers may be worker-shared container instances. Clone the
             // configured handler before injecting the job owned by this execution.
             $handler = clone $handler;
@@ -167,7 +167,7 @@ class CallQueuedHandler
      */
     protected function setJobInstanceIfNecessary(Job $job, mixed $instance): mixed
     {
-        if (in_array(InteractsWithQueue::class, class_uses_recursive($instance))) {
+        if (isset(class_uses_recursive($instance)[InteractsWithQueue::class])) {
             $instance->setJob($job);
         }
 
@@ -191,9 +191,7 @@ class CallQueuedHandler
     {
         $uses = class_uses_recursive($command);
 
-        if (! in_array(Batchable::class, $uses)
-            || ! in_array(InteractsWithQueue::class, $uses)
-        ) {
+        if (! isset($uses[Batchable::class], $uses[InteractsWithQueue::class])) {
             return;
         }
 
@@ -233,11 +231,12 @@ class CallQueuedHandler
      *
      * @param null|Job $job the queued job carrying ownership for commands without Queueable state
      */
-    protected function ensureUniqueJobLockIsReleased(mixed $command, ?Job $job = null): void
+    protected function ensureUniqueJobLockIsReleased(mixed $command, bool $onlyOwned = false, ?Job $job = null): void
     {
         if ($this->commandShouldBeUnique($command)) {
             (new UniqueLock($this->container->make(Cache::class)))->release(
                 $command,
+                $onlyOwned,
                 $job === null ? '' : $this->getUniqueJobLockOwner($job, $command),
             );
         }
@@ -358,7 +357,7 @@ class CallQueuedHandler
      */
     protected function ensureSuccessfulBatchJobIsRecordedForMissingModel(Job $job, string $class): void
     {
-        if (! in_array(Batchable::class, class_uses_recursive($class), true)) {
+        if (! isset(class_uses_recursive($class)[Batchable::class])) {
             return;
         }
 
@@ -392,9 +391,11 @@ class CallQueuedHandler
             $command = $this->setJobInstanceIfNecessary($job, $command);
         }
 
-        if (! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command, $job);
-        }
+        $this->ensureUniqueJobLockIsReleased(
+            $command,
+            onlyOwned: $this->commandShouldBeUniqueUntilProcessing($command),
+            job: $job,
+        );
 
         if ($command instanceof __PHP_Incomplete_Class) {
             return;
@@ -413,7 +414,7 @@ class CallQueuedHandler
      */
     protected function ensureFailedBatchJobIsRecorded(string $uuid, mixed $command, ?Throwable $e): void
     {
-        if (! in_array(Batchable::class, class_uses_recursive($command))) {
+        if (! isset(class_uses_recursive($command)[Batchable::class])) {
             return;
         }
 

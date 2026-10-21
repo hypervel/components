@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
+use Hypervel\Auth\GenericUser;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Passkeys\Actions\DeletePasskey;
 use Hypervel\Passkeys\Events\PasskeyDeleted;
@@ -12,7 +13,6 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class DeletePasskeyTest extends TestCase
 {
@@ -58,60 +58,27 @@ class DeletePasskeyTest extends TestCase
         );
     }
 
-    public function testItRejectsDeletingAnotherUsersPasskey(): void
+    public function testItDeletesAnotherUsersPasskeyForAnActorThatDoesNotOwnPasskeys(): void
     {
+        Event::fake([PasskeyDeleted::class]);
+
         $user = User::create([
             'name' => 'John Doe',
             'email' => 'john@example.com',
         ]);
-        $otherUser = User::create([
-            'name' => 'Jane Doe',
-            'email' => 'jane@example.com',
+        $passkey = $this->createPasskeyForUser($user, 'credential-admin-delete');
+        $administrator = new GenericUser(['id' => 99]);
+
+        app(DeletePasskey::class)($administrator, $passkey);
+
+        $this->assertDatabaseMissing('passkeys', [
+            'id' => $passkey->getKey(),
         ]);
-        $passkey = $this->createPasskeyForUser($user, 'credential-other-owner');
-
-        try {
-            app(DeletePasskey::class)($otherUser, $passkey);
-        } catch (HttpException $exception) {
-            $this->assertSame(403, $exception->getStatusCode());
-            $this->assertDatabaseHas('passkeys', [
-                'id' => $passkey->getKey(),
-            ]);
-
-            return;
-        }
-
-        $this->fail('Expected deleting another user\'s passkey to fail.');
-    }
-
-    public function testItRejectsDeletingAPasskeyForTheSameKeyOnADifferentOwnerMorphClass(): void
-    {
-        $user = User::create([
-            'name' => 'John Doe',
-            'email' => 'john@example.com',
-        ]);
-        $sameKeyDifferentMorphUser = AlternatePasskeyUser::create([
-            'name' => 'Jane Doe',
-            'email' => 'jane@example.com',
-        ]);
-        $passkey = $this->createPasskeyForUser($user, 'credential-other-morph');
-
-        $sameKeyDifferentMorphUser->forceFill([
-            $sameKeyDifferentMorphUser->getKeyName() => $user->getKey(),
-        ]);
-
-        try {
-            app(DeletePasskey::class)($sameKeyDifferentMorphUser, $passkey);
-        } catch (HttpException $exception) {
-            $this->assertSame(403, $exception->getStatusCode());
-            $this->assertDatabaseHas('passkeys', [
-                'id' => $passkey->getKey(),
-            ]);
-
-            return;
-        }
-
-        $this->fail('Expected deleting a passkey for a different owner morph class to fail.');
+        Event::assertDispatched(
+            PasskeyDeleted::class,
+            static fn (PasskeyDeleted $event): bool => $event->user === $administrator
+                && $event->passkey->is($passkey),
+        );
     }
 
     public function testItDoesNotDispatchPasskeyDeletedEventWithoutListeners(): void
@@ -150,9 +117,4 @@ class DeletePasskeyTest extends TestCase
             'credential' => ['id' => $credentialId],
         ]);
     }
-}
-
-class AlternatePasskeyUser extends User
-{
-    protected ?string $table = 'users';
 }

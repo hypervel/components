@@ -4,41 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
+use Closure;
+
 /**
- * Runtime cache of resolved aspects per class::method.
- *
- * Once the aspect pipeline for a given class method is resolved,
- * it is cached here so subsequent calls skip the resolution logic.
+ * Cache immutable aspect chains for the worker's intercepted methods.
  */
 class AspectManager
 {
     /**
-     * @var array<string, array<string, array<int, string>>>
+     * @var array<string, array<string, Closure(ProceedingJoinPoint): mixed>>
      */
-    protected static array $container = [];
+    protected static array $chains = [];
 
     /**
-     * Get the resolved aspects for a class method.
+     * Get the compiled aspect chain for a class method.
+     *
+     * @return null|Closure(ProceedingJoinPoint): mixed
      */
-    public static function get(string $class, string $method): array
+    public static function get(string $class, string $method): ?Closure
     {
-        return static::$container[$class][$method] ?? [];
+        return static::$chains[$class][$method] ?? null;
     }
 
     /**
-     * Determine if aspects have been resolved for a class method.
+     * Set the compiled aspect chain for a class method.
+     *
+     * @param Closure(ProceedingJoinPoint): mixed $value
      */
-    public static function has(string $class, string $method): bool
+    public static function set(string $class, string $method, Closure $value): void
     {
-        return isset(static::$container[$class][$method]);
+        static::$chains[$class][$method] = $value;
     }
 
     /**
-     * Set the resolved aspects for a class method.
+     * Clear the compiled aspect chains.
+     *
+     * Boot or tests only. Clearing this worker-wide cache makes subsequent
+     * calls compile their chains from the current aspect rules.
      */
-    public static function set(string $class, string $method, array $value): void
+    public static function clear(): void
     {
-        static::$container[$class][$method] = $value;
+        static::$chains = [];
     }
 
     /**
@@ -46,6 +52,6 @@ class AspectManager
      */
     public static function flushState(): void
     {
-        static::$container = [];
+        static::clear();
     }
 }

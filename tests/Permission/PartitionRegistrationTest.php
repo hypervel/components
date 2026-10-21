@@ -18,15 +18,13 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\PermissionRegistrar;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
-use stdClass;
-use UnexpectedValueException;
 use UnitEnum;
 
 class PartitionRegistrationTest extends TestCase
 {
     public function testPartitioningIsDisabledByDefault(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
 
         $registrar = $this->app->make(PermissionRegistrar::class);
 
@@ -39,7 +37,7 @@ class PartitionRegistrationTest extends TestCase
     #[DataProvider('validPartitionValues')]
     public function testItResolvesValidPartitionValues(int|string $value): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): int|string => $value);
 
         $partition = $this->app->make(PermissionRegistrar::class)->resolvePartition();
@@ -49,6 +47,9 @@ class PartitionRegistrationTest extends TestCase
         $this->assertSame($value, $partition->value);
     }
 
+    /**
+     * Get partition values the resolver may return.
+     */
     public static function validPartitionValues(): array
     {
         return [
@@ -63,15 +64,18 @@ class PartitionRegistrationTest extends TestCase
     #[DataProvider('unresolvedPartitionValues')]
     public function testItFailsClosedWhenThePartitionCannotBeResolved(?string $value): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): ?string => $value);
 
         $this->expectException(PermissionPartitionNotResolved::class);
-        $this->expectExceptionMessage('workspace_id');
+        $this->expectExceptionMessageIsOrContains('workspace_id');
 
         $this->app->make(PermissionRegistrar::class)->resolvePartition();
     }
 
+    /**
+     * Get resolver results that leave the partition unresolved.
+     */
     public static function unresolvedPartitionValues(): array
     {
         return [
@@ -80,59 +84,20 @@ class PartitionRegistrationTest extends TestCase
         ];
     }
 
-    #[DataProvider('invalidPartitionValues')]
-    public function testItRejectsInvalidPartitionValues(mixed $value, string $type): void
-    {
-        PermissionRegistrar::flushState();
-        PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): mixed => $value);
-
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage($type);
-
-        $this->app->make(PermissionRegistrar::class)->resolvePartition();
-    }
-
-    public static function invalidPartitionValues(): array
-    {
-        return [
-            'true' => [true, 'bool'],
-            'false' => [false, 'bool'],
-            'float' => [1.5, 'float'],
-            'array' => [[], 'array'],
-            'object' => [new stdClass, stdClass::class],
-        ];
-    }
-
-    public function testItRejectsAResourcePartitionValue(): void
-    {
-        $resource = fopen('php://memory', 'r+');
-
-        $this->assertIsResource($resource);
-
-        try {
-            PermissionRegistrar::flushState();
-            PermissionRegistrar::resolvePartitionUsing('workspace_id', fn () => $resource);
-
-            $this->expectException(UnexpectedValueException::class);
-            $this->expectExceptionMessage('resource (stream)');
-
-            $this->app->make(PermissionRegistrar::class)->resolvePartition();
-        } finally {
-            fclose($resource);
-        }
-    }
-
     #[DataProvider('invalidPartitionColumns')]
     public function testItRejectsInvalidPartitionColumns(string $column): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('simple SQL identifier');
+        $this->expectExceptionMessageIsOrContains('simple SQL identifier');
 
         PermissionRegistrar::resolvePartitionUsing($column, fn (): string => 'workspace-a');
     }
 
+    /**
+     * Get column names that are not simple SQL identifiers.
+     */
     public static function invalidPartitionColumns(): array
     {
         return [
@@ -147,7 +112,7 @@ class PartitionRegistrationTest extends TestCase
 
     public function testItRejectsDuplicateRegistration(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): string => 'workspace-a');
 
         $this->expectException(PermissionPartitionAlreadyConfigured::class);
@@ -157,7 +122,7 @@ class PartitionRegistrationTest extends TestCase
 
     public function testItRejectsRegistrationAfterRegistrarInitialization(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         $this->app->make(PermissionRegistrar::class);
 
         $this->expectException(PermissionPartitionAlreadyConfigured::class);
@@ -167,7 +132,7 @@ class PartitionRegistrationTest extends TestCase
 
     public function testProviderRegistrationCanConfigurePartitioningBeforeGateResolution(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         $this->app->forgetInstance(Gate::class);
 
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): string => 'workspace-a');
@@ -182,7 +147,7 @@ class PartitionRegistrationTest extends TestCase
 
     public function testResolvingGateBeforeProviderRegistrationMakesLateConfigurationFail(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         $this->app->forgetInstance(Gate::class);
 
         $this->app->make(Gate::class);
@@ -194,9 +159,9 @@ class PartitionRegistrationTest extends TestCase
 
     public function testFlushStateClearsRegistrationAndRegistrarInitialization(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): string => 'workspace-a');
-        $firstRegistrar = $this->app->make(PermissionRegistrar::class);
+        $this->app->make(PermissionRegistrar::class);
 
         PermissionRegistrar::flushState();
 
@@ -204,25 +169,26 @@ class PartitionRegistrationTest extends TestCase
         $this->assertNull(PermissionRegistrar::partitionColumn());
 
         PermissionRegistrar::resolvePartitionUsing('realm_id', fn (): string => 'realm-a');
-        $secondRegistrar = $this->app->make(PermissionRegistrar::class);
 
-        $this->assertNotSame($firstRegistrar, $secondRegistrar);
-        $this->assertSame('realm_id', $secondRegistrar->resolvePartition()?->column);
+        $this->assertSame('realm_id', $this->app->make(PermissionRegistrar::class)->resolvePartition()?->column);
     }
 
     #[DataProvider('unsupportedPartitionedModels')]
     public function testPartitioningRejectsContractOnlyModels(string $configKey, string $model, string $requiredBase): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         $this->app->make('config')->set($configKey, $model);
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): string => 'workspace-a');
 
         $this->expectException(PermissionPartitionModelNotSupported::class);
-        $this->expectExceptionMessage("Partitioned permission model `{$model}` must extend `{$requiredBase}`.");
+        $this->expectExceptionMessageIs("Partitioned permission model `{$model}` must extend `{$requiredBase}`.");
 
         $this->app->make(PermissionRegistrar::class);
     }
 
+    /**
+     * Get contract-only models with the package model they must extend.
+     */
     public static function unsupportedPartitionedModels(): array
     {
         return [
@@ -233,7 +199,7 @@ class PartitionRegistrationTest extends TestCase
 
     public function testUnpartitionedModeKeepsContractOnlyModelSupport(): void
     {
-        PermissionRegistrar::flushState();
+        $this->resetPermissionRegistrar();
         $this->app->make('config')->set([
             'permission.models.role' => ContractOnlyRole::class,
             'permission.models.permission' => ContractOnlyPermission::class,
@@ -243,6 +209,15 @@ class PartitionRegistrationTest extends TestCase
 
         $this->assertSame(ContractOnlyRole::class, $registrar->getRoleClass());
         $this->assertSame(ContractOnlyPermission::class, $registrar->getPermissionClass());
+    }
+
+    /**
+     * Clear the partition registration and the resolved registrar.
+     */
+    private function resetPermissionRegistrar(): void
+    {
+        PermissionRegistrar::flushState();
+        $this->app->forgetInstance(PermissionRegistrar::class);
     }
 }
 

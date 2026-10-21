@@ -11,6 +11,7 @@ use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -135,9 +136,19 @@ class AuthServiceProvider extends ServiceProvider
             $casts = [];
 
             foreach ($resolvedAbilities as [$ability, $alias]) {
-                $this->addSelect([
-                    $alias => $queryGate->select($ability, $this),
-                ]);
+                $selection = $queryGate->select($ability, $this);
+
+                if ($selection instanceof ExpressionContract) {
+                    // Raw authorization selections must retain the model columns, like subqueries do.
+                    if ($this->getQuery()->columns === null) {
+                        $this->select($this->getQuery()->getDefaultSelectColumn());
+                    }
+
+                    $this->selectExpression($selection, $alias);
+                } else {
+                    $this->addSelect([$alias => $selection]);
+                }
+
                 $casts[$alias] = 'bool';
             }
 
@@ -341,19 +352,15 @@ class AuthServiceProvider extends ServiceProvider
     }
 
     /**
-     * Set the user resolver on each resolved request instance.
+     * Register the default request user resolver.
      *
-     * Uses callAfterResolving() instead of Laravel's rebinding('request', ...)
-     * because Hypervel's request is bound via bind() and resolved from
-     * RequestContext — it is not swapped via instance(), so rebinding
-     * callbacks would never fire.
+     * Server requests reach middleware before container resolution. The default
+     * callback resolves the current coroutine's user without retaining it.
      */
     protected function registerRequestUserResolver(): void
     {
-        $this->callAfterResolving(Request::class, function (Request $request) {
-            $request->setUserResolver(function (?string $guard = null) {
-                return call_user_func($this->app->make('auth')->userResolver(), $guard);
-            });
+        Request::setDefaultUserResolver(function (?string $guard = null): mixed {
+            return call_user_func($this->app->make('auth')->userResolver(), $guard);
         });
     }
 

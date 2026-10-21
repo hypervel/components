@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Responses\Data;
+
+use Hypervel\Contracts\Support\Arrayable;
+use JsonSerializable;
+
+class ToolCall implements Arrayable, JsonSerializable
+{
+    /**
+     * Create a tool call.
+     */
+    public function __construct(
+        public string $id,
+        public string $name,
+        public array $arguments,
+        public ?string $resultId = null,
+        public ?string $reasoningId = null,
+        public ?array $reasoningSummary = null,
+        public ?string $reasoningEncryptedContent = null,
+        public ?string $thoughtSignature = null,
+    ) {
+    }
+
+    /**
+     * Reconstruct an instance from a previously serialized toArray() payload.
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            id: $data['id'],
+            name: $data['name'],
+            arguments: $data['arguments'],
+            resultId: $data['result_id'] ?? null,
+            reasoningId: $data['reasoning_id'] ?? null,
+            reasoningSummary: $data['reasoning_summary'] ?? null,
+            reasoningEncryptedContent: $data['reasoning_encrypted_content'] ?? null,
+            thoughtSignature: $data['thought_signature'] ?? null,
+        );
+    }
+
+    /**
+     * Get the instance as an array.
+     */
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'arguments' => $this->arguments,
+            'result_id' => $this->resultId,
+            'reasoning_id' => $this->reasoningId,
+            'reasoning_summary' => $this->reasoningSummary,
+            'reasoning_encrypted_content' => $this->reasoningEncryptedContent,
+            'thought_signature' => $this->thoughtSignature,
+        ];
+    }
+
+    /**
+     * Get the JSON serializable representation of the instance.
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+}

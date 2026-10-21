@@ -35,9 +35,8 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldReceive('hasListeners')
             ->with(CommandExecuted::class)
             ->andReturn(false);
-        $mockEventDispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function ($event) use ($exception) {
+        $mockEventDispatcher->expects('dispatch')
+            ->with(m::on(function (mixed $event) use ($exception): bool {
                 return $event instanceof CommandFailed
                     && $event->command === 'get'
                     && $event->parameters === ['key']
@@ -45,15 +44,13 @@ class RedisEventsTest extends TestCase
             }));
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
-        try {
-            $redis->get('key');
-        } catch (Exception) {
-            // Expected
-        }
+        $this->expectExceptionObject($exception);
+
+        $redis->get('key');
     }
 
     public function testCommandExecutedEventIsNotDispatchedWhenCommandFails(): void
@@ -67,14 +64,13 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldReceive('hasListeners')
             ->with(CommandExecuted::class)
             ->andReturn(true);
-        $mockEventDispatcher->shouldReceive('dispatch')
-            ->once()
+        $mockEventDispatcher->expects('dispatch')
             ->with(m::type(CommandFailed::class));
         $mockEventDispatcher->shouldNotReceive('dispatch')
             ->with(m::type(CommandExecuted::class));
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
@@ -96,15 +92,14 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldReceive('hasListeners')
             ->with(CommandExecuted::class)
             ->andReturn(false);
-        $mockEventDispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function ($event) {
+        $mockEventDispatcher->expects('dispatch')
+            ->with(m::on(function (mixed $event): bool {
                 return $event instanceof CommandFailed
                     && $event->connectionName === 'default';
             }));
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
@@ -126,16 +121,15 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldReceive('hasListeners')
             ->with(CommandExecuted::class)
             ->andReturn(false);
-        $mockEventDispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function ($event) {
+        $mockEventDispatcher->expects('dispatch')
+            ->with(m::on(function (mixed $event): bool {
                 return $event instanceof CommandFailed
                     && is_float($event->time)
                     && $event->time >= 0;
             }));
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
@@ -149,8 +143,7 @@ class RedisEventsTest extends TestCase
     public function testListenRegistersCallback(): void
     {
         $mockEventDispatcher = m::mock(Dispatcher::class);
-        $mockEventDispatcher->shouldReceive('listen')
-            ->once()
+        $mockEventDispatcher->expects('listen')
             ->with(CommandExecuted::class, m::type(Closure::class));
 
         $container = Container::getInstance();
@@ -158,7 +151,7 @@ class RedisEventsTest extends TestCase
 
         $redis = $this->createRedis($this->createMockRedisConnection());
 
-        $redis->listen(function () {
+        $redis->listen(function (): void {
             // callback
         });
     }
@@ -166,8 +159,7 @@ class RedisEventsTest extends TestCase
     public function testListenForFailuresRegistersCallback(): void
     {
         $mockEventDispatcher = m::mock(Dispatcher::class);
-        $mockEventDispatcher->shouldReceive('listen')
-            ->once()
+        $mockEventDispatcher->expects('listen')
             ->with(CommandFailed::class, m::type(Closure::class));
 
         $container = Container::getInstance();
@@ -175,7 +167,7 @@ class RedisEventsTest extends TestCase
 
         $redis = $this->createRedis($this->createMockRedisConnection());
 
-        $redis->listenForFailures(function () {
+        $redis->listenForFailures(function (): void {
             // callback
         });
     }
@@ -192,7 +184,7 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldNotReceive('dispatch');
 
         $connection = $this->createMockRedisConnection('get', 'value', null, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
@@ -213,7 +205,7 @@ class RedisEventsTest extends TestCase
         $mockEventDispatcher->shouldNotReceive('dispatch');
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
-        $connection->shouldReceive('release')->once();
+        $connection->expects('release');
 
         $redis = $this->createRedis($connection);
 
@@ -234,7 +226,7 @@ class RedisEventsTest extends TestCase
         $redis = $this->createRedis($this->createMockRedisConnection());
 
         // Should not throw
-        $redis->listen(function () {
+        $redis->listen(function (): void {
             // callback
         });
 
@@ -251,13 +243,16 @@ class RedisEventsTest extends TestCase
         $redis = $this->createRedis($this->createMockRedisConnection());
 
         // Should not throw
-        $redis->listenForFailures(function () {
+        $redis->listenForFailures(function (): void {
             // callback
         });
 
         $this->assertTrue(true);
     }
 
+    /**
+     * Create a Redis proxy using the given connection.
+     */
     private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
@@ -274,6 +269,9 @@ class RedisEventsTest extends TestCase
         );
     }
 
+    /**
+     * Create a mock Redis connection for the given command.
+     */
     private function createMockRedisConnection(
         string $command = 'get',
         mixed $returnValue = 'value',
@@ -283,7 +281,8 @@ class RedisEventsTest extends TestCase
         $mockPhpRedis = m::mock(PhpRedis::class);
 
         if ($exception !== null) {
-            $mockPhpRedis->shouldReceive($command)
+            $mockPhpRedis->expects($command)
+                ->with('key')
                 ->andThrow($exception);
         } else {
             $mockPhpRedis->shouldReceive($command)
@@ -297,8 +296,8 @@ class RedisEventsTest extends TestCase
         $mockRedisConnection->shouldReceive('getName')->andReturn('default');
 
         $mockRedisConnection->shouldReceive($command)
-            ->andReturnUsing(function (...$args) use ($mockPhpRedis, $command) {
-                return $mockPhpRedis->{$command}(...$args);
+            ->andReturnUsing(function (mixed ...$arguments) use ($mockPhpRedis, $command): mixed {
+                return $mockPhpRedis->{$command}(...$arguments);
             });
 
         return $mockRedisConnection;

@@ -29,6 +29,9 @@ use function Hypervel\Support\swoole_hook_flags;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServerStartCommand extends SymfonyCommand
 {
+    // Laravel's ServeCommand subprocess and output-parser helpers are omitted;
+    // ServerFactory starts Swoole directly.
+
     public function __construct(protected Application $application)
     {
         parent::__construct('serve');
@@ -80,6 +83,11 @@ class ServerStartCommand extends SymfonyCommand
         $host = $input->getOption('host');
         $port = $input->getOption('port');
 
+        if ($host !== null) {
+            [$host, $hostPort] = $this->getHostAndPort((string) $host);
+            $port ??= $hostPort;
+        }
+
         if ($host !== null || $port !== null) {
             if ($port !== null && filter_var($port, FILTER_VALIDATE_INT, [
                 'options' => ['min_range' => 1, 'max_range' => 65535],
@@ -102,7 +110,22 @@ class ServerStartCommand extends SymfonyCommand
             }
 
             if ($host !== null) {
-                $servers[$httpServerIndex]['host'] = (string) $host;
+                $servers[$httpServerIndex]['host'] = $host;
+
+                if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+                    $socketType = $servers[$httpServerIndex]['sock_type'] ?? SWOOLE_SOCK_TCP;
+                    $sslFlag = defined('SWOOLE_SSL') ? $socketType & SWOOLE_SSL : 0;
+                    $transportType = $socketType & ~$sslFlag;
+
+                    // Swoole selects the address family from the socket type, not the host.
+                    if (in_array($transportType, [SWOOLE_SOCK_TCP, SWOOLE_SOCK_TCP6], true)) {
+                        $addressType = str_contains($host, ':') ? SWOOLE_SOCK_TCP6 : SWOOLE_SOCK_TCP;
+
+                        if ($transportType !== $addressType) {
+                            $servers[$httpServerIndex]['sock_type'] = $addressType | $sslFlag;
+                        }
+                    }
+                }
             }
 
             if ($port !== null) {
@@ -123,5 +146,24 @@ class ServerStartCommand extends SymfonyCommand
         $serverFactory->start();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Get the host and optional port from the host option.
+     *
+     * @return array{string, null|string}
+     */
+    protected function getHostAndPort(string $host): array
+    {
+        if (preg_match('/^\[([^\]]+)\](?::(.*))?$/D', $host, $matches) === 1) {
+            // IPv6 brackets delimit the option's port but are not part of Swoole's address.
+            return [$matches[1], $matches[2] ?? null];
+        }
+
+        if (substr_count($host, ':') === 1) {
+            return explode(':', $host, 2);
+        }
+
+        return [$host, null];
     }
 }

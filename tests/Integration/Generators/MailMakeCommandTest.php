@@ -8,6 +8,7 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\MailMakeCommand;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -122,6 +123,27 @@ class MailMakeCommandTest extends TestCase
         $this->assertFileContains([
             '<div>My existing template</div>',
         ], $existingViewPath);
+    }
+
+    #[DataProvider('mailStubOptions')]
+    public function testItCanGenerateMailFileNamedAttachment(array $options): void
+    {
+        $this->artisan('make:mail', ['name' => 'Attachment', ...$options])
+            ->assertExitCode(0);
+
+        $this->assertPhpFileCompiles('app/Mail/Attachment.php');
+    }
+
+    /**
+     * Provide the options that select each mail stub.
+     */
+    public static function mailStubOptions(): array
+    {
+        return [
+            'mail' => [[]],
+            'markdown mail' => [['--markdown' => 'mail.attachment']],
+            'view mail' => [['--view' => 'mail.attachment']],
+        ];
     }
 
     public function testItCanGenerateMailFileWithTest(): void

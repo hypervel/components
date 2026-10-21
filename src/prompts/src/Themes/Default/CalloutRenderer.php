@@ -12,6 +12,7 @@ use Hypervel\Prompts\Elements\KeyValueList;
 use Hypervel\Prompts\Elements\Link;
 use Hypervel\Prompts\Elements\NumberedList;
 use InvalidArgumentException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 class CalloutRenderer extends Renderer
 {
@@ -33,7 +34,7 @@ class CalloutRenderer extends Renderer
             if (is_array($result)) {
                 $sections[] = implode(PHP_EOL, $result);
             } else {
-                $sections[] = implode(PHP_EOL, $this->ansiWordwrap($result, $this->minWidth));
+                $sections[] = implode(PHP_EOL, $this->wrapContent($result, $this->minWidth));
             }
         }
 
@@ -97,7 +98,7 @@ class CalloutRenderer extends Renderer
         foreach ($part->items as $p) {
             ++$ordinal;
             $p = $this->autoFormat($p);
-            $lines = $this->ansiWordwrap($p, $this->minWidth - 2);
+            $lines = $this->wrapContent($p, $this->minWidth - 2);
             $partLines = [];
 
             if ($part->spaced && $ordinal !== 1) {
@@ -136,7 +137,7 @@ class CalloutRenderer extends Renderer
             $partLines = [];
             // -1 for ' ' after number
             $p = $this->autoFormat($p);
-            $lines = $this->ansiWordwrap($p, $this->minWidth - $widestNumber - 1);
+            $lines = $this->wrapContent($p, $this->minWidth - $widestNumber - 1);
 
             if ($part->spaced && $ordinal !== 1) {
                 $partLines[] = '';
@@ -179,7 +180,7 @@ class CalloutRenderer extends Renderer
             $key = (string) $key;
             $paddedKey = mb_str_pad($key, $widestKey);
             $value = $this->autoFormat($value);
-            $lines = $this->ansiWordwrap($value, $this->minWidth - $widestKey - 2);
+            $lines = $this->wrapContent($value, $this->minWidth - $widestKey - 2);
 
             foreach ($lines as $index => $line) {
                 if ($index === 0) {
@@ -199,10 +200,23 @@ class CalloutRenderer extends Renderer
     protected function renderLink(Link $part): string
     {
         $text = $part->underline
-            ? "\e[4;36m{$part->label}\e[0m"
+            ? $this->underline($this->cyan($part->label))
             : $this->cyan($part->label);
 
         return "\e]8;;{$part->url}\e\\{$text}\e]8;;\e\\";
+    }
+
+    /**
+     * Wrap formatted content while preserving literal brackets for the outer write.
+     *
+     * @return array<int, string>
+     */
+    private function wrapContent(string $text, int $width): array
+    {
+        return array_map(
+            OutputFormatter::escape(...),
+            $this->ansiWordwrap($this->formatText($text), $width),
+        );
     }
 
     /**
@@ -212,11 +226,12 @@ class CalloutRenderer extends Renderer
     {
         $text = preg_replace('/`([^`]+)`/', $this->cyan('`$1`'), $text);
 
-        return preg_replace_callback('/\e\]8;;(.+?)\e\\\(.*?)\e\]8;;\e\\\/', function ($matches) {
-            $visibleText = $this->stripEscapeSequences($matches[2]);
+        return preg_replace_callback('/\e\]8;;(.+?)\e\\\(.*?)\e\]8;;\e\\\/', function (array $matches): string {
+            $visibleText = OutputFormatter::escape($this->stripEscapeSequences($matches[2]));
             $hadUnderline = str_contains($matches[2], "\e[4m");
+            // Reset only the link's own attributes so text after it keeps the surrounding style.
             $styled = $hadUnderline
-                ? "\e[4;36m{$visibleText}\e[0m"
+                ? $this->underline($this->cyan($visibleText))
                 : $this->cyan($visibleText);
 
             return "\e]8;;{$matches[1]}\e\\{$styled}\e]8;;\e\\";

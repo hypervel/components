@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Http\File as HttpFile;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
@@ -29,7 +30,7 @@ class ValidationFileRuleTest extends TestCase
         });
     }
 
-    public function testBasic()
+    public function testBasic(): void
     {
         $this->fails(
             File::default(),
@@ -75,7 +76,7 @@ class ValidationFileRuleTest extends TestCase
         $this->assertValidationRules($rule, $values, true, []);
     }
 
-    public function testSingleMimetype()
+    public function testSingleMimetype(): void
     {
         $this->fails(
             File::types('text/plain'),
@@ -89,7 +90,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMultipleMimeTypes()
+    public function testMultipleMimeTypes(): void
     {
         $this->fails(
             File::types(['text/plain', 'image/jpeg']),
@@ -103,7 +104,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testSingleMime()
+    public function testSingleMime(): void
     {
         $this->fails(
             File::types('txt'),
@@ -117,7 +118,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMultipleMimes()
+    public function testMultipleMimes(): void
     {
         $this->fails(
             File::types(['png', 'jpg', 'jpeg', 'svg']),
@@ -134,7 +135,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMixOfMimetypesAndMimes()
+    public function testMixOfMimetypesAndMimes(): void
     {
         $this->fails(
             File::types(['png', 'image/png']),
@@ -148,7 +149,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testSingleExtension()
+    public function testSingleExtension(): void
     {
         $this->fails(
             File::default()->extensions('png'),
@@ -174,7 +175,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMultipleExtensions()
+    public function testMultipleExtensions(): void
     {
         $this->fails(
             File::default()->extensions(['png', 'jpeg', 'jpg']),
@@ -195,7 +196,7 @@ class ValidationFileRuleTest extends TestCase
     }
 
     #[RequiresPhpExtension('gd')]
-    public function testImage()
+    public function testImage(): void
     {
         $this->fails(
             File::image(),
@@ -209,7 +210,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testImageFailsOnSvgByDefault()
+    public function testImageFailsOnSvgByDefault(): void
     {
         $maliciousSvgFileWithXSS = UploadedFile::fake()->createWithContent(
             name: 'foo.svg',
@@ -242,7 +243,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testSize()
+    public function testSize(): void
     {
         $this->fails(
             File::default()->size(1024),
@@ -259,7 +260,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testBetween()
+    public function testBetween(): void
     {
         $this->fails(
             File::default()->between(1024, 2048),
@@ -281,7 +282,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMin()
+    public function testMin(): void
     {
         $this->fails(
             File::default()->min(1024),
@@ -299,7 +300,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMinWithHumanReadableSize()
+    public function testMinWithHumanReadableSize(): void
     {
         $this->fails(
             File::default()->min('1024kb'),
@@ -317,7 +318,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMax()
+    public function testMax(): void
     {
         $this->fails(
             File::default()->max(1024),
@@ -335,7 +336,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMaxWithHumanReadableSize()
+    public function testMaxWithHumanReadableSize(): void
     {
         $this->fails(
             File::default()->max('1024kb'),
@@ -353,7 +354,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMaxWithHumanReadableSizeAndMultipleValue()
+    public function testMaxWithHumanReadableSizeAndMultipleValue(): void
     {
         $this->fails(
             File::default()->max('1mb'),
@@ -371,7 +372,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testEncoding()
+    public function testEncoding(): void
     {
         // ASCII file containing UTF-8.
         $this->fails(
@@ -401,10 +402,9 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testEncodingWithInvalidParameter()
+    public function testEncodingWithInvalidParameter(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Validation rule encoding parameter [FOOBAR] is not a valid encoding.');
+        $this->expectExceptionObject(new InvalidArgumentException('Validation rule encoding parameter [FOOBAR] is not a valid encoding.'));
 
         // Invalid encoding.
         $this->fails(
@@ -414,7 +414,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testMacro()
+    public function testMacro(): void
     {
         File::macro('toDocument', function () {
             return static::default()->rules('mimes:txt,csv');
@@ -437,21 +437,16 @@ class ValidationFileRuleTest extends TestCase
 
     public function testItUsesTheCorrectValidationMessageForFile(): void
     {
-        file_put_contents($path = __DIR__ . '/test.json', 'this-is-a-test');
-
-        // $file = new \Illuminate\Http\File($path);
-        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, true);
+        $file = new HttpFile(__DIR__ . '/Fixtures/image.png');
 
         $this->fails(
             ['max:0'],
             $file,
             ['validation.max.file']
         );
-
-        unlink($path);
     }
 
-    public function testItCanSetDefaultUsing()
+    public function testItCanSetDefaultUsing(): void
     {
         $this->assertInstanceOf(File::class, File::default());
 
@@ -472,11 +467,11 @@ class ValidationFileRuleTest extends TestCase
 
         $this->passes(
             File::default(),
-            UploadedFile::fake()->create('foo.png', (int) 1.5 * 1024),
+            UploadedFile::fake()->create('foo.png', (int) (1.5 * 1024)),
         );
     }
 
-    public function testFileSizeConversionWithDifferentUnits()
+    public function testFileSizeConversionWithDifferentUnits(): void
     {
         $this->passes(
             File::image()->size('5MB'),

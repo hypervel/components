@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeStopSectionTest extends AbstractBladeTestCase
 {
-    public function testStopSectionsAreCompiled()
+    public function testStopSectionsAreCompiled(): void
     {
         $this->assertSame('<?php $__env->stopSection(); ?>', $this->compiler->compileString('@stop'));
     }

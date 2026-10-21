@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Permission\Database\Postgres;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
+use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\PermissionAlreadyExists;
-use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Exceptions\RoleAlreadyExists;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Permission\TestCase as PermissionTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 #[RequiresDatabase('pgsql')]
 class PermissionCreateTransactionTest extends PermissionTestCase
@@ -24,37 +27,53 @@ class PermissionCreateTransactionTest extends PermissionTestCase
         $app->make('config')->set('database.default', getenv('DB_CONNECTION') ?: 'testing');
     }
 
-    public function testCreateRaceExceptionDoesNotPoisonPostgresTransaction(): void
+    /**
+     * @param class-string $contract
+     * @param class-string<PermissionAlreadyExists|RoleAlreadyExists> $exception
+     */
+    #[DataProvider('createdModels')]
+    public function testCreateRaceExceptionDoesNotPoisonPostgresTransaction(string $contract, string $exception): void
     {
-        $permissionClass = $this->app->make(PermissionContract::class);
+        $model = $this->app->make($contract);
 
-        $permissionClass::creating(static function ($permission) use ($permissionClass): void {
-            if ($permission->getAttribute('name') !== 'postgres-raced-permission') {
+        $model::creating(static function (Model $created) use ($model): void {
+            if ($created->getAttribute('name') !== 'postgres-raced') {
                 return;
             }
 
-            $permissionClass::query()->insert([
-                'name' => 'postgres-raced-permission',
+            $model::query()->insert([
+                'name' => 'postgres-raced',
                 'guard_name' => 'web',
             ]);
         });
 
-        DB::transaction(function () use ($permissionClass): void {
+        $caught = null;
+
+        DB::transaction(function () use ($model, &$caught): void {
             try {
-                $permissionClass::create(['name' => 'postgres-raced-permission']);
-                $this->fail('Expected duplicate permission exception was not thrown.');
-            } catch (PermissionAlreadyExists) {
-                $this->assertTrue(true);
+                $model::create(['name' => 'postgres-raced']);
+            } catch (PermissionAlreadyExists|RoleAlreadyExists $alreadyExists) {
+                $caught = $alreadyExists;
             }
 
-            $permission = $permissionClass::create(['name' => 'postgres-transaction-still-usable']);
-
-            $this->assertSame('postgres-transaction-still-usable', $permission->name);
+            $model::create(['name' => 'postgres-transaction-still-usable']);
         });
 
-        $this->assertDatabaseHas(Config::permissionsTable(), [
+        $this->assertInstanceOf($exception, $caught);
+        $this->assertDatabaseHas($model->getTable(), [
             'name' => 'postgres-transaction-still-usable',
             'guard_name' => 'web',
         ]);
+    }
+
+    /**
+     * Get the models whose create race is checked.
+     */
+    public static function createdModels(): array
+    {
+        return [
+            'permission' => [PermissionContract::class, PermissionAlreadyExists::class],
+            'role' => [RoleContract::class, RoleAlreadyExists::class],
+        ];
     }
 }

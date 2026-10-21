@@ -169,7 +169,7 @@ class TestStateRegistrarsTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Test-state registrar [Missing\TestStateRegistrar] declared by [vendor/package] does not exist.');
+        $this->expectExceptionMessageIsOrContains('Test-state registrar [Missing\TestStateRegistrar] declared by [vendor/package] does not exist.');
 
         $this->makeRegistrars()->register();
     }
@@ -183,7 +183,7 @@ class TestStateRegistrarsTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Test-state registrar [' . $class . '] declared by [vendor/package] must define a public static register method.');
+        $this->expectExceptionMessageIs('Test-state registrar [' . $class . '] declared by [vendor/package] must define a public static register method.');
 
         $this->makeRegistrars()->register();
     }
@@ -225,7 +225,7 @@ class TestStateRegistrarsTest extends TestCase
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Test-state registrar declared by [vendor/package] must be a class name string.');
+        $this->expectExceptionMessageIs('Test-state registrar declared by [vendor/package] must be a class name string.');
 
         $this->makeRegistrars()->register();
     }
@@ -272,7 +272,7 @@ class TestStateRegistrarsTest extends TestCase
     public function testResolveInstalledRootPathThrowsForInvalidComposerRootInstallPath(mixed $installPath): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Composer runtime metadata is missing the root package install path.');
+        $this->expectExceptionMessageIs('Composer runtime metadata is missing the root package install path.');
 
         TestStateRegistrarsProbe::resolveInstalledRootPath($installPath);
     }

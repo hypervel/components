@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Coroutine\Parallel;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
 
@@ -37,6 +38,8 @@ class CoroutineDriver implements Driver
         foreach ($tasks as $key => $task) {
             $parallel->add($task, $key);
         }
+
+        ConnectionResolver::releaseIdleConnections();
 
         $results = $parallel->wait(false);
         $exceptions = $parallel->getThrowables();

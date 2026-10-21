@@ -165,7 +165,7 @@ class ValidationData
     {
         $keys = [];
 
-        $pattern = str_replace('\*', '[^\.]+', preg_quote($attribute, '/'));
+        $pattern = str_replace('\*', '[^\.]*', preg_quote($attribute, '/'));
 
         foreach ($data as $key => $value) {
             if ((bool) preg_match('/^' . $pattern . '/', (string) $key, $matches)) {
@@ -236,7 +236,8 @@ class ValidationData
         array &$results,
     ): void {
         if ($index >= count($segments)) {
-            $results[] = rtrim($prefix, '.');
+            // Remove only the appended separator so empty trailing keys survive.
+            $results[] = substr($prefix, 0, -1);
 
             return;
         }

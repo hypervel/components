@@ -10,6 +10,9 @@ use Hypervel\Support\Facades\Date;
 
 class ExpiredClaim extends AbstractValidation implements TemporalValidation
 {
+    /**
+     * Validate that the token has not expired.
+     */
     public function validate(array $payload): void
     {
         $exp = $payload['exp'] ?? null;

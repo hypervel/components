@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Socialite;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Concerns\HasProviderContext;
 use Hypervel\Support\Arr;
@@ -87,7 +89,16 @@ abstract class AbstractProvider
     protected function getHttpClient(): Client
     {
         return $this->getOrSetContext('httpClient', function () {
-            return new Client($this->guzzle);
+            $client = new Client($this->guzzle);
+
+            if (! isset($this->guzzle['handler'])) {
+                // Guzzle applies client-level connection options only to the default handler it builds.
+                /** @var HandlerStack $handler */
+                $handler = $client->getConfig('handler');
+                $handler->push(new ReleaseIdleDatabaseConnections, 'release_idle_database_connections');
+            }
+
+            return $client;
         });
     }
 

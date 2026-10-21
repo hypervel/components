@@ -54,9 +54,9 @@ class Pipeline
         $pipe = new Pipe($callable, $name, $order);
 
         match ($order) {
-            PipeOrder::First => $this->firstPipes[] = $pipe,
+            PipeOrder::FIRST => $this->firstPipes[] = $pipe,
             null => $this->pipes[] = $pipe,
-            PipeOrder::Last => $this->lastPipes[] = $pipe,
+            PipeOrder::LAST => $this->lastPipes[] = $pipe,
         };
 
         if ($name !== null) {

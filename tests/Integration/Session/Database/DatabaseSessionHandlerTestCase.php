@@ -90,18 +90,18 @@ abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
         $connection = $this->app->make('db')->connection();
 
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $handler->write('simple_id_1', 'abcd');
         $this->assertSame(0, $handler->gc(1));
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
+        CarbonImmutable::setTestNow($now = $now->addSeconds(2));
 
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
         $handler->write('simple_id_2', 'abcd');
         $this->assertSame(1, $handler->gc(2));
         $this->assertSame(1, $connection->table('sessions')->count());
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
+        CarbonImmutable::setTestNow($now->addSeconds(2));
 
         $this->assertSame(1, $handler->gc(1));
         $this->assertSame(0, $connection->table('sessions')->count());

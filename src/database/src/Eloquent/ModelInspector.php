@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Console\GeneratorCommand;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Collection as BaseCollection;
@@ -50,7 +52,7 @@ class ModelInspector
      *
      * @param class-string<Model>|string $model
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     public function inspect(string $model, ?string $connection = null): ModelInfo
     {
@@ -58,7 +60,7 @@ class ModelInspector
 
         // build() instead of make() — this is a throwaway instance for inspection,
         // and setConnection() below mutates it, which would pollute a shared singleton.
-        /** @var \Hypervel\Database\Eloquent\Model $model */
+        /** @var Model $model */
         $model = $this->app->build($class);
 
         if ($connection !== null) {
@@ -230,7 +232,7 @@ class ModelInspector
      *
      * @return BaseCollection<int, array{event: string, observer: array<int, string>}>
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     protected function getObservers(Model $model): BaseCollection
     {
@@ -295,7 +297,7 @@ class ModelInspector
      *
      * @return class-string<Model>
      *
-     * @see \Hypervel\Console\GeneratorCommand
+     * @see GeneratorCommand
      */
     protected function qualifyModel(string $model): string
     {

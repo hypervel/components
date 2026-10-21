@@ -289,7 +289,7 @@ $array = Arr::add(['name' => 'Desk', 'price' => null], 'price', 100);
 
 The `Arr::array` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `array`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
@@ -308,7 +308,7 @@ $value = Arr::array($array, 'name');
 
 The `Arr::boolean` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `boolean`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'available' => true];
@@ -452,7 +452,7 @@ $filtered = Arr::except($array, ['price']);
 <a name="method-array-except-values"></a>
 #### `Arr::exceptValues()` {.collection-method}
 
-The `Arr::exceptValues` method removes the specified values from an array:
+The `Arr::exceptValues` method removes the specified values from an array, preserving the original keys:
 
 ```php
 use Hypervel\Support\Arr;
@@ -461,7 +461,7 @@ $array = ['foo', 'bar', 'baz', 'qux'];
 
 $filtered = Arr::exceptValues($array, ['foo', 'baz']);
 
-// ['bar', 'qux']
+// [1 => 'bar', 3 => 'qux']
 ```
 
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
@@ -473,7 +473,7 @@ $array = [1, '1', 2, '2'];
 
 $filtered = Arr::exceptValues($array, [1, 2], strict: true);
 
-// ['1', '2']
+// [1 => '1', 3 => '2']
 ```
 
 <a name="method-array-exists"></a>
@@ -542,7 +542,7 @@ $flattened = Arr::flatten($array);
 
 The `Arr::float` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `float`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'balance' => 123.45];
@@ -679,7 +679,7 @@ $contains = Arr::hasAny($array, ['category', 'product.discount']);
 
 The `Arr::integer` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `int`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'age' => 42];
@@ -889,7 +889,7 @@ $slice = Arr::only($array, ['name', 'price']);
 <a name="method-array-only-values"></a>
 #### `Arr::onlyValues()` {.collection-method}
 
-The `Arr::onlyValues` method returns only the specified values from an array:
+The `Arr::onlyValues` method returns only the specified values from an array, preserving the original keys:
 
 ```php
 use Hypervel\Support\Arr;
@@ -898,7 +898,7 @@ $array = ['foo', 'bar', 'baz', 'qux'];
 
 $filtered = Arr::onlyValues($array, ['foo', 'baz']);
 
-// ['foo', 'baz']
+// [0 => 'foo', 2 => 'baz']
 ```
 
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
@@ -910,7 +910,7 @@ $array = [1, '1', 2, '2'];
 
 $filtered = Arr::onlyValues($array, [1, 2], strict: true);
 
-// [1, 2]
+// [0 => 1, 2 => 2]
 ```
 
 <a name="method-array-partition"></a>
@@ -1074,7 +1074,7 @@ $array = [
 
 Arr::query($array);
 
-// name=Taylor&order[column]=created_at&order[direction]=desc
+// name=Taylor&order%5Bcolumn%5D=created_at&order%5Bdirection%5D=desc
 ```
 
 <a name="method-array-random"></a>
@@ -1169,7 +1169,7 @@ $array = Arr::shuffle([1, 2, 3, 4, 5]);
 <a name="method-array-sole"></a>
 #### `Arr::sole()` {.collection-method}
 
-The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, an `Hypervel\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, a `Hypervel\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 use Hypervel\Support\Arr;
@@ -1315,7 +1315,7 @@ $sorted = Arr::sortRecursiveDesc($array);
 
 The `Arr::string` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `string`:
 
-```
+```php
 use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
@@ -1889,18 +1889,18 @@ $result = Number::pairs(25, 10, offset: 0);
 <a name="method-number-parse"></a>
 #### `Number::parse()` {.collection-method}
 
-The `Number::parse` method parses a string into an integer or float according to the specified locale:
+The `Number::parse` method parses a localized numeric string using PHP's `NumberFormatter`:
 
 ```php
 use Hypervel\Support\Number;
 
-$result = Number::parse('1,234.56');
+$result = Number::parse('10,123', locale: 'en');
 
-// (float) 1234.56
+// 10123.0
 
-$result = Number::parse('1.234,56', locale: 'de');
+$result = Number::parse('10,123', locale: 'fr');
 
-// (float) 1234.56
+// 10.123
 ```
 
 <a name="method-number-parse-int"></a>
@@ -2354,7 +2354,7 @@ $url = url('user/profile');
 $url = url('user/profile', [1]);
 ```
 
-If no path is provided, an `Hypervel\Routing\UrlGenerator` instance is returned:
+If no path is provided, a `Hypervel\Routing\UrlGenerator` instance is returned:
 
 ```php
 $current = url()->current();
@@ -2744,7 +2744,7 @@ The `fake` function resolves a [Faker](https://github.com/FakerPHP/Faker) single
 By default, the `fake` function will utilize the `app.faker_locale` configuration option in your `config/app.php` configuration. Typically, this configuration option is set via the `APP_FAKER_LOCALE` environment variable. You may also specify the locale by passing it to the `fake` function. Each locale will resolve an individual singleton:
 
 ```php
-fake('nl_NL')->name()
+fake('nl_NL')->name();
 ```
 
 <a name="method-filled"></a>
@@ -2782,6 +2782,12 @@ An array of contextual data may also be passed to the function:
 
 ```php
 info('User login attempt failed.', ['id' => $user->id]);
+```
+
+To record where the function was called, pass `callerLocation: true`. The calling file and line will be added to the context under the `caller_location` key:
+
+```php
+info('Cache warmed.', callerLocation: true);
 ```
 
 <a name="method-lazy"></a>
@@ -3388,6 +3394,12 @@ $value = when(true, 'Hello World');
 $value = when(true, fn () => 'Hello World');
 ```
 
+You may pass a default value as the third argument to return when the condition is false. The value and default may also be closures, which receive the resolved condition:
+
+```php
+$value = when($user, fn ($user) => $user->name, 'Guest');
+```
+
 The `when` function is primarily useful for conditionally rendering HTML attributes:
 
 ```blade
@@ -3522,13 +3534,11 @@ Route::post('/orders', function (Request $request) {
 });
 ```
 
-By default, deferred functions will only be executed if the HTTP response, Artisan command, or queued job from which `Hypervel\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
+By default, deferred functions will only be executed if the HTTP response, Artisan command, scheduled task, WebSocket callback, or queued job from which `Hypervel\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
 
 ```php
 defer(fn () => Metrics::reportOrder($order))->always();
 ```
-
-A deferred function registered while deferred functions are being executed is not run during the same lifecycle and is not guaranteed to run at all.
 
 > [!WARNING]
 > Hypervel runs on Swoole, which exposes its own global `defer` function that conflicts with Hypervel's `defer` helper. Always call Hypervel's `defer` helper explicitly by namespace: `use function Hypervel\Support\defer;`
@@ -3692,6 +3702,29 @@ $user = Pipeline::send($user)
     ->thenReturn();
 ```
 
+#### Reusing a Pipeline
+
+When processing many values through the same middleware, you may build a reusable closure with `toClosure`. The closure receives a new input on each call, so the middleware structure only needs to be built once:
+
+```php
+use App\Pipes\NormalizeRecord;
+use App\Pipes\ValidateRecord;
+use Hypervel\Support\Facades\Pipeline;
+
+$process = Pipeline::through([
+    NormalizeRecord::class,
+    ValidateRecord::class,
+])->toClosure(fn (array $record): array => $record);
+
+foreach ($records as $record) {
+    $processed = $process($record);
+}
+```
+
+Class middleware is resolved when each invocation reaches it, using its normal [container lifetime](/docs/{{version}}/container). Scoped middleware is resolved once per coroutine. Bindings and class lifetime rules decide whether other middleware is shared or fresh; ordinary unbound classes are shared by default. Shared middleware, supplied middleware objects, and state captured by closures must not retain invocation-specific values when the closure is used concurrently. Transaction and `finally` behavior applies separately to each invocation.
+
+Configure the pipeline before calling `toClosure` and leave that pipeline's configuration unchanged while using the returned closure. Each invocation receives its own input, but the closure still uses the pipeline's container, method, transaction, and `finally` settings.
+
 <a name="sleep"></a>
 ### Sleep
 
@@ -3797,7 +3830,7 @@ it('checks if ready three times', function () {
         Sleep::for(2)->seconds(),
         Sleep::for(3)->seconds(),
     ]);
-}
+});
 ```
 
 ```php tab=PHPUnit
@@ -3954,7 +3987,7 @@ The `withQueryIfMissing` method may be used to merge additional query string par
 $uri = $uri->withQueryIfMissing(['page' => 1]);
 ```
 
-The `replaceQuery` method may be used to complete replace the existing query string with a new one:
+The `replaceQuery` method may be used to completely replace the existing query string with a new one:
 
 ```php
 $uri = $uri->replaceQuery(['page' => 1]);
@@ -3971,6 +4004,8 @@ The `withoutQuery` method may be used to remove parameters from the query string
 ```php
 $uri = $uri->withoutQuery(['page']);
 ```
+
+These mutation methods support dot notation for nested parameters and treat asterisks in keys literally. `$uri->query()->get()` treats asterisks as wildcards; use `$uri->query()->all()` to read a literal asterisk key.
 
 <a name="generating-responses-from-uris"></a>
 #### Generating Responses From URIs

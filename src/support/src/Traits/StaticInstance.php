@@ -14,11 +14,7 @@ trait StaticInstance
     public static function instance(array $params = [], bool $refresh = false, string $suffix = ''): static
     {
         $key = static::class . $suffix;
-        $instance = null;
-
-        if (CoroutineContext::has($key)) {
-            $instance = CoroutineContext::get($key);
-        }
+        $instance = CoroutineContext::get($key);
 
         if ($refresh || ! $instance instanceof static) {
             $instance = new static(...$params);

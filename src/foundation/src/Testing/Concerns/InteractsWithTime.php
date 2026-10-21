@@ -16,10 +16,12 @@ trait InteractsWithTime
     /**
      * Freeze time.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(CarbonInterface): TReturn) $callback
+     * @return ($callback is null ? CarbonInterface : TReturn)
      */
-    public function freezeTime($callback = null)
+    public function freezeTime(?callable $callback = null): mixed
     {
         $result = $this->travelTo($now = Date::now(), $callback);
 
@@ -29,10 +31,12 @@ trait InteractsWithTime
     /**
      * Freeze time at the beginning of the current second.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(CarbonInterface): TReturn) $callback
+     * @return ($callback is null ? CarbonInterface : TReturn)
      */
-    public function freezeSecond($callback = null)
+    public function freezeSecond(?callable $callback = null): mixed
     {
         $result = $this->travelTo($now = Date::now()->startOfSecond(), $callback);
 
@@ -50,11 +54,14 @@ trait InteractsWithTime
     /**
      * Travel to another time.
      *
-     * @param null|bool|CarbonInterface|Closure|DateTimeInterface|string $date
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     * @template TDate of DateTimeInterface|Closure|string|bool|null
+     *
+     * @param TDate $date
+     * @param null|(callable(TDate): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function travelTo($date, $callback = null)
+    public function travelTo(DateTimeInterface|Closure|string|bool|null $date, ?callable $callback = null): mixed
     {
         Carbon::setTestNow($date);
 
@@ -65,6 +72,8 @@ trait InteractsWithTime
                 Carbon::setTestNow();
             }
         }
+
+        return null;
     }
 
     /**

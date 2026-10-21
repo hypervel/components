@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeHasSectionTest extends AbstractBladeTestCase
 {
-    public function testHasSectionStatementsAreCompiled()
+    public function testHasSectionStatementsAreCompiled(): void
     {
         $string = '@hasSection("section")
 breeze

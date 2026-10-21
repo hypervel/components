@@ -91,7 +91,7 @@ class ConnectionTest extends TestCase
     public function testErrorFrameThrowsServerException(): void
     {
         $this->expectException(ServerException::class);
-        $this->expectExceptionMessage('ERR command failed');
+        $this->expectExceptionMessageIs('ERR command failed');
 
         $this->receive("-ERR command failed\r\n");
     }
@@ -102,7 +102,7 @@ class ConnectionTest extends TestCase
         string $message,
     ): void {
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->receive($response);
     }
@@ -154,7 +154,7 @@ class ConnectionTest extends TestCase
         string $message,
     ): void {
         $this->expectException(SocketException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->endpoint($host, 6379, $scheme);
     }

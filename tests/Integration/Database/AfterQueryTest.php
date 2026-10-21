@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
@@ -36,7 +39,7 @@ class AfterQueryTest extends DatabaseTestCase
         });
     }
 
-    public function testAfterQueryOnEloquentBuilder()
+    public function testAfterQueryOnEloquentBuilder(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -47,9 +50,7 @@ class AfterQueryTest extends DatabaseTestCase
             ->afterQuery(function (Collection $users) use ($afterQueryIds) {
                 $afterQueryIds->push(...$users->pluck('id')->all());
 
-                foreach ($users as $user) {
-                    $this->assertInstanceOf(AfterQueryUser::class, $user);
-                }
+                $this->assertContainsOnlyInstancesOf(AfterQueryUser::class, $users);
             })
             ->get();
 
@@ -57,7 +58,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $users->pluck('id')->toArray());
     }
 
-    public function testAfterQueryOnBaseBuilder()
+    public function testAfterQueryOnBaseBuilder(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -79,7 +80,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $users->pluck('id')->toArray());
     }
 
-    public function testAfterQueryOnEloquentCursor()
+    public function testAfterQueryOnEloquentCursor(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -90,9 +91,7 @@ class AfterQueryTest extends DatabaseTestCase
             ->afterQuery(function (Collection $users) use ($afterQueryIds) {
                 $afterQueryIds->push(...$users->pluck('id')->all());
 
-                foreach ($users as $user) {
-                    $this->assertInstanceOf(AfterQueryUser::class, $user);
-                }
+                $this->assertContainsOnlyInstancesOf(AfterQueryUser::class, $users);
             })
             ->cursor();
 
@@ -100,7 +99,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $users->pluck('id')->toArray());
     }
 
-    public function testAfterQueryOnBaseBuilderCursor()
+    public function testAfterQueryOnBaseBuilderCursor(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -148,7 +147,7 @@ class AfterQueryTest extends DatabaseTestCase
         );
     }
 
-    public function testAfterQueryOnEloquentPluck()
+    public function testAfterQueryOnEloquentPluck(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -169,7 +168,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $userIds->toArray());
     }
 
-    public function testAfterQueryOnBaseBuilderPluck()
+    public function testAfterQueryOnBaseBuilderPluck(): void
     {
         AfterQueryUser::create();
         AfterQueryUser::create();
@@ -191,7 +190,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $userIds->toArray());
     }
 
-    public function testAfterQueryHookOnBelongsToManyRelationship()
+    public function testAfterQueryHookOnBelongsToManyRelationship(): void
     {
         $user = AfterQueryUser::create();
         $firstPost = AfterQueryPost::create();
@@ -206,9 +205,7 @@ class AfterQueryTest extends DatabaseTestCase
             ->afterQuery(function (Collection $posts) use ($afterQueryIds) {
                 $afterQueryIds->push(...$posts->pluck('id')->all());
 
-                foreach ($posts as $post) {
-                    $this->assertInstanceOf(AfterQueryPost::class, $post);
-                }
+                $this->assertContainsOnlyInstancesOf(AfterQueryPost::class, $posts);
             })
             ->get();
 
@@ -216,7 +213,21 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $posts->pluck('id')->toArray());
     }
 
-    public function testAfterQueryHookOnHasManyThroughRelationship()
+    public function testAfterQueryKeyByOnEagerBelongsToManyRelationship(): void
+    {
+        $user = AfterQueryUser::create();
+        $firstPost = AfterQueryPost::create();
+        $secondPost = AfterQueryPost::create();
+
+        $user->posts()->attach($firstPost);
+        $user->posts()->attach($secondPost);
+
+        $posts = AfterQueryUser::with('posts')->first()->posts;
+
+        $this->assertEqualsCanonicalizing($posts->pluck('id')->toArray(), $posts->keys()->toArray());
+    }
+
+    public function testAfterQueryHookOnHasManyThroughRelationship(): void
     {
         $user = AfterQueryUser::create();
         $team = AfterQueryTeam::create(['owner_id' => $user->id]);
@@ -230,9 +241,7 @@ class AfterQueryTest extends DatabaseTestCase
             ->afterQuery(function (Collection $teamMates) use ($afterQueryIds) {
                 $afterQueryIds->push(...$teamMates->pluck('id')->all());
 
-                foreach ($teamMates as $teamMate) {
-                    $this->assertInstanceOf(AfterQueryUser::class, $teamMate);
-                }
+                $this->assertContainsOnlyInstancesOf(AfterQueryUser::class, $teamMates);
             })
             ->get();
 
@@ -240,7 +249,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $teamMates->pluck('id')->toArray());
     }
 
-    public function testAfterQueryOnEloquentBuilderCanAlterReturnedResult()
+    public function testAfterQueryOnEloquentBuilderCanAlterReturnedResult(): void
     {
         $firstUser = AfterQueryUser::create();
         $secondUser = AfterQueryUser::create();
@@ -306,7 +315,7 @@ class AfterQueryTest extends DatabaseTestCase
         $this->assertEquals(collect(['foo', 'bar']), $teamMates);
     }
 
-    public function testAfterQueryOnBaseBuilderCanAlterReturnedResult()
+    public function testAfterQueryOnBaseBuilderCanAlterReturnedResult(): void
     {
         $firstUser = AfterQueryUser::create();
         $secondUser = AfterQueryUser::create();
@@ -387,14 +396,22 @@ class AfterQueryUser extends Model
 
     public bool $timestamps = false;
 
-    public function teamMates()
+    /**
+     * Get the user's team members.
+     */
+    public function teamMates(): HasManyThrough
     {
         return $this->hasManyThrough(self::class, AfterQueryTeam::class, 'owner_id', 'team_id');
     }
 
-    public function posts()
+    /**
+     * Get the user's posts keyed by their IDs.
+     */
+    public function posts(): BelongsToMany
     {
-        return $this->belongsToMany(AfterQueryPost::class, 'users_posts', 'user_id', 'post_id')->withTimestamps();
+        return $this->belongsToMany(AfterQueryPost::class, 'users_posts', 'user_id', 'post_id')
+            ->afterQuery(fn (Collection $posts): Collection => $posts->keyBy(fn (AfterQueryPost $post): int => $post->id))
+            ->withTimestamps();
     }
 }
 
@@ -406,7 +423,10 @@ class AfterQueryTeam extends Model
 
     public bool $timestamps = false;
 
-    public function members()
+    /**
+     * Get the team's members.
+     */
+    public function members(): HasMany
     {
         return $this->hasMany(AfterQueryUser::class, 'team_id');
     }

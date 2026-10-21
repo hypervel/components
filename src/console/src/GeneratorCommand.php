@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\Concerns\FindsAvailableModels;
 use Hypervel\Contracts\Console\PromptsForMissingInput;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -133,8 +134,8 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     {
         parent::__construct();
 
-        if (in_array(CreatesMatchingTest::class, class_uses_recursive($this))) {
-            $this->addTestOptions(); /* @phpstan-ignore-line */
+        if (isset(class_uses_recursive($this)[CreatesMatchingTest::class])) {
+            $this->addTestOptions(); // @phpstan-ignore method.notFound
         }
 
         $this->addPathAndNamespaceOptions();
@@ -175,7 +176,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     /**
      * Execute the console command.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     public function handle(): bool|int
     {
@@ -212,8 +213,8 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
 
         $info = $this->type;
 
-        if (in_array(CreatesMatchingTest::class, class_uses_recursive($this))) {
-            $this->handleTestCreation($path); /* @phpstan-ignore-line */
+        if (isset(class_uses_recursive($this)[CreatesMatchingTest::class])) {
+            $this->handleTestCreation($path); // @phpstan-ignore method.notFound
         }
 
         if (windows_os()) {
@@ -273,15 +274,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             : $rootNamespace . $model;
     }
 
-    /**
-     * Get a list of possible model names.
-     *
-     * @return array<int, string>
-     */
-    protected function possibleModels(): array
-    {
-        return $this->findAvailableModels();
-    }
+    // Laravel's deprecated possibleModels() alias is omitted; use findAvailableModels().
 
     /**
      * Get a list of possible event names.
@@ -372,7 +365,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     /**
      * Build the class with the given name.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     protected function buildClass(string $name): string
     {
@@ -485,10 +478,9 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function isReservedName(string $name): bool
     {
-        return in_array(
-            strtolower($name),
-            array_map('strtolower', $this->reservedNames)
-        );
+        $name = strtolower($name);
+
+        return array_any($this->reservedNames, fn ($reservedName) => strtolower($reservedName) === $name);
     }
 
     /**

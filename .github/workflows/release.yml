@@ -17,9 +17,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Version commits and framework tag pushes authenticate through origin.
           persist-credentials: true
@@ -52,16 +53,20 @@ jobs:
 
       - name: Fail if branch and release tag do not match
         if: ${{ steps.guard.outputs.VERSION_MISMATCH == 'true' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
               core.setFailed('Workflow failed. Release version does not match with selected target branch. Did you select the correct branch?')
 
       - name: Update Application.php version
-        run: sed -i "s/const VERSION = '.*';/const VERSION = '${{ steps.version.outputs.version }}';/g" src/foundation/src/Application.php
+        run: |
+          sed -i "s/const string VERSION = '.*';/const string VERSION = '${VERSION}';/g" src/foundation/src/Application.php
+          grep -Fq -- "const string VERSION = '${VERSION}';" src/foundation/src/Application.php
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Commit version change
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
         with:
           commit_message: "Update version to v${{ steps.version.outputs.version }}"
 
@@ -86,7 +91,7 @@ jobs:
           fi
 
       - name: Create release notes
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           generate_release_notes: true
           name: v${{ steps.version.outputs.version }}

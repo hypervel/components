@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use ArrayIterator;
 use ArrayObject;
 use DateTime;
 use Hypervel\Contracts\Support\Jsonable;
@@ -13,17 +14,21 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\Json;
 use Hypervel\Support\MultipleItemsFoundException;
+use Hypervel\Tests\Support\Fixtures\TestArrayableObject;
+use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestEnum;
+use Hypervel\Tests\Support\Fixtures\TestJsonableObject;
+use Hypervel\Tests\Support\Fixtures\TestJsonSerializeObject;
+use Hypervel\Tests\Support\Fixtures\TestJsonSerializeWithScalarValueObject;
+use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use ReflectionMethod;
 use RuntimeException;
 use SortDirection;
 use stdClass;
 use WeakMap;
-
-include_once 'Common.php';
-include_once 'Enums.php';
 
 class SupportArrTest extends TestCase
 {
@@ -97,8 +102,7 @@ class SupportArrTest extends TestCase
         Arr::push($array, null, 'Taylor');
         $this->assertEquals(['Chris', 'Nuno', 'Taylor'], $array);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Array value for key [foo.bar] must be an array, boolean found.');
+        $this->expectExceptionObject(new InvalidArgumentException('Array value for key [foo.bar] must be an array, boolean found.'));
 
         $array = ['foo' => ['bar' => false]];
         Arr::push($array, 'foo.bar', 'baz');
@@ -124,7 +128,7 @@ class SupportArrTest extends TestCase
 
         // Case with empty two-dimensional arrays
         $emptyArray = [[], [], []];
-        $this->assertEquals([], Arr::collapse($emptyArray));
+        $this->assertSame([], Arr::collapse($emptyArray));
 
         // Case with both empty arrays and arrays with elements
         $mixedArray = [[], [1, 2], [], ['foo', 'bar']];
@@ -181,13 +185,12 @@ class SupportArrTest extends TestCase
         $this->assertSame([[]], Arr::crossJoin());
     }
 
-    #[IgnoreDeprecations]
     public function testDivide(): void
     {
         // Test dividing an empty array
         [$keys, $values] = Arr::divide([]);
-        $this->assertEquals([], $keys);
-        $this->assertEquals([], $values);
+        $this->assertSame([], $keys);
+        $this->assertSame([], $values);
 
         // Test dividing an array with a single key-value pair
         [$keys, $values] = Arr::divide(['name' => 'Desk']);
@@ -204,9 +207,9 @@ class SupportArrTest extends TestCase
         $this->assertEquals([0, 1], $keys);
         $this->assertEquals(['first', 'second'], $values);
 
-        // Test dividing an array with null key
-        [$keys, $values] = Arr::divide([null => 'Null', 1 => 'one']);
-        $this->assertEquals([null, 1], $keys);
+        // Test dividing an array with an empty-string key
+        [$keys, $values] = Arr::divide(['' => 'Null', 1 => 'one']);
+        $this->assertSame(['', 1], $keys);
         $this->assertEquals(['Null', 'one'], $values);
 
         // Test dividing an array where the keys are arrays
@@ -216,12 +219,7 @@ class SupportArrTest extends TestCase
 
         // Test dividing an array where the values are arrays
         [$keys, $values] = Arr::divide(['' => ['one' => 1, 2 => 'second'], 1 => 'one']);
-        $this->assertEquals([null, 1], $keys);
-        $this->assertEquals([['one' => 1, 2 => 'second'], 'one'], $values);
-
-        // Test dividing an array where the values are arrays (with null key)
-        [$keys, $values] = Arr::divide([null => ['one' => 1, 2 => 'second'], 1 => 'one']);
-        $this->assertEquals([null, 1], $keys);
+        $this->assertSame(['', 1], $keys);
         $this->assertEquals([['one' => 1, 2 => 'second'], 'one'], $values);
     }
 
@@ -365,16 +363,16 @@ class SupportArrTest extends TestCase
         $array = ['a' => 1, 'b' => 2, 'c' => 1, 'd' => 3];
         $this->assertEquals(['b' => 2, 'd' => 3], Arr::exceptValues($array, 1));
 
-        $this->assertEquals([], Arr::exceptValues([], 'foo'));
+        $this->assertSame([], Arr::exceptValues([], 'foo'));
         $this->assertEquals(['foo', 'bar'], Arr::exceptValues(['foo', 'bar'], []));
 
         $array = [1, '1', 2, '2', 3];
         $this->assertEquals([1 => '1', 3 => '2'], Arr::exceptValues($array, [1, 2, 3], true));
-        $this->assertEquals([], Arr::exceptValues($array, [1, 2, 3]));
+        $this->assertSame([], Arr::exceptValues($array, [1, 2, 3]));
 
         $array = ['a' => true, 'b' => false, 'c' => 1, 'd' => 0];
         $this->assertEquals(['a' => true, 'b' => false], Arr::exceptValues($array, [1, 0], true));
-        $this->assertEquals([], Arr::exceptValues($array, [1, 0]));
+        $this->assertSame([], Arr::exceptValues($array, [1, 0]));
     }
 
     public function testExists(): void
@@ -400,7 +398,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([1, 2, 3], $array);
 
         $array = array_values(Arr::whereNotNull([null, null, null]));
-        $this->assertEquals([], $array);
+        $this->assertSame([], $array);
 
         $array = array_values(Arr::whereNotNull(['a', null, 'b', null, 'c']));
         $this->assertEquals(['a', 'b', 'c'], $array);
@@ -520,6 +518,10 @@ class SupportArrTest extends TestCase
             return 'bar';
         }));
 
+        // Array is null
+        $this->assertSame('fallback', Arr::last(null, default: 'fallback'));
+        $this->assertSame('lazy', Arr::last(null, fn () => true, fn () => 'lazy'));
+
         // Callback is null and array is not empty
         $this->assertEquals(300, Arr::last($array));
 
@@ -550,8 +552,14 @@ class SupportArrTest extends TestCase
         $this->assertEquals(200, $value5);
     }
 
-    public function testLastAcceptsTraversableValuesWithAndWithoutACallback(): void
+    public function testLastAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 100, 'second' => 200, 'third' => 300]);
+
+        $this->assertSame(300, Arr::last($items));
+        $this->assertSame(200, Arr::last($items, fn ($value, $key) => $key !== 'third'));
+        $this->assertSame('default', Arr::last(new ArrayIterator, default: 'default'));
+
         $values = static function (): iterable {
             yield 'first' => 100;
             yield 'second' => 200;
@@ -807,14 +815,12 @@ class SupportArrTest extends TestCase
         $test_array = ['string' => 'foo bar', 'boolean' => true];
 
         // Test boolean values are returned as booleans
-        $this->assertSame(
-            true,
+        $this->assertTrue(
             Arr::boolean($test_array, 'boolean')
         );
 
         // Test that default boolean values are returned for missing keys
-        $this->assertSame(
-            true,
+        $this->assertTrue(
             Arr::boolean($test_array, 'missing_key', true)
         );
 
@@ -961,8 +967,12 @@ class SupportArrTest extends TestCase
         $this->assertTrue(Arr::every(['foo', 'bar'], fn ($value, $key) => is_string($value)));
     }
 
-    public function testEveryAcceptsTraversableValuesAndStopsAtTheFirstFailure(): void
+    public function testEveryAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 1, 'second' => 2]);
+
+        $this->assertTrue(Arr::every($items, fn ($value, $key) => is_string($key) && $value > 0));
+
         $visited = [];
         $values = static function (): iterable {
             yield 'first' => 1;
@@ -986,8 +996,12 @@ class SupportArrTest extends TestCase
         $this->assertTrue(Arr::some(['foo', 'bar'], fn ($value, $key) => is_string($value)));
     }
 
-    public function testSomeAcceptsTraversableValuesAndStopsAtTheFirstMatch(): void
+    public function testSomeAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 1, 'second' => 2]);
+
+        $this->assertTrue(Arr::some($items, fn ($value, $key) => $key === 'second' && $value === 2));
+
         $visited = [];
         $values = static function (): iterable {
             yield 'first' => 1;
@@ -1076,8 +1090,8 @@ class SupportArrTest extends TestCase
         $array = ['a' => 1, 'b' => 2, 'c' => 1, 'd' => 3];
         $this->assertEquals(['a' => 1, 'c' => 1], Arr::onlyValues($array, 1));
 
-        $this->assertEquals([], Arr::onlyValues([], 'foo'));
-        $this->assertEquals([], Arr::onlyValues(['foo', 'bar'], []));
+        $this->assertSame([], Arr::onlyValues([], 'foo'));
+        $this->assertSame([], Arr::onlyValues(['foo', 'bar'], []));
 
         $array = [1, '1', 2, '2', 3];
         $this->assertEquals([0 => 1, 2 => 2, 4 => 3], Arr::onlyValues($array, [1, 2, 3], true));
@@ -1228,7 +1242,7 @@ class SupportArrTest extends TestCase
         $mapped = Arr::map([], static function ($value, $key) {
             return $key . '-' . $value;
         });
-        $this->assertEquals([], $mapped);
+        $this->assertSame([], $mapped);
     }
 
     public function testMapNullValues(): void
@@ -1282,7 +1296,6 @@ class SupportArrTest extends TestCase
         $this->assertEquals(['1-a-0', '2-b-1'], $result);
     }
 
-    #[IgnoreDeprecations]
     public function testPrepend(): void
     {
         $array = Arr::prepend(['one', 'two', 'three', 'four'], 'zero');
@@ -1295,7 +1308,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals(['' => 0, 'one' => 1, 'two' => 2], $array);
 
         $array = Arr::prepend(['one' => 1, 'two' => 2], 0, null);
-        $this->assertEquals([null => 0, 'one' => 1, 'two' => 2], $array);
+        $this->assertEquals(['' => 0, 'one' => 1, 'two' => 2], $array);
 
         $array = Arr::prepend(['one', 'two'], null, '');
         $this->assertEquals(['' => null, 'one', 'two'], $array);
@@ -1319,10 +1332,10 @@ class SupportArrTest extends TestCase
         $this->assertEquals(['one', 'two', '' => ['zero']], $array);
 
         $array = Arr::prepend(['one', 'two'], ['zero'], null);
-        $this->assertEquals(['one', 'two', null => ['zero']], $array);
+        $this->assertEquals(['one', 'two', '' => ['zero']], $array);
 
         $array = Arr::prepend(['one', 'two', '' => 'three'], ['zero'], null);
-        $this->assertEquals(['one', 'two', null => ['zero']], $array);
+        $this->assertEquals(['one', 'two', '' => ['zero']], $array);
     }
 
     public function testPull(): void
@@ -1547,7 +1560,7 @@ class SupportArrTest extends TestCase
 
     public function testEmptyShuffle(): void
     {
-        $this->assertEquals([], Arr::shuffle([]));
+        $this->assertSame([], Arr::shuffle([]));
     }
 
     public function testSort(): void
@@ -1839,6 +1852,20 @@ class SupportArrTest extends TestCase
         $array = [2 => [1 => 'products', 3 => 'users']];
         Arr::forget($array, 2.3);
         $this->assertEquals([2 => [1 => 'products']], $array);
+
+        // A top-level key following a "dot" key is resolved against the top-level array
+        $array = ['users' => ['name' => 'Joe', 'id' => 1], 'id' => 99];
+        Arr::forget($array, ['users.name', 'id']);
+        $this->assertEquals(['users' => ['id' => 1]], $array);
+
+        $array = ['products' => ['desk' => ['price' => 100]], 'desk' => 'top-level'];
+        Arr::forget($array, ['products.desk.price', 'desk']);
+        $this->assertEquals(['products' => ['desk' => []]], $array);
+
+        // A "dot" key following a deeper "dot" key is also resolved from the top level
+        $array = ['a' => ['b' => ['c' => 1, 'e.d' => 'literal']], 'e' => ['d' => 3]];
+        Arr::forget($array, ['a.b.c', 'e.d']);
+        $this->assertEquals(['a' => ['b' => ['e.d' => 'literal']], 'e' => []], $array);
     }
 
     public function testFrom(): void
@@ -1862,8 +1889,7 @@ class SupportArrTest extends TestCase
         $items[$temp = new class {}] = 'bar';
         $this->assertSame(['bar'], Arr::from($items));
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Items cannot be represented by a scalar value.');
+        $this->expectExceptionObject(new InvalidArgumentException('Items cannot be represented by a scalar value.'));
         Arr::from(123);
     }
 
@@ -1898,7 +1924,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals(['a'], Arr::wrap($string));
         $this->assertEquals($array, Arr::wrap($array));
         $this->assertEquals([$object], Arr::wrap($object));
-        $this->assertEquals([], Arr::wrap(null));
+        $this->assertSame([], Arr::wrap(null));
         $this->assertEquals([null], Arr::wrap([null]));
         $this->assertEquals([null, null], Arr::wrap([null, null]));
         $this->assertEquals([''], Arr::wrap(''));
@@ -2014,7 +2040,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([4, 5, 6], Arr::take($array, -3));
 
         // Test with zero limit, should return an empty array.
-        $this->assertEquals([], Arr::take($array, 0));
+        $this->assertSame([], Arr::take($array, 0));
 
         // Test with a limit greater than the array size, should return the entire array.
         $this->assertEquals([1, 2, 3, 4, 5, 6], Arr::take($array, 10));

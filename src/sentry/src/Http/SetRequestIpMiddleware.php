@@ -7,6 +7,7 @@ namespace Hypervel\Sentry\Http;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\State\HubInterface;
 use Sentry\State\Scope;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,9 +30,7 @@ class SetRequestIpMiddleware
         if ($container->bound(HubInterface::class)) {
             $sentry = $container->make(HubInterface::class);
 
-            $client = $sentry->getClient();
-
-            if ($client !== null && $client->getOptions()->shouldSendDefaultPii()) {
+            if (DataCollectionPolicy::fromHub($sentry)->shouldCollectUserInfo()) {
                 $sentry->configureScope(static function (Scope $scope) use ($request): void {
                     $scope->setUser([
                         'ip_address' => $request->ip(),

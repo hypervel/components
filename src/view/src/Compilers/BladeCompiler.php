@@ -236,11 +236,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function getPath(): string
     {
-        if (CoroutineContext::has(static::PATH_CONTEXT_KEY)) {
-            return CoroutineContext::get(static::PATH_CONTEXT_KEY, '');
-        }
-
-        return $this->path;
+        return CoroutineContext::get(static::PATH_CONTEXT_KEY) ?? $this->path;
     }
 
     /**
@@ -297,8 +293,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             // If there are any footer lines that need to get added to a template we will
             // add them here at the end of the template. This gets used mainly for the
             // template inheritance via the extends keyword that should be appended.
-            $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
-            if (count($footers) > 0) {
+            if (CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []) !== []) {
                 $result = $this->addFooters($result);
             }
 
@@ -784,8 +779,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($name, function ($expression) use ($name) {
             return $expression !== ''
-                    ? "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
-                    : "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
+                ? "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
         });
 
         $this->directive('unless' . $name, function ($expression) use ($name) {
@@ -826,10 +821,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
         if (is_null($class)) {
             $class = $alias;
             $alias = str_contains($class, '\View\Components\\')
-                            ? (new Stringable($class))->after('\View\Components\\')->explode('\\')
-                                ->map(fn ($segment) => Str::kebab($segment))
-                                ->implode(':')
-                            : Str::kebab(class_basename($class));
+                ? (new Stringable($class))->after('\View\Components\\')->explode('\\')
+                    ->map(fn ($segment) => Str::kebab($segment))
+                    ->implode(':')
+                : Str::kebab(class_basename($class));
         }
 
         if (! empty($prefix)) {
@@ -949,8 +944,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($alias, function ($expression) use ($path) {
             return $expression
-                        ? "<?php \$__env->startComponent('{$path}', {$expression}); ?>"
-                        : "<?php \$__env->startComponent('{$path}'); ?>";
+                ? "<?php \$__env->startComponent('{$path}', {$expression}); ?>"
+                : "<?php \$__env->startComponent('{$path}'); ?>";
         });
 
         $this->directive('end' . $alias, function ($expression) {
@@ -1054,7 +1049,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function usingEchoFormat(string $format, callable $callback): string
     {
-        $hadOverride = CoroutineContext::has(static::ECHO_FORMAT_CONTEXT_KEY);
         $previous = CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY);
 
         CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
@@ -1062,7 +1056,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         try {
             return call_user_func($callback);
         } finally {
-            if ($hadOverride) {
+            if ($previous !== null) {
                 CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $previous);
             } else {
                 CoroutineContext::forget(static::ECHO_FORMAT_CONTEXT_KEY);

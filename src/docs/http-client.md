@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Making Requests](#making-requests)
+    - [Streaming Responses](#streaming-responses)
     - [Request Data](#request-data)
         - [QUERY Requests](#query-requests)
     - [Headers](#headers)
@@ -13,14 +14,22 @@
     - [Guzzle Middleware](#guzzle-middleware)
     - [Request Callbacks](#request-callbacks)
     - [Guzzle Options](#guzzle-options)
+        - [Proxies](#proxies)
     - [Telescope Recording](#telescope-recording)
+    - [OpenTelemetry Tracing](#opentelemetry-tracing)
 - [Concurrent Requests](#concurrent-requests)
     - [Dispatching Concurrent Requests](#dispatching-concurrent-requests)
     - [Limiting Concurrency](#limiting-concurrency)
     - [Handling Failures](#handling-failures)
     - [Per-Request Callbacks](#per-request-callbacks)
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
+    - [Guzzle Promises](#guzzle-promises)
 - [Connections](#connections)
+- [Restricting Destinations](#restricting-destinations)
+    - [Validating URLs](#validating-destination-urls)
+    - [Allowing Internal Networks](#allowing-internal-networks)
+    - [Egress Proxies](#egress-proxies)
+    - [Limitations](#destination-policy-limitations)
 - [Macros](#macros)
 - [Testing](#testing)
     - [Faking Responses](#faking-responses)
@@ -32,6 +41,8 @@
 ## Introduction
 
 Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Hypervel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
+
+Before sending a real request, Hypervel returns the current execution's idle database sessions to their pools. Transactions and explicitly pinned sessions remain held. Code that needs the same database session across an HTTP call may use `DB::withPinnedSession()`. See [releasing and pinning database connections](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 <a name="making-requests"></a>
 ## Making Requests
@@ -49,9 +60,10 @@ The `get` method returns an instance of `Hypervel\Http\Client\Response`, which p
 ```php
 $response->body() : string;
 $response->json($key = null, $default = null, $flags = null) : mixed;
-$response->object() : array|object|null;
-$response->collect($key = null) : Hypervel\Support\Collection;
-$response->fluent($key = null) : Hypervel\Support\Fluent;
+$response->object($flags = null) : mixed;
+$response->collect($key = null, $flags = null) : Hypervel\Support\Collection;
+$response->fluent($key = null, $flags = null) : Hypervel\Support\Fluent;
+$response->decodeUsing($callback) : Hypervel\Http\Client\Response;
 $response->resource() : resource;
 $response->status() : int;
 $response->successful() : bool;
@@ -66,17 +78,37 @@ $response->handlerStats() : array;
 $response->toPsrResponse() : Psr\Http\Message\ResponseInterface;
 ```
 
+You may also use the response's [tap method](/docs/{{version}}/helpers#method-tap) to inspect it without interrupting a method chain.
+
 The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
 
 ```php
 return Http::get('http://example.com/users/1')['name'];
 ```
 
-The optional third argument accepted by the `json` method is passed to `json_decode` as its decoding flags:
+The `json`, `object`, `collect`, and `fluent` methods accept an optional `flags` argument, which is passed to `json_decode`:
 
 ```php
 $value = $response->json('value', flags: JSON_BIGINT_AS_STRING);
 ```
+
+When `flags` is omitted or `null`, these methods use `Response::$defaultJsonDecodingFlags`. You may configure this default in a service provider's `boot` method:
+
+```php
+use Hypervel\Http\Client\Response;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+}
+```
+
+The default is shared by all requests handled by the worker, so configure it only during startup. Pass `flags: 0` to use no flags for an individual call.
+
+If you set a custom decoder using `decodeUsing`, that callback replaces JSON decoding and the flags do not apply. The callback receives the response body and a boolean indicating whether `object` was called.
 
 In addition to the response methods listed above, the following methods may be used to determine if the response has a specific status code:
 
@@ -98,7 +130,7 @@ $response->conflict() : bool;            // 409 Conflict
 $response->unprocessableContent() : bool; // 422 Unprocessable Content
 $response->unprocessableEntity() : bool;  // 422 Unprocessable Entity
 $response->tooManyRequests() : bool;     // 429 Too Many Requests
-$response->serverError() : bool;         // 500 Internal Server Error
+$response->serverError() : bool;         // >= 500 Server Error
 ```
 
 <a name="uri-templates"></a>
@@ -125,6 +157,42 @@ If you would like to dump the outgoing request instance before it is sent and te
 ```php
 return Http::dd()->get('http://example.com');
 ```
+
+<a name="streaming-responses"></a>
+### Streaming Responses
+
+To process a response as it arrives, you may enable the `stream` option. The `jsonLines` method allows you to iterate over newline-delimited JSON without loading the entire response into memory:
+
+```php
+$response = Http::withOptions(['stream' => true, 'read_timeout' => 30])
+    ->get('https://example.com/events');
+
+try {
+    foreach ($response->jsonLines() as $event) {
+        // Process the event...
+    }
+} finally {
+    $response->close();
+}
+```
+
+The `jsonLines` method skips blank lines and throws a `JsonException` if a record contains invalid JSON. Like `json`, it uses `Response::$defaultJsonDecodingFlags` unless you pass `flags`. For example, `$response->jsonLines(flags: JSON_BIGINT_AS_STRING)` preserves large integers as strings. The `decodeUsing` callback applies to the whole body, not individual lines.
+
+For plain text or a custom JSON decoder, you may use the `lines` method instead. It removes LF and CRLF line endings, preserves empty lines, and includes the final line even when it has no newline. For binary data and other formats, you may read the underlying PSR-7 response body directly.
+
+Both methods continue reading from the body's current position. They do not rewind it. Streaming bodies cannot be rewound, so choose between processing their lines and reading the entire body with `body` or `json`. Memory usage grows with the longest line, not the total response size.
+
+Inside a Swoole coroutine with native cURL hooks enabled, the HTTP client receives chunks as they arrive, buffers a limited amount, and pauses network reads when your application falls behind. [Named connections](#connections) reuse idle connections between requests while keeping request headers, credentials, and cookies separate. Each active stream owns its transport; concurrent streams do not multiplex onto the same connection.
+
+For streaming requests, `timeout` bounds the wait for response headers. After headers arrive, a long-running stream may continue beyond that timeout. The `read_timeout` option limits idle gaps during headers and body reads, defaults to 60 seconds, and accepts `0` to wait without an idle limit. `connect_timeout` continues to limit connection establishment. Closing a response or canceling its consuming coroutine releases its active transfer.
+
+When reading a streamed body has to wait for more data, Hypervel first returns idle database sessions to their pools, so database work done between reads does not hold a connection while the stream is idle. As with sending, transactions and pinned sessions remain held.
+
+If cURL negotiates authentication for a streamed request through the `CURLOPT_HTTPAUTH` or `CURLOPT_PROXYAUTH` cURL options, the response is returned when its first body bytes arrive or the transfer completes. The `timeout` option also covers that wait.
+
+For streamed responses, `on_stats` runs when the response is returned. The `on_trailers` callback runs once the transfer has completed, after `on_headers`. Small responses may already be complete when returned; for longer responses, trailers arrive as the body is consumed.
+
+Outside a hooked coroutine, or when you provide `stream_context` or a custom `stream_factory`, the client uses Guzzle's PHP-stream handler. This fallback requires `allow_url_fopen`, cannot use cURL destination pins or required transport sharing, and retains Guzzle's timeout behavior. Custom handlers and clients remain responsible for their own streaming support; faked responses do not need a transport.
 
 <a name="request-data"></a>
 ### Request Data
@@ -265,7 +333,7 @@ $response = Http::withHeaders([
 <a name="authentication"></a>
 ### Authentication
 
-You may specify basic, digest, and NTLM authentication credentials using the `withBasicAuth`, `withDigestAuth`, and `withNtlmAuth` methods, respectively:
+You may specify basic and digest authentication credentials using the `withBasicAuth` and `withDigestAuth` methods, respectively:
 
 ```php
 // Basic authentication...
@@ -273,10 +341,9 @@ $response = Http::withBasicAuth('johndoe@example.com', 'secret')->post(/* ... */
 
 // Digest authentication...
 $response = Http::withDigestAuth('johndoe@example.com', 'secret')->post(/* ... */);
-
-// NTLM authentication...
-$response = Http::withNtlmAuth('johndoe@example.com', 'secret')->post(/* ... */);
 ```
+
+Built-in NTLM authentication is not provided. Integrations requiring it must supply their own authentication middleware.
 
 <a name="bearer-tokens"></a>
 #### Bearer Tokens
@@ -302,6 +369,21 @@ You may also attach cookies to a request using the `withCookies` method:
 $response = Http::withCookies([
     'session' => 'abc123',
 ], 'example.com')->get(/* ... */);
+```
+
+To specify a cookie's path or other attributes, pass a Guzzle `SetCookie` instance to `withCookie`. The cookie must include a domain:
+
+```php
+use GuzzleHttp\Cookie\SetCookie;
+
+$response = Http::withCookie(new SetCookie([
+    'Name' => 'session',
+    'Value' => 'abc123',
+    'Domain' => 'api.example.com',
+    'Path' => '/api',
+    'Secure' => true,
+    'HostOnly' => true,
+]))->get('https://api.example.com/api/users');
 ```
 
 By default, redirects will be followed. You may configure the maximum number of redirects using the `maxRedirects` method, or disable redirects entirely using the `withoutRedirecting` method:
@@ -353,9 +435,9 @@ $response = Http::retry(3, 100)->post(/* ... */);
 If you would like to manually calculate the number of milliseconds to sleep between attempts, you may pass a closure as the second argument to the `retry` method:
 
 ```php
-use Exception;
+use Throwable;
 
-$response = Http::retry(3, function (int $attempt, Exception $exception) {
+$response = Http::retry(3, function (int $attempt, Throwable $exception) {
     return $attempt * 100;
 })->post(/* ... */);
 ```
@@ -366,9 +448,10 @@ For convenience, you may also provide an array as the first argument to the `ret
 $response = Http::retry([100, 200])->post(/* ... */);
 ```
 
-If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters an `ConnectionException`:
+If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters a `ConnectionException`:
 
 ```php
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
@@ -632,10 +715,37 @@ public function boot(): void
 
 Global options remain active for the lifetime of the worker, so they should not be changed during request handling.
 
+To create requests without global options or middleware, use the `withoutGlobalConfiguration` method. HTTP fakes and stray-request protection still apply:
+
+```php
+$response = Http::withoutGlobalConfiguration(
+    fn () => Http::get('https://example.com/users')
+);
+```
+
+The callback affects only the current coroutine. For parallel requests, call `withoutGlobalConfiguration` inside each task.
+
+<a name="proxies"></a>
+#### Proxies
+
+To send outgoing requests through a proxy, configure the `proxy` option using `Http::globalOptions` during application boot. Requests made through the HTTP client will inherit this configuration:
+
+```php
+Http::globalOptions([
+    'proxy' => 'http://egress-proxy.internal:8080',
+]);
+```
+
+Alternatively, Guzzle reads the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables. `NO_PROXY` lists destinations that should be reached directly. These are outgoing proxies, separate from the reverse proxies that forward incoming requests to your application.
+
+If your application downloads URLs supplied by users, the proxy must reject loopback, private, link-local, and reserved IPv4 and IPv6 destinations after resolving their hostnames and connect to the address it checked. Blocking hostnames is not enough, because a public hostname can resolve to a private address. A filtering proxy such as [Smokescreen](https://github.com/stripe/smokescreen) provides destination filtering; an unrestricted forwarding proxy does not.
+
+Requests using `withDestinationPolicy` reject a proxy configured for their scheme. Select their proxy through the policy instead, as described in [Egress Proxies](#egress-proxies).
+
 <a name="telescope-recording"></a>
 ### Telescope Recording
 
-If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
+If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. The watcher also records third-party SDKs that use Guzzle; see [HTTP client watcher](/docs/{{version}}/telescope#http-client-watcher) for credential masking and direct Guzzle options. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
 
 ```php
 $response = Http::withoutTelescope()->get('http://example.com');
@@ -662,6 +772,17 @@ Enum cases are normalized to strings before storage — backed enums use their `
 
 These methods are safe to call regardless of Telescope's state. They simply set Guzzle option keys that the Telescope watcher reads when present; if Telescope is disabled or not installed, the keys are ignored and the request runs as normal with no overhead.
 
+<a name="opentelemetry-tracing"></a>
+### OpenTelemetry Tracing
+
+When [OpenTelemetry](/docs/{{version}}/opentelemetry#http) tracing is enabled, outgoing requests are traced automatically and send the current trace context to the server they call. You may skip tracing a request using the `withoutTrace` method, or keep the trace without automatically adding trace headers using the `withoutTracePropagation` method. This method leaves any headers you supplied yourself unchanged. Use `withoutTracePropagation` for third-party and customer-supplied URLs, which should not receive your internal trace identifiers:
+
+```php
+$response = Http::withoutTracePropagation()->post($webhookUrl, $payload);
+```
+
+Like the Telescope methods, these methods are safe to call whether or not OpenTelemetry is installed or enabled.
+
 <a name="concurrent-requests"></a>
 ## Concurrent Requests
 
@@ -687,6 +808,8 @@ return $responses[0]->ok() &&
        $responses[1]->ok() &&
        $responses[2]->ok();
 ```
+
+If the parent coroutine has already used the database, call `DB::releaseIdleConnections()` before `parallel()` to make its idle sessions available while it waits. The HTTP requests run in child coroutines and cannot release the parent's connections. Transactions and pinned sessions still remain held; see [database connection pooling](/docs/{{version}}/database#releasing-and-pinning-connections).
 
 Each response can be accessed based on the order it was added to the array. If you wish, you can name the requests using array keys, which allows you to access the corresponding responses by name:
 
@@ -857,10 +980,34 @@ defer(function () {
 })->always();
 ```
 
+<a name="guzzle-promises"></a>
+### Guzzle Promises
+
+When using Guzzle's asynchronous APIs directly, create and finish each operation in the same coroutine. This keeps its callbacks, request context, and database transactions together. The default client may be shared across coroutines:
+
+```php
+use GuzzleHttp\Client;
+
+use function Hypervel\Coroutine\parallel;
+
+$client = new Client;
+
+$responses = parallel([
+    fn () => $client->getAsync('https://example.com/users')->wait(),
+    fn () => $client->getAsync('https://example.com/orders')->wait(),
+]);
+```
+
+Guzzle throws a `LogicException` if another coroutine tries to use a pending promise or drive a cURL multi-handler with active work. Completed results may be shared. When a coroutine exits, Hypervel cancels its unfinished native transfers and runs its queued callbacks in that same coroutine, allowing cancellation to reach dependent promises. Finish any work you need before returning from the coroutine.
+
+Hypervel installs `hypervel/guzzle` in place of `guzzlehttp/guzzle` and `hypervel/guzzle-promises` in place of `guzzlehttp/promises`, so these checks also cover third-party SDKs using Guzzle. Custom transports and other promise implementations remain responsible for their own coroutine safety. When supplying a custom handler, keep each active multi-handler within one coroutine. Once all its transfers finish, it may be reused by another coroutine.
+
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines.
+Hypervel's HTTP client reuses connections for both synchronous and asynchronous requests. Requests without a connection share one transport, and each named connection has its own. Every pending request still receives a fresh Guzzle client, middleware stack, and cookie jar, so request-specific middleware, callbacks, and options stay with that request.
+
+Asynchronous requests borrow a cURL multi-handler for their coroutine while it has work. Once idle, the handler returns to a pool so another coroutine can reuse its connections. Each transport retains up to 64 idle multi-handlers by default. For streamed responses, each transport keeps up to 32 idle connections per worker. These limits apply to idle resources, not concurrent requests; connections are opened as needed.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
@@ -884,14 +1031,18 @@ public function boot(): void
 
 The second argument is a request-option preset. It accepts normal Guzzle request options except for options whose ownership belongs to a dedicated Hypervel API:
 
-- `cookies` is rejected. Every pending request owns an isolated cookie jar; seed it with `withCookies()`.
+- `cookies` is rejected. Every pending request owns an isolated cookie jar; add cookies using `withCookie()` or `withCookies()`.
 - `handler` is rejected. Use `setHandler()` for a request-specific handler.
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
-- `transport_sharing` is consumed only while registering the connection's low-level handler. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `transport_sharing` configures the connection's shared and isolated handlers. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `max_idle_handles` sets how many idle cURL easy handles each buffered handler keeps (256 for the synchronous handler and 50 per asynchronous multi-handler by default; 0 keeps none). Synchronous easy handles keep their own connections; asynchronous ones use their multi-handler's connection cache. This is not a limit on concurrent requests or open sockets. Streamed responses use the separate retention limit described above.
+- `max_idle_multi_handlers` sets how many idle asynchronous multi-handlers the connection retains (64 by default; 0 keeps none). Active handlers are additional. Increase this when recurring bursts benefit from more warm connections, or decrease it to retain fewer idle resources.
 - `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, and `transport_sharing` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, `transport_sharing`, `max_idle_handles`, and `max_idle_multi_handlers` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+
+Requests with raw `CURLOPT_RESOLVE` DNS pins use an isolated transport so their pins cannot affect later requests. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 
@@ -901,7 +1052,7 @@ $response = Http::connection('github')
     ->get('/user');
 ```
 
-Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered preset for that request:
+Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
 
 ```php
 // Uses the registered GitHub preset...
@@ -913,9 +1064,81 @@ Http::connection('github', [])->get('https://example.com');
 
 `setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
 
-Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies. Requests made without `connection()` use their own default low-level handler and the same per-request cookie behavior.
+Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies, including requests made without `connection()`.
 
 Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
+
+<a name="restricting-destinations"></a>
+## Restricting Destinations
+
+When your application sends requests to URLs supplied by its users, such as webhook endpoints, link previews, or file imports, a malicious URL could point the request at your internal network, a cloud metadata service, or another private address. To prevent this, pass a destination policy to the `withDestinationPolicy` method. The `PublicDestinationPolicy` only allows public addresses:
+
+```php
+use Hypervel\Http\Client\Destinations\PublicDestinationPolicy;
+use Hypervel\Support\Facades\Http;
+
+$response = Http::withDestinationPolicy(new PublicDestinationPolicy)
+    ->post($webhookUrl, $payload);
+```
+
+The policy resolves the destination's hostname, rejects the request if any of its addresses are private or reserved, and then connects only to the addresses it checked. Since the connection is pinned to those addresses, a hostname whose DNS answer changes after the check cannot send the request somewhere else. Each redirect is checked the same way before it is followed.
+
+If a destination is not allowed, a `Hypervel\Http\Client\Destinations\DisallowedDestinationException` is thrown, and the request is never retried. If the destination's hostname cannot be resolved, a `Hypervel\Http\Client\Destinations\DestinationResolutionException` is thrown instead. It extends `ConnectionException`, so it is reported like any other connection failure and retried when you configure retries using `retry()`. The time spent resolving the hostname counts against the request's timeout and connect timeout.
+
+<a name="validating-destination-urls"></a>
+### Validating URLs
+
+You may check a URL before storing it, such as when a user saves a webhook endpoint, using the policy's `validate` method. It throws a `DisallowedDestinationException` for a URL the policy would never send to, including a private address written as an IP address. Hostnames are not resolved, since their addresses may change before a request is sent; each request checks them when it resolves them:
+
+```php
+(new PublicDestinationPolicy)->validate($request->input('url'));
+```
+
+<a name="allowing-internal-networks"></a>
+### Allowing Internal Networks
+
+During local development, or when some known internal services should be reachable, you may allow specific addresses or CIDR ranges:
+
+```php
+$policy = new PublicDestinationPolicy(allowedNetworks: ['10.20.0.0/16']);
+```
+
+For more specific rules, you may extend `PublicDestinationPolicy` and override its `allowsAddress` method, which receives the destination URI and each address it resolved to. You may also write a policy of your own by implementing the `Hypervel\Http\Client\Destinations\DestinationPolicy` interface.
+
+<a name="egress-proxies"></a>
+### Egress Proxies
+
+To send restricted requests through an egress proxy, extend the policy and return the proxy's URL from its `proxyFor` method:
+
+```php
+use Hypervel\Http\Client\Destinations\PublicDestinationPolicy;
+use Psr\Http\Message\UriInterface;
+
+class EgressProxyPolicy extends PublicDestinationPolicy
+{
+    protected function proxyFor(UriInterface $uri): ?string
+    {
+        return 'http://egress-proxy.internal:4750';
+    }
+}
+```
+
+A proxy URL without a port uses its scheme's default port: 80 for `http` and 443 for `https`. The policy then checks and pins the proxy's address instead of the destination's. Since proxies usually run on private addresses, allow the proxy's address using `allowedNetworks` or `allowsAddress`. Destinations written as IP addresses are still checked, but hostnames are resolved by the proxy, which must enforce the [destination filtering requirements](#proxies).
+
+Each request through a proxy given by hostname, including each redirect, uses an isolated transport so an older connection cannot bypass the newly approved proxy address. Connections that require persistent transport sharing can't send these requests, and `PERSISTENT_PREFER` falls back to handler-level sharing. A proxy given by IP address has only that address, so requests through it reuse connections. Direct policy requests reuse connections when the approved addresses match.
+
+If the proxy cannot be resolved or refuses the connection, a `Hypervel\Http\Client\Destinations\ProxyConnectionException` is thrown. It extends `ConnectionException`, and lets you tell a failure of your own egress path apart from a failure of the destination.
+
+<a name="destination-policy-limitations"></a>
+### Limitations
+
+Pinning relies on Guzzle's cURL transport and libcurl 7.75 or newer. Streaming is supported inside a Swoole coroutine with native cURL hooks enabled. Restricted requests may not use the PHP-stream fallback, set raw `curl` options, or use a custom handler from the `setHandler` method. A proxy configured for the request's scheme is also rejected, including through global options or `HTTP_PROXY` / `HTTPS_PROXY`; select it through the policy instead. These requests throw a `DisallowedDestinationException`. `NO_PROXY` on its own does not prevent restricted requests. Other environment proxy fallbacks, such as `all_proxy`, do not override the policy's route. To write a large response directly to a file, use the `sink` method.
+
+If the installed cURL transport lacks a required capability, a `Hypervel\Http\Client\Destinations\DestinationPolicyException` is thrown. These failures are never retried, and your retry callback is not called, because another attempt cannot change the installed transport.
+
+A client supplied using the `setClient` method owns its whole handler stack, so the policy does not apply to its requests. Faked requests never reach the policy either, so `Http::fake()` works as usual in your tests.
+
+If you extend the HTTP client factory to replace its connection handler, your transport must honor the policy's cURL pinning options. A transport that ignores those options bypasses destination enforcement.
 
 <a name="macros"></a>
 ## Macros
@@ -1014,7 +1237,7 @@ Http::fake([
 <a name="faking-connection-exceptions"></a>
 #### Faking Exceptions
 
-Sometimes you may need to test your application's behavior if the HTTP client encounters an `Hypervel\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
+Sometimes you may need to test your application's behavior if the HTTP client encounters a `Hypervel\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
 
 ```php
 Http::fake([
@@ -1080,6 +1303,24 @@ Http::fake(function (Request $request) {
 });
 ```
 
+<a name="request-attributes"></a>
+#### Request Attributes
+
+To distinguish requests sent to the same URL, you may attach attributes using the `withAttributes` method. These attributes are available to fake callbacks and request assertions through the request's `attributes` method and are not sent to the remote server:
+
+```php
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+
+Http::fake(fn (Request $request) => match ($request->attributes()['name'] ?? null) {
+    'products' => Http::response(['products' => []]),
+    default => Http::response(),
+});
+
+$response = Http::withAttributes(['name' => 'products'])
+    ->get('https://example.com/graphql');
+```
+
 <a name="inspecting-requests"></a>
 ### Inspecting Requests
 
@@ -1087,7 +1328,7 @@ When faking responses, you may occasionally wish to inspect the requests the cli
 
 If a test makes real requests, call `Http::record()` before sending them to enable the same request assertions without faking their responses.
 
-The `assertSent` method accepts a closure which will receive an `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
+The `assertSent` method accepts a closure which will receive a `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
 
 ```php
 use Hypervel\Http\Client\Request;
@@ -1110,7 +1351,7 @@ Http::assertSent(function (Request $request) {
 });
 ```
 
-The `Hypervel\Http\Client\Request` instance provides a variety of methods that may be used to inspect the request, including `method`, `url`, `headers`, `body`, `data`, `query`, `hasFile`, `isJson`, `isForm`, and `isMultipart`.
+The `Hypervel\Http\Client\Request` instance provides a variety of methods that may be used to inspect the request, including `method`, `url`, `uri`, `headers`, `body`, `data`, `query`, `hasFile`, `isJson`, `isForm`, and `isMultipart`.
 
 If needed, you may assert that a specific request was not sent using the `assertNotSent` method:
 

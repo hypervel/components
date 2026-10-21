@@ -120,7 +120,13 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
             throw InvalidDataCollectionOperation::create();
         }
 
-        return $this->items->offsetGet($offset);
+        $item = $this->items->offsetGet($offset);
+
+        if ($item instanceof IncludeableDataContract && ($partials = $this->partialsForItems()) !== null) {
+            $item->getPartialsDefinition()->addResolved($partials);
+        }
+
+        return $item;
     }
 
     /**

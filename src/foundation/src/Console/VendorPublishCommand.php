@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Arr;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use League\Flysystem\Filesystem as Flysystem;
@@ -74,7 +75,7 @@ class VendorPublishCommand extends Command
      */
     public function handle(): void
     {
-        $this->publishedAt = now();
+        $this->publishedAt = CarbonImmutable::now();
 
         $this->determineWhatShouldBePublished();
 
@@ -116,11 +117,11 @@ class VendorPublishCommand extends Command
             )
             : search(
                 label: "Which provider or tag's files would you like to publish?",
-                placeholder: 'Search...',
                 options: fn ($search) => array_values(array_filter(
                     $choices,
                     fn ($choice) => str_contains(strtolower($choice), strtolower($search))
                 )),
+                placeholder: 'Search...',
                 scroll: 15,
             );
 

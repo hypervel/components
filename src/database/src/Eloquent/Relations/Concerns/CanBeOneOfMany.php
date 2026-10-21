@@ -26,14 +26,14 @@ trait CanBeOneOfMany
     /**
      * The one of many inner join subselect query builder instance.
      *
-     * @var \Hypervel\Database\Eloquent\Builder<*>|null
+     * @var Builder<*>|null
      */
     protected ?Builder $oneOfManySubQuery = null;
 
     /**
      * Add constraints for inner join subselect for one of many relationships.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<*>  $query
+     * @param  Builder<*>  $query
      */
     abstract public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void;
 
@@ -167,7 +167,7 @@ trait CanBeOneOfMany
      * Get a new query for the related model, grouping the query by the given column, often the foreign key of the relationship.
      *
      * @param null|array<string> $columns
-     * @return \Hypervel\Database\Eloquent\Builder<*>
+     * @return Builder<*>
      */
     protected function newOneOfManySubQuery(string|array $groupBy, ?array $columns = null, ?string $aggregate = null): Builder
     {
@@ -201,8 +201,8 @@ trait CanBeOneOfMany
     /**
      * Add the join subquery to the given query on the given column and the relationship's foreign key.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<*>  $parent
-     * @param  \Hypervel\Database\Eloquent\Builder<*>  $subQuery
+     * @param  Builder<*>  $parent
+     * @param  Builder<*>  $subQuery
      * @param array<string> $on
      */
     protected function addOneOfManyJoinSubQuery(Builder $parent, Builder $subQuery, array $on): void
@@ -223,7 +223,7 @@ trait CanBeOneOfMany
     /**
      * Merge the relationship query joins to the given query builder.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<*>  $query
+     * @param  Builder<*>  $query
      */
     protected function mergeOneOfManyJoinsTo(Builder $query): void
     {
@@ -235,7 +235,7 @@ trait CanBeOneOfMany
     /**
      * Get the query builder that will contain the relationship constraints.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<*>
+     * @return Builder<*>
      */
     protected function getRelationQuery(): Builder
     {
@@ -247,7 +247,7 @@ trait CanBeOneOfMany
     /**
      * Get the one of many inner join subselect builder instance.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<*>|null
+     * @return Builder<*>|null
      */
     public function getOneOfManySubQuery(): ?Builder
     {

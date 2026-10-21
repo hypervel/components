@@ -11,7 +11,7 @@ use Hypervel\Validation\Validator;
 
 class ValidatorAfterRuleTest extends TestCase
 {
-    public function testAfterAcceptsArrayOfRules()
+    public function testAfterAcceptsArrayOfRules(): void
     {
         $validator = new Validator(new Translator(new ArrayLoader, 'en'), [], []);
 
@@ -21,11 +21,11 @@ class ValidatorAfterRuleTest extends TestCase
             new AfterMethodRule,
         ])->messages()->messages();
 
-        $this->assertSame($validator->messages()->messages(), [
+        $this->assertSame([
             'closure' => ['true'],
             'invokableAfterRule' => ['true'],
             'afterMethodRule' => ['true'],
-        ]);
+        ], $validator->messages()->messages());
     }
 }
 

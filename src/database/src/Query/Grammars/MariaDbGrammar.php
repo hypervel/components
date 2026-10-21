@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
 use Override;
@@ -44,6 +45,22 @@ class MariaDbGrammar extends MySqlGrammar
     public function compileThreadCount(): string
     {
         return 'select variable_value as `Value` from information_schema.global_status where variable_name = \'THREADS_CONNECTED\'';
+    }
+
+    /**
+     * Compile a vector distance expression for the given column.
+     */
+    public function compileVectorDistanceExpression(Expression|string $column): string
+    {
+        return "vec_distance_cosine({$this->wrap($column)}, vec_fromtext(?))";
+    }
+
+    /**
+     * Determine if the grammar supports vector distance queries.
+     */
+    public function supportsVectorDistance(): bool
+    {
+        return true;
     }
 
     /**

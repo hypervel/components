@@ -56,11 +56,10 @@ class ConfigPublishCommandWithoutMergedConfigurationTest extends TestCase
             $this->assertSame(file_get_contents($source), file_get_contents(config_path("{$name}.php")));
         }
 
-        // Testbench appends the application route provider so cached-route tests have a consumer.
-        $this->assertSame(
-            [...ServiceProvider::defaultProviders()->toArray(), RouteServiceProvider::class],
-            config('app.providers'),
-        );
+        $this->assertSame(ServiceProvider::defaultProviders()->toArray(), config('app.providers'));
+
+        // Testbench registers the application route provider while booting, so cached-route tests have a consumer.
+        $this->assertNotNull($this->app->getProvider(RouteServiceProvider::class));
     }
 
     /**

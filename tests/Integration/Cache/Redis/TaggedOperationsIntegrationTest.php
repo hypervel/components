@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\TagMode;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 
 /**
@@ -328,6 +331,27 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertEquals(15, Cache::tags(['counters'])->get('views'));
     }
 
+    #[DataProvider('counterMethods')]
+    public function testAllModeFailedCountersPreserveValuesAndMemberships(string $method): void
+    {
+        $this->setTagMode(TagMode::All);
+        $cache = Cache::tags(['counters']);
+        $cache->put('count', 'not-an-integer', 60);
+        $entries = $this->getAllModeTagEntries('counters');
+
+        $this->assertFalse($cache->{$method}('count'));
+        $this->assertSame('not-an-integer', $cache->get('count'));
+        $this->assertSame($entries, $this->getAllModeTagEntries('counters'));
+    }
+
+    /**
+     * Provide tagged counter operations.
+     */
+    public static function counterMethods(): array
+    {
+        return [['increment'], ['decrement']];
+    }
+
     public function testAnyModeIncrementMaintainsTagStructure(): void
     {
         $this->setTagMode(TagMode::Any);
@@ -350,6 +374,58 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         $this->assertTrue($result);
         $this->assertCount(1, $this->getAllModeTagEntries('users'));
+    }
+
+    #[DataProvider('existingItemLifetimes')]
+    public function testAllModeFailedAddPreservesTheExistingTagExpiry(?int $seconds): void
+    {
+        $this->setTagMode(TagMode::All);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
+        $cache = Cache::tags(['posts']);
+        $cache->put('key', 'original', $seconds);
+        $entries = $this->getAllModeTagEntries('posts');
+
+        $this->assertFalse($cache->add('key', 'replacement', 1));
+        $this->assertSame($entries, $this->getAllModeTagEntries('posts'));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+        $cache->flushStale();
+        $cache->flush();
+
+        $this->assertNull($cache->get('key'));
+    }
+
+    /**
+     * Provide expiring and permanent cache lifetimes.
+     */
+    public static function existingItemLifetimes(): array
+    {
+        return ['expiring' => [3600], 'permanent' => [null]];
+    }
+
+    public function testAllModeAddSucceedsWhenTheTagMembershipAlreadyExists(): void
+    {
+        $this->setTagMode(TagMode::All);
+        $cache = Cache::tags(['posts']);
+        $cache->put('key', 'original', 60);
+        $cache->forget('key');
+        $this->assertNotEmpty($this->getAllModeTagEntries('posts'));
+
+        $this->assertTrue($cache->add('key', 'replacement', 120));
+        $this->assertSame('replacement', $cache->get('key'));
+        $cache->flush();
+        $this->assertNull($cache->get('key'));
+    }
+
+    public function testAllModeAddWithoutTtlTreatsACachedNullAsPresent(): void
+    {
+        $this->setTagMode(TagMode::All);
+        $cache = Cache::tags(['posts']);
+        $cache->rememberNullable('key', 60, fn (): null => null);
+
+        $this->assertFalse($cache->add('key', 'replacement'));
+        $this->assertSame(NullSentinel::VALUE, $cache->getRaw('key'));
     }
 
     public function testAnyModeAddCreatesTagStructure(): void

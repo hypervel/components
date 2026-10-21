@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\JsonSchema;
 
+use Hypervel\JsonSchema\Types\ArrayType;
+use Hypervel\JsonSchema\Types\IntegerType;
+use Hypervel\JsonSchema\Types\NumberType;
+use Hypervel\JsonSchema\Types\StringType;
 use InvalidArgumentException;
 use stdClass;
 
@@ -217,6 +221,7 @@ class Deserializer
 
         if ($nullable
             && count($branches) === 1
+            && ! array_key_exists('anyOf', $branches[0][0])
             && ! $this->hasBranchOnlyEnumExcludingNull($schema, $branches[0][0])) {
             return null;
         }
@@ -323,9 +328,9 @@ class Deserializer
      *
      * @throws InvalidArgumentException
      */
-    protected function buildArray(array $schema, array $refs = []): Types\ArrayType
+    protected function buildArray(array $schema, array $refs = []): ArrayType
     {
-        $type = new Types\ArrayType;
+        $type = new ArrayType;
 
         if (array_key_exists('items', $schema) && $schema['items'] !== true && $schema['items'] !== []) {
             $items = $this->ensureSchemaFragmentIsArray($schema['items'], 'the [items] keyword');
@@ -357,9 +362,9 @@ class Deserializer
      *
      * @param array<string, mixed> $schema
      */
-    protected function buildString(array $schema): Types\StringType
+    protected function buildString(array $schema): StringType
     {
-        $type = new Types\StringType;
+        $type = new StringType;
 
         $type = $this->applyIntegerBounds($type, $schema, 'minLength', 'maxLength');
 
@@ -387,9 +392,9 @@ class Deserializer
      *
      * @param array<string, mixed> $schema
      */
-    protected function buildInteger(array $schema): Types\IntegerType
+    protected function buildInteger(array $schema): IntegerType
     {
-        return $this->applyNumericBounds(new Types\IntegerType, $schema, $this->toInteger(...));
+        return $this->applyNumericBounds(new IntegerType, $schema, $this->toInteger(...));
     }
 
     /**
@@ -397,15 +402,15 @@ class Deserializer
      *
      * @param array<string, mixed> $schema
      */
-    protected function buildNumber(array $schema): Types\NumberType
+    protected function buildNumber(array $schema): NumberType
     {
-        return $this->applyNumericBounds(new Types\NumberType, $schema);
+        return $this->applyNumericBounds(new NumberType, $schema);
     }
 
     /**
      * Apply the numeric bound keywords to the given integer or number type.
      *
-     * @template TType of Types\IntegerType|Types\NumberType
+     * @template TType of IntegerType|NumberType
      *
      * @param TType $type
      * @param array<string, mixed> $schema
@@ -414,7 +419,7 @@ class Deserializer
      *
      * @throws InvalidArgumentException
      */
-    protected function applyNumericBounds(Types\IntegerType|Types\NumberType $type, array $schema, ?callable $cast = null): Types\IntegerType|Types\NumberType
+    protected function applyNumericBounds(IntegerType|NumberType $type, array $schema, ?callable $cast = null): IntegerType|NumberType
     {
         $cast ??= static fn (int|float $value) => $value;
 
@@ -436,7 +441,7 @@ class Deserializer
     /**
      * Apply integer-valued minimum and maximum keywords to an array or string type.
      *
-     * @template TType of Types\ArrayType|Types\StringType
+     * @template TType of ArrayType|StringType
      *
      * @param TType $type
      * @param array<string, mixed> $schema
@@ -444,7 +449,7 @@ class Deserializer
      *
      * @throws InvalidArgumentException
      */
-    protected function applyIntegerBounds(Types\ArrayType|Types\StringType $type, array $schema, string $minimumKeyword, string $maximumKeyword): Types\ArrayType|Types\StringType
+    protected function applyIntegerBounds(ArrayType|StringType $type, array $schema, string $minimumKeyword, string $maximumKeyword): ArrayType|StringType
     {
         foreach ([$minimumKeyword => 'min', $maximumKeyword => 'max'] as $keyword => $method) {
             if (! array_key_exists($keyword, $schema)) {
@@ -1000,7 +1005,7 @@ class Deserializer
     {
         if (++$this->nodes > static::MAX_NODES) {
             throw new InvalidArgumentException(
-                'JSON Schema reconstruction exceeded the maximum expansion of ' . static::MAX_NODES . ' schema fragments.'
+                'The JSON Schema is too large to deserialize; it expands beyond [' . static::MAX_NODES . '] fragments.'
             );
         }
     }

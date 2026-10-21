@@ -11,6 +11,7 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Testing\Assert;
 use Hypervel\Validation\ValidationException;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
@@ -77,6 +78,8 @@ trait InteractsWithExceptionHandling
 
         $exceptionHandler = new class($this->originalExceptionHandler, $except) implements ExceptionHandler, WithoutExceptionHandlingHandler {
             /**
+             * Create a new exception handler instance.
+             *
              * @param list<class-string<Throwable>> $except
              */
             public function __construct(
@@ -87,8 +90,11 @@ trait InteractsWithExceptionHandling
 
             /**
              * Report or log an exception.
+             *
+             * @param array<array-key, mixed> $context
+             * @param null|LogLevel::* $level
              */
-            public function report(Throwable $e): void
+            public function report(Throwable $e, array $context = [], ?string $level = null): void
             {
             }
 
@@ -130,6 +136,25 @@ trait InteractsWithExceptionHandling
             public function renderForConsole(OutputInterface $output, Throwable $e): void
             {
                 (new ConsoleApplication)->renderThrowable($e, $output);
+            }
+
+            /**
+             * Determine if a given exception is being reported.
+             */
+            public function isReporting(Throwable $e): bool
+            {
+                return false;
+            }
+
+            /**
+             * Create the context for an exception.
+             *
+             * @return array<array-key, mixed>
+             */
+            public function buildContextForException(Throwable $e): array
+            {
+                // Only reporting is disabled; direct logs still need the exception's context.
+                return $this->originalHandler->buildContextForException($e);
             }
 
             /**
@@ -179,17 +204,7 @@ trait InteractsWithExceptionHandling
         );
 
         if (isset($expectedMessage)) {
-            if (! isset($actualMessage)) {
-                Assert::fail(
-                    sprintf(
-                        'Failed asserting that exception of type "%s" with message "%s" was thrown.',
-                        $expectedClass,
-                        $expectedMessage
-                    )
-                );
-            } else {
-                Assert::assertStringContainsString($expectedMessage, $actualMessage);
-            }
+            Assert::assertStringContainsString($expectedMessage, $actualMessage);
         }
 
         return $this;
@@ -211,8 +226,8 @@ trait InteractsWithExceptionHandling
             $exceptionMessage = $exception->getMessage();
         }
 
-        Assert::assertTrue(
-            ! $thrown,
+        Assert::assertFalse(
+            $thrown,
             sprintf('Unexpected exception of type %s with message %s was thrown.', $exceptionClass ?? null, $exceptionMessage ?? null)
         );
 

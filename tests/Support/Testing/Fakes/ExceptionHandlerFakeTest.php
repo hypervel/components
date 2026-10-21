@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\Testing\Fakes;
 
-use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Support\Facades\Exceptions;
@@ -12,6 +11,7 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\ExpectationFailedException;
+use Psr\Log\LogLevel;
 use RuntimeException;
 
 class ExceptionHandlerFakeTest extends TestCase
@@ -55,7 +55,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedFailsWhenExceptionNotReported(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [InvalidArgumentException] exception was not reported.');
+        $this->expectExceptionMessageIsOrContains('The expected [InvalidArgumentException] exception was not reported.');
 
         Exceptions::fake();
 
@@ -67,7 +67,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedWithClosureFailsWhenNoMatch(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was not reported.');
+        $this->expectExceptionMessageIsOrContains('The expected [RuntimeException] exception was not reported.');
 
         Exceptions::fake();
 
@@ -89,7 +89,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertReportedCountFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The total number of exceptions reported was 2 instead of 1.');
+        $this->expectExceptionMessageIsOrContains('The total number of exceptions reported was 2 instead of 1.');
 
         Exceptions::fake();
 
@@ -111,7 +111,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNotReportedFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was reported.');
+        $this->expectExceptionMessageIs('The expected [RuntimeException] exception was reported.');
 
         Exceptions::fake();
 
@@ -123,7 +123,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNotReportedWithClosureFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The expected [RuntimeException] exception was reported.');
+        $this->expectExceptionMessageIs('The expected [RuntimeException] exception was reported.');
 
         Exceptions::fake();
 
@@ -142,7 +142,7 @@ class ExceptionHandlerFakeTest extends TestCase
     public function testAssertNothingReportedFails(): void
     {
         $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The following exceptions were reported: RuntimeException, InvalidArgumentException.');
+        $this->expectExceptionMessageIsOrContains('The following exceptions were reported: RuntimeException, InvalidArgumentException.');
 
         Exceptions::fake();
 
@@ -186,9 +186,22 @@ class ExceptionHandlerFakeTest extends TestCase
         Exceptions::fake()->throwOnReport();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test exception');
+        $this->expectExceptionMessageIs('test exception');
 
         Exceptions::report(new RuntimeException('test exception'));
+    }
+
+    public function testUnfakedReportsForwardContextAndLevel(): void
+    {
+        $exception = new InvalidArgumentException('test');
+        $handler = $this->createMock(ExceptionHandler::class);
+        $handler->expects($this->once())->method('report')->with($exception, ['id' => 1], LogLevel::WARNING);
+
+        Exceptions::fake([RuntimeException::class])->setHandler($handler);
+
+        Exceptions::report($exception, ['id' => 1], LogLevel::WARNING);
+
+        Exceptions::assertNothingReported();
     }
 
     public function testThrowFirstReported(): void
@@ -199,7 +212,7 @@ class ExceptionHandlerFakeTest extends TestCase
         Exceptions::report(new InvalidArgumentException('second'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('first');
+        $this->expectExceptionMessageIs('first');
 
         Exceptions::throwFirstReported();
     }
@@ -222,5 +235,18 @@ class ExceptionHandlerFakeTest extends TestCase
 
         $this->assertSame($fake, $result);
         $this->assertSame($newHandler, $fake->handler());
+    }
+
+    public function testReportingStateAndContextComeFromTheHandler(): void
+    {
+        $exception = new RuntimeException('Test exception');
+        $handler = $this->createMock(ExceptionHandler::class);
+        $handler->expects($this->once())->method('isReporting')->with($exception)->willReturn(true);
+        $handler->expects($this->once())->method('buildContextForException')->with($exception)->willReturn(['key' => 'value']);
+
+        $fake = Exceptions::fake()->setHandler($handler);
+
+        $this->assertTrue($fake->isReporting($exception));
+        $this->assertSame(['key' => 'value'], $fake->buildContextForException($exception));
     }
 }

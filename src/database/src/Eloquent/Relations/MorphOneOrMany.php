@@ -9,11 +9,11 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Str;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  * @template TResult
  *
- * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrMany<TRelatedModel, TDeclaringModel, TResult>
+ * @extends HasOneOrMany<TRelatedModel, TDeclaringModel, TResult>
  */
 abstract class MorphOneOrMany extends HasOneOrMany
 {
@@ -23,16 +23,16 @@ abstract class MorphOneOrMany extends HasOneOrMany
     protected string $morphType;
 
     /**
-     * The class name of the parent model.
+     * The morph class of the parent model.
      *
-     * @var class-string<TRelatedModel>
+     * @var class-string<TDeclaringModel>|string
      */
     protected string $morphClass;
 
     /**
      * Create a new morph one or many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $type, string $id, string $localKey)
@@ -139,9 +139,9 @@ abstract class MorphOneOrMany extends HasOneOrMany
     }
 
     /**
-     * Get the class name of the parent model.
+     * Get the morph class of the parent model.
      *
-     * @return class-string<TRelatedModel>
+     * @return class-string<TDeclaringModel>|string
      */
     public function getMorphClass(): string
     {

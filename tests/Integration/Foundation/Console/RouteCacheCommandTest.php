@@ -7,6 +7,9 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\CompiledRouteCollection;
+use Hypervel\Routing\Controller;
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use Mockery as m;
@@ -86,15 +89,39 @@ class RouteCacheCommandTest extends TestCase
 
     public function testRouteCacheFailsWithNoRoutes(): void
     {
-        $cachePath = $this->app->getCachedRoutesPath();
-        $previousContents = "<?php return ['previous' => true];\n";
-        $this->files->put($cachePath, $previousContents);
+        // The shipped local disk registers file-serving routes, so the fresh
+        // application that route:cache boots needs serving disabled to have none.
+        $configPath = $this->app->basePath('config/filesystems.php');
+        $this->assertFileDoesNotExist($configPath);
+        $this->files->put($configPath, <<<'PHP'
+            <?php
 
-        $this->artisan('route:cache')
-            ->expectsOutputToContain("doesn't have any routes")
-            ->assertExitCode(1);
+            declare(strict_types=1);
 
-        $this->assertSame($previousContents, $this->files->get($cachePath));
+            return [
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => storage_path('app/private'),
+                        'serve' => false,
+                    ],
+                ],
+            ];
+            PHP);
+
+        try {
+            $cachePath = $this->app->getCachedRoutesPath();
+            $previousContents = "<?php return ['previous' => true];\n";
+            $this->files->put($cachePath, $previousContents);
+
+            $this->artisan('route:cache')
+                ->expectsOutputToContain("doesn't have any routes")
+                ->assertExitCode(1);
+
+            $this->assertSame($previousContents, $this->files->get($cachePath));
+        } finally {
+            $this->files->delete($configPath);
+        }
     }
 
     public function testCachedRoutesAreLoadable(): void
@@ -173,7 +200,14 @@ class RouteCacheCommandTest extends TestCase
         $this->assertFileDoesNotExist($this->app->getCachedRoutesPath());
     }
 
-    public function testRouteCacheDoesNotOverwriteGlobalContainerInstance(): void
+    public function testItRestoresTheFacadeApplicationAfterBootingAFreshApplication(): void
+    {
+        $this->artisan('route:cache')->assertSuccessful();
+
+        $this->assertSame($this->app, Facade::getFacadeApplication());
+    }
+
+    public function testItRestoresTheContainerInstanceAfterBootingAFreshApplication(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -181,11 +215,28 @@ class RouteCacheCommandTest extends TestCase
             PHP
         );
 
-        $originalInstance = Container::getInstance();
+        $this->artisan('route:cache')->assertSuccessful();
+
+        $this->assertSame($this->app, Container::getInstance());
+    }
+
+    public function testItLeavesTheFacadeRootsPointingAtTheCurrentApplication(): void
+    {
+        $this->artisan('route:cache')->assertSuccessful();
+
+        $this->assertSame($this->app->make('router'), Route::getFacadeRoot());
+    }
+
+    public function testRoutesRemainAnalyzableAfterCaching(): void
+    {
+        Route::get('/posts', [RouteCacheCommandTestController::class, 'index']);
 
         $this->artisan('route:cache')->assertSuccessful();
 
-        $this->assertSame($originalInstance, Container::getInstance());
+        $route = collect(Route::getRoutes())->first(fn ($route): bool => $route->uri() === 'posts');
+
+        $this->assertNotNull($route, 'The registered route is no longer reachable through the route facade.');
+        $this->assertInstanceOf(RouteCacheCommandTestController::class, $route->getController());
     }
 
     public function testRouteCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedRoutes(): void
@@ -397,5 +448,16 @@ class RouteCacheCommandTest extends TestCase
                 'Unexpected Testbench package providers found: ' . implode(', ', $providers),
             );
         }
+    }
+}
+
+class RouteCacheCommandTestController extends Controller
+{
+    /**
+     * Handle the request.
+     */
+    public function index(): string
+    {
+        return 'ok';
     }
 }

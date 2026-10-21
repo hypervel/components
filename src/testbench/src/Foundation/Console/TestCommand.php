@@ -32,7 +32,7 @@ class TestCommand extends TestCommandBase
         {--recreate-databases : Indicates if the test databases should be re-created}
         {--drop-databases : Indicates if the test databases should be dropped}
         {--without-databases : Indicates if database configuration should be performed}
-        {--without-cache : Indicates if cache configuration should be performed}
+        {--without-cache : Do not isolate cache and rate limiter prefixes}
         {--c|--custom-argument : Add custom env variables}
     ';
 
@@ -41,6 +41,9 @@ class TestCommand extends TestCommandBase
      */
     protected string $description = 'Run the package tests';
 
+    /**
+     * Configure the current command.
+     */
     #[Override]
     public function configure(): void
     {

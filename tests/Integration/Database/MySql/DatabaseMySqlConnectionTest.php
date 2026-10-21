@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\MySql;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -23,6 +25,17 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     public const string JSON_COL = 'json_col';
 
     public const float FLOAT_VAL = 0.2;
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+        $config->set('database.connections.mysql_no_backslash_escapes', array_replace(
+            $config->array('database.connections.mysql'),
+            ['modes' => ['NO_BACKSLASH_ESCAPES']],
+        ));
+    }
 
     protected function afterRefreshingDatabase(): void
     {
@@ -131,6 +144,85 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
             self::JSON_COL . '->foo[0]' => 'updated',
         ]);
         $this->assertSame(1, $updatedCount);
+    }
+
+    #[DataProvider('jsonPathConnections')]
+    public function testJsonPathEscaping(string $connectionName): void
+    {
+        $connection = DB::connection($connectionName);
+
+        foreach (['App\Models\User', 'a"b', "O'Brien\\x"] as $key) {
+            $path = self::JSON_COL . '->' . $key . '[0]';
+            $connection->table(self::TABLE)->insert([self::JSON_COL => json_encode([$key => ['before']], JSON_THROW_ON_ERROR)]);
+
+            $this->assertSame('before', $connection->table(self::TABLE)->where($path, 'before')->value($path));
+            $this->assertSame(1, $connection->table(self::TABLE)->where($path, 'before')->update([$path => 'after']));
+            $this->assertSame(
+                [$key => ['after']],
+                json_decode($connection->table(self::TABLE)->where($path, 'after')->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR),
+            );
+        }
+    }
+
+    /**
+     * Provide connections with each MySQL backslash escaping mode.
+     *
+     * @return list<array{string}>
+     */
+    public static function jsonPathConnections(): array
+    {
+        return [['mysql'], ['mysql_no_backslash_escapes']];
+    }
+
+    #[DataProvider('jsonUpdateJoins')]
+    public function testJoinedJsonUpdatesKeepAllPathsAndBindings(bool $subquery): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{}', self::FLOAT_COL => 7]);
+        $query = DB::table(self::TABLE);
+
+        if ($subquery) {
+            $query->joinSub(DB::query()->selectRaw('? as marker', [7]), 'source', function (JoinClause $join): void {
+                $join->where('source.marker', 7);
+            });
+        } else {
+            $query->join(self::TABLE . ' as other', 'player.float_col', '=', 'other.float_col');
+        }
+
+        $this->assertSame(1, $query->where('player.float_col', 7)->update([
+            'player.json_col->name' => 'John',
+            'player.float_col' => 8,
+            'player.json_col->tags' => [1, 2],
+            'player.json_col->active' => true,
+            'player.json_col->nullable' => null,
+            'player.json_col->raw' => DB::raw('9'),
+            'player.json_col->rating' => DB::query()->selectRaw('cast(? as signed)', [4]),
+        ]));
+
+        $actual = json_decode(DB::table(self::TABLE)->where(self::FLOAT_COL, 8)->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR);
+        ksort($actual);
+        $this->assertSame(['active' => true, 'name' => 'John', 'nullable' => null, 'rating' => 4, 'raw' => 9, 'tags' => [1, 2]], $actual);
+    }
+
+    /**
+     * Provide joins with and without source and condition bindings.
+     */
+    public static function jsonUpdateJoins(): array
+    {
+        return ['column join' => [false], 'subquery join' => [true]];
+    }
+
+    public function testSingleTableJsonUpdatesPreserveAssignmentOrder(): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{"a":0,"b":0}', self::FLOAT_COL => 7]);
+
+        DB::table(self::TABLE)->update([
+            'json_col->a' => 1,
+            'float_col' => DB::raw("json_extract(json_col, '$.a')"),
+            'json_col->b' => DB::raw('float_col + 1'),
+        ]);
+
+        $this->assertSame(1.0, DB::table(self::TABLE)->value(self::FLOAT_COL));
+        $this->assertEquals(['a' => 1, 'b' => 2], json_decode(DB::table(self::TABLE)->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR));
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]

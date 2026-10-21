@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Scout\Database\Postgres;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 #[RequiresDatabase('pgsql')]

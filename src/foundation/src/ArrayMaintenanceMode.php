@@ -8,8 +8,14 @@ use Hypervel\Contracts\Foundation\MaintenanceMode;
 
 class ArrayMaintenanceMode implements MaintenanceMode
 {
+    /**
+     * Indicates if maintenance mode is currently active.
+     */
     protected bool $active = false;
 
+    /**
+     * The payload provided when maintenance mode was activated.
+     */
     protected array $payload = [];
 
     /**

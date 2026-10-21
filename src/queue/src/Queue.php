@@ -8,6 +8,8 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Container\Container as GlobalContainer;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -31,10 +33,14 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 use const JSON_UNESCAPED_UNICODE;
 
@@ -42,6 +48,7 @@ abstract class Queue
 {
     use InteractsWithTime;
     use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
 
     /**
      * The IoC container instance.
@@ -75,40 +82,38 @@ abstract class Queue
      *
      * @var callable[]
      */
-    protected static $createPayloadCallbacks = [];
+    protected static array $createPayloadCallbacks = [];
 
     /**
      * Push a new job onto the queue.
      */
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->push($job, $data, $queue);
+        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
     }
 
     /**
      * Push a new job onto a specific queue after (n) seconds.
      */
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->later($delay, $job, $data, $queue);
+        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
     }
 
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         foreach ((array) $jobs as $job) {
             $delay = $this->getJobDelay($job);
 
             if ($delay !== null) {
-                /* @phpstan-ignore-next-line */
-                $this->later($delay, $job, $data, $queue);
+                $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
             } else {
-                /* @phpstan-ignore-next-line */
-                $this->push($job, $data, $queue);
+                $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
             }
         }
 
@@ -123,6 +128,29 @@ abstract class Queue
         return is_object($job)
             ? $this->getAttributeValue($job, Delay::class, 'delay')
             : null;
+    }
+
+    /**
+     * Run an operation with its own log context, then restore the caller.
+     *
+     * @template TReturn
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    protected function withLogContext(?ContextRepository $context, Closure $callback): mixed
+    {
+        $previous = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
+        $context === null
+            ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+            : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $context);
+
+        try {
+            return $callback();
+        } finally {
+            $previous === null
+                ? CoroutineContext::forget(ContextRepository::CONTEXT_KEY)
+                : CoroutineContext::set(ContextRepository::CONTEXT_KEY, $previous);
+        }
     }
 
     /**
@@ -174,6 +202,8 @@ abstract class Queue
 
     /**
      * Create a payload for an object-based queue handler.
+     *
+     * @throws RuntimeException
      */
     protected function createObjectPayload(object $job, ?string $queue): array
     {
@@ -246,7 +276,8 @@ abstract class Queue
     protected function getDisplayName(object $job): string
     {
         return method_exists($job, 'displayName')
-            ? $job->displayName() : get_class($job);
+            ? $job->displayName()
+            : get_class($job);
     }
 
     /**
@@ -295,7 +326,8 @@ abstract class Queue
         $expiration = $job->retryUntil ?? $job->retryUntil();
 
         return $expiration instanceof DateTimeInterface
-            ? $expiration->getTimestamp() : $expiration;
+            ? $expiration->getTimestamp()
+            : $expiration;
     }
 
     /**
@@ -537,7 +569,7 @@ abstract class Queue
             return [[], $jobs];
         }
 
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
             ->map(fn ($partition) => $partition->values()->all())
             ->all();
@@ -660,6 +692,30 @@ abstract class Queue
 
             $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
+    }
+
+    /**
+     * Normalize an enum queue name without applying defaults or forwarding.
+     */
+    protected function normalizeQueue(UnitEnum|string|null $queue): ?string
+    {
+        return $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+    }
+
+    /**
+     * Get the routed queue name for the given queue.
+     */
+    protected function resolveQueue(string $queue): string
+    {
+        return $this->queueRoutes()->forwardedQueue($queue, $this->connectionName ?? null);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container ?? GlobalContainer::getInstance();
     }
 
     /**

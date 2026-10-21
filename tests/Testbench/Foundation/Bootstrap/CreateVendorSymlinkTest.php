@@ -32,6 +32,20 @@ class CreateVendorSymlinkTest extends TestCase
 
     private ?string $manifestDirectory = null;
 
+    private string|false $originalVendorLink = false;
+
+    /**
+     * Preserve the worker's dependency link while testing link ownership.
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $vendorPath = default_skeleton_path() . '/vendor';
+        $this->originalVendorLink = is_link($vendorPath) ? readlink($vendorPath) : false;
+    }
+
     #[Override]
     protected function tearDown(): void
     {
@@ -40,6 +54,10 @@ class CreateVendorSymlinkTest extends TestCase
 
             if ($this->ownsVendorDirectory) {
                 (new Filesystem)->deleteDirectory($this->application->basePath('vendor'));
+            }
+
+            if ($this->originalVendorLink !== false) {
+                (new Filesystem)->link($this->originalVendorLink, $this->application->basePath('vendor'));
             }
 
             if ($this->manifestDirectory !== null) {
@@ -148,7 +166,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application->shouldReceive('basePath')->once()->with('vendor')->andReturn($vendorPath);
         $this->assertTrue(is_link($vendorPath));
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to remove vendor symlink [{$vendorPath}].");
+        $this->expectExceptionMessageIs("Unable to remove vendor symlink [{$vendorPath}].");
 
         (new DeleteVendorSymlink)->handle($application);
     }
@@ -171,7 +189,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application->instance(PackageManifest::class, $manifest);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete package manifest [{$cachedPath}].");
+        $this->expectExceptionMessageIs("Unable to delete package manifest [{$cachedPath}].");
 
         (new RefreshPackageDiscovery)->handle($application);
     }

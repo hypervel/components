@@ -26,7 +26,7 @@ class BlueprintState
     /**
      * The columns.
      *
-     * @var \Hypervel\Database\Schema\ColumnDefinition[]
+     * @var ColumnDefinition[]
      */
     private array $columns;
 
@@ -43,14 +43,14 @@ class BlueprintState
     /**
      * The indexes.
      *
-     * @var \Hypervel\Database\Schema\IndexDefinition[]
+     * @var IndexDefinition[]
      */
     private array $indexes;
 
     /**
      * The foreign keys.
      *
-     * @var \Hypervel\Database\Schema\ForeignKeyDefinition[]
+     * @var ForeignKeyDefinition[]
      */
     private array $foreignKeys;
 
@@ -144,7 +144,7 @@ class BlueprintState
     /**
      * Get the columns.
      *
-     * @return \Hypervel\Database\Schema\ColumnDefinition[]
+     * @return ColumnDefinition[]
      */
     public function getColumns(): array
     {
@@ -162,7 +162,7 @@ class BlueprintState
     /**
      * Get the indexes.
      *
-     * @return \Hypervel\Database\Schema\IndexDefinition[]
+     * @return IndexDefinition[]
      */
     public function getIndexes(): array
     {
@@ -172,7 +172,7 @@ class BlueprintState
     /**
      * Get the foreign keys.
      *
-     * @return \Hypervel\Database\Schema\ForeignKeyDefinition[]
+     * @return ForeignKeyDefinition[]
      */
     public function getForeignKeys(): array
     {

@@ -11,7 +11,7 @@ use stdClass;
 
 class UtilTest extends TestCase
 {
-    public function testUnwrapIfClosure()
+    public function testUnwrapIfClosure(): void
     {
         $this->assertSame('foo', Util::unwrapIfClosure('foo'));
         $this->assertSame('foo', Util::unwrapIfClosure(function () {
@@ -19,7 +19,7 @@ class UtilTest extends TestCase
         }));
     }
 
-    public function testArrayWrap()
+    public function testArrayWrap(): void
     {
         $string = 'a';
         $array = ['a'];
@@ -28,7 +28,7 @@ class UtilTest extends TestCase
         $this->assertEquals(['a'], Util::arrayWrap($string));
         $this->assertEquals($array, Util::arrayWrap($array));
         $this->assertEquals([$object], Util::arrayWrap($object));
-        $this->assertEquals([], Util::arrayWrap(null));
+        $this->assertSame([], Util::arrayWrap(null));
         $this->assertEquals([null], Util::arrayWrap([null]));
         $this->assertEquals([null, null], Util::arrayWrap([null, null]));
         $this->assertEquals([''], Util::arrayWrap(''));
@@ -44,7 +44,7 @@ class UtilTest extends TestCase
         $this->assertSame($obj, Util::arrayWrap($obj)[0]);
     }
 
-    public function testGetParameterClassName()
+    public function testGetParameterClassName(): void
     {
         $parameter = new ReflectionParameter(function (stdClass $foo) {
         }, 0);

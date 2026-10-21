@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Closure;
+use Hypervel\Config\Repository;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Testbench\Attributes\DefineDatabase;
@@ -21,6 +22,8 @@ trait HandlesDatabases
 {
     /**
      * Setup database requirements.
+     *
+     * @internal
      *
      * @param Closure():void $callback
      */
@@ -67,12 +70,14 @@ trait HandlesDatabases
 
     /**
      * Determine if using in-memory SQLite database connection.
+     *
+     * @api
      */
     protected function usesSqliteInMemoryDatabaseConnection(?string $connection = null): bool
     {
         $app = hypervel_or_fail($this->app);
 
-        /** @var \Hypervel\Config\Repository $config */
+        /** @var Repository $config */
         $config = $app->make('config');
 
         $connection ??= $config->get('database.default');
@@ -85,6 +90,8 @@ trait HandlesDatabases
 
     /**
      * Define database migrations.
+     *
+     * @api
      */
     protected function defineDatabaseMigrations(): void
     {
@@ -93,6 +100,8 @@ trait HandlesDatabases
 
     /**
      * Define database migrations after database refreshed.
+     *
+     * @api
      */
     protected function defineDatabaseMigrationsAfterDatabaseRefreshed(): void
     {
@@ -101,6 +110,8 @@ trait HandlesDatabases
 
     /**
      * Destroy database migrations.
+     *
+     * @api
      */
     protected function destroyDatabaseMigrations(): void
     {
@@ -109,6 +120,8 @@ trait HandlesDatabases
 
     /**
      * Define database seeders.
+     *
+     * @api
      */
     protected function defineDatabaseSeeders(): void
     {

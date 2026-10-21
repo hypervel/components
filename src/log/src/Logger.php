@@ -168,7 +168,7 @@ class Logger implements LoggerInterface
 
             $this->logger->{$level}(
                 $message = $this->formatMessage($message),
-                $context = array_merge($state->context, $context)
+                $context = array_replace($state->context, $context)
             );
 
             $this->fireLogEvent($level, $message, $context);
@@ -202,7 +202,7 @@ class Logger implements LoggerInterface
     public function withContext(array $context = []): self
     {
         $state = $this->state();
-        $state->context = array_merge($state->context, $context);
+        $state->context = array_replace($state->context, $context);
 
         return $this;
     }
@@ -331,12 +331,8 @@ class Logger implements LoggerInterface
 
     /**
      * Dynamically proxy method calls to the underlying logger.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->logger->{$method}(...$parameters);
     }

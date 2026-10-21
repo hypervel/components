@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Concerns\WrappableDataTest;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Data;
+use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
+use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 
 abstract class WrappingTestCase extends TestCase
@@ -24,13 +27,27 @@ abstract class WrappingTestCase extends TestCase
 class WrappableDataTest extends WrappingTestCase
 {
     /**
-     * Test default transformations remain unwrapped.
+     * Test a wrapped data collection on the returned object keeps its own wrapper, unlike one inside a collection
+     * item or toArray() output.
      */
-    public function testDefaultTransformationsRemainUnwrapped(): void
+    public function testWrapsNestedDataCollectionsInResponses(): void
     {
-        $data = (new WrappingData('value'))->wrap('payload');
+        $songs = (new DataCollection(WrappingData::class, [new WrappingData('song')]))->wrap('data');
+        $album = (new WrappingAlbumData('Album', $songs))->wrap('data');
 
-        $this->assertSame(['value' => 'value'], $data->toArray());
+        $this->assertSame([
+            'data' => [
+                'title' => 'Album',
+                'songs' => ['data' => [['value' => 'song']]],
+            ],
+        ], $album->toResponse(Request::create('/'))->getData(true));
+        $this->assertSame([
+            ['title' => 'Album', 'songs' => [['value' => 'song']]],
+        ], (new DataCollection(WrappingAlbumData::class, [$album]))->toResponse(Request::create('/'))->getData(true));
+        $this->assertSame([
+            'title' => 'Album',
+            'songs' => [['value' => 'song']],
+        ], $album->toArray());
     }
 
     /**
@@ -88,5 +105,18 @@ class NestedWrappingData extends Data
 {
     public function __construct(public WrappingData $nested)
     {
+    }
+}
+
+class WrappingAlbumData extends Data
+{
+    /**
+     * Create an album with a nested song collection.
+     */
+    public function __construct(
+        public string $title,
+        #[DataCollectionOf(WrappingData::class)]
+        public DataCollection $songs,
+    ) {
     }
 }

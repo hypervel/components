@@ -34,6 +34,7 @@
 - [Events](#events)
 - [Custom Transports](#custom-transports)
     - [Additional Symfony Transports](#additional-symfony-transports)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -84,7 +85,7 @@ After configuring your application's default mailer, add the following options t
 ```php
 'cloudflare' => [
     'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
-    'token' => env('CLOUDFLARE_TOKEN'),
+    'key' => env('CLOUDFLARE_KEY'),
 ],
 ```
 
@@ -125,7 +126,7 @@ After configuring your application's default mailer, add the following options t
 ],
 ```
 
-If you are not using the United States [Mailgun region](https://documentation.mailgun.com/docs/mailgun/api-reference/#mailgun-regions), you may define your region's endpoint in the `services` configuration file:
+If you are not using the United States [Mailgun region](https://documentation.mailgun.com/docs/mailgun/api-reference/api-overview#mailgun-regions), you may define your region's endpoint in the `services` configuration file:
 
 ```php
 'mailgun' => [
@@ -214,6 +215,8 @@ To utilize AWS [temporary credentials](https://docs.aws.amazon.com/IAM/latest/Us
 ],
 ```
 
+If you supply a callable `credentials` provider instead of static keys, calls to that provider run one at a time, including when it is shared with SQS or S3. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants. For pooled mailers, configure `pool.fingerprint` as described under [transport pooling](#transport-pooling).
+
 To interact with SES's [subscription management features](https://docs.aws.amazon.com/ses/latest/dg/sending-email-subscription-management.html), you may return the `X-Ses-List-Management-Options` header in the array returned by the [headers](#headers) method of a mail message:
 
 ```php
@@ -230,7 +233,18 @@ public function headers(): Headers
 }
 ```
 
-To send through an SES tenant, add an `X-SES-TENANT-NAME` text header containing the tenant name.
+To send an email through an SES [tenant](https://docs.aws.amazon.com/ses/latest/dg/tenants.html), you may return the `X-Ses-Tenant-Name` header from the `headers` method. Hypervel will pass the header value as the `TenantName` option to SES when sending the message:
+
+```php
+public function headers(): Headers
+{
+    return new Headers(
+        text: [
+            'X-Ses-Tenant-Name' => 'tenant-id',
+        ],
+    );
+}
+```
 
 If you would like to define [additional options](https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-sesv2-2019-09-27.html#sendemail) that Hypervel should pass to the AWS SDK's `SendEmail` method when sending an email, you may define an `options` array within your `ses` mailer configuration:
 
@@ -385,7 +399,7 @@ php artisan make:mail OrderShipped
 
 Once you have generated a mailable class, open it up so we can explore its contents. Mailable class configuration is done in several methods, including the `envelope`, `content`, and `attachments` methods.
 
-The `envelope` method returns an `Hypervel\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns an `Hypervel\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
+The `envelope` method returns a `Hypervel\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns a `Hypervel\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
 
 <a name="configuring-the-sender"></a>
 ### Configuring the Sender
@@ -742,7 +756,7 @@ If you already have a raw image data string you wish to embed into an email temp
 
 While attaching files to messages via simple string paths is often sufficient, in many cases the attachable entities within your application are represented by classes. For example, if your application is attaching a photo to a message, your application may also have a `Photo` model that represents that photo. When that is the case, wouldn't it be convenient to simply pass the `Photo` model to the `attach` method? Attachable objects allow you to do just that.
 
-To get started, implement the `Hypervel\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns an `Hypervel\Mail\Attachment` instance:
+To get started, implement the `Hypervel\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns a `Hypervel\Mail\Attachment` instance:
 
 ```php
 <?php
@@ -808,7 +822,7 @@ return Attachment::fromPath('/path/to/file')
 
 Sometimes you may need to attach additional headers to the outgoing message. For instance, you may need to set a custom `Message-Id` or other arbitrary text headers.
 
-To accomplish this, define a `headers` method on your mailable. The `headers` method should return an `Hypervel\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
+To accomplish this, define a `headers` method on your mailable. The `headers` method should return a `Hypervel\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
 
 ```php
 use Hypervel\Mail\Mailables\Headers;
@@ -1093,6 +1107,8 @@ Mail::mailer('postmark')
     ->send(new OrderShipped($order));
 ```
 
+The `mailer` method also accepts an enum case whose value or name matches a configured mailer.
+
 <a name="queueing-mail"></a>
 ### Queueing Mail
 
@@ -1122,6 +1138,20 @@ Mail::to($request->user())
     ->later(now()->plus(minutes: 10), new OrderShipped($order));
 ```
 
+You may also configure a queued mailable's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailable;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class OrderShipped extends Mailable implements ShouldQueue
+{
+    // ...
+}
+```
+
 <a name="pushing-to-specific-queues"></a>
 #### Pushing to Specific Queues
 
@@ -1139,6 +1169,20 @@ Mail::to($request->user())
 ```
 
 The `queue()`, `later()`, `onQueue()`, `queueOn()`, and `laterOn()` methods accept queue names as strings or PHP enum cases.
+
+Alternatively, you may specify the connection and queue using the `Connection` and `Queue` attributes on the mailable class:
+
+```php
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue;
+
+#[Connection('sqs')]
+#[Queue('emails')]
+class OrderShipped extends Mailable
+{
+    // ...
+}
+```
 
 <a name="queueing-by-default"></a>
 #### Queueing by Default
@@ -1470,6 +1514,13 @@ Mail::assertNothingQueued();
 Mail::assertQueuedCount(3);
 ```
 
+To assert that a mailable was sent or queued exactly once, use `assertSentOnce` or `assertQueuedOnce`:
+
+```php
+Mail::assertSentOnce(OrderShipped::class);
+Mail::assertQueuedOnce(OrderShipped::class);
+```
+
 You can also assert the total number of mailables that have been sent or queued using the `assertOutgoingCount` method:
 
 ```php
@@ -1742,3 +1793,8 @@ Once your transport has been registered, you may create a mailer definition with
     // ...
 ],
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Mail began as a port of [Laravel Mail](https://github.com/illuminate/mail) and has been adapted for Hypervel's framework architecture and coroutine runtime.

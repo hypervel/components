@@ -12,6 +12,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchRepositoryFake;
 use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\PendingBatchFake;
@@ -683,8 +684,8 @@ class SupportTestingBusFakeTest extends TestCase
         $dispatcher = m::mock(QueueingDispatcher::class);
 
         $job = new BusJobStub;
-        $dispatcher->shouldReceive('dispatch')->once()->with($job);
-        $dispatcher->shouldReceive('dispatchNow')->once()->with($job, null);
+        $dispatcher->expects('dispatch')->with($job);
+        $dispatcher->expects('dispatchNow')->with($job, null);
 
         $otherJob = new OtherBusJobStub;
         $dispatcher->shouldReceive('dispatch')->never()->with($otherJob);
@@ -711,8 +712,8 @@ class SupportTestingBusFakeTest extends TestCase
         $dispatcher->shouldReceive('dispatchNow')->never()->with($job, null);
 
         $otherJob = new OtherBusJobStub;
-        $dispatcher->shouldReceive('dispatch')->once()->with($otherJob);
-        $dispatcher->shouldReceive('dispatchNow')->once()->with($otherJob, null);
+        $dispatcher->expects('dispatch')->with($otherJob);
+        $dispatcher->expects('dispatchNow')->with($otherJob, null);
 
         $thirdJob = new ThirdJob;
         $dispatcher->shouldReceive('dispatch')->never()->with($thirdJob);
@@ -746,12 +747,12 @@ class SupportTestingBusFakeTest extends TestCase
         $dispatcher = m::mock(QueueingDispatcher::class);
 
         $job = new BusJobStub;
-        $dispatcher->shouldReceive('dispatch')->once()->with($job);
-        $dispatcher->shouldReceive('dispatchNow')->once()->with($job, null);
+        $dispatcher->expects('dispatch')->with($job);
+        $dispatcher->expects('dispatchNow')->with($job, null);
 
         $otherJob = new OtherBusJobStub;
-        $dispatcher->shouldReceive('dispatch')->once()->with($otherJob);
-        $dispatcher->shouldReceive('dispatchNow')->once()->with($otherJob, null);
+        $dispatcher->expects('dispatch')->with($otherJob);
+        $dispatcher->expects('dispatchNow')->with($otherJob, null);
 
         $anotherJob = new OtherBusJobStub(1);
         $dispatcher->shouldReceive('dispatch')->never()->with($anotherJob);
@@ -857,6 +858,28 @@ class SupportTestingBusFakeTest extends TestCase
         $batch->cancel();
 
         $this->assertTrue($batch->cancelled());
+    }
+
+    public function testCancelledBatchesHaveImmutableCancelledAtTimestamp(): void
+    {
+        $batch = $this->fake->batch([])->dispatch();
+
+        $batch->cancel();
+
+        $this->assertInstanceOf(CarbonImmutable::class, $batch->cancelledAt);
+    }
+
+    public function testFinishedBatchesHaveImmutableFinishedAtTimestamp(): void
+    {
+        $batchRepository = new BatchRepositoryFake;
+
+        $fake = new BusFake(m::mock(QueueingDispatcher::class), [], $batchRepository);
+
+        $batch = $fake->batch([])->dispatch();
+
+        $batchRepository->markAsFinished($batch->id);
+
+        $this->assertInstanceOf(CarbonImmutable::class, $batch->finishedAt);
     }
 
     public function testDispatchFakeBatch(): void

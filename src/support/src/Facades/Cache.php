@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Mockery;
+use Mockery\MockInterface;
 
 /**
  * @method static \Hypervel\Cache\CacheManager allowSerializableClassesUsing(\Closure $resolver)
@@ -36,7 +37,7 @@ use Mockery;
  * @method static void flushMacros()
  * @method static void flushState()
  * @method static bool forever(\UnitEnum|string $key, mixed $value)
- * @method static bool forget(\UnitEnum|string $key)
+ * @method static bool forget(\UnitEnum|array|string $key)
  * @method static \Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder funnel(\UnitEnum|string $name)
  * @method static mixed get(\UnitEnum|array|string $key, mixed $default = null)
  * @method static int|null getDefaultCacheTime()
@@ -72,7 +73,7 @@ use Mockery;
  * @method static bool supportsFlushingLocks()
  * @method static bool supportsTags()
  * @method static \Hypervel\Cache\TaggedCache tags(mixed $names)
- * @method static bool touch(\UnitEnum|string $key, \DateInterval|\DateTimeInterface|int|null $ttl = null)
+ * @method static bool touch(\UnitEnum|string $key, \DateInterval|\DateTimeInterface|int $ttl)
  * @method static mixed withoutOverlapping(\UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, string|null $owner = null)
  * @method static bool flush()
  * @method static string getPrefix()
@@ -90,8 +91,10 @@ class Cache extends Facade
      *
      * Uses a partial spy on the real instance so that methods like `memo()`
      * execute their real implementation while still recording calls.
+     *
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function spy()
+    public static function spy(): ?MockInterface
     {
         if (! static::isMock()) {
             $class = static::getMockableClass();
@@ -107,8 +110,13 @@ class Cache extends Facade
                 static::swap($spy);
             });
         }
+
+        return null;
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'cache';

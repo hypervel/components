@@ -155,7 +155,7 @@ class EvalWithShaCacheIntegrationTest extends TestCase
     public function testEvalWithShaCacheThrowsOnSyntaxError(): void
     {
         $this->expectException(LuaScriptException::class);
-        $this->expectExceptionMessage('Lua script execution failed');
+        $this->expectExceptionMessageIsOrContains('Lua script execution failed');
 
         Redis::withConnection(function ($connection) {
             return $connection->evalWithShaCache(

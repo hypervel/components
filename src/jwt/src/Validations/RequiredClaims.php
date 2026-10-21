@@ -8,6 +8,9 @@ use Hypervel\Jwt\Exceptions\TokenInvalidException;
 
 class RequiredClaims extends AbstractValidation
 {
+    /**
+     * Validate that the payload contains every required claim.
+     */
     public function validate(array $payload): void
     {
         if (! $required = $this->config['required_claims'] ?? []) {
@@ -18,6 +21,6 @@ class RequiredClaims extends AbstractValidation
             return;
         }
 
-        throw new TokenInvalidException('Claims are missing: ' . json_encode($missingKeys));
+        throw new TokenInvalidException('Claims are missing: ' . json_encode(array_values($missingKeys)));
     }
 }

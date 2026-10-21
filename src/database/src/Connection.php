@@ -83,6 +83,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected mixed $reconnector = null;
 
     /**
+     * The owner notified when the current driver resources are forgotten.
+     */
+    protected ?Closure $resourceReleaser = null;
+
+    /**
      * The query grammar implementation.
      */
     protected QueryGrammar $queryGrammar;
@@ -111,6 +116,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * The depth of the active foreign key constraint suppression scope.
      */
     protected int $foreignKeyConstraintSuppressionDepth = 0;
+
+    /**
+     * The number of operations retaining the current physical session.
+     */
+    protected int $sessionPinDepth = 0;
 
     /**
      * The transaction manager instance.
@@ -215,6 +225,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->configuredTablePrefix = $tablePrefix;
 
         $this->config = $config;
+        $this->config['mask_bindings_in_exception_messages'] = (bool) ($config['mask_bindings_in_exception_messages'] ?? false);
 
         $this->readWriteType = $config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
 
@@ -335,7 +346,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Run a select statement and return the first column of the first row.
      *
-     * @throws \Hypervel\Database\MultipleColumnsSelectedException
+     * @throws MultipleColumnsSelectedException
      */
     public function scalar(string $query, array $bindings = [], bool $useReadPdo = true): mixed
     {
@@ -448,7 +459,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @param (Closure(\Hypervel\Database\Connection): mixed) $callback
+     * @param (Closure(Connection): mixed) $callback
      * @return array{query: string, bindings: array, time: null|float}[]
      */
     public function pretend(Closure $callback): array
@@ -495,6 +506,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Execute the given callback in "dry run" mode.
      *
+     * @param (Closure(): (array{query: string, bindings: array, time: null|float}[])) $callback
      * @return array{query: string, bindings: array, time: null|float}[]
      */
     protected function withFreshQueryLog(Closure $callback): array
@@ -547,57 +559,147 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function run(string $query, array $bindings, Closure $callback): mixed
     {
-        foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
-            $beforeExecutingCallback($query, $bindings, $this);
-        }
+        ++$this->sessionPinDepth;
 
-        $this->reconnectIfMissingConnection();
-
-        $start = hrtime(true) / 1e9;
-
-        // Here we will run this query. If an exception occurs we'll determine if it was
-        // caused by a connection that has been lost. If that is the cause, we'll try
-        // to re-establish connection and re-run the query with a fresh connection.
         try {
+            foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
+                $beforeExecutingCallback($query, $bindings, $this);
+            }
+
+            $this->reconnectIfMissingConnection();
+
+            $start = hrtime(true) / 1e9;
+
+            // Here we will run this query. If an exception occurs we'll determine if it was
+            // caused by a connection that has been lost. If that is the cause, we'll try
+            // to re-establish connection and re-run the query with a fresh connection.
             try {
-                $result = $this->runQueryCallback($query, $bindings, $callback);
-            } catch (QueryException $e) {
-                $result = $this->handleQueryException(
-                    $e,
-                    $query,
-                    $bindings,
-                    $callback
-                );
-            }
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            $events = $this->events;
+                try {
+                    $result = $this->runQueryCallback($query, $bindings, $callback);
+                } catch (QueryException $e) {
+                    $result = $this->handleQueryException(
+                        $e,
+                        $query,
+                        $bindings,
+                        $callback
+                    );
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $events = $this->events;
 
-            if ($events?->hasListeners(QueryFailed::class)) {
-                $events->dispatch(new QueryFailed(
-                    $query,
-                    $bindings,
-                    $this->getElapsedTime($start),
-                    $this,
-                    $exception,
-                    $this->latestReadWriteTypeUsed(),
-                ));
+                if ($events?->hasListeners(QueryFailed::class)) {
+                    $events->dispatch(new QueryFailed(
+                        $query,
+                        $bindings,
+                        $this->getElapsedTime($start),
+                        $this,
+                        $exception,
+                        $this->latestReadWriteTypeUsed(),
+                    ));
+                }
+
+                throw $exception;
             }
 
-            throw $exception;
+            // Once we have run the query we will calculate the time that it took to run and
+            // then log the query, bindings, and execution time so we will report them on
+            // the event that the developer needs them. We'll log time in milliseconds.
+            $this->logQuery(
+                $query,
+                $bindings,
+                $this->getElapsedTime($start)
+            );
+
+            return $result;
+        } finally {
+            --$this->sessionPinDepth;
         }
+    }
 
-        // Once we have run the query we will calculate the time that it took to run and
-        // then log the query, bindings, and execution time so we will report them on
-        // the event that the developer needs them. We'll log time in milliseconds.
-        $this->logQuery(
-            $query,
-            $bindings,
-            $this->getElapsedTime($start)
-        );
+    /**
+     * Run a streaming SQL statement and log only its complete execution.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param Closure(string, array): iterable<TKey, TValue> $callback
+     * @return Generator<TKey, TValue>
+     *
+     * @throws CanceledException
+     * @throws QueryException
+     * @throws StreamClosedException
+     */
+    protected function runStreaming(string $query, array $bindings, Closure $callback): Generator
+    {
+        ++$this->sessionPinDepth;
 
-        return $result;
+        try {
+            foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
+                $beforeExecutingCallback($query, $bindings, $this);
+            }
+
+            $this->reconnectIfMissingConnection();
+
+            $start = hrtime(true) / 1e9;
+            $hasYielded = false;
+
+            $execute = function (string $query, array $bindings) use ($callback, &$hasYielded): Generator {
+                try {
+                    foreach ($callback($query, $bindings) as $key => $value) {
+                        $readWriteType = $this->latestReadWriteTypeRetrieved;
+                        $hasYielded = true;
+
+                        try {
+                            yield $key => $value;
+                        } finally {
+                            // A consumer may run another query while this operation is suspended.
+                            $this->latestReadWriteTypeRetrieved = $readWriteType;
+                        }
+                    }
+                } catch (CanceledException|StreamClosedException $exception) {
+                    throw $exception;
+                } catch (Exception $exception) {
+                    ++$this->errorCount;
+
+                    throw $this->newQueryException($query, $bindings, $exception);
+                }
+            };
+
+            try {
+                try {
+                    yield from $execute($query, $bindings);
+                } catch (QueryException $exception) {
+                    if ($hasYielded) {
+                        throw $exception;
+                    }
+
+                    yield from $this->handleQueryException($exception, $query, $bindings, $execute);
+                }
+            } catch (CanceledException|StreamClosedException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $events = $this->events;
+
+                if ($events?->hasListeners(QueryFailed::class)) {
+                    $events->dispatch(new QueryFailed(
+                        $query,
+                        $bindings,
+                        $this->getElapsedTime($start),
+                        $this,
+                        $exception,
+                        $this->latestReadWriteTypeUsed(),
+                    ));
+                }
+
+                throw $exception;
+            }
+
+            $this->logQuery($query, $bindings, $this->getElapsedTime($start));
+        } finally {
+            --$this->sessionPinDepth;
+        }
     }
 
     /**
@@ -616,40 +718,61 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         // If an exception occurs when attempting to run a query, we'll format the error
-        // message to include the bindings with SQL, which will make this exception a
-        // lot more helpful to the developer instead of just the database's errors.
+        // message to include the SQL and, unless masked, its bindings. This provides
+        // more context for the developer than just the database's original error.
         catch (CanceledException $exception) {
             throw $exception;
         } catch (Exception $e) {
             ++$this->errorCount;
 
-            $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
-                ? UniqueConstraintViolationException::class
-                : QueryException::class;
-
-            $queryException = new $exceptionType(
-                $this->getName(),
-                $query,
-                $this->prepareBindings($bindings),
-                $e,
-                $this->getConnectionDetails(),
-                $this->latestReadWriteTypeUsed(),
-            );
-
-            if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
-                ['index' => $index, 'columns' => $columns] = $this->parseUniqueConstraintViolation($e);
-
-                $queryException->setIndex($index)->setColumns($columns);
-            }
-
-            throw $queryException;
+            throw $this->newQueryException($query, $bindings, $e);
         }
+    }
+
+    /**
+     * Create an exception containing the query and connection context.
+     */
+    protected function newQueryException(string $query, array $bindings, Exception $previous): QueryException
+    {
+        $isUniqueConstraintError = $this->isUniqueConstraintError($previous);
+
+        $exceptionType = match (true) {
+            $isUniqueConstraintError => UniqueConstraintViolationException::class,
+            $this->isDataTypeError($previous) => InvalidValueException::class,
+            default => QueryException::class,
+        };
+
+        $queryException = new $exceptionType(
+            $this->getNameWithReadWriteType(),
+            $query,
+            $this->prepareBindings($bindings),
+            $previous,
+            $this->getConnectionDetails(),
+            $this->latestReadWriteTypeUsed(),
+            $this->getConfig('mask_bindings_in_exception_messages'),
+        );
+
+        if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
+            ['index' => $index, 'columns' => $columns] = $this->parseUniqueConstraintViolation($previous);
+
+            $queryException->setIndex($index)->setColumns($columns);
+        }
+
+        return $queryException;
     }
 
     /**
      * Determine if the given database exception was caused by a unique constraint violation.
      */
     protected function isUniqueConstraintError(Exception $exception): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine if the given database exception was caused by an invalid or out of range value.
+     */
+    protected function isDataTypeError(Exception $exception): bool
     {
         return false;
     }
@@ -697,11 +820,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         $query = $this->pretending === true
-            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
+            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $this->prepareBindings($bindings))
             : $query;
 
         if ($this->loggingQueries) {
-            $this->queryLog[] = compact('query', 'bindings', 'time', 'readWriteType');
+            $this->queryLog[] = ['query' => $query, 'bindings' => $bindings, 'time' => $time, 'readWriteType' => $readWriteType];
         }
     }
 
@@ -848,7 +971,12 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $exception = null;
 
         try {
-            $this->disconnectDriverResources();
+            try {
+                $this->disconnectDriverResources();
+            } finally {
+                // Notify the pool before rollback callbacks can reconnect.
+                $this->notifyResourceReleaser();
+            }
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
@@ -898,12 +1026,23 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     abstract protected function forgetDriverResources(): void;
 
     /**
+     * Notify the resource owner that the current driver resources were forgotten.
+     */
+    protected function notifyResourceReleaser(): void
+    {
+        $releaser = $this->resourceReleaser;
+        $this->resourceReleaser = null;
+        $releaser?->__invoke();
+    }
+
+    /**
      * Refresh the driver resources from a fresh connection.
      *
      * Validate and capture a complete replacement set of driver resources and
      * resource-associated metadata, including the configured database and table
      * prefix baselines. Adopt it in a finally block around teardown. The original
      * teardown throwable must propagate unchanged.
+     * Preserve the existing read / write role, which belongs to the current borrow.
      */
     abstract protected function replaceDriverResources(Connection $fresh): void;
 
@@ -952,6 +1091,39 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     public function clearBeforeExecutingCallbacks(): void
     {
         $this->beforeExecutingCallbacks = [];
+    }
+
+    /**
+     * Retain the physical database session for the duration of the callback.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public function withPinnedSession(Closure $callback): mixed
+    {
+        ++$this->sessionPinDepth;
+
+        try {
+            return $callback();
+        } finally {
+            --$this->sessionPinDepth;
+        }
+    }
+
+    /**
+     * Determine whether an operation requires the current physical session.
+     *
+     * Drivers may extend this check to keep their physical session, for example when
+     * their own routing could send a later read to another server.
+     */
+    public function hasPinnedSession(): bool
+    {
+        return $this->sessionPinDepth > 0
+            || $this->transactions > 0
+            || $this->foreignKeyConstraintSuppressionDepth > 0
+            || $this->hasPhysicalTransaction();
     }
 
     /**
@@ -1007,6 +1179,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // Reset connection metadata and routing
         $this->database = $this->configuredDatabase;
         $this->tablePrefix = $this->configuredTablePrefix;
+        $this->readWriteType = $this->config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
         $this->latestReadWriteTypeRetrieved = null;
         $this->readOnWriteConnection = false;
 
@@ -1195,10 +1368,20 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
-     * Invalidate the state remembered for the current physical session.
+     * Resolve and record the connection role for an operation.
+     *
+     * @return 'read'|'write'
      */
-    protected function invalidateCurrentSessionState(): void
+    protected function resolveReadWriteType(bool $read = true): string
     {
+        if ($read
+            && $this->transactions === 0
+            && ! $this->readOnWriteConnection
+            && ! ($this->recordsModified && $this->getConfig('sticky'))) {
+            return $this->latestReadWriteTypeRetrieved = 'read';
+        }
+
+        return $this->latestReadWriteTypeRetrieved = 'write';
     }
 
     /**
@@ -1234,11 +1417,57 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Set the resource owner's callback for forgotten driver resources.
+     *
+     * @param Closure(): void $callback
+     *
+     * @internal
+     */
+    public function setResourceReleaser(Closure $callback): void
+    {
+        $this->resourceReleaser = $callback;
+    }
+
+    /**
+     * Stop notifying the pool and restart error tracking once a leased physical connection is returned.
+     *
+     * @internal
+     */
+    public function detachLeasedResources(): void
+    {
+        $this->resourceReleaser = null;
+        $this->errorCount = 0;
+    }
+
+    /**
      * Get the database connection name.
      */
     public function getName(): ?string
     {
         return $this->getConfig('name');
+    }
+
+    /**
+     * Get the database connection with its read / write type.
+     */
+    public function getNameWithReadWriteType(): ?string
+    {
+        $name = $this->getName() . ($this->readWriteType ? '::' . $this->readWriteType : '');
+
+        return $name === '' ? null : $name;
+    }
+
+    /**
+     * Get the connection name to retain when subsequent operations may write.
+     *
+     * Preserve a write alias so models reuse its transaction. Read aliases use
+     * the base connection so subsequent writes reach the primary.
+     */
+    public function getWritableName(): ?string
+    {
+        return $this->readWriteType === ConnectionName::WRITE
+            ? $this->getNameWithReadWriteType()
+            : $this->getName();
     }
 
     /**
@@ -1262,7 +1491,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
         return [
             'driver' => $this->getDriverName(),
-            'name' => $this->getName(),
+            'name' => $this->getNameWithReadWriteType(),
             'host' => $config['host'] ?? null,
             'port' => $config['port'] ?? null,
             'database' => $config['database'] ?? null,
@@ -1424,6 +1653,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     abstract public function inTransaction(): bool;
 
     /**
+     * Determine whether any owned driver resource has an active transaction.
+     *
+     * @internal
+     */
+    public function hasPhysicalTransaction(): bool
+    {
+        return $this->inTransaction();
+    }
+
+    /**
      * Set the transaction manager instance on the connection.
      */
     public function setTransactionManager(DatabaseTransactionsManager $manager): static
@@ -1530,6 +1769,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     public function setDatabaseName(string $database): static
     {
         $this->database = $database;
+
+        return $this;
+    }
+
+    /**
+     * Set the read / write type of the connection.
+     */
+    public function setReadWriteType(?string $readWriteType): static
+    {
+        $this->readWriteType = $readWriteType;
 
         return $this;
     }

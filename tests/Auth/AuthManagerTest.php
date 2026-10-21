@@ -48,7 +48,7 @@ use function Hypervel\Coroutine\parallel;
 
 class AuthManagerTest extends TestCase
 {
-    public function testGetDefaultDriverFromConfig()
+    public function testGetDefaultDriverFromConfig(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -57,7 +57,7 @@ class AuthManagerTest extends TestCase
         $this->assertSame('foo', $manager->getDefaultDriver());
     }
 
-    public function testGetDefaultDriverFromContext()
+    public function testGetDefaultDriverFromContext(): void
     {
         $manager = new AuthManager($this->getContainer());
 
@@ -83,7 +83,7 @@ class AuthManagerTest extends TestCase
         $this->assertSame('0', $manager->getDefaultDriver());
     }
 
-    public function testSetDefaultDriverUsesContext()
+    public function testSetDefaultDriverUsesContext(): void
     {
         $manager = new AuthManager($this->getContainer());
 
@@ -93,7 +93,7 @@ class AuthManagerTest extends TestCase
         $this->assertSame('api', CoroutineContext::get(AuthManager::DEFAULT_GUARD_CONTEXT_KEY));
     }
 
-    public function testShouldUseSetsDefaultDriverAndUserResolver()
+    public function testShouldUseSetsDefaultDriverAndUserResolver(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -124,7 +124,18 @@ class AuthManagerTest extends TestCase
         $this->assertSame('0', $manager->getDefaultDriver());
     }
 
-    public function testExtendDriver()
+    public function testShouldUseWithEmptyNameUsesDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        $manager->shouldUse('');
+
+        $this->assertSame('foo', $manager->getDefaultDriver());
+    }
+
+    public function testExtendDriver(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -159,7 +170,22 @@ class AuthManagerTest extends TestCase
         $this->assertSame($guard, $manager->guard('0'));
     }
 
-    public function testExtendCallbackIsBoundToManager()
+    public function testGuardWithEmptyNameUsesDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+        $container->make('config')
+            ->set('auth.guards.foo', ['driver' => 'bar']);
+
+        $guard = m::mock(Guard::class);
+        $manager->extend('bar', fn () => $guard);
+
+        $this->assertSame($guard, $manager->guard(''));
+        $this->assertSame($manager->guard(), $manager->guard(''));
+    }
+
+    public function testExtendCallbackIsBoundToManager(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -210,6 +236,7 @@ class AuthManagerTest extends TestCase
         $manager->shouldUse('admin');
 
         $this->assertSame('admins', $manager->getUserProviderName());
+        $this->assertSame('admins', $manager->getUserProviderName(''));
         $this->assertSame('users', $manager->getUserProviderName('web'));
         $this->assertSame('admins', $manager->getUserProviderName(AuthManagerGuardEnum::Admin));
         $this->assertSame('admin', $manager->getDefaultDriver());
@@ -261,7 +288,7 @@ class AuthManagerTest extends TestCase
         $this->assertNull($manager->getDefaultUserProvider());
     }
 
-    public function testCreateNullUserProvider()
+    public function testCreateNullUserProvider(): void
     {
         $manager = new AuthManager($this->getContainer());
 
@@ -272,7 +299,7 @@ class AuthManagerTest extends TestCase
     public function testBuiltInGuardCreatorsRequireProvider(string $method): void
     {
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "provider"');
+        $this->expectExceptionMessageIsOrContains('Undefined array key "provider"');
 
         (new AuthManager($this->app))->{$method}('api', []);
     }
@@ -400,12 +427,12 @@ class AuthManagerTest extends TestCase
         $this->app->instance('db', $database);
 
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "table"');
+        $this->expectExceptionMessageIsOrContains('Undefined array key "table"');
 
         (new AuthManager($this->app))->createUserProvider('incomplete');
     }
 
-    public function testCreateCustomUserProvider()
+    public function testCreateCustomUserProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
 
@@ -425,7 +452,7 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')->set('auth.providers.undefined', []);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Authentication user provider [] is not defined.');
+        $this->expectExceptionMessageIs('Authentication user provider [] is not defined.');
 
         (new AuthManager($this->app))->createUserProvider('undefined');
     }
@@ -525,11 +552,14 @@ class AuthManagerTest extends TestCase
         $container->instance('cache', $cacheManager);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $manager->createUserProvider('users');
     }
 
+    /**
+     * Provide invalid auth user cache TTLs.
+     */
     public static function invalidCacheTtlProvider(): iterable
     {
         yield 'zero' => [0, 'The auth user cache TTL must be a positive integer.'];
@@ -537,7 +567,7 @@ class AuthManagerTest extends TestCase
         yield 'string' => ['300', 'The auth user cache TTL must be a positive integer.'];
     }
 
-    public function testGetUserResolverIsolatedPerCoroutine()
+    public function testGetUserResolverIsolatedPerCoroutine(): void
     {
         $manager = new AuthManager($this->getContainer());
 
@@ -753,7 +783,7 @@ class AuthManagerTest extends TestCase
         $this->assertStringContainsString('/second-dashboard', $response->headers->get('Location'));
     }
 
-    public function testGuardCachesResolvedInstances()
+    public function testGuardCachesResolvedInstances(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -767,14 +797,14 @@ class AuthManagerTest extends TestCase
         $this->assertSame($guard1, $guard2);
     }
 
-    public function testHasResolvedGuardsReturnsFalseWhenEmpty()
+    public function testHasResolvedGuardsReturnsFalseWhenEmpty(): void
     {
         $manager = new AuthManager($this->getContainer());
 
         $this->assertFalse($manager->hasResolvedGuards());
     }
 
-    public function testHasResolvedGuardsReturnsTrueAfterResolving()
+    public function testHasResolvedGuardsReturnsTrueAfterResolving(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -786,7 +816,7 @@ class AuthManagerTest extends TestCase
         $this->assertTrue($manager->hasResolvedGuards());
     }
 
-    public function testForgetGuardsClearsCache()
+    public function testForgetGuardsClearsCache(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -803,7 +833,7 @@ class AuthManagerTest extends TestCase
         $this->assertEmpty($manager->getGuards());
     }
 
-    public function testGetGuardsReturnsAllResolved()
+    public function testGetGuardsReturnsAllResolved(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -822,7 +852,7 @@ class AuthManagerTest extends TestCase
         $this->assertArrayHasKey('baz', $guards);
     }
 
-    public function testSetApplicationReplacesContainer()
+    public function testSetApplicationReplacesContainer(): void
     {
         $manager = new AuthManager($container1 = $this->getContainer());
         $container2 = $this->getContainer();
@@ -833,19 +863,19 @@ class AuthManagerTest extends TestCase
         $this->assertSame('api', $manager->getDefaultDriver());
     }
 
-    public function testResolveThrowsForUndefinedGuard()
+    public function testResolveThrowsForUndefinedGuard(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth guard [missing] is not defined.');
+        $this->expectExceptionMessageIs('Auth guard [missing] is not defined.');
 
         $manager = new AuthManager($this->getContainer());
         $manager->guard('missing');
     }
 
-    public function testResolveThrowsForUndefinedDriver()
+    public function testResolveThrowsForUndefinedDriver(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Auth driver [unknown] for guard [foo] is not defined.');
+        $this->expectExceptionMessageIs('Auth driver [unknown] for guard [foo] is not defined.');
 
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -854,7 +884,7 @@ class AuthManagerTest extends TestCase
         $manager->guard('foo');
     }
 
-    public function testMagicCallDelegatesToDefaultGuard()
+    public function testMagicCallDelegatesToDefaultGuard(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
@@ -870,7 +900,7 @@ class AuthManagerTest extends TestCase
         $this->assertTrue($manager->check());
     }
 
-    public function testClearUserCacheIsNoOpForCustomGuardWithoutGetProvider()
+    public function testClearUserCacheIsNoOpForCustomGuardWithoutGetProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer([
             'guards' => [
@@ -886,7 +916,7 @@ class AuthManagerTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testClearUserCacheUsesSpecifiedGuardProvider()
+    public function testClearUserCacheUsesSpecifiedGuardProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer([
             'defaults' => [
@@ -942,7 +972,7 @@ class AuthManagerTest extends TestCase
         $manager->clearUserCache(42, AuthManagerGuardEnum::Admin);
     }
 
-    public function testClearUserCacheUsesDefaultGuardAndRespectsResolver()
+    public function testClearUserCacheUsesDefaultGuardAndRespectsResolver(): void
     {
         $manager = new AuthManager($container = $this->getContainer([
             'defaults' => [
@@ -980,7 +1010,7 @@ class AuthManagerTest extends TestCase
         $manager->clearUserCache(42);
     }
 
-    public function testForgetGuardsDoesNotAccumulateAuthCacheDescriptors()
+    public function testForgetGuardsDoesNotAccumulateAuthCacheDescriptors(): void
     {
         $manager = new AuthManager($container = $this->getContainer([
             'defaults' => [
@@ -1008,6 +1038,7 @@ class AuthManagerTest extends TestCase
         $secondRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
         $cacheManager->shouldReceive('store')->with('redis')->andReturn($firstRepo, $secondRepo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator($container));
 
         $firstGuard = $manager->guard('api');
 
@@ -1024,6 +1055,9 @@ class AuthManagerTest extends TestCase
         $this->assertCount(1, $descriptors[AuthManagerCacheUserStub::class]);
     }
 
+    /**
+     * Create a container with the given auth configuration.
+     */
     protected function getContainer(array $authConfig = []): Container
     {
         $container = new Container;

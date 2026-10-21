@@ -8,7 +8,7 @@ use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use ReflectionClass;
 
 /**
- * @template TFactory of \Hypervel\Database\Eloquent\Factories\Factory
+ * @template TFactory of Factory
  */
 trait HasFactory
 {
@@ -55,7 +55,10 @@ trait HasFactory
         if ($attributes !== []) {
             $useFactory = $attributes[0]->newInstance();
 
-            return $useFactory->factoryClass::new()->useModel(static::class);
+            /** @var TFactory $factory */
+            $factory = $useFactory->factoryClass::new();
+
+            return $factory->useModel(static::class);
         }
 
         return null;

@@ -29,7 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\PendingEventAttributes
+ * @mixin PendingEventAttributes
  */
 class Schedule
 {
@@ -54,7 +54,7 @@ class Schedule
     /**
      * All of the events on the schedule.
      *
-     * @var array Event[]
+     * @var list<Event>
      */
     protected array $events = [];
 
@@ -98,12 +98,12 @@ class Schedule
     protected array $groupStack = [];
 
     /**
-     * Indicates if the scheduler can be paused.
+     * Indicates if the schedule should check for the paused signal in the cache.
      */
     public static bool $pausable = true;
 
     /**
-     * Indicates if the scheduler can be interrupted.
+     * Indicates if the schedule should check for the interrupt signal in the cache.
      */
     public static bool $interruptible = true;
 
@@ -111,18 +111,10 @@ class Schedule
      * Create a new schedule instance.
      *
      * @param null|DateTimeZone|string $timezone the timezone the date should be evaluated on
-     *
-     * @throws RuntimeException
      */
     public function __construct(
         protected DateTimeZone|string|null $timezone = null
     ) {
-        if (! class_exists(Container::class)) {
-            throw new RuntimeException(
-                'A container implementation is required to use the scheduler. Please install the hypervel/container package.'
-            );
-        }
-
         $container = Container::getInstance();
 
         $this->eventMutex = $container->bound(EventMutex::class)
@@ -207,7 +199,7 @@ class Schedule
                     : $job;
 
                 if ($job instanceof ShouldQueue) {
-                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound, property.notFound
                 } else {
                     $this->dispatchNow($job);
                 }
@@ -231,12 +223,6 @@ class Schedule
     protected function dispatchToQueue(object $job, ?string $queue, ?string $connection): void
     {
         if ($job instanceof Closure) {
-            if (! class_exists(CallQueuedClosure::class)) {
-                throw new RuntimeException(
-                    'To enable support for closure jobs, please install the illuminate/queue package.'
-                );
-            }
-
             $job = CallQueuedClosure::create($job);
         }
 
@@ -289,7 +275,7 @@ class Schedule
      */
     public function exec(string $command, array $parameters = [], bool $isSystem = true): Event
     {
-        if (count($parameters)) {
+        if ($parameters !== []) {
             $command .= ' ' . $this->compileParameters($parameters);
         }
 
@@ -324,16 +310,19 @@ class Schedule
      */
     protected function mergePendingAttributes(Event $event): void
     {
-        if (! empty($this->groupStack)) {
-            $group = end($this->groupStack);
-
-            $group->mergeAttributes($event);
-        }
-
         if (isset($this->attributes)) {
+            // Pending attributes already inherit the current group's callbacks.
             $this->attributes->mergeAttributes($event);
 
             $this->attributes = null;
+
+            return;
+        }
+
+        if (! empty($this->groupStack)) {
+            $group = array_last($this->groupStack);
+
+            $group->mergeAttributes($event);
         }
     }
 
@@ -412,7 +401,7 @@ class Schedule
     /**
      * Get all of the events on the schedule.
      *
-     * @return array Event[]
+     * @return list<Event>
      */
     public function events(): array
     {
@@ -428,7 +417,7 @@ class Schedule
     public function eventsForEnvironments(array $environments): array
     {
         return array_values(array_filter(
-            $this->events,
+            $this->events(),
             static fn (Event $event): bool => array_any($environments, $event->runsInEnvironment(...))
         ));
     }
@@ -459,18 +448,6 @@ class Schedule
     }
 
     /**
-     * Disable pause and interrupt polling for the scheduler.
-     *
-     * Boot-only. Mutates process-global scheduler flags; runtime use changes
-     * pause and interrupt behavior for every concurrent scheduler run.
-     */
-    public static function withoutInterruptionPolling(): void
-    {
-        static::$pausable = false;
-        static::$interruptible = false;
-    }
-
-    /**
      * Get the job dispatcher, if available.
      *
      * @throws RuntimeException
@@ -493,6 +470,20 @@ class Schedule
     }
 
     /**
+     * Indicate that the scheduler should not poll for pause or interrupt signals.
+     *
+     * This prevents the scheduler from hitting the application cache to determine if it needs to pause or interrupt.
+     *
+     * Boot-only. Mutates process-global scheduler flags; runtime use changes
+     * pause and interrupt behavior for every concurrent scheduler run.
+     */
+    public static function withoutInterruptionPolling(): void
+    {
+        static::$pausable = false;
+        static::$interruptible = false;
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -504,8 +495,10 @@ class Schedule
 
     /**
      * Dynamically handle calls into the schedule instance.
+     *
+     * @throws BadMethodCallException
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
@@ -516,7 +509,7 @@ class Schedule
             || in_array($method, PendingEventAttributes::DEFERRED_EVENT_METHODS, true)
             || Event::hasMacro($method)
         ) {
-            $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
+            $this->attributes ??= $this->groupStack ? clone array_last($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);
         }

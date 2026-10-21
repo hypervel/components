@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
+ * @method static \Hypervel\Jwt\Contracts\BlacklistContract blacklist()
  * @method static \Hypervel\Jwt\Providers\Lcobucci createLcobucciDriver()
  * @method static array decode(string $token, bool $validate = true, bool $checkBlacklist = true)
  * @method static mixed driver(\UnitEnum|string|null $driver = null)
@@ -13,7 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Jwt\JwtManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static bool hasBlacklistEnabled()
  * @method static bool invalidate(string $token, bool $forceForever = false)
  * @method static string refresh(string $token, bool $forceForever = false, bool $resetClaims = false, array $customClaims = [], int|false|null $ttl = false)
@@ -23,6 +24,9 @@ namespace Hypervel\Support\Facades;
  */
 class Jwt extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'jwt';

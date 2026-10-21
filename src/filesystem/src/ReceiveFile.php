@@ -48,6 +48,7 @@ class ReceiveFile
      */
     protected function hasValidSignature(Request $request): bool
     {
-        return $request->boolean('upload') && $request->hasValidRelativeSignature();
+        // The upload flag belongs to the signed query, not the request body.
+        return filter_var($request->query('upload'), FILTER_VALIDATE_BOOLEAN) && $request->hasValidRelativeSignature();
     }
 }

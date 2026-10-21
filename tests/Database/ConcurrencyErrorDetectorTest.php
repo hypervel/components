@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Database\QueryException;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Tests\TestCase;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Throwable;
 
 class ConcurrencyErrorDetectorTest extends TestCase
 {
@@ -44,11 +48,41 @@ class ConcurrencyErrorDetectorTest extends TestCase
         $this->assertTrue((new ConcurrencyErrorDetector)->causedByConcurrencyError($exception));
     }
 
+    public function testQueryContextCannotForgeAConcurrencyError(): void
+    {
+        $failure = new QueryException('test', 'insert into logs values (?)', ['database is locked'], new PDOException('Unique violation'));
+        $nested = new QueryException('test', 'select 1', [], $failure);
+        $detector = new ConcurrencyErrorDetector;
+
+        $this->assertFalse($detector->causedByConcurrencyError($failure));
+        $this->assertFalse($detector->causedByConcurrencyError($nested));
+    }
+
     public function testExistingMessageFallbacksRemainSupported(): void
     {
-        $exception = new RuntimeException('translated prefix: database is locked');
+        $exception = new PDOException('translated prefix: database is locked');
 
         $this->assertTrue((new ConcurrencyErrorDetector)->causedByConcurrencyError($exception));
+    }
+
+    #[DataProvider('nonDatabaseFailures')]
+    public function testNonDatabaseFailuresAreNotDetected(Throwable $failure): void
+    {
+        $detector = new ConcurrencyErrorDetector;
+
+        $this->assertFalse($detector->causedByConcurrencyError($failure));
+        $this->assertFalse($detector->causedByConcurrencyError(new QueryException('custom', 'update records set value = 1', [], $failure)));
+    }
+
+    /**
+     * Provide failures with database-like codes or response text.
+     *
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function nonDatabaseFailures(): iterable
+    {
+        yield 'custom driver without a policy' => [new RuntimeException('Serialization failed.', 40001)];
+        yield 'HTTP response' => [new RequestException(new Response(new PsrResponse(500, [], 'database is locked')))];
     }
 
     public function testOrdinaryDatabaseExceptionsAreNotDetected(): void

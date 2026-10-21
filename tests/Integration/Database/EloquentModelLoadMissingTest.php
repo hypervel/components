@@ -51,7 +51,7 @@ class EloquentModelLoadMissingTest extends DatabaseTestCase
         Post::first()->update(['first_comment_id' => 1]);
     }
 
-    public function testLoadMissing()
+    public function testLoadMissing(): void
     {
         $post = Post::with('comments')->first();
 
@@ -63,7 +63,7 @@ class EloquentModelLoadMissingTest extends DatabaseTestCase
         $this->assertTrue($post->comments[0]->relationLoaded('parent'));
     }
 
-    public function testLoadMissingNoUnnecessaryAttributeMutatorAccess()
+    public function testLoadMissingNoUnnecessaryAttributeMutatorAccess(): void
     {
         $posts = Post::all();
 

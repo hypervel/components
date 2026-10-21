@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ContainerTaggingTest extends TestCase
 {
-    public function testContainerTags()
+    public function testContainerTags(): void
     {
         $container = new Container;
         $container->tag(ContainerImplementationTaggedStub::class, 'foo', 'bar');
@@ -47,7 +47,7 @@ class ContainerTaggingTest extends TestCase
         $this->assertCount(0, $container->tagged('this_tag_does_not_exist'));
     }
 
-    public function testTaggedServicesAreLazyLoaded()
+    public function testTaggedServicesAreLazyLoaded(): void
     {
         $container = $this->createPartialMock(Container::class, ['make']);
         $container->expects($this->once())->method('make')->willReturn(new ContainerImplementationTaggedStub);
@@ -65,7 +65,7 @@ class ContainerTaggingTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationTaggedStub::class, $fooResults[0]);
     }
 
-    public function testLazyLoadedTaggedServicesCanBeLoopedOverMultipleTimes()
+    public function testLazyLoadedTaggedServicesCanBeLoopedOverMultipleTimes(): void
     {
         $container = new Container;
         $container->tag(ContainerImplementationTaggedStub::class, 'foo');

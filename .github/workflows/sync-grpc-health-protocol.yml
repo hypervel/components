@@ -2,7 +2,7 @@ name: synchronize gRPC health protocol
 
 on:
   schedule:
-    - cron: "0 1 * * 1"
+    - cron: "47 1 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -11,11 +11,12 @@ permissions:
 
 jobs:
   synchronize:
+    if: github.repository == 'hypervel/components'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Install system dependencies
@@ -24,7 +25,7 @@ jobs:
           apt-get install -y -qq curl git rsync unzip > /dev/null
 
       - name: Checkout default branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.repository.default_branch }}
@@ -32,18 +33,8 @@ jobs:
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Install protoc
         run: bin/grpc-health-protoc.sh install /usr/local/bin/protoc
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v5
-        with:
-          path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
 
       - name: Install Composer dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -59,7 +50,7 @@ jobs:
           vendor/bin/paratest tests/Grpc
 
       - name: Open update pull request
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           add-paths: |
             src/grpc/resources/proto/README.md

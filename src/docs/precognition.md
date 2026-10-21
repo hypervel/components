@@ -20,7 +20,7 @@ Precognition allows you to anticipate the outcome of a future HTTP request. One 
 When Hypervel receives a "precognitive request", it will execute all of the route's middleware and resolve the route's controller dependencies, including validating [form requests](/docs/{{version}}/validation#form-request-validation) - but it will not actually execute the route's controller method.
 
 > [!NOTE]
-> As of Inertia 2.3, Precognition support is built-in. Please consult the [Inertia Forms documentation](https://inertiajs.com/forms) for more information. Earlier Inertia versions require Precognition 0.x.
+> Inertia 3 includes Precognition support. Please consult the [Inertia Forms documentation](/docs/{{version}}/inertia#forms-precognition) for more information.
 
 <a name="live-validation"></a>
 ## Live Validation

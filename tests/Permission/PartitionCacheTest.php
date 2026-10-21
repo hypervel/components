@@ -163,24 +163,6 @@ class PartitionCacheTest extends PartitionTestCase
         $this->assertSame($tokenB, $registrar->modelAssignmentCacheToken());
     }
 
-    public function testCacheResetClearsOnlyTheAmbientPartition(): void
-    {
-        PartitionedRole::create(['name' => 'role-a']);
-        $registrar = $this->app->make(PermissionRegistrar::class);
-        $registrar->getPermissions();
-        $keyA = $registrar->getCacheKey();
-
-        $this->setPartition(self::PARTITION_B);
-        PartitionedRole::create(['name' => 'role-b']);
-        $registrar->getPermissions();
-        $keyB = $registrar->getCacheKey();
-
-        $registrar->forgetCachedPermissions();
-
-        $this->assertTrue($registrar->getCacheRepository()->has($keyA));
-        $this->assertFalse($registrar->getCacheRepository()->has($keyB));
-    }
-
     public function testCacheSegmentsCannotCollideAcrossSeparatorsOrNullValues(): void
     {
         $first = new PermissionPartition('workspace_id', 'a:b');

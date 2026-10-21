@@ -17,7 +17,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Socialite\SocialiteManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Socialite\Contracts\Provider with(string $driver)
  *

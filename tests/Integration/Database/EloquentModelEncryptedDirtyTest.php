@@ -9,7 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 
 class EloquentModelEncryptedDirtyTest extends DatabaseTestCase
 {
-    public function testDirtyAttributeBehaviorWithNoPreviousKeys()
+    public function testDirtyAttributeBehaviorWithNoPreviousKeys(): void
     {
         config(['app.key' => str_repeat('a', 32)]);
         Model::$encrypter = null;
@@ -39,7 +39,7 @@ class EloquentModelEncryptedDirtyTest extends DatabaseTestCase
         $this->assertTrue($model->isDirty('secret_array_object'));
     }
 
-    public function testDirtyAttributeBehaviorWithPreviousKeys()
+    public function testDirtyAttributeBehaviorWithPreviousKeys(): void
     {
         config(['app.key' => str_repeat('a', 32)]);
         config(['app.previous_keys' => [str_repeat('b', 32)]]);

@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use ArrayIterator;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\RequestBridge;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use PHPUnit\Framework\Attributes\TestWith;
+use Swoole\Http\Request as SwooleRequest;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -43,7 +46,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         return $this->routeCollection->toCompiledRouteCollection($this->router, $this->app);
     }
 
-    public function testRouteCollectionCanAddRoute()
+    public function testRouteCollectionCanAddRoute(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo', [
             'uses' => 'FooController@index',
@@ -53,7 +56,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertCount(1, $this->collection());
     }
 
-    public function testRouteCollectionAddReturnsTheRoute()
+    public function testRouteCollectionAddReturnsTheRoute(): void
     {
         $outputRoute = $this->collection()->add($inputRoute = $this->newRoute('GET', 'foo', [
             'uses' => 'FooController@index',
@@ -64,7 +67,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertEquals($inputRoute, $outputRoute);
     }
 
-    public function testRouteCollectionCanRetrieveByName()
+    public function testRouteCollectionCanRetrieveByName(): void
     {
         $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -78,7 +81,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routeIndex, $routes->getByName('route_name'));
     }
 
-    public function testRouteCollectionCanRetrieveByAction()
+    public function testRouteCollectionCanRetrieveByAction(): void
     {
         $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', $action = [
             'uses' => 'FooController@index',
@@ -90,10 +93,17 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame($action, Arr::except($route->getAction(), 'as'));
     }
 
-    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions(): void
+    #[TestWith(['FooController', 'FooController'])]
+    #[TestWith(['\FooController', '\FooController'])]
+    #[TestWith(['FooController', '\FooController'])]
+    #[TestWith(['\FooController', 'FooController'])]
+    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions(string $firstController, string $secondController): void
     {
-        $this->router->get('/foo/{bar}', ['FooController', 'show']);
-        $this->router->get('/foo/{bar}/{baz}', ['FooController', 'show']);
+        $this->router->get('/foo/{bar}', [$firstController, 'show']);
+        $this->router->get('/foo/{bar}/{baz}', [$secondController, 'show']);
+
+        $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);
+
         $this->router->getRoutes()->refreshActionLookups();
 
         $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);
@@ -102,7 +112,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/{bar}', $this->app->make('router')->getRoutes()->getByAction('FooController@show')->uri);
     }
 
-    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForNames()
+    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForNames(): void
     {
         $this->router->get('/foo/{bar}', ['FooController', 'show'])->name('foo.show');
         $this->router->get('/foo/{bar}/{baz}', ['FooController', 'show'])->name('foo.show');
@@ -111,7 +121,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByName('foo.show')->uri);
     }
 
-    public function testRouteCollectionCanGetIterator()
+    public function testRouteCollectionCanGetIterator(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -121,7 +131,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $this->collection()->getIterator());
     }
 
-    public function testRouteCollectionCanGetIteratorWhenEmpty()
+    public function testRouteCollectionCanGetIteratorWhenEmpty(): void
     {
         $routes = $this->collection();
 
@@ -129,9 +139,9 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $routes->getIterator());
     }
 
-    public function testRouteCollectionCanGetIteratorWhenRoutesAreAdded()
+    public function testRouteCollectionCanGetIteratorWhenRoutesAreAdded(): void
     {
-        $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', [
+        $this->routeCollection->add($this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
             'as' => 'foo_index',
         ]));
@@ -140,7 +150,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $this->assertCount(1, $routes);
 
-        $this->routeCollection->add($routeShow = $this->newRoute('GET', 'bar/show', [
+        $this->routeCollection->add($this->newRoute('GET', 'bar/show', [
             'uses' => 'BarController@show',
             'as' => 'bar_show',
         ]));
@@ -152,7 +162,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $routes->getIterator());
     }
 
-    public function testRouteCollectionCanHandleSameRoute()
+    public function testRouteCollectionCanHandleSameRoute(): void
     {
         $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -181,7 +191,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertCount(2, $routes);
     }
 
-    public function testRouteCollectionCanGetAllRoutes()
+    public function testRouteCollectionCanGetAllRoutes(): void
     {
         $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
@@ -204,7 +214,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertEquals($allRoutes, $this->collection()->getRoutes());
     }
 
-    public function testRouteCollectionCanGetRoutesByName()
+    public function testRouteCollectionCanGetRoutesByName(): void
     {
         $routesByName = [
             'foo_index' => $this->newRoute('GET', 'foo/index', [
@@ -228,7 +238,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routesByName, $this->collection()->getRoutesByName());
     }
 
-    public function testRouteCollectionCanGetRoutesByMethod()
+    public function testRouteCollectionCanGetRoutesByMethod(): void
     {
         $routes = [
             'foo_index' => $this->newRoute('GET', 'foo/index', [
@@ -264,7 +274,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         ], $this->collection()->getRoutesByMethod());
     }
 
-    public function testRouteCollectionCleansUpOverwrittenRoutes()
+    public function testRouteCollectionCleansUpOverwrittenRoutes(): void
     {
         // Create two routes with the same path and method.
         $routeA = $this->newRoute('GET', 'product', ['controller' => 'View@view', 'as' => 'routeA']);
@@ -289,7 +299,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routeB, $routes->getByAction('OverwrittenView@view'));
     }
 
-    public function testMatchingThrowsNotFoundExceptionWhenRouteIsNotFound()
+    public function testMatchingThrowsNotFoundExceptionWhenRouteIsNotFound(): void
     {
         $this->routeCollection->add($this->newRoute('GET', '/', ['uses' => 'FooController@index']));
 
@@ -298,7 +308,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->collection()->match(Request::create('/foo'));
     }
 
-    public function testMatchingThrowsMethodNotAllowedHttpExceptionWhenMethodIsNotAllowed()
+    public function testMatchingThrowsMethodNotAllowedHttpExceptionWhenMethodIsNotAllowed(): void
     {
         $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
 
@@ -319,7 +329,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['OPTIONS'], $route->methods());
     }
 
-    public function testMatchingThrowsExceptionWhenMethodIsNotAllowedWhileSameRouteIsAddedDynamically()
+    public function testMatchingThrowsExceptionWhenMethodIsNotAllowedWhileSameRouteIsAddedDynamically(): void
     {
         $this->routeCollection->add($this->newRoute('GET', '/', ['uses' => 'FooController@index']));
 
@@ -332,7 +342,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $routes->match(Request::create('/', 'PUT'));
     }
 
-    public function testMatchingRouteWithSameDynamicallyAddedRouteAlwaysMatchesCachedOneFirst()
+    public function testMatchingRouteWithSameDynamicallyAddedRouteAlwaysMatchesCachedOneFirst(): void
     {
         $this->routeCollection->add(
             $route = $this->newRoute('GET', '/', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -345,7 +355,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $routes->match(Request::create('/', 'GET'))->getName());
     }
 
-    public function testMatchingFindsRouteWithDifferentMethodDynamically()
+    public function testMatchingFindsRouteWithDifferentMethodDynamically(): void
     {
         $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
 
@@ -356,7 +366,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame($route, $routes->match(Request::create('/foo', 'POST')));
     }
 
-    public function testMatchingWildcardFromCompiledRoutesAlwaysTakesPrecedent()
+    public function testMatchingWildcardFromCompiledRoutesAlwaysTakesPrecedent(): void
     {
         $this->routeCollection->add(
             $route = $this->newRoute('GET', '{wildcard}', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -584,7 +594,9 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $compiled['compiled'][4] = static fn (
             int $condition,
             SymfonyRequestContext $context
-        ): bool => $condition === -1 && $context->getQueryString() === 'token=1';
+        ): bool => $condition === -1
+            && $context->getQueryString() === 'token=1'
+            && $context->getPathInfo() === '/conditional';
         $collection = (new CompiledRouteCollection($compiled['compiled'], $compiled['attributes']))
             ->setRouter($this->router)
             ->setContainer($this->app);
@@ -592,6 +604,11 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(
             'conditional',
             $collection->match(Request::create('/conditional?token=1'))->getName()
+        );
+        // Conditions see the trimmed path that is matched, as Laravel's trimmed matching request gives them.
+        $this->assertSame(
+            'conditional',
+            $collection->match(Request::create('/conditional/?token=1'))->getName()
         );
 
         $this->expectException(NotFoundHttpException::class);
@@ -646,7 +663,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['format' => 'summary'], $route->originalParameters());
     }
 
-    public function testMatchingDynamicallyAddedRoutesTakePrecedenceOverFallbackRoutes()
+    public function testMatchingDynamicallyAddedRoutesTakePrecedenceOverFallbackRoutes(): void
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index']));
         $this->routeCollection->add(
@@ -660,7 +677,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('bar', $routes->match(Request::create('/bar/1', 'GET'))->getName());
     }
 
-    public function testMatchingFallbackRouteCatchesAll()
+    public function testMatchingFallbackRouteCatchesAll(): void
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index', 'as' => 'fallback']));
         $this->routeCollection->add(
@@ -677,7 +694,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['fallbackPlaceholder' => 'baz/1'], $route->parameters());
     }
 
-    public function testMatchingCachedFallbackTakesPrecedenceOverDynamicFallback()
+    public function testMatchingCachedFallbackTakesPrecedenceOverDynamicFallback(): void
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index', 'as' => 'fallback']));
 
@@ -688,7 +705,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('fallback', $routes->match(Request::create('/baz/1', 'GET'))->getName());
     }
 
-    public function testMatchingCachedFallbackTakesPrecedenceOverDynamicRouteWithWrongMethod()
+    public function testMatchingCachedFallbackTakesPrecedenceOverDynamicRouteWithWrongMethod(): void
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index', 'as' => 'fallback']));
 
@@ -699,7 +716,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('fallback', $routes->match(Request::create('/bar/1', 'GET'))->getName());
     }
 
-    public function testSlashPrefixIsProperlyHandled()
+    public function testSlashPrefixIsProperlyHandled(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'prefix' => '/']));
 
@@ -708,7 +725,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/bar', $route->uri());
     }
 
-    public function testRouteWithoutNamespaceIsFound()
+    public function testRouteWithoutNamespaceIsFound(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo/bar', ['controller' => '\App\FooController']));
 
@@ -717,7 +734,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/bar', $route->uri());
     }
 
-    public function testGroupPrefixAndRoutePrefixAreProperlyHandled()
+    public function testGroupPrefixAndRoutePrefixAreProperlyHandled(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'prefix' => '{locale}'])->prefix('pre'));
 
@@ -726,7 +743,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('pre/{locale}', $route->getPrefix());
     }
 
-    public function testGroupGenerateNameForDuplicateRouteNamesThatEndWithDot()
+    public function testGroupGenerateNameForDuplicateRouteNamesThatEndWithDot(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'foo', ['uses' => 'FooController@index'])->name('foo.'));
         $this->routeCollection->add($route = $this->newRoute('GET', 'bar', ['uses' => 'BarController@index'])->name('foo.'));
@@ -736,7 +753,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('BarController@index', $routes->match(Request::create('/bar', 'GET'))->getAction()['uses']);
     }
 
-    public function testRouteBindingsAreProperlySaved()
+    public function testRouteBindingsAreProperlySaved(): void
     {
         $this->routeCollection->add($this->newRoute('GET', 'posts/{post:slug}/show', [
             'uses' => 'FooController@index',
@@ -750,7 +767,18 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['user' => 'username', 'post' => 'slug'], $route->bindingFields());
     }
 
-    public function testMatchingSlashedRoutes()
+    public function testReadOnlySessionRoutesAreProperlySaved(): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', 'entries', ['uses' => 'FooController@index', 'as' => 'entries'])->readOnlySession());
+        $this->routeCollection->add($this->newRoute('GET', 'posts', ['uses' => 'FooController@index', 'as' => 'posts']));
+
+        $routes = $this->collection();
+
+        $this->assertTrue($routes->getByName('entries')->hasReadOnlySession());
+        $this->assertFalse($routes->getByName('posts')->hasReadOnlySession());
+    }
+
+    public function testMatchingSlashedRoutes(): void
     {
         $this->routeCollection->add(
             $route = $this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -759,7 +787,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $this->collection()->match(Request::create('/foo/bar/'))->getName());
     }
 
-    public function testMatchingUriWithQuery()
+    public function testMatchingUriWithQuery(): void
     {
         $this->routeCollection->add(
             $route = $this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -768,7 +796,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $this->collection()->match(Request::create('/foo/bar/?foo=bar'))->getName());
     }
 
-    public function testMatchingRootUri()
+    public function testMatchingRootUri(): void
     {
         $this->routeCollection->add(
             $route = $this->newRoute('GET', '/', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -777,7 +805,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $this->collection()->match(Request::create('http://example.com'))->getName());
     }
 
-    public function testTrailingSlashIsTrimmedWhenMatchingCachedRoutes()
+    public function testTrailingSlashIsTrimmedWhenMatchingCachedRoutes(): void
     {
         $this->routeCollection->add(
             $this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -791,7 +819,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $this->collection()->match($request)->getName());
     }
 
-    public function testTrailingSlashWithQueryStringIsTrimmedWhenMatchingCachedRoutes()
+    public function testTrailingSlashWithQueryStringIsTrimmedWhenMatchingCachedRoutes(): void
     {
         $this->routeCollection->add(
             $this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'as' => 'foo'])
@@ -805,7 +833,26 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $this->collection()->match($request)->getName());
     }
 
-    public function testRouteWithSamePathAndSameMethodButDiffDomainNameWithOptionsMethod()
+    public function testServerRequestsMatchWithoutTheirTrailingSlashButKeepIt(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', 'users/{user}', ['uses' => 'FooController@index', 'as' => 'user'])
+        );
+
+        foreach (['compiled' => $this->collection(), 'plain' => $this->routeCollection] as $kind => $routes) {
+            $swooleRequest = SwooleRequest::create();
+            $swooleRequest->parse("GET /users/7/?tab=1 HTTP/1.1\r\nHost: example.com\r\n\r\n");
+            $request = RequestBridge::createFromSwoole($swooleRequest);
+
+            $route = $routes->match($request);
+
+            $this->assertSame(['user', ['user' => '7']], [$route->getName(), $route->parameters()], $kind);
+            // The request keeps the target it arrived with, as Laravel's does, for anything that reads it.
+            $this->assertSame(['/users/7/?tab=1', '/users/7/'], [$request->getRequestUri(), $request->getPathInfo()], $kind);
+        }
+    }
+
+    public function testRouteWithSamePathAndSameMethodButDiffDomainNameWithOptionsMethod(): void
     {
         $routes = [
             'foo_domain' => $this->newRoute('GET', 'same/path', [

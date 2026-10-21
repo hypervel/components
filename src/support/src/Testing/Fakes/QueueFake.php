@@ -103,7 +103,7 @@ class QueueFake extends QueueManager implements Fake, Queue
         parent::__construct($app);
 
         $this->jobsToFake = Collection::wrap($jobsToFake);
-        $this->jobsToBeQueued = Collection::make();
+        $this->jobsToBeQueued = new Collection;
         $this->queue = $queue;
     }
 
@@ -132,7 +132,7 @@ class QueueFake extends QueueManager implements Fake, Queue
         }
 
         PHPUnit::assertTrue(
-            $this->pushed($job, $callback)->count() > 0,
+            $this->pushed($job, $callback)->isNotEmpty(),
             "The expected [{$job}] job was not pushed."
         );
     }
@@ -197,7 +197,7 @@ class QueueFake extends QueueManager implements Fake, Queue
         );
 
         PHPUnit::assertTrue(
-            Collection::make($expectedChain)->isNotEmpty(),
+            (new Collection($expectedChain))->isNotEmpty(),
             'The expected chain can not be empty.'
         );
 
@@ -224,10 +224,10 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     protected function assertPushedWithChainOfObjects(string $job, array $expectedChain, ?callable $callback): void
     {
-        $chain = Collection::make($expectedChain)->map(fn ($job) => serialize($job))->all();
+        $chain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
 
         PHPUnit::assertTrue(
-            $this->pushed($job, $callback)->filter(fn ($job) => $job->chained === $chain)->isNotEmpty(),
+            $this->pushed($job, $callback)->contains(fn ($job) => $job->chained === $chain),
             'The expected chain was not pushed.'
         );
     }
@@ -237,16 +237,14 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     protected function assertPushedWithChainOfClasses(string $job, array $expectedChain, ?callable $callback): void
     {
-        $matching = $this->pushed($job, $callback)->map->chained->map(function ($chain) {
-            return Collection::make($chain)->map(function ($job) {
+        $matching = $this->pushed($job, $callback)->contains(function (object $pushedJob) use ($expectedChain): bool {
+            return (new Collection($pushedJob->chained))->map(function (string $job): string {
                 return get_class(unserialize($job));
-            });
-        })->filter(function ($chain) use ($expectedChain) {
-            return $chain->all() === $expectedChain;
+            })->all() === $expectedChain;
         });
 
         PHPUnit::assertTrue(
-            $matching->isNotEmpty(),
+            $matching,
             'The expected chain was not pushed.'
         );
     }
@@ -272,7 +270,7 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     protected function isChainOfObjects(array $chain): bool
     {
-        return ! Collection::make($chain)->contains(fn ($job) => ! is_object($job));
+        return (new Collection($chain))->doesntContain(fn ($job) => ! is_object($job));
     }
 
     /**
@@ -296,7 +294,7 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     public function assertCount(int $expectedCount): void
     {
-        $actualCount = Collection::make($this->jobs)->flatten(1)->count();
+        $actualCount = (new Collection($this->jobs))->flatten(1)->count();
 
         PHPUnit::assertSame(
             $expectedCount,
@@ -321,12 +319,12 @@ class QueueFake extends QueueManager implements Fake, Queue
     public function pushed(string $job, ?callable $callback = null): Collection
     {
         if (! $this->hasPushed($job)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
 
-        return Collection::make($this->jobs[$job])->filter(
+        return (new Collection($this->jobs[$job]))->filter(
             fn ($data) => $callback($data['job'], $data['queue'], $data['data'])
         )->pluck('job');
     }
@@ -341,7 +339,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     {
         $callback ??= static fn () => true;
 
-        return Collection::make($this->rawPushes)->filter(
+        return (new Collection($this->rawPushes))->filter(
             fn (array $data) => $callback($data['payload'], $data['queue'], $data['options'])
         );
     }
@@ -352,10 +350,10 @@ class QueueFake extends QueueManager implements Fake, Queue
     public function listenersPushed(string $listenerClass, ?callable $callback = null): Collection
     {
         if (! $this->hasPushed(CallQueuedListener::class)) {
-            return Collection::make();
+            return new Collection;
         }
 
-        $collection = Collection::make($this->jobs[CallQueuedListener::class])
+        $collection = (new Collection($this->jobs[CallQueuedListener::class]))
             ->filter(fn (array $data) => $data['job']->class === $listenerClass);
 
         if ($callback) {
@@ -453,6 +451,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -463,6 +463,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -473,6 +475,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -483,6 +487,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function allPendingJobs(): Collection
     {
@@ -491,6 +497,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function allDelayedJobs(): Collection
     {
@@ -498,22 +506,16 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
-     * Get all reserved jobs across every queue.
-     */
-    public function allReservedJobs(): Collection
-    {
-        return $this->inspectJobs($this->reserved);
-    }
-
-    /**
      * Map an array of jobs to a collection of inspected jobs.
+     *
+     * @return Collection<int, InspectedJob>
      */
     protected function inspectJobs(array $jobs): Collection
     {
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->flatten(1)
             ->map(fn (array $data) => new InspectedJob(
-                uuid: null,
+                uuid: $data['uuid'] ?? null,
                 queue: $data['queue'],
                 name: is_object($data['job'])
                     ? (method_exists($data['job'], 'displayName') ? $data['job']->displayName() : get_class($data['job']))
@@ -525,11 +527,21 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->inspectJobs($this->reserved);
+    }
+
+    /**
      * Get pushed jobs classified by their delay.
      */
     protected function pushedJobsWithDelay(bool $delayed): array
     {
-        return Collection::make($this->jobs)
+        return (new Collection($this->jobs))
             ->map(fn (array $jobs) => array_values(array_filter(
                 $jobs,
                 fn (array $job) => ($job['delay'] !== null) === $delayed,
@@ -543,7 +555,7 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
-        return Collection::make($this->pushedJobsWithDelay(false))
+        return (new Collection($this->pushedJobsWithDelay(false)))
             ->flatten(1)
             ->whereStrict('queue', $this->normalizeQueue($queue))
             ->min('createdAt');
@@ -578,6 +590,7 @@ class QueueFake extends QueueManager implements Fake, Queue
             }
 
             $this->jobs[is_object($job) ? get_class($job) : $job][] = [
+                'uuid' => (string) Str::uuid(),
                 'job' => $this->serializeAndRestore ? $this->serializeAndRestoreJob($job) : $job,
                 'queue' => $queue,
                 'data' => $data,
@@ -702,6 +715,7 @@ class QueueFake extends QueueManager implements Fake, Queue
         }
 
         $this->reserved[is_object($job) ? get_class($job) : $job][] = [
+            'uuid' => (string) Str::uuid(),
             'job' => $this->serializeAndRestore ? $this->serializeAndRestoreJob($job) : $job,
             'queue' => $queue,
             'createdAt' => CarbonImmutable::now()->getTimestamp(),

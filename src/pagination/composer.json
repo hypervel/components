@@ -1,8 +1,8 @@
 {
     "name": "hypervel/pagination",
-    "type": "library",
     "description": "The Hypervel Pagination package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "pagination",
@@ -23,11 +23,6 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Pagination\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
@@ -40,17 +35,22 @@
         "hypervel/http": "Required to convert paginators to API resources (^0.4).",
         "hypervel/view": "Required to render pagination links (^0.4)."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Pagination\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Pagination\\PaginationServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

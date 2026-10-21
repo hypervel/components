@@ -11,6 +11,7 @@ use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:monitor')]
@@ -74,7 +75,7 @@ class MonitorCommand extends Command
      */
     protected function parseQueues(string $queues): Collection
     {
-        return Collection::make(explode(',', $queues))->map(function (string $queue): array {
+        return (new Stringable($queues))->explode(',')->map(function (string $queue): array {
             [$connection, $queue] = array_pad(explode(':', $queue, 2), 2, null);
 
             if (! isset($queue)) {
@@ -113,9 +114,9 @@ class MonitorCommand extends Command
             $status = '[' . $queue['size'] . '] ' . $queue['status'];
 
             $this->components->twoColumnDetail($name, $status);
-            $this->components->twoColumnDetail('Pending jobs', (string) $queue['pending']);
-            $this->components->twoColumnDetail('Delayed jobs', (string) $queue['delayed']);
-            $this->components->twoColumnDetail('Reserved jobs', (string) $queue['reserved']);
+            $this->components->twoColumnDetail('Pending jobs', $queue['pending']);
+            $this->components->twoColumnDetail('Delayed jobs', $queue['delayed']);
+            $this->components->twoColumnDetail('Reserved jobs', $queue['reserved']);
             $this->components->twoColumnDetail(
                 'Oldest pending job',
                 $queue['oldest_pending'] !== null

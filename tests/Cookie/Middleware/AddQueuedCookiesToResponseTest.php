@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AddQueuedCookiesToResponseTest extends TestCase
 {
-    public function testHandle()
+    public function testHandle(): void
     {
         $queuedCookie = new Cookie('foo', 'bar');
 

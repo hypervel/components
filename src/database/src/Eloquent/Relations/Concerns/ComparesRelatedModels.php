@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Hypervel\Contracts\Database\Eloquent\SupportsPartialRelations;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Model;
 
 trait ComparesRelatedModels
@@ -17,7 +18,7 @@ trait ComparesRelatedModels
         $match = ! is_null($model)
             && $this->compareKeys($this->getParentKey(), $this->getRelatedKeyFrom($model))
             && $this->related->getTable() === $model->getTable()
-            && $this->related->getConnectionName() === $model->getConnectionName();
+            && ConnectionName::withoutWriteType($this->related->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName());
 
         if ($match && $this instanceof SupportsPartialRelations && $this->isOneOfMany()) {
             return $this->query

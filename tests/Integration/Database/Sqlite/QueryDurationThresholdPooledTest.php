@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Database\Connection;
-use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
@@ -187,8 +186,6 @@ class QueryDurationThresholdPooledTest extends TestCase
     protected function configureDatabase(): void
     {
         $config = $this->app->make('config');
-
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
 
         $config->set('database.default', 'pool_test');
         $config->set('database.connections.pool_test', $this->connectionConfig(self::$primaryDatabasePath));

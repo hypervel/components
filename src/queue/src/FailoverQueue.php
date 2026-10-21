@@ -14,11 +14,13 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 {
@@ -48,33 +50,33 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->size($queue);
+        return $this->manager->connection($this->connections[0])->size($this->resolveForwardedQueue($queue));
     }
 
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->pendingSize($queue);
+        return $this->manager->connection($this->connections[0])->pendingSize($this->resolveForwardedQueue($queue));
     }
 
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->delayedSize($queue);
+        return $this->manager->connection($this->connections[0])->delayedSize($this->resolveForwardedQueue($queue));
     }
 
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->reservedSize($queue);
+        return $this->manager->connection($this->connections[0])->reservedSize($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -113,26 +115,26 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         // Inspection remains an optional concrete capability, not part of the core Queue contract.
-        return $this->manager->connection($this->connections[0])->pendingJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->delayedJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->reservedJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -162,47 +164,65 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->manager
             ->connection($this->connections[0])
-            ->creationTimeOfOldestPendingJob($queue);
+            ->creationTimeOfOldestPendingJob($this->resolveForwardedQueue($queue));
     }
 
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args());
     }
 
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?JobContract
     {
+        $queue = $this->resolveForwardedQueue($queue);
         $connection = $this->manager->connection($this->connections[0]);
 
         return $connection instanceof IndexAwareQueue
             ? $connection->pop($queue, $index)
             : $connection->pop($queue);
+    }
+
+    /**
+     * Resolve forwards owned by this failover connection.
+     */
+    protected function resolveForwardedQueue(UnitEnum|string|null $queue): ?string
+    {
+        $queue = $this->normalizeQueue($queue);
+
+        // Unscoped forwards belong to the storage driver; applying them here would forward twice.
+        return $queue === null ? null : $this->queueRoutes()->forwardedQueueForConnection($queue, $this->connectionName ?? null);
     }
 
     /**
@@ -275,6 +295,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             return false;
         }
 
+        $context = ContextRepository::hasInstance() ? ContextRepository::getInstance()->replicate() : null;
         $pendingConnections = array_fill_keys($connections, true);
         $settled = false;
         $releaseLocks = $this->createJobRollbackCallback($job);
@@ -296,7 +317,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 
         foreach ($connections as $connection) {
             $transactions->addCallback(
-                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job): void {
+                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job, $context): void {
                     if ($settled) {
                         return;
                     }
@@ -313,8 +334,9 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                         DispatchLockContext::claim($job);
                     }
 
+                    // Child payload hooks run after commit but must see the dispatch-time log context.
                     try {
-                        $this->attemptOnAllConnections($method, $arguments, $job);
+                        $this->withLogContext($context, fn () => $this->attemptOnAllConnections($method, $arguments, $job));
                     } finally {
                         if (is_object($job)) {
                             DispatchLockContext::release($job);

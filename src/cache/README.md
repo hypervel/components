@@ -3,13 +3,21 @@ Cache for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/cache)
 
+Documentation: https://hypervel.org/docs/cache
+
 ## Differences From Laravel
+
+Laravel's APC / APCu, DynamoDB, and Memcached cache stores are not provided. Use the `swoole` store for local shared-memory caching. See the [cache porting guide](https://hypervel.org/docs/porting-from-laravel#cache).
+
+`cache:clear` clears the AOP proxy cache instead of Laravel's real-time facade cache. Use explicit facade classes; real-time facades are not supported.
 
 Laravel provides rate limiting through its Cache component. Hypervel provides it through the dedicated `hypervel/rate-limiter` package and `Hypervel\RateLimiter` namespace instead. See the [rate limiting documentation](https://hypervel.org/docs/rate-limiting).
 
 The `array` cache store is request-local in Hypervel. Laravel can keep array-store values on the store object because the PHP process normally ends after each request; Hypervel workers are long-lived, so mutable array-store data lives in `CoroutineContext` and resets when the current unit of work finishes.
 
 Hypervel also provides a `worker-array` cache store for deliberate worker-lifetime in-memory cache data. It is shared by coroutines in the same worker process and is cleared when that worker exits.
+
+`CacheManager::getSerializableClasses()` is omitted. Configure the shared [serializable class policy](https://hypervel.org/docs/cache#serializable-cached-objects) with `cache.serializable_classes` or provider contributions.
 
 `Cache::memo()` stores its per-request memoized repository directly in coroutine context instead of Laravel's scoped container binding. Coroutine teardown provides the request reset boundary in Hypervel without dynamic container bindings.
 
@@ -19,8 +27,10 @@ Calling `refresh()` with an explicit non-positive TTL throws `InvalidArgumentExc
 
 Calling `refresh()` without arguments on a permanent native-expiry lock verifies ownership before returning. Database locks are not truly permanent because the database has no native TTL cleanup, so `refresh()` re-extends the driver's default safety timeout.
 
-`Cache::funnel()->acquire()` returns a caller-held concurrency lease that can be released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API.
+`Cache::funnel()->acquire()` returns a caller-held concurrency lease that can be released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API. The cache concurrency limiter's public `acquire()` returns that lease, so Laravel's protected `acquire($id)` and `release($lock)` hooks are not provided. Override `claimSlot()` to customize slot acquisition; the returned lease releases the slot.
 
 Cache funnel timeout failures throw `Hypervel\Contracts\Limiters\LimiterTimeoutException`, shared with Redis funnels and Redis throttles. Laravel uses separate cache and Redis limiter timeout exception classes.
 
 The failure callback passed to `Cache::funnel()->then()` runs only when acquiring a slot times out. A `LimiterTimeoutException` thrown by the user callback propagates normally; Laravel routes it to the failure callback.
+
+Ported from: https://github.com/laravel/framework/tree/master/src/Illuminate/Cache

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Filesystem\Filesystem;
+
 class TraitMakeCommandTest extends TestCase
 {
     protected array $files = [
@@ -12,7 +14,7 @@ class TraitMakeCommandTest extends TestCase
         'app/Concerns/FooTrait.php',
     ];
 
-    public function testItCanGenerateTraitFile()
+    public function testItCanGenerateTraitFile(): void
     {
         $this->artisan('make:trait', ['name' => 'FooTrait'])
             ->assertExitCode(0);
@@ -27,7 +29,7 @@ class TraitMakeCommandTest extends TestCase
     {
         $traitsFolderPath = app_path('Traits');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($traitsFolderPath);
@@ -47,7 +49,7 @@ class TraitMakeCommandTest extends TestCase
     {
         $traitsFolderPath = app_path('Concerns');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($traitsFolderPath);

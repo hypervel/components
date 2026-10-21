@@ -31,6 +31,17 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can('bar'));
     }
 
+    public function testCanUsesStrictComparisonForAbilities(): void
+    {
+        $token = new PersonalAccessToken;
+
+        $token->abilities = [1, true];
+
+        $this->assertFalse($token->can('foo'));
+        $this->assertFalse($token->can('1'));
+        $this->assertFalse($token->can('*'));
+    }
+
     public function testCanCheckAbilitiesWithBackedEnum(): void
     {
         $token = new PersonalAccessToken;
@@ -71,14 +82,5 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can('posts:read'));
         // String check for legacy
         $this->assertTrue($token->can('legacy-ability'));
-    }
-
-    public function testAbilityChecksDoNotCoerceStoredValues(): void
-    {
-        $token = new PersonalAccessToken;
-        $token->abilities = [1, true];
-
-        $this->assertFalse($token->can('1'));
-        $this->assertFalse($token->can('*'));
     }
 }

@@ -280,7 +280,7 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->testFilesystem->failCopyTarget = $this->baseDatabase;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create SQLite database [{$this->baseDatabase}].");
+        $this->expectExceptionMessageIs("Unable to create SQLite database [{$this->baseDatabase}].");
 
         try {
             $this->withSqliteDatabase(static function (): void {
@@ -299,7 +299,7 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->testFilesystem->failCopyTarget = $this->activeDatabase;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create SQLite database [{$this->activeDatabase}].");
+        $this->expectExceptionMessageIs("Unable to create SQLite database [{$this->activeDatabase}].");
 
         try {
             $this->withSqliteDatabase(static function (): void {
@@ -331,6 +331,24 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->assertContains("delete:{$this->activeDatabase}", $this->testFilesystem->operations);
         $this->assertFileExists($this->baseDatabase);
         $this->assertFileDoesNotExist($this->activeDatabase);
+    }
+
+    #[Test]
+    public function itRunsCallablesThatAreNotClosures(): void
+    {
+        file_put_contents($this->baseDatabase . '.example', 'example');
+        config(['database.connections.sqlite.database' => $this->baseDatabase]);
+        $callback = new SqliteFileTestCallback;
+
+        $this->withoutSqliteDatabase($callback);
+        $this->assertSame(1, $callback->calls);
+
+        $this->withSqliteDatabase($callback);
+        $this->assertSame(2, $callback->calls);
+
+        $this->activeDatabase = $this->baseDatabase;
+        $this->useActiveSqliteDatabasePath($callback);
+        $this->assertSame(3, $callback->calls);
     }
 
     protected function baseSqliteDatabasePath(): string
@@ -423,5 +441,18 @@ class SqliteFileTestFilesystem extends Filesystem
         }
 
         return parent::delete($paths);
+    }
+}
+
+class SqliteFileTestCallback
+{
+    public int $calls = 0;
+
+    /**
+     * Record the invocation.
+     */
+    public function __invoke(): void
+    {
+        ++$this->calls;
     }
 }

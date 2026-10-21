@@ -55,7 +55,7 @@ You may configure your application's Redis settings via the `config/database.php
 
     'default' => [
         'url' => env('REDIS_URL'),
-        'host' => env('REDIS_HOST', 'localhost'),
+        'host' => env('REDIS_HOST', '127.0.0.1'),
         'username' => env('REDIS_USERNAME'),
         'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
@@ -81,7 +81,7 @@ You may configure your application's Redis settings via the `config/database.php
 
 Hypervel's default configuration also includes `cache`, `session`, `queue`, and `reverb` Redis connections. Each connection follows the same standalone shape as the `default` connection shown above.
 
-Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `username`, `password`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`. An omitted `read_timeout` uses `0.0`, `context` and per-connection `options` use empty arrays, and `events` is disabled. Standalone and Sentinel connections may also omit `database` to use database `0`, or omit `name`.
+Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `username`, `password`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, `tcp_keepalive`, and `pool`. An omitted `read_timeout` uses `0.0`, an omitted `tcp_keepalive` uses `0`, `context` and per-connection `options` use empty arrays, and `events` is disabled. Standalone and Sentinel connections may also omit `database` to use database `0`, or omit `name`.
 
 For standalone and Sentinel connections, an omitted or null `name` disables `CLIENT SETNAME`. An omitted or null `timeout` uses the connection pool's `connect_timeout`, while an omitted or null `prefix` inherits the shared `redis.options.prefix` value. An omitted or null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections derive their transport from their seeds and context when `scheme` is omitted and do not have a client name.
 
@@ -91,6 +91,8 @@ You may define a single URL for a standalone connection instead of configuring i
 REDIS_URL="tcp://127.0.0.1:6379?database=0"
 REDIS_CACHE_URL="tls://user:password@127.0.0.1:6380?database=0"
 ```
+
+URLs may also use the `redis` or `valkey` scheme for TCP connections and the `rediss` or `valkeys` scheme for TLS connections.
 
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme
@@ -106,7 +108,7 @@ When `scheme` is omitted or null, a non-empty `context` configuration selects TL
 <a name="phpredis"></a>
 ### PhpRedis
 
-Hypervel communicates with Redis using the PhpRedis extension. Standalone connections support the following parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`.
+Hypervel communicates with Redis using the PhpRedis extension. Standalone connections support the following parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, `tcp_keepalive`, and `pool`.
 
 ```php
 'timeout' => 5.0,
@@ -117,12 +119,9 @@ Hypervel communicates with Redis using the PhpRedis extension. Standalone connec
 ],
 ```
 
-A non-zero `read_timeout` is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. A value of `0.0` leaves PHP's `default_socket_timeout` in effect. The optional `name` value sets the client name on standalone Redis connections.
+A non-zero `read_timeout` is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. A value of `0.0` leaves PHP's `default_socket_timeout` in effect. A non-zero `tcp_keepalive` enables TCP keepalive on the Redis socket. PhpRedis does not apply TCP keepalive to Redis Cluster node connections, so Cluster connections reject a non-zero `tcp_keepalive`, including one inherited from the shared `options`. To use a shared keepalive value alongside Cluster connections, set `tcp_keepalive` to `0` in each Cluster connection's `options`. The optional `name` value sets the client name on standalone Redis connections.
 
-The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies to standalone and Cluster connections. Connection options override shared options, while a non-null top-level connection `prefix` takes final precedence.
-
-> [!WARNING]
-> PhpRedis 6.3.0 crashes when `tcp_keepalive` is applied to a Redis Cluster connection; leave this option unset for Cluster connections when using that version.
+The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies to standalone and Cluster connections. Connection options override shared options, and both override the matching top-level connection settings, while a non-null top-level connection `prefix` takes final precedence.
 
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
@@ -345,6 +344,8 @@ Alternatively, you may pass commands to the server using the `Redis` facade's `c
 $values = Redis::command('lrange', ['name', 5, 10]);
 ```
 
+PhpRedis's standalone/Sentinel and Cluster clients use different parameter names for some commands. Use positional arguments when the same command code must work with either client.
+
 <a name="using-multiple-redis-connections"></a>
 #### Using Multiple Redis Connections
 
@@ -403,6 +404,24 @@ Redis::disableEvents();
 ```
 
 These methods are intended for application boot. If a pool was created earlier in the same startup lifecycle with the other setting, Hypervel replaces that pool generation on its next use. Matching pools are left untouched. Connections already checked out from a replaced generation may finish their current work and are destroyed when returned.
+
+To listen for failed commands, register a callback using the `Redis` facade's `listenForFailures` method in the `boot` method of a service provider:
+
+```php
+use Hypervel\Redis\Events\CommandFailed;
+use Hypervel\Support\Facades\Log;
+use Hypervel\Support\Facades\Redis;
+
+Redis::listenForFailures(function (CommandFailed $event): void {
+    Log::error('Redis command failed.', [
+        'connection' => $event->connectionName,
+        'command' => $event->command,
+        'exception' => $event->exception,
+    ]);
+});
+```
+
+Listening for a failure does not suppress the command's exception. You may also use `Redis::listen` to register a callback that receives a `Hypervel\Redis\Events\CommandExecuted` event after each successful command.
 
 <a name="holding-a-pooled-connection"></a>
 #### Holding a Pooled Connection
@@ -624,6 +643,8 @@ PhpRedis does not support pipelining on Redis Cluster connections. Pipelining re
 <a name="advanced-helpers"></a>
 ### Advanced Helpers
 
+When calling `Redis::scan()`, `hscan()`, `sscan()`, or `zscan()`, pass the cursor returned in each result to the next call and stop when the result is `false`; the cursor argument is not updated by reference.
+
 If you need to stream keys with Redis' `SCAN` command, use `safeScan` while holding a pooled connection. Pass a logical key pattern without adding the connection prefix, just as you would pass a key to `get`. The `safeScan` method adds the connection prefix, including when PhpRedis' `SCAN_PREFIX` option is enabled, and removes it from returned keys:
 
 ```php
@@ -764,4 +785,4 @@ The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`
 <a name="credits"></a>
 ## Credits
 
-Hypervel Redis began as a port of [Hyperf Redis](https://github.com/hyperf/hyperf/tree/master/src/redis) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel Redis is based on [Laravel Redis](https://github.com/illuminate/redis) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -13,7 +13,7 @@ if (! function_exists('inertia')) {
     /**
      * Inertia helper.
      *
-     * @param array<array-key, mixed>|Arrayable<array-key, mixed>|ProvidesInertiaProperties $props
+     * @param array<array-key, mixed>|Arrayable<array<array-key, mixed>>|ProvidesInertiaProperties $props
      * @return ($component is null ? ResponseFactory : Response)
      */
     function inertia(

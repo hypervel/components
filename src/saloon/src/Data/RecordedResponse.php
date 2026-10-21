@@ -14,13 +14,14 @@ class RecordedResponse implements JsonSerializable
     /**
      * Create a recorded response.
      *
-     * @param array<string, list<string>> $headers
+     * @param array<string, list<string>|string> $headers
+     * @param array<array-key, mixed>|string $data
      * @param array<string, mixed> $context
      */
     public function __construct(
         public int $statusCode,
         public array $headers = [],
-        public string $data = '',
+        public array|string $data = '',
         public array $context = [],
     ) {
     }
@@ -30,11 +31,11 @@ class RecordedResponse implements JsonSerializable
      */
     public static function fromFile(string $contents): static
     {
-        /** @var array{statusCode: int, headers: array<string, list<string>>, data: string, encoding?: string, context?: array<string, mixed>} $fileData */
+        /** @var array{statusCode: int, headers: array<string, list<string>|string>, data: array<array-key, mixed>|string, encoding?: string, context?: array<string, mixed>} $fileData */
         $fileData = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         $data = $fileData['data'];
 
-        if (($fileData['encoding'] ?? null) === 'base64') {
+        if (is_string($data) && ($fileData['encoding'] ?? null) === 'base64') {
             $decoded = base64_decode($data, true);
 
             if ($decoded === false) {
@@ -83,7 +84,7 @@ class RecordedResponse implements JsonSerializable
     /**
      * Convert the recorded response to its fixture representation.
      *
-     * @return array{statusCode: int, headers: array<string, list<string>>, data: string, context: array<string, mixed>, encoding?: 'base64'}
+     * @return array{statusCode: int, headers: array<string, list<string>|string>, data: array<array-key, mixed>|string, context: array<string, mixed>, encoding?: 'base64'}
      */
     public function jsonSerialize(): array
     {
@@ -94,7 +95,7 @@ class RecordedResponse implements JsonSerializable
             'context' => $this->context,
         ];
 
-        if (! mb_check_encoding($this->data, 'UTF-8')) {
+        if (is_string($this->data) && ! mb_check_encoding($this->data, 'UTF-8')) {
             $response['data'] = base64_encode($this->data);
             $response['encoding'] = 'base64';
         }

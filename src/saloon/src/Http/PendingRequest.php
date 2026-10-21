@@ -8,9 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use GuzzleHttp\Psr7\Request as PsrRequest;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Http\Client\Response as HttpResponse;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Cache\Contracts\Cacheable;
 use Hypervel\Saloon\Cache\Exceptions\CachingException;
 use Hypervel\Saloon\Contracts\Authenticator;
@@ -23,7 +21,6 @@ use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Http\PendingRequest\BootPlugins;
 use Hypervel\Saloon\Repositories\ArrayRepository;
 use Hypervel\Saloon\Repositories\Body\MultipartBodyRepository;
-use Hypervel\Saloon\Repositories\IntegerRepository;
 use Hypervel\Saloon\Traits\Auth\AuthenticatesRequests;
 use Hypervel\Saloon\Traits\Body\HasBody;
 use Hypervel\Saloon\Traits\HasDebugging;
@@ -47,8 +44,21 @@ class PendingRequest
     use HasDebugging;
     use HasRequestProperties {
         withQueryParameters as protected addQueryParameters;
+        withoutQueryParameters as protected removeQueryParameters;
+        withQueryString as protected replaceQueryString;
+        withUrlParameters as protected addUrlParameters;
     }
     use Macroable;
+
+    /**
+     * The HTTP method used by the operation.
+     */
+    protected Method $method;
+
+    /**
+     * The absolute URL override.
+     */
+    protected ?string $url;
 
     /**
      * The finalized request URI.
@@ -102,6 +112,11 @@ class PendingRequest
     protected ?FakeResponse $fakeResponse = null;
 
     /**
+     * Whether the connector and request plugins are booting.
+     */
+    protected bool $bootingPlugins = false;
+
+    /**
      * Create a side-effect-free pending request.
      *
      * @param Request<TDto> $request
@@ -109,25 +124,27 @@ class PendingRequest
     public function __construct(
         protected Connector $connector,
         protected Request $request,
-        protected CacheFactory $cache,
-        protected RateLimiter $rateLimiter,
     ) {
-        $this->headerRepository = new ArrayRepository(array_merge(
-            $connector->headers(),
-            $request->headers(),
-        ));
+        $this->method = $request->method();
+        $this->url = $request->url();
+        $this->urlParameters = $request->urlParameters();
+        $headers = array_merge($connector->headers(), $request->headers());
+
+        // Plugins and authenticators match header names case-insensitively, so headers written as a list such as
+        // ['Accept: application/json'] are rejected here with a clear message instead of failing inside them.
+        HeaderNormalizer::ensureValidNames($headers);
+
+        $this->headerRepository = new ArrayRepository($headers);
         $this->queryRepository = new ArrayRepository(array_merge(
             $connector->queryParameters(),
             $request->queryParameters(),
         ));
+        $this->queryString = $request->queryString();
         $this->optionRepository = new ArrayRepository(array_replace_recursive(
             $connector->options(),
             $request->options(),
         ));
-        $this->delayRepository = new IntegerRepository(
-            $request->delayMilliseconds() ?? $connector->delayMilliseconds(),
-        );
-        $this->middlewarePipeline = clone $request->middleware();
+        $this->delay = $request->delayMilliseconds() ?? $connector->delayMilliseconds();
 
         $connectorBody = $connector->copyDefaultBodyRepository();
         $requestBody = $request->copyBodyRepository();
@@ -142,8 +159,8 @@ class PendingRequest
             $this->bodyRepository = $connectorBody->merge($requestBody->all());
         }
 
-        $this->cookieGroups = $request->cookies();
-        $this->retryPolicy = $request->retryPolicy();
+        $this->cookies = $request->cookies();
+        $this->retryPolicy = $request->retryPolicy() ?? $connector->retryPolicy();
         $this->authenticator = $request->authenticator() ?? $connector->authenticator();
     }
 
@@ -170,7 +187,54 @@ class PendingRequest
      */
     public function method(): Method
     {
-        return $this->request->method();
+        return $this->method;
+    }
+
+    /**
+     * Change the HTTP method used by the operation.
+     *
+     * @return $this
+     */
+    public function withMethod(Method $method): static
+    {
+        $this->method = $method;
+
+        return $this;
+    }
+
+    /**
+     * Get the absolute URL override.
+     */
+    public function url(): ?string
+    {
+        return $this->url;
+    }
+
+    /**
+     * Replace the connector base URL and request endpoint for this operation.
+     *
+     * @return $this
+     */
+    public function withUrl(string $url): static
+    {
+        $this->uri = null;
+        $this->url = $url;
+
+        return $this;
+    }
+
+    /**
+     * Specify the URL parameters and invalidate the finalized URI.
+     *
+     * @param array<array-key, mixed> $parameters
+     * @return $this
+     */
+    public function withUrlParameters(array $parameters = []): static
+    {
+        $this->uri = null;
+        $this->addUrlParameters($parameters);
+
+        return $this;
     }
 
     /**
@@ -178,18 +242,29 @@ class PendingRequest
      */
     public function uri(): UriInterface
     {
-        return $this->uri ?? UrlResolver::withQuery(
-            UrlResolver::resolve(
-                $this->connector->resolveBaseUrl(),
-                $this->request->resolveEndpoint(),
+        if ($this->uri !== null) {
+            return $this->uri;
+        }
+
+        $uri = $this->url !== null
+            ? UrlResolver::resolve('', UrlResolver::expand($this->url, $this->urlParameters), false)
+            : UrlResolver::resolve(
+                UrlResolver::expand($this->connector->resolveBaseUrl(), $this->urlParameters),
+                UrlResolver::expand($this->request->resolveEndpoint(), $this->urlParameters),
                 $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
-            ),
+            );
+        $query = $this->queryString();
+
+        return UrlResolver::withQuery(
+            $query === null ? $uri : $uri->withQuery($query),
             $this->queryParameters(),
         );
     }
 
     /**
      * Finalize the request URI after ordinary request middleware.
+     *
+     * @internal
      */
     public function finalizeUri(): static
     {
@@ -213,20 +288,57 @@ class PendingRequest
     }
 
     /**
-     * Authenticate the pending request immediately.
+     * Remove query parameters and invalidate the finalized URI.
+     *
+     * Only values added through the query parameter methods are removed. Values embedded in the base URL, endpoint
+     * or raw query string are unchanged.
+     *
+     * @param array<int, string>|string $keys
+     * @return $this
+     */
+    public function withoutQueryParameters(array|string $keys): static
+    {
+        $this->uri = null;
+        $this->removeQueryParameters($keys);
+
+        return $this;
+    }
+
+    /**
+     * Replace the raw query string and invalidate the finalized URI.
+     */
+    public function withQueryString(string $query): static
+    {
+        $this->uri = null;
+
+        return $this->replaceQueryString($query);
+    }
+
+    /**
+     * Authenticate the pending request.
+     *
+     * The authenticator is applied immediately, except while plugins boot: it is then applied once every plugin has
+     * booted.
      *
      * @return $this
      */
     public function authenticate(Authenticator $authenticator): static
     {
         $this->setAuthenticator($authenticator);
-        $authenticator->set($this);
+
+        // A later plugin may still change the URL or headers the authenticator reads, such as an API version in the
+        // host, so applyAuthentication() applies the selected authenticator after the plugins boot.
+        if (! $this->bootingPlugins) {
+            $authenticator->set($this);
+        }
 
         return $this;
     }
 
     /**
-     * Apply the configured authenticator.
+     * Apply the selected authenticator.
+     *
+     * @internal
      */
     public function applyAuthentication(): static
     {
@@ -237,16 +349,26 @@ class PendingRequest
 
     /**
      * Boot the connector and request plugins.
+     *
+     * @internal
      */
     public function bootPlugins(): static
     {
-        (new BootPlugins)($this);
+        $this->bootingPlugins = true;
+
+        try {
+            (new BootPlugins)($this);
+        } finally {
+            $this->bootingPlugins = false;
+        }
 
         return $this;
     }
 
     /**
-     * Merge worker-global middleware into this operation.
+     * Merge global or request middleware into this operation's own pipeline.
+     *
+     * @internal
      */
     public function mergeMiddleware(MiddlewarePipeline $middleware): static
     {
@@ -257,6 +379,8 @@ class PendingRequest
 
     /**
      * Execute the request middleware pipeline.
+     *
+     * @internal
      */
     public function executeRequestPipeline(): static
     {
@@ -283,6 +407,8 @@ class PendingRequest
 
     /**
      * Prepare the request body after ordinary request middleware.
+     *
+     * @internal
      */
     public function prepareBody(): static
     {
@@ -303,6 +429,8 @@ class PendingRequest
 
     /**
      * Get the prepared request body.
+     *
+     * @internal
      */
     public function preparedBody(): ?StreamInterface
     {
@@ -359,6 +487,7 @@ class PendingRequest
      *
      * @param callable(RequestInterface, PendingRequest): void $observer
      * @return $this
+     * @internal
      */
     public function observePsrRequest(callable $observer): static
     {
@@ -379,6 +508,8 @@ class PendingRequest
 
     /**
      * Notify the final PSR request observers.
+     *
+     * @internal
      */
     public function notifyPsrRequestObservers(RequestInterface $request): void
     {
@@ -417,6 +548,7 @@ class PendingRequest
      * Set the final application-owned PSR request.
      *
      * @return $this
+     * @internal
      */
     public function setPsrRequest(RequestInterface $request): static
     {
@@ -443,6 +575,11 @@ class PendingRequest
         $headers = $this->headers();
 
         if (($contentType = $this->multipartContentType()) !== null) {
+            $headers = array_filter(
+                $headers,
+                static fn (string $name): bool => strcasecmp($name, 'Content-Type') !== 0,
+                ARRAY_FILTER_USE_KEY,
+            );
             $headers['Content-Type'] = $contentType;
         }
 
@@ -456,6 +593,8 @@ class PendingRequest
 
     /**
      * Restore the attempt body before another attempt.
+     *
+     * @internal
      */
     public function restoreAttemptBody(): bool
     {
@@ -473,6 +612,9 @@ class PendingRequest
 
         return true;
     }
+
+    // setBody() is not included: the body methods change the body, and defaultBodyRepository() supplies a custom
+    // repository. See the package README.
 
     /**
      * Set the fake response.
@@ -494,8 +636,15 @@ class PendingRequest
         return $this->fakeResponse;
     }
 
+    // hasFakeResponse() is not included: compare fakeResponse() with null.
+
+    // isAsynchronous() and setAsynchronous() are not included: every pending request is sent synchronously, and pools
+    // send concurrently through coroutines. See the package README.
+
     /**
      * Validate the request's caching configuration.
+     *
+     * @internal
      */
     public function validateCachingConfiguration(): static
     {
@@ -511,6 +660,8 @@ class PendingRequest
 
     /**
      * Determine if this operation is cacheable.
+     *
+     * @internal
      */
     public function isCacheable(): bool
     {
@@ -524,6 +675,8 @@ class PendingRequest
 
     /**
      * Determine if the matching cache entry should be invalidated.
+     *
+     * @internal
      */
     public function shouldInvalidateCache(): bool
     {
@@ -532,6 +685,8 @@ class PendingRequest
 
     /**
      * Get the cache duration.
+     *
+     * @internal
      */
     public function cacheFor(): DateInterval|DateTimeInterface|int
     {
@@ -541,6 +696,8 @@ class PendingRequest
 
     /**
      * Get the selected cache store.
+     *
+     * @internal
      */
     public function cacheStore(): UnitEnum|string|null
     {
@@ -555,27 +712,13 @@ class PendingRequest
 
     /**
      * Resolve the custom cache key.
+     *
+     * @internal
      */
     public function resolveCacheKey(): ?string
     {
         return $this->request->resolveCacheKey($this)
             ?? $this->connector->resolveCacheKey($this);
-    }
-
-    /**
-     * Get the cache factory.
-     */
-    public function cache(): CacheFactory
-    {
-        return $this->cache;
-    }
-
-    /**
-     * Get the rate limiter manager.
-     */
-    public function rateLimiter(): RateLimiter
-    {
-        return $this->rateLimiter;
     }
 
     /**
@@ -594,6 +737,7 @@ class PendingRequest
      * Create the response selected by this operation.
      *
      * @return Response<TDto>
+     * @internal
      */
     public function createResponse(HttpResponse $response, RequestInterface $request): Response
     {
@@ -631,15 +775,25 @@ class PendingRequest
     }
 
     /**
-     * Resolve the multipart content type when the caller did not provide one.
+     * Resolve the multipart content type unless the caller provided one with a boundary.
      */
     protected function multipartContentType(): ?string
     {
         $repository = $this->bodyRepository();
 
-        return $repository instanceof MultipartBodyRepository && ! $this->hasHeader('Content-Type')
-            ? $repository->contentType()
-            : null;
+        if (! $repository instanceof MultipartBodyRepository) {
+            return null;
+        }
+
+        // A content type without a boundary, such as a connector's JSON default or one kept from the body format
+        // the request used before attach(), cannot describe a multipart body, so it is replaced.
+        foreach (HeaderNormalizer::normalize($this->headers()) as $name => $value) {
+            if (strcasecmp($name, 'Content-Type') === 0 && stripos(implode(', ', (array) $value), 'boundary=') !== false) {
+                return null;
+            }
+        }
+
+        return $repository->contentType();
     }
 
     /**

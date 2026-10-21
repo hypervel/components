@@ -37,6 +37,7 @@ class PackageMetadataTest extends TestCase
         foreach ([
             'hypervel/cache',
             'hypervel/concurrency',
+            'hypervel/di',
             'hypervel/encryption',
             'hypervel/events',
         ] as $dependency) {
@@ -46,10 +47,11 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'brick/math',
-            'guzzlehttp/guzzle',
+            'hypervel/guzzle',
             'league/flysystem',
             'league/uri',
             'monolog/monolog',
+            'psr/log',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertArrayHasKey($dependency, $composer['require']);

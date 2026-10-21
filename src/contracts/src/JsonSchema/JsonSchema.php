@@ -20,7 +20,7 @@ interface JsonSchema
     /**
      * Create a new object schema instance.
      *
-     * @param array<string, Type>|(Closure(JsonSchema): array<string, Type>) $properties
+     * @param array<int|string, Type>|(Closure(JsonSchema): array<int|string, Type>) $properties
      */
     public function object(Closure|array $properties = []): ObjectType;
 

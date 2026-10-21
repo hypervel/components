@@ -16,8 +16,14 @@ use function Hypervel\Testbench\package_path;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
 final class UsesVendor implements AfterEach, BeforeEach
 {
+    /**
+     * Determine if vendor symlink was created via this attribute.
+     */
     public bool $vendorSymlinkCreated = false;
 
+    /**
+     * Handle the attribute.
+     */
     public function beforeEach(ApplicationContract $app): void
     {
         $hypervel = clone $app;
@@ -27,6 +33,9 @@ final class UsesVendor implements AfterEach, BeforeEach
         $this->vendorSymlinkCreated = $hypervel->make('TESTBENCH_VENDOR_SYMLINK');
     }
 
+    /**
+     * Handle the attribute.
+     */
     public function afterEach(ApplicationContract $app): void
     {
         if ($this->vendorSymlinkCreated === true) {

@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\Passkeys\Http\Responses;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Contracts\PasskeyRegistrationResponse as PasskeyRegistrationResponseContract;
 use Hypervel\Passkeys\Passkey;
 use Symfony\Component\HttpFoundation\Response;
 
-class PasskeyRegistrationResponse implements PasskeyRegistrationResponseContract
+class PasskeyRegistrationResponse implements PasskeyRegistrationResponseContract, Transient
 {
-    public function __construct(
-        private ?Passkey $passkey = null,
-    ) {
-    }
+    /**
+     * The passkey that was registered.
+     */
+    protected ?Passkey $passkey = null;
 
     /**
      * Set the passkey that was registered.
      */
     public function withPasskey(Passkey $passkey): static
     {
-        $response = clone $this;
-        $response->passkey = $passkey;
+        $this->passkey = $passkey;
 
-        return $response;
+        return $this;
     }
 
     /**

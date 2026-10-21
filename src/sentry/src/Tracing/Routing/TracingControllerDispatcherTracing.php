@@ -22,7 +22,7 @@ class TracingControllerDispatcherTracing extends TracingRoutingDispatcher implem
      */
     public function dispatch(Route $route, mixed $controller, string $method): mixed
     {
-        return $this->wrapRouteDispatch(function () use ($route, $controller, $method) {
+        return $this->wrapRouteDispatch(function () use ($route, $controller, $method): mixed {
             return $this->dispatcher->dispatch($route, $controller, $method);
         }, $route);
     }

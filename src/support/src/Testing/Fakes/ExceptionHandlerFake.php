@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\WithoutExceptionHandlingHandler;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
@@ -13,12 +14,13 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use PHPUnit\Framework\ExpectationFailedException;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Foundation\Exceptions\Handler
+ * @mixin Handler
  */
 class ExceptionHandlerFake implements ExceptionHandler, Fake
 {
@@ -69,8 +71,9 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
         );
 
         if (is_string($exception)) {
-            PHPUnit::assertTrue(
-                in_array($exception, array_map(get_class(...), $this->reported), true),
+            PHPUnit::assertContains(
+                $exception,
+                array_map(get_class(...), $this->reported),
                 $message,
             );
 
@@ -104,6 +107,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
      * Assert if an exception of the given type has not been reported.
      *
      * @param class-string<Throwable>|(Closure(Throwable): bool) $exception
+     *
+     * @throws ExpectationFailedException
      */
     public function assertNotReported(Closure|string $exception): void
     {
@@ -135,11 +140,16 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Report or log an exception.
+     *
+     * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
+     *
+     * @throws Throwable
      */
-    public function report(Throwable $e): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         if (! $this->isFakedException($e)) {
-            $this->handler->report($e);
+            $this->handler->report($e, $context, $level);
 
             return;
         }
@@ -160,7 +170,7 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
      */
     protected function isFakedException(Throwable $e): bool
     {
-        return count($this->exceptions) === 0 || in_array(get_class($e), $this->exceptions, true);
+        return $this->exceptions === [] || in_array(get_class($e), $this->exceptions, true);
     }
 
     /**
@@ -248,9 +258,25 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     }
 
     /**
-     * Handle dynamic method calls to the handler.
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return $this->handler->isReporting($e);
+    }
+
+    /**
+     * Create the context for an exception.
      *
-     * @param array<string, mixed> $parameters
+     * @return array<array-key, mixed>
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return $this->handler->buildContextForException($e);
+    }
+
+    /**
+     * Handle dynamic method calls to the handler.
      */
     public function __call(string $method, array $parameters): mixed
     {

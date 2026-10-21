@@ -6,6 +6,6 @@ namespace Hypervel\Saloon\Enums;
 
 enum PipeOrder: string
 {
-    case First = 'first';
-    case Last = 'last';
+    case FIRST = 'first';
+    case LAST = 'last';
 }

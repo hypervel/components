@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
+use Dotenv\Parser\Entry;
+use Dotenv\Parser\EntryParser;
+use Dotenv\Parser\Lines;
 use Dotenv\Repository\Adapter\AdapterInterface;
 use Dotenv\Repository\Adapter\PutenvAdapter;
 use Dotenv\Repository\RepositoryBuilder;
@@ -286,47 +289,47 @@ class Env
     {
         $prefix = explode('_', $key)[0] . '_';
         $lastPrefixIndex = -1;
+        $assignment = null;
 
         $stringValue = (string) $value;
         $shouldQuote = preg_match('/^[a-zA-Z0-9]+$/', $stringValue) === 0;
 
-        $lineToAddVariations = [
-            $key . '=' . (is_string($value) ? self::prepareQuotedValue($value) : $value),
-            $key . '=' . $value,
-        ];
-
-        $lineToAdd = $shouldQuote ? $lineToAddVariations[0] : $lineToAddVariations[1];
+        $lineToAdd = $key . '=' . ($shouldQuote && is_string($value) ? self::prepareQuotedValue($value) : $value);
 
         if ($value === '') {
             $lineToAdd = $key . '=';
         }
 
-        foreach ($envLines as $index => $line) {
-            if (str_starts_with($line, $prefix)) {
-                $lastPrefixIndex = $index;
+        foreach (self::parseEnvEntries($envLines) as $entry) {
+            $name = $entry['entry']->getName();
+
+            if (str_starts_with($name, $prefix)) {
+                $lastPrefixIndex = $entry['end'];
             }
 
-            if (in_array($line, $lineToAddVariations)) {
-                // This exact line already exists, so we don't need to add it again.
+            // The loader uses the last assignment, so later duplicates replace earlier matches.
+            if ($name === $key) {
+                $assignment = $entry;
+            }
+        }
+
+        if ($assignment !== null) {
+            $currentValue = $assignment['entry']->getValue()->getOrElse(null);
+
+            // A value that references other variables is never equal to a literal value.
+            if ($currentValue !== null && $currentValue->getVars() === [] && $currentValue->getChars() === $stringValue) {
                 return $envLines;
             }
 
-            if ($line === $key . '=') {
-                // If the value is empty, we can replace it with the new value.
-                $envLines[$index] = $lineToAdd;
-
+            if ($currentValue !== null && $currentValue->getChars() !== '' && ! $overwrite) {
                 return $envLines;
             }
 
-            if (str_starts_with($line, $key . '=')) {
-                if (! $overwrite) {
-                    return $envLines;
-                }
+            $export = preg_match('/^\s*export\s/', $envLines[$assignment['start']]) === 1 ? 'export ' : '';
 
-                $envLines[$index] = $lineToAdd;
+            array_splice($envLines, $assignment['start'], $assignment['end'] - $assignment['start'] + 1, [$export . $lineToAdd]);
 
-                return $envLines;
-            }
+            return $envLines;
         }
 
         if ($lastPrefixIndex === -1) {
@@ -342,6 +345,41 @@ class Env
             [$lineToAdd],
             array_slice($envLines, $lastPrefixIndex + 1)
         );
+    }
+
+    /**
+     * Parse the environment file lines into entries with the line span of each entry.
+     *
+     * Multiline values are grouped by the dotenv parser, so text inside a value is
+     * never mistaken for an assignment. Entries the parser rejects are skipped.
+     *
+     * @param array<int, string> $envLines
+     * @return list<array{start: int, end: int, entry: Entry}>
+     */
+    protected static function parseEnvEntries(array $envLines): array
+    {
+        $entries = [];
+        $index = 0;
+
+        foreach (Lines::process($envLines) as $rawEntry) {
+            $rawLines = explode("\n", $rawEntry);
+
+            // Only comments and blank lines are skipped, and an entry never starts with one.
+            while ($envLines[$index] !== $rawLines[0]) {
+                ++$index;
+            }
+
+            $end = $index + count($rawLines) - 1;
+            $entry = EntryParser::parse($rawEntry)->success();
+
+            if ($entry->isDefined()) {
+                $entries[] = ['start' => $index, 'end' => $end, 'entry' => $entry->get()];
+            }
+
+            $index = $end + 1;
+        }
+
+        return $entries;
     }
 
     /**

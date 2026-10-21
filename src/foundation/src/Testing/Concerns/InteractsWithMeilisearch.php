@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Meilisearch\Client as MeilisearchClient;
 use RuntimeException;
-use Throwable;
 
 /**
  * Add Meilisearch support to an integration test.
@@ -63,11 +62,9 @@ trait InteractsWithMeilisearch
 
         try {
             $this->cleanupMeilisearchIndexes();
-        } catch (Throwable) {
-            // Ignore cleanup errors
+        } finally {
+            $this->meilisearch = null;
         }
-
-        $this->meilisearch = null;
     }
 
     /**

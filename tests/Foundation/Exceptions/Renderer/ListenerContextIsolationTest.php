@@ -14,23 +14,6 @@ use function Hypervel\Coroutine\parallel;
 
 class ListenerContextIsolationTest extends TestCase
 {
-    public function testQueryCapStopsAtMaxQueries(): void
-    {
-        $listener = new Listener;
-
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->andReturn([]);
-
-        for ($i = 0; $i < 110; ++$i) {
-            $listener->onQueryExecuted(
-                new QueryExecuted("SELECT {$i}", [], 1.0, $connection)
-            );
-        }
-
-        $this->assertCount(100, $listener->queries());
-    }
-
     public function testQueriesAreIsolatedBetweenCoroutines(): void
     {
         $results = parallel([

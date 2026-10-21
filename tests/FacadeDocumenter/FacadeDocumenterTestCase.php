@@ -71,7 +71,7 @@ abstract class FacadeDocumenterTestCase extends TestCase
      */
     protected function runDocumenter(array $arguments): Process
     {
-        $wrapper = realpath(__DIR__ . '/bin/run-with-testbench-autoload.php');
+        $wrapper = realpath(__DIR__ . '/Fixtures/run-with-testbench-autoload.php');
 
         $process = new Process(
             command: [PHP_BINARY, '-f', $wrapper, '--', ...$arguments],

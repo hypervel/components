@@ -8,6 +8,7 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Fluent;
 use RuntimeException;
 use UnitEnum;
@@ -61,6 +62,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile the query to determine the schemas.
+     *
+     * @throws RuntimeException
      */
     public function compileSchemas(): string
     {
@@ -130,11 +133,51 @@ abstract class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile a drop vector index command.
+     *
+     * @throws RuntimeException
+     */
+    public function compileDropVectorIndex(Blueprint $blueprint, Fluent $command): string
+    {
+        throw new RuntimeException('The database driver in use does not support vector indexes.');
+    }
+
+    /**
      * Compile the query to determine the foreign keys.
      */
     public function compileForeignKeys(?string $schema, string $table): string
     {
         throw new RuntimeException('This database driver does not support retrieving foreign keys.');
+    }
+
+    /**
+     * Compile the query to determine the partitions of a table.
+     *
+     * @throws RuntimeException
+     */
+    public function compilePartitions(?string $schema, string $table): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
+    }
+
+    /**
+     * Compile the query to determine the parents of the given tables and of their ancestors.
+     *
+     * @throws RuntimeException
+     */
+    public function compilePartitionAncestors(array $tables): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
+    }
+
+    /**
+     * Compile a create range partition command.
+     *
+     * @throws RuntimeException
+     */
+    public function compileCreateRangePartition(string $table, string $partition, array $from, array $to): string
+    {
+        throw new RuntimeException('This database driver does not support table partitioning.');
     }
 
     /**
@@ -234,6 +277,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile a drop foreign key command.
+     *
+     * @throws RuntimeException
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command): array|string|null
     {
@@ -259,7 +304,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the column definition.
      *
-     * @param \Hypervel\Database\Schema\ColumnDefinition $column
+     * @param ColumnDefinition $column
      */
     protected function getColumn(Blueprint $blueprint, Fluent $column): string
     {
@@ -279,13 +324,7 @@ abstract class Grammar extends BaseGrammar
         return $this->{'type' . ucfirst($column->type)}($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver does not support the computed type.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Create the column definition for a vector type.
@@ -420,12 +459,12 @@ abstract class Grammar extends BaseGrammar
         }
 
         if ($value instanceof UnitEnum) {
-            return "'" . str_replace("'", "''", enum_value($value)) . "'";
+            return $this->quoteString((string) enum_value($value));
         }
 
         return is_bool($value)
             ? "'" . (int) $value . "'"
-            : "'" . str_replace("'", "''", (string) $value) . "'";
+            : $this->quoteString((string) $value);
     }
 
     /**

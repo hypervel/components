@@ -6,6 +6,7 @@ namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use Closure;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Define a binding selected by a boot-stable condition.
@@ -25,7 +26,7 @@ class BindWhen
     /**
      * The condition that determines if the binding should apply.
      *
-     * @var Closure(\Hypervel\Contracts\Container\Container): bool
+     * @var Closure(Container): bool
      */
     public Closure $condition;
 
@@ -33,7 +34,7 @@ class BindWhen
      * Create a new attribute instance.
      *
      * @param class-string $concrete
-     * @param Closure(\Hypervel\Contracts\Container\Container): bool $condition
+     * @param Closure(Container): bool $condition
      */
     public function __construct(string $concrete, Closure $condition)
     {

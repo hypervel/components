@@ -19,6 +19,9 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 #[Attribute(Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class DefineDatabase implements Actionable, AfterEach, BeforeEach
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $method,
         public readonly bool $defer = true

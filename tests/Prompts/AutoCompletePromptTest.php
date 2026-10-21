@@ -9,12 +9,15 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\autocomplete;
 
 class AutoCompletePromptTest extends TestCase
 {
-    public function testAcceptsAnyInput()
+    private const string LONG_OPTION = 'App\Http\Controllers\Admin\Reporting\QuarterlyRevenueSummaryExportController';
+
+    public function testAcceptsAnyInput(): void
     {
         Prompt::fake(['B', 'l', 'a', 'c', 'k', Key::ENTER]);
 
@@ -27,7 +30,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Black', $result);
     }
 
-    public function testCompletesInputUsingTabKey()
+    public function testCompletesInputUsingTabKey(): void
     {
         Prompt::fake(['B', 'l', Key::TAB, Key::ENTER]);
 
@@ -40,7 +43,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testCompletesInputUsingRightArrowKey()
+    public function testCompletesInputUsingRightArrowKey(): void
     {
         Prompt::fake(['B', 'l', Key::RIGHT_ARROW, Key::ENTER]);
 
@@ -53,7 +56,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testCyclesThroughSuggestionsWithArrowKeys()
+    public function testCyclesThroughSuggestionsWithArrowKeys(): void
     {
         Prompt::fake(['B', Key::DOWN, Key::TAB, Key::ENTER]);
 
@@ -66,7 +69,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Black', $result);
     }
 
-    public function testCyclesThroughSuggestionsWrappingAround()
+    public function testCyclesThroughSuggestionsWrappingAround(): void
     {
         Prompt::fake(['B', Key::UP, Key::TAB, Key::ENTER]);
 
@@ -80,7 +83,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Black', $result);
     }
 
-    public function testAllowsEditingAfterAcceptingSuggestion()
+    public function testAllowsEditingAfterAcceptingSuggestion(): void
     {
         Prompt::fake(['B', 'l', Key::TAB, Key::BACKSPACE, Key::BACKSPACE, 'a', 'c', 'k', Key::ENTER]);
 
@@ -94,7 +97,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Black', $result);
     }
 
-    public function testAcceptsClosureForOptions()
+    public function testAcceptsClosureForOptions(): void
     {
         Prompt::fake(['a', 'p', 'p', '/', Key::TAB, Key::ENTER]);
 
@@ -109,7 +112,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('app/Models/User.php', $result);
     }
 
-    public function testResetsHighlightedIndexWhenTyping()
+    public function testResetsHighlightedIndexWhenTyping(): void
     {
         Prompt::fake(['B', Key::DOWN, 'l', Key::TAB, Key::ENTER]);
 
@@ -124,7 +127,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testTabRequestsSuggestionsWhenNoGhostTextShowing()
+    public function testTabRequestsSuggestionsWhenNoGhostTextShowing(): void
     {
         Prompt::fake(['B', 'l', 'u', 'e', Key::TAB, Key::ENTER]);
 
@@ -136,7 +139,47 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testTransformsValues()
+    public function testMatchesNonAsciiOptionsCaseInsensitively(): void
+    {
+        Prompt::fake(['ö', Key::TAB, Key::ENTER]);
+
+        $this->assertSame('Österreich', autocomplete('Country', ['Österreich', 'Deutschland']));
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    #[DataProvider('longOptionInputProvider')]
+    public function testKeepsGhostTextWithinTheAvailableWidth(array $keys): void
+    {
+        Prompt::fake([...$keys, Key::ENTER]);
+
+        autocomplete('Controller', [self::LONG_OPTION]);
+
+        $widest = max(array_map(
+            fn (string $line): int => mb_strwidth($line),
+            explode(PHP_EOL, Prompt::strippedContent()),
+        ));
+
+        // Box lines in an 80-column terminal have a 79-column budget.
+        $this->assertLessThan(80, $widest);
+    }
+
+    /**
+     * Provide typed input that leaves different amounts of room for ghost text.
+     *
+     * @return array<string, array{list<string>}>
+     */
+    public static function longOptionInputProvider(): array
+    {
+        return [
+            'short value' => [['A']],
+            'cursor inside the value' => [['A', 'p', 'p', Key::LEFT_ARROW]],
+            'no room for ghost text' => [mb_str_split(mb_substr(self::LONG_OPTION, 0, 73))],
+        ];
+    }
+
+    public function testTransformsValues(): void
     {
         Prompt::fake(['B', 'l', Key::TAB, Key::ENTER]);
 
@@ -149,7 +192,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('BLUE', $result);
     }
 
-    public function testValidates()
+    public function testValidates(): void
     {
         Prompt::fake([Key::ENTER, 'X', Key::ENTER]);
 
@@ -177,7 +220,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertStringNotContainsString('placeholder', $cancelFrame);
     }
 
-    public function testCanFallBack()
+    public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);
 
@@ -196,7 +239,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('result', $result);
     }
 
-    public function testReturnsEmptyStringWhenNonInteractive()
+    public function testReturnsEmptyStringWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -209,7 +252,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function testReturnsDefaultValueWhenNonInteractive()
+    public function testReturnsDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -222,10 +265,10 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Yellow', $result);
     }
 
-    public function testValidatesDefaultValueWhenNonInteractive()
+    public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
 
@@ -236,7 +279,7 @@ class AutoCompletePromptTest extends TestCase
         ], required: true);
     }
 
-    public function testAcceptsCollection()
+    public function testAcceptsCollection(): void
     {
         Prompt::fake(['B', 'l', Key::TAB, Key::ENTER]);
 
@@ -249,7 +292,7 @@ class AutoCompletePromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testSupportsCustomValidation()
+    public function testSupportsCustomValidation(): void
     {
         Prompt::validateUsing(function (Prompt $prompt) {
             $this->assertSame('What is your name?', $prompt->label);

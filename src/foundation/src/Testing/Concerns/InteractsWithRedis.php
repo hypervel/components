@@ -10,7 +10,6 @@ use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testing\ParallelTesting;
-use Throwable;
 
 /**
  * Provides Redis integration testing support.
@@ -74,14 +73,12 @@ trait InteractsWithRedis
     {
         try {
             $this->flushRedis();
-        } catch (Throwable) {
-            // Ignore cleanup errors
-        }
-
-        // Close sockets before dropping the manager: pool reference cycles can
-        // otherwise retain enough sockets to exhaust file descriptors in long runs.
-        if ($this->app->resolved(PoolManager::class)) {
-            $this->app->make(PoolManager::class)->purgeAll();
+        } finally {
+            // Close sockets before dropping the manager: pool reference cycles can
+            // otherwise retain enough sockets to exhaust file descriptors in long runs.
+            if ($this->app->resolved(PoolManager::class)) {
+                $this->app->make(PoolManager::class)->purgeAll();
+            }
         }
     }
 

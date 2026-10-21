@@ -32,7 +32,7 @@ use Stringable as BaseStringable;
  *     hasDefault: bool
  * }
  *
- * @implements Arrayable<string, mixed>
+ * @implements Arrayable<array<string, mixed>>
  */
 abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, RequestCastable, Transient
 {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
+use Hypervel\Support\Sleep;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\artisan_binary;
@@ -66,8 +67,8 @@ class Listener
         while (true) { // @phpstan-ignore while.alwaysTrue (intentional infinite loop)
             $this->runProcess($process, $options->memory);
 
-            if ($options->rest) {
-                sleep($options->rest);
+            if ($options->rest > 0) {
+                Sleep::usleep((int) ($options->rest * 1_000_000));
             }
         }
     }

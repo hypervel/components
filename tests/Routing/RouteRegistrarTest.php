@@ -10,8 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
-use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
-use Hypervel\Routing\ControllerDispatcher;
+use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
@@ -31,14 +30,13 @@ class RouteRegistrarTest extends RoutingTestCase
     {
         parent::setUp();
 
-        $container = Container::getInstance();
-        $container->singleton(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
-        $container->singleton(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
+        $container = new Container;
+        $container->bind(CallableDispatcherContract::class, fn (Container $app): CallableDispatcher => new CallableDispatcher($app));
 
         $this->router = new Router(m::mock(Dispatcher::class), $container);
     }
 
-    public function testMiddlewareFluentRegistration()
+    public function testMiddlewareFluentRegistration(): void
     {
         $this->router->middleware(['one', 'two'])->get('users', function () {
             return 'all-users';
@@ -69,7 +67,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['seven'], $this->getRoute()->middleware());
     }
 
-    public function testNullNamespaceIsRespected()
+    public function testNullNamespaceIsRespected(): void
     {
         $this->router->middleware(['one'])->namespace(null)->get('users', function () {
             return 'all-users';
@@ -78,7 +76,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertNull($this->getRoute()->getAction()['namespace']);
     }
 
-    public function testMiddlewareAsStringableObject()
+    public function testMiddlewareAsStringableObject(): void
     {
         $one = new class implements Stringable {
             public function __toString()
@@ -95,7 +93,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame(['one'], $this->getRoute()->middleware());
     }
 
-    public function testMiddlewareAsStringableObjectOnRouteInstance()
+    public function testMiddlewareAsStringableObjectOnRouteInstance(): void
     {
         $one = new class implements Stringable {
             public function __toString()
@@ -112,7 +110,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame(['one'], $this->getRoute()->middleware());
     }
 
-    public function testMiddlewareAsArrayWithStringables()
+    public function testMiddlewareAsArrayWithStringables(): void
     {
         $one = new class implements Stringable {
             public function __toString()
@@ -129,7 +127,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame(['one', 'two'], $this->getRoute()->middleware());
     }
 
-    public function testMiddlewareAsNull()
+    public function testMiddlewareAsNull(): void
     {
         $this->router->middleware(null)->get('users', function () {
             return 'all-users';
@@ -146,7 +144,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame([], $this->getRoute()->middleware());
     }
 
-    public function testWithoutMiddlewareRegistration()
+    public function testWithoutMiddlewareRegistration(): void
     {
         $this->router->middleware(['one', 'two'])->get('users', function () {
             return 'all-users';
@@ -157,14 +155,14 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['one'], $this->getRoute()->excludedMiddleware());
     }
 
-    public function testGetRouteWithTrashed()
+    public function testGetRouteWithTrashed(): void
     {
         $route = $this->router->get('users', [RouteRegistrarControllerStub::class, 'index'])->withTrashed();
 
         $this->assertTrue($route->allowsTrashedBindings());
     }
 
-    public function testResourceWithTrashed()
+    public function testResourceWithTrashed(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->only(['index', 'destroy'])
@@ -173,13 +171,13 @@ class RouteRegistrarTest extends RoutingTestCase
                 'destroy',
             ]);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertTrue($route->allowsTrashedBindings());
         }
     }
 
-    public function testFallbackRoute()
+    public function testFallbackRoute(): void
     {
         $route = $this->router->fallback(function () {
             return 'milwad';
@@ -188,7 +186,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($route->isFallback);
     }
 
-    public function testSetFallbackRoute()
+    public function testSetFallbackRoute(): void
     {
         $route = $this->router->fallback(function () {
             return 'milwad';
@@ -202,7 +200,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($route->isFallback);
     }
 
-    public function testCanRegisterGetRouteWithClosureAction()
+    public function testCanRegisterGetRouteWithClosureAction(): void
     {
         $this->router->middleware('get-middleware')->get('users', function () {
             return 'all-users';
@@ -212,7 +210,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('get-middleware');
     }
 
-    public function testCanRegisterPostRouteWithClosureAction()
+    public function testCanRegisterPostRouteWithClosureAction(): void
     {
         $this->router->middleware('post-middleware')->post('users', function () {
             return 'saved';
@@ -222,7 +220,18 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('post-middleware');
     }
 
-    public function testCanRegisterAnyRouteWithClosureAction()
+    public function testCanRegisterQueryRouteWithClosureAction(): void
+    {
+        $this->router->middleware('query-middleware')->query('users', function (): string {
+            return 'found';
+        });
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('users', 'QUERY')));
+        $this->assertSame(['QUERY'], $this->getRoute()->methods());
+        $this->seeMiddleware('query-middleware');
+    }
+
+    public function testCanRegisterAnyRouteWithClosureAction(): void
     {
         $this->router->middleware('test-middleware')->any('users', function () {
             return 'anything';
@@ -232,7 +241,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('test-middleware');
     }
 
-    public function testCanRegisterMatchRouteWithClosureAction()
+    public function testCanRegisterMatchRouteWithClosureAction(): void
     {
         $this->router->middleware('match-middleware')->match(['DELETE'], 'users', function () {
             return 'deleted';
@@ -242,7 +251,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('match-middleware');
     }
 
-    public function testCanRegisterRouteWithArrayAndClosureAction()
+    public function testCanRegisterRouteWithArrayAndClosureAction(): void
     {
         $this->router->middleware('patch-middleware')->patch('users', [function () {
             return 'updated';
@@ -252,7 +261,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('patch-middleware');
     }
 
-    public function testCanRegisterRouteWithArrayAndClosureUsesAction()
+    public function testCanRegisterRouteWithArrayAndClosureUsesAction(): void
     {
         $this->router->middleware('put-middleware')->put('users', ['uses' => function () {
             return 'replaced';
@@ -262,7 +271,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('put-middleware');
     }
 
-    public function testCanRegisterRouteWithControllerAction()
+    public function testCanRegisterRouteWithControllerAction(): void
     {
         $this->router->middleware('controller-middleware')
             ->get('users', RouteRegistrarControllerStub::class . '@index');
@@ -271,7 +280,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('controller-middleware');
     }
 
-    public function testCanRegisterRouteWithControllerActionArray()
+    public function testCanRegisterRouteWithControllerActionArray(): void
     {
         $this->router->middleware('controller-middleware')
             ->get('users', [RouteRegistrarControllerStub::class, 'index']);
@@ -280,7 +289,37 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('controller-middleware');
     }
 
-    public function testCanRegisterNamespacedGroupRouteWithControllerActionArray()
+    public function testCanRegisterNamedRouteWithObjectMethodAction(): void
+    {
+        $route = $this->router->name('users.index')
+            ->metadata(['section' => 'users'])
+            ->get('users', [new RouteRegistrarControllerStub, 'index']);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->assertSame('users.index', $route->getName());
+        $this->assertSame('users', $route->getMetadata('section'));
+    }
+
+    public function testCanRegisterRouteWithInvokableObject(): void
+    {
+        $this->router->middleware('controller-middleware')
+            ->get('users', new InvokableRouteRegistrarControllerStub);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->seeMiddleware('controller-middleware');
+    }
+
+    public function testCanMatchRouteWithInvokableObject(): void
+    {
+        $this->router->middleware('controller-middleware')
+            ->match(['GET', 'POST'], 'users', new InvokableRouteRegistrarControllerStub);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->seeResponse('controller', Request::create('users', 'POST'));
+        $this->seeMiddleware('controller-middleware');
+    }
+
+    public function testCanRegisterNamespacedGroupRouteWithControllerActionArray(): void
     {
         $this->router->group(['namespace' => 'WhatEver'], function () {
             $this->router->middleware('controller-middleware')
@@ -299,7 +338,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('controller-middleware');
     }
 
-    public function testCanRegisterRouteWithArrayAndControllerAction()
+    public function testCanRegisterRouteWithArrayAndControllerAction(): void
     {
         $this->router->middleware('controller-middleware')->put('users', [
             'uses' => RouteRegistrarControllerStub::class . '@index',
@@ -309,7 +348,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('controller-middleware');
     }
 
-    public function testCanRegisterGroupWithMiddleware()
+    public function testCanRegisterGroupWithMiddleware(): void
     {
         $this->router->middleware('group-middleware')->group(function ($router) {
             $router->get('users', function () {
@@ -321,7 +360,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('group-middleware');
     }
 
-    public function testCanRegisterGroupWithoutMiddleware()
+    public function testCanRegisterGroupWithoutMiddleware(): void
     {
         $this->router->withoutMiddleware('one')->group(function ($router) {
             $router->get('users', function () {
@@ -333,7 +372,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['one'], $this->getRoute()->excludedMiddleware());
     }
 
-    public function testCanRegisterGroupWithStringableMiddleware()
+    public function testCanRegisterGroupWithStringableMiddleware(): void
     {
         $one = new class implements Stringable {
             public function __toString()
@@ -352,7 +391,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('one');
     }
 
-    public function testCanRegisterGroupWithNamespace()
+    public function testCanRegisterGroupWithNamespace(): void
     {
         $this->router->namespace('App\Http\Controllers')->group(function ($router) {
             $router->get('users', 'UsersController@index');
@@ -373,7 +412,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanRegisterGroupWithPrefix()
+    public function testCanRegisterGroupWithPrefix(): void
     {
         $this->router->prefix('api')->group(function ($router) {
             $router->get('users', 'UsersController@index');
@@ -382,7 +421,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('api/users', $this->getRoute()->uri());
     }
 
-    public function testCanRegisterGroupWithPrefixAndWhere()
+    public function testCanRegisterGroupWithPrefixAndWhere(): void
     {
         $this->router->prefix('foo/{bar}')->where(['bar' => '[0-9]+'])->group(function ($router) {
             $router->get('here', function () {
@@ -393,7 +432,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeResponse('good', Request::create('foo/12345/here', 'GET'));
     }
 
-    public function testCanRegisterGroupWithNamePrefix()
+    public function testCanRegisterGroupWithNamePrefix(): void
     {
         $this->router->name('api.')->group(function ($router) {
             $router->get('users', 'UsersController@index')->name('users');
@@ -402,7 +441,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('api.users', $this->getRoute()->getName());
     }
 
-    public function testCanRegisterGroupWithDomain()
+    public function testCanRegisterGroupWithDomain(): void
     {
         $this->router->domain('{account}.myapp.com')->group(function ($router) {
             $router->get('users', 'UsersController@index');
@@ -411,7 +450,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('{account}.myapp.com', $this->getRoute()->getDomain());
     }
 
-    public function testCanRegisterGroupWithDomainAndNamePrefix()
+    public function testCanRegisterGroupWithDomainAndNamePrefix(): void
     {
         $this->router->domain('{account}.myapp.com')->name('api.')->group(function ($router) {
             $router->get('users', 'UsersController@index')->name('users');
@@ -421,7 +460,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('api.users', $this->getRoute()->getName());
     }
 
-    public function testCanRegisterGroupWithController()
+    public function testCanRegisterGroupWithController(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->get('users', 'index');
@@ -433,7 +472,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanOverrideGroupControllerWithStringSyntax()
+    public function testCanOverrideGroupControllerWithStringSyntax(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->get('users', 'UserController@index');
@@ -445,7 +484,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanOverrideGroupControllerWithClosureSyntax()
+    public function testCanOverrideGroupControllerWithClosureSyntax(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->get('users', function () {
@@ -456,7 +495,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeResponse('hello world', Request::create('users', 'GET'));
     }
 
-    public function testCanOverrideGroupControllerWithInvokableControllerSyntax()
+    public function testCanOverrideGroupControllerWithInvokableControllerSyntax(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->get('users', InvokableRouteRegistrarControllerStub::class);
@@ -468,7 +507,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testWillUseTheLatestGroupController()
+    public function testWillUseTheLatestGroupController(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->group(['controller' => FooController::class], function ($router) {
@@ -482,7 +521,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanOverrideGroupControllerWithArraySyntax()
+    public function testCanOverrideGroupControllerWithArraySyntax(): void
     {
         $this->router->controller(RouteRegistrarControllerStub::class)->group(function ($router) {
             $router->get('users', [FooController::class, 'index']);
@@ -494,7 +533,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testRouteGroupingWithoutPrefix()
+    public function testRouteGroupingWithoutPrefix(): void
     {
         $this->router->group([], function ($router) {
             $router->prefix('bar')->get('baz', ['as' => 'baz', function () {
@@ -504,7 +543,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeResponse('hello', Request::create('bar/baz', 'GET'));
     }
 
-    public function testRouteGroupChaining()
+    public function testRouteGroupChaining(): void
     {
         $this->router
             ->group([], function ($router) {
@@ -520,20 +559,19 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $routeCollection = $this->router->getRoutes();
 
-        $this->assertInstanceOf(\Hypervel\Routing\Route::class, $routeCollection->match(Request::create('foo', 'GET')));
-        $this->assertInstanceOf(\Hypervel\Routing\Route::class, $routeCollection->match(Request::create('bar', 'GET')));
+        $this->assertInstanceOf(Route::class, $routeCollection->match(Request::create('foo', 'GET')));
+        $this->assertInstanceOf(Route::class, $routeCollection->match(Request::create('bar', 'GET')));
     }
 
-    public function testRegisteringNonApprovedAttributesThrows()
+    public function testRegisteringNonApprovedAttributesThrows(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Hypervel\Routing\RouteRegistrar::unsupportedMethod does not exist.');
+        $this->expectExceptionObject(new BadMethodCallException('Method Hypervel\Routing\RouteRegistrar::unsupportedMethod does not exist.'));
 
-        $this->router->domain('foo')->unsupportedMethod('bar')->group(function ($router) {
+        $this->router->domain('foo')->unsupportedMethod('bar')->group(function (Router $router): void {
         });
     }
 
-    public function testCanSetWithoutScopedBindings()
+    public function testCanSetWithoutScopedBindings(): void
     {
         $route = $this->router->withoutScopedBindings()->get('users', function () {
             return 'all-users';
@@ -542,7 +580,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($route->preventsScopedBindings());
     }
 
-    public function testCanSetWithoutScopedBindingsOnGroup()
+    public function testCanSetWithoutScopedBindingsOnGroup(): void
     {
         $this->router->withoutScopedBindings()->group(function ($router) {
             $router->get('foo', function () {
@@ -555,7 +593,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($route->preventsScopedBindings());
     }
 
-    public function testCanSetScopeBindings()
+    public function testCanSetScopeBindings(): void
     {
         $route = $this->router->scopeBindings()->get('users', function () {
             return 'all-users';
@@ -564,7 +602,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($route->enforcesScopedBindings());
     }
 
-    public function testCanSetScopeBindingsOnGroup()
+    public function testCanSetScopeBindingsOnGroup(): void
     {
         $this->router->scopeBindings()->group(function ($router) {
             $router->get('foo', function () {
@@ -741,7 +779,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame(['head' => ['title' => 'Replaced']], $route->getMetadata());
     }
 
-    public function testCanRegisterResource()
+    public function testCanRegisterResource(): void
     {
         $this->router->middleware('resource-middleware')
             ->resource('users', RouteRegistrarControllerStub::class);
@@ -784,7 +822,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanRegisterResourcesWithExceptOption()
+    public function testCanRegisterResourcesWithExceptOption(): void
     {
         $this->router->resources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -806,7 +844,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testCanRegisterResourcesWithOnlyOption()
+    public function testCanRegisterResourcesWithOnlyOption(): void
     {
         $this->router->resources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -828,7 +866,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testCanRegisterResourcesWithoutOption()
+    public function testCanRegisterResourcesWithoutOption(): void
     {
         $this->router->resources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -849,7 +887,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testCanRegisterResourceWithMissingOption()
+    public function testCanRegisterResourceWithMissingOption(): void
     {
         $this->router->middleware('resource-middleware')
             ->resource('users', RouteRegistrarControllerStub::class)
@@ -867,7 +905,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertNull($this->router->getRoutes()->getByName('users.store')->getMissing());
     }
 
-    public function testCanAccessRegisteredResourceRoutesAsRouteCollection()
+    public function testCanAccessRegisteredResourceRoutesAsRouteCollection(): void
     {
         $resource = $this->router->middleware('resource-middleware')
             ->resource('users', RouteRegistrarControllerStub::class)
@@ -884,7 +922,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testCanLimitMethodsOnRegisteredResource()
+    public function testCanLimitMethodsOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->only('index', 'show', 'destroy');
@@ -896,7 +934,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testCanExcludeMethodsOnRegisteredResource()
+    public function testCanExcludeMethodsOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->except(['index', 'create', 'store', 'show', 'edit']);
@@ -907,7 +945,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testCanLimitAndExcludeMethodsOnRegisteredResource()
+    public function testCanLimitAndExcludeMethodsOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->only('index', 'show', 'destroy')
@@ -920,7 +958,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testCanSetShallowOptionOnRegisteredResource()
+    public function testCanSetShallowOptionOnRegisteredResource(): void
     {
         $this->router->resource('users.tasks', RouteRegistrarControllerStub::class)->shallow();
 
@@ -931,7 +969,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('users.tasks.show'));
     }
 
-    public function testCanSetScopedOptionOnRegisteredResource()
+    public function testCanSetScopedOptionOnRegisteredResource(): void
     {
         $this->router->resource('users.tasks', RouteRegistrarControllerStub::class)->scoped();
         $this->router->getRoutes()->refreshNameLookups();
@@ -959,7 +997,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanExcludeMethodsOnRegisteredApiResource()
+    public function testCanExcludeMethodsOnRegisteredApiResource(): void
     {
         $this->router->apiResource('users', RouteRegistrarControllerStub::class)
             ->except(['index', 'show', 'store']);
@@ -970,7 +1008,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testCanRegisterApiResourcesWithExceptOption()
+    public function testCanRegisterApiResourcesWithExceptOption(): void
     {
         $this->router->apiResources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -992,7 +1030,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testCanRegisterApiResourcesWithOnlyOption()
+    public function testCanRegisterApiResourcesWithOnlyOption(): void
     {
         $this->router->apiResources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -1014,7 +1052,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testCanRegisterApiResourcesWithoutOption()
+    public function testCanRegisterApiResourcesWithoutOption(): void
     {
         $this->router->apiResources([
             'resource-one' => RouteRegistrarControllerStubOne::class,
@@ -1036,7 +1074,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testUserCanRegisterApiResource()
+    public function testUserCanRegisterApiResource(): void
     {
         $this->router->apiResource('users', RouteRegistrarControllerStub::class);
 
@@ -1046,7 +1084,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('users.edit'));
     }
 
-    public function testUserCanRegisterApiResourceWithExceptOption()
+    public function testUserCanRegisterApiResourceWithExceptOption(): void
     {
         $this->router->apiResource('users', RouteRegistrarControllerStub::class, [
             'except' => ['destroy'],
@@ -1059,7 +1097,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('users.destroy'));
     }
 
-    public function testUserCanRegisterApiResourceWithOnlyOption()
+    public function testUserCanRegisterApiResourceWithOnlyOption(): void
     {
         $this->router->apiResource('users', RouteRegistrarControllerStub::class, [
             'only' => ['index', 'show'],
@@ -1071,7 +1109,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('users.show'));
     }
 
-    public function testCanNameRoutesOnRegisteredResource()
+    public function testCanNameRoutesOnRegisteredResource(): void
     {
         $this->router->resource('comments', RouteRegistrarControllerStub::class)
             ->only('create', 'store')->names('reply');
@@ -1095,7 +1133,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('posts.remove'));
     }
 
-    public function testCanOverrideParametersOnRegisteredResource()
+    public function testCanOverrideParametersOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->parameters(['users' => 'admin_user']);
@@ -1107,7 +1145,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertStringContainsString('topic', $this->router->getRoutes()->getByName('posts.show')->uri);
     }
 
-    public function testCanSetMiddlewareOnRegisteredResource()
+    public function testCanSetMiddlewareOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->middleware(RouteRegistrarMiddlewareStub::class);
@@ -1115,7 +1153,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware(RouteRegistrarMiddlewareStub::class);
     }
 
-    public function testCanSetMiddlewareCanOnGroups()
+    public function testCanSetMiddlewareCanOnGroups(): void
     {
         $this->router->can('test')->group(function ($router) {
             $router->get('/');
@@ -1124,7 +1162,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('can:test');
     }
 
-    public function testCanSetMiddlewareCanWithModelsOnGroups()
+    public function testCanSetMiddlewareCanWithModelsOnGroups(): void
     {
         $this->router->can('view', 'post')->group(function ($router) {
             $router->get('/post/{post}');
@@ -1133,7 +1171,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('can:view,post');
     }
 
-    public function testCanSetMiddlewareCanNestedOnGroups()
+    public function testCanSetMiddlewareCanNestedOnGroups(): void
     {
         $this->router->can('access-admin')->group(function ($router) {
             $router->can('edit', 'post')->group(function ($router) {
@@ -1147,7 +1185,7 @@ class RouteRegistrarTest extends RoutingTestCase
         ], $this->getRoute()->middleware());
     }
 
-    public function testCanSetMiddlewareForSpecifiedMethodsOnRegisteredResource()
+    public function testCanSetMiddlewareForSpecifiedMethodsOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->middleware('default')
@@ -1156,13 +1194,13 @@ class RouteRegistrarTest extends RoutingTestCase
             ->middlewareFor(['edit'], ['one', 'two']);
         $this->router->getRoutes()->refreshNameLookups();
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.index')->gatherMiddleware(), ['default', RouteRegistrarMiddlewareStub::class]);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->gatherMiddleware(), ['default', 'one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->gatherMiddleware(), ['default', 'one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->gatherMiddleware(), ['default', 'one', 'two']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware(), ['default']);
+        $this->assertEquals(['default', RouteRegistrarMiddlewareStub::class], $this->router->getRoutes()->getByName('users.index')->gatherMiddleware());
+        $this->assertEquals(['default', 'one'], $this->router->getRoutes()->getByName('users.create')->gatherMiddleware());
+        $this->assertEquals(['default', 'one'], $this->router->getRoutes()->getByName('users.store')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.show')->gatherMiddleware());
+        $this->assertEquals(['default', 'one', 'two'], $this->router->getRoutes()->getByName('users.edit')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.update')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware());
 
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->middlewareFor('index', RouteRegistrarMiddlewareStub::class)
@@ -1171,16 +1209,16 @@ class RouteRegistrarTest extends RoutingTestCase
             ->middleware('default');
         $this->router->getRoutes()->refreshNameLookups();
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.index')->gatherMiddleware(), [RouteRegistrarMiddlewareStub::class, 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->gatherMiddleware(), ['one', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->gatherMiddleware(), ['one', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->gatherMiddleware(), ['one', 'two', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware(), ['default']);
+        $this->assertEquals([RouteRegistrarMiddlewareStub::class, 'default'], $this->router->getRoutes()->getByName('users.index')->gatherMiddleware());
+        $this->assertEquals(['one', 'default'], $this->router->getRoutes()->getByName('users.create')->gatherMiddleware());
+        $this->assertEquals(['one', 'default'], $this->router->getRoutes()->getByName('users.store')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.show')->gatherMiddleware());
+        $this->assertEquals(['one', 'two', 'default'], $this->router->getRoutes()->getByName('users.edit')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.update')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware());
     }
 
-    public function testResourceWithoutMiddlewareRegistration()
+    public function testResourceWithoutMiddlewareRegistration(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->only('index')
@@ -1192,7 +1230,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['one'], $this->getRoute()->excludedMiddleware());
     }
 
-    public function testCanSetExcludedMiddlewareForSpecifiedMethodsOnRegisteredResource()
+    public function testCanSetExcludedMiddlewareForSpecifiedMethodsOnRegisteredResource(): void
     {
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->withoutMiddleware('one')
@@ -1200,16 +1238,16 @@ class RouteRegistrarTest extends RoutingTestCase
             ->withoutMiddlewareFor(['create', 'store'], 'three')
             ->withoutMiddlewareFor(['edit'], ['four', 'five']);
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.index')->excludedMiddleware(), ['one', 'two']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->excludedMiddleware(), ['one', 'three']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->excludedMiddleware(), ['one', 'three']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->excludedMiddleware(), ['one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->excludedMiddleware(), ['one', 'four', 'five']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->excludedMiddleware(), ['one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->excludedMiddleware(), ['one']);
+        $this->assertEquals(['one', 'two'], $this->router->getRoutes()->getByName('users.index')->excludedMiddleware());
+        $this->assertEquals(['one', 'three'], $this->router->getRoutes()->getByName('users.create')->excludedMiddleware());
+        $this->assertEquals(['one', 'three'], $this->router->getRoutes()->getByName('users.store')->excludedMiddleware());
+        $this->assertEquals(['one'], $this->router->getRoutes()->getByName('users.show')->excludedMiddleware());
+        $this->assertEquals(['one', 'four', 'five'], $this->router->getRoutes()->getByName('users.edit')->excludedMiddleware());
+        $this->assertEquals(['one'], $this->router->getRoutes()->getByName('users.update')->excludedMiddleware());
+        $this->assertEquals(['one'], $this->router->getRoutes()->getByName('users.destroy')->excludedMiddleware());
     }
 
-    public function testResourceWithMiddlewareAsStringable()
+    public function testResourceWithMiddlewareAsStringable(): void
     {
         $one = new class implements Stringable {
             public function __toString()
@@ -1229,7 +1267,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['one'], $this->getRoute()->excludedMiddleware());
     }
 
-    public function testResourceWheres()
+    public function testResourceWheres(): void
     {
         $wheres = [
             'user' => '\d+',
@@ -1239,64 +1277,84 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->where($wheres);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testWhereNumberRegistration()
+    public function testWhereNumberRegistration(): void
     {
         $wheres = ['foo' => '[0-9]+', 'bar' => '[0-9]+'];
 
         $this->router->get('/{foo}/{bar}')->whereNumber(['foo', 'bar']);
         $this->router->get('/api/{bar}/{foo}')->whereNumber(['bar', 'foo']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testWhereAlphaRegistration()
+    public function testWhereAlphaRegistration(): void
     {
         $wheres = ['foo' => '[a-zA-Z]+', 'bar' => '[a-zA-Z]+'];
 
         $this->router->get('/{foo}/{bar}')->whereAlpha(['foo', 'bar']);
         $this->router->get('/api/{bar}/{foo}')->whereAlpha(['bar', 'foo']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testWhereAlphaNumericRegistration()
+    public function testWhereAlphaNumericRegistration(): void
     {
         $wheres = ['1a2b3c' => '[a-zA-Z0-9]+'];
 
         $this->router->get('/{foo}')->whereAlphaNumeric(['1a2b3c']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testWhereInRegistration()
+    public function testWhereUlidRegistration(): void
+    {
+        $this->router->get('/{foo}')->whereUlid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FA', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAI', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/81ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+    }
+
+    public function testWhereUuidRegistration(): void
+    {
+        $this->router->get('/{foo}')->whereUuid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6f', 'GET')));
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2CD90B6D-3C34-4A0A-9D0D-9D0B7B1A2E6F', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d3c344a0a9d0d9d0b7b1a2e6f', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6', 'GET')));
+    }
+
+    public function testWhereInRegistration(): void
     {
         $wheres = ['foo' => 'one|two', 'bar' => 'one|two'];
 
         $this->router->get('/{foo}/{bar}')->whereIn(['foo', 'bar'], ['one', 'two']);
         $this->router->get('/api/{bar}/{foo}')->whereIn(['bar', 'foo'], ['one', 'two']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testWhereInEnumRegistration()
+    public function testWhereInEnumRegistration(): void
     {
         $this->router->get('/posts/{category}')->whereIn('category', CategoryBackedEnum::cases());
 
@@ -1309,7 +1367,7 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
-    public function testGroupWhereNumberRegistrationOnRouteRegistrar()
+    public function testGroupWhereNumberRegistrationOnRouteRegistrar(): void
     {
         $wheres = ['foo' => '[0-9]+', 'bar' => '[0-9]+'];
 
@@ -1321,13 +1379,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereAlphaRegistrationOnRouteRegistrar()
+    public function testGroupWhereAlphaRegistrationOnRouteRegistrar(): void
     {
         $wheres = ['foo' => '[a-zA-Z]+', 'bar' => '[a-zA-Z]+'];
 
@@ -1339,13 +1397,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereAlphaNumericRegistrationOnRouteRegistrar()
+    public function testGroupWhereAlphaNumericRegistrationOnRouteRegistrar(): void
     {
         $wheres = ['1a2b3c' => '[a-zA-Z0-9]+'];
 
@@ -1353,13 +1411,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereInRegistrationOnRouteRegistrar()
+    public function testGroupWhereInRegistrationOnRouteRegistrar(): void
     {
         $wheres = ['foo' => 'one|two', 'bar' => 'one|two'];
 
@@ -1371,13 +1429,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereNumberRegistrationOnRouter()
+    public function testGroupWhereNumberRegistrationOnRouter(): void
     {
         $wheres = ['foo' => '[0-9]+', 'bar' => '[0-9]+'];
 
@@ -1389,13 +1447,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereAlphaRegistrationOnRouter()
+    public function testGroupWhereAlphaRegistrationOnRouter(): void
     {
         $wheres = ['foo' => '[a-zA-Z]+', 'bar' => '[a-zA-Z]+'];
 
@@ -1407,13 +1465,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereAlphaNumericRegistrationOnRouter()
+    public function testGroupWhereAlphaNumericRegistrationOnRouter(): void
     {
         $wheres = ['1a2b3c' => '[a-zA-Z0-9]+'];
 
@@ -1421,13 +1479,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testGroupWhereInRegistrationOnRouter()
+    public function testGroupWhereInRegistrationOnRouter(): void
     {
         $wheres = ['foo' => 'one|two', 'bar' => 'one|two'];
 
@@ -1439,13 +1497,13 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
     }
 
-    public function testCanSetRouteName()
+    public function testCanSetRouteName(): void
     {
         $this->router->as('users.index')->get('users', function () {
             return 'all-users';
@@ -1455,7 +1513,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('users.index', $this->getRoute()->getName());
     }
 
-    public function testCanSetRouteNameUsingNameAlias()
+    public function testCanSetRouteNameUsingNameAlias(): void
     {
         $this->router->name('users.index')->get('users', function () {
             return 'all-users';
@@ -1465,35 +1523,43 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertSame('users.index', $this->getRoute()->getName());
     }
 
-    public function testCanSetRouteNameUsingStringBackedEnum()
+    public function testCanSetRouteNameWithNonCallableControllerActionArray(): void
+    {
+        $this->router->name('users.missing')->get('users', [RouteRegistrarControllerStub::class, 'missing']);
+
+        $this->assertSame('users.missing', $this->getRoute()->getName());
+        $this->assertSame(RouteRegistrarControllerStub::class . '@missing', ltrim($this->getRoute()->getAction('uses'), '\\'));
+    }
+
+    public function testCanSetRouteNameUsingStringBackedEnum(): void
     {
         $this->router->name(RouteNameEnum::UserIndex)->get('users', fn () => 'all-users');
 
         $this->assertSame('users.index', $this->getRoute()->getName());
     }
 
-    public function testCannotSetRouteNameUsingIntegerBackedEnum()
+    public function testCannotSetRouteNameUsingIntegerBackedEnum(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Attribute [name] expects a string backed enum.'));
 
         $this->router->name(IntegerEnum::One)->get('users', fn () => 'all-users');
     }
 
-    public function testCanSetRouteDomainUsingStringBackedEnum()
+    public function testCanSetRouteDomainUsingStringBackedEnum(): void
     {
         $this->router->domain(RouteDomainEnum::DashboardDomain)->get('users', fn () => 'all-users');
 
         $this->assertSame('dashboard.myapp.com', $this->getRoute()->getDomain());
     }
 
-    public function testCannotSetRouteDomainUsingIntegerBackedEnum()
+    public function testCannotSetRouteDomainUsingIntegerBackedEnum(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Attribute [domain] expects a string backed enum.'));
 
         $this->router->domain(IntegerEnum::One)->get('users', fn () => 'all-users');
     }
 
-    public function testPushMiddlewareToGroup()
+    public function testPushMiddlewareToGroup(): void
     {
         $this->router->middlewareGroup('web', []);
         $this->router->pushMiddlewareToGroup('web', 'test-middleware');
@@ -1501,14 +1567,14 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['test-middleware'], $this->router->getMiddlewareGroups()['web']);
     }
 
-    public function testPushMiddlewareToGroupUnregisteredGroup()
+    public function testPushMiddlewareToGroupUnregisteredGroup(): void
     {
         $this->router->pushMiddlewareToGroup('web', 'test-middleware');
 
         $this->assertEquals(['test-middleware'], $this->router->getMiddlewareGroups()['web']);
     }
 
-    public function testPushMiddlewareToGroupDuplicatedMiddleware()
+    public function testPushMiddlewareToGroupDuplicatedMiddleware(): void
     {
         $this->router->pushMiddlewareToGroup('web', 'test-middleware');
         $this->router->pushMiddlewareToGroup('web', 'test-middleware');
@@ -1516,32 +1582,32 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertEquals(['test-middleware'], $this->router->getMiddlewareGroups()['web']);
     }
 
-    public function testCanRemoveMiddlewareFromGroup()
+    public function testCanRemoveMiddlewareFromGroup(): void
     {
         $this->router->pushMiddlewareToGroup('web', 'test-middleware');
 
         $this->router->removeMiddlewareFromGroup('web', 'test-middleware');
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups()['web']);
+        $this->assertSame([], $this->router->getMiddlewareGroups()['web']);
     }
 
-    public function testCanRemoveMiddlewareFromGroupNotUnregisteredMiddleware()
+    public function testCanRemoveMiddlewareFromGroupNotUnregisteredMiddleware(): void
     {
         $this->router->middlewareGroup('web', []);
 
         $this->router->removeMiddlewareFromGroup('web', 'different-test-middleware');
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups()['web']);
+        $this->assertSame([], $this->router->getMiddlewareGroups()['web']);
     }
 
-    public function testCanRemoveMiddlewareFromGroupUnregisteredGroup()
+    public function testCanRemoveMiddlewareFromGroupUnregisteredGroup(): void
     {
         $this->router->removeMiddlewareFromGroup('web', ['test-middleware']);
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups());
+        $this->assertSame([], $this->router->getMiddlewareGroups());
     }
 
-    public function testCanRegisterSingleton()
+    public function testCanRegisterSingleton(): void
     {
         $this->router->singleton('user', RouteRegistrarControllerStub::class);
 
@@ -1563,7 +1629,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanRegisterApiSingleton()
+    public function testCanRegisterApiSingleton(): void
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class);
 
@@ -1584,7 +1650,7 @@ class RouteRegistrarTest extends RoutingTestCase
         );
     }
 
-    public function testCanRegisterCreatableSingleton()
+    public function testCanRegisterCreatableSingleton(): void
     {
         $this->router->singleton('user', RouteRegistrarControllerStub::class)->creatable();
 
@@ -1598,7 +1664,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testCanRegisterCreatableApiSingleton()
+    public function testCanRegisterCreatableApiSingleton(): void
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)->creatable();
 
@@ -1610,7 +1676,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testSingletonCreatableNotDestroyable()
+    public function testSingletonCreatableNotDestroyable(): void
     {
         $this->router->singleton('user', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1626,7 +1692,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testApiSingletonCreatableNotDestroyable()
+    public function testApiSingletonCreatableNotDestroyable(): void
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1640,7 +1706,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertFalse($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testSingletonCanBeDestroyable()
+    public function testSingletonCanBeDestroyable(): void
     {
         $this->router->singleton('user', RouteRegistrarControllerStub::class)
             ->destroyable();
@@ -1653,7 +1719,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testApiSingletonCanBeDestroyable()
+    public function testApiSingletonCanBeDestroyable(): void
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)
             ->destroyable();
@@ -1665,7 +1731,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.destroy'));
     }
 
-    public function testSingletonCanBeOnlyCreatable()
+    public function testSingletonCanBeOnlyCreatable(): void
     {
         $this->router->singleton('user', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1677,7 +1743,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.store'));
     }
 
-    public function testApiSingletonCanBeOnlyCreatable()
+    public function testApiSingletonCanBeOnlyCreatable(): void
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1688,7 +1754,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.store'));
     }
 
-    public function testSingletonDoesntAllowIncludingUnsupportedMethods()
+    public function testSingletonDoesntAllowIncludingUnsupportedMethods(): void
     {
         $this->router->singleton('post', RouteRegistrarControllerStub::class)
             ->only('index', 'store', 'create', 'destroy');
@@ -1701,7 +1767,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertCount(0, $this->router->getRoutes());
     }
 
-    public function testApiSingletonCanIncludeAnySingletonMethods()
+    public function testApiSingletonCanIncludeAnySingletonMethods(): void
     {
         // This matches the behavior of the apiResource method.
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)
@@ -1712,7 +1778,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.edit'));
     }
 
-    public function testCanSetMiddlewareForSpecifiedMethodsOnRegisteredSingletonResource()
+    public function testCanSetMiddlewareForSpecifiedMethodsOnRegisteredSingletonResource(): void
     {
         $this->router->singleton('users', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1723,12 +1789,12 @@ class RouteRegistrarTest extends RoutingTestCase
             ->middlewareFor(['edit'], ['one', 'two']);
         $this->router->getRoutes()->refreshNameLookups();
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->gatherMiddleware(), ['default', 'one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->gatherMiddleware(), ['default', 'one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->gatherMiddleware(), ['default', RouteRegistrarMiddlewareStub::class]);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->gatherMiddleware(), ['default', 'one', 'two']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware(), ['default']);
+        $this->assertEquals(['default', 'one'], $this->router->getRoutes()->getByName('users.create')->gatherMiddleware());
+        $this->assertEquals(['default', 'one'], $this->router->getRoutes()->getByName('users.store')->gatherMiddleware());
+        $this->assertEquals(['default', RouteRegistrarMiddlewareStub::class], $this->router->getRoutes()->getByName('users.show')->gatherMiddleware());
+        $this->assertEquals(['default', 'one', 'two'], $this->router->getRoutes()->getByName('users.edit')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.update')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware());
 
         $this->router->singleton('users', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1739,15 +1805,15 @@ class RouteRegistrarTest extends RoutingTestCase
             ->middleware('default');
         $this->router->getRoutes()->refreshNameLookups();
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->gatherMiddleware(), ['one', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->gatherMiddleware(), ['one', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->gatherMiddleware(), [RouteRegistrarMiddlewareStub::class, 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->gatherMiddleware(), ['one', 'two', 'default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->gatherMiddleware(), ['default']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware(), ['default']);
+        $this->assertEquals(['one', 'default'], $this->router->getRoutes()->getByName('users.create')->gatherMiddleware());
+        $this->assertEquals(['one', 'default'], $this->router->getRoutes()->getByName('users.store')->gatherMiddleware());
+        $this->assertEquals([RouteRegistrarMiddlewareStub::class, 'default'], $this->router->getRoutes()->getByName('users.show')->gatherMiddleware());
+        $this->assertEquals(['one', 'two', 'default'], $this->router->getRoutes()->getByName('users.edit')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.update')->gatherMiddleware());
+        $this->assertEquals(['default'], $this->router->getRoutes()->getByName('users.destroy')->gatherMiddleware());
     }
 
-    public function testCanSetExcludedMiddlewareForSpecifiedMethodsOnRegisteredSingletonResource()
+    public function testCanSetExcludedMiddlewareForSpecifiedMethodsOnRegisteredSingletonResource(): void
     {
         $this->router->singleton('users', RouteRegistrarControllerStub::class)
             ->creatable()
@@ -1757,18 +1823,18 @@ class RouteRegistrarTest extends RoutingTestCase
             ->withoutMiddlewareFor(['create', 'store'], 'three')
             ->withoutMiddlewareFor(['edit'], ['four', 'five']);
 
-        $this->assertEquals($this->router->getRoutes()->getByName('users.create')->excludedMiddleware(), ['one', 'three']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.store')->excludedMiddleware(), ['one', 'three']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.show')->excludedMiddleware(), ['one', 'two']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.edit')->excludedMiddleware(), ['one', 'four', 'five']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.update')->excludedMiddleware(), ['one']);
-        $this->assertEquals($this->router->getRoutes()->getByName('users.destroy')->excludedMiddleware(), ['one']);
+        $this->assertEquals(['one', 'three'], $this->router->getRoutes()->getByName('users.create')->excludedMiddleware());
+        $this->assertEquals(['one', 'three'], $this->router->getRoutes()->getByName('users.store')->excludedMiddleware());
+        $this->assertEquals(['one', 'two'], $this->router->getRoutes()->getByName('users.show')->excludedMiddleware());
+        $this->assertEquals(['one', 'four', 'five'], $this->router->getRoutes()->getByName('users.edit')->excludedMiddleware());
+        $this->assertEquals(['one'], $this->router->getRoutes()->getByName('users.update')->excludedMiddleware());
+        $this->assertEquals(['one'], $this->router->getRoutes()->getByName('users.destroy')->excludedMiddleware());
     }
 
     /**
      * Get the last route registered with the router.
      *
-     * @return \Hypervel\Routing\Route
+     * @return Route
      */
     protected function getRoute()
     {

@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Managers;
 
+use Hypervel\Reverb\Events\ChannelRemoved;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ScopedChannelManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ChannelManagerTest extends ReverbTestCase
 {
@@ -90,6 +96,39 @@ class ChannelManagerTest extends ReverbTestCase
         collect($this->channelManager->all())->each(fn ($channel) => $this->assertCount(0, $channel->connections()));
     }
 
+    #[DataProvider('unsubscribeFailures')]
+    public function testUnsubscribeFailureDoesNotLeaveMembershipInLaterChannels(bool $cancel): void
+    {
+        $first = $this->channel;
+        $second = $this->channelManager->findOrCreate('second');
+        $first->subscribe($this->connection);
+        $second->subscribe($this->connection);
+        $failure = $cancel ? new CanceledException : new RuntimeException('listener failed');
+        $laterFailure = new RuntimeException('later listener failed');
+        $this->app->make('events')->listen(ChannelRemoved::class, static function (ChannelRemoved $event) use ($first, $failure, $laterFailure): never {
+            throw $event->channel === $first ? $failure : $laterFailure;
+        });
+        $caught = null;
+
+        try {
+            $this->channelManager->unsubscribeFromAll($this->connection);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($first->subscribed($this->connection));
+        $this->assertFalse($second->subscribed($this->connection));
+    }
+
+    /**
+     * Supply ordinary failure and cancellation during channel cleanup.
+     */
+    public static function unsubscribeFailures(): array
+    {
+        return [[false], [true]];
+    }
+
     public function testCanGetTheDataForAConnectionSubscribedToAChannel(): void
     {
         collect(static::factory(5))->each(fn ($connection) => $this->channel->subscribe(
@@ -100,6 +139,28 @@ class ChannelManagerTest extends ReverbTestCase
         collect($this->channel->connections())->each(function ($connection) {
             $this->assertSame(['name' => 'Joe'], $connection->data());
         });
+    }
+
+    public function testCanFindAConnectionBySocketIdWithoutFlatteningEveryChannel(): void
+    {
+        $connections = collect(static::factory(3));
+
+        $channelOne = $this->channelManager->findOrCreate('test-channel-0');
+        $channelTwo = $this->channelManager->findOrCreate('test-channel-1');
+
+        $connections->each(function (ChannelConnection $connection) use ($channelOne, $channelTwo): void {
+            $channelOne->subscribe($connection->connection());
+            $channelTwo->subscribe($connection->connection());
+        });
+
+        $target = $connections->first()->connection();
+
+        $this->assertSame($target, $this->channelManager->findConnection($target->id())?->connection());
+    }
+
+    public function testReturnsNullFromFindConnectionWhenTheSocketIdIsUnknown(): void
+    {
+        $this->assertNull($this->channelManager->findConnection('does-not-exist'));
     }
 
     public function testCanGetAllConnectionsForAllChannels(): void
@@ -132,16 +193,33 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertCount(12, $channelThree->connections());
     }
 
-    public function testCanFindAConnectionDirectlyAcrossChannels(): void
+    public function testPrefersAConnectionWhichKnowsItsSubscriberOverAnAnonymousOne(): void
     {
-        $connection = new FakeConnection;
-        $socketId = $connection->id();
-        $this->channelManager->findOrCreate('test-channel-1')->subscribe($connection);
+        $anonymous = $this->channelManager->findOrCreate('anonymous-channel');
+        $identified = $this->channelManager->findOrCreate('identified-channel');
 
-        $this->assertSame(
-            $connection,
-            $this->channelManager->findConnection($socketId)?->connection(),
-        );
-        $this->assertNull($this->channelManager->findConnection('missing-connection'));
+        // The anonymous channel is created and subscribed to first, so it is the
+        // one a merge keyed on the connection identifier would otherwise keep.
+        $anonymous->subscribe($this->connection);
+        $identified->subscribe($this->connection, data: json_encode(['user_id' => '1']));
+
+        $connections = $this->channelManager->connections();
+
+        $this->assertCount(1, $connections);
+        $this->assertSame('1', $connections[$this->connection->id()]->data('user_id'));
+    }
+
+    public function testKeepsTheSubscriberWhenTheIdentifiedChannelIsSubscribedToFirst(): void
+    {
+        $identified = $this->channelManager->findOrCreate('identified-channel');
+        $anonymous = $this->channelManager->findOrCreate('anonymous-channel');
+
+        $identified->subscribe($this->connection, data: json_encode(['user_id' => '1']));
+        $anonymous->subscribe($this->connection);
+
+        $connections = $this->channelManager->connections();
+
+        $this->assertCount(1, $connections);
+        $this->assertSame('1', $connections[$this->connection->id()]->data('user_id'));
     }
 }

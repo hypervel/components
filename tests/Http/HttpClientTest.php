@@ -10,8 +10,11 @@ use Exception;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\NetworkException;
 use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -51,6 +54,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonException;
@@ -59,12 +63,14 @@ use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Socket;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use WeakReference;
@@ -127,7 +133,7 @@ class HttpClientTest extends TestCase
     public function testStatusCodeShorthandRejectsInvalidHttpStatusCode(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP status code must be between 100 and 599.');
+        $this->expectExceptionMessageIsOrContains('HTTP status code must be between 100 and 599.');
 
         $this->factory->fake([
             'forge.laravel.com' => 999,
@@ -170,11 +176,26 @@ class HttpClientTest extends TestCase
         $this->assertSame(['NAN', 'INF', '-INF'], $response->getHeader('X-Multiple'));
     }
 
+    public function testFakeResponseHeaderNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $header = new Stringable('single');
+        $item = new Stringable('item');
+
+        $response = $this->factory::response('OK', 200, [
+            'X-Single' => &$header,
+            'X-Multiple' => ['first', &$item],
+        ])->wait();
+
+        $this->assertInstanceOf(Stringable::class, $header);
+        $this->assertInstanceOf(Stringable::class, $item);
+        $this->assertSame(['single'], $response->getHeader('X-Single'));
+        $this->assertSame(['first', 'item'], $response->getHeader('X-Multiple'));
+    }
+
     #[DataProvider('invalidFakeResponseHeaderValuesProvider')]
     public function testInvalidFakeResponseHeaderValuesAreRejected(mixed $value): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.');
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'));
 
         $this->factory::response('OK', 200, ['X-Test' => $value]);
     }
@@ -193,7 +214,7 @@ class HttpClientTest extends TestCase
     public function testInvalidJsonFakeResponseBodyValuesAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response body could not be JSON encoded.');
+        $this->expectExceptionMessageIsOrContains('HTTP fake response body could not be JSON encoded.');
 
         $this->factory::response(['value' => NAN]);
     }
@@ -469,34 +490,6 @@ class HttpClientTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $response['result']);
     }
 
-    public function testJsonCachesEmptyArray(): void
-    {
-        $this->factory->fake([
-            '*' => '[]',
-        ]);
-
-        $response = $this->factory->get('http://foo.com/api');
-
-        $this->assertSame([], $response->json());
-        $this->assertSame([], $response->json());
-    }
-
-    public function testJsonCachesScalarValues(): void
-    {
-        $this->factory->fake([
-            'foo.com/zero' => '0',
-            'foo.com/false' => 'false',
-        ]);
-
-        $response = $this->factory->get('http://foo.com/zero');
-        $this->assertSame(0, $response->json());
-        $this->assertSame(0, $response->json());
-
-        $response = $this->factory->get('http://foo.com/false');
-        $this->assertSame(false, $response->json());
-        $this->assertSame(false, $response->json());
-    }
-
     public function testJsonCachesNullForInvalidJson(): void
     {
         $this->factory->fake([
@@ -507,6 +500,60 @@ class HttpClientTest extends TestCase
 
         $this->assertNull($response->json());
         $this->assertNull($response->json());
+    }
+
+    public function testRespectsDefaultFlags(): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+
+        // Create a response with a big integer that exceeds PHP_INT_MAX
+        $bigInt = '9223372036854775808';
+        $body = '{"value":' . $bigInt . '}';
+
+        $response = new Response(Factory::psr7Response($body));
+
+        // With JSON_BIGINT_AS_STRING, it should be the exact string
+        $this->assertSame($bigInt, $response->json('value'));
+        $this->assertSame($bigInt, $response->object()->value);
+        $this->assertSame($bigInt, $response->collect('value')->first());
+        $this->assertSame($bigInt, $response->fluent()->get('value'));
+
+        // Default json_decode behavior (flags=0), big integers become floats (losing precision)
+        $this->assertIsFloat($response->json('value', null, 0));
+        $this->assertIsFloat($response->object(0)->value);
+        $this->assertIsFloat($response->collect('value', 0)->first());
+        $this->assertIsFloat($response->fluent(flags: 0)->get('value'));
+    }
+
+    public function testJsonDecodingIsCachedWhenFlagsMatch(): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+
+        $response = new BodyTrackingResponse(Factory::psr7Response('{"foo":"bar"}'));
+
+        // First call decodes with default (JSON_BIGINT_AS_STRING)
+        $response->json();
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Second call with same (null) flags uses cache
+        $response->json();
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Explicit flags matching default still uses cache
+        $response->json(flags: JSON_BIGINT_AS_STRING);
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Different flags triggers re-decode
+        $response->json(flags: 0);
+        $this->assertSame(2, $response->bodyCallCount);
+
+        // Same explicit flags uses cache
+        $response->json(flags: 0);
+        $this->assertSame(2, $response->bodyCallCount);
+
+        // Null flags means "use default", cached flags differ, so re-decode
+        $response->json();
+        $this->assertSame(3, $response->bodyCallCount);
     }
 
     public function testJsonDecodingIsCachedForFalsyPayloads(): void
@@ -522,12 +569,15 @@ class HttpClientTest extends TestCase
         foreach ($payloads as [$body, $expected]) {
             $response = new BodyTrackingResponse(Factory::psr7Response($body));
 
+            // First call decodes and caches
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "Failed for body: {$body}");
 
+            // Subsequent calls use cache (body() not called again)
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "body() called again for falsy payload: {$body}");
 
+            // Third call to be sure
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "body() called again for falsy payload: {$body}");
         }
@@ -537,12 +587,15 @@ class HttpClientTest extends TestCase
     {
         $response = new BodyTrackingResponse(Factory::psr7Response('0'));
 
+        // First call decodes with default flags
         $this->assertSame(0, $response->json());
         $this->assertSame(1, $response->bodyCallCount);
 
+        // Different flags triggers re-decode
         $response->json(flags: JSON_BIGINT_AS_STRING);
         $this->assertSame(2, $response->bodyCallCount);
 
+        // Same flags uses cache
         $response->json(flags: JSON_BIGINT_AS_STRING);
         $this->assertSame(2, $response->bodyCallCount);
     }
@@ -551,11 +604,126 @@ class HttpClientTest extends TestCase
     {
         $response = new BodyTrackingResponse(Factory::psr7Response('[]'));
 
+        // Accessing a key on an empty array returns default
         $this->assertNull($response->json('missing'));
         $this->assertSame('fallback', $response->json('missing', 'fallback'));
 
+        // body() should only be called once
         $response->json();
         $this->assertSame(1, $response->bodyCallCount);
+    }
+
+    public function testConnectionFailureDoesNotExposeQueryCredentials(): void
+    {
+        $failure = null;
+
+        run(function () use (&$failure): void {
+            // Reserve a local port without listening so the connection is refused.
+            $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+            try {
+                $this->assertTrue($socket->bind('127.0.0.1', 0));
+                $url = 'http://127.0.0.1:' . $socket->getsockname()['port'] . '/profile?access_token=private-token';
+                $this->factory->timeout(1)->get($url);
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            } finally {
+                $socket->close();
+            }
+        });
+
+        $this->assertInstanceOf(ConnectionException::class, $failure);
+        $this->assertStringNotContainsString('private-token', $failure->getMessage());
+    }
+
+    public function testNetworkExceptionIsConvertedToConnectionException(): void
+    {
+        $this->expectExceptionObject(new ConnectionException('Network error'));
+
+        $pendingRequest = new PendingRequest;
+
+        $pendingRequest->setHandler(function (): never {
+            throw new NetworkException(
+                'Network error',
+                new GuzzleRequest('GET', 'https://network-error.hypervel.example')
+            );
+        });
+
+        $pendingRequest->get('https://network-error.hypervel.example');
+    }
+
+    // REMOVED: testNetworkExceptionInPoolIsConsideredConnectionException uses
+    // the unsupported promise-based pool. Use coroutine-native parallel().
+
+    public function testAsyncNetworkExceptionIsConvertedAndRecordedOnce(): void
+    {
+        $exception = new NetworkException('Network error', new GuzzleRequest('GET', 'https://network-error.hypervel.example'));
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        $result = $this->factory->async()->get('https://network-error.hypervel.example')->wait();
+
+        $this->assertInstanceOf(ConnectionException::class, $result);
+        $this->assertSame($exception, $result->getPrevious());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response === null);
+    }
+
+    #[DataProvider('transportResponseModes')]
+    public function testTransportResponseIsConvertedAndRecordedOnce(bool $async): void
+    {
+        $request = new GuzzleRequest('GET', 'https://response-error.hypervel.example');
+        $response = new Psr7Response(500, [], 'Incomplete response');
+        $exception = new ResponseException('Response failed', $request, $response);
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        if ($async) {
+            $result = $this->factory->async()->get('https://response-error.hypervel.example')->wait();
+        } else {
+            try {
+                $this->factory->get('https://response-error.hypervel.example');
+                $this->fail('RequestException was not thrown.');
+            } catch (RequestException $caught) {
+                $result = $caught->response;
+            }
+        }
+
+        $this->assertInstanceOf(Response::class, $result);
+        $this->assertSame($response, $result->toPsrResponse());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $recorded): bool => $recorded?->toPsrResponse() === $response);
+    }
+
+    /**
+     * Provide synchronous and asynchronous request modes.
+     */
+    public static function transportResponseModes(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testUrlsWithoutTemplateExpressionsAreNotExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters(['page' => 'docs'])->get('https://hypervel.com/docs');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
+    }
+
+    public function testUrlsWithTemplateExpressionsAreStillExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters([
+            'endpoint' => 'https://hypervel.com',
+            'page' => 'docs',
+        ])->get('{+endpoint}/{page}');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
     }
 
     public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback(): void
@@ -591,6 +759,21 @@ class HttpClientTest extends TestCase
 
     public function testResponseObjectIsTappable(): void
     {
+        $bar = null;
+        $this->factory->fake([
+            '*' => ['result' => ['foo' => 'bar']],
+        ]);
+
+        $this->factory->get('http://foo.com/api')
+            ->tap(function (Response $response) use (&$bar) {
+                $bar = $response['result']['foo'];
+            });
+
+        $this->assertSame('bar', $bar);
+    }
+
+    public function testResponseTapKeepsResponseAvailableForChaining(): void
+    {
         $response = new Response($this->factory::psr7Response(['foo' => 'bar']));
 
         $this->assertSame(['foo' => 'bar'], $response->tap(function (Response $response) {
@@ -618,6 +801,7 @@ class HttpClientTest extends TestCase
 
         $response = $this->factory->get('http://www.omdbapi.com/?apikey=test_api_key&i=test_imdb_id');
 
+        $this->assertIsArray($response->movieFields());
         $this->assertSame([
             'title' => 'The Godfather',
             'year' => 1972,
@@ -625,51 +809,6 @@ class HttpClientTest extends TestCase
             'runtime' => '175 min',
             'director' => 'Francis Ford Coppola',
         ], $response->movieFields());
-    }
-
-    public function testResponseRespectsDefaultJsonDecodingFlags(): void
-    {
-        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
-
-        $bigInt = '9223372036854775808';
-        $body = '{"value":' . $bigInt . '}';
-
-        $response = new Response(Factory::psr7Response($body));
-
-        $this->assertSame($bigInt, $response->json('value'));
-        $this->assertSame($bigInt, $response->object()->value);
-        $this->assertSame($bigInt, $response->collect('value')->first());
-        $this->assertSame($bigInt, $response->fluent()->get('value'));
-
-        $this->assertIsFloat($response->json('value', null, 0));
-        $this->assertIsFloat($response->object(0)->value);
-        $this->assertIsFloat($response->collect('value', 0)->first());
-        $this->assertIsFloat($response->fluent(flags: 0)->get('value'));
-    }
-
-    public function testJsonDecodingIsCachedWhenFlagsMatch(): void
-    {
-        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
-
-        $response = new BodyTrackingResponse(Factory::psr7Response('{"foo":"bar"}'));
-
-        $response->json();
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json();
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json(flags: JSON_BIGINT_AS_STRING);
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json(flags: 0);
-        $this->assertSame(2, $response->bodyCallCount);
-
-        $response->json(flags: 0);
-        $this->assertSame(2, $response->bodyCallCount);
-
-        $response->json();
-        $this->assertSame(3, $response->bodyCallCount);
     }
 
     public function testResponseObjectAsArray(): void
@@ -785,9 +924,9 @@ class HttpClientTest extends TestCase
         $body = '{"test":"phpunit"}';
 
         $fakeRequest = function (Request $request) use ($body) {
-            self::assertSame($body, $request->body());
-            self::assertSame(['test' => 'phpunit'], $request->data());
-            self::assertContains('application/json', $request->header('Content-Type'));
+            $this->assertSame($body, $request->body());
+            $this->assertSame(['test' => 'phpunit'], $request->data());
+            $this->assertContains('application/json', $request->header('Content-Type'));
 
             return Factory::response(['my' => 'response']);
         };
@@ -870,7 +1009,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP request body must be a string, resource, Psr\Http\Message\StreamInterface, or null.');
+        $this->expectExceptionMessageIsOrContains('HTTP request body must be a string, resource, Psr\Http\Message\StreamInterface, or null.');
 
         $this->factory->withBody(new stdClass)->send('post', 'http://foo.com/api');
     }
@@ -880,8 +1019,8 @@ class HttpClientTest extends TestCase
         $body = str_repeat('A thousand &. ', 1000);
 
         $fakeRequest = function (Request $request) use ($body) {
-            self::assertSame($body, $request->body());
-            self::assertContains('text/plain', $request->header('Content-Type'));
+            $this->assertSame($body, $request->body());
+            $this->assertContains('text/plain', $request->header('Content-Type'));
 
             return Factory::response(['my' => 'response']);
         };
@@ -900,8 +1039,8 @@ class HttpClientTest extends TestCase
         $body = Utils::streamFor($resource);
 
         $fakeRequest = function (Request $request) use ($string) {
-            self::assertSame($string, $request->body());
-            self::assertContains('text/plain', $request->header('Content-Type'));
+            $this->assertSame($string, $request->body());
+            $this->assertContains('text/plain', $request->header('Content-Type'));
 
             return Factory::response(['my' => 'response']);
         };
@@ -1141,7 +1280,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP form data must resolve to an array.');
+        $this->expectExceptionMessageIsOrContains('HTTP form data must resolve to an array.');
 
         $this->factory->asForm()->post('http://foo.com/form', new class($serialized) implements JsonSerializable {
             public function __construct(private ?string $serialized)
@@ -1252,6 +1391,28 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testStructuredDataNormalizationLeavesReferencedCallerDataUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $name = new Stringable('Alice');
+        $email = 'alice@example.com';
+        $data = ['user' => ['name' => &$name, 'email' => &$email]];
+
+        $this->factory->post('http://foo.com/json', $data);
+
+        $this->assertInstanceOf(Stringable::class, $name);
+
+        // Changing the caller's variables afterwards must not reach the captured request data.
+        $name = 'Changed';
+        $email = 'changed@example.com';
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->body() === '{"user":{"name":"Alice","email":"alice@example.com"}}'
+                && $request['user'] === ['name' => 'Alice', 'email' => 'alice@example.com'];
+        });
+    }
+
     public function testCanSendJsonDataWithStringable(): void
     {
         $this->factory->fake();
@@ -1305,13 +1466,33 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testHeaderNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $header = new Stringable('single');
+        $item = new Stringable('item');
+
+        $this->factory->withHeaders([
+            'X-Single' => &$header,
+            'X-Multiple' => ['first', &$item],
+        ])->get('http://foo.com/get');
+
+        $this->assertInstanceOf(Stringable::class, $header);
+        $this->assertInstanceOf(Stringable::class, $item);
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->hasHeader('X-Single', 'single')
+                && $request->hasHeader('X-Multiple', ['first', 'item']);
+        });
+    }
+
     #[DataProvider('invalidHeaderValuesProvider')]
     public function testInvalidHeaderValuesAreRejected(mixed $value): void
     {
         $this->factory->fake();
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.');
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'));
 
         $this->factory->withHeaders(['X-Test' => $value])->post('http://foo.com/json');
     }
@@ -1332,7 +1513,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP header names must be strings.');
+        $this->expectExceptionMessageIsOrContains('HTTP header names must be strings.');
 
         $this->factory->withHeaders(['Content-Type', 'application/json'])->post('http://foo.com/json');
     }
@@ -1414,7 +1595,7 @@ class HttpClientTest extends TestCase
         ));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+        $this->expectExceptionMessageIsOrContains('The request JSON body must decode to an array.');
 
         $request->data();
     }
@@ -1497,7 +1678,7 @@ class HttpClientTest extends TestCase
     public function testEmptyRequestDataIsDecodedOnlyOnce(): void
     {
         $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('__toString')->once()->andReturn('[]');
+        $body->expects('__toString')->andReturn('[]');
         $request = new Request(new GuzzleRequest(
             'POST',
             'https://example.test',
@@ -1674,6 +1855,74 @@ class HttpClientTest extends TestCase
         });
     }
 
+    /**
+     * @param Closure(Factory): PendingRequest $pendingRequest
+     */
+    #[DataProvider('contentTypesWithoutABoundary')]
+    public function testAttachedFilesReplaceAContentTypeWithoutABoundary(Closure $pendingRequest): void
+    {
+        $sent = null;
+
+        $this->factory->fake(function (Request $request) use (&$sent): PromiseInterface {
+            $sent = $request;
+
+            return Factory::response();
+        });
+
+        $pendingRequest($this->factory)->attach('file', 'data', 'file.txt')->post('http://foo.com/file');
+
+        $contentType = $sent->header('Content-Type');
+
+        $this->assertCount(1, $contentType);
+        $this->assertStringStartsWith('multipart/form-data; boundary=', $contentType[0]);
+        $this->assertStringStartsWith(
+            '--' . substr($contentType[0], strlen('multipart/form-data; boundary=')) . "\r\n",
+            $sent->body(),
+        );
+    }
+
+    /**
+     * Get the ways a request can carry a content type without a boundary.
+     *
+     * @return iterable<string, array{Closure(Factory): PendingRequest}>
+     */
+    public static function contentTypesWithoutABoundary(): iterable
+    {
+        yield 'asJson' => [fn (Factory $factory): PendingRequest => $factory->asJson()];
+        yield 'string header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['Content-Type' => 'application/json'])];
+        yield 'lowercase list header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['content-type' => ['application/json']])];
+        yield 'stringable header' => [fn (Factory $factory): PendingRequest => $factory->withHeaders(['Content-Type' => new Stringable('application/json')])];
+        yield 'connection default' => [fn (Factory $factory): PendingRequest => $factory
+            ->registerConnection('api', ['headers' => ['Content-Type' => 'application/json']])
+            ->connection('api')];
+    }
+
+    #[DataProvider('contentTypesWithABoundary')]
+    public function testAttachedFilesKeepAContentTypeWithABoundary(mixed $contentType): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withHeaders(['Content-Type' => $contentType])
+            ->attach('file', 'data', 'file.txt')
+            ->post('http://foo.com/file');
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->header('Content-Type') === ['multipart/related; boundary=custom'],
+        );
+    }
+
+    /**
+     * Get the supported representations of a content type that declares a boundary.
+     *
+     * @return iterable<string, array{mixed}>
+     */
+    public static function contentTypesWithABoundary(): iterable
+    {
+        yield 'string' => ['multipart/related; boundary=custom'];
+        yield 'list' => [['multipart/related; boundary=custom']];
+        yield 'stringable' => [new Stringable('multipart/related; boundary=custom')];
+    }
+
     public function testAttachPreservesEmptyContents(): void
     {
         $this->factory->fake();
@@ -1772,13 +2021,36 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testMultipartNormalizationLeavesReferencedCallerValuesUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $contents = new Stringable('original');
+        $header = new Stringable('header');
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', [
+            ['name' => 'text', 'contents' => &$contents, 'headers' => ['X-Part' => &$header]],
+        ]);
+
+        $this->assertInstanceOf(Stringable::class, $contents);
+        $this->assertInstanceOf(Stringable::class, $header);
+
+        // Changing the caller's variables afterwards must not reach the captured request data.
+        $contents = 'changed';
+        $header = 'changed';
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request[0]['contents'] === 'original'
+                && $request[0]['headers']['X-Part'] === 'header';
+        });
+    }
+
     #[DataProvider('invalidMultipartHeaderValuesProvider')]
     public function testInvalidMultipartHeaderValuesAreRejected(mixed $value): void
     {
         $this->factory->fake();
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Multipart header values must be scalar, null, or Hypervel Stringable.');
+        $this->expectExceptionObject(new InvalidArgumentException('Multipart header values must be scalar, null, or Hypervel Stringable.'));
 
         $this->factory->asMultipart()->post('http://foo.com/multipart', [
             [
@@ -1846,7 +2118,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP multipart data must resolve to an array.');
+        $this->expectExceptionMessageIsOrContains('HTTP multipart data must resolve to an array.');
 
         $this->factory->asMultipart()->post('http://foo.com/multipart', new class implements JsonSerializable {
             public function jsonSerialize(): mixed
@@ -2188,12 +2460,57 @@ class HttpClientTest extends TestCase
 
         $this->assertCount(1, $response->cookies()->toArray());
 
-        /** @var \GuzzleHttp\Cookie\CookieJarInterface $responseCookies */
         $responseCookie = $response->cookies()->toArray()[0];
 
         $this->assertSame('foo', $responseCookie['Name']);
         $this->assertSame('bar', $responseCookie['Value']);
         $this->assertSame('https://laravel.com', $responseCookie['Domain']);
+    }
+
+    public function testWithCookiePreservesAttributesAndSnapshotsTheInput(): void
+    {
+        $this->factory->fake();
+        $cookie = new SetCookie([
+            'Name' => 'session', 'Value' => 'first', 'Domain' => 'api.example.com',
+            'Path' => '/api', 'Secure' => true, 'HttpOnly' => true, 'HostOnly' => true,
+        ]);
+        $expected = $cookie->toArray();
+        $request = $this->factory->withCookie($cookie);
+        $cookie->setValue('second');
+
+        $response = $request->get('https://api.example.com/api/users');
+
+        $this->assertSame([$expected], $response->cookies()->toArray());
+    }
+
+    #[DataProvider('invalidCookies')]
+    public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains($message);
+
+        $this->factory->withCookie(new SetCookie($cookie));
+    }
+
+    /**
+     * Provide cookies that cannot be sent with a request.
+     */
+    public static function invalidCookies(): array
+    {
+        return [
+            'null domain' => [
+                ['Name' => 'session', 'Value' => 'secret'],
+                'An outgoing cookie must have a domain.',
+            ],
+            'empty domain' => [
+                ['Name' => 'session', 'Value' => 'secret', 'Domain' => ''],
+                'Invalid cookie: The cookie domain must not be empty',
+            ],
+            'null value' => [
+                ['Name' => 'session', 'Domain' => 'api.example.com'],
+                'Invalid cookie: The cookie value must not be empty',
+            ],
+        ];
     }
 
     public function testWithQueryParameters(): void
@@ -2414,7 +2731,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP query data must resolve to an array, string, or null.');
+        $this->expectExceptionMessageIsOrContains('HTTP query data must resolve to an array, string, or null.');
 
         $this->factory->get('http://foo.com/get', new class implements JsonSerializable {
             public function jsonSerialize(): mixed
@@ -2445,6 +2762,18 @@ class HttpClientTest extends TestCase
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'http://foo.com/get?foo=bar'
                 && $request['foo'] === 'bar';
+        });
+    }
+
+    public function testRequestUriMethod(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('http://foo.com/get?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->uri() instanceof Uri
+                && (string) $request->uri() === 'http://foo.com/get?foo=bar&page=1';
         });
     }
 
@@ -2484,18 +2813,6 @@ class HttpClientTest extends TestCase
             return $request->url() === 'http://foo.com/head?foo=bar&page=1'
                 && $request['foo'] === 'bar'
                 && $request['page'] === '1';
-        });
-    }
-
-    public function testRequestUriMethod(): void
-    {
-        $this->factory->fake();
-
-        $this->factory->get('http://foo.com/get?foo=bar&page=1');
-
-        $this->factory->assertSent(function (Request $request) {
-            return $request->uri() instanceof Uri
-                && (string) $request->uri() === 'http://foo.com/get?foo=bar&page=1';
         });
     }
 
@@ -2713,7 +3030,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionSummary(): void
     {
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage('{"error":{"code":403,"message":"The Request can not be completed"}}');
+        $this->expectExceptionMessageIsOrContains('{"error":{"code":403,"message":"The Request can not be completed"}}');
 
         $error = [
             'error' => [
@@ -2721,15 +3038,16 @@ class HttpClientTest extends TestCase
                 'message' => 'The Request can not be completed',
             ],
         ];
+
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionTruncatedSummary(): void
     {
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             '{"error":{"code":403,"message":"The Request can not be completed because quota limit was exceeded. Please, check our sup (truncated...)'
         );
 
@@ -2741,7 +3059,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionWithoutTruncatedSummary(): void
@@ -2749,7 +3067,7 @@ class HttpClientTest extends TestCase
         RequestException::dontTruncate();
 
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             '{"error":{"code":403,"message":"The Request can not be completed because quota limit was exceeded. Please, check our support team to increase your limit'
         );
 
@@ -2761,7 +3079,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionWithCustomTruncatedSummary(): void
@@ -2769,7 +3087,7 @@ class HttpClientTest extends TestCase
         RequestException::truncateAt(60);
 
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage('{"error":{"code":403,"message":"The Request can not be compl (truncated...)');
+        $this->expectExceptionMessageIsOrContains('{"error":{"code":403,"message":"The Request can not be compl (truncated...)');
 
         $error = [
             'error' => [
@@ -2779,7 +3097,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestLevelTruncationLevelOnRequestException(): void
@@ -2794,10 +3112,12 @@ class HttpClientTest extends TestCase
             $this->factory->throw()->truncateExceptionsAt(3)->get('http://foo.com/json');
             $this->fail('The request exception was not thrown.');
         } catch (RequestException $exception) {
+            // Ensure the exception message is truncated according to the request level truncation setting.
             $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
 
             $exception->report();
 
+            // Ensure that the truncation level is not changed when reporting the exception.
             $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
         }
 
@@ -2824,6 +3144,28 @@ class HttpClientTest extends TestCase
         $this->assertSame(60, RequestException::$truncateAt);
     }
 
+    public function testRequestExceptionDoesNotTruncateButRequestDoes(): void
+    {
+        RequestException::dontTruncate();
+
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $exception = null;
+        try {
+            $this->factory->throw()->truncateExceptionsAt(3)->get('http://foo.com/json');
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $exception->report();
+
+        $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
+
+        $this->assertFalse(RequestException::$truncateAt);
+    }
+
     public function testAsyncRequestExceptionsRespectRequestTruncation(): void
     {
         RequestException::dontTruncate();
@@ -2841,28 +3183,6 @@ class HttpClientTest extends TestCase
         $this->assertFalse(RequestException::$truncateAt);
     }
 
-    public function testRequestExceptionDoesNotTruncateButRequestDoes(): void
-    {
-        RequestException::dontTruncate();
-
-        $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
-        ]);
-
-        $exception = null;
-        try {
-            $this->factory->throw()->truncateExceptionsAt(3)->get('http://foo.com/json');
-        } catch (RequestException $e) {
-            $exception = $e;
-        }
-
-        $exception->report();
-
-        $this->assertEquals("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
-
-        $this->assertFalse(RequestException::$truncateAt);
-    }
-
     public function testRequestExceptionFlushStateRestoresDefaultTruncation(): void
     {
         RequestException::dontTruncate();
@@ -2872,6 +3192,16 @@ class HttpClientTest extends TestCase
         RequestException::flushState();
 
         $this->assertSame(RequestException::DEFAULT_TRUNCATE_AT, RequestException::$truncateAt);
+    }
+
+    public function testRequestExceptionEmptyBody(): void
+    {
+        $this->expectException(RequestException::class);
+        $this->expectExceptionMessageMatches('/HTTP request returned status code 403$/');
+
+        $response = new Psr7Response(403);
+
+        throw new RequestException(new Response($response));
     }
 
     public function testReportingExceptionTwiceDoesNotIncludeSummaryTwice(): void
@@ -2894,24 +3224,18 @@ class HttpClientTest extends TestCase
         $this->assertEquals(1, substr_count($exception->getMessage(), '{"error":{"code":403,"message":"The Request can not be completed"}}'));
     }
 
-    public function testRequestExceptionEmptyBody(): void
+    #[TestWith([false])]
+    #[TestWith([120])]
+    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable(int|false $truncateAt): void
     {
-        $this->expectException(RequestException::class);
-        $this->expectExceptionMessageMatches('/HTTP request returned status code 403$/');
+        RequestException::$truncateAt = $truncateAt;
 
-        $response = new Psr7Response(403);
-
-        throw new RequestException(new Response($response));
-    }
-
-    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable(): void
-    {
         $this->factory->fake([
-            '*' => \GuzzleHttp\Promise\Create::promiseFor(
+            '*' => Create::promiseFor(
                 new Psr7Response(
                     400,
                     ['Content-Type' => 'application/json'],
-                    new \GuzzleHttp\Psr7\NoSeekStream(Utils::streamFor(json_encode(['hello' => 'world'])))
+                    new NoSeekStream(Utils::streamFor(json_encode(['hello' => 'world'])))
                 )
             ),
         ]);
@@ -3072,45 +3396,203 @@ class HttpClientTest extends TestCase
 
     public function testSinkToPsrStreamWhenFaked(): void
     {
-        $this->factory->fakeSequence()->push('abc123');
+        $body = str_repeat('abc123', 6000);
+        $this->factory->fakeSequence()->push($body);
 
-        $stream = Utils::streamFor('');
+        $stream = new PrefixWriteStream(Utils::streamFor(''), 16384);
 
         $this->factory->sink($stream)->get('https://example.com');
 
         $this->assertSame(0, $stream->tell());
-        $this->assertSame('abc123', $stream->getContents());
+        $this->assertSame($body, $stream->getContents());
     }
 
-    public function testPartialPsrSinkWritesTheCompleteBody(): void
+    #[TestWith(['missing_directory'])]
+    #[TestWith(['path_write'])]
+    #[TestWith(['throwing_stream'])]
+    #[TestWith(['short_write'])]
+    #[TestWith(['resource'])]
+    public function testFakeSinkFailuresMatchTheInstalledTransport(string $case): void
     {
-        $this->factory->fakeSequence()->push('abc123');
+        $directory = ParallelTesting::tempDir('HttpClientSinkParity');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $outcomes = [];
 
-        $inner = Utils::streamFor('');
-        $stream = new PrefixWriteStream($inner, 2);
+        try {
+            run(function () use ($case, $directory, &$outcomes): void {
+                foreach ([false, true] as $fake) {
+                    $factory = new Factory;
+                    $factory->record();
+                    $url = 'http://127.0.0.1:1/';
 
-        $this->factory->sink($stream)->get('https://example.com');
+                    if ($fake) {
+                        $factory->fake(['*' => Factory::response('abc123')]);
+                    } elseif ($case !== 'missing_directory') {
+                        $server = LoopbackHttpServer::start([['body' => 'abc123']]);
+                        $url = 'http://127.0.0.1:' . $server->port . '/';
+                    }
 
-        $this->assertSame(3, $stream->writeCount);
-        $this->assertSame(0, $stream->tell());
-        $this->assertSame('abc123', $stream->getContents());
+                    $sink = match ($case) {
+                        'missing_directory' => $directory . '/missing/body',
+                        'path_write' => $directory,
+                        'throwing_stream' => new ThrowingWriteStream(Utils::streamFor('')),
+                        'short_write' => new PrefixWriteStream(Utils::streamFor(''), 2),
+                        'resource' => fopen('php://memory', 'r'),
+                    };
+                    $failure = null;
+                    $headersSeen = false;
+
+                    try {
+                        $factory->sink($sink)->timeout(2)->withOptions([
+                            'on_headers' => function () use (&$headersSeen): void {
+                                $headersSeen = true;
+                            },
+                        ])->get($url);
+                    } catch (Throwable $exception) {
+                        $failure = $exception;
+                    } finally {
+                        if (is_resource($sink)) {
+                            fclose($sink);
+                        } elseif ($sink instanceof StreamInterface) {
+                            $sink->close();
+                        }
+                    }
+
+                    $pair = $factory->recorded()->first();
+                    $outcomes[] = [$failure, $headersSeen, $pair === null ? null : $pair[1]?->status()];
+                }
+            });
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
+
+        foreach ($outcomes as [$failure, $headersSeen]) {
+            $this->assertNotNull($failure, 'Both the real and fake sink writes must fail.');
+            $this->assertSame($case !== 'missing_directory', $headersSeen);
+
+            if ($case === 'missing_directory' && $failure instanceof ConnectionException) {
+                // A refused connection also has no headers, but carries a different transport exception.
+                $this->assertSame(GuzzleRequestException::class, $failure->getPrevious()::class);
+            }
+        }
+
+        $this->assertSame($outcomes[0][0]::class, $outcomes[1][0]::class);
+        $this->assertSame($outcomes[0][2], $outcomes[1][2]);
     }
 
-    public function testZeroProgressPsrSinkFailsAndRecordsTheRequest(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testZeroProgressPsrSinkFailsLikeATransportAndRecordsTheResponse(bool $async): void
     {
         $this->factory->fakeSequence()->push('abc123');
         $stream = new PrefixWriteStream(Utils::streamFor(''), 0);
 
         try {
-            $this->factory->sink($stream)->get('https://example.com');
-            $this->fail('RuntimeException was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('Unable to write to stream', $exception->getMessage());
+            $result = $this->factory->sink($stream)->async($async)->get('https://example.com');
+            $exception = $async ? $result->wait() : null;
+        } catch (ConnectionException $failure) {
+            $exception = $failure;
         }
+
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertSame('Unable to write to stream', $exception->getMessage());
+        $this->assertInstanceOf(GuzzleRequestException::class, $exception->getPrevious());
+        $this->assertSame(200, $exception->getPrevious()->getResponse()?->getStatusCode());
 
         $this->factory->assertSentCount(1);
         $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $request->url() === 'https://example.com'
-            && $response === null);
+            && $response?->status() === 200);
+    }
+
+    public function testDecoratedSinkCallbacksStillTakeTheResponseAlone(): void
+    {
+        $stream = Utils::streamFor('');
+
+        (new DecoratingSinkPendingRequest($this->factory))
+            ->stub(fn () => Factory::response('abc123'))
+            ->sink($stream)
+            ->get('https://example.com');
+
+        $this->assertSame('abc123', (string) $stream);
+
+        try {
+            (new DecoratingSinkPendingRequest($this->factory))
+                ->stub(fn () => Factory::response('abc123'))
+                ->sink(new PrefixWriteStream(Utils::streamFor(''), 0))
+                ->get('https://example.com');
+            $this->fail('ConnectionException was not thrown.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Unable to write to stream', $exception->getMessage());
+            $this->assertSame('https://example.com', (string) $exception->getPrevious()?->getRequest()->getUri());
+        }
+    }
+
+    public function testFakedResponsesReachOnHeadersBeforeTheSink(): void
+    {
+        $this->factory->fakeSequence()->push('abc123', 201, ['X-Fake' => 'yes']);
+        $stream = Utils::streamFor('');
+        $seen = null;
+
+        $this->factory->sink($stream)->withOptions([
+            'on_headers' => function (ResponseInterface $response, RequestInterface $request) use ($stream, &$seen): void {
+                $seen = [$response->getStatusCode(), $response->getHeaderLine('X-Fake'), (string) $request->getUri(), $stream->getSize()];
+            },
+        ])->get('https://example.com');
+
+        $this->assertSame([201, 'yes', 'https://example.com', 0], $seen);
+        $this->assertSame('abc123', (string) $stream);
+    }
+
+    #[TestWith([false, 200])]
+    #[TestWith([true, 200])]
+    #[TestWith([true, 302])]
+    public function testOnHeadersFailuresOnFakedResponsesFailLikeATransport(bool $async, int $status): void
+    {
+        $this->factory->fakeSequence()->push('abc123', $status);
+        $failure = new RuntimeException('Refused.');
+
+        try {
+            $result = $this->factory->async($async)->withOptions([
+                'on_headers' => function () use ($failure): void {
+                    throw $failure;
+                },
+            ])->get('https://example.com');
+            $exception = $async ? $result->wait() : null;
+        } catch (ConnectionException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertSame('An error was encountered during the on_headers event', $exception->getMessage());
+        $this->assertSame($failure, $exception->getPrevious()?->getPrevious());
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response?->status() === $status);
+    }
+
+    public function testAsyncResponseBearingFailuresCanRetryWithoutReportingAConnectionFailure(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->andReturnTrue();
+        $events->shouldReceive('dispatch')->with(m::type(RequestSending::class))->twice();
+        $events->shouldReceive('dispatch')->with(m::type(ResponseReceived::class))->once();
+        $events->shouldNotReceive('dispatch')->with(m::type(ConnectionFailedEvent::class));
+        $factory = new Factory($events);
+        $factory->fakeSequence()->push('first')->push('second');
+        $seen = 0;
+        $failure = new RuntimeException('Refused the first response.');
+
+        $response = $factory->async()->retry(2, 0)->withOptions([
+            'on_headers' => function () use (&$seen, $failure): void {
+                if (++$seen === 1) {
+                    throw $failure;
+                }
+            },
+        ])->get('https://example.com')->wait();
+
+        $this->assertSame('second', $response->body());
+        $factory->assertSentCount(2);
+        $this->assertSame([200, 200], $factory->recorded()->map(fn (array $pair) => $pair[1]?->status())->all());
     }
 
     public function testNonseekableResourceSinkReceivesTheCompleteBody(): void
@@ -3153,8 +3635,8 @@ class HttpClientTest extends TestCase
 
             try {
                 $this->factory->sink($sink)->get('https://example.com');
-                $this->fail('RuntimeException was not thrown.');
-            } catch (RuntimeException $exception) {
+                $this->fail('ConnectionException was not thrown.');
+            } catch (ConnectionException $exception) {
                 $this->assertSame('Unable to write to stream', $exception->getMessage());
             }
 
@@ -3196,9 +3678,9 @@ class HttpClientTest extends TestCase
         $this->factory->fakeSequence()->push('abc123');
         $failure = new RuntimeException('Unable to rewind PSR stream');
         $stream = m::mock(StreamInterface::class);
-        $stream->shouldReceive('write')->once()->with('abc123')->andReturn(6);
-        $stream->shouldReceive('isSeekable')->once()->andReturnTrue();
-        $stream->shouldReceive('rewind')->once()->andThrow($failure);
+        $stream->expects('write')->with('abc123')->andReturn(6);
+        $stream->expects('isSeekable')->andReturnTrue();
+        $stream->expects('rewind')->andThrow($failure);
 
         try {
             $this->factory->sink($stream)->get('https://example.com');
@@ -3206,49 +3688,6 @@ class HttpClientTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
         }
-    }
-
-    #[DataProvider('failedSinkProvider')]
-    public function testFailedFakeSinksAreRecordedAndPropagated(string $sinkType): void
-    {
-        $directory = ParallelTesting::tempDir('HttpClientFailedSink');
-        $filesystem = new Filesystem;
-        $filesystem->deleteDirectory($directory);
-
-        $sink = $sinkType === 'resource'
-            ? fopen('php://memory', 'r')
-            : $directory . '/missing/sunk.txt';
-
-        $expectedMessage = $sinkType === 'resource'
-            ? 'Unable to write to stream'
-            : "Unable to write response body to sink [{$sink}].";
-
-        $this->factory->fake(['*' => $this->factory->response('abc123')]);
-
-        try {
-            $this->factory->sink($sink)->get('https://example.com');
-            $this->fail('RuntimeException was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($expectedMessage, $exception->getMessage());
-        } finally {
-            if (is_resource($sink)) {
-                fclose($sink);
-            }
-
-            $filesystem->deleteDirectory($directory);
-        }
-
-        $this->factory->assertSentCount(1);
-        $this->factory->assertSent(fn (Request $request, ?Response $response) => $request->url() === 'https://example.com'
-            && $response === null);
-    }
-
-    public static function failedSinkProvider(): array
-    {
-        return [
-            'read-only resource' => ['resource'],
-            'missing directory' => ['path'],
-        ];
     }
 
     public function testCanAssertAgainstOrderOfHttpRequestsWithUrlStrings(): void
@@ -3500,7 +3939,7 @@ class HttpClientTest extends TestCase
 
     public function testRequestsCanBeAsync(): void
     {
-        $request = new PendingRequest($this->factory);
+        $request = $this->factory->fake()->createPendingRequest();
 
         $promise = $request->async()->get('http://foo.com');
 
@@ -3511,7 +3950,7 @@ class HttpClientTest extends TestCase
 
     public function testFailedAsyncRequestsAreRecorded(): void
     {
-        $this->factory->fake($this->factory->failedConnection('Fake'));
+        $this->factory->fake($this->factory::failedConnection('Fake'));
 
         $result = $this->factory->async()->post('https://example.com')->wait();
 
@@ -3535,38 +3974,52 @@ class HttpClientTest extends TestCase
         $this->assertSame('Something unexpected', $result->getMessage());
     }
 
-    public function testAsyncRequestRetriesWithBackoffArray(): void
+    #[DataProvider('redirectRetryModes')]
+    public function testRetryPreservesRedirectResponses(bool $async, bool $throw): void
     {
+        $exceptions = [];
+        $delays = 0;
+
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response('Redirect body', 302),
         ]);
 
-        $response = $this->factory
-            ->async()
-            ->retry([1, 2], throw: false)
-            ->get('http://foo.com/get')
-            ->wait();
+        $response = $this->factory->async($async)
+            ->withoutRedirecting()
+            ->retry(3, function () use (&$delays): int {
+                ++$delays;
 
-        $this->assertTrue($response->failed());
+                return 0;
+            }, function (?Throwable $exception) use (&$exceptions): bool {
+                $exceptions[] = $exception;
 
-        $this->factory->assertSentCount(3);
+                return true;
+            }, $throw)
+            ->get('http://foo.com/get');
+
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(302, $response->status());
+        $this->assertSame('Redirect body', $response->body());
+        $this->factory->assertSentCount(1);
+        $this->assertSame([null], $exceptions);
+        $this->assertSame(0, $delays);
     }
 
-    public function testAsyncRequestRetriesWithIntegerTries(): void
+    /**
+     * Provide request execution and retry exception modes.
+     */
+    public static function redirectRetryModes(): array
     {
-        $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
-        ]);
-
-        $response = $this->factory
-            ->async()
-            ->retry(2, 1000, null, false)
-            ->get('http://foo.com/get')
-            ->wait();
-
-        $this->assertTrue($response->failed());
-
-        $this->factory->assertSentCount(2);
+        return [
+            'sync, throw' => [false, true],
+            'sync, no throw' => [false, false],
+            'async, throw' => [true, true],
+            'async, no throw' => [true, false],
+        ];
     }
 
     #[DataProvider('requestRewritingModes')]
@@ -3736,7 +4189,7 @@ class HttpClientTest extends TestCase
     public function testClientCanBeUsedExternally(): void
     {
         $this->factory->fake([
-            'https://200.com' => $this->factory->response('hello', 200),
+            'https://200.com' => $this->factory::response('hello', 200),
         ]);
 
         $apiClient = new class($this->factory->buildClient()) {
@@ -3779,13 +4232,84 @@ class HttpClientTest extends TestCase
         );
     }
 
+    public function testGlobalConfigurationCanBeDisabledForRequestsCreatedWithinCallback(): void
+    {
+        $this->factory->fake();
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withHeader('X-Global', 'Foo'));
+
+        $request = $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+        $request->get('http://hypervel.com/agent');
+
+        $this->factory->createPendingRequest()->get('http://hypervel.com/global');
+
+        $this->assertArrayNotHasKey('force_ip_resolve', $request->getOptions());
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/agent' && ! $request->hasHeader('X-Global'));
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/global' && $request->hasHeader('X-Global'));
+    }
+
+    public function testGlobalConfigurationIsRestoredAfterWithoutGlobalConfigurationCallback(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalMiddleware($middleware);
+
+        try {
+            $this->factory->withoutGlobalConfiguration(function (): never {
+                throw new Exception('boom');
+            });
+        } catch (Exception) {
+        }
+
+        $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+        $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+    }
+
+    public function testGlobalConfigurationSuppressionIsScopedToTheFactoryAndCoroutine(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+        $optionsResolved = 0;
+        $this->factory->globalOptions(function () use (&$optionsResolved): array {
+            ++$optionsResolved;
+
+            return ['force_ip_resolve' => 'v4'];
+        });
+        $this->factory->globalMiddleware($middleware);
+        $otherFactory = (new Factory)->globalOptions(['force_ip_resolve' => 'v6']);
+
+        run(function () use ($middleware, $otherFactory, &$optionsResolved): void {
+            $results = $this->factory->withoutGlobalConfiguration(fn (): array => parallel([
+                fn (): array => $this->factory->withoutGlobalConfiguration(function () use ($otherFactory): array {
+                    $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+                    usleep(5000);
+
+                    return [
+                        $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'] ?? null,
+                        $this->factory->getGlobalMiddleware(),
+                        $otherFactory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    ];
+                }),
+                fn (): array => [
+                    $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    $this->factory->getGlobalMiddleware(),
+                ],
+            ]));
+
+            $this->assertSame([[null, [], 'v6'], ['v4', [$middleware]]], $results);
+            $this->assertSame(1, $optionsResolved);
+            $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+            $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+        });
+    }
+
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -3800,10 +4324,10 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSentAsync(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -3819,14 +4343,14 @@ class HttpClientTest extends TestCase
     {
         Sleep::fake();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(2)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(2)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake([
-            '*' => $factory->response(['error'], 403),
+            '*' => $factory::response(['error'], 403),
         ]);
 
         $response = $factory->retry(2, 1000, null, false)->get('http://foo.com/get');
@@ -3850,7 +4374,7 @@ class HttpClientTest extends TestCase
 
     public function testTransferStatsArePresentWhenFakingTheRequestUsingAPromiseResponse(): void
     {
-        $this->factory->fake(['https://example.com' => $this->factory->response()]);
+        $this->factory->fake(['https://example.com' => $this->factory::response()]);
         $effectiveUri = $this->factory->get('https://example.com')->effectiveUri();
 
         $this->assertSame('https://example.com', (string) $effectiveUri);
@@ -3858,7 +4382,7 @@ class HttpClientTest extends TestCase
 
     public function testTransferStatsArePresentWhenFakingAnAsyncRequestUsingAPromiseResponse(): void
     {
-        $this->factory->fake(['https://example.com' => $this->factory->response()]);
+        $this->factory->fake(['https://example.com' => $this->factory::response()]);
 
         $response = $this->factory->async()->get('https://example.com')->wait();
 
@@ -3869,13 +4393,13 @@ class HttpClientTest extends TestCase
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
-        $factory->fake(['example.com' => $factory->response('foo', 200)]);
+        $factory->fake(['example.com' => $factory::response('foo', 200)]);
 
         $client = $factory->timeout(10);
         $clonedClient = clone $client;
@@ -3886,13 +4410,13 @@ class HttpClientTest extends TestCase
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ConnectionFailedEvent::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ConnectionFailedEvent::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ConnectionFailedEvent::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ConnectionFailedEvent::class));
 
         $factory = new Factory($events);
-        $factory->fake($factory->failedConnection('Fake'));
+        $factory->fake($factory::failedConnection('Fake'));
 
         try {
             $factory->get('https://example.com');
@@ -3911,7 +4435,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) {
             $this->assertSame('yes!', $request->customMethod());
 
-            return $this->factory->response();
+            return $this->factory::response();
         });
 
         $this->factory->get('https://example.com');
@@ -3920,7 +4444,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownWhenRetriesExhausted(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -3942,7 +4466,7 @@ class HttpClientTest extends TestCase
     public function testResponseBearingTransportErrorsAreRecordedOnce(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response('Failed', 500),
+            '*' => $this->factory::response('Failed', 500),
         ]);
 
         try {
@@ -3962,7 +4486,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownWhenRetriesExhaustedWithBackoffArray(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -4048,7 +4572,7 @@ class HttpClientTest extends TestCase
     {
         $cancellation = new CanceledException('retry callback canceled');
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $promise = $this->factory
@@ -4070,7 +4594,7 @@ class HttpClientTest extends TestCase
     {
         $cancellation = new CanceledException('throw callback canceled');
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $promise = $this->factory
@@ -4091,7 +4615,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessary(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $exception = null;
@@ -4120,7 +4644,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $exception = null;
@@ -4149,7 +4673,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhausted(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $response = $this->factory
@@ -4164,7 +4688,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhaustedWithBackoffArray(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $response = $this->factory
@@ -4176,10 +4700,44 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(3);
     }
 
+    public function testAsyncRequestRetriesWithBackoffArray(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->async()
+            ->retry([1, 2], throw: false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertTrue($response->failed());
+
+        $this->factory->assertSentCount(3);
+    }
+
+    public function testAsyncRequestRetriesWithIntegerTries(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->async()
+            ->retry(2, 1000, null, false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertTrue($response->failed());
+
+        $this->factory->assertSentCount(2);
+    }
+
     public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessary(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $whenAttempts = 0;
@@ -4202,7 +4760,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $whenAttempts = 0;
@@ -4275,7 +4833,7 @@ class HttpClientTest extends TestCase
     public function testExceptionThrownInRetryCallbackWithoutRetrying(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $exception = null;
@@ -4292,7 +4850,7 @@ class HttpClientTest extends TestCase
 
         $this->assertNotNull($exception);
         $this->assertInstanceOf(Exception::class, $exception);
-        $this->assertEquals('Foo bar', $exception->getMessage());
+        $this->assertSame('Foo bar', $exception->getMessage());
 
         $this->factory->assertSentCount(1);
     }
@@ -4300,7 +4858,7 @@ class HttpClientTest extends TestCase
     public function testExceptionThrownInRetryCallbackWithoutRetryingWithBackoffArray(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 500),
+            '*' => $this->factory::response(['error'], 500),
         ]);
 
         $exception = null;
@@ -4317,7 +4875,7 @@ class HttpClientTest extends TestCase
 
         $this->assertNotNull($exception);
         $this->assertInstanceOf(Exception::class, $exception);
-        $this->assertEquals('Foo bar', $exception->getMessage());
+        $this->assertSame('Foo bar', $exception->getMessage());
 
         $this->factory->assertSentCount(1);
     }
@@ -4400,7 +4958,7 @@ class HttpClientTest extends TestCase
 
     public function testFailedRequest(): void
     {
-        $requestException = $this->factory->failedRequest(['code' => 'not_found'], 404, ['X-RateLimit-Remaining' => 199]);
+        $requestException = $this->factory::failedRequest(['code' => 'not_found'], 404, ['X-RateLimit-Remaining' => 199]);
 
         $this->assertInstanceOf(RequestException::class, $requestException);
         $this->assertEqualsCanonicalizing(['code' => 'not_found'], $requestException->response->json());
@@ -4410,7 +4968,7 @@ class HttpClientTest extends TestCase
 
     public function testFailedRequestHeaderValuesNormalizeNonFiniteFloats(): void
     {
-        $exception = $this->factory->failedRequest('error', 500, [
+        $exception = $this->factory::failedRequest('error', 500, [
             'X-Nan' => NAN,
             'X-Inf' => INF,
             'X-Negative-Inf' => -INF,
@@ -4425,7 +4983,7 @@ class HttpClientTest extends TestCase
 
     public function testFakeConnectionException(): void
     {
-        $this->factory->fake($this->factory->failedConnection('Fake'));
+        $this->factory->fake($this->factory::failedConnection('Fake'));
 
         $exception = null;
 
@@ -4447,7 +5005,7 @@ class HttpClientTest extends TestCase
 
     public function testFailedMultipartRequestsRetainRequestData(): void
     {
-        $this->factory->fake($this->factory->failedConnection('Fake'));
+        $this->factory->fake($this->factory::failedConnection('Fake'));
 
         try {
             $this->factory
@@ -4470,7 +5028,7 @@ class HttpClientTest extends TestCase
 
     public function testFakeConnectionExceptionWithinFakeClosure(): void
     {
-        $this->factory->fake(fn () => $this->factory->failedConnection('Fake'));
+        $this->factory->fake(fn () => $this->factory::failedConnection('Fake'));
 
         $exception = null;
 
@@ -4489,7 +5047,7 @@ class HttpClientTest extends TestCase
 
     public function testFakeConnectionExceptionWithinArray(): void
     {
-        $this->factory->fake(['*' => $this->factory->failedConnection('Fake')]);
+        $this->factory->fake(['*' => $this->factory::failedConnection('Fake')]);
 
         $exception = null;
 
@@ -4534,7 +5092,7 @@ class HttpClientTest extends TestCase
     public function testMiddlewareRunsWhenFaked(): void
     {
         $this->factory->fake(function (Request $request) {
-            return $this->factory->response('Fake');
+            return $this->factory::response('Fake');
         });
 
         $history = [];
@@ -4560,7 +5118,7 @@ class HttpClientTest extends TestCase
     public function testMiddlewareRunsAndCanChangeRequestOnAssertSent(): void
     {
         $this->factory->fake(function (Request $request) {
-            return $this->factory->response('Fake');
+            return $this->factory::response('Fake');
         });
 
         $pendingRequest = $this->factory->withMiddleware(
@@ -4644,7 +5202,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) use (&$stubData) {
             $stubData = $request->data();
 
-            return $this->factory->response();
+            return $this->factory::response();
         });
 
         $this->factory
@@ -4749,7 +5307,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) use (&$stubData) {
             $stubData = $request->data();
 
-            return $this->factory->response();
+            return $this->factory::response();
         });
 
         $this->factory
@@ -4923,7 +5481,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) use (&$stubData) {
             $stubData = $request->data();
 
-            return $this->factory->response();
+            return $this->factory::response();
         });
         $this->factory->globalRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
             Utils::streamFor('{"global":true}')
@@ -4964,7 +5522,7 @@ class HttpClientTest extends TestCase
         $request = $this->factory->recorded()->first()[0];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+        $this->expectExceptionMessageIsOrContains('The request JSON body must decode to an array.');
 
         $request->data();
     }
@@ -4999,7 +5557,7 @@ class HttpClientTest extends TestCase
 
     public function testSslCertificateErrorsConvertedToConnectionException(): void
     {
-        $this->factory->fake(function () {
+        $this->factory->fake(function (): never {
             $request = new GuzzleRequest('HEAD', 'https://ssl-error.hypervel.example');
 
             throw new GuzzleRequestException(
@@ -5008,20 +5566,18 @@ class HttpClientTest extends TestCase
             );
         });
 
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 60: SSL certificate problem: unable to get local issuer certificate');
+        $this->expectExceptionObject(new ConnectionException('cURL error 60: SSL certificate problem: unable to get local issuer certificate'));
 
         $this->factory->head('https://ssl-error.hypervel.example');
     }
 
     public function testConnectExceptionIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 60: SSL certificate problem');
+        $this->expectExceptionObject(new ConnectionException('cURL error 60: SSL certificate problem'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new ConnectException(
                 'cURL error 60: SSL certificate problem: unable to get local issuer certificate',
                 new GuzzleRequest('HEAD', 'https://ssl-error.hypervel.example')
@@ -5033,12 +5589,11 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionWithoutResponseIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28: Operation timed out');
+        $this->expectExceptionObject(new ConnectionException('cURL error 28: Operation timed out'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new GuzzleRequestException(
                 'cURL error 28: Operation timed out',
                 new GuzzleRequest('GET', 'https://timeout.hypervel.example')
@@ -5050,17 +5605,16 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionWithResponseIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28: Operation timed out');
+        $this->expectExceptionObject(new ConnectionException('cURL error 28: Operation timed out'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
-            throw new GuzzleRequestException(
-                'cURL error 28: Operation timed out',
-                new GuzzleRequest('GET', 'https://timeout.hypervel.example'),
-                new Psr7Response(301)
-            );
+        $pendingRequest->setHandler(function (): never {
+            $message = 'cURL error 28: Operation timed out';
+            $request = new GuzzleRequest('GET', 'https://timeout.hypervel.example');
+            $response = new Psr7Response(301);
+
+            throw new ResponseException($message, $request, $response);
         });
 
         $pendingRequest->get('https://timeout.hypervel.example');
@@ -5068,12 +5622,11 @@ class HttpClientTest extends TestCase
 
     public function testTooManyRedirectsExceptionIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Maximum number of redirects (5) exceeded');
+        $this->expectExceptionObject(new ConnectionException('Maximum number of redirects (5) exceeded'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new TooManyRedirectsException(
                 'Maximum number of redirects (5) exceeded',
                 new GuzzleRequest('GET', 'https://redirect.hypervel.example'),
@@ -5086,7 +5639,7 @@ class HttpClientTest extends TestCase
 
     public function testTooManyRedirectsExceptionConvertedToConnectionException(): void
     {
-        $this->factory->fake(function () {
+        $this->factory->fake(function (): never {
             $request = new GuzzleRequest('GET', 'https://redirect.hypervel.example');
             $response = new Psr7Response(301, ['Location' => 'https://redirect2.hypervel.example']);
 
@@ -5097,8 +5650,7 @@ class HttpClientTest extends TestCase
             );
         });
 
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Maximum number of redirects (5) exceeded');
+        $this->expectExceptionObject(new ConnectionException('Maximum number of redirects (5) exceeded'));
 
         $this->factory->maxRedirects(5)->get('https://redirect.hypervel.example');
     }
@@ -5144,7 +5696,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['success'], 200),
+            '*' => $this->factory::response(['success'], 200),
         ]);
 
         $response = $this->factory
@@ -5157,7 +5709,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -5177,7 +5729,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownIfTheThrowIfOnThePendingRequestIsSetToTrueOnFailure(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -5197,7 +5749,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownIfTheThrowIfOnThePendingRequestIsSetToFalseOnFailure(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $response = $this->factory
@@ -5232,7 +5784,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownIfTheThrowIfClosureOnThePendingRequestReturnsTrue(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -5266,7 +5818,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsNotThrownIfTheThrowIfClosureOnThePendingRequestReturnsFalse(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $hitThrowCallback = false;
@@ -5292,7 +5844,7 @@ class HttpClientTest extends TestCase
         HttpClientCallableStub::reset();
 
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         try {
@@ -5317,7 +5869,7 @@ class HttpClientTest extends TestCase
         HttpClientCallableStub::reset();
 
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $this->expectException(RequestException::class);
@@ -5336,7 +5888,7 @@ class HttpClientTest extends TestCase
     public function testPendingRequestThrowUnlessEvaluatesCallableConditionAndForwardsCallback(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $callbackCalled = false;
@@ -5406,7 +5958,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionIsThrownWithCallbackIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
-            '*' => $this->factory->response(['error'], 403),
+            '*' => $this->factory::response(['error'], 403),
         ]);
 
         $exception = null;
@@ -5958,8 +6510,7 @@ class HttpClientTest extends TestCase
         $responses[] = $this->factory->get('https://forge.laravel.com')->body();
         $this->assertSame(['ok', 'ok'], $responses);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Attempted request to [https://laravel.com] without a matching fake.');
+        $this->expectExceptionObject(new StrayRequestException('https://laravel.com'));
 
         $this->factory->get('https://laravel.com');
     }
@@ -6120,6 +6671,20 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testUrlParametersAreMergedAcrossCalls(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withUrlParameters(['endpoint' => 'https://hypervel.org', 'page' => 'docs', 1 => 'v1'])
+            ->withUrlParameters(['page' => 'blog', 'post' => 'release'])
+            ->get('{+endpoint}/{1}/{page}/{post}');
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->url() === 'https://hypervel.org/v1/blog/release'
+        );
+    }
+
     public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void
     {
         $this->factory->fake();
@@ -6149,8 +6714,7 @@ class HttpClientTest extends TestCase
         $onStatsFunctionCalled = false;
 
         $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('request')
-            ->once()
+        $client->expects('request')
             ->withArgs(function ($method, $url, $options) {
                 $options['on_stats'](new TransferStats(
                     new \GuzzleHttp\Psr7\Request($method, $url),
@@ -6206,7 +6770,7 @@ class HttpClientTest extends TestCase
 
     public function testItCanAddGlobalMiddleware(): void
     {
-        CarbonImmutable::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow(CarbonImmutable::today());
         $requests = [];
         $responses = [];
         $this->factory->fake(function ($r) use (&$requests) {
@@ -6219,7 +6783,7 @@ class HttpClientTest extends TestCase
 
         $this->factory->globalMiddleware(Middleware::mapRequest(function ($request) {
             // Test manipulating headers on outgoing request...
-            return $request->withHeader('User-Agent', 'Laravel Framework/1.0')
+            return $request->withHeader('User-Agent', 'Hypervel Framework/1.0')
                 ->withAddedHeader('shared', 'global')
                 ->withHeader('list', ['item-1', 'item-2'])
                 ->withAddedHeader('list', ['item-3']);
@@ -6238,19 +6802,19 @@ class HttpClientTest extends TestCase
                 });
             };
         });
-        $responses[] = $this->factory->post('http://forge.laravel.com');
-        $responses[] = $this->factory->withHeader('shared', 'local')->post('http://vapor.laravel.com');
+        $responses[] = $this->factory->post('http://forge.hypervel.com');
+        $responses[] = $this->factory->withHeader('shared', 'local')->post('http://vapor.hypervel.com');
 
         $this->assertCount(2, $requests);
         $this->assertCount(2, $responses);
 
-        $this->assertSame(['Laravel Framework/1.0'], $requests[0]->header('User-Agent'));
+        $this->assertSame(['Hypervel Framework/1.0'], $requests[0]->header('User-Agent'));
         $this->assertSame(['item-1', 'item-2', 'item-3'], $requests[0]->header('list'));
         $this->assertSame(['global'], $requests[0]->header('shared'));
         $this->assertSame('1', $responses[0]->header('X-Count'));
         $this->assertSame('6 seconds', $responses[0]->header('X-Duration'));
 
-        $this->assertSame(['Laravel Framework/1.0'], $requests[1]->header('User-Agent'));
+        $this->assertSame(['Hypervel Framework/1.0'], $requests[1]->header('User-Agent'));
         $this->assertSame(['item-1', 'item-2', 'item-3'], $requests[1]->header('list'));
         $this->assertSame(['local', 'global'], $requests[1]->header('shared'));
         $this->assertSame('2', $responses[1]->header('X-Count'));
@@ -6315,7 +6879,7 @@ class HttpClientTest extends TestCase
         $this->factory->post('http://laravel.com');
 
         $this->assertSame(['Laravel Framework/1.0'], $requests[0]->header('User-Agent'));
-        $this->assertSame(['GuzzleHttp/7'], $requests[1]->header('User-Agent'));
+        $this->assertStringStartsWith('GuzzleHttp/', $requests[1]->header('User-Agent')[0]);
     }
 
     public function testItCanAddResponseMiddleware(): void
@@ -6370,7 +6934,7 @@ class HttpClientTest extends TestCase
             $allowRedirects = $options['allow_redirects'];
             $headers = $request->headers();
 
-            return $this->factory->response('');
+            return $this->factory::response('');
         });
 
         $this->factory->get('https://laravel.com');
@@ -6675,6 +7239,16 @@ class PreparedBodyTrackingPendingRequest extends PendingRequest
     }
 }
 
+class DecoratingSinkPendingRequest extends PendingRequest
+{
+    protected function sinkStubHandler(mixed $sink): Closure
+    {
+        $handler = parent::sinkStubHandler($sink);
+
+        return static fn (ResponseInterface $response): ResponseInterface => $handler($response);
+    }
+}
+
 class PrefixWriteStream implements StreamInterface
 {
     use StreamDecoratorTrait;
@@ -6693,6 +7267,18 @@ class PrefixWriteStream implements StreamInterface
         ++$this->writeCount;
 
         return $this->stream->write(substr($string, 0, $this->prefixLength));
+    }
+}
+
+class ThrowingWriteStream implements StreamInterface
+{
+    use StreamDecoratorTrait;
+
+    protected StreamInterface $stream;
+
+    public function write($string): int
+    {
+        throw new RuntimeException('Sink write failed.');
     }
 }
 

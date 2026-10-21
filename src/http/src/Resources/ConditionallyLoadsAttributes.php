@@ -87,9 +87,7 @@ trait ConditionallyLoadsAttributes
         }
 
         if (! array_key_exists(static::class, static::$cachedPreserveKeysAttributes)) {
-            static::$cachedPreserveKeysAttributes[static::class] = count(
-                (new ReflectionClass($this))->getAttributes(PreserveKeys::class)
-            ) > 0;
+            static::$cachedPreserveKeysAttributes[static::class] = (new ReflectionClass($this))->getAttributes(PreserveKeys::class) !== [];
         }
 
         if (static::$cachedPreserveKeysAttributes[static::class]) {
@@ -106,7 +104,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a value if the given "condition" is truthy.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function when(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -120,7 +118,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a value if the given "condition" is falsy.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     public function unless(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -132,7 +130,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value into the array.
      *
-     * @return \Hypervel\Http\Resources\MergeValue|mixed
+     * @return MergeValue|mixed
      */
     protected function merge(mixed $value): mixed
     {
@@ -142,7 +140,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value if the given condition is truthy.
      *
-     * @return \Hypervel\Http\Resources\MergeValue|mixed
+     * @return MergeValue|mixed
      */
     protected function mergeWhen(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -156,7 +154,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value unless the given condition is truthy.
      *
-     * @return \Hypervel\Http\Resources\MergeValue|mixed
+     * @return MergeValue|mixed
      */
     protected function mergeUnless(bool $condition, mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -178,7 +176,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve an attribute if it exists on the resource.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     public function whenHas(string $attribute, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -194,7 +192,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a model attribute if it is null.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenNull(mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -206,7 +204,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a model attribute if it is not null.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenNotNull(mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -218,7 +216,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve an accessor when it has been appended.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenAppended(string $attribute, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -232,7 +230,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship if it has been loaded.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -260,7 +258,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship count if it exists.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     public function whenCounted(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -288,7 +286,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship aggregated value if it exists.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     public function whenAggregated(string $relationship, string $column, string $aggregate, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -316,7 +314,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship existence check if it exists.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     public function whenExistsLoaded(string $relationship, mixed $value = null, mixed $default = new MissingValue): mixed
     {
@@ -340,7 +338,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Execute a callback if the given pivot table has been loaded.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenPivotLoaded(string $table, mixed $value, mixed $default = new MissingValue): mixed
     {
@@ -350,7 +348,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Execute a callback if the given pivot table with a custom accessor has been loaded.
      *
-     * @return \Hypervel\Http\Resources\MissingValue|mixed
+     * @return MissingValue|mixed
      */
     protected function whenPivotLoadedAs(string $accessor, string $table, mixed $value, mixed $default = new MissingValue): mixed
     {

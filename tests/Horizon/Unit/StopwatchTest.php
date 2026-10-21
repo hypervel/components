@@ -9,7 +9,7 @@ use Hypervel\Tests\Horizon\UnitTestCase;
 
 class StopwatchTest extends UnitTestCase
 {
-    public function testTimeBetweenChecksCanBeMeasured()
+    public function testTimeBetweenChecksCanBeMeasured(): void
     {
         $stopwatch = new Stopwatch;
         $stopwatch->start('foo');

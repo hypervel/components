@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer;
 
+use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Concerns\ResolvesSourceHref;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
@@ -119,7 +120,7 @@ class Frame
      */
     public function args(): array
     {
-        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || count($this->frame['args']) === 0) {
+        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || $this->frame['args'] === []) {
             return [];
         }
 
@@ -156,8 +157,11 @@ class Frame
      */
     public function isFromVendor(): bool
     {
-        return ! str_starts_with($this->frame['file'], $this->basePath)
-            || str_starts_with($this->frame['file'], join_paths($this->basePath, 'vendor'));
+        // A generated AOP proxy runs its source file's code, so the source decides where the frame comes from.
+        $file = GenerateProxies::proxySources()[$this->frame['file']] ?? $this->frame['file'];
+
+        return ! str_starts_with($file, $this->basePath)
+            || str_starts_with($file, join_paths($this->basePath, 'vendor'));
     }
 
     /**

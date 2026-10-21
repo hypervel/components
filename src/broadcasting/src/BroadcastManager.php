@@ -7,11 +7,16 @@ namespace Hypervel\Broadcasting;
 use Ably\AblyRest;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Multiplexing;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\MercureBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\Broadcasting\Mercure\CreatesMercureDrivers;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
@@ -24,9 +29,11 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
@@ -48,10 +55,11 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
+ * @mixin BaseBroadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {
+    use CreatesMercureDrivers;
     use HasPoolProxy;
     use ReadsQueueAttributes;
     use RebindsCallbacksToSelf;
@@ -205,20 +213,16 @@ class BroadcastManager implements BroadcastingFactoryContract
             return;
         }
 
-        $queue = null;
-
-        if (method_exists($event, 'broadcastQueue')) {
-            $queue = $event->broadcastQueue();
-        } elseif (isset($event->broadcastQueue)) {
-            $queue = $event->broadcastQueue;
-        } elseif (isset($event->queue)) {
-            $queue = $event->queue;
-        }
+        $queue = match (true) {
+            method_exists($event, 'broadcastQueue') => $event->broadcastQueue(),
+            isset($event->broadcastQueue) => $event->broadcastQueue,
+            isset($event->queue) => $event->queue,
+            default => null,
+        };
 
         if (is_null($queue)) {
             $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')
-                ?? $this->resolveQueueFromQueueRoute($event)
-                ?? null;
+                ?? $this->resolveQueueFromQueueRoute($event);
         }
 
         $broadcastEvent = $event instanceof ShouldBeUnique
@@ -233,8 +237,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             ->connection(
                 $event->connection
                     ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
-                    ?? $this->resolveConnectionFromQueueRoute($event)
-                    ?? null
+                    ?? $this->resolveConnectionFromQueueRoute($event, $queue)
             )
             ->pushOn($queue, $broadcastEvent);
 
@@ -255,6 +258,14 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
+    }
+
+    /**
      * Determine if the broadcastable event must be unique and determine if we can acquire the necessary lock.
      */
     protected function mustBeUniqueAndCannotAcquireLock(object $event): bool
@@ -264,11 +275,11 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Get a driver instance.
+     * Get a broadcaster instance by name.
      */
-    public function connection(UnitEnum|string|null $driver = null): Broadcaster
+    public function connection(UnitEnum|string|null $name = null): Broadcaster
     {
-        return $this->driver($driver);
+        return $this->driver($name);
     }
 
     /**
@@ -296,9 +307,10 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Resolve the given broadcaster with Pool Proxy if need.
+     * Resolve the given broadcaster with a pool proxy if needed.
      *
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function resolve(string $name): Broadcaster
     {
@@ -317,7 +329,7 @@ class BroadcastManager implements BroadcastingFactoryContract
                 $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
                 BroadcastPoolProxy::class,
             )
-            : $this->doResolve($name, $constructionConfig);
+            : $this->doResolve($name, $config);
     }
 
     /**
@@ -329,7 +341,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function doResolve(?string $name, array $config): Broadcaster
     {
         if (isset($this->customCreators[$config['driver']])) {
-            return $this->callCustomCreator($config);
+            return $this->callCustomCreator(Arr::except($config, ['pool']));
         }
 
         $driverMethod = 'create' . ucfirst($config['driver']) . 'Driver';
@@ -386,16 +398,27 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function pusher(array $config): Pusher
     {
-        $guzzleClient = new GuzzleClient(
-            array_merge(
-                [
-                    'connect_timeout' => 10,
-                    'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
-                    'timeout' => 30,
-                ],
-                $config['client_options'] ?? [],
-            ),
+        $clientOptions = array_merge(
+            [
+                'connect_timeout' => 10,
+                'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+                'timeout' => 30,
+            ],
+            $config['client_options'] ?? [],
         );
+
+        if (! isset($clientOptions['handler'])) {
+            $handlerOptions = Arr::only($clientOptions, ['transport_sharing', 'max_host_connections', 'max_total_connections', 'max_idle_handles', 'max_idle_multi_handlers']);
+            unset($clientOptions['transport_sharing'], $clientOptions['max_idle_handles'], $clientOptions['max_idle_multi_handlers']);
+
+            if (($clientOptions['multiplex'] ?? null) === Multiplexing::NONE) {
+                $handlerOptions['multiplex'] = Multiplexing::NONE;
+            }
+
+            $clientOptions['handler'] = HandlerStack::create(HandlerFactory::create($handlerOptions));
+        }
+
+        $guzzleClient = new GuzzleClient($clientOptions);
 
         $pusher = new Pusher(
             $config['key'],
@@ -505,9 +528,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Disconnect the given driver and remove it from the local cache.
      *
-     * Boot or tests only, plus operational recovery for explicitly pooled drivers.
-     * Direct drivers are only removed from the manager cache; an explicitly pooled
-     * driver also invalidates its shared pool.
+     * Boot or tests only, plus operational recovery for pooled drivers.
+     * Mercure and explicitly pooled drivers also close their shared pools.
+     * Other connections sharing a pool acquire a fresh one on their next operation.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -523,6 +546,8 @@ class BroadcastManager implements BroadcastingFactoryContract
         if ($driver !== null) {
             if ($driver instanceof BroadcastPoolProxy) {
                 $driver->invalidatePool();
+            } elseif ($driver instanceof MercureBroadcaster && $driver->getHub() instanceof InvalidatesPool) {
+                $driver->getHub()->invalidatePool();
             }
 
             return;
@@ -530,16 +555,21 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         $config = $this->getConfig($name);
 
-        if (is_null($config) || ! in_array($config['driver'], $this->poolableDrivers, true)) {
+        if (is_null($config)) {
             return;
         }
 
-        $constructionConfig = Arr::except($config, ['pool']);
-        $definition = $this->poolDefinition(
-            $config['driver'],
-            $config['pool'] ?? [],
-            $constructionConfig,
-        );
+        if (in_array($config['driver'], $this->poolableDrivers, true)) {
+            $definition = $this->poolDefinition(
+                $config['driver'],
+                $config['pool'] ?? [],
+                Arr::except($config, ['pool']),
+            );
+        } elseif ($config['driver'] === 'mercure' && ! isset($this->customCreators['mercure'])) {
+            $definition = $this->mercurePoolDefinition($config);
+        } else {
+            return;
+        }
 
         $this->poolFactory()->purge($definition->identity);
     }
@@ -547,9 +577,14 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent broadcaster
      * resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {

@@ -48,12 +48,48 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itOwnsOnlyTheRuntimeCopyCreatedByThisProcess(): void
+    {
+        $filesystem = new Filesystem;
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $runtimePath = ParallelTesting::tempDir('BootstrapperOwnedRuntime');
+        $otherPath = ParallelTesting::tempDir('BootstrapperOtherRuntime');
+        $missingPath = $runtimePath . '-missing';
+        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+        $filesystem->deleteDirectory($runtimePath);
+        $filesystem->deleteDirectory($otherPath);
+        $filesystem->makeDirectory($runtimePath, recursive: true);
+        $filesystem->makeDirectory($otherPath, recursive: true);
+
+        try {
+            $reflection->setStaticPropertyValue('runtimePath', $runtimePath);
+
+            $this->assertTrue(Bootstrapper::ownsRuntimePath($runtimePath . '/'));
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($otherPath));
+
+            // A remote child or a predefined base path never records a runtime copy.
+            $reflection->setStaticPropertyValue('runtimePath', null);
+
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($runtimePath));
+
+            $reflection->setStaticPropertyValue('runtimePath', $missingPath);
+
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($missingPath));
+        } finally {
+            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $filesystem->deleteDirectory($runtimePath);
+            $filesystem->deleteDirectory($otherPath);
+        }
+    }
+
+    #[Test]
     public function itRethrowsRuntimeDirectoryDeletionFailuresWhenTheDirectoryRemains(): void
     {
         $filesystem = new RuntimeDirectoryStillPresentFilesystem;
 
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('runtime directory still present');
+        $this->expectExceptionMessageIs('runtime directory still present');
 
         try {
             $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
@@ -268,7 +304,7 @@ class BootstrapperTest extends TestCase
 
                 $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath): void {
                     $this->expectException(RuntimeException::class);
-                    $this->expectExceptionMessage('Unable to create the Testbench runtime copy');
+                    $this->expectExceptionMessageIsOrContains('Unable to create the Testbench runtime copy');
 
                     try {
                         $this->createRuntimeCopy($sourcePath, $packagePath);
@@ -321,6 +357,76 @@ class BootstrapperTest extends TestCase
             $this->deleteDirectory($packagePath);
             $this->deleteDirectory($sourcePath);
             $this->deleteDirectory($filesystem->runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itSharesTheSkeletonVendorLinkAndCopiesEverythingElse(): void
+    {
+        $packagePath = $this->temporaryDirectory('vendor-link-package');
+        $sourcePath = $this->temporaryDirectory('vendor-link-source');
+        $runtimePath = null;
+
+        mkdir($packagePath . '/vendor/dependency', 0777, true);
+        mkdir($sourcePath . '/config', 0777, true);
+        file_put_contents($packagePath . '/vendor/dependency/file.php', 'dependency');
+        file_put_contents($sourcePath . '/config/app.php', 'config');
+        file_put_contents($sourcePath . '/artisan', 'artisan');
+
+        // A relative link only resolves from the skeleton itself, not from the copy.
+        $this->assertSame(dirname($sourcePath), dirname($packagePath));
+        $relativeVendorTarget = '../' . basename($packagePath) . '/vendor';
+        symlink($relativeVendorTarget, $sourcePath . '/vendor');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-vendor-link', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertTrue(is_link($runtimePath . '/vendor'));
+                $this->assertSame(realpath($packagePath . '/vendor'), readlink($runtimePath . '/vendor'));
+                $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
+
+                $this->assertFalse(is_link($runtimePath . '/config'));
+                $this->assertSame('config', file_get_contents($runtimePath . '/config/app.php'));
+                $this->assertSame('artisan', file_get_contents($runtimePath . '/artisan'));
+            });
+
+            $this->assertSame($relativeVendorTarget, readlink($sourcePath . '/vendor'));
+        } finally {
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($packagePath);
+        }
+    }
+
+    #[Test]
+    public function itLinksPackageDependenciesWhenTheSkeletonHasNoVendorDirectory(): void
+    {
+        $packagePath = $this->temporaryDirectory('package-dependencies');
+        $sourcePath = $this->temporaryDirectory('skeleton-without-vendor');
+        $runtimePath = null;
+
+        mkdir($packagePath . '/vendor/dependency', 0777, true);
+        mkdir($sourcePath . '/config', 0777, true);
+        file_put_contents($packagePath . '/vendor/dependency/file.php', 'dependency');
+        file_put_contents($sourcePath . '/config/app.php', 'config');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-package-vendor', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertTrue(is_link($runtimePath . '/vendor'));
+                $this->assertSame(realpath($packagePath . '/vendor'), realpath($runtimePath . '/vendor'));
+                $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
+                $this->assertFalse(is_link($runtimePath . '/config'));
+                $this->assertSame('config', file_get_contents($runtimePath . '/config/app.php'));
+            });
+
+            $this->assertFileDoesNotExist($sourcePath . '/vendor');
+        } finally {
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($packagePath);
         }
     }
 
@@ -419,7 +525,7 @@ class BootstrapperTest extends TestCase
             $this->withRuntimeCopyEnvironment('bootstrapper-failed-package-env', true, function () use ($filesystem, $sourcePath, $packagePath): void {
                 $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
                     $this->expectException(RuntimeException::class);
-                    $this->expectExceptionMessage('Unable to copy the Testbench environment file.');
+                    $this->expectExceptionMessageIs('Unable to copy the Testbench environment file.');
 
                     try {
                         $this->createRuntimeCopy($sourcePath, $packagePath);

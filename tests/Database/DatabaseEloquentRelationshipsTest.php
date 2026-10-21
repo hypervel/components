@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\EloquentRelationshipsTest;
+namespace Hypervel\Tests\Database\DatabaseEloquentRelationshipsTest;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
@@ -25,9 +25,9 @@ use Mockery as m;
 
 class DatabaseEloquentRelationshipsTest extends TestCase
 {
-    public function testStandardRelationships()
+    public function testStandardRelationships(): void
     {
-        $post = new RelationshipsPost;
+        $post = new Post;
 
         $this->assertInstanceOf(HasOne::class, $post->attachment());
         $this->assertInstanceOf(BelongsTo::class, $post->author());
@@ -41,9 +41,9 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertInstanceOf(MorphTo::class, $post->postable());
     }
 
-    public function testOverriddenRelationships()
+    public function testOverriddenRelationships(): void
     {
-        $post = new RelationshipsCustomPost;
+        $post = new CustomPost;
 
         $this->assertInstanceOf(CustomHasOne::class, $post->attachment());
         $this->assertInstanceOf(CustomBelongsTo::class, $post->author());
@@ -57,14 +57,14 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertInstanceOf(CustomMorphTo::class, $post->postable());
     }
 
-    public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId()
+    public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId(): void
     {
         // create users
         $user1 = (new FakeRelationship)->forceFill(['id' => 1]);
         $user2 = (new FakeRelationship)->forceFill(['id' => 2]);
 
         // sync user 1 using Model
-        $post = new RelationshipsPost;
+        $post = new Post;
         $post->author()->associate($user1);
         $post->syncOriginal();
 
@@ -82,7 +82,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertFalse($post->relationLoaded('author'));
     }
 
-    public function testPendingHasThroughRelationship()
+    public function testPendingHasThroughRelationship(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $classic = (new ClassicMechanic)->owner();
@@ -139,7 +139,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('environments.pro_id', $classic->getQualifiedFirstKeyName());
     }
 
-    public function testStringyHasThroughApi()
+    public function testStringyHasThroughApi(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $stringy = (new class extends FluentMechanic {
@@ -198,7 +198,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('environments.pro_id', $fluent->getQualifiedFirstKeyName());
     }
 
-    public function testHigherOrderHasThroughApi()
+    public function testHigherOrderHasThroughApi(): void
     {
         $fluent = (new FluentMechanic)->owner();
         $higher = (new class extends FluentMechanic {
@@ -260,15 +260,20 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
 class MockedConnectionModel extends Model
 {
+    /**
+     * Get a mock connection that creates real query builders.
+     */
     public function getConnection(): Connection
     {
         $mock = m::mock(Connection::class);
-        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar = m::mock(Grammar::class);
+        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar);
         $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
         $grammar->shouldReceive('isExpression')->andReturn(false);
-        $mock->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $processor = m::mock(Processor::class);
+        $mock->shouldReceive('getPostProcessor')->andReturn($processor);
         $mock->shouldReceive('getName')->andReturn('name');
-        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor) {
+        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor): BaseBuilder {
             return new BaseBuilder($mock, $grammar, $processor);
         });
 
@@ -280,7 +285,7 @@ class FakeRelationship extends MockedConnectionModel
 {
 }
 
-class RelationshipsPost extends MockedConnectionModel
+class Post extends MockedConnectionModel
 {
     public function attachment()
     {
@@ -333,7 +338,7 @@ class RelationshipsPost extends MockedConnectionModel
     }
 }
 
-class RelationshipsCustomPost extends RelationshipsPost
+class CustomPost extends Post
 {
     protected function newBelongsTo(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relation): BelongsTo
     {

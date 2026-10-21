@@ -36,8 +36,11 @@ class FortifyRouteTest extends TestCase
         $this->assertSame('web', config('passkeys.guard'));
     }
 
-    public function testPasskeyDeletionUsesPasswordConfirmationAndOmitsNullLimiter(): void
+    #[DefineEnvironment('withPasskeysLimiter')]
+    public function testPasskeyDeletionUsesPasswordConfirmationWithoutThePasskeyLimiter(): void
     {
+        $this->assertContains('throttle:passkeys', Route::getRoutes()->getByName('passkey.store')->gatherMiddleware());
+
         $route = Route::getRoutes()->getByName('passkey.destroy');
 
         $this->assertNotNull($route);
@@ -47,20 +50,6 @@ class FortifyRouteTest extends TestCase
         $this->assertContains('auth', $middleware);
         $this->assertContains('password.confirm', $middleware);
         $this->assertStringNotContainsString('throttle:', implode('|', $middleware));
-    }
-
-    #[DefineEnvironment('withPasskeysLimiter')]
-    public function testPasskeyDeletionUsesConfiguredThrottle(): void
-    {
-        $route = Route::getRoutes()->getByName('passkey.destroy');
-
-        $this->assertNotNull($route);
-
-        $middleware = $route->gatherMiddleware();
-
-        $this->assertContains('auth', $middleware);
-        $this->assertContains('password.confirm', $middleware);
-        $this->assertContains('throttle:passkeys', $middleware);
     }
 
     public function testTwoFactorChallengeIsThrottledByDefault(): void

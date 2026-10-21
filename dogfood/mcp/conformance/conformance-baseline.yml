@@ -1,0 +1,48 @@
+server:
+  # Optional Tasks and multi-round input requests are not implemented.
+  - tasks-lifecycle
+  - tasks-capability-negotiation
+  - tasks-wire-fields
+  - tasks-request-state-removal
+  - tasks-mrtr-input
+  - tasks-request-headers
+  - tasks-dispatch-and-envelope
+  - tasks-required-task-error
+  - tasks-mrtr-composition
+  - input-required-result-basic-elicitation
+  - input-required-result-basic-sampling
+  - input-required-result-basic-list-roots
+  - input-required-result-request-state
+  - input-required-result-multiple-input-requests
+  - input-required-result-multi-round
+  - input-required-result-non-tool-request
+  - input-required-result-result-type
+  - input-required-result-tampered-state
+  - input-required-result-capability-check
+  - input-required-result-missing-input-response
+  - input-required-result-ignore-extra-params
+  # These fixtures return resource links; embedded-resource content is not implemented.
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - prompts-get-embedded-resource
+  # Diagnostic tools for capability requests, elicitation and logging are not implemented.
+  - server-stateless
+  # TODO: Remove once Swoole strips trailing HTTP/1 header whitespace upstream.
+  - http-header-validation
+  # Server schemas do not expose custom header annotations or arbitrary JSON Schema keywords.
+  - http-custom-header-server-validation
+  - json-schema-2020-12
+
+client:
+  # Multi-round input requests are not implemented.
+  - sep-2322-client-request-state
+  # The client retries a different mutually supported version; this fixture rejects the same version it offers.
+  - request-metadata
+  # The fixture requires a fixed .local client ID, which is not eligible for public metadata discovery.
+  - auth/basic-cimd
+  # JWT assertions, enterprise authorization, DPoP and workload identity federation are not implemented.
+  - auth/client-credentials-jwt
+  - auth/enterprise-managed-authorization
+  - auth/dpop
+  - auth/dpop-nonce
+  - auth/wif-jwt-bearer

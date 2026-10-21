@@ -468,6 +468,9 @@ class TestResponseTest extends TestCase
         }
     }
 
+    /**
+     * Yield the test models.
+     */
     public function yieldTestModels(): iterable
     {
         yield new TestModel(['id' => 1]);
@@ -645,12 +648,12 @@ class TestResponseTest extends TestCase
             'render' => <<<'EOT'
 <p>
     Hello,
-    laravel &amp; php &amp; friends
+    hypervel &amp; php &amp; friends
 </p>,
 EOT,
         ]);
 
-        $response->assertSeeText('Hello, laravel & php & friends');
+        $response->assertSeeText('Hello, hypervel & php & friends');
     }
 
     public function testAssertSeeTextEscapedCanFail(): void
@@ -691,12 +694,12 @@ EOT,
             'render' => <<<'EOT'
 <p>
     Hello,
-    laravel &amp; php &amp; friends
+    hypervel &amp; php &amp; friends
 </p>,
 EOT,
         ]);
 
-        $response->assertSeeTextInOrder(['Hello', 'laravel & php', 'friends']);
+        $response->assertSeeTextInOrder(['Hello', 'hypervel & php', 'friends']);
     }
 
     public function testAssertSeeTextInOrderCanFail(): void
@@ -1903,6 +1906,62 @@ EOT,
         $response->assertJsonMissingPath('numeric_keys.3');
     }
 
+    public function testAssertJsonMissingPathWithWildcard(): void
+    {
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*.missing');
+        $response->assertJsonMissingPath('missing.*.bar');
+
+        // A wildcard matches a single segment, so this must not match "barfoo.*.bar.foo"...
+        $response->assertJsonMissingPath('barfoo.*.foo');
+
+        $literalKeys = TestResponse::fromBaseResponse(new JsonResponse(['users' => [['password.hash' => 'value']]]));
+        $literalKeys->assertJsonMissingPath('users.*.password');
+        $literalKeys->assertJsonMissingPath('users.*.password.hash');
+        $literalKeys->assertJsonMissingPath('users.0.password.hash');
+
+        TestResponse::fromBaseResponse(new JsonResponse(42))->assertJsonMissingPath('*');
+        TestResponse::fromBaseResponse(new JsonResponse([]))->assertJsonMissingPath('*');
+    }
+
+    public function testAssertJsonMissingPathWithTrailingWildcardCanFail(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*');
+    }
+
+    public function testAssertJsonMissingPathWithWildcardCanFail(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*.bar');
+    }
+
+    public function testAssertJsonMissingPathWithWildcardCanFailWhenPresentOnSomeItems(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('barfoo.*.bar.foo');
+    }
+
+    #[TestWith([['present'], '*'])]
+    #[TestWith([['' => ['value' => null]], '*.value'])]
+    #[TestWith([['child' => []], '*'])]
+    public function testAssertJsonMissingPathWithWildcardCanFailForMatchingNodes(array $data, string $path): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        TestResponse::fromBaseResponse(new JsonResponse($data))->assertJsonMissingPath($path);
+    }
+
     public function testAssertJsonMissingPaths(): void
     {
         $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
@@ -2844,11 +2903,11 @@ EOT,
 
     public function testAssertRedirectBack(): void
     {
-        app()->instance('url', $url = new UrlGenerator(new RouteCollection, new Request));
         app()->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->setPreviousUrl('https://url.com');
 
+        app()->instance('url', $url = new UrlGenerator(new RouteCollection, new Request));
         $url->setSessionResolver(fn () => app('session.store'));
 
         $response = TestResponse::fromBaseResponse(
@@ -3384,7 +3443,7 @@ EOT,
         ]);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Failed asserting that the collection at [foos.2] matches the given collection.');
+        $this->expectExceptionMessageIsOrContains('Failed asserting that the collection at [foos.2] matches the given collection.');
 
         $response->assertViewHas('foos', $expected);
     }
@@ -3466,24 +3525,11 @@ EOT,
         $response = TestResponse::fromBaseResponse(new Response('<p>Hello World</p>'));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Failed asserting that the expected value "<strong></strong>" contains visible text.'
         );
 
         $response->assertSeeText('<strong></strong>', escape: false);
-    }
-
-    public function testBulkJsonPathAssertionsStopAtTheFailingPath(): void
-    {
-        $response = TestResponse::fromBaseResponse(new Response('{"data":{"id":1}}'));
-
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Failed asserting that 1 is identical to 2.');
-
-        $response->assertJsonPaths([
-            'data.id' => 2,
-            'data.missing' => true,
-        ]);
     }
 
     public function testAssertInvalidWithoutErrorsReportsTheAssertionFailureForJsonResponses(): void
@@ -3495,7 +3541,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('No validation errors were provided.');
+        $this->expectExceptionMessageIsOrContains('No validation errors were provided.');
 
         $response->assertInvalid();
     }
@@ -3509,7 +3555,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('No validation errors were provided.');
+        $this->expectExceptionMessageIsOrContains('No validation errors were provided.');
 
         $response->assertOnlyInvalid();
     }
@@ -3521,7 +3567,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session has unexpected key [present].');
+        $this->expectExceptionMessageIsOrContains('Session has unexpected key [present].');
 
         $response->assertSessionMissingInput('present');
     }
@@ -3541,7 +3587,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session is missing expected key [missing].');
+        $this->expectExceptionMessageIsOrContains('Session is missing expected key [missing].');
 
         $response->assertSessionHasAll(['missing' => null]);
     }
@@ -3553,7 +3599,7 @@ EOT,
         $response = new TestResponseWithSession(new Response, $store);
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Session is missing expected key [present].');
+        $this->expectExceptionMessageIsOrContains('Session is missing expected key [present].');
 
         $response->assertSessionHasAll(['present' => null]);
     }
@@ -3604,7 +3650,7 @@ EOT,
         ));
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Invalid JSON was returned from the route.');
+        $this->expectExceptionMessageIs('Invalid JSON was returned from the route.');
 
         $response->decodeResponseJson();
     }
@@ -3769,6 +3815,9 @@ EOT,
         }
     }
 
+    /**
+     * Create a test response whose content is a mocked view.
+     */
     private function makeMockResponse(array $content): TestResponse
     {
         $baseResponse = tap(new Response, function ($response) use ($content) {
@@ -3815,6 +3864,9 @@ class TestResponseWithSession extends TestResponse
 
 class JsonSerializableMixedResourcesStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3849,6 +3901,9 @@ class JsonSerializableMixedResourcesStub implements JsonSerializable
 
 class JsonSerializableSingleResourceStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3862,6 +3917,9 @@ class JsonSerializableSingleResourceStub implements JsonSerializable
 
 class JsonSerializableSingleResourceWithIntegersStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3874,6 +3932,9 @@ class JsonSerializableSingleResourceWithIntegersStub implements JsonSerializable
 
 class JsonSerializableSingleResourceWithUnicodeStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [

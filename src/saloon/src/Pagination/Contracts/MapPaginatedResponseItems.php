@@ -6,12 +6,14 @@ namespace Hypervel\Saloon\Pagination\Contracts;
 
 use Hypervel\Saloon\Http\Response;
 
+/** @template TItem */
 interface MapPaginatedResponseItems
 {
     /**
      * Map the items from a paginated response.
      *
-     * @return array<mixed, mixed>
+     * @param Response<mixed> $response
+     * @return array<array-key, TItem>
      */
     public function mapPaginatedResponseItems(Response $response): array;
 }

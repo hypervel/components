@@ -14,6 +14,7 @@ use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
+use Hypervel\Http\Request;
 use Hypervel\Routing\Middleware\ValidateSignature;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -270,6 +271,8 @@ class Middleware
         return $this;
     }
 
+    // Laravel's Folio page middleware methods, pages() and getPageMiddleware(), are omitted.
+
     /**
      * Register additional middleware aliases.
      */
@@ -485,7 +488,7 @@ class Middleware
     /**
      * Configure the empty string conversion middleware.
      *
-     * @param array<int, (Closure(\Hypervel\Http\Request): bool)> $except
+     * @param array<int, (Closure(Request): bool)> $except
      */
     public function convertEmptyStringsToNull(array $except = []): static
     {
@@ -497,7 +500,7 @@ class Middleware
     /**
      * Configure the string trimming middleware.
      *
-     * @param array<int, (Closure(\Hypervel\Http\Request): bool)|string> $except
+     * @param array<int, (Closure(Request): bool)|string> $except
      */
     public function trimStrings(array $except = []): static
     {

@@ -7,7 +7,10 @@ namespace Hypervel\Tests\Session\Middleware;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Http\Request;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Middleware\AuthenticateSession;
@@ -20,14 +23,14 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithoutSession(): void
     {
         $request = new Request;
-        $next = fn () => 'next-1';
+        $next = fn (): string => 'next-1';
 
         $authFactory = m::mock(AuthFactory::class);
         $authFactory->shouldReceive('viaRemember')->never();
 
         $middleware = new AuthenticateSession($authFactory);
         $response = $middleware->handle($request, $next);
-        $this->assertEquals('next-1', $response);
+        $this->assertSame('next-1', $response);
     }
 
     public function testHandleWithSessionWithoutRequestUser(): void
@@ -40,16 +43,19 @@ class AuthenticateSessionTest extends TestCase
         $authFactory = m::mock(AuthFactory::class);
         $authFactory->shouldReceive('viaRemember')->never();
 
-        $next = fn () => 'next-2';
+        $next = fn (): string => 'next-2';
         $middleware = new AuthenticateSession($authFactory);
         $response = $middleware->handle($request, $next);
-        $this->assertEquals('next-2', $response);
+        $this->assertSame('next-2', $response);
     }
 
     public function testHandleWithSessionWithoutAuthPassword(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): ?string
             {
                 return null;
             }
@@ -60,58 +66,64 @@ class AuthenticateSessionTest extends TestCase
         // set session:
         $request->setHypervelSession(new Store('name', new ArraySessionHandler(1)));
         // set a password-less user:
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $authFactory = m::mock(AuthFactory::class);
         $authFactory->shouldReceive('viaRemember')->never();
 
-        $next = fn () => 'next-3';
+        $next = fn (): string => 'next-3';
         $middleware = new AuthenticateSession($authFactory);
         $response = $middleware->handle($request, $next);
 
-        $this->assertEquals('next-3', $response);
+        $this->assertSame('next-3', $response);
     }
 
     public function testHandleWithSessionWithUserAuthPasswordOnRequestViaRememberFalse(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request;
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('viaRemember')->andReturn(false);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
+        $authFactory->expects('user')->andReturn(null);
         // expected MAC for current password when storing in session:
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('hashPasswordForCookie')->times(2)->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
-        $response = $middleware->handle($request, fn () => 'next-4');
+        $response = $middleware->handle($request, fn (): string => 'next-4');
 
-        $this->assertEquals('mac:my-pass-(*&^%$#!@', $session->get('password_hash_web'));
-        $this->assertEquals('next-4', $response);
+        $this->assertSame('mac:my-pass-(*&^%$#!@', $session->get('password_hash_web'));
+        $this->assertSame('next-4', $response);
     }
 
     public function testHandleWithInvalidPasswordHash(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b|invalid-mac']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -120,29 +132,28 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
-        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('viaRemember')->andReturn(true);
+        $authFactory->expects('getRecallerName')->andReturn('recaller-name');
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
         // expected MAC for current password (won't match cookie):
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $this->assertNotNull($session->get('a'));
         $this->assertNotNull($session->get('b'));
-        AuthenticateSession::redirectUsing(fn ($request) => 'i-wanna-go-home');
+        AuthenticateSession::redirectUsing(fn (Request $request): string => 'i-wanna-go-home');
 
         // act:
         $middleware = new AuthenticateSession($authFactory);
 
         $message = '';
         try {
-            $middleware->handle($request, fn () => 'next-7');
+            $middleware->handle($request, fn (): string => 'next-7');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
-            $this->assertEquals('i-wanna-go-home', $e->redirectTo($request));
+            $this->assertSame('i-wanna-go-home', $e->redirectTo($request));
         }
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
 
         // ensure session is flushed:
         $this->assertNull($session->get('a'));
@@ -159,6 +170,9 @@ class AuthenticateSessionTest extends TestCase
         AuthenticationException::flushState();
 
         $user = new class {
+            /**
+             * Get the user's authentication password.
+             */
             public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
@@ -166,20 +180,20 @@ class AuthenticateSessionTest extends TestCase
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b|invalid-mac']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
-        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('viaRemember')->andReturn(true);
+        $authFactory->expects('getRecallerName')->andReturn('recaller-name');
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         try {
-            (new AuthenticateSession($authFactory))->handle($request, fn () => 'next');
+            (new AuthenticateSession($authFactory))->handle($request, fn (): string => 'next');
         } catch (AuthenticationException $exception) {
             $this->assertSame('/login', $exception->redirectTo($request));
 
@@ -192,14 +206,17 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithInvalidIncookiePasswordHashViaRememberTrue(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b|invalid-mac']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -208,23 +225,22 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
-        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
-        $authFactory->shouldReceive('logoutCurrentDevice')->once();
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('viaRemember')->andReturn(true);
+        $authFactory->expects('getRecallerName')->andReturn('recaller-name');
+        $authFactory->expects('logoutCurrentDevice');
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
         // expected MAC for current password (won't match cookie):
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
         // act:
         try {
             $message = '';
-            $middleware->handle($request, fn () => 'next-6');
+            $middleware->handle($request, fn (): string => 'next-6');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
         }
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
 
         // ensure session is flushed
         $this->assertNull($session->get('password_hash_web'));
@@ -235,14 +251,17 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithValidIncookieInvalidInsessionHashViaRememberTrue(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b|mac:my-pass-(*&^%$#!@']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -252,23 +271,22 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
-        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('viaRemember')->andReturn(true);
+        $authFactory->expects('getRecallerName')->andReturn('recaller-name');
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
         // expected MAC for current password (matches cookie but not session):
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('hashPasswordForCookie')->times(2)->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         // act:
         $middleware = new AuthenticateSession($authFactory);
         try {
             $message = '';
-            $middleware->handle($request, fn () => 'next-7');
+            $middleware->handle($request, fn (): string => 'next-7');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
         }
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
 
         // ensure session is flushed:
         $this->assertNull($session->get('password_hash_web'));
@@ -279,14 +297,17 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithValidPasswordInSessionCookieIsEmptyGuardHasUser(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -296,38 +317,74 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->expects('viaRemember')->andReturn(false);
         $authFactory->shouldReceive('getRecallerName')->never();
         $authFactory->shouldReceive('logoutCurrentDevice')->never();
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn($user);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
+        $authFactory->expects('user')->andReturn($user);
         // expected MAC for current password:
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('hashPasswordForCookie')->times(2)->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         // act:
         $middleware = new AuthenticateSession($authFactory);
-        $response = $middleware->handle($request, fn () => 'next-8');
+        $response = $middleware->handle($request, fn (): string => 'next-8');
 
-        $this->assertEquals('next-8', $response);
+        $this->assertSame('next-8', $response);
         // ensure session is not flushed:
-        $this->assertEquals('mac:my-pass-(*&^%$#!@', $session->get('password_hash_web'));
-        $this->assertEquals('1', $session->get('a'));
-        $this->assertEquals('2', $session->get('b'));
+        $this->assertSame('mac:my-pass-(*&^%$#!@', $session->get('password_hash_web'));
+        $this->assertSame('1', $session->get('a'));
+        $this->assertSame('2', $session->get('b'));
     }
 
-    // REMOVED: Laravel's OldFormatCookie* backward-compatibility tests;
-    // Hypervel 0.4 is greenfield and only accepts HMAC artifacts.
+    public function testGuardOverrideCanReturnAConcreteGuard(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthPassword')->andReturn('password-hash');
+
+        $request = new Request;
+        $request->setUserResolver(fn (): Authenticatable => $user);
+        $session = new Store('name', new ArraySessionHandler(1));
+        $request->setHypervelSession($session);
+
+        $guard = m::mock(StatefulGuard::class);
+        $guard->expects('viaRemember')->andReturn(false);
+        $guard->expects('hashPasswordForCookie')->twice()->with('password-hash')->andReturn('password-mac');
+        $guard->expects('user')->andReturn(null);
+
+        $authFactory = m::mock(AuthFactory::class);
+        $authFactory->shouldReceive('guard')->andReturn($guard);
+        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
+
+        $middleware = new class($authFactory) extends AuthenticateSession {
+            /**
+             * Get the guard instance that should be used by the middleware.
+             */
+            protected function guard(): Guard
+            {
+                return $this->auth->guard();
+            }
+        };
+
+        $this->assertSame('next', $middleware->handle($request, fn (): string => 'next'));
+        $this->assertSame('password-mac', $session->get('password_hash_web'));
+    }
+
+    // REMOVED: Laravel's OldFormatCookie* backward-compatibility tests,
+    // including guards without hashPasswordForCookie(); only HMAC artifacts are supported.
     public function testHandleWithRawRememberCookiePasswordHashLogsOut(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request(cookies: ['recaller-name' => 'a|b|my-pass-(*&^%$#!@']);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -335,23 +392,22 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
-        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('viaRemember')->andReturn(true);
+        $authFactory->expects('getRecallerName')->andReturn('recaller-name');
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
 
         $message = '';
         try {
-            $middleware->handle($request, fn () => 'next-9');
+            $middleware->handle($request, fn (): string => 'next-9');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
     }
@@ -359,14 +415,17 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithRawSessionPasswordHashLogsOut(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request;
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -375,23 +434,22 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->expects('viaRemember')->andReturn(false);
         $authFactory->shouldReceive('getRecallerName')->never();
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
 
         $message = '';
         try {
-            $middleware->handle($request, fn () => 'next-9');
+            $middleware->handle($request, fn (): string => 'next-9');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('password_hash_web'));
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
@@ -400,14 +458,17 @@ class AuthenticateSessionTest extends TestCase
     public function testHandleWithMalformedSessionPasswordHashLogsOut(): void
     {
         $user = new class {
-            public function getAuthPassword()
+            /**
+             * Get the user's authentication password.
+             */
+            public function getAuthPassword(): string
             {
                 return 'my-pass-(*&^%$#!@';
             }
         };
 
         $request = new Request;
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(fn (): object => $user);
 
         $session = new Store('name', new ArraySessionHandler(1));
         $session->put('a', '1');
@@ -416,23 +477,22 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->expects('viaRemember')->andReturn(false);
         $authFactory->shouldReceive('getRecallerName')->never();
-        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('logoutCurrentDevice')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
         $authFactory->shouldReceive('hashPasswordForCookie')->never();
 
         $middleware = new AuthenticateSession($authFactory);
 
         $message = '';
         try {
-            $middleware->handle($request, fn () => 'next-10');
+            $middleware->handle($request, fn (): string => 'next-10');
         } catch (AuthenticationException $e) {
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('password_hash_web'));
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));

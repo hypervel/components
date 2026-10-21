@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
+use ArrayObject;
+use DateTimeImmutable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as BaseResponse;
+use Hypervel\Inertia\DevTools\RequestRecorder;
 use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\MergeProp;
 use Hypervel\Inertia\PropertyContext;
 use Hypervel\Inertia\ProvidesInertiaProperties;
@@ -16,7 +20,11 @@ use Hypervel\Inertia\ProvidesScrollMetadata;
 use Hypervel\Inertia\RenderContext;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ScrollProp;
+use Hypervel\Tests\Inertia\Fixtures\Enums\UnitEnum;
+use Hypervel\View\ViewException;
+use JsonSerializable;
 use RuntimeException;
+use stdClass;
 
 class PropsResolverTest extends TestCase
 {
@@ -1304,15 +1312,299 @@ class PropsResolverTest extends TestCase
         $this->assertSame(['Context', 'comment'], $page['props']['job']['fields']);
     }
 
+    public function testRecorderIsNotInvokedWhileResolvingPropsWhenDevtoolsIsDisabled(): void
+    {
+        config()->set('inertia.devtools.enabled', false);
+
+        $spy = new class extends RequestRecorder {
+            public int $calls = 0;
+
+            /**
+             * Count the resolved prop.
+             */
+            public function propResolved(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+
+            /**
+             * Count the rescued prop.
+             */
+            public function propRescued(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+        };
+
+        $this->app->instance(RequestRecorder::class, $spy);
+
+        $this->makePage(Request::create('/'), [
+            'auth' => fn (): array => ['user' => 'Jane'],
+            'team' => 'Acme',
+        ]);
+
+        $this->assertSame(0, $spy->calls);
+    }
+
+    public function testRecorderIsInvokedWhileResolvingPropsWhenDevtoolsIsEnabled(): void
+    {
+        config()->set('inertia.devtools.enabled', true);
+
+        $spy = new class extends RequestRecorder {
+            public int $calls = 0;
+
+            /**
+             * Count the resolved prop.
+             */
+            public function propResolved(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+
+            /**
+             * Count the rescued prop.
+             */
+            public function propRescued(string $path, mixed $prop): void
+            {
+                ++$this->calls;
+            }
+        };
+
+        $this->app->instance(RequestRecorder::class, $spy);
+
+        $this->makePage(Request::create('/'), [
+            'auth' => fn (): array => ['user' => 'Jane'],
+            'team' => 'Acme',
+        ]);
+
+        $this->assertGreaterThan(0, $spy->calls);
+    }
+
+    public function testItDescendsIntoJsonSerializableProps(): void
+    {
+        $dto = new class implements JsonSerializable {
+            /**
+             * Get the JSON serializable representation of the object.
+             */
+            public function jsonSerialize(): array
+            {
+                return ['nested' => ['name' => 'John']];
+            }
+        };
+
+        $page = $this->makePage(Request::create('/'), ['dto' => $dto]);
+
+        $this->assertSame(['nested' => ['name' => 'John']], $page['props']['dto']);
+    }
+
+    public function testPropTypesNestedInJsonSerializablePropsAreResolved(): void
+    {
+        $props = fn (): array => [
+            'dto' => new class implements JsonSerializable {
+                /**
+                 * Get the JSON serializable representation of the object.
+                 */
+                public function jsonSerialize(): array
+                {
+                    return ['thing' => Inertia::defer(fn (): string => 'deferred value'), 'plain' => 1];
+                }
+            },
+        ];
+
+        $page = $this->makePage(Request::create('/'), $props());
+
+        $this->assertSame(['plain' => 1], $page['props']['dto']);
+        $this->assertSame(['default' => ['dto.thing']], $page['deferredProps']);
+
+        $request = Request::create('/');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'TestComponent']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'dto.thing']);
+
+        $page = $this->makePage($request, $props());
+
+        $this->assertSame('deferred value', $page['props']['dto']['thing']);
+    }
+
+    public function testBigIntegersInsidePlainObjectsAreWrappedWhenEnabled(): void
+    {
+        $page = $this->makePage(Request::create('/'), [
+            'object' => (object) ['id' => 900719925474099988],
+            'dto' => new class implements JsonSerializable {
+                /**
+                 * Get the JSON serializable representation of the object.
+                 */
+                public function jsonSerialize(): array
+                {
+                    return ['id' => 900719925474099988];
+                }
+            },
+        ], preserveBigIntegers: true);
+
+        $this->assertSame(['$bigint' => '900719925474099988'], $page['props']['object']->id);
+        $this->assertSame(['$bigint' => '900719925474099988'], $page['props']['dto']['id']);
+    }
+
+    public function testBigIntegerEncodingDoesNotModifyReferencedProperties(): void
+    {
+        $dto = new class implements JsonSerializable {
+            public int $id = PHP_INT_MAX;
+
+            /**
+             * Get the JSON serializable representation of the object.
+             */
+            public function jsonSerialize(): array
+            {
+                return ['id' => &$this->id];
+            }
+        };
+
+        $page = $this->makePage(Request::create('/'), [
+            'object' => (object) ['dto' => $dto],
+        ], preserveBigIntegers: true);
+
+        $this->assertSame(['$bigint' => (string) PHP_INT_MAX], $page['props']['object']->dto['id']);
+        $this->assertSame(PHP_INT_MAX, $dto->id);
+    }
+
+    public function testBigIntegersInsideArbitraryObjectsAreWrappedWhenEnabled(): void
+    {
+        $money = new class {
+            public int $cents = 900719925474099988;
+        };
+
+        $page = $this->makePage(Request::create('/'), [
+            'money' => $money,
+            'nested' => ['money' => $money],
+            'wrapped' => (object) ['money' => $money],
+            'collection' => collect(['id' => 900719925474099988]),
+        ], preserveBigIntegers: true);
+
+        $marker = ['$bigint' => '900719925474099988'];
+
+        $this->assertSame($marker, $page['props']['money']->cents);
+        $this->assertSame($marker, $page['props']['nested']['money']->cents);
+        $this->assertSame($marker, $page['props']['wrapped']->money->cents);
+        $this->assertSame($marker, $page['props']['collection']['id']);
+
+        $money->cents = 900719925474099989;
+
+        $page = $this->makePage(Request::create('/'), ['money' => $money], preserveBigIntegers: true);
+
+        $this->assertSame(['$bigint' => '900719925474099989'], $page['props']['money']->cents);
+    }
+
+    public function testSelfReferencingObjectsDoNotRecurseForever(): void
+    {
+        $cyclic = new stdClass;
+        $cyclic->id = 900719925474099988;
+        $cyclic->self = $cyclic;
+
+        // The root view throws when json_encode rejects the cycle left in the page.
+        try {
+            $this->makePage(Request::create('/'), ['cyclic' => $cyclic], preserveBigIntegers: true);
+            $this->fail('Expected json_encode to reject the self-reference.');
+        } catch (ViewException $exception) {
+            $this->assertStringContainsString('Recursion detected', $exception->getMessage());
+        }
+
+        $this->assertSame(['$bigint' => '900719925474099988'], InertiaState::current()->page['props']['cyclic']->id);
+    }
+
+    public function testAnObjectSharedByTwoPropsIsWrappedInBoth(): void
+    {
+        $shared = (object) ['id' => 900719925474099988];
+
+        $page = $this->makePage(Request::create('/'), ['first' => $shared, 'second' => $shared], preserveBigIntegers: true);
+
+        $marker = ['$bigint' => '900719925474099988'];
+
+        $this->assertSame($marker, $page['props']['first']->id);
+        $this->assertSame($marker, $page['props']['second']->id);
+    }
+
+    public function testInternalObjectsKeepTheShapeJsonEncodeGivesThem(): void
+    {
+        $page = $this->makePage(Request::create('/'), [
+            'when' => ['at' => new DateTimeImmutable('2020-01-01T00:00:00Z')],
+            'extended' => new class('2020-01-01T00:00:00Z') extends DateTimeImmutable {},
+            'bag' => new class(['name' => 'John']) extends ArrayObject {},
+        ], preserveBigIntegers: true);
+
+        // Walking its properties would flatten it to an empty object.
+        $this->assertSame(
+            '{"at":{"date":"2020-01-01 00:00:00.000000","timezone_type":2,"timezone":"Z"}}',
+            json_encode($page['props']['when'])
+        );
+        $this->assertSame(
+            '{"date":"2020-01-01 00:00:00.000000","timezone_type":2,"timezone":"Z"}',
+            json_encode($page['props']['extended'])
+        );
+        $this->assertSame('{"name":"John"}', json_encode($page['props']['bag']));
+    }
+
+    public function testPureEnumsAreLeftForJsonEncodeToReject(): void
+    {
+        // Walking its properties would invent a JSON representation it does not have.
+        $this->expectException(ViewException::class);
+        $this->expectExceptionMessageIsOrContains('Non-backed enums have no default serialization');
+
+        $this->makePage(Request::create('/'), ['status' => UnitEnum::Index], preserveBigIntegers: true);
+    }
+
+    public function testBigIntegersInsideNumericallyKeyedObjectsAreWrappedWithoutChangingTheShape(): void
+    {
+        $page = $this->makePage(Request::create('/'), [
+            'list' => (object) ['0' => 900719925474099988, '1' => -900719925474099988],
+            'empty' => new stdClass,
+        ], preserveBigIntegers: true);
+
+        $this->assertInstanceOf(stdClass::class, $page['props']['list']);
+        $this->assertSame(
+            '{"0":{"$bigint":"900719925474099988"},"1":{"$bigint":"-900719925474099988"}}',
+            json_encode($page['props']['list'])
+        );
+        $this->assertSame('{}', json_encode($page['props']['empty']));
+    }
+
+    public function testBigIntegersAreWrappedWhenEnabled(): void
+    {
+        $page = $this->makePage(Request::create('/'), [
+            'safe' => 42,
+            'boundary' => 9007199254740991,
+            'negativeBoundary' => -9007199254740991,
+            'big' => 900719925474099988,
+            'negative' => -900719925474099988,
+            'nested' => ['deep' => [900719925474099988, 2]],
+        ], preserveBigIntegers: true);
+
+        $this->assertSame(42, $page['props']['safe']);
+        $this->assertSame(9007199254740991, $page['props']['boundary']);
+        $this->assertSame(-9007199254740991, $page['props']['negativeBoundary']);
+        $this->assertSame(['$bigint' => '900719925474099988'], $page['props']['big']);
+        $this->assertSame(['$bigint' => '-900719925474099988'], $page['props']['negative']);
+        $this->assertSame(['$bigint' => '900719925474099988'], $page['props']['nested']['deep'][0]);
+        $this->assertSame(2, $page['props']['nested']['deep'][1]);
+    }
+
+    public function testBigIntegersAreNotWrappedWhenDisabled(): void
+    {
+        $page = $this->makePage(Request::create('/'), [
+            'big' => 900719925474099988,
+        ]);
+
+        $this->assertSame(900719925474099988, $page['props']['big']);
+    }
+
     /**
      * Resolve the given props through the Inertia response and return the page data.
      *
      * @param array<array-key, mixed> $props
      * @return array<string, mixed>
      */
-    protected function makePage(Request $request, array $props): array
+    protected function makePage(Request $request, array $props, bool $preserveBigIntegers = false): array
     {
-        $response = new Response('TestComponent', [], $props, 'app', '123');
+        $response = new Response('TestComponent', [], $props, 'app', '123', preserveBigIntegers: $preserveBigIntegers);
         $response = $response->toResponse($request);
 
         if ($response instanceof JsonResponse) {

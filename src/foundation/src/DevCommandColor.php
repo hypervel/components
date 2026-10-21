@@ -6,10 +6,10 @@ namespace Hypervel\Foundation;
 
 enum DevCommandColor: string
 {
-    case Blue = '#93c5fd';
-    case Purple = '#c4b5fd';
-    case Pink = '#fb7185';
-    case Orange = '#fdba74';
-    case Green = '#86efac';
-    case Yellow = '#fcd34d';
+    case BLUE = '#93c5fd';
+    case PURPLE = '#c4b5fd';
+    case PINK = '#fb7185';
+    case ORANGE = '#fdba74';
+    case GREEN = '#86efac';
+    case YELLOW = '#fcd34d';
 }

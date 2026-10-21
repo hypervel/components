@@ -43,10 +43,10 @@ class ValidationRuleCanTest extends TestCase
         );
     }
 
-    public function testValidationFails()
+    public function testValidationFails(): void
     {
         $this->gate()->define('update-company', function ($user, $value) {
-            $this->assertEquals('1', $value);
+            $this->assertSame('1', $value);
 
             return false;
         });
@@ -60,12 +60,12 @@ class ValidationRuleCanTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
-    public function testValidationPasses()
+    public function testValidationPasses(): void
     {
         $this->gate()->define('update-company', function ($user, $class, $model, $value) {
             $this->assertEquals(\App\Models\Company::class, $class);
             $this->assertInstanceOf(Authenticatable::class, $model);
-            $this->assertEquals('1', $value);
+            $this->assertSame('1', $value);
 
             return true;
         });
@@ -79,7 +79,7 @@ class ValidationRuleCanTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    public function testCustomMessageUsingDotNotationAndFqcnWorks(): void
     {
         $v = new Validator(
             $this->app->make('translator'),

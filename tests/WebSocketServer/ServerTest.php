@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
+use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Server\OnCloseInterface;
+use Hypervel\Contracts\Server\OnMessageInterface;
+use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Waiter;
+use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketMessageStub;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketStub;
@@ -25,6 +32,7 @@ use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Server;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -34,8 +42,17 @@ use Swoole\WebSocket\Server as WebSocketSwooleServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+use function Hypervel\Support\defer;
+
 class ServerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        BaseContainer::getInstance()->scoped(DeferredCallbackCollection::class);
+    }
+
     protected function tearDown(): void
     {
         WebSocketMessageStub::flushState();
@@ -62,7 +79,7 @@ class ServerTest extends TestCase
         // Run deferOnOpen inside a child coroutine so that defer() fires
         // when that coroutine exits, before we make our assertions.
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
@@ -89,7 +106,7 @@ class ServerTest extends TestCase
         $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
@@ -115,7 +132,7 @@ class ServerTest extends TestCase
         $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
@@ -142,7 +159,7 @@ class ServerTest extends TestCase
         $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
@@ -171,7 +188,7 @@ class ServerTest extends TestCase
         $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
@@ -194,11 +211,157 @@ class ServerTest extends TestCase
         $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
-            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1, new HttpRequest, new Response('', 101));
         });
         $this->waitForCoroutine($coroutineId);
 
         $this->assertNotSame(0, WebSocketStub::$coroutineId);
+    }
+
+    #[DataProvider('messageDeferredOutcomes')]
+    public function testMessageDeferredWorkFollowsTheCallbackOutcome(?string $failureAt, bool $cancel, array $expected): void
+    {
+        $calls = [];
+        $exception = $cancel ? new CanceledException : new RuntimeException('message failed');
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$calls, $failureAt, $exception): void {
+            $phase = $event instanceof MessageReceived ? 'received' : 'handled';
+            $calls[] = $phase;
+
+            if ($phase === 'received') {
+                defer(function () use (&$calls): void { $calls[] = 'deferred'; });
+                defer(function () use (&$calls): void { $calls[] = 'always'; })->always();
+            }
+
+            if ($failureAt === $phase) {
+                throw $exception;
+            }
+        });
+        $handler = m::mock(OnMessageInterface::class);
+        $handler->shouldReceive('onMessage')->andReturnUsing(function () use (&$calls, $failureAt, $exception): void {
+            $calls[] = 'handler';
+            if ($failureAt === 'handler') {
+                throw $exception;
+            }
+        });
+        $container = $this->createContainer(dispatcher: $dispatcher);
+        $container->shouldReceive('make')->with(OnMessageInterface::class)->andReturn($handler);
+        FdCollector::set(1, OnMessageInterface::class);
+        $frame = new Frame;
+        $frame->fd = 1;
+
+        (new Server($container))->onMessage(m::mock(WebSocketSwooleServer::class), $frame);
+
+        $this->assertSame($expected, $calls);
+    }
+
+    /**
+     * Supply successful, failed and canceled message phases.
+     */
+    public static function messageDeferredOutcomes(): array
+    {
+        return [
+            'success' => [null, false, ['received', 'handler', 'handled', 'deferred', 'always']],
+            'received failure' => ['received', false, ['received', 'handler', 'handled', 'always']],
+            'handler failure' => ['handler', false, ['received', 'handler', 'handled', 'always']],
+            'handled failure' => ['handled', false, ['received', 'handler', 'handled', 'always']],
+            'received cancellation' => ['received', true, ['received']],
+            'handler cancellation' => ['handler', true, ['received', 'handler']],
+            'handled cancellation' => ['handled', true, ['received', 'handler', 'handled']],
+        ];
+    }
+
+    #[DataProvider('callbackFailures')]
+    public function testOpenDeferredWorkRunsAfterTheHandler(bool $fail): void
+    {
+        $calls = [];
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andReturnUsing(function () use (&$calls): void {
+            $calls[] = 'opened';
+            defer(function () use (&$calls): void { $calls[] = 'event deferred'; })->always();
+        });
+        $handler = m::mock(OnOpenInterface::class);
+        $handler->expects('onOpen')->andReturnUsing(function () use (&$calls, $fail): void {
+            $calls[] = 'handler';
+            defer(function () use (&$calls): void { $calls[] = 'handler deferred'; });
+            if ($fail) {
+                throw new RuntimeException('open failed');
+            }
+        });
+        $server = new Server($this->createContainer(dispatcher: $dispatcher));
+        $native = m::mock(WebSocketSwooleServer::class);
+
+        (new Waiter(1))->wait(fn () => (new ClassInvoker($server))->deferOnOpen(
+            new SwooleRequest,
+            $handler,
+            $native,
+            1,
+            new HttpRequest,
+            new Response('', 101)
+        ));
+
+        $this->assertSame($fail
+            ? ['opened', 'handler', 'event deferred']
+            : ['opened', 'handler', 'event deferred', 'handler deferred'], $calls);
+    }
+
+    #[DataProvider('callbackFailures')]
+    public function testCloseDeferredWorkRunsBeforeConnectionContextIsReleased(bool $fail): void
+    {
+        $calls = [];
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andReturnUsing(function () use (&$calls): void { $calls[] = 'closed'; });
+        $handler = m::mock(OnCloseInterface::class);
+        $handler->expects('onClose')->andReturnUsing(function () use (&$calls, $fail): void {
+            defer(function () use (&$calls): void { $calls[] = 'deferred'; });
+            defer(function () use (&$calls): void { $calls[] = WebSocketContext::get('value'); })->always();
+            if ($fail) {
+                throw new RuntimeException('close failed');
+            }
+        });
+        $container = $this->createContainer(dispatcher: $dispatcher);
+        $container->shouldReceive('make')->with(OnCloseInterface::class)->andReturn($handler);
+        FdCollector::set(1, OnCloseInterface::class);
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('value', 'context');
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertSame($fail ? ['closed', 'context'] : ['closed', 'deferred', 'context'], $calls);
+        $this->assertNull(WebSocketContext::get('value', fd: 1));
+        $this->assertNull(FdCollector::get(1));
+    }
+
+    /**
+     * Supply ordinary callback outcomes.
+     */
+    public static function callbackFailures(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testCancellationDuringDeferredWorkStillReleasesConnectionContext(): void
+    {
+        $calls = [];
+        $handler = m::mock(OnCloseInterface::class);
+        $handler->expects('onClose')->andReturnUsing(function () use (&$calls): void {
+            defer(static fn () => throw new CanceledException);
+            defer(function () use (&$calls): void { $calls[] = 'later'; })->always();
+        });
+        $container = $this->createContainer();
+        $container->shouldReceive('make')->with(OnCloseInterface::class)->andReturn($handler);
+        FdCollector::set(1, OnCloseInterface::class);
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('value', 'context');
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertSame([], $calls);
+        $this->assertNull(WebSocketContext::get('value', fd: 1));
+        $this->assertNull(FdCollector::get(1));
     }
 
     public function testMessageLifecycleEventsAreDispatchedInOrder(): void

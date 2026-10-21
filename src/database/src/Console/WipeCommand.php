@@ -9,7 +9,6 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Migrations\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'db:wipe')]
 class WipeCommand extends Command
@@ -18,9 +17,13 @@ class WipeCommand extends Command
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'db:wipe';
+    protected ?string $signature = 'db:wipe
+                    {--database= : The database connection to use}
+                    {--drop-views : Drop all tables and views}
+                    {--drop-types : Drop all tables and types (Postgres only)}
+                    {--force : Force the operation to run when in production}';
 
     /**
      * The console command description.
@@ -32,9 +35,8 @@ class WipeCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         $database = Migrator::resolveMigrationConnectionName(
@@ -59,7 +61,7 @@ class WipeCommand extends Command
 
         $this->flushDatabaseConnection($database);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
@@ -98,18 +100,5 @@ class WipeCommand extends Command
     protected function flushDatabaseConnection(?string $database): void
     {
         $this->hypervel->make('db')->connection($database)->disconnect();
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
-            ['drop-views', null, InputOption::VALUE_NONE, 'Drop all tables and views'],
-            ['drop-types', null, InputOption::VALUE_NONE, 'Drop all tables and types (Postgres only)'],
-            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
-        ];
     }
 }

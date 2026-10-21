@@ -63,19 +63,22 @@ class SupportBinaryCodecTest extends TestCase
     }
 
     #[DataProvider('nullAndBlankProvider')]
-    public function testEncodeReturnsNullForNullAndBlank(mixed $value): void
+    public function testEncodeReturnsNullForNullAndBlank(?string $value): void
     {
         $this->assertNull(BinaryCodec::encode($value, 'uuid'));
         $this->assertNull(BinaryCodec::encode($value, 'ulid'));
     }
 
     #[DataProvider('nullAndBlankProvider')]
-    public function testDecodeReturnsNullForNullAndBlank(mixed $value): void
+    public function testDecodeReturnsNullForNullAndBlank(?string $value): void
     {
         $this->assertNull(BinaryCodec::decode($value, 'uuid'));
         $this->assertNull(BinaryCodec::decode($value, 'ulid'));
     }
 
+    /**
+     * Provide null and blank values.
+     */
     public static function nullAndBlankProvider(): array
     {
         return [
@@ -110,16 +113,14 @@ class SupportBinaryCodecTest extends TestCase
 
     public function testEncodeThrowsOnInvalidFormat(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Format [invalid] is invalid.');
+        $this->expectExceptionObject(new InvalidArgumentException('Format [invalid] is invalid.'));
 
         BinaryCodec::encode('value', 'invalid');
     }
 
     public function testDecodeThrowsOnInvalidFormat(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Format [invalid] is invalid.');
+        $this->expectExceptionObject(new InvalidArgumentException('Format [invalid] is invalid.'));
 
         BinaryCodec::decode('value', 'invalid');
     }
@@ -209,6 +210,9 @@ class SupportBinaryCodecTest extends TestCase
         $this->assertSame($binary, BinaryCodec::encode($text, $format));
     }
 
+    /**
+     * Provide binary identifiers whose bytes are blank strings.
+     */
     public static function blankBuiltInBinaryProvider(): array
     {
         return [
@@ -240,6 +244,7 @@ class SupportBinaryCodecTest extends TestCase
 
         // Invalid UTF-8 sequences
         $this->assertTrue(BinaryCodec::isBinary("\xFF\xFE"));
+        $this->assertTrue(BinaryCodec::isBinary("\xE3\x81"));
 
         // Binary identifier bytes can still look like text
         $this->assertFalse(BinaryCodec::isBinary(Uuid::fromString(self::UTF8_SAFE_BINARY_UUID)->toBinary()));

@@ -126,7 +126,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
-    public function forget(UnitEnum|string $key): bool
+    public function forget(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
             'Cannot forget items via tags in any mode. Tags are for writing and flushing only. '
@@ -139,7 +139,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         throw new BadMethodCallException(
             'Cannot touch items via tags in any mode. Re-put the item through tags() to change '

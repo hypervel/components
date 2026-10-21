@@ -18,7 +18,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Session\Store
+ * @mixin Store
  */
 class SessionManager extends Manager
 {
@@ -100,6 +100,10 @@ class SessionManager extends Manager
         ));
     }
 
+    // REMOVED: getDatabaseConnection(); handlers resolve named connections in the current coroutine.
+
+    // REMOVED: createApcDriver() and createMemcachedDriver(); unsupported cache-backed session drivers.
+
     /**
      * Create an instance of the Redis session driver.
      */
@@ -120,6 +124,9 @@ class SessionManager extends Manager
             $this->container,
         ));
     }
+
+    // REMOVED: createDynamodbDriver(), createCacheBased() and createCacheHandler();
+    // unsupported cache-backed session drivers.
 
     /**
      * Build the session instance.

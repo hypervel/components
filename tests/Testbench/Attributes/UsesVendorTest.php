@@ -14,9 +14,10 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
 
+#[WithConfig('database.default', 'testing')]
 class UsesVendorTest extends TestCase
 {
     use LazilyRefreshDatabase;
@@ -45,7 +46,6 @@ class UsesVendorTest extends TestCase
     #[Test]
     #[UsesVendor]
     #[WithMigration]
-    #[WithConfig('database.default', 'testing')]
     public function itCanResolveConfigFromContainer(): void
     {
         $user = User::query()->count();

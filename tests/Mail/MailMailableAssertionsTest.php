@@ -224,7 +224,7 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "First Item" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "First Item" in specified order');
 
         $mailable->assertSeeInOrderInHtml([
             'It\'s a wonderful day',
@@ -238,7 +238,7 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "0" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "0" in specified order');
 
         $mailable->assertSeeInOrderInText(['Sixth Item', '0']);
     }
@@ -248,33 +248,17 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('contains "0" in specified order');
+        $this->expectExceptionMessageIsOrContains('contains "0" in specified order');
 
         $mailable->assertSeeInOrderInHtml(['Sixth Item', '0']);
     }
 }
 
-class MailableAssertionsBladeEscapedStub extends Mailable
-{
-    protected function renderForAssertions(): array
-    {
-        $text = "It's a wonderful day";
-
-        $html = <<<'EOD'
-    <!DOCTYPE html>
-    <html>
-    <body>
-    <div>It&#039;s a wonderful day</div>
-    </body>
-    </html>
-    EOD;
-
-        return [$html, $text];
-    }
-}
-
 class MailableAssertionsStub extends Mailable
 {
+    /**
+     * Render the HTML and plain-text version of the mailable into views for assertions.
+     */
     protected function renderForAssertions(): array
     {
         $text = <<<'EOD'
@@ -309,6 +293,28 @@ class MailableAssertionsStub extends Mailable
         </ul>
     </body>
 
+    </html>
+    EOD;
+
+        return [$html, $text];
+    }
+}
+
+class MailableAssertionsBladeEscapedStub extends Mailable
+{
+    /**
+     * Render the HTML and plain-text version of the mailable into views for assertions.
+     */
+    protected function renderForAssertions(): array
+    {
+        $text = "It's a wonderful day";
+
+        $html = <<<'EOD'
+    <!DOCTYPE html>
+    <html>
+    <body>
+    <div>It&#039;s a wonderful day</div>
+    </body>
     </html>
     EOD;
 

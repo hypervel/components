@@ -71,6 +71,7 @@ class WaitGroup
      * @param float $timeout Timeout in seconds (-1 for unlimited)
      * @return bool True if completed, false if timed out
      * @throws BadMethodCallException When wait is called before previous wait returned
+     * @throws CanceledException When the waiting coroutine is canceled
      */
     public function wait(float $timeout = -1): bool
     {

@@ -16,6 +16,7 @@ use Hypervel\Session\Contracts\CanManageUserSessions;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 use SessionHandlerInterface;
 
 class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInterface, SessionHandlerInterface
@@ -65,6 +66,22 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
     public function close(): bool
     {
         return true;
+    }
+
+    /**
+     * Create a new session ID.
+     */
+    public function create_sid(): string
+    {
+        return session_create_id() ?: throw new RuntimeException('Unable to create a session ID.');
+    }
+
+    /**
+     * Determine if the session ID exists.
+     */
+    public function validateId(string $id): bool
+    {
+        return ! is_null($this->getQuery()->find($id));
     }
 
     public function read(string $sessionId): false|string

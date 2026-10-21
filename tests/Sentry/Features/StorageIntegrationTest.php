@@ -4,27 +4,39 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Aws\Credentials\Credentials;
 use DateTimeImmutable;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
+use Hypervel\Filesystem\ClientPooledFilesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\Filesystem\ScopedFilesystemProxy;
+use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
+use Hypervel\Sentry\Features\Storage\SentryFilesystem;
 use Hypervel\Sentry\Features\Storage\SentryFilesystemAdapter;
 use Hypervel\Sentry\Features\Storage\SentryS3V3Adapter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Sentry\TestCase;
+use InvalidArgumentException;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
+use Sentry\Tracing\Span;
 
-class StorageIntegrationTest extends SentryTestCase
+class StorageIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
@@ -92,6 +104,69 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertSame(['paths' => ['foo', 'bar'], 'disk' => 'local', 'driver' => 'local'], $span->getData());
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCrossDiskTransfersPreserveIdentityAndTracing(bool $scoped): void
+    {
+        $root = ParallelTesting::tempDir('SentryCrossDiskTransfers');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $files->ensureDirectoryExists($root);
+
+        try {
+            $this->resetApplicationWithConfig([
+                'filesystems.disks' => Integration::configureDisks([
+                    'source' => ['driver' => $scoped ? 'dynamic-scoped' : 'local', 'root' => $root . '/source'],
+                ]),
+            ]);
+            $manager = $this->app->make(FilesystemManager::class);
+            $manager->extend('dynamic-scoped', static function (Container $app, array $config): ScopedFilesystemProxy {
+                $adapter = new LocalFilesystemAdapter($config['root']);
+
+                return new ScopedFilesystemProxy(
+                    new FilesystemAdapter(new Flysystem($adapter), $adapter),
+                    static fn (): string => 'tenant',
+                );
+            });
+            $source = Storage::disk('source');
+            $this->assertInstanceOf($scoped ? SentryFilesystem::class : SentryFilesystemAdapter::class, $source);
+            $source->put('file.txt', 'contents');
+
+            try {
+                $source->moveToDisk('source', 'file.txt');
+                $this->fail('Expected a same-path move to be rejected.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('Cannot copy a file to the same disk and path.', $exception->getMessage());
+            }
+
+            $this->assertSame('contents', $source->get('file.txt'));
+            $adapter = new LocalFilesystemAdapter($root . '/destination');
+            $destination = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+            $transaction = $this->startTransaction();
+
+            $this->assertTrue($source->copyToDisk($destination, 'file.txt'));
+            $this->assertTrue($source->moveToDisk('source', 'file.txt', 'moved.txt'));
+            $spans = $transaction->getSpanRecorder()->getSpans();
+
+            $this->assertCount(3, $spans);
+            $this->assertSame('file.copyToDisk', $spans[1]->getOp());
+            $this->assertSame('file.moveToDisk', $spans[2]->getOp());
+            $this->assertSame([
+                'from' => 'file.txt', 'to' => 'file.txt',
+                'disk' => 'source', 'driver' => $scoped ? 'dynamic-scoped' : 'local',
+            ], $spans[1]->getData());
+            $this->assertSame([
+                'from' => 'file.txt', 'to' => 'moved.txt', 'destination_disk' => 'source',
+                'disk' => 'source', 'driver' => $scoped ? 'dynamic-scoped' : 'local',
+            ], $spans[2]->getData());
+            $this->assertSame('contents', $destination->get('file.txt'));
+            $this->assertSame('contents', $source->get('moved.txt'));
+            $this->assertFalse($source->exists('file.txt'));
+        } finally {
+            $files->deleteDirectory($root);
+        }
+    }
+
     public function testDoesntCreateSpansWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
@@ -129,7 +204,7 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertIsString($disk->mimeType('foo.txt'));
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -147,6 +222,41 @@ class StorageIntegrationTest extends SentryTestCase
 
         $disk->delete(['foo.txt']);
         $disk->deleteDirectory('empty');
+    }
+
+    public function testPlainFilesystemExistenceChecksRemainInstrumented(): void
+    {
+        $root = ParallelTesting::tempDir('SentryFilesystemExistence');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $files->ensureDirectoryExists($root);
+
+        try {
+            $adapter = new LocalFilesystemAdapter($root);
+            $filesystem = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+            $filesystem->put('file.txt', 'contents');
+            $filesystem->makeDirectory('empty');
+            $disk = new SentryFilesystem($filesystem, ['disk' => 'plain'], true, false);
+            $transaction = $this->startTransaction();
+
+            $this->assertTrue($disk->fileExists('file.txt'));
+            $this->assertFalse($disk->fileExists('empty'));
+            $this->assertTrue($disk->directoryExists('empty'));
+            $this->assertFalse($disk->directoryExists('file.txt'));
+            $this->assertTrue($disk->exists('empty'));
+
+            $spans = array_slice($transaction->getSpanRecorder()->getSpans(), 1);
+            $this->assertSame([
+                'file.fileExists',
+                'file.fileExists',
+                'file.directoryExists',
+                'file.directoryExists',
+                'file.exists',
+            ], array_map(static fn (Span $span): ?string => $span->getOp(), $spans));
+            $this->assertSame(['path' => 'file.txt', 'disk' => 'plain'], $spans[0]->getData());
+        } finally {
+            $files->deleteDirectory($root);
+        }
     }
 
     public function testTemporaryUrlCapabilitiesAndCallbacksDelegateToWrappedAdapter(): void
@@ -243,6 +353,8 @@ class StorageIntegrationTest extends SentryTestCase
                     'serveUsing',
                     'unless',
                     'when',
+                    'withAdapter',
+                    'withDriver',
                 ],
             ],
             'S3 adapter' => [
@@ -281,7 +393,7 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertContains(
             'file.mimeType',
             array_map(
-                static fn ($span): ?string => $span->getOp(),
+                static fn (Span $span): ?string => $span->getOp(),
                 $transaction->getSpanRecorder()->getSpans(),
             ),
         );
@@ -306,7 +418,7 @@ class StorageIntegrationTest extends SentryTestCase
         fclose($stream);
 
         $operations = array_map(
-            static fn ($span): ?string => $span->getOp(),
+            static fn (Span $span): ?string => $span->getOp(),
             $transaction->getSpanRecorder()->getSpans(),
         );
 
@@ -381,6 +493,35 @@ class StorageIntegrationTest extends SentryTestCase
         $manager->purge('pooled');
 
         $this->assertFalse($pools->has($pooled->getPoolName()));
+    }
+
+    public function testDecoratedCloudDisksKeepTheirPoolSettings(): void
+    {
+        $this->resetApplicationWithConfig([
+            'filesystems.disks' => Integration::configureDisks([
+                's3' => [
+                    'driver' => 's3',
+                    'region' => 'us-east-1',
+                    'bucket' => 'bucket',
+                    // A credential provider cannot define pool identity, so the disk declares its fingerprint
+                    'credentials' => static fn (): PromiseInterface => Create::promiseFor(new Credentials('key', 'secret')),
+                    'pool' => [
+                        'name' => 'decorated-s3',
+                        'fingerprint' => 'decorated-s3-credentials',
+                        'max_objects' => 3,
+                    ],
+                ],
+            ]),
+        ]);
+
+        $disk = Storage::disk('s3');
+
+        $this->assertInstanceOf(DecoratedFilesystem::class, $disk);
+        $pooled = $disk->getFilesystem();
+        $this->assertInstanceOf(ClientPooledFilesystem::class, $pooled);
+        $this->assertSame(FilesystemManager::class . ':named:decorated-s3', $pooled->getDefinition()->identity);
+        $this->assertSame(PoolFingerprint::fromExplicit('decorated-s3-credentials'), $pooled->getDefinition()->fingerprint);
+        $this->assertSame(3, $pooled->getDefinition()->options->maxObjects);
     }
 
     public function testCreatesBreadcrumbsFor(): void
@@ -558,9 +699,11 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertFalse(Storage::disk('local')->exists('missing'));
     }
 
-    public function testAnonymousDiskRequiresStoredLogicalName(): void
+    public function testThrowsIfDiskConfigurationDoesntSpecifyDiskName(): void
     {
-        $this->expectExceptionMessage('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
+        // Named disks receive their name from the filesystem manager, so only a disk built
+        // from configuration alone still needs the `sentry_disk_name` key.
+        $this->expectExceptionMessageIs('Missing `sentry_disk_name` config key for `sentry` filesystem driver.');
 
         Storage::build([
             'driver' => 'sentry',
@@ -576,7 +719,7 @@ class StorageIntegrationTest extends SentryTestCase
             'filesystems.disks.local.sentry_disk_name' => 'local',
         ]);
 
-        $this->expectExceptionMessage('Missing `sentry_original_driver` config key for `sentry` filesystem driver.');
+        $this->expectExceptionMessageIs('Missing `sentry_original_driver` config key for `sentry` filesystem driver.');
 
         Storage::disk('local');
     }
@@ -589,7 +732,7 @@ class StorageIntegrationTest extends SentryTestCase
             'filesystems.disks.local.sentry_original_driver' => 'sentry',
         ]);
 
-        $this->expectExceptionMessage('`sentry_original_driver` for Sentry storage integration cannot be the `sentry` driver.');
+        $this->expectExceptionMessageIs('`sentry_original_driver` for Sentry storage integration cannot be the `sentry` driver.');
 
         Storage::disk('local');
     }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules\Concerns;
 
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
 
@@ -16,9 +15,7 @@ trait ClonesCustomRules
     public function __clone(): void
     {
         foreach ($this->customRules as $key => $rule) {
-            if ($rule instanceof Rule
-                || $rule instanceof InvokableRule
-                || $rule instanceof ValidationRule) {
+            if ($rule instanceof Rule || $rule instanceof ValidationRule) {
                 $this->customRules[$key] = clone $rule;
             }
         }

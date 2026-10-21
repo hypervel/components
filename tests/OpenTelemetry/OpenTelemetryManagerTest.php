@@ -368,7 +368,7 @@ class OpenTelemetryManagerTest extends TestCase
         $manager->shutdown();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('one producing-process SDK lifecycle');
+        $this->expectExceptionMessageIsOrContains('one producing-process SDK lifecycle');
 
         $manager->bind(ProcessIdentity::cli());
     }

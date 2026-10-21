@@ -12,7 +12,6 @@ use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rules\Unique as UniqueRule;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class UniqueTest extends TestCase
@@ -132,17 +131,6 @@ class UniqueTest extends TestCase
             new Unique('users', deletedAtColumn: new UniqueExternalReference(null)),
             'Unique deletedAtColumn must resolve to a string.',
         ];
-    }
-
-    /**
-     * Test invalid database constraints fail clearly.
-     */
-    public function testRejectsInvalidDatabaseConstraint(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageIs('Each where item must be a DatabaseConstraint or Closure');
-
-        (new Unique('users', where: ['invalid']))->getRule(ValidationPath::create());
     }
 }
 

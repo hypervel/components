@@ -52,7 +52,7 @@ class ServerRestartStrategyTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Please set `server.settings.daemonize` to false');
+        $this->expectExceptionMessageIs('Please set `server.settings.daemonize` to false');
 
         new ServerRestartStrategy($this->app, new NullOutput);
     }
@@ -86,7 +86,7 @@ class ServerRestartStrategyTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher.bin configuration value must be a non-empty executable path.');
+        $this->expectExceptionMessageIs('The watcher.bin configuration value must be a non-empty executable path.');
 
         new ServerRestartStrategy($this->app, new NullOutput);
     }
@@ -100,7 +100,7 @@ class ServerRestartStrategyTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The watcher.command configuration value must be a non-empty list of non-empty strings.');
+        $this->expectExceptionMessageIs('The watcher.command configuration value must be a non-empty list of non-empty strings.');
 
         new ServerRestartStrategy($this->app, new NullOutput);
     }

@@ -21,6 +21,9 @@ use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
 
+/**
+ * @template TColumnDefinition of ColumnDefinition = ColumnDefinition
+ */
 class Blueprint
 {
     use Macroable;
@@ -45,14 +48,14 @@ class Blueprint
     /**
      * The columns that should be added to the table.
      *
-     * @var list<\Hypervel\Database\Schema\ColumnDefinition>
+     * @var list<ColumnDefinition>
      */
     protected array $columns = [];
 
     /**
      * The commands that should be run for the table.
      *
-     * @var list<\Hypervel\Support\Fluent>
+     * @var list<Fluent>
      */
     protected array $commands = [];
 
@@ -77,6 +80,13 @@ class Blueprint
     public bool $temporary = false;
 
     /**
+     * The columns that should range-partition the table (PostgreSQL only).
+     *
+     * @var null|list<string>
+     */
+    public ?array $rangePartitionColumns = null;
+
+    /**
      * The column to add new columns after.
      */
     public ?string $after = null;
@@ -88,6 +98,8 @@ class Blueprint
 
     /**
      * Create a new schema blueprint.
+     *
+     * @param null|(Closure(self): void) $callback
      */
     public function __construct(Connection $connection, string $table, ?Closure $callback = null)
     {
@@ -221,11 +233,7 @@ class Blueprint
                 // and the column is supposed to be changed, we will call the drop index
                 // method with an array of column to drop it by its conventional name.
                 if ($column->{$index} === false && $column->change) {
-                    if ($index === 'vectorIndex') {
-                        $this->dropIndex($this->createIndexName($index, [$column->name]));
-                    } else {
-                        $this->{'drop' . ucfirst($index)}([$column->name]);
-                    }
+                    $this->{'drop' . ucfirst($index)}([$column->name]);
 
                     $column->{$index} = null;
 
@@ -335,7 +343,7 @@ class Blueprint
     {
         foreach ($this->columns as $column) {
             foreach ($this->grammar->getFluentCommands() as $commandName) {
-                $this->addCommand($commandName, compact('column'));
+                $this->addCommand($commandName, ['column' => $column]);
             }
         }
     }
@@ -436,6 +444,16 @@ class Blueprint
     }
 
     /**
+     * Indicate that the table should be partitioned by ranges of the given columns (PostgreSQL only).
+     *
+     * @param list<string>|string $columns
+     */
+    public function partitionByRange(array|string $columns): void
+    {
+        $this->rangePartitionColumns = (array) $columns;
+    }
+
+    /**
      * Indicate that the table should be dropped.
      */
     public function drop(): Fluent
@@ -458,7 +476,7 @@ class Blueprint
     {
         $columns = is_array($columns) ? $columns : func_get_args();
 
-        return $this->addCommand('dropColumn', compact('columns'));
+        return $this->addCommand('dropColumn', ['columns' => $columns]);
     }
 
     /**
@@ -466,7 +484,7 @@ class Blueprint
      */
     public function renameColumn(string $from, string $to): Fluent
     {
-        return $this->addCommand('renameColumn', compact('from', 'to'));
+        return $this->addCommand('renameColumn', ['from' => $from, 'to' => $to]);
     }
 
     /**
@@ -510,6 +528,14 @@ class Blueprint
     }
 
     /**
+     * Indicate that the given vector index should be dropped.
+     */
+    public function dropVectorIndex(array|string $index): Fluent
+    {
+        return $this->dropIndexCommand('dropVectorIndex', 'vectorIndex', $index);
+    }
+
+    /**
      * Indicate that the given foreign key should be dropped.
      */
     public function dropForeign(array|string $index, ?string $name = null): Fluent
@@ -538,7 +564,7 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropForeignIdFor(object|string $model, ?string $column = null): Fluent
+    public function dropForeignIdFor(Model|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
             $model = new $model;
@@ -550,7 +576,7 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropConstrainedForeignIdFor(object|string $model, ?string $column = null): Fluent
+    public function dropConstrainedForeignIdFor(Model|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
             $model = new $model;
@@ -564,7 +590,7 @@ class Blueprint
      */
     public function renameIndex(string $from, string $to): Fluent
     {
-        return $this->addCommand('renameIndex', compact('from', 'to'));
+        return $this->addCommand('renameIndex', ['from' => $from, 'to' => $to]);
     }
 
     /**
@@ -626,7 +652,7 @@ class Blueprint
      */
     public function rename(string $to): Fluent
     {
-        return $this->addCommand('rename', compact('to'));
+        return $this->addCommand('rename', ['to' => $to]);
     }
 
     /**
@@ -706,7 +732,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
+     *
+     * @return TColumnDefinition
      */
     public function id(string $column = 'id'): ColumnDefinition
     {
@@ -714,7 +742,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
+     *
+     * @return TColumnDefinition
      */
     public function increments(string $column): ColumnDefinition
     {
@@ -722,7 +752,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
+     *
+     * @return TColumnDefinition
      */
     public function integerIncrements(string $column): ColumnDefinition
     {
@@ -730,7 +762,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new auto-incrementing tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
+     *
+     * @return TColumnDefinition
      */
     public function tinyIncrements(string $column): ColumnDefinition
     {
@@ -738,7 +772,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new auto-incrementing small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
+     *
+     * @return TColumnDefinition
      */
     public function smallIncrements(string $column): ColumnDefinition
     {
@@ -746,7 +782,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new auto-incrementing medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
+     *
+     * @return TColumnDefinition
      */
     public function mediumIncrements(string $column): ColumnDefinition
     {
@@ -754,7 +792,9 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
+     *
+     * @return TColumnDefinition
      */
     public function bigIncrements(string $column): ColumnDefinition
     {
@@ -763,26 +803,32 @@ class Blueprint
 
     /**
      * Create a new char column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function char(string $column, ?int $length = null): ColumnDefinition
     {
         $length = ! is_null($length) ? $length : Builder::$defaultStringLength;
 
-        return $this->addColumn('char', $column, compact('length'));
+        return $this->addColumn('char', $column, ['length' => $length]);
     }
 
     /**
      * Create a new string column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function string(string $column, ?int $length = null): ColumnDefinition
     {
         $length = $length ?: Builder::$defaultStringLength;
 
-        return $this->addColumn('string', $column, compact('length'));
+        return $this->addColumn('string', $column, ['length' => $length]);
     }
 
     /**
-     * Create a new tiny text column on the table (up to 255 characters).
+     * Create a new tiny text column on the table (up to 255 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
      */
     public function tinyText(string $column): ColumnDefinition
     {
@@ -790,7 +836,9 @@ class Blueprint
     }
 
     /**
-     * Create a new text column on the table (up to 65,535 characters / ~64 KB).
+     * Create a new text column on the table (up to 65,535 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
      */
     public function text(string $column): ColumnDefinition
     {
@@ -798,7 +846,9 @@ class Blueprint
     }
 
     /**
-     * Create a new medium text column on the table (up to 16,777,215 characters / ~16 MB).
+     * Create a new medium text column on the table (up to 16,777,215 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
      */
     public function mediumText(string $column): ColumnDefinition
     {
@@ -806,7 +856,9 @@ class Blueprint
     }
 
     /**
-     * Create a new long text column on the table (up to 4,294,967,295 characters / ~4 GB).
+     * Create a new long text column on the table (up to 4,294,967,295 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
      */
     public function longText(string $column): ColumnDefinition
     {
@@ -814,52 +866,64 @@ class Blueprint
     }
 
     /**
-     * Create a new integer (4-byte) column on the table.
-     * Range: -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
+     * Create a new integer column on the table.
+     * MySQL/MariaDB (4-byte): -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
+     *
+     * @return TColumnDefinition
      */
     public function integer(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('integer', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('integer', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
-     * Create a new tiny integer (1-byte) column on the table.
-     * Range: -128 to 127 (signed) or 0 to 255 (unsigned).
+     * Create a new tiny integer column on the table.
+     * MySQL/MariaDB (1-byte): -128 to 127 (signed) or 0 to 255 (unsigned).
+     *
+     * @return TColumnDefinition
      */
     public function tinyInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('tinyInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('tinyInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
-     * Create a new small integer (2-byte) column on the table.
-     * Range: -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
+     * Create a new small integer column on the table.
+     * MySQL/MariaDB (2-byte): -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
+     *
+     * @return TColumnDefinition
      */
     public function smallInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('smallInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('smallInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
-     * Create a new medium integer (3-byte) column on the table.
-     * Range: -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
+     * Create a new medium integer column on the table.
+     * MySQL/MariaDB (3-byte): -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
+     *
+     * @return TColumnDefinition
      */
     public function mediumInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('mediumInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('mediumInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
-     * Create a new big integer (8-byte) column on the table.
-     * Range: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
+     * Create a new big integer column on the table.
+     * MySQL/MariaDB (8-byte): -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
+     *
+     * @return TColumnDefinition
      */
     public function bigInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('bigInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('bigInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
-     * Create a new unsigned integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new unsigned integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
+     *
+     * @return TColumnDefinition
      */
     public function unsignedInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -867,7 +931,9 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new unsigned tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
+     *
+     * @return TColumnDefinition
      */
     public function unsignedTinyInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -875,7 +941,9 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new unsigned small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
+     *
+     * @return TColumnDefinition
      */
     public function unsignedSmallInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -883,7 +951,9 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new unsigned medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
+     *
+     * @return TColumnDefinition
      */
     public function unsignedMediumInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -891,7 +961,9 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
+     *
+     * @return TColumnDefinition
      */
     public function unsignedBigInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -899,7 +971,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function foreignId(string $column): ForeignIdColumnDefinition
     {
@@ -914,7 +986,7 @@ class Blueprint
     /**
      * Create a foreign ID column for the given model.
      */
-    public function foreignIdFor(object|string $model, ?string $column = null): ForeignIdColumnDefinition
+    public function foreignIdFor(Model|string $model, ?string $column = null): ForeignIdColumnDefinition
     {
         if (is_string($model)) {
             $model = new $model;
@@ -928,9 +1000,7 @@ class Blueprint
                 ->referencesModelColumn($model->getKeyName());
         }
 
-        $modelTraits = class_uses_recursive($model);
-
-        if (in_array(HasUlids::class, $modelTraits, true)) {
+        if (isset(class_uses_recursive($model)[HasUlids::class])) {
             return $this->foreignUlid($column, 26)
                 ->table($model->getTable())
                 ->referencesModelColumn($model->getKeyName());
@@ -956,15 +1026,33 @@ class Blueprint
     }
 
     /**
+     * Create a foreign ULID column for the given model.
+     */
+    public function foreignUlidFor(Model|string $model, ?string $column = null): ForeignIdColumnDefinition
+    {
+        if (is_string($model)) {
+            $model = new $model;
+        }
+
+        return $this->foreignUlid($column ?: $model->getForeignKey())
+            ->table($model->getTable())
+            ->referencesModelColumn($model->getKeyName());
+    }
+
+    /**
      * Create a new float column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function float(string $column, int $precision = 53): ColumnDefinition
     {
-        return $this->addColumn('float', $column, compact('precision'));
+        return $this->addColumn('float', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new double column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function double(string $column): ColumnDefinition
     {
@@ -973,14 +1061,18 @@ class Blueprint
 
     /**
      * Create a new decimal column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function decimal(string $column, int $total = 8, int $places = 2): ColumnDefinition
     {
-        return $this->addColumn('decimal', $column, compact('total', 'places'));
+        return $this->addColumn('decimal', $column, ['total' => $total, 'places' => $places]);
     }
 
     /**
      * Create a new boolean column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function boolean(string $column): ColumnDefinition
     {
@@ -989,24 +1081,30 @@ class Blueprint
 
     /**
      * Create a new enum column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function enum(string $column, array $allowed): ColumnDefinition
     {
         $allowed = array_map(fn ($value) => enum_value($value), $allowed);
 
-        return $this->addColumn('enum', $column, compact('allowed'));
+        return $this->addColumn('enum', $column, ['allowed' => $allowed]);
     }
 
     /**
      * Create a new set column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function set(string $column, array $allowed): ColumnDefinition
     {
-        return $this->addColumn('set', $column, compact('allowed'));
+        return $this->addColumn('set', $column, ['allowed' => $allowed]);
     }
 
     /**
      * Create a new json column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function json(string $column): ColumnDefinition
     {
@@ -1015,6 +1113,8 @@ class Blueprint
 
     /**
      * Create a new jsonb column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function jsonb(string $column): ColumnDefinition
     {
@@ -1023,6 +1123,8 @@ class Blueprint
 
     /**
      * Create a new date column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function date(string $column): ColumnDefinition
     {
@@ -1031,68 +1133,80 @@ class Blueprint
 
     /**
      * Create a new date-time column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function dateTime(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('dateTime', $column, compact('precision'));
+        return $this->addColumn('dateTime', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new date-time column (with time zone) on the table.
+     *
+     * @return TColumnDefinition
      */
     public function dateTimeTz(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('dateTimeTz', $column, compact('precision'));
+        return $this->addColumn('dateTimeTz', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new time column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function time(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('time', $column, compact('precision'));
+        return $this->addColumn('time', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new time column (with time zone) on the table.
+     *
+     * @return TColumnDefinition
      */
     public function timeTz(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timeTz', $column, compact('precision'));
+        return $this->addColumn('timeTz', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new timestamp column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function timestamp(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timestamp', $column, compact('precision'));
+        return $this->addColumn('timestamp', $column, ['precision' => $precision]);
     }
 
     /**
      * Create a new timestamp (with time zone) column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function timestampTz(string $column, ?int $precision = null): ColumnDefinition
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timestampTz', $column, compact('precision'));
+        return $this->addColumn('timestampTz', $column, ['precision' => $precision]);
     }
 
     /**
      * Add nullable creation and update timestamps to the table.
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function timestamps(?int $precision = null): Collection
     {
@@ -1107,7 +1221,7 @@ class Blueprint
      *
      * Alias for self::timestamps().
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function nullableTimestamps(?int $precision = null): Collection
     {
@@ -1117,7 +1231,7 @@ class Blueprint
     /**
      * Add nullable creation and update timestampTz columns to the table.
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function timestampsTz(?int $precision = null): Collection
     {
@@ -1132,7 +1246,7 @@ class Blueprint
      *
      * Alias for self::timestampsTz().
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function nullableTimestampsTz(?int $precision = null): Collection
     {
@@ -1142,7 +1256,7 @@ class Blueprint
     /**
      * Add creation and update datetime columns to the table.
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function datetimes(?int $precision = null): Collection
     {
@@ -1154,6 +1268,8 @@ class Blueprint
 
     /**
      * Add a "deleted at" timestamp for the table.
+     *
+     * @return TColumnDefinition
      */
     public function softDeletes(string $column = 'deleted_at', ?int $precision = null): ColumnDefinition
     {
@@ -1162,6 +1278,8 @@ class Blueprint
 
     /**
      * Add a "deleted at" timestampTz for the table.
+     *
+     * @return TColumnDefinition
      */
     public function softDeletesTz(string $column = 'deleted_at', ?int $precision = null): ColumnDefinition
     {
@@ -1170,6 +1288,8 @@ class Blueprint
 
     /**
      * Add a "deleted at" datetime column to the table.
+     *
+     * @return TColumnDefinition
      */
     public function softDeletesDatetime(string $column = 'deleted_at', ?int $precision = null): ColumnDefinition
     {
@@ -1178,6 +1298,8 @@ class Blueprint
 
     /**
      * Create a new year column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function year(string $column): ColumnDefinition
     {
@@ -1186,14 +1308,38 @@ class Blueprint
 
     /**
      * Create a new binary column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function binary(string $column, ?int $length = null, bool $fixed = false): ColumnDefinition
     {
-        return $this->addColumn('binary', $column, compact('length', 'fixed'));
+        return $this->addColumn('binary', $column, ['length' => $length, 'fixed' => $fixed]);
+    }
+
+    /**
+     * Create a new medium binary column on the table (up to 16,777,215 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
+     */
+    public function mediumBinary(string $column): ColumnDefinition
+    {
+        return $this->addColumn('mediumBinary', $column);
+    }
+
+    /**
+     * Create a new long binary column on the table (up to 4,294,967,295 bytes on MySQL/MariaDB).
+     *
+     * @return TColumnDefinition
+     */
+    public function longBinary(string $column): ColumnDefinition
+    {
+        return $this->addColumn('longBinary', $column);
     }
 
     /**
      * Create a new UUID column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function uuid(string $column = 'uuid'): ColumnDefinition
     {
@@ -1201,7 +1347,7 @@ class Blueprint
     }
 
     /**
-     * Create a new UUID column on the table with a foreign key constraint.
+     * Create a new UUID foreign ID column on the table.
      */
     public function foreignUuid(string $column): ForeignIdColumnDefinition
     {
@@ -1213,6 +1359,8 @@ class Blueprint
 
     /**
      * Create a new ULID column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function ulid(string $column = 'ulid', ?int $length = 26): ColumnDefinition
     {
@@ -1220,7 +1368,7 @@ class Blueprint
     }
 
     /**
-     * Create a new ULID column on the table with a foreign key constraint.
+     * Create a new ULID foreign ID column on the table.
      */
     public function foreignUlid(string $column, ?int $length = 26): ForeignIdColumnDefinition
     {
@@ -1233,6 +1381,8 @@ class Blueprint
 
     /**
      * Create a new IP address column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function ipAddress(string $column = 'ip_address'): ColumnDefinition
     {
@@ -1241,6 +1391,8 @@ class Blueprint
 
     /**
      * Create a new MAC address column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function macAddress(string $column = 'mac_address'): ColumnDefinition
     {
@@ -1249,40 +1401,42 @@ class Blueprint
 
     /**
      * Create a new geometry column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function geometry(string $column, ?string $subtype = null, int $srid = 0): ColumnDefinition
     {
-        return $this->addColumn('geometry', $column, compact('subtype', 'srid'));
+        return $this->addColumn('geometry', $column, ['subtype' => $subtype, 'srid' => $srid]);
     }
 
     /**
      * Create a new geography column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function geography(string $column, ?string $subtype = null, int $srid = 4326): ColumnDefinition
     {
-        return $this->addColumn('geography', $column, compact('subtype', 'srid'));
+        return $this->addColumn('geography', $column, ['subtype' => $subtype, 'srid' => $srid]);
     }
 
-    /**
-     * Create a new generated, computed column on the table.
-     */
-    public function computed(string $column, string $expression): ColumnDefinition
-    {
-        return $this->addColumn('computed', $column, compact('expression'));
-    }
+    // REMOVED: SQL Server-only computed(); use virtualAs() or storedAs() on a typed column.
 
     /**
      * Create a new vector column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function vector(string $column, ?int $dimensions = null): ColumnDefinition
     {
-        $options = $dimensions ? compact('dimensions') : [];
+        $options = $dimensions ? ['dimensions' => $dimensions] : [];
 
         return $this->addColumn('vector', $column, $options);
     }
 
     /**
      * Create a new tsvector column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function tsvector(string $column): ColumnDefinition
     {
@@ -1409,6 +1563,8 @@ class Blueprint
 
     /**
      * Add the `remember_token` column to the table.
+     *
+     * @return TColumnDefinition
      */
     public function rememberToken(): ColumnDefinition
     {
@@ -1417,10 +1573,12 @@ class Blueprint
 
     /**
      * Create a new custom column on the table.
+     *
+     * @return TColumnDefinition
      */
     public function rawColumn(string $column, string $definition): ColumnDefinition
     {
-        return $this->addColumn('raw', $column, compact('definition'));
+        return $this->addColumn('raw', $column, ['definition' => $definition]);
     }
 
     /**
@@ -1428,7 +1586,7 @@ class Blueprint
      */
     public function comment(string $comment): Fluent
     {
-        return $this->addCommand('tableComment', compact('comment'));
+        return $this->addCommand('tableComment', ['comment' => $comment]);
     }
 
     /**
@@ -1445,10 +1603,9 @@ class Blueprint
             ? $this->createIndexName($type, $columns)
             : $index;
 
-        return $this->addCommandDefinition(new IndexDefinition(array_merge(
-            ['name' => $type],
-            compact('index', 'columns', 'algorithm', 'operatorClass'),
-        )));
+        return $this->addCommandDefinition(new IndexDefinition([
+            'name' => $type, 'index' => $index, 'columns' => $columns, 'algorithm' => $algorithm, 'operatorClass' => $operatorClass,
+        ]));
     }
 
     /**
@@ -1488,21 +1645,33 @@ class Blueprint
 
     /**
      * Add a new column to the blueprint.
+     *
+     * @return TColumnDefinition
      */
     public function addColumn(string $type, string $name, array $parameters = []): ColumnDefinition
     {
-        return $this->addColumnDefinition(new ColumnDefinition(
-            array_merge(compact('type', 'name'), $parameters)
+        return $this->addColumnDefinition($this->newColumnDefinition(
+            array_merge(['type' => $type, 'name' => $name], $parameters)
         ));
+    }
+
+    /**
+     * Create a new column definition.
+     *
+     * @return TColumnDefinition
+     */
+    protected function newColumnDefinition(array $attributes): ColumnDefinition
+    {
+        return new ColumnDefinition($attributes);
     }
 
     /**
      * Add a new column definition to the blueprint.
      *
-     * @template TColumnDefinition of \Hypervel\Database\Schema\ColumnDefinition
+     * @template TDefinition of ColumnDefinition
      *
-     * @param TColumnDefinition $definition
-     * @return TColumnDefinition
+     * @param TDefinition $definition
+     * @return TDefinition
      */
     protected function addColumnDefinition(ColumnDefinition $definition): ColumnDefinition
     {
@@ -1524,6 +1693,8 @@ class Blueprint
 
     /**
      * Add the columns from the callback after the given column.
+     *
+     * @param Closure(self): void $callback
      */
     public function after(string $column, Closure $callback): void
     {
@@ -1563,7 +1734,7 @@ class Blueprint
     /**
      * Add a new command definition to the blueprint.
      *
-     * @template TCommandDefinition of \Hypervel\Support\Fluent
+     * @template TCommandDefinition of Fluent
      *
      * @param TCommandDefinition $definition
      * @return TCommandDefinition
@@ -1580,7 +1751,7 @@ class Blueprint
      */
     protected function createCommand(string $name, array $parameters = []): Fluent
     {
-        return new Fluent(array_merge(compact('name'), $parameters));
+        return new Fluent(array_merge(['name' => $name], $parameters));
     }
 
     /**
@@ -1605,7 +1776,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint.
      *
-     * @return \Hypervel\Database\Schema\ColumnDefinition[]
+     * @return list<ColumnDefinition>
      */
     public function getColumns(): array
     {
@@ -1615,7 +1786,7 @@ class Blueprint
     /**
      * Get the commands on the blueprint.
      *
-     * @return \Hypervel\Support\Fluent[]
+     * @return Fluent[]
      */
     public function getCommands(): array
     {
@@ -1641,7 +1812,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint that should be added.
      *
-     * @return \Hypervel\Database\Schema\ColumnDefinition[]
+     * @return array<int, ColumnDefinition>
      */
     public function getAddedColumns(): array
     {

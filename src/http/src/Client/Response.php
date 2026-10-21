@@ -6,12 +6,14 @@ namespace Hypervel\Http\Client;
 
 use ArrayAccess;
 use Closure;
+use Generator;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
 use Hypervel\Http\Client\Concerns\DeterminesStatusCode;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use InvalidArgumentException;
@@ -35,12 +37,14 @@ class Response implements ArrayAccess, Stringable
     protected mixed $decoded = null;
 
     /**
-     * Whether the response body has been decoded.
+     * Indicates if the JSON response has been decoded.
      */
-    protected bool $hasDecoded = false;
+    protected bool $decodedJson = false;
 
     /**
      * The flags that were used when decoding the JSON response.
+     *
+     * @var int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR>
      */
     protected int $decodingFlags = 0;
 
@@ -90,7 +94,36 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as an array or scalar value.
+     * Read lines from the current response body position without rewinding.
+     *
+     * @return Generator<int, string, void, void>
+     */
+    public function lines(): Generator
+    {
+        yield from LineReader::lines($this->response->getBody());
+    }
+
+    /**
+     * Decode non-empty JSON lines from the current response body position.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
+     * @return Generator<int, mixed, void, void>
+     */
+    public function jsonLines(?int $flags = null): Generator
+    {
+        $flags ??= self::$defaultJsonDecodingFlags;
+
+        foreach ($this->lines() as $line) {
+            if (trim($line, " \t\r\n") !== '') {
+                yield Json::decode($line, flags: $flags);
+            }
+        }
+    }
+
+    /**
+     * Get the decoded JSON body of the response as an array or scalar value.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function json(?string $key = null, mixed $default = null, ?int $flags = null): mixed
     {
@@ -98,10 +131,10 @@ class Response implements ArrayAccess, Stringable
             ? 0
             : ($flags ?? self::$defaultJsonDecodingFlags);
 
-        if (! $this->hasDecoded || $this->decodingFlags !== $flags) {
+        if (! $this->decodedJson || $this->decodingFlags !== $flags) {
             $this->decoded = $this->decode($this->body(), flags: $flags);
             $this->decodingFlags = $flags;
-            $this->hasDecoded = true;
+            $this->decodedJson = true;
         }
 
         if (is_null($key)) {
@@ -112,7 +145,7 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as an object.
+     * Get the decoded JSON body of the response as an object.
      *
      *  Example:
      *  If the response body is:
@@ -123,6 +156,8 @@ class Response implements ArrayAccess, Stringable
      *
      *  This method will return an array of objects. Scalar JSON values remain
      *  their decoded scalar type.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function object(?int $flags = null): mixed
     {
@@ -144,7 +179,7 @@ class Response implements ArrayAccess, Stringable
     {
         $this->decodeUsing = $callback;
         $this->decoded = null;
-        $this->hasDecoded = false;
+        $this->decodedJson = false;
         $this->decodingFlags = 0;
 
         return $this;
@@ -152,6 +187,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Decode the given response body.
+     *
+     * @param int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     protected function decode(string $body, bool $asObject = false, int $flags = 0): mixed
     {
@@ -163,7 +200,9 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as a collection.
+     * Get the decoded JSON body of the response as a collection.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function collect(?string $key = null, ?int $flags = null): Collection
     {
@@ -171,7 +210,9 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as a fluent object.
+     * Get the decoded JSON body of the response as a fluent object.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function fluent(?string $key = null, ?int $flags = null): Fluent
     {
@@ -185,7 +226,7 @@ class Response implements ArrayAccess, Stringable
      *
      * @throws InvalidArgumentException
      */
-    public function resource()
+    public function resource(): mixed
     {
         return StreamWrapper::getResource($this->response->getBody());
     }
@@ -475,10 +516,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Dump the content from the response and end the script.
-     *
-     * @return never
      */
-    public function dd(?string $key = null): void
+    public function dd(?string $key = null): never
     {
         $this->dump($key);
 
@@ -497,10 +536,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Dump the headers from the response and end the script.
-     *
-     * @return never
      */
-    public function ddHeaders()
+    public function ddHeaders(): never
     {
         $this->dumpHeaders();
 
@@ -562,23 +599,16 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Get the body of the response.
-     *
-     * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->body();
     }
 
     /**
      * Dynamically proxy other methods to the underlying response.
-     *
-     * @param string $method
-     * @param array $parameters
-     *
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return static::hasMacro($method)
             ? $this->macroCall($method, $parameters)

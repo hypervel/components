@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Gateway\Mistral\Concerns;
+
+use Hypervel\Ai\Attributes\Strict;
+use Hypervel\Ai\Gateway\TextGenerationOptions;
+use Hypervel\Ai\ObjectSchema;
+use Hypervel\Ai\Providers\Provider;
+use Hypervel\Ai\ToolChoice;
+use Hypervel\Support\Arr;
+
+trait BuildsTextRequests
+{
+    /**
+     * Build the request body for the Chat Completions API.
+     */
+    protected function buildTextRequestBody(
+        Provider $provider,
+        string $model,
+        ?string $instructions,
+        array $messages,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+    ): array {
+        $body = [
+            'model' => $model,
+            'messages' => $this->mapMessagesToChat($messages, $instructions),
+        ];
+
+        return $this->applyTextOptions($body, $provider, $tools, $schema, $options);
+    }
+
+    /**
+     * Apply tools, schema, and generation options to a request body.
+     */
+    protected function applyTextOptions(
+        array $body,
+        Provider $provider,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+    ): array {
+        if (filled($tools)) {
+            $mappedTools = $this->mapTools($tools, $provider);
+
+            if (filled($mappedTools)) {
+                $body['tool_choice'] = $options?->toolChoice instanceof ToolChoice
+                    ? $this->mapToolChoice($options->toolChoice)
+                    : 'auto';
+                $body['tools'] = $mappedTools;
+            }
+        }
+
+        if (filled($schema)) {
+            $body['response_format'] = $this->buildResponseFormat($schema, Strict::isAppliedTo($options?->agent));
+        }
+
+        if ($options?->maxTokens !== null) {
+            $body['max_tokens'] = $options->maxTokens;
+        }
+
+        $body = array_merge($body, Arr::whereNotNull([
+            'temperature' => $options?->temperature,
+            'top_p' => $options?->topP,
+        ]));
+
+        $providerOptions = $options?->providerOptions($provider->driver());
+
+        if (filled($providerOptions)) {
+            return array_merge($body, $providerOptions);
+        }
+
+        return $body;
+    }
+
+    /**
+     * Build the response format options for structured output.
+     */
+    protected function buildResponseFormat(array $schema, bool $strict): array
+    {
+        $objectSchema = new ObjectSchema($schema, strict: $strict);
+
+        $schemaArray = $objectSchema->toSchema();
+
+        return [
+            'type' => 'json_schema',
+            'json_schema' => [
+                'name' => $schemaArray['name'] ?? 'schema_definition',
+                'schema' => Arr::except($schemaArray, ['name']),
+                'strict' => $strict,
+            ],
+        ];
+    }
+}

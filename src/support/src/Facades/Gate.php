@@ -41,6 +41,9 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
  */
 class Gate extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return GateContract::class;

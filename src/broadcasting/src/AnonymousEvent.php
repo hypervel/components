@@ -8,6 +8,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Foundation\Events\Dispatchable;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 
 class AnonymousEvent implements ShouldBroadcast
 {
@@ -75,7 +76,7 @@ class AnonymousEvent implements ShouldBroadcast
     {
         $this->payload = $payload instanceof Arrayable
             ? $payload->toArray()
-            : collect($payload)->map(
+            : (new Collection($payload))->map(
                 fn ($p) => $p instanceof Arrayable ? $p->toArray() : $p
             )->all();
 

@@ -7,7 +7,6 @@ namespace Hypervel\Di\Aop;
 use Closure;
 use Hypervel\Di\Exceptions\Exception;
 use Hypervel\Support\ClassMetadataCache;
-use ReflectionFunction;
 use ReflectionMethod;
 
 class ProceedingJoinPoint
@@ -16,16 +15,20 @@ class ProceedingJoinPoint
 
     public ?Closure $pipe = null;
 
+    /**
+     * Create an invocation of an intercepted method.
+     */
     public function __construct(
         public Closure $originalMethod,
         public string $className,
         public string $methodName,
-        public array $arguments
+        public array $arguments,
+        protected readonly ?object $instance
     ) {
     }
 
     /**
-     * Delegate to the next aspect in the pipeline.
+     * Delegate to the next aspect in the chain.
      */
     public function process(): mixed
     {
@@ -88,12 +91,10 @@ class ProceedingJoinPoint
     }
 
     /**
-     * Get the object instance the original method is bound to.
+     * Get the object instance whose method was intercepted.
      */
     public function getInstance(): ?object
     {
-        $ref = new ReflectionFunction($this->originalMethod);
-
-        return $ref->getClosureThis();
+        return $this->instance;
     }
 }

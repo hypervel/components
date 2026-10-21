@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use BadMethodCallException;
-use Closure;
+use ErrorException;
 use Generator;
 use Hypervel\ConnectionPool\Connection as BaseConnection;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
@@ -14,10 +14,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
-use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
-use Hypervel\Engine\Exceptions\CoroutineCreateException;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
@@ -53,7 +50,7 @@ use Throwable;
  * @method false|int|Redis|RedisCluster sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method false|float|int|Redis|RedisCluster zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
  * @method false|int|Redis|RedisCluster zcard(string $key) Get sorted set cardinality
- * @method false|int|Redis|RedisCluster zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method false|int|Redis|RedisCluster zcount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method array|false|Redis|RedisCluster zrangebyscore(string $key, float|int|string $min, float|int|string $max, array $options = []) Get sorted set members by score range
  * @method array|false|Redis|RedisCluster zrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method false|int|Redis|RedisCluster zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
@@ -282,23 +279,23 @@ use Throwable;
  * @method bool|Redis|RedisCluster watch(array|string $key, string ...$other_keys)
  * @method false|int wait(int $numreplicas, int $timeout)
  * @method false|int xack(string $key, string $group, array $ids)
- * @method false|Redis|RedisCluster|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
- * @method array|bool|Redis|RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
+ * @method false|Redis|RedisCluster|string xadd(string $key, int|string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
+ * @method array|bool|Redis|RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, int|string $start, int $count = -1, bool $justid = false)
  * @method array|bool|Redis|RedisCluster xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
  * @method false|int|Redis|RedisCluster xdel(string $key, array $ids)
  * @method array|false|Redis|RedisCluster xdelex(string $key, array $ids, string|null $mode = null)
- * @method mixed xgroup(string $operation, string|null $key = null, string|null $group = null, string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
+ * @method mixed xgroup(string $operation, string|null $key = null, string|null $group = null, int|string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
  * @method mixed xinfo(string $operation, string|null $arg1 = null, string|null $arg2 = null, int $count = -1)
  * @method false|int|Redis|RedisCluster xlen(string $key)
- * @method array|false|Redis|RedisCluster xpending(string $key, string $group, string|null $start = null, string|null $end = null, int $count = -1, string|null $consumer = null)
- * @method array|bool|Redis|RedisCluster xrange(string $key, string $start, string $end, int $count = -1)
+ * @method array|false|Redis|RedisCluster xpending(string $key, string $group, int|string|null $start = null, int|string|null $end = null, int $count = -1, string|null $consumer = null)
+ * @method array|bool|Redis|RedisCluster xrange(string $key, int|string $start, int|string $end, int $count = -1)
  * @method array|bool|Redis|RedisCluster xread(array $streams, int $count = -1, int $block = -1)
  * @method array|bool|Redis|RedisCluster xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
- * @method array|bool|Redis|RedisCluster xrevrange(string $key, string $end, string $start, int $count = -1)
- * @method false|int|Redis|RedisCluster xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
+ * @method array|bool|Redis|RedisCluster xrevrange(string $key, int|string $end, int|string $start, int $count = -1)
+ * @method false|int|Redis|RedisCluster xtrim(string $key, int|string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
  * @method false|float|int|Redis|RedisCluster zAdd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
  * @method false|int|Redis|RedisCluster zCard(string $key) Get sorted set cardinality
- * @method false|int|Redis|RedisCluster zCount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method false|int|Redis|RedisCluster zCount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method false|float|Redis|RedisCluster zIncrBy(string $key, float $value, mixed $member)
  * @method false|int|Redis|RedisCluster zLexCount(string $key, string $min, string $max)
  * @method array|false|Redis|RedisCluster zMscore(string $key, mixed $member, mixed ...$other_members)
@@ -313,7 +310,7 @@ use Throwable;
  * @method false|int|Redis|RedisCluster zRem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
  * @method false|int|Redis|RedisCluster zRemRangeByLex(string $key, string $min, string $max)
  * @method false|int|Redis|RedisCluster zRemRangeByRank(string $key, int $start, int $end)
- * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, string $start, string $end)
+ * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, float|int|string $start, float|int|string $end)
  * @method array|false|Redis|RedisCluster zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method array|false|Redis|RedisCluster zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
  * @method array|false|Redis|RedisCluster zRevRangeByScore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
@@ -340,6 +337,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         'backoff_algorithm',
         'backoff_base',
         'backoff_cap',
+        'tcp_keepalive',
     ];
 
     protected Redis|RedisCluster|null $connection = null;
@@ -382,10 +380,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     /**
      * Pass other method calls down to the underlying client.
-     * @param mixed $name
-     * @param mixed $arguments
      */
-    public function __call($name, $arguments)
+    public function __call(string $name, array $arguments): mixed
     {
         try {
             if (static::hasMacro($name)) {
@@ -394,7 +390,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
-        } catch (RedisException|RedisClusterException $exception) {
+        } catch (RedisException|RedisClusterException|ErrorException $exception) {
             // REMOVED: Laravel's command retry loop can replay writes Redis already committed.
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
@@ -542,6 +538,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         return $this->eventDispatcher;
     }
 
+    // REMOVED: setEventDispatcher()/unsetEventDispatcher(); pooled connections resolve
+    // the application's dispatcher from their events configuration on creation and reconnect.
+
     /**
      * Reconnect to Redis.
      */
@@ -586,6 +585,18 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 $name = $this->phpRedisOption($name);
             }
 
+            // PhpRedis does not apply TCP keepalive to Cluster node connections, so only a
+            // disabled value is accepted, and it is never passed to the native client.
+            if ($name === Redis::OPT_TCP_KEEPALIVE && $redis instanceof RedisCluster) {
+                if (empty($value)) {
+                    continue;
+                }
+
+                throw new InvalidRedisOptionException(
+                    'The redis option `tcp_keepalive` is not supported for Redis Cluster connections.'
+                );
+            }
+
             $redis->setOption($name, $value);
         }
     }
@@ -602,7 +613,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         foreach (self::CONNECTION_LEVEL_PHPREDIS_OPTIONS as $key) {
             $value = $this->config[$key];
 
-            if ($key === 'read_timeout' && empty($value)) {
+            if (($key === 'read_timeout' || $key === 'tcp_keepalive') && empty($value)) {
                 continue;
             }
 
@@ -702,63 +713,26 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             return false;
         }
 
-        $result = new Channel(1);
-        $started = null;
-        $callable = function () use ($result): void {
-            try {
-                $result->push($this->pingForHeartbeat(), 0.0);
-            } catch (CanceledException) {
-            }
-        };
-        $wrapper = static function (Closure $run) use (&$started): void {
-            $started = Coroutine::id();
-            $run();
-        };
-
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            // The pool must not close the socket while canceled heartbeat cleanup is still running.
+            $healthy = (new Waiter)->wait(
+                fn (): bool => $this->pingForHeartbeat(),
+                $timeout,
+                waitForChildTermination: true,
+            );
         } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
             throw $exception;
-        } catch (CoroutineCreateException) {
+        } catch (Throwable) {
             return false;
         }
 
-        try {
-            $healthy = $result->pop($timeout);
-        } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy === false && $result->isCanceled()) {
-            $exception = new CanceledException('Waiting for a Redis heartbeat was canceled.');
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy !== true) {
-            $this->cancelHeartbeatCoroutine($started);
-
+        if (! $healthy) {
             return false;
         }
 
         $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
-    }
-
-    /**
-     * Cancel a live heartbeat coroutine.
-     */
-    private function cancelHeartbeatCoroutine(?int $coroutineId): void
-    {
-        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
-            Coroutine::cancelById($coroutineId, throwException: true);
-        }
     }
 
     /**
@@ -969,8 +943,17 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     /**
      * Determine whether a failed command left the connection unsafe to reuse.
      */
-    protected function shouldInvalidateAfter(RedisException|RedisClusterException $exception): bool
+    protected function shouldInvalidateAfter(RedisException|RedisClusterException|ErrorException $exception): bool
     {
+        if ($exception instanceof ErrorException) {
+            // Stream transport failures may surface as warnings before phpredis throws.
+            $message = $exception->getMessage();
+
+            return str_contains($message, ' bytes failed with errno=')
+                || str_contains($message, 'SSL: ')
+                || str_contains($message, 'SSL operation failed with code ');
+        }
+
         if ($this->connection->getLastError() !== $exception->getMessage()) {
             return true;
         }
@@ -1273,6 +1256,166 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
+     * Convert numeric arguments accepted as strings by phpredis.
+     *
+     * @param array<int|string, mixed> $arguments
+     * @param array<int|string> $keys
+     * @return array<int|string, mixed>
+     */
+    private function stringifyNumericArguments(array $arguments, array $keys): array
+    {
+        foreach ($keys as $key) {
+            $value = $arguments[$key] ?? null;
+
+            if (is_int($value) || is_float($value)) {
+                $arguments[$key] = (string) $value;
+            }
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Prepare arguments for the xadd command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXadd(mixed ...$arguments): array
+    {
+        return ['xAdd', $this->stringifyNumericArguments($arguments, [1, 'id'])];
+    }
+
+    /**
+     * Add an entry to a stream.
+     */
+    protected function callXadd(mixed ...$arguments): false|string
+    {
+        [$method, $arguments] = $this->prepareXadd(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xautoclaim command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXautoclaim(mixed ...$arguments): array
+    {
+        return ['xAutoClaim', $this->stringifyNumericArguments($arguments, [4, 'start'])];
+    }
+
+    /**
+     * Claim pending stream entries that have been idle long enough.
+     */
+    protected function callXautoclaim(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXautoclaim(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xgroup command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXgroup(mixed ...$arguments): array
+    {
+        return ['xGroup', $this->stringifyNumericArguments($arguments, [3, 'id_or_consumer'])];
+    }
+
+    /**
+     * Manage stream consumer groups.
+     */
+    protected function callXgroup(mixed ...$arguments): mixed
+    {
+        [$method, $arguments] = $this->prepareXgroup(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xpending command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXpending(mixed ...$arguments): array
+    {
+        return ['xPending', $this->stringifyNumericArguments($arguments, [2, 3, 'start', 'end'])];
+    }
+
+    /**
+     * Get pending entries in a stream consumer group.
+     */
+    protected function callXpending(mixed ...$arguments): array|false
+    {
+        [$method, $arguments] = $this->prepareXpending(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xrange command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXrange(mixed ...$arguments): array
+    {
+        return ['xRange', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Get stream entries within the given ID range.
+     */
+    protected function callXrange(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXrange(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xrevrange command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXrevrange(mixed ...$arguments): array
+    {
+        return ['xRevRange', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Get stream entries within the given ID range in reverse order.
+     */
+    protected function callXrevrange(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXrevrange(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xtrim command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXtrim(mixed ...$arguments): array
+    {
+        return ['xTrim', $this->stringifyNumericArguments($arguments, [1, 'threshold', 'maxlen'])];
+    }
+
+    /**
+     * Trim a stream by its length or minimum ID.
+     */
+    protected function callXtrim(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareXtrim(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
      * Prepare arguments for the zadd command.
      *
      * @return array{string, array<int, mixed>}
@@ -1310,6 +1453,46 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         [$method, $args] = $this->prepareZadd($key, ...$dictionary);
 
         return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zcount command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareZcount(mixed ...$arguments): array
+    {
+        return ['zCount', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Count sorted set members within the given score range.
+     */
+    protected function callZcount(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareZcount(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the zremrangebyscore command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareZremrangebyscore(mixed ...$arguments): array
+    {
+        return ['zRemRangeByScore', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end', 'min', 'max'])];
+    }
+
+    /**
+     * Remove sorted set members within the given score range.
+     */
+    protected function callZremrangebyscore(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareZremrangebyscore(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
     }
 
     /**
@@ -1423,7 +1606,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     protected function getScanOptions(array $arguments): array
     {
-        return is_array($arguments[0] ?? [])
+        return is_array($arguments[0] ?? null)
             ? $arguments[0]
             : [
                 'match' => $arguments[0] ?? '*',
@@ -1432,17 +1615,18 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans all keys based on options.
-     *
-     * @param array $arguments
-     * @param mixed $cursor
+     * Scan all keys based on options.
      */
-    public function scan(&$cursor, ...$arguments): mixed
+    public function scan(mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('scan', array_merge([&$cursor], $arguments));
-        }
+        return $this->__call('scan', array_merge([&$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed SCAN command.
+     */
+    protected function callScan(mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->scan(
@@ -1459,18 +1643,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given set for all values based on options.
+     * Scan the given set for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function zscan($key, &$cursor, ...$arguments): mixed
+    public function zscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed ZSCAN command.
+     */
+    protected function callZscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->zscan(
@@ -1488,18 +1674,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given hash for all values based on options.
+     * Scan the given hash for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function hscan($key, &$cursor, ...$arguments): mixed
+    public function hscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed HSCAN command.
+     */
+    protected function callHscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->hscan(
@@ -1517,18 +1705,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given set for all values based on options.
+     * Scan the given set for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function sscan($key, &$cursor, ...$arguments): mixed
+    public function sscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed SSCAN command.
+     */
+    protected function callSscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->sscan(
@@ -1655,6 +1845,33 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
+     * Determine if LZF compression is enabled.
+     */
+    public function lzfCompressed(): bool
+    {
+        return defined('Redis::COMPRESSION_LZF')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_LZF;
+    }
+
+    /**
+     * Determine if ZSTD compression is enabled.
+     */
+    public function zstdCompressed(): bool
+    {
+        return defined('Redis::COMPRESSION_ZSTD')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_ZSTD;
+    }
+
+    /**
+     * Determine if LZ4 compression is enabled.
+     */
+    public function lz4Compressed(): bool
+    {
+        return defined('Redis::COMPRESSION_LZ4')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_LZ4;
+    }
+
+    /**
      * Execute the given callback without prefixing scan patterns.
      *
      * Key prefixing remains unchanged. Hold this connection until the callback
@@ -1687,6 +1904,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * Temporarily disables phpredis serialization and compression on the raw
      * connection for operations that require raw integer values (e.g., rate
      * limiter counters), then restores the original settings.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public function withoutSerializationOrCompression(callable $callback): mixed
     {
@@ -1777,36 +1999,44 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         // combined_args = keys first, then other args
         $combinedArgs = [...$keys, ...$args];
 
-        // Clear any stale error from previous commands to ensure getLastError()
-        // reflects this call, not a previous one
-        $this->connection->clearLastError();
+        try {
+            // Clear any stale error from previous commands to ensure getLastError()
+            // reflects this call, not a previous one
+            $this->connection->clearLastError();
 
-        // Try evalSha first - uses cached compiled script
-        $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
+            // Try evalSha first - uses cached compiled script
+            $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
 
-        if ($result === false) {
-            $error = $this->connection->getLastError();
+            if ($result === false) {
+                $error = $this->connection->getLastError();
 
-            // NOSCRIPT means script not cached yet - fall back to eval
-            if ($error !== null && str_contains($error, 'NOSCRIPT')) {
-                $this->connection->clearLastError();
-                $result = $this->connection->eval($script, $combinedArgs, $numKeys);
+                // NOSCRIPT means script not cached yet - fall back to eval
+                if ($error !== null && str_contains($error, 'NOSCRIPT')) {
+                    $this->connection->clearLastError();
+                    $result = $this->connection->eval($script, $combinedArgs, $numKeys);
 
-                if ($result === false) {
-                    $evalError = $this->connection->getLastError();
-                    if ($evalError !== null) {
-                        throw $this->scriptException($evalError);
+                    if ($result === false) {
+                        $evalError = $this->connection->getLastError();
+                        if ($evalError !== null) {
+                            throw $this->scriptException($evalError);
+                        }
+                        // If no error, script legitimately returned nil (which becomes false)
                     }
-                    // If no error, script legitimately returned nil (which becomes false)
+                } elseif ($error !== null) {
+                    // Some other error (syntax, OOM, WRONGTYPE, etc.)
+                    throw $this->scriptException($error);
                 }
-            } elseif ($error !== null) {
-                // Some other error (syntax, OOM, WRONGTYPE, etc.)
-                throw $this->scriptException($error);
+                // If $error is null and $result is false, the script legitimately returned false
             }
-            // If $error is null and $result is false, the script legitimately returned false
-        }
 
-        return $this->normalizeNullReplies($result);
+            return $this->normalizeNullReplies($result);
+        } catch (RedisException|RedisClusterException|ErrorException $exception) {
+            if ($this->shouldInvalidateAfter($exception)) {
+                $this->markInvalid();
+            }
+
+            throw $exception;
+        }
     }
 
     /**

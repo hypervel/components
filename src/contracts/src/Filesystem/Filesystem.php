@@ -27,9 +27,19 @@ interface Filesystem
     public function path(string $path): string;
 
     /**
-     * Determine if a file exists.
+     * Determine if a file or directory exists.
      */
     public function exists(string $path): bool;
+
+    /**
+     * Determine if a file exists.
+     */
+    public function fileExists(string $path): bool;
+
+    /**
+     * Determine if a directory exists.
+     */
+    public function directoryExists(string $path): bool;
 
     /**
      * Get the contents of a file.
@@ -122,21 +132,29 @@ interface Filesystem
 
     /**
      * Get an array of all files in a directory.
+     *
+     * @return array<string>
      */
     public function files(?string $directory = null, bool $recursive = false): array;
 
     /**
      * Get all of the files from the given directory (recursive).
+     *
+     * @return array<string>
      */
     public function allFiles(?string $directory = null): array;
 
     /**
      * Get all of the directories within a given directory.
+     *
+     * @return array<string>
      */
     public function directories(?string $directory = null, bool $recursive = false): array;
 
     /**
      * Get all (recursive) of the directories within a given directory.
+     *
+     * @return array<string>
      */
     public function allDirectories(?string $directory = null): array;
 

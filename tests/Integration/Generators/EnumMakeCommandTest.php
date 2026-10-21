@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Filesystem\Filesystem;
+
 class EnumMakeCommandTest extends TestCase
 {
     protected array $files = [
@@ -13,7 +15,7 @@ class EnumMakeCommandTest extends TestCase
         'app/*/OrderStatusEnum.php',
     ];
 
-    public function testItCanGenerateEnumFile()
+    public function testItCanGenerateEnumFile(): void
     {
         $this->artisan('make:enum', ['name' => 'StatusEnum'])
             ->assertExitCode(0);
@@ -24,7 +26,7 @@ class EnumMakeCommandTest extends TestCase
         ], 'app/StatusEnum.php');
     }
 
-    public function testItCanGenerateEnumFileWithString()
+    public function testItCanGenerateEnumFileWithString(): void
     {
         $this->artisan('make:enum', ['name' => 'StringEnum', '--string' => true])
             ->assertExitCode(0);
@@ -35,7 +37,7 @@ class EnumMakeCommandTest extends TestCase
         ], 'app/StringEnum.php');
     }
 
-    public function testItCanGenerateEnumFileWithInt()
+    public function testItCanGenerateEnumFileWithInt(): void
     {
         $this->artisan('make:enum', ['name' => 'IntEnum', '--int' => true])
             ->assertExitCode(0);
@@ -50,7 +52,7 @@ class EnumMakeCommandTest extends TestCase
     {
         $enumsFolderPath = app_path('Enums');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumsFolderPath);
@@ -70,7 +72,7 @@ class EnumMakeCommandTest extends TestCase
     {
         $enumerationsFolderPath = app_path('Enumerations');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumerationsFolderPath);

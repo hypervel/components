@@ -96,10 +96,16 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     {
         if ($this->shouldRefreshSnapshot()) {
             $active = $this->driver->active();
+            $data = $active ? $this->driver->data() : [];
+
+            // Maintenance may end between reads, but an active empty payload is valid.
+            if ($active && $data === []) {
+                $active = $this->driver->active();
+            }
 
             static::$snapshot = [
                 'active' => $active,
-                'data' => $active ? $this->driver->data() : [],
+                'data' => $data,
             ];
 
             // Set after successful reads so failed refreshes retry on the next request.

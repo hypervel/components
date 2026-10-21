@@ -10,7 +10,7 @@ use Hypervel\Testbench\TestCase;
 
 class FormRequestResolutionTest extends TestCase
 {
-    public function testFormRequestSubclassReceivesCurrentRequestDataAcrossMultipleResolutions()
+    public function testFormRequestSubclassReceivesCurrentRequestDataAcrossMultipleResolutions(): void
     {
         Route::post('test-route', fn (FormRequestResolutionTestRequest $request) => [
             'value' => $request->input('value'),

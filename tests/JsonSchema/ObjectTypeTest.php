@@ -81,6 +81,17 @@ class ObjectTypeTest extends TestCase
         ], $type->toArray());
     }
 
+    public function testItExposesNamedPropertySchemasWithoutSerializingThem(): void
+    {
+        $properties = [
+            'name' => JsonSchema::string()->required(),
+            '0' => JsonSchema::object(['active' => JsonSchema::boolean()]),
+        ];
+
+        $this->assertSame($properties, JsonSchema::object($properties)->getProperties());
+        $this->assertSame([], JsonSchema::object()->getProperties());
+    }
+
     public function testNumericStringPropertyNamesRemainStringsInRequiredArray(): void
     {
         $type = JsonSchema::object([

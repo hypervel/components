@@ -12,8 +12,8 @@ use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Tests\Scout\Models\ConditionalSearchableModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\ConditionalSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**

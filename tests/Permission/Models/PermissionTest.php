@@ -127,7 +127,7 @@ class PermissionTest extends TestCase
             ->findOrFail($this->testUserPermission->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [guard_name]');
+        $this->expectExceptionMessageIsOrContains('The attribute [guard_name]');
 
         $permission->guardName();
     }
@@ -141,7 +141,7 @@ class PermissionTest extends TestCase
             ->findOrFail($this->testUserPermission->getKey());
 
         $this->expectException(MissingAttributeException::class);
-        $this->expectExceptionMessage('The attribute [guard_name]');
+        $this->expectExceptionMessageIsOrContains('The attribute [guard_name]');
 
         $permission->users();
     }
@@ -187,6 +187,9 @@ class PermissionTest extends TestCase
 
 class PermissionWithGuardNameAccessor extends PermissionModel
 {
+    /**
+     * Get the guard name.
+     */
     public function getGuardNameAttribute(string $value): string
     {
         return $value === 'stored' ? 'accessed' : $value;

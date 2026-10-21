@@ -9,7 +9,7 @@ use Hypervel\Support\Manager;
 use SensitiveParameter;
 
 /**
- * @mixin \Hypervel\Contracts\Hashing\Hasher
+ * @mixin Hasher
  */
 class HashManager extends Manager implements Hasher
 {

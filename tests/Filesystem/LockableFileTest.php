@@ -196,7 +196,7 @@ class LockableFileTest extends TestCase
 
         try {
             $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Unable to write to file');
+            $this->expectExceptionMessageIsOrContains('Unable to write to file');
 
             $file->write('abcdef');
         } finally {
@@ -226,7 +226,7 @@ class LockableFileTest extends TestCase
         file_put_contents($parent, 'contents');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to create directory');
+        $this->expectExceptionMessageIsOrContains('Unable to create directory');
 
         new LockableFile($parent . '/child', 'c+');
     }

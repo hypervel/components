@@ -14,7 +14,7 @@ use Mockery as m;
 
 class WaitTimeCalculatorTest extends IntegrationTestCase
 {
-    public function testTimeToClearIsCalculatedPerQueue()
+    public function testTimeToClearIsCalculatedPerQueue(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -40,7 +40,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testMultipleQueuesAreSupported()
+    public function testMultipleQueuesAreSupported(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -76,7 +76,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testSingleQueueCanBeRetrievedForMultipleQueues()
+    public function testSingleQueueCanBeRetrievedForMultipleQueues(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -111,6 +111,41 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
+    public function testQueueNameUsesTheLongestWaitOfThePoolsProcessingIt(): void
+    {
+        $calculator = $this->with_scenario([
+            'test-supervisor' => (object) [
+                'processes' => [
+                    'redis:high,default' => 1,
+                ],
+            ],
+            'test-supervisor-2' => (object) [
+                'processes' => [
+                    'secondary:default' => 2,
+                    'redis:other' => 1,
+                ],
+            ],
+        ], [
+            'high' => [
+                'size' => 10,
+                'runtime' => 1000,
+            ],
+            'default' => [
+                'size' => 20,
+                'runtime' => 1000,
+            ],
+            'other' => [
+                'size' => 100,
+                'runtime' => 1000,
+            ],
+        ]);
+
+        $this->assertSame(30.0, $calculator->calculateForQueueName('default'));
+        $this->assertSame(30.0, $calculator->calculateForQueueName('high'));
+        $this->assertSame(100.0, $calculator->calculateForQueueName('other'));
+        $this->assertSame(0.0, $calculator->calculateForQueueName('missing'));
+    }
+
     public function testQueueFilterDistinguishesZeroAndEmptyString(): void
     {
         $calculator = $this->with_scenario([
@@ -130,7 +165,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         $this->assertSame(['redis:test-queue' => 10.0], $calculator->calculate(''));
     }
 
-    public function testTimeToClearCanBeZero()
+    public function testTimeToClearCanBeZero(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [
@@ -151,7 +186,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    public function testTotalProcessesCanBeZero()
+    public function testTotalProcessesCanBeZero(): void
     {
         $calculator = $this->with_scenario([
             'test-supervisor' => (object) [

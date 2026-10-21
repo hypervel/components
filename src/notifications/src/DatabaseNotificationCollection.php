@@ -10,7 +10,7 @@ use Hypervel\Database\Eloquent\Collection;
  * @template TKey of array-key
  * @template TModel of DatabaseNotification
  *
- * @extends \Hypervel\Database\Eloquent\Collection<TKey, TModel>
+ * @extends Collection<TKey, TModel>
  */
 class DatabaseNotificationCollection extends Collection
 {

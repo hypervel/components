@@ -21,4 +21,16 @@ class FortifyGuardTest extends TestCase
         $this->assertSame($auth->guard('admin'), Fortify::guard());
         $this->assertInstanceOf(StatefulGuard::class, Fortify::guard());
     }
+
+    public function testStatefulGuardBindingFollowsTheCurrentGuard(): void
+    {
+        /** @var AuthFactory $auth */
+        $auth = $this->app->make(AuthFactory::class);
+
+        $this->assertSame($auth->guard('web'), $this->app->make(StatefulGuard::class));
+
+        $auth->shouldUse('admin');
+
+        $this->assertSame($auth->guard('admin'), $this->app->make(StatefulGuard::class));
+    }
 }

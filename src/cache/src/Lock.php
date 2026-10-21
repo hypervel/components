@@ -6,14 +6,14 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
-
-use function Hypervel\Support\now;
 
 abstract class Lock implements LockContract
 {
@@ -95,17 +95,18 @@ abstract class Lock implements LockContract
      */
     public function block(int $seconds, ?callable $callback = null): mixed
     {
-        $starting = ((int) now()->format('Uu')) / 1000;
+        $starting = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
 
         $milliseconds = $seconds * 1000;
 
         while (! $this->acquire()) {
-            $now = ((int) now()->format('Uu')) / 1000;
+            $now = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
 
             if (($now + $this->sleepMilliseconds - $milliseconds) >= $starting) {
                 throw new LockTimeoutException;
             }
 
+            ConnectionResolver::releaseIdleConnections();
             Sleep::usleep($this->sleepMilliseconds * 1000);
         }
 

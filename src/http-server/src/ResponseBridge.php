@@ -6,9 +6,11 @@ namespace Hypervel\HttpServer;
 
 use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Http\IterableStreamedResponse;
+use Hypervel\Server\ResponseCancellation;
 use ReflectionProperty;
 use RuntimeException;
 use SplTempFileObject;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -73,7 +75,22 @@ class ResponseBridge
 
             static::announceTrailers($response);
             static::sendStatusAndHeaders($response, $swooleResponse);
-            static::sendStreamedContent($response, $swooleResponse);
+            $registration = null;
+
+            if ($response instanceof IterableStreamedResponse && $response->shouldCancelOnDisconnect()) {
+                // A disconnect during controller work may precede this registration.
+                if (! $swooleResponse->isWritable()) {
+                    throw new CanceledException('The client disconnected before response production.');
+                }
+
+                $registration = ResponseCancellation::register($swooleResponse->fd);
+            }
+
+            try {
+                static::sendStreamedContent($response, $swooleResponse);
+            } finally {
+                $registration?->release();
+            }
 
             return;
         }

@@ -7,7 +7,9 @@ namespace Hypervel\Queue\Jobs;
 use Hypervel\Contracts\Container\Container;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
+use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
+use Pheanstalk\Values\Job as PheanstalkJob;
 use RuntimeException;
 use Throwable;
 
@@ -24,6 +26,9 @@ class BeanstalkdJob extends Job
 
     /**
      * Create a new job instance.
+     *
+     * @param PheanstalkManagerInterface&PheanstalkSubscriberInterface $pheanstalk
+     * @param PheanstalkJob $job
      */
     public function __construct(
         protected Container $container,
@@ -44,7 +49,6 @@ class BeanstalkdJob extends Job
         $priority = Pheanstalk::DEFAULT_PRIORITY;
 
         try {
-            /* @phpstan-ignore-next-line */
             $this->getPheanstalk()->release($this->job, $priority, $delay);
         } catch (Throwable $exception) {
             $this->discardPoolLeaseAfterFailure($exception);
@@ -61,7 +65,6 @@ class BeanstalkdJob extends Job
         parent::release();
 
         try {
-            /* @phpstan-ignore-next-line */
             $this->getPheanstalk()->bury($this->job);
         } catch (Throwable $exception) {
             $this->discardPoolLeaseAfterFailure($exception);
@@ -78,7 +81,6 @@ class BeanstalkdJob extends Job
         parent::delete();
 
         try {
-            /* @phpstan-ignore-next-line */
             $this->getPheanstalk()->delete($this->job);
         } catch (Throwable $exception) {
             $this->discardPoolLeaseAfterFailure($exception);
@@ -118,12 +120,13 @@ class BeanstalkdJob extends Job
      */
     public function getRawBody(): string
     {
-        /* @phpstan-ignore-next-line */
         return $this->job->getData();
     }
 
     /**
      * Get the underlying Pheanstalk instance.
+     *
+     * @return PheanstalkManagerInterface&PheanstalkSubscriberInterface
      */
     public function getPheanstalk(): PheanstalkManagerInterface
     {
@@ -136,6 +139,8 @@ class BeanstalkdJob extends Job
 
     /**
      * Get the underlying Pheanstalk job.
+     *
+     * @return PheanstalkJob
      */
     public function getPheanstalkJob(): JobIdInterface
     {

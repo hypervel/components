@@ -40,7 +40,7 @@ class ConfigClearCommandTest extends TestCase
         $this->app->instance(Filesystem::class, $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the configuration cache file [{$path}].");
+        $this->expectExceptionMessageIs("Unable to delete the configuration cache file [{$path}].");
 
         $this->artisan('config:clear');
     }

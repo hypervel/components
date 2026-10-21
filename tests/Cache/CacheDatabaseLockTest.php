@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Closure;
 use Exception;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
@@ -11,10 +12,13 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDOException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class CacheDatabaseLockTest extends TestCase
 {
@@ -61,7 +65,7 @@ class CacheDatabaseLockTest extends TestCase
         $owner = $lock->owner();
 
         // First attempt throws exception (key exists)
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception));
+        $table->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
 
         // So it tries to update
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -86,7 +90,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
 
         // Insert fails
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception));
+        $table->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
 
         // Update fails too (someone else owns it)
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -108,6 +112,98 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->acquire());
     }
 
+    public function testInsertFailureOtherThanAnExistingLockPropagatesWithoutTakingOver(): void
+    {
+        [$lock, $table] = $this->getLock();
+        $failure = new QueryException('default', 'insert into "cache_locks"', [], new PDOException('SQLSTATE[HY000]: General error: 5 database is locked'));
+
+        $table->shouldReceive('insert')->once()->andThrow($failure);
+        $table->shouldNotReceive('update');
+
+        try {
+            $lock->acquire();
+            $this->fail('The insert failure was not thrown.');
+        } catch (QueryException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    public function testSqliteLockHeldByAnotherOwnerIsRefusedWithoutWriting(): void
+    {
+        // The lottery always prunes, so any write, including pruning, fails the unexpected call.
+        [$lock] = $this->getLock(lockLottery: [1, 1], driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): string => 'other-owner')]);
+
+        $this->assertFalse($lock->acquire());
+    }
+
+    public function testSqliteLockIsInsertedWhenNoLiveLockExists(): void
+    {
+        $insert = m::mock(Builder::class);
+        $insert->shouldReceive('insert')->once()->andReturn(true);
+
+        [$lock] = $this->getLock(driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): null => null), $insert]);
+
+        $this->assertTrue($lock->acquire());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSqliteExpiredOrOwnLockIsTakenOverByTheConditionalUpdate(bool $own): void
+    {
+        $lock = null;
+        // An expired row is not live, so the read finds no owner and the insert meets the existing key.
+        $read = $this->liveOwnerRead(static function () use (&$lock, $own): ?string {
+            return $own ? $lock->owner() : null;
+        });
+        $insert = m::mock(Builder::class);
+        $insert->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
+        $update = m::mock(Builder::class);
+        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
+        $update->shouldReceive('where')->once()->with(m::type(Closure::class))->andReturnSelf();
+        $update->shouldReceive('update')->once()->andReturn(1);
+
+        [$lock] = $this->getLock(driver: 'sqlite', tables: [$read, $insert, $update]);
+
+        $this->assertTrue($lock->acquire());
+    }
+
+    #[TestWith(['mysql', true])]
+    #[TestWith(['mysql', false])]
+    #[TestWith(['mariadb', true])]
+    public function testATakeoverThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(string $driver, bool $owned): void
+    {
+        $insert = m::mock(Builder::class);
+        $insert->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
+        $update = m::mock(Builder::class);
+        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
+        $update->shouldReceive('where')->once()->with(m::type(Closure::class))->andReturnSelf();
+        $update->shouldReceive('update')->once()->andReturn(0);
+        $read = m::mock(Builder::class);
+
+        // A lock object that never acquired: a lost-connection retry can still meet the row its first insert committed.
+        [$lock] = $this->getLock(driver: $driver, tables: [$insert, $update, $read]);
+        $this->expectLiveOwnerCurrentRead($read, $lock->owner(), $owned);
+
+        $this->assertSame($owned, $lock->acquire());
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testARefreshThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(bool $owned): void
+    {
+        $update = m::mock(Builder::class);
+        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
+        $update->shouldReceive('where')->once()->with('owner', m::type('string'))->andReturnSelf();
+        $update->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
+        $update->shouldReceive('update')->once()->andReturn(0);
+        $read = m::mock(Builder::class);
+
+        [$lock] = $this->getLock(driver: 'mysql', tables: [$update, $read]);
+        $this->expectLiveOwnerCurrentRead($read, $lock->owner(), $owned);
+
+        $this->assertSame($owned, $lock->refresh());
+    }
+
     public function testExpiredLocksAreDeletedDuringAcquisition(): void
     {
         [$lock, $table] = $this->getLock(lockLottery: [1, 1]); // Always hit lottery
@@ -121,42 +217,36 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
+    #[TestWith([null])]
+    #[TestWith([[]])]
+    public function testLockCanBeAcquiredWithoutAutomaticPruning(?array $lottery): void
+    {
+        [$lock, $table] = $this->getLock(lockLottery: $lottery);
+
+        $table->shouldReceive('insert')->once()->andReturn(true);
+
+        $this->assertTrue($lock->acquire());
+    }
+
     public function testLockCanBeReleased(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        // Check ownership
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) ['owner' => $owner]);
-
-        // Delete
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
         $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('delete')->once();
+        $table->shouldReceive('delete')->once()->andReturn(1);
 
         $this->assertTrue($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotOwned(): void
+    public function testReleaseReturnsFalseWhenNoOwnedRowMatches(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) ['owner' => 'different-owner']);
-
-        $this->assertFalse($lock->release());
-    }
-
-    public function testLockCannotBeReleasedIfNotExists(): void
-    {
-        [$lock, $table] = $this->getLock();
-
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn(null);
+        $table->shouldReceive('where')->once()->with('owner', $lock->owner())->andReturn($table);
+        $table->shouldReceive('delete')->once()->andReturn(0);
 
         $this->assertFalse($lock->release());
     }
@@ -292,7 +382,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock] = $this->getLock(seconds: 10);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(0);
     }
@@ -302,7 +392,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock] = $this->getLock(seconds: 10);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Refresh requires a positive TTL');
+        $this->expectExceptionMessageIs('Refresh requires a positive TTL.');
 
         $lock->refresh(-5);
     }
@@ -366,15 +456,18 @@ class CacheDatabaseLockTest extends TestCase
 
     /**
      * Get a DatabaseLock instance with mocked dependencies.
+     *
+     * @param list<Builder> $tables the builders the connection returns in turn, or one shared builder when empty
      */
-    protected function getLock(int $seconds = 10, array $lockLottery = [0, 1], ?string $connectionName = 'default'): array
+    protected function getLock(int $seconds = 10, ?array $lockLottery = [0, 1], ?string $connectionName = 'default', string $driver = 'pgsql', array $tables = []): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $table = m::mock(Builder::class);
 
         $resolver->shouldReceive('connection')->with($connectionName)->andReturn($connection);
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn($table);
+        $connection->shouldReceive('getDriverName')->andReturn($driver);
+        $connection->shouldReceive('table')->with('cache_locks')->andReturn(...($tables === [] ? [$table] : $tables));
 
         $lock = new DatabaseLock(
             $resolver,
@@ -387,5 +480,33 @@ class CacheDatabaseLockTest extends TestCase
         );
 
         return [$lock, $table, $connection, $resolver];
+    }
+
+    /**
+     * Expect the locking read of whether an owner holds the live lock.
+     */
+    protected function expectLiveOwnerCurrentRead(Builder $read, string $owner, bool $owned): void
+    {
+        $read->shouldReceive('sharedLock')->once()->andReturnSelf();
+        $read->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
+        $read->shouldReceive('where')->once()->with('owner', $owner)->andReturnSelf();
+        $read->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
+        $read->shouldReceive('exists')->once()->andReturn($owned);
+    }
+
+    /**
+     * Get a builder for the SQLite read of the lock's live owner, on the write connection.
+     *
+     * @param Closure(): ?string $owner
+     */
+    protected function liveOwnerRead(Closure $owner): Builder
+    {
+        $read = m::mock(Builder::class);
+        $read->shouldReceive('useWritePdo')->once()->andReturnSelf();
+        $read->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
+        $read->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
+        $read->shouldReceive('value')->once()->with('owner')->andReturnUsing($owner);
+
+        return $read;
     }
 }

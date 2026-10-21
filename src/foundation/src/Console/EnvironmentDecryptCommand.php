@@ -58,6 +58,8 @@ class EnvironmentDecryptCommand extends Command
 
         $key = $this->parseKey($key);
 
+        // The environment file may be in a subdirectory of the environment path, and the
+        // bootstrapper loads named environment files beside it.
         $encryptedFile = ($this->option('env')
             ? Str::finish(dirname($this->hypervel->environmentFilePath()), DIRECTORY_SEPARATOR) . '.env.' . $this->option('env')
             : $this->hypervel->environmentFilePath()) . '.encrypted';

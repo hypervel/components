@@ -41,7 +41,7 @@ class TransformsToResourceCollectionTest extends TestCase
     public function testToResourceCollectionThrowsExceptionWhenResourceCannotBeFound(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Support\Traits\ResourceCollectionTestModel].');
+        $this->expectExceptionMessageIs('Failed to find resource class for model [Hypervel\Tests\Support\Traits\ResourceCollectionTestModel].');
 
         $model = new ResourceCollectionTestModel;
         $collection = new EloquentCollection([$model]);
@@ -104,7 +104,7 @@ class TransformsToResourceCollectionTest extends TestCase
     public function testToResourceCollectionThrowsForNonObjectItems(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Resource collection guesser expects the collection to contain objects.');
+        $this->expectExceptionMessageIs('Resource collection guesser expects the collection to contain objects.');
 
         $collection = new Collection(['string', 'items']);
 
@@ -114,7 +114,7 @@ class TransformsToResourceCollectionTest extends TestCase
     public function testToResourceCollectionThrowsForItemsWithoutGuessResourceName(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Expected class stdClass to implement guessResourceName method.');
+        $this->expectExceptionMessageIsOrContains('Expected class stdClass to implement guessResourceName method.');
 
         $collection = new Collection([new stdClass]);
 

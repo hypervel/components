@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class FilesystemStaticStateTest extends TestCase
 {
-    public function testFilesystemFlushStateClearsMacros()
+    public function testFilesystemFlushStateClearsMacros(): void
     {
         Filesystem::macro('testMacro', function () {
             return 'test';
@@ -23,7 +23,7 @@ class FilesystemStaticStateTest extends TestCase
         $this->assertFalse(Filesystem::hasMacro('testMacro'));
     }
 
-    public function testFilesystemAdapterFlushStateClearsMacros()
+    public function testFilesystemAdapterFlushStateClearsMacros(): void
     {
         FilesystemAdapter::macro('testMacro', function () {
             return 'test';

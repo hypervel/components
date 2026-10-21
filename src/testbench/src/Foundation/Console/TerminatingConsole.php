@@ -14,14 +14,14 @@ final class TerminatingConsole
     /**
      * The terminating callbacks.
      *
-     * @var array<int, callable():void>
+     * @var array<int, callable(?int):void>
      */
     private static array $beforeTerminatingCallbacks = [];
 
     /**
      * Register a callback to be run before terminating the command.
      *
-     * @param callable():void $callback
+     * @param callable(?int):void $callback
      */
     public static function before(callable $callback): void
     {
@@ -31,7 +31,7 @@ final class TerminatingConsole
     /**
      * Register a callback to be run before terminating the command when condition is true.
      *
-     * @param callable():void $callback
+     * @param callable(?int):void $callback
      */
     public static function beforeWhen(bool $condition, callable $callback): void
     {
@@ -42,8 +42,10 @@ final class TerminatingConsole
 
     /**
      * Handle terminating console.
+     *
+     * @param null|int $signal The signal that is terminating the command
      */
-    public static function handle(): void
+    public static function handle(?int $signal = null): void
     {
         $callbacks = self::$beforeTerminatingCallbacks;
         self::$beforeTerminatingCallbacks = [];
@@ -51,7 +53,7 @@ final class TerminatingConsole
 
         foreach ($callbacks as $callback) {
             try {
-                $callback();
+                $callback($signal);
             } catch (Throwable $throwable) {
                 $failure ??= $throwable;
             }

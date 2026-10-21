@@ -135,7 +135,7 @@ class StreamStateTest extends TestCase
         $state = $this->state();
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage('A trailers-only gRPC response cannot contain message data.');
+        $this->expectExceptionMessageIs('A trailers-only gRPC response cannot contain message data.');
 
         $state->handle(new Response(
             1,
@@ -218,7 +218,7 @@ class StreamStateTest extends TestCase
         $state = $this->state(maxReceiveMessageSize: 4);
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The non-gRPC response body exceeds the configured receive limit.',
         );
 
@@ -297,7 +297,7 @@ class StreamStateTest extends TestCase
         $state = $this->state(maxMetadataSize: 128);
 
         $this->expectException(ProtocolException::class);
-        $this->expectExceptionMessage('The peer response metadata exceeds the configured limit.');
+        $this->expectExceptionMessageIs('The peer response metadata exceeds the configured limit.');
 
         $state->handle(new Response(
             1,

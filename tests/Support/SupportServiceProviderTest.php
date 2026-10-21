@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use Hypervel\Translation\Translator;
 use Mockery as m;
 use WeakReference;
 
@@ -46,21 +48,21 @@ class SupportServiceProviderTest extends TestCase
         $two->boot();
     }
 
-    public function testIsEnabledReturnsTrueByDefault()
+    public function testIsEnabledReturnsTrueByDefault(): void
     {
         $provider = new ServiceProviderForTestingOne($this->app);
 
         $this->assertTrue($provider->isEnabled());
     }
 
-    public function testIsEnabledCanBeOverriddenToReturnFalse()
+    public function testIsEnabledCanBeOverriddenToReturnFalse(): void
     {
         $provider = new ServiceProviderForTestingDisabled($this->app);
 
         $this->assertFalse($provider->isEnabled());
     }
 
-    public function testIsEnabledCanReadFromContainerAndConfig()
+    public function testIsEnabledCanReadFromContainerAndConfig(): void
     {
         $config = new ConfigRepository(['package' => ['enabled' => true]]);
         $app = m::mock(Application::class)->makePartial();
@@ -73,7 +75,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertFalse($provider->isEnabled());
     }
 
-    public function testPublishableServiceProviders()
+    public function testPublishableServiceProviders(): void
     {
         $toPublish = ServiceProvider::publishableProviders();
         $expected = [
@@ -83,7 +85,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEquals($expected, $toPublish, 'Publishable service providers do not return expected set of providers.');
     }
 
-    public function testPublishableGroups()
+    public function testPublishableGroups(): void
     {
         $toPublish = ServiceProvider::publishableGroups();
         $this->assertEquals([
@@ -96,7 +98,7 @@ class SupportServiceProviderTest extends TestCase
         ], $toPublish, 'Publishable groups do not return expected set of groups.');
     }
 
-    public function testSimpleAssetsArePublishedCorrectly()
+    public function testSimpleAssetsArePublishedCorrectly(): void
     {
         $toPublish = ServiceProvider::pathsToPublish(ServiceProviderForTestingOne::class);
         $this->assertArrayHasKey('source/unmarked/one', $toPublish, 'Service provider does not return expected published path key.');
@@ -111,7 +113,7 @@ class SupportServiceProviderTest extends TestCase
         ], $toPublish, 'Service provider does not return expected set of published paths.');
     }
 
-    public function testMultipleAssetsArePublishedCorrectly()
+    public function testMultipleAssetsArePublishedCorrectly(): void
     {
         $toPublish = ServiceProvider::pathsToPublish(ServiceProviderForTestingTwo::class);
         $this->assertArrayHasKey('source/unmarked/two/a', $toPublish, 'Service provider does not return expected published path key.');
@@ -129,7 +131,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEquals($expected, $toPublish, 'Service provider does not return expected set of published paths.');
     }
 
-    public function testSimpleTaggedAssetsArePublishedCorrectly()
+    public function testSimpleTaggedAssetsArePublishedCorrectly(): void
     {
         $toPublish = ServiceProvider::pathsToPublish(ServiceProviderForTestingOne::class, 'some_tag');
         $this->assertArrayNotHasKey('source/tagged/two/a', $toPublish, 'Service provider does return unexpected tagged path key.');
@@ -138,7 +140,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEquals(['source/tagged/one' => 'destination/tagged/one'], $toPublish, 'Service provider does not return expected set of published tagged paths.');
     }
 
-    public function testMultipleTaggedAssetsArePublishedCorrectly()
+    public function testMultipleTaggedAssetsArePublishedCorrectly(): void
     {
         $toPublish = ServiceProvider::pathsToPublish(ServiceProviderForTestingTwo::class, 'some_tag');
         $this->assertArrayHasKey('source/tagged/two/a', $toPublish, 'Service provider does not return expected tagged path key.');
@@ -152,7 +154,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEquals($expected, $toPublish, 'Service provider does not return expected set of published tagged paths.');
     }
 
-    public function testMultipleTaggedAssetsAreMergedCorrectly()
+    public function testMultipleTaggedAssetsAreMergedCorrectly(): void
     {
         $toPublish = ServiceProvider::pathsToPublish(null, 'some_tag');
         $this->assertArrayHasKey('source/tagged/two/a', $toPublish, 'Service provider does not return expected tagged path key.');
@@ -167,7 +169,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEquals($expected, $toPublish, 'Service provider does not return expected set of published tagged paths.');
     }
 
-    public function testPublishesMigrations()
+    public function testPublishesMigrations(): void
     {
         $serviceProvider = new ServiceProviderForTestingOne($this->app);
 
@@ -175,6 +177,27 @@ class SupportServiceProviderTest extends TestCase
             ->call($serviceProvider);
 
         $this->assertContains('source/tagged/four', ServiceProvider::publishableMigrationPaths());
+
+        $this->app->make('config')->set('database.migrations.update_date_on_publish', false);
+
+        (fn () => $this->publishesMigrations(['source/tagged/five' => 'destination/tagged/five'], 'tag_four'))
+            ->call($serviceProvider);
+
+        $this->assertNotContains('source/tagged/five', ServiceProvider::publishableMigrationPaths());
+
+        $this->app->make('config')->set('database.migrations', 'migrations');
+
+        (fn () => $this->publishesMigrations(['source/tagged/five' => 'destination/tagged/five'], 'tag_four'))
+            ->call($serviceProvider);
+
+        $this->assertNotContains('source/tagged/five', ServiceProvider::publishableMigrationPaths());
+
+        $this->app->make('config')->set('database.migrations', null);
+
+        (fn () => $this->publishesMigrations(['source/tagged/five' => 'destination/tagged/five'], 'tag_four'))
+            ->call($serviceProvider);
+
+        $this->assertNotContains('source/tagged/five', ServiceProvider::publishableMigrationPaths());
     }
 
     public function testPublishesMigrationsDoesNotUpdateDatesWhenSettingIsOmitted(): void
@@ -191,7 +214,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertNotContains('source', ServiceProvider::publishableMigrationPaths());
     }
 
-    public function testAllPathsAreReturnedWhenNoFilterIsSpecified()
+    public function testAllPathsAreReturnedWhenNoFilterIsSpecified(): void
     {
         $allPaths = ServiceProvider::pathsToPublish();
 
@@ -205,7 +228,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertCount(11, $allPaths);
     }
 
-    public function testEmptyArrayIsReturnedWhenProviderNotFound()
+    public function testEmptyArrayIsReturnedWhenProviderNotFound(): void
     {
         $paths = ServiceProvider::pathsToPublish('NonExistent\Provider');
 
@@ -213,7 +236,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEmpty($paths);
     }
 
-    public function testEmptyArrayIsReturnedWhenGroupNotFound()
+    public function testEmptyArrayIsReturnedWhenGroupNotFound(): void
     {
         $paths = ServiceProvider::pathsToPublish(null, 'nonexistent_group');
 
@@ -221,7 +244,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertEmpty($paths);
     }
 
-    public function testMergeConfigFromWithFlatConfig()
+    public function testMergeConfigFromWithFlatConfig(): void
     {
         $config = new ConfigRepository;
         $this->app->shouldReceive('make')->with('config')->andReturn($config);
@@ -233,7 +256,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('flat.prefix'));
     }
 
-    public function testMergeConfigFromAppOverridesPackageDefaults()
+    public function testMergeConfigFromAppOverridesPackageDefaults(): void
     {
         $config = new ConfigRepository([
             'flat' => ['default' => 'redis'],
@@ -247,7 +270,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('flat.prefix'));
     }
 
-    public function testMergeConfigFromWithoutMergeableOptionsReplacesNestedArrays()
+    public function testMergeConfigFromWithoutMergeableOptionsReplacesNestedArrays(): void
     {
         $config = new ConfigRepository([
             'flat_stores' => [
@@ -275,7 +298,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertArrayNotHasKey('lock_connection', $stores['redis']);
     }
 
-    public function testMergeConfigFromWithMergeableOptionsCombinesNestedArrays()
+    public function testMergeConfigFromWithMergeableOptionsCombinesNestedArrays(): void
     {
         $config = new ConfigRepository([
             'mergeable_stores' => [
@@ -314,7 +337,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('mergeable_stores.prefix'));
     }
 
-    public function testMergeConfigFromWithMergeableOptionsWhenAppHasNoStores()
+    public function testMergeConfigFromWithMergeableOptionsWhenAppHasNoStores(): void
     {
         $config = new ConfigRepository([
             'mergeable_stores' => [
@@ -334,7 +357,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertCount(3, $stores);
     }
 
-    public function testMergeConfigFromWithMergeableOptionsWhenNoExistingConfig()
+    public function testMergeConfigFromWithMergeableOptionsWhenNoExistingConfig(): void
     {
         $config = new ConfigRepository;
         $this->app->shouldReceive('make')->with('config')->andReturn($config);
@@ -428,7 +451,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $workerConfig->get('flat.prefix'));
     }
 
-    public function testMergeableOptionsDefaultsToEmptyArray()
+    public function testMergeableOptionsDefaultsToEmptyArray(): void
     {
         $provider = new ServiceProviderForTestingFlat($this->app);
 
@@ -437,7 +460,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame([], $result);
     }
 
-    public function testMergeConfigFromSkipsWhenConfigIsCached()
+    public function testMergeConfigFromSkipsWhenConfigIsCached(): void
     {
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(true);
@@ -451,7 +474,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
-    public function testMergeConfigFromRunsWhenConfigIsNotCached()
+    public function testMergeConfigFromRunsWhenConfigIsNotCached(): void
     {
         $config = new ConfigRepository;
         $app = m::mock(Application::class)->makePartial();
@@ -465,7 +488,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('array', $config->get('flat.default'));
     }
 
-    public function testReplaceConfigRecursivelyFromSkipsWhenCached()
+    public function testReplaceConfigRecursivelyFromSkipsWhenCached(): void
     {
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(true);
@@ -478,7 +501,7 @@ class SupportServiceProviderTest extends TestCase
         $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
-    public function testReplaceConfigRecursivelyFromRunsWhenNotCached()
+    public function testReplaceConfigRecursivelyFromRunsWhenNotCached(): void
     {
         $config = new ConfigRepository([
             'flat' => ['default' => 'redis', 'extra' => 'app-value'],
@@ -498,12 +521,46 @@ class SupportServiceProviderTest extends TestCase
         $this->assertSame('package-prefix', $config->get('flat.prefix'));
     }
 
-    public function testLoadTranslationsFromWithoutNamespace()
+    public function testConfigureUsingComputesAgainAgainstTheRebuiltConfiguration(): void
     {
-        $translator = m::mock(\Hypervel\Translation\Translator::class);
-        $translator->shouldReceive('addPath')->once()->with(__DIR__ . '/translations');
+        $masterConfig = new ConfigRepository(['computed' => ['record' => 10]]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
 
-        $this->app->shouldReceive('afterResolving')->once()->with('translator', m::on(function ($callback) use ($translator) {
+        (new ServiceProviderForTestingComputed($app))->register();
+
+        $this->assertSame(20, $masterConfig->get('computed.buffer'));
+
+        // A worker whose environment changed the input computes the value from it.
+        $workerConfig = new ConfigRepository(['computed' => ['record' => 15]]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame(30, $workerConfig->get('computed.buffer'));
+    }
+
+    public function testConfigureUsingSkipsWhenConfigIsCached(): void
+    {
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(true);
+        $app->shouldReceive('make')->with('config')->never();
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
+
+        // Cached configuration already holds the computed value, so neither the configuration nor the tracker is touched.
+        (new ServiceProviderForTestingComputed($app))->register();
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function testLoadTranslationsFromWithoutNamespace(): void
+    {
+        $translator = m::mock(Translator::class);
+        $translator->expects('addPath')->with(__DIR__ . '/translations');
+
+        $this->app->expects('afterResolving')->with('translator', m::on(function (callable $callback) use ($translator): bool {
             $callback($translator);
 
             return true;
@@ -513,12 +570,12 @@ class SupportServiceProviderTest extends TestCase
         $provider->loadTranslationsFrom(__DIR__ . '/translations');
     }
 
-    public function testLoadTranslationsFromWithNamespace()
+    public function testLoadTranslationsFromWithNamespace(): void
     {
-        $translator = m::mock(\Hypervel\Translation\Translator::class);
-        $translator->shouldReceive('addNamespace')->once()->with('namespace', __DIR__ . '/translations');
+        $translator = m::mock(Translator::class);
+        $translator->expects('addNamespace')->with('namespace', __DIR__ . '/translations');
 
-        $this->app->shouldReceive('afterResolving')->once()->with('translator', m::on(function ($callback) use ($translator) {
+        $this->app->expects('afterResolving')->with('translator', m::on(function (callable $callback) use ($translator): bool {
             $callback($translator);
 
             return true;
@@ -528,7 +585,7 @@ class SupportServiceProviderTest extends TestCase
         $provider->loadTranslationsFrom(__DIR__ . '/translations', 'namespace');
     }
 
-    public function testCanRemoveProvider()
+    public function testCanRemoveProvider(): void
     {
         $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-remove');
         (new Filesystem)->deleteDirectory($tempDirectory);
@@ -694,6 +751,16 @@ class ServiceProviderForTestingReplace extends ServiceProvider
     public function register(): void
     {
         $this->replaceConfigRecursivelyFrom(__DIR__ . '/Fixtures/config/package_flat.php', 'flat');
+    }
+}
+
+class ServiceProviderForTestingComputed extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->configureUsing(static function (Repository $config): void {
+            $config->set('computed.buffer', $config->integer('computed.record') * 2);
+        });
     }
 }
 

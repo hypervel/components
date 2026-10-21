@@ -16,7 +16,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\SQLiteGrammar $grammar
+ * @property SQLiteGrammar $grammar
  */
 class SQLiteBuilder extends Builder
 {
@@ -124,7 +124,7 @@ class SQLiteBuilder extends Builder
             $tables = [];
 
             foreach (Arr::wrap($schema) as $name) {
-                $tables = array_merge($tables, $this->connection->selectFromWriteConnection(
+                $tables = array_merge($tables, $this->selectMetadata(
                     $this->grammar->compileLegacyTables($name, $withSize)
                 ));
             }
@@ -133,7 +133,7 @@ class SQLiteBuilder extends Builder
         }
 
         return $this->connection->getPostProcessor()->processTables(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileTables($schema, $withSize)
             )
         );
@@ -147,7 +147,7 @@ class SQLiteBuilder extends Builder
         $views = [];
 
         foreach (Arr::wrap($schema) as $name) {
-            $views = array_merge($views, $this->connection->selectFromWriteConnection(
+            $views = array_merge($views, $this->selectMetadata(
                 $this->grammar->compileViews($name)
             ));
         }
@@ -165,16 +165,16 @@ class SQLiteBuilder extends Builder
      * Get the columns and stored table definition used to reconstruct SQLite schema state.
      *
      * @internal
-     * @return array{columns: list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>, sql: string}
+     * @return array{columns: list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>, sql: string}
      */
     public function getColumnsForSchemaState(string $table): array
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
         $table = $this->connection->getTablePrefix() . $table;
-        $columns = $this->connection->selectFromWriteConnection($this->grammar->compileColumns($schema, $table));
-        // Rebuild guards must inspect the stored definition on the same write PDO as the columns.
-        $sql = $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table), [], false) ?? '';
+        $columns = $this->selectMetadata($this->grammar->compileColumns($schema, $table));
+        // Columns and their stored definition must share metadata execution policy.
+        $sql = $this->scalarMetadata($this->grammar->compileSqlCreateStatement($schema, $table)) ?? '';
 
         return [
             'columns' => $this->connection->getPostProcessor()->processColumns(
@@ -201,7 +201,7 @@ class SQLiteBuilder extends Builder
         $processor = $this->connection->getPostProcessor();
 
         return $processor->processIndexesForSchemaState(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileIndexes($schema, $table)
             )
         );
@@ -426,6 +426,8 @@ class SQLiteBuilder extends Builder
 
     /**
      * Get the names of current schemas for the connection.
+     *
+     * @return string[]
      */
     #[Override]
     public function getCurrentSchemaListing(): array

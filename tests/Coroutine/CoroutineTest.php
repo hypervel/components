@@ -45,7 +45,7 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
-    public function testCoroutineParentId()
+    public function testCoroutineParentId(): void
     {
         $pid = Coroutine::id();
         Coroutine::create(function () use ($pid) {
@@ -62,7 +62,7 @@ class CoroutineTest extends TestCase
         });
     }
 
-    public function testCoroutineParentIdHasBeenDestroyed()
+    public function testCoroutineParentIdHasBeenDestroyed(): void
     {
         $id = Coroutine::create(function () {
         });
@@ -75,7 +75,7 @@ class CoroutineTest extends TestCase
         }
     }
 
-    public function testCoroutineAndDeferWithException()
+    public function testCoroutineAndDeferWithException(): void
     {
         $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);
@@ -118,7 +118,7 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
-    public function testAfterCreatedCallbacksAreExecuted()
+    public function testAfterCreatedCallbacksAreExecuted(): void
     {
         $executed = false;
 
@@ -133,7 +133,7 @@ class CoroutineTest extends TestCase
         $this->assertTrue($executed);
     }
 
-    public function testAfterCreatedCallbacksExecuteInOrder()
+    public function testAfterCreatedCallbacksExecuteInOrder(): void
     {
         $order = [];
 
@@ -171,7 +171,7 @@ class CoroutineTest extends TestCase
         ], $observed);
     }
 
-    public function testFlushStateClearsAfterCreatedCallbacks()
+    public function testFlushStateClearsAfterCreatedCallbacks(): void
     {
         $count = 0;
 
@@ -188,7 +188,82 @@ class CoroutineTest extends TestCase
         $this->assertSame(1, $count); // Should still be 1, callback was flushed
     }
 
-    public function testFlushStateRestoresExceptionReporting()
+    public function testDetachmentMarkerIsOnlyAvailableDuringChildStartup(): void
+    {
+        $observed = [];
+        Coroutine::afterCreated(static function () use (&$observed): void {
+            $observed[] = ['startup', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+        });
+
+        Coroutine::createOwned(
+            static function () use (&$observed): void {
+                $observed[] = ['callable', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+                Coroutine::fork(static function () use (&$observed): void {
+                    $observed[] = ['descendant', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+                });
+            },
+            static function (Closure $run) use (&$observed): void {
+                $run();
+                $observed[] = ['wrapper', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+            },
+            detached: true,
+        );
+
+        $this->assertSame([
+            ['startup', true],
+            ['callable', false],
+            ['startup', false],
+            ['descendant', false],
+            ['wrapper', false],
+        ], $observed);
+        $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
+    }
+
+    public function testForksDuringDetachedStartupOnlyDetachWhenRequested(): void
+    {
+        $observed = [];
+        $coroutineIds = [];
+        $started = false;
+        $wrapper = static function (Closure $run): void {
+            $run();
+        };
+
+        Coroutine::afterCreated(static function () use (&$observed, &$coroutineIds, &$started, $wrapper): void {
+            if ($started) {
+                $observed[] = [
+                    CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY),
+                    CoroutineContext::get('request-id'),
+                ];
+
+                return;
+            }
+
+            $started = true;
+            CoroutineContext::set('request-id', 'child-request');
+            $callable = static function (): void {};
+            $coroutineIds = [
+                Coroutine::fork($callable),
+                Coroutine::forkOwned($callable, $wrapper),
+                Coroutine::forkOwned($callable, $wrapper, detached: true),
+            ];
+
+            $observed[] = ['parent', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+        });
+
+        $coroutineId = Coroutine::createOwned(static function (): void {}, $wrapper, detached: true);
+        Coroutine::join([...$coroutineIds, $coroutineId]);
+
+        $this->assertSame([
+            [false, 'child-request'],
+            [false, 'child-request'],
+            [true, 'child-request'],
+            ['parent', true],
+        ], $observed);
+        $this->assertFalse(CoroutineContext::has('request-id'));
+        $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
+    }
+
+    public function testFlushStateRestoresExceptionReporting(): void
     {
         try {
             $container = new Container;
@@ -209,7 +284,7 @@ class CoroutineTest extends TestCase
         }
     }
 
-    public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
+    public function testAfterCreatedCallbackExceptionDoesNotStopOthers(): void
     {
         $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);

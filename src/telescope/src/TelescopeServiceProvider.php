@@ -8,16 +8,14 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Sentinel\Http\Middleware\SentinelMiddleware;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Telescope\Actions\UninstallAction;
-use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
-use Hypervel\Telescope\Watchers\CacheWatcher;
-use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
 class TelescopeServiceProvider extends ServiceProvider
@@ -36,23 +34,31 @@ class TelescopeServiceProvider extends ServiceProvider
             return;
         }
 
+        Route::middlewareGroup('telescope', [
+            SentinelMiddleware::class . ':telescope',
+            ...config()->array('telescope.middleware'),
+        ]);
+
         $this->registerRoutes();
         $this->registerResources();
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
-        Coroutine::afterCreated(function () {
+        Coroutine::afterCreated(static function (): void {
+            $detached = CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY);
             $keys = [
                 Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
                 Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
-                // fork() installs its snapshot before callbacks run, so keep captured values.
+                // Keep explicit snapshots; detachment only prevents parent fallback.
                 if (CoroutineContext::has($key)) {
                     continue;
                 }
 
-                CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
+                CoroutineContext::set($key, $detached
+                    ? $default
+                    : CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
     }
@@ -63,7 +69,7 @@ class TelescopeServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         Route::domain(config('telescope.domain'))
-            ->middleware(config()->array('telescope.middleware'))
+            ->middleware('telescope')
             ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
@@ -103,10 +109,12 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->commands([
             Console\ClearCommand::class,
             Console\InstallCommand::class,
+            Console\ListCommand::class,
             Console\PauseCommand::class,
             Console\PruneCommand::class,
             Console\PublishCommand::class,
             Console\ResumeCommand::class,
+            Console\ShowCommand::class,
         ]);
     }
 
@@ -128,8 +136,6 @@ class TelescopeServiceProvider extends ServiceProvider
         }
 
         $this->registerRedisEvents();
-        $this->registerCacheEvents();
-        $this->registerGuzzleHttpClientAspect();
     }
 
     /**
@@ -142,30 +148,6 @@ class TelescopeServiceProvider extends ServiceProvider
         }
 
         RedisWatcher::enableRedisEvents($this->app);
-    }
-
-    /**
-     * Register the Cache events if the watcher is enabled.
-     */
-    protected function registerCacheEvents(): void
-    {
-        if (! $this->watcherIsEnabled(CacheWatcher::class)) {
-            return;
-        }
-
-        CacheWatcher::enableCacheEvents($this->app);
-    }
-
-    /**
-     * Register the Guzzle HTTP client aspect if the watcher is enabled.
-     */
-    protected function registerGuzzleHttpClientAspect(): void
-    {
-        if (! $this->watcherIsEnabled(ClientRequestWatcher::class)) {
-            return;
-        }
-
-        $this->aspects(GuzzleHttpClientAspect::class);
     }
 
     /**

@@ -32,16 +32,8 @@ class ExcludeIf extends StringValidationAttribute
         return 'exclude_if';
     }
 
-    /**
-     * Create the attribute from parsed string parameters.
-     */
-    public static function create(string ...$parameters): static
-    {
-        return parent::create(
-            $parameters[0],
-            self::parseBooleanValue($parameters[1]),
-        );
-    }
+    // The inherited create() keeps the parsed value as written: converting '1' to 'true', as Spatie does,
+    // changes what a string or integer dependent matches.
 
     /**
      * Get the rule parameters.

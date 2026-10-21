@@ -10,6 +10,7 @@
     - [Creating Tables](#creating-tables)
     - [Updating Tables](#updating-tables)
     - [Renaming / Dropping Tables](#renaming-and-dropping-tables)
+    - [Partitioning Tables](#partitioning-tables)
 - [Columns](#columns)
     - [Creating Columns](#creating-columns)
     - [Available Column Types](#available-column-types)
@@ -248,6 +249,14 @@ Some migration operations are destructive, which means they may cause you to los
 php artisan migrate --force
 ```
 
+To prevent destructive database commands from running in production at all, even with `--force`, call the `DB` facade's `prohibitDestructiveCommands` method from the `boot` method of your application's `AppServiceProvider`. This prohibits the `db:wipe`, `migrate:fresh`, `migrate:refresh`, `migrate:reset`, and `migrate:rollback` commands:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::prohibitDestructiveCommands($this->app->isProduction());
+```
+
 <a name="rolling-back-migrations"></a>
 ### Rolling Back Migrations
 
@@ -478,13 +487,57 @@ Schema::dropIfExists('users');
 
 Before renaming a table, you should verify that any foreign key constraints on the table have an explicit name in your migration files instead of letting Hypervel assign a convention based name. Otherwise, the foreign key constraint name will refer to the old table name.
 
+<a name="partitioning-tables"></a>
+### Partitioning Tables
+
+PostgreSQL can split a large table into partitions, each holding a range of its rows. Your queries still use the table itself, but old data can be removed by dropping a whole partition instead of deleting rows one at a time, which is much faster and leaves no bloat behind. This makes partitioning a good fit for large, append-heavy tables such as logs and event histories. Range partitioning requires PostgreSQL 10 or later; primary keys and unique indexes on the partitioned table, as in the example below, require PostgreSQL 11 or later.
+
+To partition a table, call the `partitionByRange` method with the columns that decide which partition each row belongs to. The table's primary key and unique indexes must include all of these columns:
+
+```php
+Schema::create('events', function (Blueprint $table) {
+    $table->id();
+    $table->string('type');
+    $table->timestamp('created_at');
+
+    $table->primary(['id', 'created_at']);
+    $table->partitionByRange('created_at');
+});
+```
+
+A row can only be stored once a partition covers it, so create partitions ahead of time using the `createRangePartition` method. Each bound lists one value per partition column. The lower bound is inclusive and the upper bound is exclusive:
+
+```php
+Schema::createRangePartition('events', 'events_2026_10', from: ['2026-10-01'], to: ['2026-11-01']);
+```
+
+The `getPartitions` method returns a table's partitions and their bounds. The `getTables` method lists partitions as well, and the `partition_of` key of each partition contains the schema-qualified name of the table it belongs to:
+
+```php
+$partitions = Schema::getPartitions('events');
+
+// [['name' => 'events_2026_10', 'schema' => 'public', 'schema_qualified_name' => 'public.events_2026_10', 'bounds' => "FOR VALUES FROM ('2026-10-01 00:00:00') TO ('2026-11-01 00:00:00')"]]
+```
+
+A partition is a table of its own, so you may drop it, along with all of its rows, using the `drop` method. Dropping a partition briefly locks the whole partitioned table, so it waits for any queries that are using the table. To avoid waiting behind a long-running query, set a lock timeout in the same transaction. If the timeout passes, the drop fails and leaves the partition in place, so you may try again later:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::transaction(function () {
+    DB::statement("set local lock_timeout = '5s'");
+
+    Schema::drop('events_2026_01');
+});
+```
+
 <a name="columns"></a>
 ## Columns
 
 <a name="creating-columns"></a>
 ### Creating Columns
 
-The `table` method on the `Schema` facade may be used to update existing tables. Like the `create` method, the `table` method accepts two arguments: the name of the table and a closure that receives an `Hypervel\Database\Schema\Blueprint` instance you may use to add columns to the table:
+The `table` method on the `Schema` facade may be used to update existing tables. Like the `create` method, the `table` method accepts two arguments: the name of the table and a closure that receives a `Hypervel\Database\Schema\Blueprint` instance you may use to add columns to the table:
 
 ```php
 use Hypervel\Database\Schema\Blueprint;
@@ -596,6 +649,8 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 <div class="collection-method-list" markdown="1">
 
 [binary](#column-method-binary)
+[longBinary](#column-method-longBinary)
+[mediumBinary](#column-method-mediumBinary)
 
 </div>
 
@@ -641,6 +696,7 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 [foreignId](#column-method-foreignId)
 [foreignIdFor](#column-method-foreignIdFor)
 [foreignUlid](#column-method-foreignUlid)
+[foreignUlidFor](#column-method-foreignUlidFor)
 [foreignUuid](#column-method-foreignUuid)
 [foreignUuidFor](#column-method-foreignUuidFor)
 [morphs](#column-method-morphs)
@@ -697,6 +753,8 @@ $table->binary('data', length: 16); // VARBINARY(16)
 
 $table->binary('data', length: 16, fixed: true); // BINARY(16)
 ```
+
+On MySQL and MariaDB, a `BLOB` column holds up to 64 KB. Use the [mediumBinary](#column-method-mediumBinary) or [longBinary](#column-method-longBinary) methods for larger values.
 
 <a name="column-method-boolean"></a>
 #### `boolean()` {.collection-method}
@@ -814,6 +872,15 @@ The `foreignUlid` method creates a `ULID` equivalent column:
 $table->foreignUlid('user_id');
 ```
 
+<a name="column-method-foreignUlidFor"></a>
+#### `foreignUlidFor()` {.collection-method}
+
+The `foreignUlidFor` method adds a ULID column for a model that uses ULID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
+
+```php
+$table->foreignUlidFor(User::class);
+```
+
 <a name="column-method-foreignUuid"></a>
 #### `foreignUuid()` {.collection-method}
 
@@ -826,7 +893,7 @@ $table->foreignUuid('user_id');
 <a name="column-method-foreignUuidFor"></a>
 #### `foreignUuidFor()` {.collection-method}
 
-The `foreignUuidFor` method adds a UUID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+The `foreignUuidFor` method adds a UUID column for a model that uses UUID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
 
 ```php
 $table->foreignUuidFor(User::class);
@@ -916,6 +983,15 @@ $table->jsonb('options');
 
 When using SQLite, a `TEXT` column will be created.
 
+<a name="column-method-longBinary"></a>
+#### `longBinary()` {.collection-method}
+
+The `longBinary` method creates a `LONGBLOB` equivalent column, which holds up to 4 GB on MySQL and MariaDB:
+
+```php
+$table->longBinary('archive');
+```
+
 <a name="column-method-longText"></a>
 #### `longText()` {.collection-method}
 
@@ -925,11 +1001,7 @@ The `longText` method creates a `LONGTEXT` equivalent column:
 $table->longText('description');
 ```
 
-When utilizing MySQL or MariaDB, you may apply a `binary` character set to the column in order to create a `LONGBLOB` equivalent column:
-
-```php
-$table->longText('data')->charset('binary'); // LONGBLOB
-```
+To store binary data, use the [longBinary](#column-method-longBinary) method instead.
 
 <a name="column-method-macAddress"></a>
 #### `macAddress()` {.collection-method}
@@ -938,6 +1010,15 @@ The `macAddress` method creates a column that is intended to hold a MAC address.
 
 ```php
 $table->macAddress('device');
+```
+
+<a name="column-method-mediumBinary"></a>
+#### `mediumBinary()` {.collection-method}
+
+The `mediumBinary` method creates a `MEDIUMBLOB` equivalent column, which holds up to 16 MB on MySQL and MariaDB:
+
+```php
+$table->mediumBinary('payload');
 ```
 
 <a name="column-method-mediumIncrements"></a>
@@ -967,18 +1048,14 @@ The `mediumText` method creates a `MEDIUMTEXT` equivalent column:
 $table->mediumText('description');
 ```
 
-When utilizing MySQL or MariaDB, you may apply a `binary` character set to the column in order to create a `MEDIUMBLOB` equivalent column:
-
-```php
-$table->mediumText('data')->charset('binary'); // MEDIUMBLOB
-```
+To store binary data, use the [mediumBinary](#column-method-mediumBinary) method instead.
 
 <a name="column-method-morphs"></a>
 #### `morphs()` {.collection-method}
 
-The `morphs` method is a convenience method that adds a `{column}_id` equivalent column and a `{column}_type` `VARCHAR` equivalent column. The column type for the `{column}_id` will be `UNSIGNED BIGINT`, `CHAR(36)`, or `CHAR(26)` depending on the model key type.
+The `morphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` equivalent column. The column type for the `{column}_id` will be `UNSIGNED BIGINT`, `CHAR(36)`, or `CHAR(26)` depending on the model key type.
 
-This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships). In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships). In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->morphs('taggable');
@@ -1224,9 +1301,9 @@ $table->unsignedTinyInteger('votes');
 <a name="column-method-ulidMorphs"></a>
 #### `ulidMorphs()` {.collection-method}
 
-The `ulidMorphs` method is a convenience method that adds a `{column}_id` `CHAR(26)` equivalent column and a `{column}_type` `VARCHAR` equivalent column.
+The `ulidMorphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` `CHAR(26)` equivalent column.
 
-This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that use ULID identifiers. In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a polymorphic [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that use ULID identifiers. In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->ulidMorphs('taggable');
@@ -1235,9 +1312,9 @@ $table->ulidMorphs('taggable');
 <a name="column-method-uuidMorphs"></a>
 #### `uuidMorphs()` {.collection-method}
 
-The `uuidMorphs` method is a convenience method that adds a `{column}_id` `CHAR(36)` equivalent column and a `{column}_type` `VARCHAR` equivalent column.
+The `uuidMorphs` method is a convenience method that adds a `{column}_type` `VARCHAR` equivalent column and a `{column}_id` `CHAR(36)` equivalent column.
 
-This method is intended to be used when defining the columns necessary for a [polymorphic Eloquent relationship](/docs/{{version}}/eloquent-relationships#polymorphic-relationships) that use UUID identifiers. In the following example, `taggable_id` and `taggable_type` columns would be created:
+This method is intended to be used when defining the columns necessary for a [polymorphic Eloquent relationship](/docs/{{version}}/eloquent-relationships#polymorphic-relationships) that use UUID identifiers. In the following example, `taggable_type` and `taggable_id` columns would be created:
 
 ```php
 $table->uuidMorphs('taggable');
@@ -1267,13 +1344,19 @@ $table->uuid('id');
 The `vector` method creates a `vector` equivalent column:
 
 ```php
-$table->vector('embedding', dimensions: 100);
+$table->vector('embedding', dimensions: 1536);
 ```
 
-When utilizing PostgreSQL, the `pgvector` extension must be loaded before `vector` columns can be created:
+Vector columns are supported on PostgreSQL connections using the `pgvector` extension and MariaDB 11.7 or later. When utilizing PostgreSQL, `pgvector` must be loaded before `vector` columns can be created:
 
 ```php
 Schema::ensureVectorExtensionExists();
+```
+
+To speed up [vector similarity queries](/docs/{{version}}/queries#vector-similarity-clauses), you may add a vector index to the column. Calling the `index` method on a `vector` column creates a vector index using cosine distance:
+
+```php
+$table->vector('embedding', dimensions: 1536)->index();
 ```
 
 <a name="column-method-tsvector"></a>
@@ -1328,9 +1411,10 @@ The following table contains all of the available column modifiers. This list do
 | `->nullable($value = true)`         | Allow `NULL` values to be inserted into the column.                                            |
 | `->storedAs($expression)`           | Create a stored generated column (MariaDB / MySQL / PostgreSQL / SQLite).                      |
 | `->unsigned()`                      | Set `INTEGER` columns as `UNSIGNED` (MariaDB / MySQL).                                         |
+| `->using($expression)`              | Specify a casting expression when changing the column type (PostgreSQL).                       |
 | `->useCurrent()`                    | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` as default value.                           |
 | `->useCurrentOnUpdate()`            | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` when a record is updated (MariaDB / MySQL). |
-| `->virtualAs($expression)`          | Create a virtual generated column (MariaDB / MySQL / SQLite).                                  |
+| `->virtualAs($expression)`          | Create a virtual generated column (MariaDB / MySQL / PostgreSQL 18+ / SQLite).                 |
 | `->generatedAs($expression)`        | Create an identity column with specified sequence options (PostgreSQL).                        |
 | `->always()`                        | Defines the precedence of sequence values over input for an identity column (PostgreSQL).      |
 
@@ -1339,7 +1423,7 @@ The following table contains all of the available column modifiers. This list do
 <a name="default-expressions"></a>
 #### Default Expressions
 
-The `default` modifier accepts a value or an `Hypervel\Database\Query\Expression` instance. Using an `Expression` instance will prevent Hypervel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
+The `default` modifier accepts a value or a `Hypervel\Database\Query\Expression` instance. Using an `Expression` instance will prevent Hypervel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
 
 ```php
 <?php
@@ -1405,11 +1489,7 @@ $table->string('name')->lock('none');
 $table->index('email')->lock('shared');
 ```
 
-If the requested lock mode is incompatible with the operation, MySQL will raise an error. The `lock` modifier may be combined with the `instant` modifier to further optimize schema changes:
-
-```php
-$table->string('name')->instant()->lock('none');
-```
+If the requested lock mode is incompatible with the operation, MySQL will raise an error. When the `instant` modifier is used, MySQL permits only the `default` lock mode.
 
 <a name="modifying-columns"></a>
 ### Modifying Columns
@@ -1439,6 +1519,24 @@ $table->bigIncrements('id')->primary()->change();
 // Drop an index...
 $table->char('postal_code', 10)->unique(false)->change();
 ```
+
+<a name="postgresql-column-modifications"></a>
+#### PostgreSQL Column Modifications
+
+When changing a column's type on PostgreSQL, you may use the `using` modifier to specify the expression used to cast the existing values:
+
+```php
+Schema::table('users', function (Blueprint $table) {
+    $table->date('birthday')->using('birthday::date')->change();
+});
+```
+
+On PostgreSQL 17 and later, you may change a stored generated expression using `storedAs($expression)->change()`. Virtual generated expressions may be changed using `virtualAs($expression)->change()` on PostgreSQL 18 and later. Changing a stored expression recalculates the column's existing values.
+
+> [!WARNING]
+> A [PostgreSQL bug](https://www.postgresql.org/message-id/CACJufxHZsgn3zM5g-x7YmtFGzNDnRwR07S%2BGYfiUs%2BtZ45MDDw@mail.gmail.com) can make these expression changes fail on columns with CHECK constraints, or NOT NULL constraints on PostgreSQL 18. For affected columns, issue `ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION AS (...)` separately through `DB::statement()` instead of `change()`.
+
+To turn a stored generated column into an ordinary column on PostgreSQL 13 and later, use `storedAs(null)->change()`. Existing values are preserved, and you may specify a new default in the same definition. PostgreSQL does not support removing a virtual column's expression.
 
 <a name="renaming-columns"></a>
 ### Renaming Columns
@@ -1479,7 +1577,7 @@ Hypervel provides several convenient methods related to dropping common types of
 
 | Command                             | Description                                           |
 | ----------------------------------- | ----------------------------------------------------- |
-| `$table->dropMorphs('morphable');`  | Drop the `morphable_id` and `morphable_type` columns. |
+| `$table->dropMorphs('morphable');`  | Drop the `morphable_type` and `morphable_id` columns. |
 | `$table->dropRememberToken();`      | Drop the `remember_token` column.                     |
 | `$table->dropSoftDeletes();`        | Drop the `deleted_at` column.                         |
 | `$table->dropSoftDeletesTz();`      | Alias of `dropSoftDeletes()` method.                  |
@@ -1558,8 +1656,6 @@ Hypervel's schema builder blueprint class provides methods for creating each typ
 
 </div>
 
-When using PostgreSQL, chaining `index` onto a `vector` column definition will create a vector index instead of a regular index.
-
 <a name="online-index-creation"></a>
 #### Online Index Creation
 
@@ -1570,6 +1666,24 @@ $table->unique('email')->online();
 ```
 
 When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement.
+
+When using MySQL, you may chain the `inplace` modifier onto an index or foreign key definition to specify that the operation should use the `INPLACE` algorithm:
+
+```php
+$table->index('email')->inplace();
+
+$table->foreign('user_id')->references('id')->on('users')->inplace();
+```
+
+The `inplace` modifier may be combined with the `lock` modifier to control table locking during the operation:
+
+```php
+$table->index('email')->inplace()->lock('none');
+```
+
+When using the `inplace` modifier for a foreign key operation, foreign key checks must be disabled.
+
+Refer to [MySQL's documentation](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html) to determine which operations support the `INPLACE` algorithm and lock modes.
 
 <a name="partial-indexes"></a>
 #### Partial Indexes
@@ -1593,7 +1707,7 @@ The `whereNotNull` modifier must be chained onto the index definition returned b
 To rename an index, you may use the `renameIndex` method provided by the schema builder blueprint. This method accepts the current index name as its first argument and the desired name as its second argument:
 
 ```php
-$table->renameIndex('from', 'to')
+$table->renameIndex('from', 'to');
 ```
 
 <a name="dropping-indexes"></a>
@@ -1610,6 +1724,7 @@ To drop an index, you must specify the index's name. By default, Hypervel automa
 | `$table->dropIndex('geo_state_index');`                  | Drop a basic index from the "geo" table.                    |
 | `$table->dropFullText('posts_body_fulltext');`           | Drop a full text index from the "posts" table.              |
 | `$table->dropSpatialIndex('geo_location_spatialindex');` | Drop a spatial index from the "geo" table  (except SQLite). |
+| `$table->dropVectorIndex('posts_embeddings_vectorindex');` | Drop a vector index from the "posts" table (MariaDB / PostgreSQL). |
 
 </div>
 
@@ -1748,22 +1863,22 @@ Schema::withoutForeignKeyConstraints(function () {
 <a name="events"></a>
 ## Events
 
-For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). The following events are dispatched during migration operations:
+For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). With the exception of `SchemaDumped`, `SchemaLoaded`, and `MigrationsPruned`, all of the following events implement the `Hypervel\Contracts\Database\Events\MigrationEvent` interface:
 
 <div class="overflow-auto">
 
-| Class                                          | Description                                      |
-| ---------------------------------------------- | ------------------------------------------------ |
-| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.   |
-| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished executing.    |
-| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.      |
-| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished executing.       |
-| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.             |
-| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations. |
-| `Hypervel\Database\Events\DatabaseRefreshed`   | The database has been refreshed.                 |
-| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has completed.            |
-| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.     |
-| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.       |
+| Class                                          | Description                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Hypervel\Database\Events\DatabaseRefreshed`   | The `migrate:fresh` or `migrate:refresh` command has run its migrations, before any seeders run. |
+| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.                                                   |
+| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                                                              |
+| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                                                      |
+| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                                                                 |
+| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                                                             |
+| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.                                                 |
+| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                                                             |
+| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.                                                     |
+| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.                                                       |
 
 </div>
 

@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Support\Str;
 
 trait HasUniqueStringIds
 {
@@ -49,7 +50,8 @@ trait HasUniqueStringIds
      */
     public function resolveRouteBindingQuery(Model|Builder|Relation $query, mixed $value, ?string $field = null): Builder|Relation
     {
-        if ($field && in_array($field, $this->uniqueIds()) && ! $this->isValidUniqueId($value)) {
+        // Scoped bindings through HasManyThrough and BelongsToMany qualify the field with the related table.
+        if ($field && in_array(Str::afterLast($field, '.'), $this->uniqueIds()) && ! $this->isValidUniqueId($value)) {
             $this->handleInvalidUniqueId($value, $field);
         }
 
@@ -87,7 +89,7 @@ trait HasUniqueStringIds
     /**
      * Throw an exception for the given invalid unique ID.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
+     * @throws ModelNotFoundException
      */
     protected function handleInvalidUniqueId(mixed $value, ?string $field): never
     {

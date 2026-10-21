@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Signal;
 
 use ArrayObject;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Signal\SignalHandler;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Engine\Channel;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Support\SafeCaller;
@@ -25,6 +27,71 @@ use Swoole\Coroutine as SwooleCoroutine;
 
 class SignalManagerTest extends TestCase
 {
+    #[RunInSeparateProcess]
+    public function testCommandTrapsShareTheWorkerListenerAndUntrapOnlyTheirOwnHandlers(): void
+    {
+        $trace = new ArrayObject;
+        $handled = new Channel(1);
+        $handler = new class($trace, $handled) implements SignalHandler {
+            /**
+             * Create a handler that records worker deliveries.
+             */
+            public function __construct(protected ArrayObject $trace, protected Channel $handled)
+            {
+            }
+
+            /**
+             * Get the worker signal to handle.
+             */
+            public function signals(): array
+            {
+                return [self::WORKER => [SIGWINCH]];
+            }
+
+            /**
+             * Record the delivery after the command callback.
+             */
+            public function handle(int $signal): void
+            {
+                $this->trace[] = 'worker';
+                $this->handled->push(true);
+            }
+        };
+        $container = Container::getInstance();
+        $container->instance(ContainerContract::class, $container);
+        $container->instance(ConfigContract::class, new Repository([
+            'signal' => ['handlers' => [$handler::class]],
+        ]));
+        $container->instance($handler::class, $handler);
+        $manager = new SignalManager($container);
+        $command = new Command;
+        $coroutinesBefore = SwooleCoroutine::stats()['coroutine_num'];
+
+        try {
+            $manager->listen(SignalHandler::WORKER);
+            $command->trap(SIGWINCH, function () use ($trace): void {
+                $trace[] = 'command';
+            });
+            $this->assertSame($coroutinesBefore + 1, SwooleCoroutine::stats()['coroutine_num']);
+
+            posix_kill(posix_getpid(), SIGWINCH);
+            $this->assertTrue($handled->pop(1));
+            usleep(5000);
+            $command->untrap();
+
+            posix_kill(posix_getpid(), SIGWINCH);
+            $this->assertTrue($handled->pop(1));
+            usleep(5000);
+            $this->assertSame(['command', 'worker', 'worker'], $trace->getArrayCopy());
+        } finally {
+            $command->untrap();
+            $manager->stop();
+            $handled->close();
+        }
+
+        $this->assertSame($coroutinesBefore, SwooleCoroutine::stats()['coroutine_num']);
+    }
+
     #[RunInSeparateProcess]
     public function testHigherPriorityHandlersContinueAfterFailureAndWatchAgain(): void
     {
@@ -188,7 +255,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Unsupported signal process [workers]. Supported processes are [worker] and [server-process].',
         );
 
@@ -210,7 +277,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([$handler::class], [$handler::class => $handler]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must implement [Hypervel\Contracts\Signal\SignalHandler]');
+        $this->expectExceptionMessageIsOrContains('must implement [Hypervel\Contracts\Signal\SignalHandler]');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -233,7 +300,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'declares unsupported process [process]. Supported processes are [worker] and [server-process].',
         );
 
@@ -258,7 +325,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'must declare an array of signal numbers for the [server-process] process.',
         );
 
@@ -280,7 +347,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManager($handler);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must declare an array of signal numbers for the [worker] process.');
+        $this->expectExceptionMessageIsOrContains('must declare an array of signal numbers for the [worker] process.');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -310,7 +377,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([[]]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Signal handler at index [0] must be a class name.');
+        $this->expectExceptionMessageIs('Signal handler at index [0] must be a class name.');
 
         $manager->listen(SignalHandler::WORKER);
     }
@@ -320,7 +387,7 @@ class SignalManagerTest extends TestCase
         $manager = $this->createManagerFromConfig([SignalHandlerStub::class => 'high']);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'The priority for signal handler [Hypervel\Tests\Signal\Fixtures\SignalHandlerStub] must be numeric.',
         );
 
@@ -431,6 +498,7 @@ class SignalManagerTest extends TestCase
             'signal' => ['handlers' => [SignalHandlerStub::class]],
         ]));
         $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
         $container->shouldNotReceive('make')->with(SignalHandlerStub::class);
         $manager = new SignalManager($container);
         $manager->stop();
@@ -451,6 +519,9 @@ class SignalManagerTest extends TestCase
         $this->assertSame($coroutinesBeforeListen, SwooleCoroutine::stats()['coroutine_num']);
     }
 
+    /**
+     * Create a manager with one configured handler.
+     */
     protected function createManager(SignalHandler $handler): SignalManager
     {
         return $this->createManagerFromConfig(
@@ -472,6 +543,7 @@ class SignalManagerTest extends TestCase
             'signal' => ['handlers' => $handlers],
         ]));
         $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
 
         foreach ($instances as $class => $instance) {
             $container->shouldReceive('make')->with($class)->andReturn($instance);

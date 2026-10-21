@@ -31,6 +31,7 @@
          */
         watch: {
             searchQuery() {
+                // Search on every change, including the first character typed into an empty box.
                 clearTimeout(this.searchTimeout);
 
                 this.searchTimeout = setTimeout(() => {

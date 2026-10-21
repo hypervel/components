@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedRole;
@@ -103,6 +104,18 @@ class PartitionAuthorizationTest extends PartitionTestCase
 
         $this->assertTrue($user->hasPermissionTo('posts.create'));
         $this->assertTrue($user->hasPermissionTo('posts.delete.123'));
+    }
+
+    public function testWildcardChecksRejectAPermissionFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $permissionA = PartitionedPermission::create(['name' => 'posts.create']);
+
+        $this->setPartition(self::PARTITION_B);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasPermissionTo($permissionA);
     }
 
     public function testPermissionScopesUseOnlyCurrentPartitionEffects(): void

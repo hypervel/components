@@ -9,19 +9,36 @@ use Hypervel\Saloon\Http\Response;
 use LogicException;
 use Throwable;
 
+/**
+ * @template TItem
+ * @extends Paginator<TItem>
+ */
 abstract class CursorPaginator extends Paginator
 {
     /**
+     * The cursor query parameter.
+     */
+    protected string $cursorName = 'cursor';
+
+    /**
+     * The per-page limit query parameter.
+     */
+    protected string $perPageName = 'per_page';
+
+    /**
      * Apply cursor pagination to the request.
+     *
+     * @param Request<mixed> $request
+     * @return Request<mixed>
      */
     protected function applyPagination(Request $request): Request
     {
         if ($this->currentResponse instanceof Response) {
-            $request->withQueryParameters(['cursor' => $this->getNextCursor($this->currentResponse)]);
+            $request->withQueryParameters([$this->cursorName => $this->getNextCursor($this->currentResponse)]);
         }
 
         if ($this->perPageLimit !== null) {
-            $request->withQueryParameters(['per_page' => $this->perPageLimit]);
+            $request->withQueryParameters([$this->perPageName => $this->perPageLimit]);
         }
 
         return $request;
@@ -29,15 +46,20 @@ abstract class CursorPaginator extends Paginator
 
     /**
      * Get the next cursor.
+     *
+     * The default query encoding omits null and encodes booleans as 1/0;
+     * override applyPagination() when the API requires another encoding.
+     *
+     * @param Response<mixed> $response
      */
-    abstract protected function getNextCursor(Response $response): int|string;
+    abstract protected function getNextCursor(Response $response): bool|float|int|string|null;
 
     /**
      * Reject pooled cursor pagination because later cursors depend on earlier responses.
      *
-     * @param null|callable(Response, int): void $responseHandler
+     * @param null|callable(Response<mixed>, int): void $responseHandler
      * @param null|callable(Throwable, int): void $exceptionHandler
-     * @return array<int, Response>
+     * @return array<int, Response<mixed>>
      */
     public function pool(
         int $concurrency = 5,

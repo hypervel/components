@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use ArrayAccess;
 use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
 use Closure;
 use Countable;
 use Hypervel\Contracts\Container\Transient;
@@ -88,7 +89,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Get the character at the specified index.
      */
-    public function charAt(mixed $index): string|false
+    public function charAt(int $index): string|false
     {
         return Str::charAt($this->value, $index);
     }
@@ -207,10 +208,12 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
 
     /**
      * Replace consecutive instances of a given character with a single character.
+     *
+     * @param array<string>|string $characters
      */
-    public function deduplicate(string $character = ' '): static
+    public function deduplicate(array|string $characters = ' '): static
     {
-        return new static(Str::deduplicate($this->value, $character));
+        return new static(Str::deduplicate($this->value, $characters));
     }
 
     /**
@@ -300,7 +303,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public function is(string|int|float|bool|BaseStringable|iterable|null $pattern, bool $ignoreCase = false): bool
     {
@@ -414,7 +417,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Masks a portion of a string with a repeated character.
+     * Mask a portion of a string with a repeated character.
      */
     public function mask(string $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): static
     {
@@ -715,7 +718,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Transliterate a string to its closest ASCII representation.
      */
-    public function transliterate(?string $unknown = '?', ?bool $strict = false): static
+    public function transliterate(?string $unknown = '?', bool $strict = false): static
     {
         return new static(Str::transliterate($this->value, $unknown, $strict));
     }
@@ -783,7 +786,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Returns the portion of the string specified by the start and length parameters.
+     * Return the portion of the string specified by the start and length parameters.
      */
     public function substr(int $start, ?int $length = null, string $encoding = 'UTF-8'): static
     {
@@ -791,7 +794,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Returns the number of substring occurrences.
+     * Return the number of substring occurrences.
      */
     public function substrCount(string $needle, int $offset = 0, ?int $length = null): int
     {
@@ -927,7 +930,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string ends with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenEndsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -937,7 +940,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string doesn't end with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenDoesntEndWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -963,7 +966,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public function whenIs(string|int|float|bool|BaseStringable|iterable|null $pattern, callable $callback, ?callable $default = null): mixed
     {
@@ -997,7 +1000,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string starts with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenStartsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -1007,7 +1010,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string doesn't start with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenDoesntStartWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -1165,7 +1168,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Get the underlying string value as a Carbon instance.
      *
-     * @throws \Carbon\Exceptions\InvalidFormatException
+     * @throws InvalidFormatException
      */
     public function toDate(?string $format = null, ?string $tz = null): ?CarbonInterface
     {

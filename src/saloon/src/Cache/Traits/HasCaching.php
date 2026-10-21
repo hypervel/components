@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Cache\Traits;
 
 use Hypervel\Saloon\Enums\Method;
+use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use UnitEnum;
 
@@ -54,6 +55,14 @@ trait HasCaching
         $this->invalidateCache = true;
 
         return $this;
+    }
+
+    /**
+     * Clear the cached response without sending the request.
+     */
+    public function clearCache(Connector $counterpart): void
+    {
+        $counterpart->clearCache($this);
     }
 
     /**

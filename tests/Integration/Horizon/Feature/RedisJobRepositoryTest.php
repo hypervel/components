@@ -27,7 +27,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertSame(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, $repository->monitoredJobExpires);
     }
 
-    public function testItCanFindAFailedJobByItsId()
+    public function testItCanFindAFailedJobByItsId(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -37,7 +37,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertSame('1', $repository->findFailed('1')->id);
     }
 
-    public function testItWillNotFindAFailedJobIfTheJobHasNotFailed()
+    public function testItWillNotFindAFailedJobIfTheJobHasNotFailed(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -47,7 +47,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertNull($repository->findFailed('1'));
     }
 
-    public function testItSavesMicrosecondsAsAFloatAndDisregardsTheLocale()
+    public function testItSavesMicrosecondsAsAFloatAndDisregardsTheLocale(): void
     {
         $originalLocale = setlocale(LC_NUMERIC, '0');
 
@@ -69,7 +69,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         }
     }
 
-    public function testItRemovesRecentJobsWhenQueueIsPurged()
+    public function testItRemovesRecentJobsWhenQueueIsPurged(): void
     {
         $repository = $this->app->make(JobRepository::class);
 
@@ -77,7 +77,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '2', 'displayName' => 'second'])));
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '3', 'displayName' => 'third'])));
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '4', 'displayName' => 'fourth'])));
-        $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '5', 'displayName' => 'fifth'])));
+        $repository->pushed('other', 'email-processing', new JobPayload(json_encode(['id' => '5', 'displayName' => 'fifth'])));
 
         $repository->completed(new JobPayload(json_encode(['id' => '1', 'displayName' => 'first'])));
         $repository->completed(new JobPayload(json_encode(['id' => '2', 'displayName' => 'second'])));
@@ -93,7 +93,25 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertCount(2, $repository->getJobs(['1', '2', '3', '4', '5']));
     }
 
-    public function testItWillDeleteAFailedJob()
+    public function testPurgingOneConnectionPreservesOtherConnectionsAndCompletedJobs(): void
+    {
+        $repository = $this->app->make(JobRepository::class);
+        $payloads = [];
+
+        foreach (['pending' => '0', 'reserved' => '0', 'completed' => '0', 'other' => '1'] as $id => $connection) {
+            $payloads[$id] = new JobPayload(json_encode(['id' => $id, 'displayName' => $id]));
+            $repository->pushed($connection, 'email-processing', $payloads[$id]);
+        }
+
+        $repository->reserved('0', 'email-processing', $payloads['reserved']);
+        $repository->completed($payloads['completed']);
+
+        $this->assertSame(2, $repository->purge('email-processing', '0'));
+        $this->assertSame(['completed', 'other'], $repository->getRecent()->pluck('id')->sort()->values()->all());
+        $this->assertSame(['other'], $repository->getPending()->pluck('id')->all());
+    }
+
+    public function testItWillDeleteAFailedJob(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -108,7 +126,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertNull($repository->findFailed('1'));
     }
 
-    public function testItWillNotDeleteAJobIfTheJobHasNotFailed()
+    public function testItWillNotDeleteAJobIfTheJobHasNotFailed(): void
     {
         $repository = $this->app->make(JobRepository::class);
         $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
@@ -119,5 +137,36 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
         $this->assertSame(0, $result);
         $this->assertSame('1', $repository->getRecent()[0]->id);
+    }
+
+    public function testItStoresDelayWhenJobIsReleased(): void
+    {
+        $repository = $this->app->make(JobRepository::class);
+        $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
+
+        $repository->pushed('redis', 'default', $payload);
+        $repository->reserved('redis', 'default', $payload);
+        $repository->released('redis', 'default', $payload, 60);
+
+        $job = $repository->getJobs(['1'])[0];
+
+        $this->assertSame('pending', $job->status);
+        $this->assertSame('60', $job->delay);
+    }
+
+    public function testItClearsDelayWhenJobIsMigrated(): void
+    {
+        $repository = $this->app->make(JobRepository::class);
+        $payload = new JobPayload(json_encode(['id' => '1', 'displayName' => 'foo']));
+
+        $repository->pushed('redis', 'default', $payload);
+        $repository->reserved('redis', 'default', $payload);
+        $repository->released('redis', 'default', $payload, 60);
+        $repository->migrated('redis', 'default', collect([$payload]));
+
+        $job = $repository->getJobs(['1'])[0];
+
+        $this->assertSame('pending', $job->status);
+        $this->assertSame('0', $job->delay);
     }
 }

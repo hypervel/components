@@ -12,7 +12,7 @@ use Sentry\EventType;
 use function Sentry\logger;
 use function Sentry\traceMetrics;
 
-class RuntimeContextIsolationTest extends SentryTestCase
+class RuntimeContextIsolationTest extends TestCase
 {
     public function testConcurrentExecutionContextsFlushOnlyTheirOwnLogsAndMetrics(): void
     {
@@ -36,17 +36,21 @@ class RuntimeContextIsolationTest extends SentryTestCase
             $releaseSecond->pop();
         });
 
-        $this->assertTrue($firstReady->pop(1.0));
-        $this->assertTrue($secondReady->pop(1.0));
+        try {
+            $this->assertTrue($firstReady->pop(1.0));
+            $this->assertTrue($secondReady->pop(1.0));
 
-        $releaseFirst->push(true);
-        Coroutine::join([$firstCoroutineId]);
+            $releaseFirst->push(true);
+            Coroutine::join([$firstCoroutineId]);
 
-        $this->assertSame(['first log'], $this->capturedLogBodies());
-        $this->assertSame(['first.metric'], $this->capturedMetricNames());
-
-        $releaseSecond->push(true);
-        Coroutine::join([$secondCoroutineId]);
+            $this->assertSame(['first log'], $this->capturedLogBodies());
+            $this->assertSame(['first.metric'], $this->capturedMetricNames());
+        } finally {
+            // Release both children even after a failed assertion. Any earlier release has already been consumed, so neither push blocks.
+            $releaseFirst->push(true);
+            $releaseSecond->push(true);
+            Coroutine::join([$firstCoroutineId, $secondCoroutineId]);
+        }
 
         $this->assertSame(['first log', 'second log'], $this->capturedLogBodies());
         $this->assertSame(['first.metric', 'second.metric'], $this->capturedMetricNames());

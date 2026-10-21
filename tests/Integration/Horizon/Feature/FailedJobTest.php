@@ -8,13 +8,14 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\FailingJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class FailedJobTest extends IntegrationTestCase
 {
-    public function testFailedJobsArePlacedInTheFailedJobTable()
+    public function testFailedJobsArePlacedInTheFailedJobTable(): void
     {
-        $id = Queue::push(new Jobs\FailingJob);
+        $id = Queue::push(new FailingJob);
         $this->work();
         $this->assertSame(1, $this->failedJobs());
         $this->assertGreaterThan(0, Redis::connection('horizon')->ttl($id));
@@ -25,20 +26,20 @@ class FailedJobTest extends IntegrationTestCase
         $this->assertTrue(isset($job->failed_at));
         $this->assertSame('failed', $job->status);
         $this->assertIsNumeric($job->failed_at);
-        $this->assertSame(Jobs\FailingJob::class, $job->name);
+        $this->assertSame(FailingJob::class, $job->name);
     }
 
-    public function testTagsForFailedJobsAreStoredInRedis()
+    public function testTagsForFailedJobsAreStoredInRedis(): void
     {
-        $id = Queue::push(new Jobs\FailingJob);
+        $id = Queue::push(new FailingJob);
         $this->work();
         $ids = resolve(TagRepository::class)->jobs('failed:first');
         $this->assertEquals([$id], $ids);
     }
 
-    public function testFailedJobTagsHaveAnExpiration()
+    public function testFailedJobTagsHaveAnExpiration(): void
     {
-        Queue::push(new Jobs\FailingJob);
+        Queue::push(new FailingJob);
         $this->work();
         $ttl = Redis::connection('horizon')->pttl('failed:first');
         $this->assertNotNull($ttl);

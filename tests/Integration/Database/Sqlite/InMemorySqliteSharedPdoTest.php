@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
-use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Engine\Channel;
@@ -45,8 +44,6 @@ class InMemorySqliteSharedPdoTest extends TestCase
     protected function configureInMemoryDatabase(): void
     {
         $config = $this->app->make('config');
-
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
 
         $connectionConfig = [
             'driver' => 'sqlite',
@@ -154,7 +151,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection [uri_read_memory_test::read] cannot use a derived read pool for in-memory SQLite.'
         );
 

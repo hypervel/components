@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Signal;
 
-use Closure;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\Waiter;
-use Hypervel\Engine\Coroutine as EngineCoroutine;
-use Hypervel\Engine\Signal as EngineSignal;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Support\SplPriorityQueue;
 use InvalidArgumentException;
@@ -25,12 +22,7 @@ class SignalManager
 
     protected bool $stopped = false;
 
-    /**
-     * Coroutine IDs currently blocked in a cancellable native signal wait.
-     *
-     * @var array<int, true>
-     */
-    protected array $waiting = [];
+    protected SignalRegistry $registry;
 
     /**
      * Create a new signal manager instance.
@@ -39,13 +31,14 @@ class SignalManager
     {
         $this->config = $container->make(ConfigContract::class);
         $this->safeCaller = $container->make(SafeCaller::class);
+        $this->registry = $container->make(SignalRegistry::class);
     }
 
     /**
      * Start listening for signals for the given process type.
      *
-     * Boot-only. Call once for each process incarnation. Another call creates
-     * competing native waits and strands the earlier watcher for each signal.
+     * Boot-only. Call once for each process incarnation to avoid registering
+     * the configured handlers more than once.
      */
     public function listen(string $process): void
     {
@@ -63,48 +56,18 @@ class SignalManager
         }
 
         $signalHandlers = $this->resolveHandlers($process);
-        $coroutineIds = [];
-
         try {
             foreach ($signalHandlers as $signal => $handlers) {
-                Coroutine::createOwned(function () use ($signal, $handlers): void {
-                    $coroutineId = Coroutine::id();
-
-                    while (! $this->stopped) {
-                        $this->waiting[$coroutineId] = true;
-
-                        try {
-                            $received = EngineSignal::wait($signal);
-                        } finally {
-                            unset($this->waiting[$coroutineId]);
-                        }
-
-                        // An indefinite wait returns false only after an error or
-                        // non-exception cancellation; retrying could busy-spin.
-                        if (! $received) {
-                            break;
-                        }
-
-                        (new Waiter(-1))->wait(function () use ($handlers, $signal): void {
-                            foreach ($handlers as $handler) {
-                                $this->safeCaller->call(
-                                    fn () => $handler->handle($signal),
-                                );
-                            }
-                        });
+                $this->registry->register($this, $signal, function () use ($signal, $handlers): void {
+                    foreach ($handlers as $handler) {
+                        $this->safeCaller->call(
+                            fn () => $handler->handle($signal),
+                        );
                     }
-                }, function (Closure $run) use (&$coroutineIds): void {
-                    $coroutineIds[] = Coroutine::id();
-                    $run();
                 });
             }
         } catch (Throwable $exception) {
-            foreach ($coroutineIds as $coroutineId) {
-                EngineCoroutine::cancelById(
-                    $coroutineId,
-                    throwException: true,
-                );
-            }
+            $this->registry->unregister($this);
 
             throw $exception;
         }
@@ -114,8 +77,8 @@ class SignalManager
      * Stop listening for signals in this process.
      *
      * Parked native signal waits keep the Swoole reactor active. The deregister
-     * listener calls this at worker or server-process exit so the process can
-     * exit normally instead of waiting for forced termination.
+     * listener releases this manager's registrations at worker or server-process
+     * exit. A wait ends once all owners have released that signal.
      *
      * Stopping is terminal for the current process incarnation and prevents
      * subsequent signal listeners from starting.
@@ -124,12 +87,7 @@ class SignalManager
     {
         $this->stopped = true;
 
-        foreach (array_keys($this->waiting) as $coroutineId) {
-            EngineCoroutine::cancelById(
-                $coroutineId,
-                throwException: true,
-            );
-        }
+        $this->registry->unregister($this);
     }
 
     /**

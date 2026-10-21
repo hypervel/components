@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeSectionMissingTest extends AbstractBladeTestCase
 {
-    public function testSectionMissingStatementsAreCompiled()
+    public function testSectionMissingStatementsAreCompiled(): void
     {
         $string = '@sectionMissing("section")
 breeze

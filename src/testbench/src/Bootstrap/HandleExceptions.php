@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Bootstrap;
 
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Testbench\Foundation\Env;
 use Override;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 /**
  * @internal
@@ -17,6 +18,8 @@ use function Hypervel\Testbench\join_paths;
 final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExceptions
 {
     /**
+     * Report a deprecation to the "deprecations" logger.
+     *
      * @throws DeprecatedException
      */
     #[Override]
@@ -36,11 +39,12 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         }
     }
 
+    /**
+     * Ensure the "deprecations" logger is configured.
+     */
     #[Override]
-    protected function ensureDeprecationLoggerIsConfigured(): void
+    protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
-        $config = self::$app->make('config');
-
         if ($config->get('logging.channels.deprecations')) {
             return;
         }
@@ -65,6 +69,9 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         ]);
     }
 
+    /**
+     * Determine if deprecation errors should be ignored.
+     */
     #[Override]
     protected function shouldIgnoreDeprecationErrors(): bool
     {

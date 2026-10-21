@@ -27,7 +27,7 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class EventsTest extends TestCase
 {
-    public function testArtisanStartingCarriesApplication()
+    public function testArtisanStartingCarriesApplication(): void
     {
         $app = m::mock(Application::class);
 
@@ -36,7 +36,7 @@ class EventsTest extends TestCase
         $this->assertSame($app, $event->artisan);
     }
 
-    public function testCommandStartingCarriesData()
+    public function testCommandStartingCarriesData(): void
     {
         $input = new ArrayInput([]);
         $output = new NullOutput;
@@ -48,7 +48,7 @@ class EventsTest extends TestCase
         $this->assertSame($output, $event->output);
     }
 
-    public function testCommandFinishedCarriesData()
+    public function testCommandFinishedCarriesData(): void
     {
         $input = new ArrayInput([]);
         $output = new NullOutput;
@@ -61,7 +61,7 @@ class EventsTest extends TestCase
         $this->assertSame(0, $event->exitCode);
     }
 
-    public function testCommandFinishedCarriesNonZeroExitCode()
+    public function testCommandFinishedCarriesNonZeroExitCode(): void
     {
         $event = new CommandFinished('migrate', new ArrayInput([]), new NullOutput, 1);
 
@@ -79,7 +79,7 @@ class EventsTest extends TestCase
         $this->assertSame($input, $event->input);
     }
 
-    public function testAfterHandleCarriesCommand()
+    public function testAfterHandleCarriesCommand(): void
     {
         $command = m::mock(Command::class);
 
@@ -101,7 +101,7 @@ class EventsTest extends TestCase
         $this->assertSame(1, $event->exitCode);
     }
 
-    public function testScheduledTaskStartingCarriesTask()
+    public function testScheduledTaskStartingCarriesTask(): void
     {
         $task = new Event(m::mock(EventMutex::class), 'php foo');
 
@@ -110,7 +110,7 @@ class EventsTest extends TestCase
         $this->assertSame($task, $event->task);
     }
 
-    public function testScheduledTaskFinishedCarriesTaskAndRuntime()
+    public function testScheduledTaskFinishedCarriesTaskAndRuntime(): void
     {
         $task = new Event(m::mock(EventMutex::class), 'php foo');
 
@@ -120,7 +120,7 @@ class EventsTest extends TestCase
         $this->assertSame(1.23, $event->runtime);
     }
 
-    public function testScheduledTaskSkippedCarriesTask()
+    public function testScheduledTaskSkippedCarriesTask(): void
     {
         $task = new Event(m::mock(EventMutex::class), 'php foo');
 
@@ -129,7 +129,7 @@ class EventsTest extends TestCase
         $this->assertSame($task, $event->task);
     }
 
-    public function testScheduledTaskFailedCarriesTaskAndException()
+    public function testScheduledTaskFailedCarriesTaskAndException(): void
     {
         $task = new Event(m::mock(EventMutex::class), 'php foo');
         $exception = new RuntimeException('Task failed');
@@ -140,7 +140,7 @@ class EventsTest extends TestCase
         $this->assertSame($exception, $event->exception);
     }
 
-    public function testScheduledBackgroundTaskFinishedCarriesTask()
+    public function testScheduledBackgroundTaskFinishedCarriesTask(): void
     {
         $task = new Event(m::mock(EventMutex::class), 'php foo');
 

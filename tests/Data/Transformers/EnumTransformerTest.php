@@ -12,10 +12,7 @@ use Mockery as m;
 
 class EnumTransformerTest extends TestCase
 {
-    /**
-     * Test backed enums are transformed to their scalar values.
-     */
-    public function testTransformsBackedEnums(): void
+    public function testCanTransformEnums(): void
     {
         $transformer = new EnumTransformer;
         $property = m::mock(DataProperty::class);

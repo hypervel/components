@@ -12,7 +12,7 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\EnvironmentFile;
 use RuntimeException;
 
-use function Hypervel\Testbench\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 trait CopyTestbenchFiles
 {

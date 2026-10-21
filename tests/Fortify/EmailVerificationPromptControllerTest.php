@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Fortify\Contracts\VerifyEmailViewResponse;
-use Mockery as m;
+use Hypervel\Fortify\Fortify;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Workbench\App\Models\User;
+use Workbench\Database\Factories\UserFactory;
 
+#[WithMigration]
 class EmailVerificationPromptControllerTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function testTheEmailVerificationPromptViewIsReturned(): void
     {
-        $this->mock(VerifyEmailViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
+        Fortify::verifyEmailView(fn (): string => 'hello world');
 
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
+        $user = User::forceCreate(UserFactory::new()->unverified()->raw());
 
         $response = $this->actingAs($user)->get('/email/verify');
 
@@ -27,12 +29,7 @@ class EmailVerificationPromptControllerTest extends TestCase
 
     public function testUserIsRedirectHomeIfAlreadyVerified(): void
     {
-        $this->mock(VerifyEmailViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
-
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
+        $user = User::forceCreate(UserFactory::new()->raw());
 
         $response = $this->actingAs($user)->get('/email/verify');
 
@@ -41,12 +38,7 @@ class EmailVerificationPromptControllerTest extends TestCase
 
     public function testUserIsRedirectToIntendedUrlIfAlreadyVerified(): void
     {
-        $this->mock(VerifyEmailViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
-
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
+        $user = User::forceCreate(UserFactory::new()->raw());
 
         $response = $this->actingAs($user)
             ->withSession(['url.intended' => 'http://foo.com/bar'])

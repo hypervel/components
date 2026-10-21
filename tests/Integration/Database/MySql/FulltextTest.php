@@ -39,7 +39,7 @@ class FulltextTest extends MySqlTestCase
     }
 
     /** @link https://dev.mysql.com/doc/refman/8.0/en/fulltext-natural-language.html */
-    public function testWhereFulltext()
+    public function testWhereFulltext(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], 'database')->get();
 
@@ -49,7 +49,7 @@ class FulltextTest extends MySqlTestCase
     }
 
     /** @link https://dev.mysql.com/doc/refman/8.0/en/fulltext-boolean.html */
-    public function testWhereFulltextWithBooleanMode()
+    public function testWhereFulltextWithBooleanMode(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], '+MySQL -YourSQL', ['mode' => 'boolean'])->get();
 
@@ -57,7 +57,7 @@ class FulltextTest extends MySqlTestCase
     }
 
     /** @link https://dev.mysql.com/doc/refman/8.0/en/fulltext-query-expansion.html */
-    public function testWhereFulltextWithExpandedQuery()
+    public function testWhereFulltextWithExpandedQuery(): void
     {
         $articles = DB::table('articles')->whereFullText(['title', 'body'], 'database', ['expanded' => true])->get();
 

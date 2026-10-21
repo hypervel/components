@@ -28,7 +28,7 @@ class DatabaseEloquentMariaDbIntegrationTest extends MariaDbTestCase
         Schema::drop('database_eloquent_mariadb_integration_users');
     }
 
-    public function testCreateOrFirst()
+    public function testCreateOrFirst(): void
     {
         $user1 = DatabaseEloquentMariaDbIntegrationUser::createOrFirst(['email' => 'taylorotwell@gmail.com']);
 
@@ -61,7 +61,7 @@ class DatabaseEloquentMariaDbIntegrationTest extends MariaDbTestCase
         $this->assertSame('Nuno Maduro', $user4->name);
     }
 
-    public function testCreateOrFirstWithinTransaction()
+    public function testCreateOrFirstWithinTransaction(): void
     {
         $user1 = DatabaseEloquentMariaDbIntegrationUser::createOrFirst(['email' => 'taylor@laravel.com']);
 

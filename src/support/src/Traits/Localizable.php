@@ -6,11 +6,17 @@ namespace Hypervel\Support\Traits;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 
 trait Localizable
 {
     /**
      * Run the callback with the given locale.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function withLocale(?string $locale, Closure $callback): mixed
     {
@@ -18,7 +24,7 @@ trait Localizable
             return $callback();
         }
 
-        /** @var \Hypervel\Foundation\Application $app */
+        /** @var Application $app */
         $app = Container::getInstance();
 
         $original = $app->getLocale();

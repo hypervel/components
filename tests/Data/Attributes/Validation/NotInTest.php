@@ -91,10 +91,13 @@ class NotInExternalReference implements ExternalReference
 }
 
 /**
- * @implements Arrayable<array-key, mixed>
+ * @implements Arrayable<array<array-key, mixed>>
  */
 class NotInArrayable implements Arrayable
 {
+    /**
+     * Create an arrayable list of validation values.
+     */
     public function __construct(protected array $values)
     {
     }

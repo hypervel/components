@@ -8,6 +8,7 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Horizon\Contracts\LongWaitDetectedNotification;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Notifications\Messages\SlackAttachment;
 use Hypervel\Notifications\Messages\SlackMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
@@ -94,7 +95,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
             ->to(Horizon::$slackChannel)
             ->error()
             ->content($text)
-            ->attachment(function ($attachment) use ($title, $content) {
+            ->attachment(function (SlackAttachment $attachment) use ($title, $content): void {
                 $attachment->title($title)
                     ->content($content);
             });

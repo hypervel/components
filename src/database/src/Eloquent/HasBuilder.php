@@ -77,7 +77,7 @@ trait HasBuilder
      *
      * @return TBuilder
      */
-    public function newQueryWithoutScope(Scope|string $scope): Builder
+    public function newQueryWithoutScope(Scope|int|string $scope): Builder
     {
         return parent::newQueryWithoutScope($scope);
     }

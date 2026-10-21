@@ -9,9 +9,9 @@ use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 
-final class DefaultTeamResolver implements PermissionsTeamResolver
+class DefaultTeamResolver implements PermissionsTeamResolver
 {
-    public const string TEAM_ID_CONTEXT_KEY = '__permission.team_id';
+    protected const string TEAM_ID_CONTEXT_KEY = '__permission.team_id';
 
     /**
      * Set the current permissions team id.
@@ -36,13 +36,5 @@ final class DefaultTeamResolver implements PermissionsTeamResolver
     public function getPermissionsTeamId(): int|string|null
     {
         return CoroutineContext::get(self::TEAM_ID_CONTEXT_KEY);
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        CoroutineContext::forget(self::TEAM_ID_CONTEXT_KEY);
     }
 }

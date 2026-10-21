@@ -6,6 +6,7 @@ namespace Hypervel\Coordinator;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
@@ -35,11 +36,14 @@ class Timer
 
     private static int $round = 0;
 
+    private readonly Waiter $waiter;
+
     /**
      * Create a new timer instance.
      */
     public function __construct(private ?LoggerInterface $logger = null)
     {
+        $this->waiter = new Waiter(-1);
     }
 
     /**
@@ -81,7 +85,7 @@ class Timer
         };
 
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            FrameworkCoroutine::createOwned($callable, $wrapper, detached: true);
         } catch (Throwable $exception) {
             $this->clear($id);
 
@@ -124,7 +128,15 @@ class Timer
                     $result = null;
 
                     try {
-                        $result = $closure($isClosing);
+                        // Finish each callback's deferred cleanup before starting the next tick.
+                        $result = $this->waiter->wait(static function () use ($closure, $isClosing): mixed {
+                            try {
+                                return $closure($isClosing);
+                            } catch (CanceledException) {
+                                // Waiter reports a canceled child as a failure; a canceled callback stops the timer instead.
+                                return self::STOP;
+                            }
+                        });
                     } catch (CanceledException) {
                         break;
                     } catch (Throwable $exception) {
@@ -157,7 +169,7 @@ class Timer
         };
 
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            FrameworkCoroutine::createOwned($callable, $wrapper, detached: true);
         } catch (Throwable $exception) {
             $this->clear($id);
 

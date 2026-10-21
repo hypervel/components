@@ -4,19 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation;
 
+use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\CacheBasedMaintenanceMode;
 use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
+use Hypervel\Foundation\FileBasedMaintenanceMode;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -27,9 +33,12 @@ use Throwable;
 
 class MaintenanceModeTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
-        $this->beforeApplicationDestroyed(function () {
+        $this->beforeApplicationDestroyed(function (): void {
             @unlink(storage_path('framework/down'));
             @unlink(resource_path('views/errors/503.blade.php'));
         });
@@ -37,6 +46,9 @@ class MaintenanceModeTest extends TestCase
         parent::setUp();
     }
 
+    /**
+     * Tear down the test environment.
+     */
     protected function tearDown(): void
     {
         FailingReloadDownCommand::$reloadAttempted = false;
@@ -47,14 +59,14 @@ class MaintenanceModeTest extends TestCase
         parent::tearDown();
     }
 
-    public function testBasicMaintenanceModeResponse()
+    public function testBasicMaintenanceModeResponse(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
             'refresh' => 60,
         ]));
 
-        Route::get('/foo', function () {
+        Route::get('/foo', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -65,14 +77,54 @@ class MaintenanceModeTest extends TestCase
         $response->assertHeader('Refresh', '60');
     }
 
+    public function testCacheMaintenanceModeAllowsRequestWhenDeactivatedWhileReadingPayload(): void
+    {
+        $cache = m::mock(Factory::class, Repository::class);
+        $cache->shouldReceive('store')->with('maintenance')->andReturnSelf();
+        $cache->shouldReceive('has')->with('framework:down')->andReturn(true, false);
+        $cache->shouldReceive('get')->once()->with('framework:down')->andReturnNull();
+
+        $this->app->instance(MaintenanceModeContract::class, new CacheBasedMaintenanceMode(
+            $cache,
+            'maintenance',
+            'framework:down'
+        ));
+
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $this->get('/foo')
+            ->assertOk()
+            ->assertSeeText('Hello World');
+    }
+
+    public function testActiveCacheMaintenanceModeWithAnEmptyPayloadBlocksRequests(): void
+    {
+        $cache = m::mock(Factory::class, Repository::class);
+        $cache->shouldReceive('store')->with('maintenance')->andReturnSelf();
+        $cache->shouldReceive('has')->with('framework:down')->andReturnTrue();
+        $cache->shouldReceive('get')->once()->with('framework:down')->andReturn([]);
+
+        $this->app->instance(MaintenanceModeContract::class, new CacheBasedMaintenanceMode(
+            $cache,
+            'maintenance',
+            'framework:down'
+        ));
+
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $this->get('/foo')->assertServiceUnavailable();
+    }
+
     public function testConcurrentMaintenanceFileRemovalAllowsTheRequestToProceed(): void
     {
-        $mode = m::mock(MaintenanceModeContract::class);
-        $mode->shouldReceive('active')->twice()->andReturnTrue();
-        $mode->shouldReceive('data')->twice()->andThrow(new FileNotFoundException('removed'));
-        $this->app->instance(MaintenanceModeContract::class, $mode);
+        $path = storage_path('framework/down');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->with($path)->andReturn(true, false);
+        $files->shouldReceive('get')->once()->with($path)
+            ->andThrow(new FileNotFoundException('removed'));
+        $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
 
-        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
         $response = $this->get('/foo');
 
@@ -80,14 +132,36 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame('Hello World', $response->original);
     }
 
-    public function testMaintenanceModeCanHaveCustomStatus()
+    public function testUnreadableMaintenanceFileDoesNotAllowTheRequestToProceed(): void
+    {
+        $this->withoutExceptionHandling();
+
+        $path = storage_path('framework/down');
+        $exception = new FileNotFoundException('unreadable');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->with($path)->andReturnTrue();
+        $files->shouldReceive('get')->once()->with($path)->andThrow($exception);
+        $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
+
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        try {
+            $this->get('/foo');
+
+            $this->fail('Expected the read failure to be rethrown.');
+        } catch (FileNotFoundException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testMaintenanceModeCanHaveCustomStatus(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
             'status' => 200,
         ]));
 
-        Route::get('/foo', function () {
+        Route::get('/foo', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -97,14 +171,14 @@ class MaintenanceModeTest extends TestCase
         $response->assertHeader('Retry-After', '60');
     }
 
-    public function testMaintenanceModeCanHaveCustomTemplate()
+    public function testMaintenanceModeCanHaveCustomTemplate(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
             'template' => 'Rendered Content',
         ]));
 
-        Route::get('/foo', function () {
+        Route::get('/foo', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -123,7 +197,7 @@ class MaintenanceModeTest extends TestCase
             'template' => 'Rendered Content',
         ]));
 
-        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
         $response = $this->getJson('/foo');
 
@@ -141,7 +215,7 @@ class MaintenanceModeTest extends TestCase
             'redirect' => '/maintenance',
         ]));
 
-        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
         $response = $this->getJson('/foo');
 
@@ -151,7 +225,9 @@ class MaintenanceModeTest extends TestCase
         $response->assertJson(['message' => 'Service Unavailable']);
     }
 
-    public function testDownCommandPrerendersTemplateIntoMaintenancePayload()
+    // REMOVED: The maintenance.php stub test; requests reach the already-booted worker's middleware.
+
+    public function testDownCommandPrerendersTemplateIntoMaintenancePayload(): void
     {
         file_put_contents(resource_path('views/errors/503.blade.php'), 'Rendered {{ $retryAfter }}');
 
@@ -175,7 +251,7 @@ class MaintenanceModeTest extends TestCase
             ->assertExitCode(0);
     }
 
-    public function testMaintenanceModeCanRedirectWithBypassCookie()
+    public function testMaintenanceModeCanRedirectWithBypassCookie(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
@@ -183,7 +259,7 @@ class MaintenanceModeTest extends TestCase
             'template' => 'Rendered Content',
         ]));
 
-        Route::get('/foo', function () {
+        Route::get('/foo', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -193,7 +269,7 @@ class MaintenanceModeTest extends TestCase
         $response->assertCookie('hypervel_maintenance');
     }
 
-    public function testMaintenanceModeCanBeBypassedWithValidCookie()
+    public function testMaintenanceModeCanBeBypassedWithValidCookie(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
@@ -202,7 +278,7 @@ class MaintenanceModeTest extends TestCase
 
         $cookie = MaintenanceModeBypassCookie::create('foo');
 
-        Route::get('/test', function () {
+        Route::get('/test', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -214,7 +290,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame('Hello World', $response->original);
     }
 
-    public function testMaintenanceModeCanBeBypassedOnExcludedUrls()
+    public function testMaintenanceModeCanBeBypassedOnExcludedUrls(): void
     {
         $this->app->instance(PreventRequestsDuringMaintenance::class, new class($this->app) extends PreventRequestsDuringMaintenance {
             protected array $except = ['/test'];
@@ -224,7 +300,7 @@ class MaintenanceModeTest extends TestCase
             'retry' => 60,
         ]));
 
-        Route::get('/test', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+        Route::get('/test', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
         $response = $this->get('/test');
 
@@ -232,7 +308,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame('Hello World', $response->original);
     }
 
-    public function testMaintenanceModeCantBeBypassedWithInvalidCookie()
+    public function testMaintenanceModeCantBeBypassedWithInvalidCookie(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
@@ -241,7 +317,7 @@ class MaintenanceModeTest extends TestCase
 
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
-        Route::get('/test', function () {
+        Route::get('/test', function (): string {
             return 'Hello World';
         })->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -250,6 +326,19 @@ class MaintenanceModeTest extends TestCase
         ])->get('/test');
 
         $response->assertStatus(503);
+    }
+
+    public function testArrayBypassCookieDoesNotCauseAnError(): void
+    {
+        Exceptions::fake();
+        file_put_contents(storage_path('framework/down'), json_encode(['secret' => 'foo']));
+        Route::get('/test', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $this->withUnencryptedCookies(['hypervel_maintenance' => ['x' => '1']])
+            ->get('/test')
+            ->assertServiceUnavailable();
+
+        Exceptions::assertNothingReported();
     }
 
     public function testCanCreateBypassCookies(): void
@@ -266,7 +355,16 @@ class MaintenanceModeTest extends TestCase
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
     }
 
-    public function testDispatchEventWhenMaintenanceModeIsEnabled()
+    public function testBypassCookieWithMalformedMacIsInvalid(): void
+    {
+        foreach ([['mac' => []], ['mac' => ['nested']], ['expires_at' => 9999999999]] as $payload) {
+            $cookie = base64_encode(json_encode(array_merge(['expires_at' => 9999999999], $payload)));
+
+            $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie, 'test-key'));
+        }
+    }
+
+    public function testDispatchEventWhenMaintenanceModeIsEnabled(): void
     {
         Event::fake();
 
@@ -275,7 +373,7 @@ class MaintenanceModeTest extends TestCase
         Event::assertDispatched(MaintenanceModeEnabled::class);
     }
 
-    public function testDispatchEventWhenMaintenanceModeIsDisabled()
+    public function testDispatchEventWhenMaintenanceModeIsDisabled(): void
     {
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => 60,
@@ -323,11 +421,11 @@ class MaintenanceModeTest extends TestCase
         $this->app->make(KernelContract::class)->registerCommand($command);
         $this->app->make('events')->listen(
             MaintenanceModeEnabled::class,
-            static fn () => throw $eventException,
+            static fn (): never => throw $eventException,
         );
 
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($eventException)->andThrow($reportException);
+        $handler->shouldReceive('report')->once()->with($eventException, [])->andThrow($reportException);
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(FailingReloadDownCommand::class)
@@ -364,7 +462,7 @@ class MaintenanceModeTest extends TestCase
         $this->app->make(KernelContract::class)->registerCommand($command);
         $this->app->make('events')->listen(
             MaintenanceModeDisabled::class,
-            static fn () => throw $eventException,
+            static fn (): never => throw $eventException,
         );
 
         $this->artisan(FailingReloadUpCommand::class)
@@ -395,10 +493,15 @@ class MaintenanceModeTest extends TestCase
     {
         file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
 
+        $exception = new RuntimeException('deactivation failed');
         $mode = m::mock(MaintenanceModeContract::class);
         $mode->shouldReceive('active')->once()->andReturnTrue();
-        $mode->shouldReceive('deactivate')->once()->andThrow(new RuntimeException('deactivation failed'));
+        $mode->shouldReceive('deactivate')->once()->andThrow($exception);
         $this->app->instance(MaintenanceModeContract::class, $mode);
+
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($exception, []);
+        $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(UpCommand::class)
             ->expectsOutputToContain('Failed to disable maintenance mode: deactivation failed.')
@@ -419,10 +522,11 @@ class MaintenanceModeTest extends TestCase
 
         $expectedDate = CarbonImmutable::parse($datetime)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
-
-        CarbonImmutable::setTestNow();
     }
 
+    /**
+     * Get the supported retry date formats.
+     */
     public static function retryAfterDatetimeProvider(): array
     {
         return [
@@ -450,7 +554,7 @@ class MaintenanceModeTest extends TestCase
             'retry' => $expectedHeader,
         ]));
 
-        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
         $response = $this->get('/foo');
 
@@ -494,7 +598,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame(120, $data['retry']);
     }
 
-    public function testMaintenanceModeRespectsBootstrapConfiguredExcludedPaths()
+    public function testMaintenanceModeRespectsBootstrapConfiguredExcludedPaths(): void
     {
         PreventRequestsDuringMaintenance::except([
             '/api/*',
@@ -517,6 +621,9 @@ class FailingReloadDownCommand extends DownCommand
 
     public static ?Throwable $reloadFailure = null;
 
+    /**
+     * Simulate a worker reload failure.
+     */
     protected function reloadWorkers(): void
     {
         static::$reloadAttempted = true;
@@ -533,6 +640,9 @@ class FailingReloadUpCommand extends UpCommand
 
     public static ?Throwable $reloadFailure = null;
 
+    /**
+     * Simulate a worker reload failure.
+     */
     protected function reloadWorkers(): void
     {
         static::$reloadAttempted = true;

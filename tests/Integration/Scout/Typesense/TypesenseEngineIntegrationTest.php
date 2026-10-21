@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Builder;
+use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
-use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
+use Hypervel\Scout\Searchable;
+use Hypervel\Tests\Integration\Scout\Typesense\Fixtures\Models\TypesenseSearchableModel;
 
 /**
  * Integration tests for TypesenseEngine core operations.
@@ -227,6 +231,167 @@ class TypesenseEngineIntegrationTest extends TypesenseScoutIntegrationTestCase
         $this->typesense->collections[$model->indexableAs()]
             ->documents[(string) $model->getScoutKey()]
             ->retrieve();
+    }
+
+    public function testItCanUseUserProvidedEmbeddingsForSemanticSearch(): void
+    {
+        $model = new TypesenseEmbeddingModel;
+        $dimensions = 384;
+
+        config()->set('scout.typesense.model-settings.' . TypesenseEmbeddingModel::class, [
+            'collection-schema' => [
+                'fields' => [
+                    ['name' => 'id', 'type' => 'string'],
+                    ['name' => 'name', 'type' => 'string'],
+                    ['name' => 'embedding', 'type' => 'float[]', 'num_dim' => $dimensions],
+                ],
+            ],
+            'search-parameters' => [
+                'query_by' => 'name',
+            ],
+        ]);
+
+        $engine = new TypesenseEngine($this->typesense, 1000, [
+            'model-settings' => [
+                TypesenseEmbeddingModel::class => [
+                    'embedding' => [
+                        'attribute' => 'embedding',
+                        'dimensions' => $dimensions,
+                    ],
+                ],
+            ],
+        ]);
+
+        $catVector = array_fill(0, $dimensions, 0.001953125);
+        $catVector[0] = 1.0;
+
+        $rocketVector = array_fill(0, $dimensions, 0.001953125);
+        $rocketVector[$dimensions - 1] = 1.0;
+
+        $cat = new TypesenseEmbeddingModel(['id' => 1, 'name' => 'A sleeping cat']);
+        $cat->setAttribute('embedding', $catVector);
+
+        $rocket = new TypesenseEmbeddingModel(['id' => 2, 'name' => 'A rocket launch']);
+        $rocket->setAttribute('embedding', $rocketVector);
+
+        $engine->update($model->newCollection([$cat, $rocket]));
+
+        // The serialized query vector exceeds Typesense's 4,000 character query string limit.
+        $this->assertGreaterThan(4000, strlen(implode(', ', $catVector)));
+
+        $results = $engine->search(
+            (new Builder($model, 'a relaxed pet'))
+                ->options(['vector' => $catVector])
+                ->semantic()
+        );
+
+        $this->assertSame('1', $results['hits'][0]['document']['id']);
+
+        $results = $engine->search(
+            (new Builder($model, 'rocket'))
+                ->options(['vector' => $rocketVector])
+                ->hybrid()
+        );
+
+        $this->assertSame('2', $results['hits'][0]['document']['id']);
+    }
+
+    public function testItCreatesMissingCollectionsUsingTheIndexableName(): void
+    {
+        $model = new TypesenseVersionedModel;
+
+        config()->set('scout.typesense.model-settings.' . TypesenseVersionedModel::class, [
+            'collection-schema' => [
+                'fields' => [
+                    ['name' => 'id', 'type' => 'string'],
+                    ['name' => 'name', 'type' => 'string'],
+                ],
+            ],
+        ]);
+
+        $engine = new TypesenseEngine($this->typesense, 1000);
+
+        $engine->update($model->newCollection([
+            new TypesenseVersionedModel(['id' => 1, 'name' => 'Hypervel Scout']),
+            new TypesenseVersionedModel(['id' => 2, 'name' => 'Hypervel Framework']),
+        ]));
+
+        $this->assertSame(2, $this->typesense->collections[$model->indexableAs()]->retrieve()['num_documents']);
+        $this->assertFalse(rescue(fn () => $this->typesense->collections[$model->searchableAs()]->retrieve(), false, false));
+    }
+}
+
+class TypesenseEmbeddingModel extends Model
+{
+    use Searchable;
+
+    protected array $fillable = ['id', 'name'];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the index name for the model when searching.
+     */
+    public function searchableAs(): string
+    {
+        return config()->string('scout.prefix') . 'semantic';
+    }
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (string) $this->id,
+            'name' => $this->name,
+        ];
+    }
+
+    /**
+     * Get the precomputed vector to index.
+     *
+     * @return array<int, float|int>
+     */
+    public function toSearchableEmbedding(): array
+    {
+        return $this->embedding;
+    }
+}
+
+class TypesenseVersionedModel extends Model
+{
+    use Searchable;
+
+    protected array $fillable = ['id', 'name'];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the index name for the model when searching.
+     */
+    public function searchableAs(): string
+    {
+        return config()->string('scout.prefix') . 'versioned';
+    }
+
+    /**
+     * Get the index name for the model when indexing.
+     */
+    public function indexableAs(): string
+    {
+        return $this->searchableAs() . '_v2';
+    }
+
+    /**
+     * Get the indexable data array for the model.
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => (string) $this->id,
+            'name' => $this->name,
+        ];
     }
 }
 

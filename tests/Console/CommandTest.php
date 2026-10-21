@@ -14,20 +14,21 @@ use Hypervel\Console\CommandInput;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
-use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Console\Commands\DefaultSwooleFlagsCommand;
-use Hypervel\Tests\Console\Commands\FooCommand;
-use Hypervel\Tests\Console\Commands\FooExceptionCommand;
-use Hypervel\Tests\Console\Commands\FooExitCommand;
-use Hypervel\Tests\Console\Commands\FooProhibitableCommand;
-use Hypervel\Tests\Console\Commands\FooTraitCommand;
-use Hypervel\Tests\Console\Commands\SwooleFlagsCommand;
-use Hypervel\Tests\Console\Commands\Traits\Foo;
+use Hypervel\Tests\Console\Fixtures\Commands\DefaultSwooleFlagsCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\FooCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\FooExceptionCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\FooExitCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\FooProhibitableCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\FooTraitCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\SwooleFlagsCommand;
+use Hypervel\Tests\Console\Fixtures\Commands\Traits\Foo;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
@@ -46,7 +47,7 @@ enum CommandInputType: string
 
 class CommandTest extends TestCase
 {
-    public function testHookFlags()
+    public function testHookFlags(): void
     {
         $command = new DefaultSwooleFlagsCommand('test:demo');
         $this->assertSame(SWOOLE_HOOK_ALL, $command->getHookFlags());
@@ -55,7 +56,7 @@ class CommandTest extends TestCase
         $this->assertSame(SWOOLE_HOOK_ALL | SWOOLE_HOOK_CURL, $command->getHookFlags());
     }
 
-    public function testExceptionPropagatesFromExecute()
+    public function testExceptionPropagatesFromExecute(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -73,7 +74,7 @@ class CommandTest extends TestCase
         $command->execute($input, $output);
     }
 
-    public function testExitCodeFromExitExceptionAndNormalCommand()
+    public function testExitCodeFromExitExceptionAndNormalCommand(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -100,7 +101,7 @@ class CommandTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
-    public function testSetUpTraits()
+    public function testSetUpTraits(): void
     {
         $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
         $application = m::mock(ConsoleApplication::class);
@@ -117,11 +118,11 @@ class CommandTest extends TestCase
 
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
-        $registry = m::mock(SignalRegistry::class);
-        $registry->shouldReceive('register')->once()->with(SIGTERM, m::type('callable'));
-        $registry->shouldReceive('unregister')->once()->with(null);
-
         $command = new CommandTestFailingTraitSetupCommand;
+        $registry = m::mock(SignalRegistry::class);
+        $registry->expects('register')->with($command, SIGTERM, m::type('callable'));
+        $registry->expects('unregister')->with($command, null);
+
         $command->setHypervel($this->app);
         $command->setSignalRegistryForTest($registry);
 
@@ -133,12 +134,12 @@ class CommandTest extends TestCase
         }
     }
 
-    public function testExceptionPropagatesFromExecuteInCoroutine()
+    public function testExceptionPropagatesFromExecuteInCoroutine(): void
     {
         $this->testExceptionPropagatesFromExecute();
     }
 
-    public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine()
+    public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine(): void
     {
         $this->testExitCodeFromExitExceptionAndNormalCommand();
     }
@@ -230,7 +231,7 @@ class CommandTest extends TestCase
         $this->assertSame($throwingInput, $events[4]->input);
     }
 
-    public function testProhibitableCommand()
+    public function testProhibitableCommand(): void
     {
         $application = m::mock(ConsoleApplication::class);
         $application->shouldReceive('getHelperSet');
@@ -268,7 +269,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Command failed manually.');
+        $this->expectExceptionMessageIs('Command failed manually.');
 
         $command->fail(null);
     }
@@ -278,7 +279,7 @@ class CommandTest extends TestCase
         $command = new CommandTestStubCommand;
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Custom failure message');
+        $this->expectExceptionMessageIs('Custom failure message');
 
         $command->fail('Custom failure message');
     }
@@ -289,7 +290,7 @@ class CommandTest extends TestCase
         $exception = new RuntimeException('Original exception');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Original exception');
+        $this->expectExceptionMessageIs('Original exception');
 
         $command->fail($exception);
     }
@@ -300,44 +301,49 @@ class CommandTest extends TestCase
         $exception = new ManuallyFailedException('Pre-created failure');
 
         $this->expectException(ManuallyFailedException::class);
-        $this->expectExceptionMessage('Pre-created failure');
+        $this->expectExceptionMessageIs('Pre-created failure');
 
         $command->fail($exception);
     }
 
-    public function testCallingClassCommandResolveCommandViaApplicationResolution()
+    public function testCallingClassCommandResolveCommandViaApplicationResolution(): void
     {
         $command = new class extends Command {
-            public function handle()
+            /**
+             * Execute the command.
+             */
+            public function handle(): void
             {
             }
         };
 
-        $app = m::mock(\Hypervel\Contracts\Foundation\Application::class);
-        $command->setHypervel($app);
+        $application = m::mock(Application::class);
+        $command->setHypervel($application);
 
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $app->shouldReceive('make')->with(OutputStyle::class, m::any())->andReturn($output);
-        $app->shouldReceive('make')->with(Factory::class, m::any())->andReturn(m::mock(Factory::class));
-        $app->shouldReceive('bound')->andReturn(false);
+        $input = new ArrayInput([]);
+        $output = new NullOutput;
+        $outputStyle = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->andReturn($outputStyle);
+        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(m::mock(Factory::class));
+        $application->shouldReceive('bound')->andReturn(false);
 
-        $app->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $app) {
+        $application->expects('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $application): void {
             $commandCalled = m::mock(Command::class);
 
-            $app->shouldReceive('make')->once()->with(Command::class)->andReturn($commandCalled);
+            $application->expects('make')->with(Command::class)->andReturn($commandCalled);
 
-            $commandCalled->shouldReceive('setApplication')->once()->with(null);
-            $commandCalled->shouldReceive('setHypervel')->once();
-            $commandCalled->shouldReceive('run')->once();
+            $commandCalled->expects('setApplication')->with(null);
+            $commandCalled->expects('setHypervel')->with($application);
+            $commandCalled->expects('run');
 
             $command->call(Command::class);
         });
-        $app->shouldReceive('runningUnitTests')->andReturn(true);
+        $application->shouldReceive('runningUnitTests')->andReturn(true);
 
-        $command->run(new ArrayInput([]), new NullOutput);
+        $command->run($input, $output);
     }
 
-    public function testGettingCommandArgumentsAndOptionsByClass()
+    public function testGettingCommandArgumentsAndOptionsByClass(): void
     {
         $command = new class extends Command {
             public function handle()
@@ -441,6 +447,7 @@ class CommandTest extends TestCase
         $this->assertSame('admin', (string) $commandInput->string('role'));
         $this->assertSame('admin', $commandInput->arguments()['role']);
         $this->assertSame('user', $commandInput->options()['role']);
+        $this->assertSame([], $commandInput->all([]));
     }
 
     public function testArgumentAndOptionGettersPreserveObjectValuesAndAggregateArrays(): void
@@ -480,11 +487,11 @@ class CommandTest extends TestCase
         $this->assertSame($optionDefault, $command->options()['context']);
     }
 
-    public function testTheInputSetterOverwrite()
+    public function testTheInputSetterOverwrite(): void
     {
         $input = m::mock(InputInterface::class);
-        $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
-        $input->shouldReceive('hasArgument')->once()->with('0')->andReturn(true);
+        $input->expects('hasArgument')->with('foo')->andReturn(false);
+        $input->expects('hasArgument')->with('0')->andReturn(true);
 
         $command = new CommandTestStubCommand;
         $command->setInput($input);
@@ -493,10 +500,10 @@ class CommandTest extends TestCase
         $this->assertTrue($command->hasArgument(0));
     }
 
-    public function testTheOutputSetterOverwrite()
+    public function testTheOutputSetterOverwrite(): void
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('writeln')->once()->withArgs(function (...$args) {
+        $output->expects('writeln')->withArgs(function (...$args) {
             return $args[0] === '<info>foo</info>';
         });
 
@@ -506,7 +513,7 @@ class CommandTest extends TestCase
         $command->info('foo');
     }
 
-    public function testSetHidden()
+    public function testSetHidden(): void
     {
         $command = new class extends Command {
             public function parentIsHidden(): bool
@@ -524,7 +531,7 @@ class CommandTest extends TestCase
         $this->assertTrue($command->parentIsHidden());
     }
 
-    public function testHiddenProperty()
+    public function testHiddenProperty(): void
     {
         $command = new class extends Command {
             protected bool $hidden = true;
@@ -544,7 +551,7 @@ class CommandTest extends TestCase
         $this->assertFalse($command->parentIsHidden());
     }
 
-    public function testAliasesProperty()
+    public function testAliasesProperty(): void
     {
         $command = new class extends Command {
             protected ?string $name = 'foo:bar';
@@ -555,10 +562,10 @@ class CommandTest extends TestCase
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
     }
 
-    public function testChoiceIsSingleSelectByDefault()
+    public function testChoiceIsSingleSelectByDefault(): void
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === false;
         })->andReturn('yes');
 
@@ -568,10 +575,10 @@ class CommandTest extends TestCase
         $command->choice('Do you need further help?', ['yes', 'no']);
     }
 
-    public function testChoiceWithMultiselect()
+    public function testChoiceWithMultiselect(): void
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === true;
         })->andReturn(['option-1']);
 
@@ -581,9 +588,9 @@ class CommandTest extends TestCase
         $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
     }
 
-    public function testSignatureAttributeCanSetAliases()
+    public function testSignatureAttributeCanSetAliases(): void
     {
-        $command = new CommandTestSignatureWithAliasesCommand;
+        $command = new SignatureWithAliasesCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
@@ -591,7 +598,7 @@ class CommandTest extends TestCase
 
     public function testAliasesAttributeCanSetAliases(): void
     {
-        $command = new CommandTestAliasesAttributeCommand;
+        $command = new AliasesAttributeCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
@@ -599,7 +606,7 @@ class CommandTest extends TestCase
 
     public function testAliasesAttributeOverridesSignatureAliases(): void
     {
-        $command = new CommandTestAliasesAttributeOverridesSignatureCommand;
+        $command = new AliasesAttributeOverridesSignatureCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['override:alias'], $command->getAliases());
@@ -607,36 +614,36 @@ class CommandTest extends TestCase
 
     public function testHiddenAttributeHidesCommand(): void
     {
-        $command = new CommandTestHiddenCommand;
+        $command = new HiddenCommand;
 
         $this->assertTrue($command->isHidden());
     }
 
     public function testHelpAttributeCanSetHelp(): void
     {
-        $command = new CommandTestHelpCommand;
+        $command = new HelpCommand;
 
         $this->assertSame('Extended help text.', $command->getHelp());
     }
 
     public function testUsageAttributeCanSetUsages(): void
     {
-        $command = new CommandTestUsageCommand;
+        $command = new UsageCommand;
 
         $this->assertSame(['foo:bar 1', 'foo:bar 1 --force'], $command->getUsages());
     }
 
-    public function testCommandCanBeConstructedWithoutBootedApplication()
+    public function testCommandCanBeConstructedWithoutBootedApplication(): void
     {
         $command = new CommandTestStubCommand;
 
         $this->assertSame('test:stub', $command->getName());
     }
 
-    public function testAccessingApplicationBeforeInjectionThrows()
+    public function testAccessingApplicationBeforeInjectionThrows(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The Hypervel application instance has not been set on this command.');
+        $this->expectExceptionMessageIs('The Hypervel application instance has not been set on this command.');
 
         $command = new CommandTestStubCommand;
         $command->getHypervel();
@@ -654,26 +661,11 @@ class CommandTestStubCommand extends Command
 }
 
 #[Signature('foo:bar', aliases: ['bar:baz', 'baz:qux'])]
-class CommandTestSignatureWithAliasesCommand extends Command
+class SignatureWithAliasesCommand extends Command
 {
-    public function handle()
-    {
-    }
-}
-
-#[Signature('foo:bar')]
-#[Aliases(['bar:baz', 'baz:qux'])]
-class CommandTestAliasesAttributeCommand extends Command
-{
-    public function handle(): void
-    {
-    }
-}
-
-#[Signature('foo:bar', aliases: ['ignored:alias'])]
-#[Aliases(['override:alias'])]
-class CommandTestAliasesAttributeOverridesSignatureCommand extends Command
-{
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -681,8 +673,11 @@ class CommandTestAliasesAttributeOverridesSignatureCommand extends Command
 
 #[Signature('foo:bar')]
 #[Hidden]
-class CommandTestHiddenCommand extends Command
+class HiddenCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -690,8 +685,11 @@ class CommandTestHiddenCommand extends Command
 
 #[Signature('foo:bar')]
 #[Help('Extended help text.')]
-class CommandTestHelpCommand extends Command
+class HelpCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -700,8 +698,35 @@ class CommandTestHelpCommand extends Command
 #[Signature('foo:bar {user}')]
 #[Usage('foo:bar 1')]
 #[Usage('foo:bar 1 --force')]
-class CommandTestUsageCommand extends Command
+class UsageCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar')]
+#[Aliases(['bar:baz', 'baz:qux'])]
+class AliasesAttributeCommand extends Command
+{
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar', aliases: ['ignored:alias'])]
+#[Aliases(['override:alias'])]
+class AliasesAttributeOverridesSignatureCommand extends Command
+{
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -730,6 +755,9 @@ class CommandTestFailingTraitSetupCommand extends Command
 
     protected ?string $name = 'test:trait-setup-failure';
 
+    /**
+     * Set the signal registry used during trait setup.
+     */
     public function setSignalRegistryForTest(SignalRegistry $signalRegistry): void
     {
         $this->signalRegistry = $signalRegistry;

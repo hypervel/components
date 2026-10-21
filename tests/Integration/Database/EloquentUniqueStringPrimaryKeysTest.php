@@ -49,7 +49,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         });
     }
 
-    public function testModelWithUuidPrimaryKeyCanBeCreated()
+    public function testModelWithUuidPrimaryKeyCanBeCreated(): void
     {
         $user = ModelWithUuidPrimaryKey::create();
 
@@ -58,7 +58,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         $this->assertTrue(Str::isUuid($user->bar));
     }
 
-    public function testModelWithUlidPrimaryKeyCanBeCreated()
+    public function testModelWithUlidPrimaryKeyCanBeCreated(): void
     {
         $user = ModelWithUlidPrimaryKey::create();
 
@@ -67,23 +67,23 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         $this->assertTrue(Str::isUlid($user->bar));
     }
 
-    public function testModelWithoutUuidPrimaryKeyCanBeCreated()
+    public function testModelWithoutUuidPrimaryKeyCanBeCreated(): void
     {
         $user = ModelWithoutUuidPrimaryKey::create();
 
-        $this->assertTrue(is_int($user->id));
+        $this->assertIsInt($user->id);
         $this->assertTrue(Str::isUuid($user->foo));
         $this->assertTrue(Str::isUuid($user->bar));
     }
 
-    public function testModelWithCustomUuidPrimaryKeyNameCanBeCreated()
+    public function testModelWithCustomUuidPrimaryKeyNameCanBeCreated(): void
     {
         $user = ModelWithCustomUuidPrimaryKeyName::create();
 
         $this->assertTrue(Str::isUuid($user->uuid));
     }
 
-    public function testModelWithUuidPrimaryKeyCanBeCreatedQuietly()
+    public function testModelWithUuidPrimaryKeyCanBeCreatedQuietly(): void
     {
         $user = new ModelWithUuidPrimaryKey;
 
@@ -94,7 +94,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         $this->assertTrue(Str::isUuid($user->bar));
     }
 
-    public function testModelWithUlidPrimaryKeyCanBeCreatedQuietly()
+    public function testModelWithUlidPrimaryKeyCanBeCreatedQuietly(): void
     {
         $user = new ModelWithUlidPrimaryKey;
 
@@ -105,18 +105,18 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         $this->assertTrue(Str::isUlid($user->bar));
     }
 
-    public function testModelWithoutUuidPrimaryKeyCanBeCreatedQuietly()
+    public function testModelWithoutUuidPrimaryKeyCanBeCreatedQuietly(): void
     {
         $user = new ModelWithoutUuidPrimaryKey;
 
         $user->saveQuietly();
 
-        $this->assertTrue(is_int($user->id));
+        $this->assertIsInt($user->id);
         $this->assertTrue(Str::isUuid($user->foo));
         $this->assertTrue(Str::isUuid($user->bar));
     }
 
-    public function testModelWithCustomUuidPrimaryKeyNameCanBeCreatedQuietly()
+    public function testModelWithCustomUuidPrimaryKeyNameCanBeCreatedQuietly(): void
     {
         $user = new ModelWithCustomUuidPrimaryKeyName;
 
@@ -125,7 +125,7 @@ class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
         $this->assertTrue(Str::isUuid($user->uuid));
     }
 
-    public function testUpsertWithUuidPrimaryKey()
+    public function testUpsertWithUuidPrimaryKey(): void
     {
         ModelUpsertWithUuidPrimaryKey::create(['email' => 'foo', 'name' => 'bar']);
         ModelUpsertWithUuidPrimaryKey::create(['name' => 'bar1', 'email' => 'foo2']);

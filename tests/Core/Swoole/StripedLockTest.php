@@ -42,7 +42,7 @@ class StripedLockTest extends TestCase
         $locks->hold('key');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Timed out acquiring a Swoole striped lock.');
+        $this->expectExceptionMessageIs('Timed out acquiring a Swoole striped lock.');
 
         $locks->withLock('key', static fn (): bool => true);
     }

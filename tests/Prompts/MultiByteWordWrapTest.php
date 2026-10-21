@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Support\Utils;
-use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithAnsi;
 use Hypervel\Tests\TestCase;
 
 class MultiByteWordWrapTest extends TestCase
 {
-    public function testWillMatchWordwrap()
+    public function testWillMatchWordwrap(): void
     {
         $instance = $this->getInstance();
 
@@ -23,7 +23,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapOnShorterStrings()
+    public function testWillMatchWordwrapOnShorterStrings(): void
     {
         $instance = $this->getInstance();
 
@@ -36,7 +36,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapOnBlankLinesStrings()
+    public function testWillMatchWordwrapOnBlankLinesStrings(): void
     {
         $instance = $this->getInstance();
 
@@ -49,7 +49,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapWithCutLongWordsEnabled()
+    public function testWillMatchWordwrapWithCutLongWordsEnabled(): void
     {
         $instance = $this->getInstance();
 
@@ -62,7 +62,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapWithRandomMultipleSpaces()
+    public function testWillMatchWordwrapWithRandomMultipleSpaces(): void
     {
         $instance = $this->getInstance();
 
@@ -75,7 +75,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillMatchWordwrapWithCutLongWordsDisabled()
+    public function testWillMatchWordwrapWithCutLongWordsDisabled(): void
     {
         $instance = $this->getInstance();
 
@@ -88,7 +88,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($result, $mbResult);
     }
 
-    public function testWillWrapStringsWithMultiByteCharacters()
+    public function testWillWrapStringsWithMultiByteCharacters(): void
     {
         $instance = $this->getInstance();
 
@@ -113,7 +113,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($mbResult, $expectedResult);
     }
 
-    public function testWillWrapStringsWithEmojis()
+    public function testWillWrapStringsWithEmojis(): void
     {
         $instance = $this->getInstance();
 
@@ -141,7 +141,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($mbResult, $expectedResult);
     }
 
-    public function testWillWrapStringsWithEmojisAndMultiByteCharacters()
+    public function testWillWrapStringsWithEmojisAndMultiByteCharacters(): void
     {
         $instance = $this->getInstance();
 
@@ -173,7 +173,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($mbResult, $expectedResult);
     }
 
-    public function testWillWrapStringsWithCombinedEmojis()
+    public function testWillWrapStringsWithCombinedEmojis(): void
     {
         $instance = $this->getInstance();
 
@@ -202,7 +202,7 @@ class MultiByteWordWrapTest extends TestCase
         $this->assertSame($mbResult, $expectedResult);
     }
 
-    public function testWillHandleLongStringsWithCutLongWordsEnabled()
+    public function testWillHandleLongStringsWithCutLongWordsEnabled(): void
     {
         $instance = $this->getInstance();
 
@@ -288,7 +288,7 @@ class MultiByteWordWrapTest extends TestCase
     protected function getInstance()
     {
         return new class {
-            use InteractsWithStrings;
+            use InteractsWithAnsi;
 
             public function wordwrap(...$args)
             {

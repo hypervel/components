@@ -7,6 +7,7 @@ namespace Hypervel\Cache;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
@@ -27,9 +28,9 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Cache\Repository
- * @mixin \Hypervel\Contracts\Cache\LockProvider
- * @mixin \Hypervel\Cache\TaggableStore
+ * @mixin Repository
+ * @mixin LockProvider
+ * @mixin TaggableStore
  */
 class CacheManager implements FactoryContract
 {
@@ -178,6 +179,8 @@ class CacheManager implements FactoryContract
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
 
+    // REMOVED: createApcDriver(); Swoole tables provide local shared-memory caching.
+
     /**
      * Create an instance of the array cache driver.
      */
@@ -225,6 +228,8 @@ class CacheManager implements FactoryContract
         return $this->repository($store, $config);
     }
 
+    // REMOVED: createDynamodbDriver(); DynamoDB cache storage is unsupported.
+
     /**
      * Create an instance of the failover cache driver.
      */
@@ -267,6 +272,8 @@ class CacheManager implements FactoryContract
             serializableClassPolicy: $this->serializableClassPolicy,
         ), $config);
     }
+
+    // REMOVED: createMemcachedDriver(); Memcached cache storage is unsupported.
 
     /**
      * Create an instance of the Null cache driver.
@@ -416,8 +423,8 @@ class CacheManager implements FactoryContract
         return $config['prefix'] ?? $this->app->make('config')->string('cache.prefix');
     }
 
-    // REMOVED: Laravel's per-store getSerializableClasses() hook cannot represent
-    // Hypervel's shared worker-lifetime policy.
+    // REMOVED: getSerializableClasses(); stores share a worker-lifetime
+    // SerializableClassPolicy instead of copying its current class list.
 
     /**
      * Get the cache connection configuration.
@@ -500,8 +507,13 @@ class CacheManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent store resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {

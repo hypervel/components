@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\Schedule
+ * @mixin Schedule
  */
 class PendingEventAttributes
 {
@@ -90,10 +90,6 @@ class PendingEventAttributes
 
         if ($this->timezone !== null) {
             $event->timezone($this->timezone);
-        }
-
-        if ($this->user !== null) {
-            $event->user = $this->user;
         }
 
         if (! empty($this->environments)) {

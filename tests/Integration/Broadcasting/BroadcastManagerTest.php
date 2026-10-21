@@ -8,17 +8,20 @@ use Ably\AblyRest;
 use Exception;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\MercureBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\BroadcastPoolProxy;
 use Hypervel\Broadcasting\Channel;
+use Hypervel\Broadcasting\Mercure\Hub as MercureHub;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
@@ -34,20 +37,27 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Routing\Route;
+use Hypervel\Routing\RouteCollection;
+use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Pusher\Pusher;
 use RuntimeException;
+use stdClass;
+use Symfony\Component\Mercure\Exception\InvalidArgumentException as MercureInvalidArgumentException;
 
 class BroadcastManagerTest extends TestCase
 {
@@ -120,13 +130,57 @@ class BroadcastManagerTest extends TestCase
     public function testEventsCanBeBroadcastUsingQueueRoutes(): void
     {
         Bus::fake();
-        Queue::fake();
+        // QueueFake ignores connection names, so verify selection separately from its push assertions.
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('broadcast-connection')->andReturnSelf();
+        Queue::swap($queue);
 
         Queue::route(TestEvent::class, 'broadcast-queue', 'broadcast-connection');
 
         Broadcast::queue(new TestEvent);
         Bus::assertNotDispatched(BroadcastEvent::class);
-        Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
+        Queue::assertPushedOn('broadcast-queue', BroadcastEvent::class);
+    }
+
+    public function testEventsCanBeBroadcastWhenForwardingQueue(): void
+    {
+        Bus::fake();
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('broadcast-connection')->andReturnSelf();
+        Queue::swap($queue);
+
+        Queue::forward('broadcast-queue', 'events', 'broadcast-connection');
+
+        Broadcast::queue(new TestForwardedEvent);
+        Bus::assertNotDispatched(BroadcastEvent::class);
+        Queue::assertPushedOn('broadcast-queue', BroadcastEvent::class);
+    }
+
+    #[TestWith([null, 'cloud'])]
+    #[TestWith(['explicit', 'explicit'])]
+    public function testForwardedConnectionUsesTheBroadcastQueue(?string $connection, string $expectedConnection): void
+    {
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with($expectedConnection)->andReturnSelf();
+        Queue::swap($queue);
+        Queue::forward('broadcast-queue', 'unused', 'wrong-connection');
+        Queue::forward('updates', 'events', 'cloud');
+        $event = new class extends TestForwardedEvent {
+            public ?string $connection = null;
+
+            /**
+             * Select the queue used to broadcast this event.
+             */
+            public function broadcastQueue(): string
+            {
+                return 'updates';
+            }
+        };
+        $event->connection = $connection;
+
+        Broadcast::queue($event);
+
+        Queue::assertPushedOn('updates', BroadcastEvent::class);
     }
 
     public function testEventsCanBeRescued(): void
@@ -298,11 +352,10 @@ class BroadcastManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownStoreIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
+        $this->expectExceptionObject(new InvalidArgumentException('Broadcast connection [alien_connection] is not defined.'));
 
         $app = new Container;
-        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+        $app->singleton('config', fn (): Repository => new Repository([
             'broadcasting' => [
                 'connections' => [
                     'my_connection' => [
@@ -336,7 +389,6 @@ class BroadcastManagerTest extends TestCase
                 'connections' => [
                     'default' => ['driver' => 'null'],
                     'Primary' => ['driver' => 'null'],
-                    'primary' => ['driver' => 'null'],
                     '1' => ['driver' => 'null'],
                     '0' => ['driver' => 'null'],
                 ],
@@ -346,7 +398,6 @@ class BroadcastManagerTest extends TestCase
         $manager = new BroadcastManager($app);
 
         $this->assertSame($manager->connection(BroadcastUnitIdentifier::Primary), $manager->connection('Primary'));
-        $this->assertSame($manager->connection(BroadcastStringIdentifier::Primary), $manager->connection('primary'));
         $this->assertSame($manager->connection(BroadcastIntegerIdentifier::Primary), $manager->connection('1'));
         $zero = $manager->connection(BroadcastIntegerIdentifier::Zero);
         $this->assertSame($zero, $manager->connection('0'));
@@ -684,6 +735,29 @@ class BroadcastManagerTest extends TestCase
         $this->assertFalse($pools->has($identity));
     }
 
+    public function testPurgeAllowsMercurePoolReconfigurationAndClosesAnUncachedPool(): void
+    {
+        $app = $this->getApp(['broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
+            'driver' => 'mercure',
+            'pool' => ['max_objects' => 2],
+        ])]]]);
+        $manager = new BroadcastManager($app);
+        $hub = $manager->connection('mercure')->getHub();
+        $pools = $app->make(PoolFactory::class);
+        $pools->getOrCreate($hub->getDefinition(), static fn (): stdClass => new stdClass);
+
+        $app->make('config')->set('broadcasting.connections.mercure.pool.max_objects', 3);
+        $manager->purge('mercure');
+        $hub = $manager->connection('mercure')->getHub();
+        $pool = $pools->getOrCreate($hub->getDefinition(), static fn (): stdClass => new stdClass);
+        $this->assertSame(3, $pool->getOptions()->maxObjects);
+
+        $manager->forgetDrivers();
+        $this->assertTrue($pools->has($hub->getPoolName()));
+        $manager->purge('mercure');
+        $this->assertFalse($pools->has($hub->getPoolName()));
+    }
+
     public function testPooledConstructionFailureNamesTheDriverNotAConvergedConnection(): void
     {
         $connection = ['driver' => 'redis', 'connection' => 'default'];
@@ -702,7 +776,7 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame($first->getPoolName(), $second->getPoolName());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to create broadcaster for driver "redis" with error: Redis unavailable.');
+        $this->expectExceptionMessageIsOrContains('Failed to create broadcaster for driver "redis" with error: Redis unavailable.');
 
         $second->auth(Request::create('/broadcasting/auth', 'POST'));
     }
@@ -773,7 +847,7 @@ class BroadcastManagerTest extends TestCase
     public function testThrowExceptionWhenDriverCreationFails(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
+        $this->expectExceptionMessageIsOrContains('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
 
         $app = new Container;
         $app->singleton('config', fn () => new Repository([
@@ -789,6 +863,490 @@ class BroadcastManagerTest extends TestCase
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->connection('failing');
+    }
+
+    public function testBroadcastManagerCanResolveBackedEnumConnection(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => $driver);
+
+        $this->assertSame($driver, $manager->connection(BroadcastConnectionName::Log));
+        $this->assertSame($manager->connection('log'), $manager->connection(BroadcastConnectionName::Log));
+    }
+
+    public function testBroadcastManagerCanResolveBackedEnumDriver(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => $driver);
+
+        $this->assertSame($driver, $manager->driver(BroadcastConnectionName::Log));
+        $this->assertSame($manager->driver('log'), $manager->driver(BroadcastConnectionName::Log));
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'default' => 'null',
+                'connections' => [],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+        $manager->setDefaultDriver(BroadcastConnectionName::Log);
+
+        $this->assertSame('log', $app->make('config')->get('broadcasting.default'));
+    }
+
+    public function testPurgeAcceptsBackedEnum(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => m::mock(Broadcaster::class));
+
+        $instance1 = $manager->connection(BroadcastConnectionName::Log);
+        $manager->purge(BroadcastConnectionName::Log);
+        $instance2 = $manager->connection(BroadcastConnectionName::Log);
+
+        $this->assertNotSame($instance1, $instance2);
+    }
+
+    public function testMercureRequiresAUrl(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('"url"');
+
+        (new BroadcastManager($this->getApp([])))->mercure(['secret' => str_repeat('s', 32)]);
+    }
+
+    public function testMercureRequiresASecret(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('"secret"');
+
+        (new BroadcastManager($this->getApp([])))->mercure(['url' => 'https://hub.test/.well-known/mercure']);
+    }
+
+    public function testMercureRejectsAShortHmacSecret(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('at least 32 bytes');
+
+        (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['secret' => 'too-short']));
+    }
+
+    public function testMercureRejectsANegativePublishExpiration(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('publish_expiration');
+
+        (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => -1]));
+    }
+
+    public function testMercureRejectsAPublishExpirationTruncatingToZeroSeconds(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('publish_expiration');
+
+        (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => 0.01]));
+    }
+
+    public function testMercureAcceptsASubMinutePublishExpiration(): void
+    {
+        $hub = (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => 0.5]));
+
+        $claims = $this->decodeJwtClaims($hub->getProvider()->getJwt());
+
+        $this->assertEqualsWithDelta(30, $claims['exp'] - $claims['iat'], 1);
+    }
+
+    public function testMercureRejectsANonPositiveSubscribeExpiration(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig(['driver' => 'mercure', 'subscribe_expiration' => 0])]],
+        ]));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('subscribe_expiration');
+
+        $manager->connection('mercure');
+    }
+
+    public function testMercureRejectsASubscribeExpirationTruncatingToZeroSeconds(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig(['driver' => 'mercure', 'subscribe_expiration' => 0.01])]],
+        ]));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('subscribe_expiration');
+
+        $manager->connection('mercure');
+    }
+
+    public function testMercureAcceptsASubMinuteSubscribeExpiration(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig(['driver' => 'mercure', 'subscribe_expiration' => 0.5])]],
+        ]));
+
+        $this->assertInstanceOf(MercureBroadcaster::class, $manager->connection('mercure'));
+    }
+
+    public function testMercureRejectsAMalformedEncryptionKey(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig(['driver' => 'mercure', 'encryption_key' => 'not-a-valid-key'])]],
+        ]));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('encryption_key');
+
+        $manager->connection('mercure');
+    }
+
+    #[TestWith([null, 'http://localhost/.well-known/mercure'])]
+    #[TestWith(['__host-mercure', 'http://localhost/.well-known/mercure'])]
+    #[TestWith([null, 'HTTP://localhost/.well-known/mercure'])]
+    public function testMercureRejectsASecurePrefixedCookieOverAPlainHttpPublicUrl(?string $cookieName, string $publicUrl): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
+                'driver' => 'mercure',
+                'public_url' => $publicUrl,
+                'cookie_name' => $cookieName,
+            ])]],
+        ]));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('cookie_name');
+
+        $manager->connection('mercure');
+    }
+
+    #[TestWith(['mercureAuthorization'])]
+    #[TestWith(['__mercure'])]
+    public function testMercureAcceptsAPlainHttpPublicUrlWithAnUnprefixedCookieName(string $cookieName): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
+                'driver' => 'mercure',
+                'public_url' => 'http://localhost/.well-known/mercure',
+                'cookie_name' => $cookieName,
+            ])]],
+        ]));
+
+        $this->assertInstanceOf(MercureBroadcaster::class, $manager->connection('mercure'));
+    }
+
+    public function testMercureAcceptsABase64PrefixedEncryptionKey(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
+                'driver' => 'mercure',
+                'encryption_key' => 'base64:' . base64_encode(random_bytes(32)),
+            ])]],
+        ]));
+
+        $this->assertInstanceOf(MercureBroadcaster::class, $manager->connection('mercure'));
+    }
+
+    public function testMercureDefaultsTheRfc9068Claims(): void
+    {
+        $manager = new BroadcastManager($this->getApp(['app' => ['url' => 'https://app.test']]));
+
+        $hub = $manager->mercure($this->mercureConfig());
+
+        $claims = $this->decodeJwtClaims($hub->getFactory()->create());
+
+        $this->assertSame('https://app.test', $claims['iss']);
+        $this->assertSame('https://app.test', $claims['client_id']);
+        $this->assertSame('https://hub.test/.well-known/mercure', $claims['aud']);
+        $this->assertSame('anonymous', $claims['sub']);
+
+        $publishClaims = $this->decodeJwtClaims($hub->getProvider()->getJwt());
+
+        $this->assertSame('https://app.test', $publishClaims['iss']);
+        $this->assertSame('https://app.test', $publishClaims['client_id']);
+    }
+
+    public function testMercureExplicitClaimsWinOverTheDefaults(): void
+    {
+        $manager = new BroadcastManager($this->getApp(['app' => ['url' => 'https://app.test']]));
+
+        $hub = $manager->mercure($this->mercureConfig([
+            'claims' => ['iss' => 'https://issuer.test', 'aud' => 'https://audience.test', 'client_id' => 'my-app'],
+        ]));
+
+        $claims = $this->decodeJwtClaims($hub->getFactory()->create());
+
+        $this->assertSame('https://issuer.test', $claims['iss']);
+        $this->assertSame('https://audience.test', $claims['aud']);
+        $this->assertSame('my-app', $claims['client_id']);
+    }
+
+    public function testMercureSideSpecificSecretsTakePrecedence(): void
+    {
+        $manager = new BroadcastManager($this->getApp([]));
+
+        $hub = $manager->mercure($this->mercureConfig([
+            'subscribe_secret' => str_repeat('a', 32),
+            'publish_secret' => str_repeat('b', 32),
+        ]));
+
+        $this->assertJwtSignedWith($hub->getFactory()->create(), str_repeat('a', 32));
+        $this->assertJwtSignedWith($hub->getProvider()->getJwt(), str_repeat('b', 32));
+    }
+
+    // REMOVED: FrankenPHP's in-process hub, missing-URL fallback and mercure_publish fixture are unsupported on Swoole.
+    // The shared audience cases are retained against the remote hub below.
+
+    #[DataProvider('mercureAudienceProvider')]
+    public function testMercureAudience(string $appUrl, array $config, string|array $audience): void
+    {
+        $manager = new BroadcastManager($this->getApp(['app' => ['url' => $appUrl]]));
+        $hub = $manager->mercure($config + ['url' => '/.well-known/mercure', 'secret' => str_repeat('s', 32)]);
+
+        $claims = $this->decodeJwtClaims($hub->getFactory()->create());
+        $publishClaims = $this->decodeJwtClaims($hub->getProvider()->getJwt());
+
+        $this->assertSame($audience, $claims['aud']);
+        $this->assertSame($audience, $publishClaims['aud']);
+    }
+
+    public static function mercureAudienceProvider(): array
+    {
+        return [
+            'trailing slash' => [
+                'https://app.test/', [], 'https://app.test/.well-known/mercure',
+            ],
+            'application path' => [
+                'https://app.test/app/', [], 'https://app.test/.well-known/mercure',
+            ],
+            'application query and fragment' => [
+                'https://app.test/app/?source=test#section', [], 'https://app.test/.well-known/mercure',
+            ],
+            'non-default port' => [
+                'https://app.test:8443/app', [], 'https://app.test:8443/.well-known/mercure',
+            ],
+            'IPv6 host' => [
+                'https://[::1]:8443/app', [], 'https://[::1]:8443/.well-known/mercure',
+            ],
+            'plain HTTP' => [
+                'http://localhost:8080', [], 'http://localhost:8080/.well-known/mercure',
+            ],
+            'empty public URL' => [
+                'https://app.test', ['public_url' => ''], 'https://app.test/.well-known/mercure',
+            ],
+            'explicit public URL' => [
+                'https://app.test', ['public_url' => 'https://hub.test/events'], 'https://hub.test/events',
+            ],
+            'explicit audience' => [
+                'https://app.test', ['claims' => ['aud' => 'urn:mercure:hub']], 'urn:mercure:hub',
+            ],
+            'multiple explicit audiences' => [
+                'https://app.test',
+                ['claims' => ['aud' => ['https://hub.test/.well-known/mercure', 'urn:mercure:hub']]],
+                ['https://hub.test/.well-known/mercure', 'urn:mercure:hub'],
+            ],
+            'different issuer' => [
+                'https://app.test', ['claims' => ['iss' => 'https://issuer.test']], 'https://app.test/.well-known/mercure',
+            ],
+        ];
+    }
+
+    #[TestWith(['urn:mercure:one'])]
+    #[TestWith([['urn:mercure:one', 'urn:mercure:two']])]
+    public function testMercurePreservesOverriddenAudiences(string|array $audience): void
+    {
+        $manager = new class($this->getApp(['app' => ['url' => 'https://app.test']]), $audience) extends BroadcastManager {
+            /**
+             * Create a manager with application-specific audience claims.
+             */
+            public function __construct(ContainerContract $app, protected string|array $audience)
+            {
+                parent::__construct($app);
+            }
+
+            /**
+             * Supply the application's audience through the upstream extension point.
+             */
+            protected function mercureClaims(array $config): array
+            {
+                return ['aud' => $this->audience] + parent::mercureClaims($config);
+            }
+        };
+        $hub = $manager->mercure($this->mercureConfig(['url' => '/.well-known/mercure']));
+
+        $this->assertSame($audience, $this->decodeJwtClaims($hub->getFactory()->create())['aud']);
+        $this->assertSame($audience, $this->decodeJwtClaims($hub->getProvider()->getJwt())['aud']);
+    }
+
+    public function testMercureAcceptsAUrlGeneratorContractImplementation(): void
+    {
+        $application = $this->getApp([]);
+        $urls = m::mock(UrlGeneratorContract::class);
+        $urls->shouldReceive('to')->with('/.well-known/mercure')->andReturn('https://hub.test/events');
+        $application->instance('url', $urls);
+        $hub = (new BroadcastManager($application))->mercure($this->mercureConfig(['url' => '/.well-known/mercure']));
+
+        $this->assertSame('https://hub.test/events', $hub->getUrl());
+        $this->assertSame('https://hub.test/events', $hub->getPublicUrl());
+        $this->assertSame('https://hub.test/events', $this->decodeJwtClaims($hub->getFactory()->create())['aud']);
+        $this->assertSame('https://hub.test/events', $this->decodeJwtClaims($hub->getProvider()->getJwt())['aud']);
+    }
+
+    public function testExplicitMercureTokenAudienceDoesNotResolveTheDefaultUrl(): void
+    {
+        $application = $this->getApp([]);
+        $urls = m::mock(UrlGeneratorContract::class);
+        $urls->shouldNotReceive('to');
+        $application->instance('url', $urls);
+        $hub = (new BroadcastManager($application))->mercure($this->mercureConfig(['url' => '/.well-known/mercure']));
+
+        $claims = $this->decodeJwtClaims($hub->getFactory()->create([], ['aud' => 'urn:mercure:custom']));
+
+        $this->assertSame('urn:mercure:custom', $claims['aud']);
+    }
+
+    public function testRelativeMercureUrlsAndAudienceFollowTheCurrentOrigin(): void
+    {
+        $application = $this->getApp(['app' => ['url' => 'https://app.test']]);
+        $manager = new BroadcastManager($application);
+        $hub = $manager->mercure($this->mercureConfig(['url' => '/.well-known/mercure']));
+        $urls = $application->make('url');
+
+        foreach (['https://first.test', 'https://second.test'] as $origin) {
+            $urls->useOrigin($origin);
+            $this->assertSame($origin . '/.well-known/mercure', $hub->getUrl());
+            $this->assertSame($origin . '/.well-known/mercure', $hub->getPublicUrl());
+            $this->assertSame($origin . '/.well-known/mercure', $this->decodeJwtClaims($hub->getFactory()->create())['aud']);
+            $this->assertSame($origin . '/.well-known/mercure', $this->decodeJwtClaims($hub->getProvider()->getJwt())['aud']);
+        }
+    }
+
+    public function testRelativeMercureCookieSchemeIsValidatedDuringAuthorization(): void
+    {
+        $manager = new BroadcastManager($this->getApp([
+            'app' => ['url' => 'http://app.test'],
+            'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
+                'driver' => 'mercure', 'url' => '/.well-known/mercure',
+            ])]],
+        ]));
+        $broadcaster = $manager->connection('mercure');
+        $request = Request::create('https://app.test/broadcasting/auth', 'POST', ['channel_names' => ['news']]);
+        $request->setUserResolver(static fn (): null => null);
+        RequestContext::set($request);
+
+        $response = $broadcaster->auth($request);
+        $this->assertTrue($response->headers->getCookies()[0]->isSecure());
+
+        $request = Request::create('http://app.test/broadcasting/auth', 'POST', ['channel_names' => ['news']]);
+        $request->setUserResolver(static fn (): null => null);
+        RequestContext::set($request);
+        $manager->getApplication()->make('url')->setRequest($request);
+        $this->expectException(MercureInvalidArgumentException::class);
+        $broadcaster->auth($request);
+    }
+
+    public function testMercureKeepsPoolControlsAndCustomCreatorsDoNotReceiveThem(): void
+    {
+        $config = $this->mercureConfig([
+            'driver' => 'mercure',
+            'pool' => ['max_objects' => 2],
+        ]);
+        $manager = new BroadcastManager($this->getApp(['broadcasting' => ['connections' => ['mercure' => $config]]]));
+        $hub = $manager->connection('mercure')->getHub();
+
+        $this->assertInstanceOf(MercureHub::class, $hub);
+        $this->assertSame(2, $hub->getDefinition()->options->maxObjects);
+
+        $manager->forgetDrivers();
+        $driver = m::mock(Broadcaster::class);
+        $received = null;
+        $manager->extend('mercure', static function (ContainerContract $app, array $config) use (&$received, $driver): Broadcaster {
+            $received = $config;
+            return $driver;
+        });
+
+        $this->assertSame($driver, $manager->connection('mercure'));
+        $this->assertArrayNotHasKey('pool', $received);
+    }
+
+    /**
+     * Build a remote Mercure connection configuration.
+     */
+    protected function mercureConfig(array $overrides = []): array
+    {
+        return $overrides + [
+            'url' => 'https://hub.test/.well-known/mercure',
+            'secret' => str_repeat('s', 32),
+        ];
+    }
+
+    /**
+     * Decode generated token claims for assertions.
+     */
+    protected function decodeJwtClaims(string $jwt): array
+    {
+        $payload = explode('.', $jwt)[1];
+
+        return json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
+    }
+
+    /**
+     * Check that a token uses the configured signing secret.
+     */
+    protected function assertJwtSignedWith(string $jwt, string $secret): void
+    {
+        [$header, $payload, $signature] = explode('.', $jwt);
+
+        $this->assertSame(
+            rtrim(strtr(base64_encode(hash_hmac('sha256', $header . '.' . $payload, $secret, true)), '+/', '-_'), '='),
+            $signature
+        );
+    }
+
+    /**
+     * Create an isolated application with URL generation and client pooling.
+     */
+    protected function getApp(array $userConfig): Container
+    {
+        $app = new Container;
+        $app->instance('config', new Repository($userConfig));
+        $app->instance('url', new UrlGenerator(new RouteCollection, Request::create($userConfig['app']['url'] ?? 'http://localhost')));
+        $app->singleton(PoolFactory::class, PoolManager::class);
+
+        return $app;
     }
 
     /**
@@ -811,8 +1369,28 @@ class BroadcastManagerTest extends TestCase
     }
 }
 
+enum BroadcastConnectionName: string
+{
+    case Log = 'log';
+}
+
 class TestEvent implements ShouldBroadcast
 {
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return Channel[]|string[]
+     */
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+class TestForwardedEvent implements ShouldBroadcast
+{
+    public string $queue = 'broadcast-queue';
+
     /**
      * Get the channels the event should broadcast on.
      *
@@ -973,11 +1551,6 @@ class ManagerCustomBroadcastCreator
 enum BroadcastUnitIdentifier
 {
     case Primary;
-}
-
-enum BroadcastStringIdentifier: string
-{
-    case Primary = 'primary';
 }
 
 enum BroadcastIntegerIdentifier: int

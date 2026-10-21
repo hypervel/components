@@ -12,6 +12,9 @@ use RuntimeException;
 
 class ListenerTest extends TestCase
 {
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         ListenerTestListener::$ran = false;
@@ -20,11 +23,11 @@ class ListenerTest extends TestCase
         parent::tearDown();
     }
 
-    public function testClassListenerRunsNormallyIfNoTransactions()
+    public function testClassListenerRunsNormallyIfNoTransactions(): void
     {
-        $this->app->singleton('db.transactions', function () {
+        $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->shouldNotReceive('addCallback')->once()->andReturn(null);
+            $transactionManager->shouldNotReceive('addCallback');
 
             return $transactionManager;
         });
@@ -36,11 +39,11 @@ class ListenerTest extends TestCase
         $this->assertTrue(ListenerTestListener::$ran);
     }
 
-    public function testClassListenerDoesntRunInsideTransaction()
+    public function testClassListenerDoesntRunInsideTransaction(): void
     {
-        $this->app->singleton('db.transactions', function () {
+        $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+            $transactionManager->expects('addCallback')->andReturn(null);
 
             return $transactionManager;
         });
@@ -94,7 +97,10 @@ class ListenerTestListener
 {
     public static bool $ran = false;
 
-    public function handle()
+    /**
+     * Handle the event.
+     */
+    public function handle(): void
     {
         static::$ran = true;
     }
@@ -106,7 +112,10 @@ class ListenerTestListenerAfterCommit
 
     public bool $afterCommit = true;
 
-    public function handle()
+    /**
+     * Handle the event after commit.
+     */
+    public function handle(): void
     {
         static::$ran = true;
     }
@@ -118,11 +127,17 @@ class ListenerTestFailingListenerAfterCommit
 
     public bool $ran = false;
 
+    /**
+     * Create a listener that throws the given failure.
+     */
     public function __construct(
         protected RuntimeException $failure,
     ) {
     }
 
+    /**
+     * Fail while handling the event.
+     */
     public function handle(): void
     {
         $this->ran = true;
@@ -137,6 +152,9 @@ class ListenerTestFollowingListenerAfterCommit
 
     public bool $ran = false;
 
+    /**
+     * Handle the event after commit.
+     */
     public function handle(): void
     {
         $this->ran = true;

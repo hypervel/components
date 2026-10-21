@@ -34,7 +34,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Foundation\Configuration\ApplicationBuilder configure(string|null $basePath = null)
  * @method static bool currentEnvironmentIs(array<int, string>|string $environments)
  * @method static string currentLocale()
- * @method static null|string currentlyResolving()
+ * @method static string|int|null currentlyResolving()
  * @method static string databasePath(string $path = '')
  * @method static string detectEnvironment(\Closure $callback)
  * @method static \Hypervel\Foundation\Application dontMergeFrameworkConfiguration()
@@ -101,6 +101,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Support\ServiceProvider register(\Hypervel\Support\ServiceProvider|string $provider, bool $force = false)
  * @method static void registerConfiguredProviders()
  * @method static void registered(callable $callback)
+ * @method static array<string, mixed> resolveContextualParameters(string $concrete, null|array<int, string> $names = null)
  * @method static bool resolvedScoped(string $abstract)
  * @method static void resolveEnvironmentUsing(null|callable $callback)
  * @method static mixed resolveFromAttribute(\ReflectionAttribute $attribute, \ReflectionParameter $parameter)
@@ -145,6 +146,9 @@ namespace Hypervel\Support\Facades;
  */
 class App extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'app';

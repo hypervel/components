@@ -59,7 +59,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         }
     }
 
-    public function testBackgroundTaskReceivesParentContext()
+    public function testBackgroundTaskReceivesParentContext(): void
     {
         ContextRepository::getInstance()->add('trace_id', 'parent-trace-123');
 
@@ -74,7 +74,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->assertSame('parent-trace-123', $channel->pop(1.0));
     }
 
-    public function testBackgroundTaskReceivesHiddenContext()
+    public function testBackgroundTaskReceivesHiddenContext(): void
     {
         ContextRepository::getInstance()->addHidden('checkin_id', 'secret-id-456');
 
@@ -89,7 +89,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->assertSame('secret-id-456', $channel->pop(1.0));
     }
 
-    public function testBackgroundTaskContextDoesNotLeakBackToParent()
+    public function testBackgroundTaskContextDoesNotLeakBackToParent(): void
     {
         ContextRepository::getInstance()->add('parent_key', 'parent_value');
 
@@ -109,7 +109,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->assertNull(ContextRepository::getInstance()->get('child_only'));
     }
 
-    public function testBackgroundTaskDoesNotReceiveNonContextCoroutineState()
+    public function testBackgroundTaskDoesNotReceiveNonContextCoroutineState(): void
     {
         CoroutineContext::set('__request_specific', 'should-not-propagate');
         ContextRepository::getInstance()->add('should_propagate', 'yes');

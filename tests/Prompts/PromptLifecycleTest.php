@@ -115,7 +115,7 @@ class PromptLifecycleTest extends TestCase
         $this->assertSame('value', $prompt->prompt());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This prompt has already been invoked.');
+        $this->expectExceptionMessageIs('This prompt has already been invoked.');
 
         $prompt->prompt();
     }
@@ -129,7 +129,7 @@ class PromptLifecycleTest extends TestCase
         $this->assertSame('fallback', $prompt->prompt());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This prompt has already been invoked.');
+        $this->expectExceptionMessageIs('This prompt has already been invoked.');
 
         $prompt->prompt();
     }
@@ -146,7 +146,7 @@ class PromptLifecycleTest extends TestCase
         }
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This prompt has already been invoked.');
+        $this->expectExceptionMessageIs('This prompt has already been invoked.');
 
         $prompt->prompt();
     }

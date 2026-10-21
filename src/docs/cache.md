@@ -34,6 +34,7 @@
     - [Registering the Driver](#registering-the-driver)
 - [Console Commands](#console-commands)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -63,7 +64,7 @@ Hypervel implements this with coroutine context. Child coroutines start with a f
 
 The `worker-array` store keeps values for the lifetime of the current worker process. Values are shared by all requests, jobs, tasks, and coroutines handled by that worker. They are not shared across worker processes, servers, or restarts.
 
-The same boundary applies to `worker-array` locks: they coordinate work only within one worker. When a lock must span workers, use a store shared by those workers, such as Swoole within one application node or Redis across servers.
+The same boundary applies to `worker-array` locks: they coordinate work only within one worker. When a lock must span workers, use a store shared by those workers, such as Swoole for the workers of one server, or Redis across independently started processes and servers.
 
 Expired values and locks are removed when accessed, and later mutations also reclaim expired records that are no longer accessed. Values stored forever and locks without an expiration remain until they are explicitly removed, flushed, or the worker exits.
 
@@ -177,7 +178,7 @@ php artisan cache:redis-doctor
 <a name="storage"></a>
 #### Storage
 
-The `storage` cache driver allows you to store cached values on any configured [filesystem disk](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
+The `storage` cache driver allows you to store cached values on any of your application's configured [filesystem disks](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
 
 ```php
 'storage' => [
@@ -190,7 +191,7 @@ The `storage` cache driver allows you to store cached values on any configured [
 <a name="swoole-table-cache"></a>
 ### Swoole Table Cache
 
-The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts. The table is shared by every worker on the same application node, so forgetting a key in one worker removes it for every worker on that node.
+The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts. The table is shared by the workers forked from one server, so forgetting a key in one worker removes it for all of them. It is not shared with independently started processes, such as `queue:work`, other server instances, or other machines.
 
 Swoole tables are bounded by their configured row count and column size. Hypervel's Swoole cache store supports `lru`, `lfu`, `ttl`, and `noeviction` eviction policies, as well as a memory-limit buffer and eviction proportion:
 
@@ -210,7 +211,7 @@ use Hypervel\Cache\SwooleStore;
 
 The available eviction policy constants are `EVICTION_POLICY_LRU`, `EVICTION_POLICY_LFU`, `EVICTION_POLICY_TTL`, and `EVICTION_POLICY_NOEVICTION`.
 
-The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the elected Swoole worker.
+The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the first Swoole worker.
 
 The table itself is configured in the `swoole_tables` section of your `config/cache.php` file:
 
@@ -225,6 +226,22 @@ The table itself is configured in the `swoole_tables` section of your `config/ca
 ```
 
 When a Swoole store is used in a cache stack, `bytes` must be large enough for the serialized stack record, including its value and expiration data. Hypervel throws an exception when a record is too large instead of silently skipping the Swoole layer.
+
+<a name="cache-intervals"></a>
+#### Cache Intervals
+
+In addition to the typical methods provided by Hypervel's cache system, the Swoole cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every sixty seconds:
+
+```php
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\DB;
+
+Cache::store('swoole')->interval('order-count', function () {
+    return DB::table('orders')->count();
+}, seconds: 60);
+```
+
+The closure is serialized and run by the first server worker, so it may only capture serializable values.
 
 <a name="building-cache-stacks"></a>
 ### Building Cache Stacks
@@ -338,6 +355,14 @@ $value = Cache::store('file')->get('foo');
 Cache::store('redis')->put('bar', 'baz', 600); // 10 Minutes
 ```
 
+You may also pass an enum case as the store name. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheStore;
+
+$value = Cache::store(CacheStore::Redis)->get('foo');
+```
+
 <a name="retrieving-items-from-the-cache"></a>
 ### Retrieving Items From the Cache
 
@@ -357,6 +382,31 @@ $value = Cache::get('key', function () {
 });
 ```
 
+You may also use enums as cache keys. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheKey;
+
+Cache::put(CacheKey::Visits, 10, 600);
+
+$visits = Cache::get(CacheKey::Visits);
+```
+
+<a name="retrieving-typed-values"></a>
+#### Retrieving Typed Values
+
+You may use the `string`, `integer`, `float`, `boolean`, and `array` methods to retrieve a cache item as a specific type:
+
+```php
+$name = Cache::string('user:display_name', 'Guest');
+$attempts = Cache::integer('login:attempts', 0);
+$rating = Cache::float('product:rating', 0.0);
+$active = Cache::boolean('user:active', false);
+$settings = Cache::array('user:settings', []);
+```
+
+Like `get`, these methods accept a default value or a closure that returns the default when the item is missing. An `InvalidArgumentException` is thrown if the retrieved value has an incompatible type, or if the item is missing and no suitable default is provided. The `integer` and `float` methods also accept numeric strings that represent valid integer or float values, respectively.
+
 <a name="determining-item-existence"></a>
 #### Determining Item Existence
 
@@ -366,6 +416,12 @@ The `has` method may be used to determine if an item exists in the cache. This m
 if (Cache::has('key')) {
     // ...
 }
+```
+
+Pass an array of keys to check that every item exists and has a non-null value:
+
+```php
+Cache::has(['first', 'second']);
 ```
 
 <a name="incrementing-decrementing-values"></a>
@@ -513,6 +569,8 @@ You may provide an integer number of seconds, a `DateInterval`, or a `DateTimeIn
 Cache::touch('key', now()->plus(hours: 2));
 ```
 
+Providing a zero or negative number of seconds, or an expiration time in the past, removes the item from the cache.
+
 <a name="storing-items-forever"></a>
 #### Storing Items Forever
 
@@ -532,6 +590,12 @@ You may remove items from the cache using the `forget` method:
 
 ```php
 Cache::forget('key');
+```
+
+You may pass an array of keys to remove multiple items. The method returns `true` only if every removal succeeds:
+
+```php
+Cache::forget(['first', 'second']);
 ```
 
 You may also remove items by providing a zero or negative number of expiration seconds:
@@ -595,6 +659,16 @@ Cache::memo()->put('name', 'Tim');    // Forgets memoized value, writes new valu
 Cache::memo()->get('name');           // Hits underlying cache again...
 ```
 
+The memoized cache also supports [cache tags](#cache-tags) when the underlying store does. In all mode, values are memoized separately for each list of tags, and flushing tags through the memoized cache forgets the memoized tagged values:
+
+```php
+$permissions = Cache::memo()->tags(['permissions', "user:{$user->id}"])->remember(
+    "permissions:{$user->id}", 3600, fn () => $user->loadPermissions()
+);
+```
+
+When the underlying store uses [any tag mode](#any-tag-mode), tagged items are read by their plain keys, so `Cache::memo()->tags(...)->remember(...)` and `Cache::memo()->get(...)` share memoized values. A tagged write through the memoized cache forgets the memoized value for its key, and a tag flush through the memoized cache forgets every memoized value for the store.
+
 Memoized values are scoped to the current request, job, or coroutine context. They are not stored on the worker for the lifetime of the process.
 
 <a name="the-cache-helper"></a>
@@ -629,7 +703,7 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, or `session` drivers. The [memoized cache](#cache-memoization) supports tags when its underlying store does.
 
 The `flush` method returns `true` only when every tag or taggable stack layer accepts the flush. The null cache driver rejects tag identifier writes, so tagged flushes on that driver return `false` even though tagged reads continue to behave as cache misses.
 
@@ -701,7 +775,7 @@ Because tags are invalidation indexes in `any` mode, flushing any one tag remove
 Cache::tags(['user:42'])->flush();
 ```
 
-Tag membership is synchronized by tagged writes. Plain `Cache::forget($key)` removes any-mode tag membership for that key, and a finite `Cache::touch($key, $ttl)` keeps the key and tag metadata TTLs in sync. Plain `put`, plain `forever`, and `touch($key, null)` are plain rewrites; they do not add tags or refresh tag metadata for an already-tagged value. To change a tagged value's TTL or tags, write it again through `tags()`.
+Tag membership is synchronized by tagged writes. Plain `Cache::forget($key)` removes any-mode tag membership for that key, and `Cache::touch($key, $ttl)` keeps the key and tag metadata TTLs in sync. Plain `put` and `forever` are plain rewrites; they do not add tags or refresh tag metadata for an already-tagged value. To change a tagged value's TTL or tags, write it again through `tags()`.
 
 > [!WARNING]
 > In `any` mode, attempting to retrieve, check, pull, forget, touch, or retrieve many cache items through a tagged cache will throw a `BadMethodCallException`. Use the direct `Cache::get`, `Cache::has`, `Cache::pull`, `Cache::forget`, `Cache::touch`, and `Cache::many` methods with the full cache key instead.
@@ -768,7 +842,7 @@ You may schedule this command to run periodically based on how often tagged cach
 ## Atomic Locks
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `redis`, `database`, `file`, `swoole`, `array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, `swoole`, `array`, `worker-array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
 
 <a name="managing-locks"></a>
 ### Managing Locks
@@ -838,6 +912,8 @@ Cache::lock('foo', 10)
         // ...
     });
 ```
+
+When using database locks, you may disable automatic pruning by setting your cache store's `lock_lottery` option to an empty array. You may then call `pruneExpiredLocks` on a database lock to remove expired locks explicitly.
 
 <a name="managing-locks-across-processes"></a>
 ### Managing Locks Across Processes
@@ -921,10 +997,20 @@ You may clear all atomic locks in the cache using the `flushLocks` method:
 Cache::flushLocks();
 ```
 
-The `flushLocks` method is supported by the `redis`, `database`, `file`, `swoole`, `array`, and `stack` cache drivers when their current configuration can flush locks. Stack stores delegate lock flushing to the bottom layer and support it only when that bottom layer supports flushing locks. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If the repository's configured store cannot currently flush locks, Hypervel will throw a `BadMethodCallException`. Direct store-level `flushLocks` calls still throw a `RuntimeException` when lock storage is shared with regular cache storage.
+The `flushLocks` method is supported by the `array`, `worker-array`, `swoole`, and `null` cache drivers. The `redis`, `database`, and `file` drivers support it only when lock storage is configured separately from regular cache storage. Stack stores delegate to their bottom layer, while memoized caches delegate to their underlying store. Failover stores require at least one store that provides locks, and each such store must support flushing locks.
+
+You may check whether the current configuration supports flushing locks using the `supportsFlushingLocks` method:
+
+```php
+if (Cache::supportsFlushingLocks()) {
+    Cache::flushLocks();
+}
+```
+
+If the configured store reports that it cannot flush locks, Hypervel throws a `BadMethodCallException`. Calling `flushLocks` directly on a `redis`, `database`, or `file` store throws a `RuntimeException` if the configured lock connection name, table, or directory matches the one used for cache entries.
 
 > [!WARNING]
-> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.
+> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. For Redis, it removes every key in the lock connection's database. Use a database dedicated to locks; a different connection name or key prefix does not provide isolation.
 
 You may also flush only cache locks from the command line using the `--locks` option:
 
@@ -1191,3 +1277,8 @@ To increase performance, you may disable cache events by setting the `events` co
 ```
 
 The failover store disables ordinary events on its outer repository by default because its backing repositories already dispatch them. The `CacheFailedOver` event is still dispatched when a backing store fails.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Cache began as a port of [Laravel Cache](https://github.com/illuminate/cache) and has been adapted for Hypervel's framework architecture and coroutine runtime.

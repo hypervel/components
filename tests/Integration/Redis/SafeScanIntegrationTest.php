@@ -69,7 +69,7 @@ class SafeScanIntegrationTest extends TestCase
         ];
     }
 
-    public function testSafeScanWithoutPrefix()
+    public function testSafeScanWithoutPrefix(): void
     {
         $connectionName = $this->createRedisConnectionWithPrefix('');
         $redis = Redis::connection($connectionName);
@@ -88,7 +88,7 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame(['noprefix:1', 'noprefix:2'], $keys);
     }
 
-    public function testSafeScanMatchesPatternOnly()
+    public function testSafeScanMatchesPatternOnly(): void
     {
         $prefix = 'pattern_test:';
         $connectionName = $this->createRedisConnectionWithPrefix($prefix);
@@ -109,7 +109,7 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame(['cache:user:1', 'cache:user:2'], $keys);
     }
 
-    public function testFlushByPatternDeletesMatchingKeys()
+    public function testFlushByPatternDeletesMatchingKeys(): void
     {
         $connectionName = $this->createRedisConnectionWithPrefix('');
         $redis = Redis::connection($connectionName);
@@ -138,7 +138,7 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame('y', $redis->get('flush:keep:2'));
     }
 
-    public function testFlushByPatternReturnsDeletedCount()
+    public function testFlushByPatternReturnsDeletedCount(): void
     {
         $connectionName = $this->createRedisConnectionWithPrefix('');
         $redis = Redis::connection($connectionName);
@@ -155,7 +155,7 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame(15, $deleted);
     }
 
-    public function testFlushByPatternReturnsZeroWhenNoKeysMatch()
+    public function testFlushByPatternReturnsZeroWhenNoKeysMatch(): void
     {
         $connectionName = $this->createRedisConnectionWithPrefix('');
         $redis = Redis::connection($connectionName);
@@ -198,7 +198,7 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame('c', $redis->get('other:1'));
     }
 
-    public function testFlushByPatternViaRedisFacade()
+    public function testFlushByPatternViaRedisFacade(): void
     {
         $connectionName = $this->createRedisConnectionWithPrefix('');
         $redis = Redis::connection($connectionName);

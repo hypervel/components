@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Middleware;
 
 use Closure;
-use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
@@ -50,17 +49,18 @@ class PreventRequestsDuringMaintenance
             return $next($request);
         }
 
-        try {
-            if (! $this->app->maintenanceMode()->active()) {
-                return $next($request);
-            }
-
-            $data = $this->app->maintenanceMode()->data();
-        } catch (FileNotFoundException) {
+        if (! $this->app->maintenanceMode()->active()) {
             return $next($request);
         }
 
-        if (isset($data['secret']) && $request->path() === $data['secret']) {
+        $data = $this->app->maintenanceMode()->data();
+
+        // Maintenance may end between reads; an empty payload alone does not mean it ended.
+        if ($data === [] && ! $this->app->maintenanceMode()->active()) {
+            return $next($request);
+        }
+
+        if (is_string($data['secret'] ?? null) && hash_equals($data['secret'], $request->path())) {
             return $this->bypassResponse($data['secret']);
         }
 
@@ -100,9 +100,10 @@ class PreventRequestsDuringMaintenance
     protected function hasValidBypassCookie(Request $request, array $data): bool
     {
         return isset($data['secret'])
-                && $request->cookie('hypervel_maintenance')
+                && is_string($cookie = $request->cookie('hypervel_maintenance'))
+                && $cookie !== ''
                 && MaintenanceModeBypassCookie::isValid(
-                    $request->cookie('hypervel_maintenance'),
+                    $cookie,
                     $data['secret']
                 );
     }

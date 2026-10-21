@@ -87,7 +87,7 @@ class TaskFrameTest extends TestCase
     public function testRejectsAnUnknownEncodedType(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown task message type [debug].');
+        $this->expectExceptionMessageIs('Unknown task message type [debug].');
 
         TaskFrame::encode('debug', 'message');
     }
@@ -98,7 +98,7 @@ class TaskFrameTest extends TestCase
         $decoder->append("\xff\x00\x00\x00\x00");
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unknown task message type [255].');
+        $this->expectExceptionMessageIs('Unknown task message type [255].');
 
         $decoder->next();
     }
@@ -111,7 +111,7 @@ class TaskFrameTest extends TestCase
         $this->assertNull($decoder->next());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The prompt renderer received an incomplete task message.');
+        $this->expectExceptionMessageIs('The prompt renderer received an incomplete task message.');
 
         $decoder->finish();
     }

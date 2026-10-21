@@ -6,6 +6,10 @@ namespace Hypervel\Tests\Scout\Unit\Engines;
 
 use DateTimeImmutable;
 use GuzzleHttp\Psr7\Response;
+use Hypervel\Ai\AiServiceProvider;
+use Hypervel\Ai\Embeddings;
+use Hypervel\Ai\Prompts\EmbeddingsPrompt;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -22,7 +26,10 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
 use InvalidArgumentException;
 use Meilisearch\Client;
 use Meilisearch\Contracts\IndexesResults;
@@ -33,8 +40,17 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
+#[WithConfig('ai.caching.embeddings.store', 'array')]
 class MeilisearchEngineTest extends TestCase
 {
+    /**
+     * Register the embedding provider used by semantic searches.
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [AiServiceProvider::class];
+    }
+
     public function testUpdateAddsDocumentsToIndex(): void
     {
         $client = m::mock(Client::class);
@@ -142,6 +158,140 @@ class MeilisearchEngineTest extends TestCase
         });
 
         $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testUpdateAddsPrecomputedEmbeddingsToVectorsBeforePreparingDocuments(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $first = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'First']);
+        $first->setAttribute('embedding', [0.1, 0.2]);
+        $first->setAttribute('_vectors', ['other' => [0.9, 0.8]]);
+
+        $second = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Second']);
+        $second->setAttribute('embedding', [0.3, 0.4]);
+
+        $preparedVectors = [];
+
+        Scout::prepareSearchableDocumentUsing(function (array $document) use (&$preparedVectors): array {
+            $preparedVectors[] = $document['_vectors'];
+
+            return $document;
+        });
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            [
+                'id' => 10,
+                'name' => 'First',
+                'embedding' => [0.1, 0.2],
+                '_vectors' => ['other' => [0.9, 0.8], 'default' => [0.1, 0.2]],
+            ],
+            [
+                'id' => 20,
+                'name' => 'Second',
+                'embedding' => [0.3, 0.4],
+                '_vectors' => ['default' => [0.3, 0.4]],
+            ],
+        ], 'id');
+
+        $engine->update($first->newCollection([$first, $second]));
+
+        $this->assertSame([
+            ['other' => [0.9, 0.8], 'default' => [0.1, 0.2]],
+            ['default' => [0.3, 0.4]],
+        ], $preparedVectors);
+    }
+
+    public function testUpdateAddsPrecomputedAndGeneratedEmbeddingsToVectors(): void
+    {
+        Embeddings::fake([[[0.3, 0.4]]])->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, [
+            'embedder' => 'default',
+            'dimensions' => 2,
+            'provider' => 'openai',
+            'model' => 'text-embedding-test',
+        ]);
+
+        $precomputed = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'Precomputed']);
+        $precomputed->setAttribute('embedding', [0.1, 0.2]);
+        $precomputed->setAttribute('_vectors', ['other' => [0.9, 0.8]]);
+        $generated = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Generate this']);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with(m::on(fn (array $objects): bool => $objects[0]['_vectors'] === [
+            'other' => [0.9, 0.8],
+            'default' => [0.1, 0.2],
+        ] && $objects[1]['_vectors'] === ['default' => [0.3, 0.4]]), 'id');
+
+        $engine->update($precomputed->newCollection([$precomputed, $generated]));
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['Generate this']
+            && $prompt->dimensions === 2
+            && $prompt->provider->name() === 'openai'
+            && $prompt->model === 'text-embedding-test');
+    }
+
+    public function testUpdateDoesNotAddVectorsWhenUsingNativeEmbeddings(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $model = new SearchableModelWithNativeEmbedding(['id' => 1, 'name' => 'Model 1']);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            ['id' => 1, 'name' => 'Model 1'],
+        ], 'id');
+
+        $engine->update($model->newCollection([$model]));
+    }
+
+    public function testUpdatePreservesUserProvidedVectorsWhenUsingNativeEmbeddings(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $model = new SearchableModelWithNativeEmbedding(['id' => 1, 'name' => 'Model 1']);
+        $model->setAttribute('_vectors', [
+            'default' => [
+                'embeddings' => [0.1, 0.2],
+                'regenerate' => false,
+            ],
+        ]);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            [
+                'id' => 1,
+                'name' => 'Model 1',
+                '_vectors' => [
+                    'default' => [
+                        'embeddings' => [0.1, 0.2],
+                        'regenerate' => false,
+                    ],
+                ],
+            ],
+        ], 'id');
+
+        $engine->update($model->newCollection([$model]));
     }
 
     public function testDeleteRemovesDocumentsFromIndex(): void
@@ -261,6 +411,28 @@ class MeilisearchEngineTest extends TestCase
             ->where('archived_at', '!=', null)
             ->whereIn('tags', ['a"b\c', true])
             ->whereNotIn('hidden', ['draft', false]);
+
+        $engine->search($builder);
+    }
+
+    public function testWhereInAndWhereNotInValuesAreEscaped(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('rawSearch')->once()->with('', [
+            'filter' => 'category IN ["12\" pipe", "back\\\slash"] AND tag NOT IN ["a\"] OR team_id = 2 OR tag IN [\"b"]',
+        ])->andReturn(['hits' => [], 'totalHits' => 0]);
+
+        $engine = new MeilisearchEngine($client);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+
+        $builder = new Builder($model, '');
+        $builder->whereIn('category', ['12" pipe', 'back\slash']);
+        $builder->whereNotIn('tag', ['a"] OR team_id = 2 OR tag IN ["b']);
 
         $engine->search($builder);
     }
@@ -428,6 +600,172 @@ class MeilisearchEngineTest extends TestCase
         $builder = new Builder($model, 'query');
 
         $engine->paginate($builder, 15, 2);
+    }
+
+    public function testSemanticSearchWithNativeEmbeddingsOmitsTheQueryVector(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('conceptual query', m::on(fn (array $parameters): bool => $parameters === [
+            'hitsPerPage' => 10,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 1.0,
+            ],
+            'rankingScoreThreshold' => 0,
+            'filter' => 'status="published"',
+        ]))->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithNativeEmbedding, 'conceptual query'))
+            ->semantic(minSimilarity: 0)
+            ->where('status', 'published')
+            ->take(10);
+
+        $engine->search($builder);
+    }
+
+    public function testHybridSearchWithNativeEmbeddingsAcceptsAPrecomputedQueryVector(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('combined query', [
+            'vector' => [0.4, 0.6],
+            'hitsPerPage' => 5,
+            'page' => 2,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 2 / 3,
+            ],
+        ])->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithNativeEmbedding, 'combined query'))
+            ->options(['vector' => [0.4, 0.6]])
+            ->hybrid(textWeight: 1, semanticWeight: 2);
+
+        $engine->paginate($builder, 5, 2);
+    }
+
+    public function testSemanticSearchRejectsAnUnsupportedEmbeddingDriver(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2, 'driver' => 'foo']);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessageIs('The [foo] Meilisearch embedding driver is not supported.');
+
+        $engine->search($builder);
+    }
+
+    public function testHybridSearchAcceptsAPrecomputedQueryVectorAndNormalizesWeights(): void
+    {
+        Embeddings::fake()->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('combined query', [
+            'vector' => [0.4, 0.6],
+            'hitsPerPage' => 5,
+            'page' => 2,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 2 / 3,
+            ],
+            'rankingScoreThreshold' => 0.5,
+        ])->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
+            ->options(['vector' => [0.4, 0.6]])
+            ->hybrid(textWeight: 1, semanticWeight: 2, minSimilarity: 0.5);
+
+        $engine->paginate($builder, 5, 2);
+    }
+
+    public function testSemanticSearchGeneratesAQueryVector(): void
+    {
+        Embeddings::fake([[[0.25, 0.75]]])->preventStrayEmbeddings();
+
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $client->shouldReceive('index')->twice()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->twice()->with('conceptual query', [
+            'hitsPerPage' => 10,
+            'vector' => [0.25, 0.75],
+            'hybrid' => ['embedder' => 'default', 'semanticRatio' => 1.0],
+            'rankingScoreThreshold' => 0,
+            'filter' => 'status="published"',
+        ])->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->semantic(minSimilarity: 0)
+            ->where('status', 'published')
+            ->take(10);
+
+        $engine->search($builder);
+
+        $engine->search($builder);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['conceptual query']);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    #[DataProvider('invalidSemanticSearchOptions')]
+    public function testSemanticSearchRejectsInvalidOptions(array $options, string $message): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessageIs($message);
+
+        $engine->search(
+            (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+                ->options($options)
+                ->semantic()
+        );
+    }
+
+    /**
+     * Provide semantic search options Meilisearch rejects.
+     *
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function invalidSemanticSearchOptions(): array
+    {
+        return [
+            'custom hybrid option' => [
+                ['vector' => [0.1, 0.2], 'hybrid' => ['embedder' => 'other']],
+                'Meilisearch semantic and hybrid searches cannot be combined with a custom [hybrid] option.',
+            ],
+            'empty query vector' => [
+                ['vector' => []],
+                'The Meilisearch query [vector] must be a non-empty embedding array.',
+            ],
+        ];
     }
 
     public function testMapIdsReturnsEmptyCollectionIfNoHits(): void
@@ -733,7 +1071,7 @@ class MeilisearchEngineTest extends TestCase
         $model->shouldNotReceive('indexableAs');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Meilisearch filter deletion requires a non-empty filter.');
+        $this->expectExceptionMessageIs('Meilisearch filter deletion requires a non-empty filter.');
 
         $engine->deleteByFilter(new Builder($model, ''));
     }
@@ -755,7 +1093,7 @@ class MeilisearchEngineTest extends TestCase
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Meilisearch filter deletion did not complete successfully.');
+        $this->expectExceptionMessageIs('Meilisearch filter deletion did not complete successfully.');
 
         $engine->deleteByFilter($builder);
     }
@@ -1135,7 +1473,7 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $engine->generateTenantToken(['users' => ['filter' => 'tenant_id = 42']], $apiKeyUid, $apiKey);
     }
@@ -1158,6 +1496,24 @@ class MeilisearchEngineTest extends TestCase
         return new ApiException(new Response($status), [
             'message' => $code,
             'code' => $code,
+        ]);
+    }
+
+    /**
+     * Create an engine with embedding settings for the given model.
+     *
+     * @param array<string, mixed> $embedding
+     * @param class-string<Model> $model
+     */
+    protected function engineWithEmbedding(
+        Client $client,
+        array $embedding,
+        string $model = SearchableModelWithPrecomputedEmbedding::class
+    ): MeilisearchEngine {
+        return new MeilisearchEngine($client, false, [
+            'model-settings' => [
+                $model => ['embedding' => $embedding],
+            ],
         ]);
     }
 

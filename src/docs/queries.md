@@ -78,7 +78,7 @@ class UserController extends Controller
 }
 ```
 
-The `get` method returns an `Hypervel\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
+The `get` method returns a `Hypervel\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
 
 ```php
 use Hypervel\Support\Facades\DB;
@@ -104,7 +104,7 @@ $user = DB::table('users')->where('name', 'John')->first();
 return $user->email;
 ```
 
-If you would like to retrieve a single row from a database table, but throw an `Hypervel\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
+If you would like to retrieve a single row from a database table, but throw a `Hypervel\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
 
 ```php
 $user = DB::table('users')->where('name', 'John')->firstOrFail();
@@ -139,7 +139,7 @@ $user = DB::table('users')->findOr(3, fn () => (object) ['name' => 'Guest']);
 <a name="retrieving-a-list-of-column-values"></a>
 #### Retrieving a List of Column Values
 
-If you would like to retrieve an `Hypervel\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
+If you would like to retrieve a `Hypervel\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
 
 ```php
 use Hypervel\Support\Facades\DB;
@@ -376,6 +376,15 @@ $users = DB::table('users')
     ->get();
 ```
 
+When using MariaDB or MySQL, you may specify multiple indexes by separating their names with commas:
+
+```php
+$users = DB::table('users')
+    ->useIndex('users_email_index, users_name_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
 SQLite supports the `forceIndex` method, which compiles to SQLite's `indexed by` clause:
 
 ```php
@@ -384,6 +393,17 @@ $users = DB::table('users')
     ->where('email', 'taylor@example.com')
     ->get();
 ```
+
+Index hints apply to update statements as well. For example, MariaDB and MySQL may read a small table in full when an update names many of its rows, locking every row they read inside a transaction. Forcing the primary key keeps such an update to the rows it names:
+
+```php
+DB::table('orders')
+    ->forceIndex('primary')
+    ->whereIn('id', $orderIds)
+    ->update(['status' => 'shipped']);
+```
+
+SQLite treats a forced index as a requirement rather than a preference: a query fails if the index does not exist, or if SQLite cannot use it for the query, such as a partial index whose condition the query's constraints do not imply.
 
 <a name="raw-expressions"></a>
 ## Raw Expressions
@@ -416,6 +436,19 @@ $orders = DB::table('orders')
     ->selectRaw('price * ? as price_with_tax', [1.0825])
     ->get();
 ```
+
+<a name="selectexpression"></a>
+#### `selectExpression`
+
+The `selectExpression` method adds a raw SQL expression with an alias. It accepts a string or an expression created by `DB::raw`, wraps the expression in parentheses, and quotes the alias as a single identifier:
+
+```php
+$orders = DB::table('orders')
+    ->selectExpression('price * 1.0825', 'price_with_tax')
+    ->get();
+```
+
+This method does not accept parameter bindings. Use `selectRaw` when you need bindings or want to insert the SQL expression as written.
 
 <a name="whereraw-orwhereraw"></a>
 #### `whereRaw / orWhereRaw`
@@ -453,7 +486,7 @@ $orders = DB::table('orders')
 ```
 
 <a name="groupbyraw"></a>
-### `groupByRaw`
+#### `groupByRaw`
 
 The `groupByRaw` method may be used to provide a raw string as the value of the `group by` clause:
 
@@ -869,6 +902,18 @@ $users = DB::table('users')
 <a name="additional-where-clauses"></a>
 ### Additional Where Clauses
 
+**whereBinary / orWhereBinary / whereNotBinary / orWhereNotBinary**
+
+The `whereBinary` method compares strings byte by byte on MySQL and MariaDB, making letter case and trailing spaces significant:
+
+```php
+$users = DB::table('users')
+    ->whereBinary('name', 'John')
+    ->get();
+```
+
+Use `whereNotBinary` to find values that differ. The `orWhereBinary` and `orWhereNotBinary` methods add the corresponding "or" conditions. These methods throw an exception on other database drivers.
+
 **whereLike / orWhereLike / whereNotLike / orWhereNotLike**
 
 The `whereLike` method allows you to add "LIKE" clauses to your query for pattern matching. These methods provide a database-agnostic way of performing string matching queries, with the ability to toggle case-sensitivity. By default, string matching is case-insensitive:
@@ -964,6 +1009,22 @@ $users = DB::table('users')
     ->get();
 ```
 
+You may also pass a query builder or closure as the first argument to compare a subquery's result to the given values. For example, the following query retrieves users whose most recent score is between 50 and 100:
+
+```php
+use Hypervel\Database\Query\Builder;
+
+$users = DB::table('users')
+    ->whereBetween(function (Builder $query) {
+        $query->select('score')
+            ->from('scores')
+            ->whereColumn('scores.user_id', 'users.id')
+            ->orderByDesc('scores.created_at')
+            ->limit(1);
+    }, [50, 100])
+    ->get();
+```
+
 **whereNotBetween / orWhereNotBetween**
 
 The `whereNotBetween` method verifies that a column's value lies outside of two values:
@@ -991,6 +1052,8 @@ $patients = DB::table('patients')
     ->whereNotBetweenColumns('weight', ['minimum_allowed_weight', 'maximum_allowed_weight'])
     ->get();
 ```
+
+Like `whereBetween`, these methods also accept a query builder or closure as the first argument to compare a subquery's result to the two column values.
 
 **whereValueBetween / whereValueNotBetween / orWhereValueBetween / orWhereValueNotBetween**
 
@@ -1154,6 +1217,14 @@ $users = DB::table('users')
     ->get();
 ```
 
+The `<=>` operator compares two columns while treating two `NULL` values as equal, on every supported database:
+
+```php
+$users = DB::table('users')
+    ->whereColumn('billing_email', '<=>', 'email')
+    ->get();
+```
+
 You may also pass an array of column comparisons to the `whereColumn` method. These conditions will be joined using the `and` operator:
 
 ```php
@@ -1272,7 +1343,19 @@ $users = DB::table('users')
     ->get();
 ```
 
-On PostgreSQL, the `mode` option accepts `plain` (the default), `phrase`, `websearch`, or `raw`. The `raw` mode allows you to use [PostgreSQL text search query syntax](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES):
+MySQL and MariaDB use natural language mode by default. Set `mode` to `boolean` for boolean search, or `expanded` to `true` for query expansion. Query expansion is ignored in boolean mode:
+
+```php
+$users = DB::table('users')
+    ->whereFullText('bio', '+web -designer', ['mode' => 'boolean'])
+    ->get();
+
+$users = DB::table('users')
+    ->whereFullText('bio', 'web developer', ['expanded' => true])
+    ->get();
+```
+
+On PostgreSQL, `language` selects the text-search configuration and defaults to `english`. Unrecognized languages also fall back to `english`. The `mode` option accepts `plain` (the default), `phrase`, `websearch`, or `raw`. The `raw` mode allows you to use [PostgreSQL text search query syntax](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES):
 
 ```php
 $users = DB::table('users')
@@ -1280,11 +1363,19 @@ $users = DB::table('users')
     ->get();
 ```
 
+For a PostgreSQL column that already stores a `tsvector`, pass `vector => true` to search it directly. You may combine this with the `language` and `mode` options:
+
+```php
+$users = DB::table('users')
+    ->whereFullText('search_vector', 'web developer', ['vector' => true, 'mode' => 'websearch'])
+    ->get();
+```
+
 <a name="vector-similarity-clauses"></a>
 ### Vector Similarity Clauses
 
 > [!NOTE]
-> Vector similarity clauses are currently only supported on PostgreSQL connections using the `pgvector` extension. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
+> Vector similarity clauses are currently supported on PostgreSQL connections using the `pgvector` extension and MariaDB 11.7 or later. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
 
 The `whereVectorSimilarTo` method filters results by cosine similarity to a given vector and orders the results by relevance. The `minSimilarity` threshold should be a value between `0.0` and `1.0`, where `1.0` is identical:
 
@@ -1451,6 +1542,8 @@ $report = DB::table('orders')
     ->get();
 ```
 
+The `havingNotBetween` method excludes results within the given range. You may use `orHavingBetween` and `orHavingNotBetween` to join these conditions to the previous having clause using `or`.
+
 You may pass multiple arguments to the `groupBy` method to group by multiple columns:
 
 ```php
@@ -1524,6 +1617,19 @@ DB::table('users')->insert([
     ['email' => 'picard@example.com', 'votes' => 0],
     ['email' => 'janeway@example.com', 'votes' => 0],
 ]);
+```
+
+Each database limits how many values one statement may bind. When inserting many records at once, you may split them using the connection's `maxBindings` method, which returns the limit of the connection's database:
+
+```php
+if ($records !== []) {
+    $connection = DB::connection();
+    $perStatement = intdiv($connection->maxBindings(), count($records[0]));
+
+    foreach (array_chunk($records, $perStatement) as $chunk) {
+        $connection->table('users')->insert($chunk);
+    }
+}
 ```
 
 The `insertOrIgnore` method will ignore errors while inserting records into the database. When using this method, you should be aware that duplicate record errors will be ignored and other types of errors may also be ignored depending on the database engine. For example, `insertOrIgnore` will [bypass MySQL's strict mode](https://dev.mysql.com/doc/refman/en/sql-mode.html#ignore-effect-on-execution):
@@ -1616,6 +1722,15 @@ $affected = DB::table('users')
     ->update(['votes' => 1]);
 ```
 
+When using PostgreSQL, use the `updateFrom` method when the new column values reference columns from a joined table. This method returns the number of affected rows:
+
+```php
+$affected = DB::table('invoices')
+    ->join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
+```
+
 <a name="update-or-insert"></a>
 #### Update or Insert
 
@@ -1650,7 +1765,7 @@ DB::table('users')->updateOrInsert(
 <a name="updating-json-columns"></a>
 ### Updating JSON Columns
 
-When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on MariaDB 10.3+, MySQL 5.7+, and PostgreSQL 9.5+:
+When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on MariaDB 10.3+, MySQL 5.7+, PostgreSQL 9.5+, and SQLite 3.39.0+:
 
 ```php
 $affected = DB::table('users')

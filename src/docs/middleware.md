@@ -397,6 +397,7 @@ For convenience, some of Hypervel's built-in middleware are aliased by default. 
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `auth`             | `Hypervel\Auth\Middleware\Authenticate`                                                                     |
 | `auth.basic`       | `Hypervel\Auth\Middleware\AuthenticateWithBasicAuth`                                                        |
+| `auth.guard`       | `Hypervel\Auth\Middleware\UseGuard`                                                                         |
 | `auth.session`     | `Hypervel\Session\Middleware\AuthenticateSession`                                                           |
 | `cache.headers`    | `Hypervel\Http\Middleware\SetCacheHeaders`                                                                  |
 | `can`              | `Hypervel\Auth\Middleware\Authorize`                                                                        |
@@ -424,6 +425,7 @@ use Hypervel\Foundation\Configuration\Middleware;
         \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         \Hypervel\Session\Middleware\StartSession::class,
         \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+        \Hypervel\Auth\Middleware\UseGuard::class,
         \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
         \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
@@ -432,6 +434,24 @@ use Hypervel\Foundation\Configuration\Middleware;
     ]);
 })
 ```
+
+If you would like to add middleware to the existing priority list without replacing it, you may use the `prependToPriorityList` or `appendToPriorityList` methods. The `prependToPriorityList` method inserts the given middleware before another middleware, while the `appendToPriorityList` method inserts it after another middleware:
+
+```php
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->prependToPriorityList(
+        before: \Hypervel\Routing\Middleware\SubstituteBindings::class,
+        prepend: \App\Http\Middleware\EnsureTokenIsValid::class,
+    );
+
+    $middleware->appendToPriorityList(
+        after: \Hypervel\Routing\Middleware\SubstituteBindings::class,
+        append: \App\Http\Middleware\EnsureUserIsSubscribed::class,
+    );
+})
+```
+
+The `before` and `after` arguments may also be an array of middleware classes.
 
 <a name="middleware-parameters"></a>
 ## Middleware Parameters
@@ -493,7 +513,7 @@ Sometimes a middleware may need to do some work after the HTTP response has been
 ```php
 <?php
 
-namespace Hypervel\Session\Middleware;
+namespace App\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;

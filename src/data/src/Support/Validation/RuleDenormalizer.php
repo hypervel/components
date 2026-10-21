@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Data\Support\Validation;
 
 use BackedEnum;
+use Closure;
 use DateTimeInterface;
-use Hypervel\Contracts\Validation\InvokableRule as InvokableRuleContract;
-use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\ObjectValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Rule;
@@ -21,26 +20,31 @@ class RuleDenormalizer
     /**
      * Convert one declaration into Validator rules.
      *
-     * @return list<InvokableRuleContract|object|RuleContract|string>
+     * @param null|Closure(FieldReference, ValidationPath): string $resolveField
+     * @return list<object|string>
      */
-    public function execute(mixed $rule, ValidationPath $path): array
+    public function execute(mixed $rule, ValidationPath $path, ?Closure $resolveField = null): array
     {
         if (is_string($rule)) {
-            return str_contains($rule, 'regex:') ? [$rule] : explode('|', $rule);
+            // A regex may contain |, so a string starting with one is a single rule; other strings split like Laravel's.
+            // The names match Laravel's ValidationRuleParser::ruleIsRegex().
+            return in_array(strtolower(explode(':', $rule, 2)[0]), ['regex', 'not_regex', 'notregex'], true)
+                ? [$rule]
+                : explode('|', $rule);
         }
 
         if (is_array($rule)) {
             $rules = [];
 
             foreach ($rule as $nestedRule) {
-                array_push($rules, ...$this->execute($nestedRule, $path));
+                array_push($rules, ...$this->execute($nestedRule, $path, $resolveField));
             }
 
             return $rules;
         }
 
         if ($rule instanceof StringValidationAttribute) {
-            return $this->normalizeStringValidationAttribute($rule, $path);
+            return $this->normalizeStringValidationAttribute($rule, $path, $resolveField);
         }
 
         if ($rule instanceof ObjectValidationAttribute) {
@@ -54,11 +58,7 @@ class RuleDenormalizer
         }
 
         if ($rule instanceof Rule) {
-            return $this->execute($rule->get(), $path);
-        }
-
-        if ($rule instanceof RuleContract || $rule instanceof InvokableRuleContract) {
-            return [$rule];
+            return $this->execute($rule->get(), $path, $resolveField);
         }
 
         return [$rule];
@@ -67,17 +67,19 @@ class RuleDenormalizer
     /**
      * Convert a string attribute into one Validator rule.
      *
+     * @param null|Closure(FieldReference, ValidationPath): string $resolveField
      * @return list<string>
      */
     protected function normalizeStringValidationAttribute(
         StringValidationAttribute $rule,
         ValidationPath $path,
+        ?Closure $resolveField,
     ): array {
         $parameters = [];
         $quoteParameters = ! in_array($rule->keyword(), ['regex', 'not_regex'], true);
 
         foreach ($rule->parameters() as $key => $value) {
-            $parameter = $this->normalizeRuleParameter($value, $path);
+            $parameter = $this->normalizeRuleParameter($value, $path, $resolveField);
 
             if ($parameter === null) {
                 continue;
@@ -105,11 +107,13 @@ class RuleDenormalizer
     /**
      * Normalize one rule parameter while preserving its field boundaries.
      *
+     * @param null|Closure(FieldReference, ValidationPath): string $resolveField
      * @return null|list<string>|string
      */
     protected function normalizeRuleParameter(
         mixed $parameter,
         ValidationPath $path,
+        ?Closure $resolveField,
     ): array|string|null {
         if ($parameter === null) {
             return null;
@@ -130,7 +134,7 @@ class RuleDenormalizer
         if (is_array($parameter)) {
             // ValidatesAttributes::convertValuesToNull() decodes list values from this literal token.
             $subParameters = array_map(
-                fn (mixed $subParameter): array|string => $this->normalizeRuleParameter($subParameter, $path) ?? 'null',
+                fn (mixed $subParameter): array|string => $this->normalizeRuleParameter($subParameter, $path, $resolveField) ?? 'null',
                 $parameter
             );
 
@@ -146,11 +150,11 @@ class RuleDenormalizer
         }
 
         if ($parameter instanceof FieldReference) {
-            return $parameter->getValue($path);
+            return $resolveField === null ? $parameter->getValue($path) : $resolveField($parameter, $path);
         }
 
         if ($parameter instanceof ExternalReference) {
-            return $this->normalizeRuleParameter($parameter->getValue(), $path);
+            return $this->normalizeRuleParameter($parameter->getValue(), $path, $resolveField);
         }
 
         return (string) $parameter;

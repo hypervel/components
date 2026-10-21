@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Data\Console;
 
 use Hypervel\Console\GeneratorCommand;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -49,7 +50,24 @@ class DataMakeCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace(string $rootNamespace): string
     {
-        return $rootNamespace . '\Data';
+        // Hypervel's generators already provide --target-namespace for a one-off namespace.
+        $namespace = trim(config()->string('data.commands.make.namespace'), '\\');
+
+        return trim($rootNamespace . '\\' . $namespace, '\\');
+    }
+
+    /**
+     * Parse the class name and format according to the root namespace.
+     */
+    protected function qualifyClass(string $name): string
+    {
+        $suffix = trim($this->option('suffix'));
+
+        if ($suffix !== '' && ! Str::endsWith($name, $suffix)) {
+            $name .= $suffix;
+        }
+
+        return parent::qualifyClass($name);
     }
 
     /**
@@ -58,7 +76,19 @@ class DataMakeCommand extends GeneratorCommand
     protected function getOptions(): array
     {
         return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the Data class even if it already exists'],
+            [
+                'suffix',
+                's',
+                InputOption::VALUE_REQUIRED,
+                'Suffix the class with this value.',
+                config()->string('data.commands.make.suffix'),
+            ],
+            [
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Create the Data class even if the file already exists.',
+            ],
         ];
     }
 }

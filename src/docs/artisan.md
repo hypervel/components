@@ -24,13 +24,18 @@
 - [Programmatically Executing Commands](#programmatically-executing-commands)
     - [Calling Commands From Other Commands](#calling-commands-from-other-commands)
 - [Signal Handling](#signal-handling)
+- [The Dev Command](#the-dev-command)
+    - [Customizing Dev Processes](#customizing-dev-processes)
+    - [Output Modes and Buffers](#dev-output-modes)
+    - [Filtering Dev Processes](#filtering-dev-processes)
 - [Stub Customization](#stub-customization)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
 
-Artisan is the command line interface included with Hypervel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands that can assist you while you build your application. To view a list of all available Artisan commands, you may use the `list` command:
+Artisan is the command line interface included with Hypervel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands you can use while building your application. To view a list of all available Artisan commands, you may use the `list` command:
 
 ```shell
 php artisan list
@@ -215,7 +220,7 @@ class SendEmails extends Command
 You may define command aliases using the `$aliases` property. If you would like to hide a command from the command list while keeping it executable, define a `$hidden` property with a value of `true`.
 
 > [!NOTE]
-> For greater code reuse, it is good practice to keep your console commands light and let them defer to application services to accomplish their tasks. In the example above, note that we inject a service class to do the "heavy lifting" of sending the e-mails.
+> For greater code reuse, it is good practice to keep your console commands light and let them defer to application services to accomplish their tasks. In the example above, note that we inject a service class to do the "heavy lifting" of sending the emails.
 
 <a name="command-attributes"></a>
 #### Command Attributes
@@ -243,6 +248,8 @@ class SendEmails extends Command
     // ...
 }
 ```
+
+You may also pass aliases directly to `Signature`, such as `#[Signature('mail:send {user}', aliases: ['mail:drip'])]`.
 
 The `Help` attribute sets the extended help text shown by `--help`, while the repeatable `Usage` attribute adds usage examples to the command's help screen.
 
@@ -911,7 +918,19 @@ You may also pass console route files to the `withCommands` method. Console rout
 ])
 ```
 
-When Artisan boots, all the commands in your application will be resolved by the [service container](/docs/{{version}}/container) and registered with Artisan.
+Commands are registered when Artisan boots and resolved by the [service container](/docs/{{version}}/container) as needed.
+
+You may inspect a registered command using the `findCommand` method on the `Artisan` facade. This method resolves only the requested command and returns `null` if no command has that name:
+
+```php
+use Hypervel\Support\Facades\Artisan;
+
+$command = Artisan::findCommand('mail:send');
+
+$description = $command?->getDescription();
+```
+
+The returned instance is shared by subsequent lookups. To execute the command, use `Artisan::call` so each execution receives its own command instance.
 
 <a name="programmatically-executing-commands"></a>
 ## Programmatically Executing Commands
@@ -1020,7 +1039,7 @@ $this->callSilently('mail:send', [
 <a name="signal-handling"></a>
 ## Signal Handling
 
-As you may know, operating systems allow signals to be sent to running processes. For example, the `SIGTERM` signal is how operating systems ask a program to terminate. If you wish to listen for signals in your Artisan console commands and execute code when they occur, you may use the `trap` method:
+As you may know, operating systems allow signals to be sent to running processes. For example, the `SIGTERM` signal is how operating systems ask a program to terminate gracefully. If you wish to listen for signals in your Artisan console commands and execute code when they occur, you may use the `trap` method:
 
 ```php
 /**
@@ -1046,7 +1065,155 @@ $this->trap([SIGTERM, SIGQUIT], function (int $signal) {
 });
 ```
 
-Artisan signal traps apply only to the current command. To handle signals in server workers or custom server processes, see the [Signal documentation](/docs/{{version}}/signals).
+You may also provide an iterable of signal numbers or a closure that returns them. Trapping a termination signal lets your command finish gracefully instead of being terminated automatically. Handlers run in reverse registration order and are removed when their command finishes, leaving other commands' handlers registered.
+
+Command traps share the [native signal limitations](/docs/{{version}}/signals#native-signal-limitations) of worker and server-process handlers. Keep callbacks short: another delivery of the same signal while a callback is running may use the operating system's default behavior. To configure worker or server-process handlers, see the [Signal documentation](/docs/{{version}}/signals).
+
+<a name="the-dev-command"></a>
+## The Dev Command
+
+The `dev` Artisan command starts the processes needed for local development in a single terminal window. By default, it runs the [Watcher](/docs/{{version}}/watcher), a queue listener, and Vite asset compilation:
+
+```shell
+php artisan dev
+```
+
+The command uses the `@laravel/multiplex` npm package to manage the processes, giving each process its own tab with searchable, scrollable output. Each process is labeled and color-coded. If a process crashes, it is restarted automatically, and when you quit, the output is written back to your terminal.
+
+The `dev` command requires Node 22.13 or later. Official Hypervel skeletons include Multiplex as a development dependency. If your application does not have it, install it using your package manager:
+
+```shell
+pnpm add -D @laravel/multiplex
+```
+
+The default processes are:
+
+| Name | Command |
+| --- | --- |
+| `server` | `php artisan watch` |
+| `queue` | `php artisan queue:listen --tries=1 --timeout=0` |
+| `vite` | `dev` script using the detected package manager |
+
+The server process requires `hypervel/watcher`, which is included in official Hypervel skeletons. The `vite` process is registered only when the application has a `package.json` file. It detects your Node package manager (npm, pnpm, Yarn, or Bun) and uses the appropriate run command. Hypervel does not register a Pail log-tailing process.
+
+<a name="customizing-dev-processes"></a>
+### Customizing Dev Processes
+
+You may customize the processes that the `dev` command runs using the `DevCommands` class in your application's `AppServiceProvider::boot` method. The `register` method accepts a command string and an optional name:
+
+```php
+use Hypervel\Foundation\DevCommands;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    DevCommands::register('some-command --flag', 'my-process');
+}
+```
+
+When registering an Artisan command, you may use the `artisan` method, which prefixes the command with `php artisan`:
+
+```php
+DevCommands::artisan('horizon', 'horizon');
+```
+
+Likewise, the `node` method prefixes the command with your detected package manager's run command, such as `npm run`, and `nodeExec` uses its exec command. These examples add a Storybook process and replace the default Vite process:
+
+```php
+DevCommands::node('storybook', 'storybook');
+
+DevCommands::nodeExec('vite --host 0.0.0.0', 'vite');
+```
+
+With pnpm or Yarn, `nodeExec` takes an installed binary name; npm and Bun accept a package name. Use a name valid for your chosen manager, especially when a scoped package and its binary have different names.
+
+Registering a process with the same name as a default replaces that default. For example, you may replace the default queue listener:
+
+```php
+DevCommands::artisan('horizon', 'queue');
+```
+
+You may customize a process label's color with `blue`, `purple`, `pink`, `orange`, `green`, or `yellow`. You may also pass a custom hex color to `color`:
+
+```php
+DevCommands::register('my-command', 'my-process')->green();
+
+DevCommands::register('my-command', 'my-process')->color('#ff6347');
+```
+
+To see all registered processes without starting them, use `dev:list`:
+
+```shell
+php artisan dev:list
+```
+
+<a name="restarting-failed-processes"></a>
+#### Restarting Failed Processes
+
+If a process crashes, Multiplex restarts it after a short delay, up to five times, before marking it as failed. A process that exits within a second of starting is not restarted. Restarting a process manually with `r` resets the counter.
+
+You may disable automatic restarts for a single run with `--no-restart`:
+
+```shell
+php artisan dev --no-restart
+```
+
+Or, disable them in your service provider:
+
+```php
+DevCommands::disableAutoRestart();
+```
+
+<a name="dev-output-modes"></a>
+### Output Modes and Buffers
+
+Use `--stream` to combine the output in one interactive view, `--tabs` for separate tabs, or `--inline` for plain terminal output. Multiplex uses inline output automatically when the terminal is not interactive. You may set your preferred mode during application boot:
+
+```php
+DevCommands::stream();
+
+// Other modes...
+DevCommands::tabs();
+DevCommands::inline();
+```
+
+Command-line mode options override the configured mode. Use `--timestamps` to display a timestamp on each line, or call `DevCommands::withTimestamps()` during boot. The `--json` option emits newline-delimited JSON events and implies inline output.
+
+You may limit buffered output with `--buffer-size` and `--stream-buffer-size`, or configure the limits in your service provider:
+
+```php
+DevCommands::bufferSize(1000);
+DevCommands::streamBufferSize(2000);
+```
+
+The first limit applies to each command's tab; the second applies to the combined stream. Command-line values override these settings.
+
+<a name="filtering-dev-processes"></a>
+### Filtering Dev Processes
+
+Use `only` to select processes or `except` to exclude them:
+
+```php
+DevCommands::only('server', 'vite');
+
+DevCommands::except('queue');
+```
+
+You may exclude commands registered by packages or Hypervel's default commands:
+
+```php
+DevCommands::withoutVendorCommands();
+
+DevCommands::withoutDefaultCommands();
+```
+
+To place selected processes first, configure their order during boot. Processes not listed retain their registration order after them:
+
+```php
+DevCommands::order(['vite', 'server', 'queue']);
+```
 
 <a name="stub-customization"></a>
 ## Stub Customization
@@ -1065,3 +1232,8 @@ The published stubs will be located within a `stubs` directory in the root of yo
 Artisan dispatches three framework-level events outside the command's execution boundary: `Hypervel\Console\Events\ArtisanStarting`, `Hypervel\Console\Events\CommandStarting`, and `Hypervel\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.
 
 Hypervel also dispatches command lifecycle events inside that execution boundary: `Hypervel\Console\Events\BeforeHandle`, `Hypervel\Console\Events\AfterHandle`, and `Hypervel\Console\Events\AfterExecute`. The `BeforeHandle` event is dispatched immediately before the command's `handle` method is called and includes the original console input. The `AfterHandle` event is dispatched after the `handle` method completes successfully. The `AfterExecute` event is dispatched after execution completes, whether the command succeeded or failed, and includes the original input, normalized exit code, and any thrown exception. Commands normally run in a coroutine, but a command may disable coroutine execution, so listeners should check before using coroutine-only APIs.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Console began as a port of [Laravel Console](https://github.com/illuminate/console) and has been adapted for Hypervel's framework architecture and coroutine runtime.

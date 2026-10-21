@@ -12,7 +12,7 @@ use Hypervel\Testbench\TestCase;
 #[WithConfig('cache.stores.null', ['driver' => 'null'])]
 class NoLockTest extends TestCase
 {
-    public function testLocksCanAlwaysBeAcquiredAndReleased()
+    public function testLocksCanAlwaysBeAcquiredAndReleased(): void
     {
         Cache::lock('foo')->forceRelease();
 
@@ -23,7 +23,7 @@ class NoLockTest extends TestCase
         $this->assertTrue($lock->release());
     }
 
-    public function testLocksCanBlockForSeconds()
+    public function testLocksCanBlockForSeconds(): void
     {
         Cache::lock('foo')->forceRelease();
         $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function () {

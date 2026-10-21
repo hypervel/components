@@ -7,6 +7,7 @@ namespace Hypervel\Session;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
+use RuntimeException;
 use SessionHandlerInterface;
 use Symfony\Component\Finder\Finder;
 
@@ -34,6 +35,22 @@ class FileSessionHandler implements SessionHandlerInterface
     public function close(): bool
     {
         return true;
+    }
+
+    /**
+     * Create a new session ID.
+     */
+    public function create_sid(): string
+    {
+        return session_create_id() ?: throw new RuntimeException('Unable to create a session ID.');
+    }
+
+    /**
+     * Determine if the session ID exists.
+     */
+    public function validateId(string $id): bool
+    {
+        return $this->files->isFile($this->path . '/' . $id);
     }
 
     public function read(string $sessionId): false|string

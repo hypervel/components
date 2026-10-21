@@ -15,10 +15,11 @@ use Hypervel\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Hypervel\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class DatabaseEloquentResourceCollectionTest extends TestCase
 {
-    public function testItCanTransformToExplicitResource()
+    public function testItCanTransformToExplicitResource(): void
     {
         $collection = new Collection([
             new EloquentResourceCollectionTestModel,
@@ -29,10 +30,9 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $this->assertInstanceOf(JsonResource::class, $resource);
     }
 
-    public function testItThrowsExceptionWhenResourceCannotBeFound()
+    public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].'));
 
         $collection = new Collection([
             new EloquentResourceCollectionTestModel,
@@ -40,7 +40,8 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $collection->toResourceCollection();
     }
 
-    public function testItCanGuessResourceWhenNotProvided()
+    #[RunInSeparateProcess]
+    public function testItCanGuessResourceWhenNotProvided(): void
     {
         $collection = new Collection([
             new EloquentResourceCollectionTestModel,
@@ -53,7 +54,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $this->assertInstanceOf(JsonResource::class, $resource);
     }
 
-    public function testItCanTransformToResourceViaUseResourceAttribute()
+    public function testItCanTransformToResourceViaUseResourceAttribute(): void
     {
         $collection = new Collection([
             new EloquentResourceTestResourceModelWithUseResourceCollectionAttribute,
@@ -64,7 +65,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $this->assertInstanceOf(EloquentResourceTestJsonResourceCollection::class, $resource);
     }
 
-    public function testItCanTransformToResourceViaUseResourceCollectionAttribute()
+    public function testItCanTransformToResourceViaUseResourceCollectionAttribute(): void
     {
         $collection = new Collection([
             new EloquentResourceTestResourceModelWithUseResourceAttribute,

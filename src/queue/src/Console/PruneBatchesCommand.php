@@ -30,7 +30,7 @@ class PruneBatchesCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $repository = $this->hypervel->make(BatchRepository::class);
 
@@ -40,7 +40,7 @@ class PruneBatchesCommand extends Command
             $count = $repository->prune(CarbonImmutable::now()->subHours((int) $this->option('hours')));
         }
 
-        $this->info("{$count} entries deleted.");
+        $this->components->info("{$count} entries deleted.");
 
         if ($this->option('unfinished') !== null) {
             $count = 0;
@@ -49,7 +49,7 @@ class PruneBatchesCommand extends Command
                 $count = $repository->pruneUnfinished(CarbonImmutable::now()->subHours((int) $this->option('unfinished')));
             }
 
-            $this->info("{$count} unfinished entries deleted.");
+            $this->components->info("{$count} unfinished entries deleted.");
         }
 
         if ($this->option('cancelled') !== null) {
@@ -59,7 +59,7 @@ class PruneBatchesCommand extends Command
                 $count = $repository->pruneCancelled(CarbonImmutable::now()->subHours((int) $this->option('cancelled')));
             }
 
-            $this->info("{$count} cancelled entries deleted.");
+            $this->components->info("{$count} cancelled entries deleted.");
         }
     }
 }

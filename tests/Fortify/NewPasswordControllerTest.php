@@ -4,22 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Auth\Events\PasswordReset;
 use Hypervel\Contracts\Auth\PasswordBroker;
-use Hypervel\Fortify\Contracts\ResetPasswordViewResponse;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Contracts\ResetsUserPasswords;
 use Hypervel\Fortify\Fortify;
-use Hypervel\Support\Facades\Auth;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Password;
+use Hypervel\Testbench\Attributes\WithMigration;
 use Mockery as m;
 use Workbench\App\Models\User;
+use Workbench\Database\Factories\UserFactory;
 
+#[WithMigration]
 class NewPasswordControllerTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function testTheNewPasswordViewIsReturned(): void
     {
-        $this->mock(ResetPasswordViewResponse::class)
-            ->shouldReceive('toResponse')
-            ->andReturn(response('hello world'));
+        Fortify::resetPasswordView(fn (): string => 'hello world');
 
         $response = $this->get('/reset-password/token');
 
@@ -29,45 +34,37 @@ class NewPasswordControllerTest extends TestCase
 
     public function testPasswordCanBeReset(): void
     {
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
+        Event::fake([PasswordReset::class]);
 
-        $user = m::mock(TestNewPasswordUser::class)->makePartial();
+        $user = User::forceCreate(UserFactory::new()->raw(['email' => 'taylor@hypervel.org']));
+        $token = Password::broker()->createToken($user);
 
-        $user->shouldReceive('setRememberToken')->once();
-        $user->shouldReceive('save')->once();
-
-        $updater = $this->mock(ResetsUserPasswords::class);
-        $updater->shouldReceive('reset')->once()->with($user, m::type('array'));
-
-        $broker->shouldReceive('reset')->andReturnUsing(function ($input, $callback) use ($user) {
-            $callback($user, 'password');
-
-            return Password::PASSWORD_RESET;
-        });
+        $this->mock(ResetsUserPasswords::class)
+            ->shouldReceive('reset')
+            ->once()
+            ->with(m::on(fn (Model $resetUser): bool => $resetUser->is($user)), m::type('array'));
 
         $response = $this->withoutExceptionHandling()->post('/reset-password', [
-            'token' => 'token',
-            'email' => 'taylor@laravel.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'token' => $token,
+            'email' => 'taylor@hypervel.org',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
         ]);
 
         $response->assertStatus(302);
         $response->assertRedirect(Fortify::redirects('password-reset', route('login')));
-        $this->assertNull(Auth::getUser());
+        $this->assertGuest();
+        $this->assertNotSame($user->remember_token, $user->fresh()->remember_token);
+        Event::assertDispatched(PasswordReset::class);
     }
 
     public function testPasswordResetCanFail(): void
     {
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
-
-        $broker->shouldReceive('reset')->andReturnUsing(function ($input, $callback) {
-            return Password::INVALID_TOKEN;
-        });
+        User::forceCreate(UserFactory::new()->raw(['email' => 'taylor@hypervel.org']));
 
         $response = $this->withoutExceptionHandling()->post('/reset-password', [
             'token' => 'token',
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.org',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
@@ -78,15 +75,11 @@ class NewPasswordControllerTest extends TestCase
 
     public function testPasswordResetCanFailWithJson(): void
     {
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
-
-        $broker->shouldReceive('reset')->andReturnUsing(function ($input, $callback) {
-            return Password::INVALID_TOKEN;
-        });
+        User::forceCreate(UserFactory::new()->raw(['email' => 'taylor@hypervel.org']));
 
         $response = $this->postJson('/reset-password', [
             'token' => 'token',
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.org',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
@@ -100,15 +93,15 @@ class NewPasswordControllerTest extends TestCase
         $this->app->make('config')->set('fortify.email', 'emailAddress');
         Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
 
-        $user = m::mock(TestNewPasswordUser::class)->makePartial();
+        $user = User::forceCreate(UserFactory::new()->raw());
+        $rememberToken = $user->remember_token;
 
-        $user->shouldReceive('setRememberToken')->once();
-        $user->shouldReceive('save')->once();
+        $this->mock(ResetsUserPasswords::class)
+            ->shouldReceive('reset')
+            ->once()
+            ->with($user, m::type('array'));
 
-        $updater = $this->mock(ResetsUserPasswords::class);
-        $updater->shouldReceive('reset')->once()->with($user, m::type('array'));
-
-        $broker->shouldReceive('reset')->andReturnUsing(function ($input, $callback) use ($user) {
+        $broker->shouldReceive('reset')->once()->andReturnUsing(function (array $input, callable $callback) use ($user): string {
             $callback($user, 'password');
 
             return Password::PASSWORD_RESET;
@@ -123,7 +116,8 @@ class NewPasswordControllerTest extends TestCase
 
         $response->assertStatus(302);
         $response->assertRedirect(Fortify::redirects('password-reset', route('login')));
-        $this->assertNull(Auth::getUser());
+        $this->assertGuest();
+        $this->assertNotSame($rememberToken, $user->remember_token);
     }
 
     public function testPasswordIsRequired(): void
@@ -140,41 +134,23 @@ class NewPasswordControllerTest extends TestCase
     public function testCaseInsensitiveUsernamesCanBeUsed(): void
     {
         $this->app->make('config')->set('fortify.lowercase_usernames', true);
-        Password::shouldReceive('broker')->andReturn($broker = m::mock(PasswordBroker::class));
 
-        $user = m::mock(TestNewPasswordUser::class)->makePartial();
+        $user = User::forceCreate(UserFactory::new()->raw(['email' => 'john.doe@example.com']));
+        $token = Password::broker()->createToken($user);
 
-        $user->shouldReceive('setRememberToken')->once();
-        $user->shouldReceive('save')->once();
-
-        $updater = $this->mock(ResetsUserPasswords::class);
-        $updater->shouldReceive('reset')->once()->with($user, m::type('array'));
-
-        $broker->shouldReceive('reset')
+        $this->mock(ResetsUserPasswords::class)
+            ->shouldReceive('reset')
             ->once()
-            ->with(
-                m::on(fn ($credentials) => $credentials['email'] === 'john.doe@example.com'),
-                m::type('callable')
-            )
-            ->andReturnUsing(function ($input, $callback) use ($user) {
-                $callback($user, 'password');
-
-                return Password::PASSWORD_RESET;
-            });
+            ->with(m::on(fn (Model $resetUser): bool => $resetUser->is($user)), m::type('array'));
 
         $response = $this->withoutExceptionHandling()->post('/reset-password', [
-            'token' => 'token',
+            'token' => $token,
             'email' => 'John.Doe@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
         ]);
 
         $response->assertStatus(302);
         $response->assertRedirect(Fortify::redirects('password-reset', route('login')));
-        $this->assertNull(Auth::getUser());
     }
-}
-
-class TestNewPasswordUser extends User
-{
 }

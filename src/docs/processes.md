@@ -22,6 +22,7 @@
     - [Faking Asynchronous Process Lifecycles](#faking-asynchronous-process-lifecycles)
     - [Available Assertions](#available-assertions)
     - [Preventing Stray Processes](#preventing-stray-processes)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -146,6 +147,8 @@ The `idleTimeout` method may be used to specify the maximum number of seconds th
 $result = Process::timeout(60)->idleTimeout(30)->run('bash import.sh');
 ```
 
+An idle timeout throws `Hypervel\Process\Exceptions\ProcessIdleTimedOutException`, a subclass of `ProcessTimedOutException`. Both exceptions provide an `exceededTimeout` method that returns the configured limit in seconds, and a `result` property containing the process output collected before the timeout.
+
 <a name="environment-variables"></a>
 #### Environment Variables
 
@@ -237,6 +240,8 @@ use Hypervel\Support\Facades\Process;
 
 $result = Process::quietly()->run('bash import.sh');
 ```
+
+The result's `output` and `errorOutput` methods return empty strings. You may still call `throw` to throw an exception when the process fails.
 
 <a name="process-pipelines"></a>
 ### Pipelines
@@ -499,6 +504,14 @@ $results = $pool->wait();
 echo $results[0]->output();
 ```
 
+You may also iterate over a started pool or its results using `foreach`. Both preserve the keys assigned to the processes:
+
+```php
+foreach ($results as $key => $result) {
+    echo $result->output();
+}
+```
+
 The process pool results object also offers `successful` and `failed` methods which may be used to determine if the pool succeeded or failed. You may use the `collect` method to retrieve the results as a collection:
 
 ```php
@@ -532,7 +545,7 @@ return $results['first']->output();
 Since the process pool's `running` method provides a collection of all invoked processes within the pool, you may easily access the underlying pool process IDs:
 
 ```php
-$processIds = $pool->running()->each->id();
+$processIds = $pool->running()->map->id();
 ```
 
 And, for convenience, you may invoke the `signal` method on a process pool to send a signal to every process within the pool:
@@ -736,6 +749,8 @@ Process::fake([
 
 Let's dig into the example above. The `id` method may be used to specify the process ID returned by the fake process. Using the `output` and `errorOutput` methods, we may specify multiple lines of output that will be returned in sequence. The `exitCode` method may be used to specify the final exit code of the fake process. Finally, the `runsFor` method may be used to specify how many times the `running` method should return `true`. The `iterations` method may also be used as an alias for `runsFor`.
 
+If your code stops a fake process, the process will no longer be running and the `stop` method will return the fake process's exit code.
+
 If your code sends a signal to an asynchronous process, you may use the `hasReceivedSignal` method to assert that the fake process received the signal:
 
 ```php
@@ -765,6 +780,14 @@ use Hypervel\Support\Facades\Process;
 
 Process::assertRan('ls -la');
 ```
+
+When the process was invoked with an array of arguments, you may pass the same array to the assertion:
+
+```php
+Process::assertRan(['php', 'artisan', 'migrate']);
+```
+
+The `assertRanTimes` and `assertDidntRun` methods also accept array commands.
 
 The `assertRan` method also accepts a closure, which will receive an instance of a process and a process result, allowing you to inspect the process' configured options. If this closure returns `true`, the assertion will "pass":
 
@@ -818,6 +841,20 @@ Process::assertRanTimes(function (PendingProcess $process, ProcessResult $result
 }, times: 3);
 ```
 
+<a name="assert-processes-ran-in-order"></a>
+#### assertRanInOrder
+
+Assert that processes were invoked in a given order:
+
+```php
+Process::assertRanInOrder([
+    'git fetch',
+    'composer install',
+]);
+```
+
+The `assertRanInOrder` method accepts command strings, arrays of command arguments, or closures like the other process assertions.
+
 <a name="assert-nothing-ran"></a>
 #### assertNothingRan
 
@@ -849,3 +886,8 @@ Process::run('ls -la');
 // An exception is thrown...
 Process::run('bash import.sh');
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Process began as a port of [Laravel Process](https://github.com/illuminate/process) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -15,11 +15,9 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
-use LogicException;
+use Hypervel\Database\Pool\PooledConnection;
 use Throwable;
 use UnitEnum;
-
-use function Hypervel\Support\enum_value;
 
 /**
  * Database connection resolver for the testing environment.
@@ -27,6 +25,7 @@ use function Hypervel\Support\enum_value;
  * Testbench needs stable bare connections across its setup, transaction, and
  * assertion helpers. The resolver therefore retains each borrowed wrapper
  * alongside its bare connection and explicitly discards both at teardown.
+ * Concurrent database tests enable pool.testing_enabled to use coroutine-owned connections.
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements CachedConnectionResolver
 {
@@ -131,7 +130,6 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         // Must use the canonical binding key. rebinding() resolves aliases when
         // storing callbacks, but instance() doesn't when firing them. Using the
         // canonical key avoids the mismatch.
-        /** @var \Hypervel\Container\Container $container */
         $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
@@ -153,6 +151,34 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         return static::$connections[$this->connectionCacheKey($name)] ?? null;
+    }
+
+    /**
+     * Get the connections shared across the test's setup, requests and assertions.
+     *
+     * @return array<string, ConnectionInterface>
+     */
+    public function getRetainedConnections(): array
+    {
+        return static::$connections;
+    }
+
+    /**
+     * Check the retained testing connection before coroutine-owned connections.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        $name = $this->connectionName($name);
+
+        if ($this->poolEnabled(ConnectionName::parse($name))) {
+            return parent::hasApplicableTransaction($name);
+        }
+
+        $connection = $this->getResolvedConnection($name);
+
+        return $connection instanceof Connection
+            ? $connection->hasApplicableTransaction()
+            : parent::hasApplicableTransaction($name);
     }
 
     /**
@@ -207,25 +233,18 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        if ($name instanceof UnitEnum) {
-            $name = (string) enum_value($name);
-        }
-
-        $name = $name === null || $name === ''
-            ? $this->getDefaultConnection()
-            : $name;
-
-        $connectionName = ConnectionName::parse($name);
+        $connectionName = ConnectionName::parse($this->connectionName($name));
 
         // If the pool is enabled, we should use the default connection resolver.
-        /** @var ConfigRepository $config */
-        $config = $this->container->make('config');
-        $poolEnabled = $config->boolean("database.connections.{$connectionName->base}.pool.testing_enabled", false);
-        if ($poolEnabled) {
+        if ($this->poolEnabled($connectionName)) {
             return parent::connection($connectionName->requested);
         }
 
         if ($connection = static::$connections[$connectionName->requested] ?? null) {
+            if ($connectionName->role !== null && $connection instanceof Connection) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
             if ($connectionName->isWrite() && $connection instanceof Connection) {
                 // resetCachedConnections() runs resetForPool() between tests and clears this flag.
                 $connection->useWriteConnectionWhenReading();
@@ -247,27 +266,44 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             return $connection;
         }
 
+        /** @var PooledConnection $pooled */
         $pooled = $pool->borrow();
 
         try {
             $connection = $pooled->getConnection();
 
-            if (! $connection instanceof ConnectionInterface) {
-                throw new LogicException('The database pool returned an invalid connection.');
+            if ($connectionName->isWrite()) {
+                $connection->useWriteConnectionWhenReading();
             }
+
+            if ($connectionName->role !== null && $cacheKey === $connectionName->requested) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
+            static::$pooledConnections[$cacheKey] = $pooled;
+            static::$connections[$cacheKey] = $connection;
+
+            $pooled->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
-            $pooled->discard();
+            unset(static::$pooledConnections[$cacheKey], static::$connections[$cacheKey]);
+
+            $this->discardFailedConnection($pooled, $exception);
 
             throw $exception;
         }
 
-        if ($connectionName->isWrite() && $connection instanceof Connection) {
-            $connection->useWriteConnectionWhenReading();
-        }
+        return $connection;
+    }
 
-        static::$pooledConnections[$cacheKey] = $pooled;
+    /**
+     * Determine whether this test uses coroutine-owned pooled connections.
+     */
+    protected function poolEnabled(ConnectionName $name): bool
+    {
+        /** @var ConfigRepository $config */
+        $config = $this->container->make('config');
 
-        return static::$connections[$cacheKey] = $connection;
+        return $config->boolean("database.connections.{$name->base}.pool.testing_enabled", false);
     }
 
     /**

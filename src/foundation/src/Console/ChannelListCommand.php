@@ -15,9 +15,9 @@ use Symfony\Component\Console\Terminal;
 class ChannelListCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'channel:list';
+    protected ?string $signature = 'channel:list';
 
     /**
      * The console command description.
@@ -37,13 +37,11 @@ class ChannelListCommand extends Command
         // @phpstan-ignore method.notFound (channel listing is an optional concrete broadcaster capability)
         $channels = $broadcaster->getChannels();
 
-        if (! $channels->count()) {
+        if ($channels->isEmpty()) {
             $this->components->error("Your application doesn't have any private broadcasting channels.");
-
-            return;
+        } else {
+            $this->displayChannels($channels);
         }
-
-        $this->displayChannels($channels);
     }
 
     /**
@@ -63,7 +61,7 @@ class ChannelListCommand extends Command
             return mb_strlen($channelName);
         });
 
-        $terminalWidth = $this->getTerminalWidth();
+        $terminalWidth = static::getTerminalWidth();
 
         $channelCount = $this->determineChannelCountOutput($channels, $terminalWidth);
 

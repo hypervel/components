@@ -149,6 +149,24 @@ class AuthEloquentBuilderCanTest extends TestCase
         }
     }
 
+    public function testWithCanPreservesExplicitColumnsAndSelectionBindings(): void
+    {
+        $this->gate()->before(fn (): bool => true);
+
+        $post = Post::query()
+            ->select('id')
+            ->selectRaw('? as title', ['Selected title'])
+            ->withCan('edit', $this->user(1))
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertSame([
+            'id' => 1,
+            'title' => 'Selected title',
+            'can_edit' => true,
+        ], $post->toArray());
+    }
+
     public function testWithCanGeneratesDashedCamelExplicitAndDottedAliases(): void
     {
         $user = $this->user(1);
@@ -187,7 +205,7 @@ class AuthEloquentBuilderCanTest extends TestCase
         }
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('may not exceed 63 bytes');
+        $this->expectExceptionMessageIsOrContains('may not exceed 63 bytes');
 
         Post::query()->withCan('edit as ' . str_repeat('a', 64), $this->user(1));
     }
@@ -195,7 +213,7 @@ class AuthEloquentBuilderCanTest extends TestCase
     public function testWithCanRejectsOverlongGeneratedAliasWithExplicitAliasGuidance(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Provide a shorter explicit alias using [ability as alias].');
+        $this->expectExceptionMessageIsOrContains('Provide a shorter explicit alias using [ability as alias].');
 
         Post::query()->withCan(str_repeat('a', 60), $this->user(1));
     }

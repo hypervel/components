@@ -9,20 +9,29 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
-use Hypervel\Tests\Sentry\SentryTestCase;
+use Hypervel\Sentry\Features\ConsoleSchedulingIntegration;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Tests\Sentry\TestCase;
 use RuntimeException;
+use Sentry\CheckIn;
+use Sentry\CheckInStatus;
 use Sentry\Event as SentryEvent;
 use Sentry\EventType;
+use Sentry\MonitorSchedule;
 use Sentry\Tracing\SpanStatus;
 
-class ConsoleSchedulingIntegrationTest extends SentryTestCase
+use function Hypervel\Coroutine\parallel;
+
+class ConsoleSchedulingIntegrationTest extends TestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
-            ConsoleSchedulingFeature::class,
+            ConsoleSchedulingIntegration::class,
         ],
     ];
 
@@ -30,7 +39,7 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
     {
         /** @var Event $scheduledEvent */
         $scheduledEvent = $this->getScheduler()
-            ->call(function () {
+            ->call(function (): void {
             })
             ->sentryMonitor('test-monitor');
 
@@ -58,7 +67,7 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
 
         /** @var Event $scheduledEvent */
         $scheduledEvent = $this->getScheduler()
-            ->call(function () {
+            ->call(function (): void {
             })
             ->timezone(new DateTimeZone($expectedTimezone))
             ->sentryMonitor('test-timezone-monitor');
@@ -76,25 +85,19 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $this->assertEquals($expectedTimezone, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getTimezone());
     }
 
-    public function testScheduleMacroCanOverrideTheMonitorExpression(): void
+    public function testScheduleMacroWithScheduleOverride(): void
     {
-        $scheduledEvent = $this->getScheduler()
-            ->call(static function (): void {
-            })
-            ->daily()
-            ->sentryMonitor('custom-schedule-monitor', schedule: '*/5 * * * *');
+        $expectedSchedule = '*/5 9-17 * * *';
 
-        $scheduledEvent->run($this->app);
-
-        $monitorConfig = $this->getLastSentryEvent()->getCheckIn()->getMonitorConfig();
-
-        $this->assertSame('*/5 * * * *', $monitorConfig->getSchedule()->getValue());
-    }
-
-    public function testScheduleMacroAutomaticSlugForCommand(): void
-    {
         /** @var Event $scheduledEvent */
-        $scheduledEvent = $this->getScheduler()->command('migrate')->sentryMonitor();
+        $scheduledEvent = $this->getScheduler()
+            ->call(function (): void {
+            })
+            ->everyFiveMinutes()
+            ->between('09:00', '17:59')
+            ->sentryMonitor('test-monitor', null, null, true, null, null, $expectedSchedule);
+
+        $this->assertEquals('*/5 * * * *', $scheduledEvent->getExpression());
 
         $scheduledEvent->run($this->app);
 
@@ -106,7 +109,30 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $finishCheckInEvent = $this->getLastSentryEvent();
 
         $this->assertNotNull($finishCheckInEvent->getCheckIn());
-        $this->assertEquals('scheduled_migrate', $finishCheckInEvent->getCheckIn()->getMonitorSlug());
+        $this->assertNotNull($finishCheckInEvent->getCheckIn()->getMonitorConfig());
+        $this->assertEquals(MonitorSchedule::TYPE_CRONTAB, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getSchedule()->getType());
+        $this->assertEquals($expectedSchedule, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getSchedule()->getValue());
+    }
+
+    public function testScheduleMacroAutomaticSlugForCommand(): void
+    {
+        $this->defineInspireCommand();
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()->command('inspire')->sentryMonitor();
+
+        $scheduledEvent->run($this->app);
+
+        // We expect a total of 2 events to be sent to Sentry:
+        // 1. The start check-in event
+        // 2. The finish check-in event
+        $this->assertSentryCheckInCount(2);
+
+        $finishCheckInEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($finishCheckInEvent->getCheckIn());
+        // Artisan tasks run in-process, so the command string has no PHP or Artisan binary
+        $this->assertEquals('scheduled_inspire', $finishCheckInEvent->getCheckIn()->getMonitorSlug());
     }
 
     public function testScheduleMacroAutomaticSlugForJob(): void
@@ -135,23 +161,15 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
     {
         $this->expectException(RuntimeException::class);
 
-        $this->getScheduler()->call(function () {
+        $this->getScheduler()->call(function (): void {
         })->sentryMonitor();
     }
 
-    /** @define-env envWithoutDsnSet */
+    #[DefineEnvironment('envWithoutDsnSet')]
     public function testScheduleMacroWithoutDsnSet(): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.dsn' => null,
-            'sentry_test.override_dsn' => true,
-            'sentry.features' => [
-                ConsoleSchedulingFeature::class,
-            ],
-        ]);
-
         /** @var Event $scheduledEvent */
-        $scheduledEvent = $this->getScheduler()->call(function () {
+        $scheduledEvent = $this->getScheduler()->call(function (): void {
         })->sentryMonitor('test-monitor');
 
         $scheduledEvent->run($this->app);
@@ -161,6 +179,10 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
 
     public function testScheduleMacroIsRegistered(): void
     {
+        Event::flushMacros();
+
+        $this->refreshApplication();
+
         $this->assertTrue(Event::hasMacro('sentryMonitor'));
     }
 
@@ -169,14 +191,14 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $this->resetApplicationWithConfig([
             'sentry.traces_sample_rate' => null,
             'sentry.features' => [
-                ConsoleSchedulingFeature::class,
+                ConsoleSchedulingIntegration::class,
             ],
         ]);
         $listeners = $this->app->make('events')->getRawListeners()[ScheduledTaskStarting::class] ?? [];
 
         foreach ($listeners as $listener) {
             $this->assertFalse(
-                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingFeature,
+                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingIntegration,
             );
         }
 
@@ -191,22 +213,19 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $this->assertSentryCheckInCount(2);
     }
 
+    #[DefineEnvironment('envWithoutDsnSet')]
     public function testScheduleMacroIsRegisteredWithoutDsnSet(): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.dsn' => null,
-            'sentry_test.override_dsn' => true,
-            'sentry.features' => [
-                ConsoleSchedulingFeature::class,
-            ],
-        ]);
+        Event::flushMacros();
+
+        $this->refreshApplication();
 
         $this->assertTrue(Event::hasMacro('sentryMonitor'));
     }
 
     public function testScheduledClosureCreatesTransaction(): void
     {
-        $this->getScheduler()->call(function () {
+        $this->getScheduler()->call(function (): void {
         })->everyMinute();
 
         $this->artisan('schedule:run --once');
@@ -253,7 +272,6 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         );
     }
 
-    /** @define-env envSamplingAllTransactions */
     public function testScheduledJobCreatesTransaction(): void
     {
         $this->getScheduler()->job(ScheduledQueuedJob::class)->everyMinute();
@@ -269,89 +287,70 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
 
     public function testBackgroundScheduledTaskUsesContextForCheckInId(): void
     {
-        /** @var Event $scheduledEvent */
-        $scheduledEvent = $this->getScheduler()
-            ->command('migrate')
+        $this->defineInspireCommand();
+
+        $this->getScheduler()
+            ->command('inspire')
+            ->everyMinute()
             ->runInBackground()
             ->sentryMonitor('test-background-monitor');
 
-        $scheduledEvent->run($this->app);
+        // Background tasks run in a coroutine forked by the scheduler, which starts and finishes the check-in
+        $this->artisan('schedule:run --once');
 
-        // We should have 2 check-in events (start + finish)
         $this->assertSentryCheckInCount(2);
 
-        $events = $this->getCapturedSentryEvents();
-        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
+        [$startCheckIn, $finishCheckIn] = $this->getCheckIns();
 
-        $startCheckInId = $checkInEvents[0][0]->getCheckIn()->getId();
-        $finishCheckInId = $checkInEvents[1][0]->getCheckIn()->getId();
-
-        // The finish check-in should have the same ID as the start check-in,
-        // verifying the ID was correctly stored and retrieved via Context hidden storage
-        $this->assertEquals($startCheckInId, $finishCheckInId);
+        $this->assertSame($startCheckIn->getId(), $finishCheckIn->getId());
+        $this->assertEquals(CheckInStatus::ok(), $finishCheckIn->getStatus());
     }
 
     public function testBackgroundScheduledTaskOverlappingExecutionsHaveDistinctCheckInIds(): void
     {
-        $scheduler = $this->getScheduler();
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function (): void {
+                usleep(5000);
+            })
+            ->sentryMonitor('test-overlapping-monitor');
 
-        /** @var Event $scheduledEventA */
-        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
-        /** @var Event $scheduledEventB */
-        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
+        parallel([
+            fn (): mixed => $scheduledEvent->run($this->app),
+            fn (): mixed => $scheduledEvent->run($this->app),
+        ]);
 
-        $scheduledEventA->run($this->app);
-        $scheduledEventB->run($this->app);
+        $checkIns = $this->getCheckIns();
 
-        $this->assertSentryCheckInCount(4);
-
-        $events = $this->getCapturedSentryEvents();
-        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
-
-        $taskAStartId = $checkInEvents[0][0]->getCheckIn()->getId();
-        $taskAFinishId = $checkInEvents[1][0]->getCheckIn()->getId();
-        $taskBStartId = $checkInEvents[2][0]->getCheckIn()->getId();
-        $taskBFinishId = $checkInEvents[3][0]->getCheckIn()->getId();
-
-        // Each task's start and finish should match
-        $this->assertEquals($taskAStartId, $taskAFinishId);
-        $this->assertEquals($taskBStartId, $taskBFinishId);
-
-        // But the two tasks should have different check-in IDs
-        $this->assertNotEquals($taskAStartId, $taskBStartId);
+        $this->assertCount(4, $checkIns);
+        // Both executions start before either finishes
+        $this->assertEquals(CheckInStatus::inProgress(), $checkIns[0]->getStatus());
+        $this->assertEquals(CheckInStatus::inProgress(), $checkIns[1]->getStatus());
+        $this->assertNotSame($checkIns[0]->getId(), $checkIns[1]->getId());
+        $this->assertEqualsCanonicalizing(
+            [$checkIns[0]->getId(), $checkIns[1]->getId()],
+            [$checkIns[2]->getId(), $checkIns[3]->getId()],
+        );
     }
 
-    public function testCheckInStateIsIsolatedBetweenConcurrentTasks(): void
+    public function testCheckInIsKeptOutOfTheApplicationContextAndRemovedOnCompletion(): void
     {
-        $scheduler = $this->getScheduler();
+        $hiddenContext = null;
 
-        // Schedule two closures with different monitor slugs
-        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('task-a');
-        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('task-b');
-
-        // Run both — each gets its own check-in in its own coroutine-local context
-        $scheduledEventA->run($this->app);
-        $scheduledEventB->run($this->app);
-
-        // We should have 4 check-in events total (2 starts + 2 finishes)
-        $this->assertSentryCheckInCount(4);
-    }
-
-    public function testCheckInStateIsCleanedUpAfterTaskCompletes(): void
-    {
-        $scheduler = $this->getScheduler();
-
-        $scheduledEvent = $scheduler->call(fn () => null)->sentryMonitor('cleanup-test');
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function () use (&$hiddenContext): void {
+                $hiddenContext = Context::allHidden();
+            })
+            ->sentryMonitor('test-context-monitor');
 
         $scheduledEvent->run($this->app);
 
-        // 2 check-in events (start + finish)
-        $this->assertSentryCheckInCount(2);
+        [$startCheckIn, $finishCheckIn] = $this->getCheckIns();
 
-        // Running again should create 2 new check-ins (not reuse old state)
-        $scheduledEvent->run($this->app);
-
-        $this->assertSentryCheckInCount(4);
+        $this->assertSame([], $hiddenContext);
+        $this->assertSame($startCheckIn->getId(), $finishCheckIn->getId());
+        $this->assertSame([], CoroutineContext::get(ConsoleSchedulingIntegration::CHECK_INS_CONTEXT_KEY, []));
     }
 
     /**
@@ -367,9 +366,34 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         );
     }
 
+    /**
+     * Get the captured Sentry check-ins.
+     *
+     * @return list<CheckIn>
+     */
+    private function getCheckIns(): array
+    {
+        return array_map(
+            static fn (array $captured): CheckIn => $captured[0]->getCheckIn(),
+            $this->getCapturedSentryEventsOfType(EventType::checkIn()),
+        );
+    }
+
+    /**
+     * Get the scheduler.
+     */
     protected function getScheduler(): Schedule
     {
         return $this->app->make(Schedule::class);
+    }
+
+    /**
+     * Define the `inspire` command that upstream's tests get from the Laravel application skeleton.
+     */
+    private function defineInspireCommand(): void
+    {
+        Artisan::command('inspire', function (): void {
+        });
     }
 }
 
@@ -377,6 +401,9 @@ class ScheduledQueuedJob implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Execute the job.
+     */
     public function handle(): void
     {
     }

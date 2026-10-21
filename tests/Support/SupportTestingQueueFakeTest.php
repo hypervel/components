@@ -71,11 +71,11 @@ class SupportTestingQueueFakeTest extends TestCase
         $job = new JobStub;
 
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('push')->once()->withArgs(function ($passedJob) use ($job) {
+        $queue->expects('push')->withArgs(function ($passedJob) use ($job) {
             return $passedJob === $job;
         });
         $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $manager->expects('connection')->with(null)->andReturn($queue);
 
         $fake = new QueueFake(new Application, JobToFakeStub::class, $manager);
 
@@ -430,11 +430,11 @@ class SupportTestingQueueFakeTest extends TestCase
         $job = new JobStub;
 
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('push')->once()->withArgs(function ($passedJob) use ($job) {
+        $queue->expects('push')->withArgs(function ($passedJob) use ($job) {
             return $passedJob === $job;
         });
         $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $manager->expects('connection')->with(null)->andReturn($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))->except(JobStub::class);
 
@@ -522,11 +522,11 @@ class SupportTestingQueueFakeTest extends TestCase
         $steps = [];
 
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('push')->once()->withArgs(function ($passedJob, $passedData, $passedQueue) use ($job) {
+        $queue->expects('push')->withArgs(function ($passedJob, $passedData, $passedQueue) use ($job) {
             return $passedJob === $job && $passedData === ['foo' => 'bar'] && $passedQueue === 'redis';
         });
         $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $manager->expects('connection')->with(null)->andReturn($queue);
 
         $fake = (new QueueFake(new Application, [], $manager))
             ->except(JobStub::class)
@@ -638,6 +638,7 @@ class SupportTestingQueueFakeTest extends TestCase
 
         $this->assertCount(1, $pending);
         $this->assertInstanceOf(InspectedJob::class, $pending->first());
+        $this->assertIsString($pending->first()->uuid);
         $this->assertSame(JobStub::class, $pending->first()->name);
         $this->assertSame(0, $pending->first()->attempts);
         $this->assertSame('foo', $pending->first()->queue);
@@ -663,6 +664,7 @@ class SupportTestingQueueFakeTest extends TestCase
 
         $this->assertCount(2, $pending);
         $this->assertInstanceOf(InspectedJob::class, $pending->first());
+        $this->assertCount(2, $pending->pluck('uuid')->unique());
         $this->assertTrue($pending->contains(fn ($job) => $job->name === JobStub::class));
         $this->assertTrue($pending->contains(fn ($job) => $job->name === JobToFakeStub::class));
     }
@@ -693,6 +695,7 @@ class SupportTestingQueueFakeTest extends TestCase
 
         $this->assertCount(1, $delayed);
         $this->assertInstanceOf(InspectedJob::class, $delayed->first());
+        $this->assertIsString($delayed->first()->uuid);
         $this->assertSame(JobStub::class, $delayed->first()->name);
         $this->assertSame(0, $delayed->first()->attempts);
         $this->assertSame('foo', $delayed->first()->queue);
@@ -707,6 +710,7 @@ class SupportTestingQueueFakeTest extends TestCase
 
         $this->assertCount(2, $delayed);
         $this->assertInstanceOf(InspectedJob::class, $delayed->first());
+        $this->assertCount(2, $delayed->pluck('uuid')->unique());
         $this->assertTrue($delayed->contains(fn ($job) => $job->name === JobStub::class));
         $this->assertTrue($delayed->contains(fn ($job) => $job->name === JobToFakeStub::class));
     }
@@ -736,6 +740,20 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertPushedOn('foo', JobStub::class);
     }
 
+    public function testDelayedJobsAreNotPending(): void
+    {
+        $this->fake->push($this->job, '', 'foo');
+        $this->fake->later(10, new JobToFakeStub, '', 'foo');
+
+        $this->assertSame(2, $this->fake->size('foo'));
+        $this->assertSame(1, $this->fake->pendingSize('foo'));
+        $this->assertSame(1, $this->fake->delayedSize('foo'));
+        $this->assertSame(1, $this->fake->totalPendingSize());
+        $this->assertSame(2, $this->fake->totalSize());
+        $this->assertSame([JobStub::class], $this->fake->pendingJobs('foo')->pluck('name')->all());
+        $this->assertSame([JobToFakeStub::class], $this->fake->delayedJobs('foo')->pluck('name')->all());
+    }
+
     public function testPendingDelayedAndReservedJobsAreDisjoint(): void
     {
         $this->fake->push($this->job, '', 'foo');
@@ -753,6 +771,31 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertCount(2);
     }
 
+    public function testDelayedJobsAreOnlyRecordedOnce(): void
+    {
+        $this->fake->later(10, $this->job, '', 'foo');
+
+        [$pushed] = $this->fake->pushedJobs()[JobStub::class];
+
+        $this->assertSame([$pushed['uuid']], $this->fake->delayedJobs('foo')->pluck('uuid')->all());
+        $this->assertCount(1, $this->fake->pushed(JobStub::class));
+    }
+
+    public function testCreationTimeOfOldestPendingJobExcludesDelayedJobs(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $this->fake->later(10, $this->job, '', 'foo');
+
+        $this->assertNull($this->fake->creationTimeOfOldestPendingJob('foo'));
+
+        CarbonImmutable::setTestNow($later = $now->addMinutes(5));
+
+        $this->fake->push(new JobToFakeStub, '', 'foo');
+
+        $this->assertSame($later->getTimestamp(), $this->fake->creationTimeOfOldestPendingJob('foo'));
+    }
+
     public function testCreationTimeOfOldestPendingJob(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
@@ -768,22 +811,6 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertSame($now->getTimestamp(), $this->fake->creationTimeOfOldestPendingJob('foo'));
     }
 
-    public function testDelayedJobsDoNotDetermineTheOldestPendingTime(): void
-    {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
-
-        $this->fake->later(0, $this->job, '', 'foo');
-
-        CarbonImmutable::setTestNow($pendingAt = $now->addMinutes(5));
-
-        $this->fake->push(new JobToFakeStub, '', 'foo');
-
-        $this->assertSame(
-            $pendingAt->getTimestamp(),
-            $this->fake->creationTimeOfOldestPendingJob('foo'),
-        );
-    }
-
     public function testReservedJobs(): void
     {
         $this->fake->reserve($this->job, 'foo');
@@ -793,6 +820,7 @@ class SupportTestingQueueFakeTest extends TestCase
 
         $this->assertCount(1, $reserved);
         $this->assertInstanceOf(InspectedJob::class, $reserved->first());
+        $this->assertIsString($reserved->first()->uuid);
         $this->assertSame(JobStub::class, $reserved->first()->name);
         $this->assertSame(0, $reserved->first()->attempts);
         $this->assertSame('foo', $reserved->first()->queue);

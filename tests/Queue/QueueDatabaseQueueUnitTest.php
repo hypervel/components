@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Queue;
+namespace Hypervel\Tests\Queue\QueueDatabaseQueueUnitTest;
 
 use Closure;
 use DateInterval;
@@ -11,17 +11,27 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\FailOnTimeout;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
@@ -32,13 +42,20 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Uid\Uuid;
+use Throwable;
 use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
@@ -68,6 +85,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('default', $queue->getQueue(null));
         $this->assertSame('default', $queue->getQueue(''));
         $this->assertSame('0', $queue->getQueue('0'));
+        $this->assertSame('0', $queue->getQueue(IntegerQueueName::Zero));
+        $this->assertSame('Emails', $queue->getQueue(UnitQueueName::Emails));
     }
 
     public function testLockForPoppingUsesThePdoConnectionCapability(): void
@@ -105,10 +124,70 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertTrue($queue->lockForPopping());
     }
 
-    #[DataProvider('pushJobsDataProvider')]
-    public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
+    #[DataProvider('transientReservationFailureProvider')]
+    public function testTransientReservationFailuresDoNotFailTheJob(Throwable $failure): void
     {
-        Str::createUuidsUsing(fn () => $uuid);
+        [$queue, $events] = $this->createFailingReservationQueue($failure);
+        $queue->shouldReceive('deleteReserved')->never();
+        $events->shouldReceive('dispatch')->never();
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the reservation failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    /**
+     * Provide reservation failures that do not indicate an invalid job.
+     */
+    public static function transientReservationFailureProvider(): array
+    {
+        return [
+            'concurrency' => [new QueryException('database', 'update jobs', [], new PDOException('deadlock detected', 40001))],
+            'lost connection' => [new QueryException('database', 'update jobs', [], new PDOException('server has gone away'))],
+            'cancellation' => [new CanceledException('Reservation canceled.')],
+        ];
+    }
+
+    #[DataProvider('reservationCleanupFailureProvider')]
+    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure): void
+    {
+        $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
+        [$queue, $events] = $this->createFailingReservationQueue($failure);
+        $queue->shouldReceive('causedByReservationQuery')->once()->andReturn(true);
+        $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
+
+        if ($cleanupFailure instanceof CanceledException) {
+            $events->shouldReceive('dispatch')->never();
+        } else {
+            $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturn(false);
+        }
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the reservation or cancellation failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure instanceof CanceledException ? $cleanupFailure : $failure, $exception);
+        }
+    }
+
+    /**
+     * Provide failures while deleting a job that could not be reserved.
+     */
+    public static function reservationCleanupFailureProvider(): array
+    {
+        return [
+            'ordinary failure' => [new RuntimeException('Deletion failed.')],
+            'cancellation' => [new CanceledException('Deletion canceled.')],
+        ];
+    }
+
+    #[DataProvider('pushJobsDataProvider')]
+    public function testPushProperlyPushesJobOntoDatabase(Uuid $uuid, object|string $job, string $displayNameStartsWith, string $jobStartsWith): void
+    {
+        Str::createUuidsUsing(fn (): Uuid => $uuid);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -117,10 +196,12 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
-        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
-        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $displayNameStartsWith, $jobStartsWith) {
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->andReturn($connection);
+        $query = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->andReturn($query);
+        $query->expects('insertGetId')->andReturnUsing(function (array $array) use ($uuid, $displayNameStartsWith, $jobStartsWith): int {
             $payload = json_decode($array['payload'], true);
             $this->assertSame((string) $uuid, $payload['uuid']);
             $this->assertStringContainsString($displayNameStartsWith, $payload['displayName']);
@@ -139,26 +220,29 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
-    public static function pushJobsDataProvider()
+    /**
+     * Provide object, closure and string jobs.
+     */
+    public static function pushJobsDataProvider(): array
     {
         $uuid = Str::uuid();
 
         return [
             [$uuid, new MyTestJob, 'MyTestJob', 'CallQueuedHandler'],
-            [$uuid, fn () => 0, 'Closure', 'CallQueuedHandler'],
+            [$uuid, fn (): int => 0, 'Closure', 'CallQueuedHandler'],
             [$uuid, 'foo', 'foo', 'foo'],
         ];
     }
 
     #[DataProvider('delayedJobDeadlineProvider')]
-    public function testDelayedPushNeverRunsBeforeRequestedDeadline(DateInterval|DateTimeInterface|int $delay): void
+    public function testDelayedPushProperlyPushesJobOntoDatabase(DateInterval|DateTimeInterface|int $delay): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $now = CarbonImmutable::now();
 
         $uuid = Str::uuid();
 
-        Str::createUuidsUsing(fn () => $uuid);
+        Str::createUuidsUsing(fn (): Uuid => $uuid);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -167,12 +251,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1000,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $query = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->andReturn($query);
+        $resolver->expects('connection')->andReturn($connection);
 
-        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $now) {
+        $query->expects('insertGetId')->andReturnUsing(function (array $array) use ($uuid, $now): int {
             $this->assertSame('default', $array['queue']);
             $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 1]), $array['payload']);
             $this->assertEquals(0, $array['attempts']);
@@ -187,6 +272,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
+    /**
+     * Provide delays that cross a fractional-second deadline.
+     */
     public static function delayedJobDeadlineProvider(): array
     {
         return [
@@ -196,11 +284,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ];
     }
 
-    public function testPushIncludesBatchIdInPayloadForBatchableJob()
+    public function testPushIncludesBatchIdInPayloadForBatchableJob(): void
     {
         $uuid = Str::uuid()->toString();
 
-        Str::createUuidsUsing(fn () => $uuid);
+        Str::createUuidsUsing(fn (): string => $uuid);
 
         $job = (new MyBatchableJob)->withBatchId('test-batch-id');
 
@@ -211,10 +299,12 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
-        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
-        $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->andReturn($connection);
+        $query = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->andReturn($query);
+        $query->expects('insertGetId')->andReturnUsing(function (array $array): int {
             $payload = json_decode($array['payload'], true);
             $this->assertSame('test-batch-id', $payload['data']['batchId']);
 
@@ -226,9 +316,61 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
-    public function testFailureToCreatePayloadFromObject()
+    public function testPushUsesPropertiesDeclaredOnChildClassOverInheritedAttributes(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new DatabaseQueue($resolver, null, 'table', 'default');
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('insertGetId')->andReturnUsing(function (array $array): int {
+            $payload = json_decode($array['payload'], true);
+
+            $this->assertSame(1700, $payload['timeout']);
+            $this->assertSame(7, $payload['maxTries']);
+            $this->assertSame('13', $payload['backoff']);
+            $this->assertSame(11, $payload['maxExceptions']);
+            $this->assertFalse($payload['failOnTimeout']);
+
+            return 1;
+        });
+
+        $queue->push(new ChildJobWithPropertiesOverridingParentAttributes, ['data']);
+
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
+    }
+
+    public function testPushStillUsesAttributesDeclaredOnSameClassOverDefaultProperties(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new DatabaseQueue($resolver, null, 'table', 'default');
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('insertGetId')->andReturnUsing(function (array $array): int {
+            $payload = json_decode($array['payload'], true);
+
+            $this->assertSame(40, $payload['timeout']);
+            $this->assertSame(2, $payload['maxTries']);
+            $this->assertSame('9', $payload['backoff']);
+            $this->assertSame(3, $payload['maxExceptions']);
+            $this->assertTrue($payload['failOnTimeout']);
+
+            return 1;
+        });
+
+        $queue->push(new JobWithAttributesAndDefaultProperties, ['data']);
+
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
+    }
+
+    public function testFailureToCreatePayloadFromObject(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
 
         $job = new stdClass;
         $job->invalid = "\xc3\x28";
@@ -243,9 +385,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ]);
     }
 
-    public function testFailureToCreatePayloadFromArray()
+    public function testFailureToCreatePayloadFromArray(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
 
         $queue = m::mock(Queue::class)->makePartial();
         $class = new ReflectionClass(Queue::class);
@@ -264,7 +406,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $uuid = Str::uuid();
 
-        Str::createUuidsUsing(fn () => $uuid);
+        Str::createUuidsUsing(fn (): Uuid => $uuid);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
         $queue = new TestDatabaseQueue(
@@ -277,9 +419,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $queue->setContainer(new Container);
         $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
-        $resolver->shouldReceive('connection')->andReturn($connection);
-        $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid, $now) {
+        $query = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->andReturn($query);
+        $resolver->expects('connection')->andReturn($connection);
+        $query->expects('insert')->andReturnUsing(function (array $records) use ($uuid, $now): bool {
             $this->assertEquals([[
                 'queue' => 'queue',
                 'payload' => json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]),
@@ -445,7 +588,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertFalse(DispatchLockContext::has($second));
     }
 
-    public function testBulkHonorsTheDelayAttribute(): void
+    public function testDelayAttributeIsRespectedWhenBulkPushing(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
 
@@ -457,10 +600,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
         $queue->setContainer(new Container);
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
-        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
-        $query->shouldReceive('insert')
-            ->once()
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->andReturn($connection);
+        $query = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->andReturn($query);
+        $query->expects('insert')
             ->andReturnUsing(function (array $records): bool {
                 $this->assertSame(1732502713, $records[0]['available_at']);
 
@@ -666,10 +810,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
             return $callback($deferredQueue);
         });
 
-        $this->assertTrue($queue->bulk(['immediate', new DatabaseBulkAfterCommitDelayJob], queue: 'emails'));
+        $this->assertTrue($queue->bulk(['immediate', new DatabaseBulkAfterCommitDelayJob], queue: IntegerQueueName::Zero));
         $this->assertFalse($reacquired);
         $this->assertCount(1, $immediateRecords);
         $this->assertSame(1732502704, $immediateRecords[0]['available_at']);
+        $this->assertSame('0', $immediateRecords[0]['queue']);
         $this->assertSame([], $deferredRecords);
 
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502804));
@@ -678,6 +823,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertTrue($reacquired);
         $this->assertCount(1, $deferredRecords);
         $this->assertSame(1732502813, $deferredRecords[0]['available_at']);
+        $this->assertSame('0', $deferredRecords[0]['queue']);
         $this->assertSame(9, json_decode($deferredRecords[0]['payload'], true)['delay']);
         $this->assertSame(1732502704, json_decode($deferredRecords[0]['payload'], true)['createdAt']);
     }
@@ -718,7 +864,37 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame([], $dispatched);
     }
 
-    public function testBuildDatabaseRecordWithPayloadAtTheEnd()
+    public function testBulkDefersAfterCommitJobsUntilTheTransactionCommits(): void
+    {
+        $transactions = new DatabaseTransactionsManager;
+        $transactions->begin('database', 1);
+        $container = new Container;
+        $container->instance('db.transactions', $transactions);
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new DatabaseQueue($resolver, null, 'table', 'default');
+        $queue->setContainer($container);
+
+        $inserted = false;
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('insert')->andReturnUsing(static function () use (&$inserted): bool {
+            $inserted = true;
+
+            return true;
+        });
+
+        $this->assertNull($queue->bulk([new AfterCommitJob]));
+        $this->assertFalse($inserted);
+
+        $transactions->commit('database', 1, 0);
+
+        $this->assertTrue($inserted);
+    }
+
+    public function testBuildDatabaseRecordWithPayloadAtTheEnd(): void
     {
         $queue = m::mock(DatabaseQueue::class);
         $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
@@ -747,10 +923,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
             'createdAt' => 1000000,
         ]);
 
-        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
-        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('where')->with('queue', 'default')->andReturnSelf();
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             (object) [
                 'id' => 11,
                 'queue' => 'default',
@@ -775,10 +951,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
             'createdAt' => 1000000,
         ]);
 
-        $query->shouldReceive('where')->with('queue', 'emails')->andReturnSelf();
-        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('where')->with('available_at', '>', 1732502704)->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('where')->with('queue', 'emails')->andReturnSelf();
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '>', 1732502704)->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             (object) [
                 'id' => 12,
                 'queue' => 'emails',
@@ -803,9 +979,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
             'createdAt' => 1000000,
         ]);
 
-        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
-        $query->shouldReceive('whereNotNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('where')->with('queue', 'default')->andReturnSelf();
+        $query->expects('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             (object) [
                 'id' => 13,
                 'queue' => 'default',
@@ -822,15 +998,16 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testAllPendingJobs(): void
     {
         [$queue, $query] = $this->createInspectionQueue();
-        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             $this->inspectionRecord(21, 'default', 'FirstPendingJob', 0),
             $this->inspectionRecord(22, 'emails', 'SecondPendingJob', 1),
         ]));
 
         $jobs = $queue->allPendingJobs();
 
+        $this->assertCount(2, $jobs);
         $this->assertInspectedJob($jobs->first(), 'FirstPendingJob', 'default', 0, 21);
         $this->assertInspectedJob($jobs->last(), 'SecondPendingJob', 'emails', 1, 22);
     }
@@ -838,15 +1015,16 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testAllDelayedJobs(): void
     {
         [$queue, $query] = $this->createInspectionQueue();
-        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('where')->with('available_at', '>', 1732502704)->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '>', 1732502704)->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             $this->inspectionRecord(31, 'default', 'FirstDelayedJob', 0),
             $this->inspectionRecord(32, 'emails', 'SecondDelayedJob', 0),
         ]));
 
         $jobs = $queue->allDelayedJobs();
 
+        $this->assertCount(2, $jobs);
         $this->assertInspectedJob($jobs->first(), 'FirstDelayedJob', 'default', 0, 31);
         $this->assertInspectedJob($jobs->last(), 'SecondDelayedJob', 'emails', 0, 32);
     }
@@ -854,14 +1032,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testAllReservedJobs(): void
     {
         [$queue, $query] = $this->createInspectionQueue();
-        $query->shouldReceive('whereNotNull')->with('reserved_at')->andReturnSelf();
-        $query->shouldReceive('get')->andReturn(collect([
+        $query->expects('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('get')->andReturn(collect([
             $this->inspectionRecord(41, 'default', 'FirstReservedJob', 1),
             $this->inspectionRecord(42, 'emails', 'SecondReservedJob', 2),
         ]));
 
         $jobs = $queue->allReservedJobs();
 
+        $this->assertCount(2, $jobs);
         $this->assertInspectedJob($jobs->first(), 'FirstReservedJob', 'default', 1, 41);
         $this->assertInspectedJob($jobs->last(), 'SecondReservedJob', 'emails', 2, 42);
     }
@@ -931,6 +1110,23 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame(4, $queue->totalReservedSize());
     }
 
+    public function testGetLockForPoppingIsCached(): void
+    {
+        $pdo = m::mock(PDO::class);
+        // Initial resolution reads the version and identifies MariaDB; later calls reuse the lock.
+        $pdo->expects('getAttribute')->twice()->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.36');
+        $database = new MySqlConnection($pdo, 'test');
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->twice()->with(null)->andReturn($database);
+        $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
+
+        $result1 = $queue->lockForPopping();
+        $result2 = $queue->lockForPopping();
+
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $result1);
+        $this->assertSame($result1, $result2);
+    }
+
     public function testInvalidInspectedPayloadIdentifiesItsQueueAndRecord(): void
     {
         [$queue, $query] = $this->createInspectionQueue();
@@ -955,13 +1151,46 @@ class QueueDatabaseQueueUnitTest extends TestCase
         }
     }
 
+    /**
+     * Create a queue whose selected job cannot be reserved.
+     */
+    private function createFailingReservationQueue(Throwable $failure): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->shouldReceive('transactionLevel')->andReturn(0);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(static fn (Closure $callback): mixed => $callback());
+
+        $container = new Container;
+        $events = m::mock(DispatcherContract::class);
+        $container->instance(DispatcherContract::class, $events);
+        $queue = m::mock(DatabaseQueue::class, [$resolver, null, 'jobs'])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+        $record = new DatabaseJobRecord((object) [
+            'id' => 1,
+            'payload' => json_encode(['job' => stdClass::class, 'data' => []]),
+            'attempts' => 255,
+        ]);
+        $queue->shouldReceive('getNextAvailableJob')->once()->with('default')->andReturn($record);
+        $queue->shouldReceive('marshalJob')->once()->with('default', $record)->andThrow($failure);
+
+        return [$queue, $events];
+    }
+
+    /**
+     * Create a queue with an expected inspection query.
+     */
     private function createInspectionQueue(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $query = m::mock(Builder::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
-        $connection->shouldReceive('table')->with('table')->andReturn($query);
+        $resolver->expects('connection')->with(null)->andReturn($connection);
+        $connection->expects('table')->with('table')->andReturn($query);
 
         return [
             new TestDatabaseQueue(
@@ -991,6 +1220,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
         return $gate;
     }
 
+    /**
+     * Create a database record for inspection.
+     */
     private function inspectionRecord(
         int $id,
         string $queue,
@@ -1011,6 +1243,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ];
     }
 
+    /**
+     * Assert the inspected job metadata.
+     */
     private function assertInspectedJob(
         InspectedJob $job,
         string $name,
@@ -1030,7 +1265,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
 class MyTestJob
 {
-    public function handle()
+    /**
+     * Handle the queued job.
+     */
+    public function handle(): void
     {
         // ...
     }
@@ -1055,8 +1293,56 @@ class DatabaseBulkOwnedJob
 {
 }
 
+class AfterCommitJob implements ShouldQueue
+{
+    public bool $afterCommit = true;
+}
+
+#[Backoff(9)]
+#[FailOnTimeout]
+#[MaxExceptions(3)]
+#[Timeout(40)]
+#[Tries(2)]
+abstract class ParentJobWithAttributes implements ShouldQueue
+{
+}
+
+class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttributes
+{
+    public int $backoff = 13;
+
+    public bool $failOnTimeout = false;
+
+    public int $maxExceptions = 11;
+
+    public int $timeout = 1700;
+
+    public int $tries = 7;
+}
+
+#[Backoff(9)]
+#[FailOnTimeout]
+#[MaxExceptions(3)]
+#[Timeout(40)]
+#[Tries(2)]
+class JobWithAttributesAndDefaultProperties implements ShouldQueue
+{
+    public int $backoff = 13;
+
+    public bool $failOnTimeout = false;
+
+    public int $maxExceptions = 11;
+
+    public int $timeout = 1700;
+
+    public int $tries = 7;
+}
+
 class TestDatabaseQueue extends DatabaseQueue
 {
+    /**
+     * Create a queue with fixed timestamps.
+     */
     public function __construct(
         ConnectionResolverInterface $resolver,
         ?string $connection,
@@ -1068,6 +1354,9 @@ class TestDatabaseQueue extends DatabaseQueue
         parent::__construct($resolver, $connection, $table, $default);
     }
 
+    /**
+     * Get the current timestamp.
+     */
     protected function currentTime(): int
     {
         return $this->currentTime;
@@ -1081,6 +1370,9 @@ class TestDatabaseQueue extends DatabaseQueue
         return $this->getLockForPopping();
     }
 
+    /**
+     * Get the available timestamp for the delay.
+     */
     protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int
     {
         return $this->availableAt ?? parent::availableAt($delay);

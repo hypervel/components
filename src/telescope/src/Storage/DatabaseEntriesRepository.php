@@ -6,11 +6,13 @@ namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Json;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -60,12 +62,23 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Find the entry with the given ID.
      */
-    public function find(mixed $id): EntryResult
+    public function find(string $id): EntryResult
     {
-        $entry = EntryModel::on($this->connection)->where('uuid', $id)->firstOrFail();
+        $query = EntryModel::on($this->connection);
+
+        if (strlen($id) < 36 && ctype_xdigit($id)) {
+            $query->whereLike('uuid', $id . '%')->orderByDesc('sequence');
+        } elseif (Str::isUuid($id)) {
+            $query->where('uuid', $id);
+        } else {
+            // PostgreSQL rejects comparing a uuid column with a malformed value.
+            throw (new ModelNotFoundException)->setModel(EntryModel::class, [$id]);
+        }
+
+        $entry = $query->firstOrFail();
 
         $tags = $this->table('telescope_entries_tags')
-            ->where('entry_uuid', $id)
+            ->where('entry_uuid', $entry->uuid)
             ->pluck('tag')
             ->all();
 

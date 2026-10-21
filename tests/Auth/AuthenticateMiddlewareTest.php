@@ -23,6 +23,9 @@ class AuthenticateMiddlewareTest extends TestCase
 {
     protected AuthManager $auth;
 
+    /**
+     * Set up the authentication manager.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -31,21 +34,14 @@ class AuthenticateMiddlewareTest extends TestCase
 
         $this->auth = new AuthManager($container);
 
-        $container->singleton('config', function () {
+        $container->singleton('config', function (): Config {
             return $this->createConfig();
         });
 
-        $container->singleton('request', fn () => m::mock(Request::class));
+        $container->singleton('request', fn (): Request => new Request);
     }
 
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
-    public function testItCanGenerateDefinitionViaStaticMethod()
+    public function testItCanGenerateDefinitionViaStaticMethod(): void
     {
         $signature = Authenticate::using('foo');
         $this->assertSame('Hypervel\Auth\Middleware\Authenticate:foo', $signature);
@@ -57,7 +53,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame('Hypervel\Auth\Middleware\Authenticate:foo,bar,baz', $signature);
     }
 
-    public function testItCanGenerateDefinitionViaStaticMethodForBasic()
+    public function testItCanGenerateDefinitionViaStaticMethodForBasic(): void
     {
         $signature = AuthenticateWithBasicAuth::using('guard');
         $this->assertSame('Hypervel\Auth\Middleware\AuthenticateWithBasicAuth:guard', $signature);
@@ -69,17 +65,16 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame('Hypervel\Auth\Middleware\AuthenticateWithBasicAuth:,field', $signature);
     }
 
-    public function testDefaultUnauthenticatedThrows()
+    public function testDefaultUnauthenticatedThrows(): void
     {
-        $this->expectException(AuthenticationException::class);
-        $this->expectExceptionMessage('Unauthenticated.');
+        $this->expectExceptionObject(new AuthenticationException('Unauthenticated.'));
 
         $this->registerAuthDriver('default', false);
 
         $this->authenticate();
     }
 
-    public function testDefaultUnauthenticatedThrowsWithGuards()
+    public function testDefaultUnauthenticatedThrowsWithGuards(): void
     {
         try {
             $this->registerAuthDriver('default', false);
@@ -94,7 +89,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->fail();
     }
 
-    public function testDefaultAuthenticatedKeepsDefaultDriver()
+    public function testDefaultAuthenticatedKeepsDefaultDriver(): void
     {
         $driver = $this->registerAuthDriver('default', true);
 
@@ -103,7 +98,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame($driver, $this->auth->guard());
     }
 
-    public function testSecondaryAuthenticatedUpdatesDefaultDriver()
+    public function testSecondaryAuthenticatedUpdatesDefaultDriver(): void
     {
         $this->registerAuthDriver('default', false);
 
@@ -114,10 +109,9 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame($secondary, $this->auth->guard());
     }
 
-    public function testMultipleDriversUnauthenticatedThrows()
+    public function testMultipleDriversUnauthenticatedThrows(): void
     {
-        $this->expectException(AuthenticationException::class);
-        $this->expectExceptionMessage('Unauthenticated.');
+        $this->expectExceptionObject(new AuthenticationException('Unauthenticated.'));
 
         $this->registerAuthDriver('default', false);
 
@@ -126,7 +120,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->authenticate('default', 'secondary');
     }
 
-    public function testMultipleDriversUnauthenticatedThrowsWithGuards()
+    public function testMultipleDriversUnauthenticatedThrowsWithGuards(): void
     {
         $expectedGuards = ['default', 'secondary'];
 
@@ -145,7 +139,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->fail();
     }
 
-    public function testMultipleDriversAuthenticatedUpdatesDefault()
+    public function testMultipleDriversAuthenticatedUpdatesDefault(): void
     {
         $this->registerAuthDriver('default', false);
 
@@ -156,14 +150,14 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame($secondary, $this->auth->guard());
     }
 
-    public function testCustomDriverClosureBoundObjectIsAuthManager()
+    public function testCustomDriverClosureBoundObjectIsAuthManager(): void
     {
         $boundTo = null;
 
-        $this->auth->extend(__CLASS__, function () use (&$boundTo) {
+        $this->auth->extend(__CLASS__, function () use (&$boundTo): Guard {
             $boundTo = $this;
 
-            return m::mock(\Hypervel\Contracts\Auth\Guard::class);
+            return m::mock(Guard::class);
         });
 
         $this->auth->guard(__CLASS__);
@@ -175,7 +169,7 @@ class AuthenticateMiddlewareTest extends TestCase
     {
         $driver = m::mock(Guard::class);
 
-        $this->auth->extend(__CLASS__, fn () => $driver);
+        $this->auth->extend(__CLASS__, static fn (): Guard => $driver);
 
         $this->assertSame($driver, $this->auth->guard(__CLASS__));
     }
@@ -255,7 +249,7 @@ class AuthenticateMiddlewareTest extends TestCase
     {
         $driver = $this->createAuthDriver($name, $authenticated);
 
-        $this->auth->extend($name, function () use ($driver) {
+        $this->auth->extend($name, function () use ($driver): RequestGuard {
             return $driver;
         });
 
@@ -267,7 +261,7 @@ class AuthenticateMiddlewareTest extends TestCase
      */
     protected function createAuthDriver(string $name, bool $authenticated): RequestGuard
     {
-        return new RequestGuard($name, function () use ($authenticated) {
+        return new RequestGuard($name, function () use ($authenticated): ?Authenticatable {
             return $authenticated ? m::mock(Authenticatable::class) : null;
         }, Container::getInstance(), m::mock(EloquentUserProvider::class));
     }
@@ -286,7 +280,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $nextParam = null;
         $response = new Response;
 
-        $next = function ($param) use (&$nextParam, $response) {
+        $next = function (Request $param) use (&$nextParam, $response): Response {
             $nextParam = $param;
 
             return $response;

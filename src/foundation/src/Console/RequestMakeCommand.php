@@ -6,15 +6,16 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:request')]
 class RequestMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:request';
+    protected ?string $signature = 'make:request
+                    {name : The name of the request}
+                    {--f|force : Create the class even if the request already exists}';
 
     /**
      * The console command description.
@@ -50,15 +51,5 @@ class RequestMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Http\Requests';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the request already exists'],
-        ];
     }
 }

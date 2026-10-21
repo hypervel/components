@@ -22,7 +22,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         });
     }
 
-    public function testBladeHandlerCanInterceptRegularEchos()
+    public function testBladeHandlerCanInterceptRegularEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>",
@@ -30,7 +30,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testBladeHandlerCanInterceptRawEchos()
+    public function testBladeHandlerCanInterceptRawEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo \$__bladeCompiler->applyEchoHandler(\$exampleObject); ?>",
@@ -38,7 +38,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testBladeHandlerCanInterceptEscapedEchos()
+    public function testBladeHandlerCanInterceptEscapedEchos(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>",
@@ -46,7 +46,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         );
     }
 
-    public function testWhitespaceIsPreservedCorrectly()
+    public function testWhitespaceIsPreservedCorrectly(): void
     {
         $this->assertSame(
             "<?php \$__bladeCompiler = app('blade.compiler'); ?><?php echo e(\$__bladeCompiler->applyEchoHandler(\$exampleObject)); ?>\n\n",
@@ -55,12 +55,11 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('handlerLogicDataProvider')]
-    public function testHandlerLogicWorksCorrectly($blade)
+    public function testHandlerLogicWorksCorrectly(string $blade): void
     {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The fluent object has been successfully handled!');
+        $this->expectExceptionObject(new Exception('The fluent object has been successfully handled!'));
 
-        $this->compiler->stringable(Fluent::class, function ($object) {
+        $this->compiler->stringable(Fluent::class, function (Fluent $object): never {
             throw new Exception('The fluent object has been successfully handled!');
         });
 
@@ -91,7 +90,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('handlerWorksWithIterableDataProvider')]
-    public function testHandlerWorksWithIterables($blade, $closure, $expectedOutput)
+    public function testHandlerWorksWithIterables($blade, $closure, $expectedOutput): void
     {
         $this->compiler->stringable('iterable', $closure);
 
@@ -118,7 +117,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('nonStringableDataProvider')]
-    public function testHandlerWorksWithNonStringables($blade, $expectedOutput)
+    public function testHandlerWorksWithNonStringables($blade, $expectedOutput): void
     {
         $app = $this->createApplication();
         $app->instance('blade.compiler', $this->compiler);

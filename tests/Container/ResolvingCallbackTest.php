@@ -12,7 +12,7 @@ use stdClass;
 
 class ResolvingCallbackTest extends TestCase
 {
-    public function testResolvingCallbacksAreCalledForSpecificAbstracts()
+    public function testResolvingCallbacksAreCalledForSpecificAbstracts(): void
     {
         $container = new Container;
         $container->resolving('foo', function ($object) {
@@ -26,7 +26,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertSame('taylor', $instance->name);
     }
 
-    public function testResolvingCallbacksAreCalled()
+    public function testResolvingCallbacksAreCalled(): void
     {
         $container = new Container;
         $container->resolving(function ($object) {
@@ -40,7 +40,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertSame('taylor', $instance->name);
     }
 
-    public function testResolvingCallbacksAreCalledForType()
+    public function testResolvingCallbacksAreCalledForType(): void
     {
         $container = new Container;
         $container->resolving(stdClass::class, function ($object) {
@@ -54,7 +54,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertSame('taylor', $instance->name);
     }
 
-    public function testResolvingCallbacksShouldBeFiredWhenCalledWithAliases()
+    public function testResolvingCallbacksShouldBeFiredWhenCalledWithAliases(): void
     {
         $container = new Container;
         $container->alias(stdClass::class, 'std');
@@ -69,7 +69,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertSame('taylor', $instance->name);
     }
 
-    public function testResolvingCallbacksAreCalledOnceForImplementation()
+    public function testResolvingCallbacksAreCalledOnceForImplementation(): void
     {
         $container = new Container;
 
@@ -90,7 +90,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testGlobalResolvingCallbacksAreCalledOnceForImplementation()
+    public function testGlobalResolvingCallbacksAreCalledOnceForImplementation(): void
     {
         $container = new Container;
 
@@ -108,7 +108,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledOnceForSingletonConcretes()
+    public function testResolvingCallbacksAreCalledOnceForSingletonConcretes(): void
     {
         $container = new Container;
 
@@ -130,7 +130,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(3, $callCounter);
     }
 
-    public function testResolvingCallbacksCanStillBeAddedAfterTheFirstResolution()
+    public function testResolvingCallbacksCanStillBeAddedAfterTheFirstResolution(): void
     {
         $container = new Container;
 
@@ -150,7 +150,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(1, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCanceledWhenInterfaceGetsBoundToSomeOtherConcrete()
+    public function testResolvingCallbacksAreCanceledWhenInterfaceGetsBoundToSomeOtherConcrete(): void
     {
         $container = new Container;
 
@@ -169,7 +169,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(1, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledOnceForStringAbstractions()
+    public function testResolvingCallbacksAreCalledOnceForStringAbstractions(): void
     {
         $container = new Container;
 
@@ -187,7 +187,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testResolvingCallbacksForConcretesAreCalledOnceForStringAbstractions()
+    public function testResolvingCallbacksForConcretesAreCalledOnceForStringAbstractions(): void
     {
         $container = new Container;
 
@@ -213,7 +213,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(4, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledOnceForImplementation2()
+    public function testResolvingCallbacksAreCalledOnceForImplementation2(): void
     {
         $container = new Container;
 
@@ -242,7 +242,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(4, $callCounter);
     }
 
-    public function testRebindingDoesNotAffectResolvingCallbacks()
+    public function testRebindingDoesNotAffectResolvingCallbacks(): void
     {
         $container = new Container;
 
@@ -272,7 +272,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(4, $callCounter);
     }
 
-    public function testParametersPassedIntoResolvingCallbacks()
+    public function testParametersPassedIntoResolvingCallbacks(): void
     {
         $container = new Container;
 
@@ -298,7 +298,7 @@ class ResolvingCallbackTest extends TestCase
         $container->make(ResolvingContractStub::class);
     }
 
-    public function testResolvingCallbacksAreCallWhenRebindHappens()
+    public function testResolvingCallbacksAreCallWhenRebindHappens(): void
     {
         $container = new Container;
 
@@ -335,7 +335,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $rebindCallCounter);
     }
 
-    public function testResolvingCallbacksArentCalledWhenNoRebindingsAreRegistered()
+    public function testResolvingCallbacksArentCalledWhenNoRebindingsAreRegistered(): void
     {
         $container = new Container;
 
@@ -362,7 +362,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(3, $callCounter);
     }
 
-    public function testRebindingDoesNotAffectMultipleResolvingCallbacks()
+    public function testRebindingDoesNotAffectMultipleResolvingCallbacks(): void
     {
         $container = new Container;
 
@@ -392,7 +392,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(4, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledForInterfaces()
+    public function testResolvingCallbacksAreCalledForInterfaces(): void
     {
         $container = new Container;
 
@@ -408,7 +408,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(1, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnInterface()
+    public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnInterface(): void
     {
         $container = new Container;
 
@@ -426,7 +426,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnConcretes()
+    public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnConcretes(): void
     {
         $container = new Container;
 
@@ -444,7 +444,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledForConcretesWithNoBinding()
+    public function testResolvingCallbacksAreCalledForConcretesWithNoBinding(): void
     {
         $container = new Container;
 
@@ -463,7 +463,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testResolvingCallbacksAreCalledForInterFacesWithNoBinding()
+    public function testResolvingCallbacksAreCalledForInterFacesWithNoBinding(): void
     {
         $container = new Container;
 
@@ -483,7 +483,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testAfterResolvingCallbacksAreCalledOnceForImplementation()
+    public function testAfterResolvingCallbacksAreCalledOnceForImplementation(): void
     {
         $container = new Container;
 
@@ -501,7 +501,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testBeforeResolvingCallbacksAreCalled()
+    public function testBeforeResolvingCallbacksAreCalled(): void
     {
         // Given a call counter initialized to zero.
         $container = new Container;
@@ -524,7 +524,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(2, $callCounter);
     }
 
-    public function testGlobalBeforeResolvingCallbacksAreCalled()
+    public function testGlobalBeforeResolvingCallbacksAreCalled(): void
     {
         // Given a call counter initialized to zero.
         $container = new Container;
@@ -540,7 +540,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(1, $callCounter);
     }
 
-    public function testCallbacksFireInDeterministicOrderAcrossBuckets()
+    public function testCallbacksFireInDeterministicOrderAcrossBuckets(): void
     {
         $container = new Container;
         $order = [];

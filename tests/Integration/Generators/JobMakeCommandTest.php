@@ -11,7 +11,7 @@ class JobMakeCommandTest extends TestCase
         'tests/Feature/Jobs/FooCreatedTest.php',
     ];
 
-    public function testItCanGenerateJobFile()
+    public function testItCanGenerateJobFile(): void
     {
         $this->artisan('make:job', ['name' => 'FooCreated'])
             ->assertExitCode(0);
@@ -27,7 +27,7 @@ class JobMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('tests/Feature/Jobs/FooCreatedTest.php');
     }
 
-    public function testItCanGenerateSyncJobFile()
+    public function testItCanGenerateSyncJobFile(): void
     {
         $this->artisan('make:job', ['name' => 'FooCreated', '--sync' => true])
             ->assertExitCode(0);
@@ -47,7 +47,7 @@ class JobMakeCommandTest extends TestCase
         ], 'app/Jobs/FooCreated.php');
     }
 
-    public function testItCanGenerateJobFileWithTest()
+    public function testItCanGenerateJobFileWithTest(): void
     {
         $this->artisan('make:job', ['name' => 'FooCreated', '--test' => true])
             ->assertExitCode(0);

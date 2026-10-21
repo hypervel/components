@@ -86,6 +86,27 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
+    public function testMatchesNonAsciiOptionsCaseInsensitively(): void
+    {
+        Prompt::fake(['ö', Key::TAB, Key::ENTER]);
+
+        $this->assertSame('Österreich', suggest('Country', ['Österreich', 'Deutschland']));
+    }
+
+    public function testRendersInfoForTheHighlightedOption(): void
+    {
+        Prompt::fake(['b', Key::DOWN, Key::ENTER]);
+
+        suggest(
+            label: 'What is your favorite color?',
+            options: ['Red', 'Blue', 'Black'],
+            info: fn (?string $value): string => $value === null ? 'Nothing highlighted' : "Value: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Nothing highlighted');
+        Prompt::assertStrippedOutputContains('Value: Blue');
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake([Key::SPACE, 'J', 'e', 's', 's', Key::TAB, Key::ENTER]);
@@ -149,7 +170,7 @@ class SuggestPromptTest extends TestCase
     public function testValidatesDefaultValueWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
-        $this->expectExceptionMessage('Required.');
+        $this->expectExceptionMessageIs('Required.');
 
         Prompt::interactive(false);
         suggest('What is your favorite color?', [
@@ -181,7 +202,7 @@ class SuggestPromptTest extends TestCase
         Prompt::validateUsing(fn () => null);
     }
 
-    public function testSupportsHomeKeyWhileNavigatingOptions()
+    public function testSupportsHomeKeyWhileNavigatingOptions(): void
     {
         Prompt::fake([Key::DOWN, Key::DOWN, Key::HOME[0], Key::ENTER]);
 
@@ -194,7 +215,7 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Red', $result);
     }
 
-    public function testSupportsEndKeyWhileNavigatingOptions()
+    public function testSupportsEndKeyWhileNavigatingOptions(): void
     {
         Prompt::fake([Key::DOWN, Key::END[0], Key::ENTER]);
 
@@ -207,7 +228,7 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Green', $result);
     }
 
-    public function testAcceptsCallbackReturningCollection()
+    public function testAcceptsCallbackReturningCollection(): void
     {
         Prompt::fake(['b', Key::TAB, Key::ENTER]);
 
@@ -228,7 +249,7 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
-    public function testSupportsEmacsStyleKeyBinding()
+    public function testSupportsEmacsStyleKeyBinding(): void
     {
         Prompt::fake(['b', Key::CTRL_N, Key::CTRL_N, Key::CTRL_N, Key::CTRL_P, Key::ENTER]);
 
@@ -242,7 +263,7 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Black', $result);
     }
 
-    public function testReturnsEmptyStringWhenNonInteractive()
+    public function testReturnsEmptyStringWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 
@@ -255,7 +276,7 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function testReturnsDefaultValueWhenNonInteractive()
+    public function testReturnsDefaultValueWhenNonInteractive(): void
     {
         Prompt::interactive(false);
 

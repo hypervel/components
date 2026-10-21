@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Events\DatabaseBusy;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'db:monitor')]
@@ -65,7 +66,7 @@ class MonitorCommand extends DatabaseInspectionCommand
      */
     protected function parseDatabases(?string $databases): Collection
     {
-        return (new Collection(explode(',', $databases ?? '')))->map(function ($database) {
+        return (new Stringable($databases))->explode(',')->map(function ($database) {
             if ($database === '') {
                 $database = $this->hypervel->make('config')->string('database.default');
             }

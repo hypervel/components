@@ -8,10 +8,11 @@ use Hypervel\Di\Aop\Aspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\RewriteCollection;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AspectTest extends TestCase
 {
-    public function testParseMoreThanOneMethods()
+    public function testParseMoreThanOneMethods(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -25,7 +26,7 @@ class AspectTest extends TestCase
         $this->assertEquals(['test1', 'test2'], $res->getMethods());
     }
 
-    public function testParseOneMethod()
+    public function testParseOneMethod(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -39,7 +40,7 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test1'));
     }
 
-    public function testParseClass()
+    public function testParseClass(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -53,7 +54,7 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test'));
     }
 
-    public function testMatchClassPattern()
+    public function testMatchClassPattern(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -68,7 +69,33 @@ class AspectTest extends TestCase
         $this->assertTrue($res->shouldRewrite('test1'));
     }
 
-    public function testMatchMethodPattern()
+    #[DataProvider('constructorAndClassRules')]
+    public function testClassRulesPreserveExplicitConstructorInterception(array $rules): void
+    {
+        foreach ($rules as $index => $rule) {
+            AspectCollector::setAround('Aspect' . $index, [$rule]);
+        }
+
+        $collection = Aspect::parse('Demo');
+
+        $this->assertTrue($collection->shouldRewrite('__construct'));
+        $this->assertTrue($collection->shouldRewrite('test'));
+    }
+
+    /**
+     * Provide constructor and class rules in either registration order.
+     */
+    public static function constructorAndClassRules(): array
+    {
+        return [
+            [['Demo', 'Demo::__construct']],
+            [['Demo::__construct', 'Demo']],
+            [['Demo*', 'Demo::__construct']],
+            [['Demo::__construct', 'Demo*']],
+        ];
+    }
+
+    public function testMatchMethodPattern(): void
     {
         $aspect = 'App\Aspect\DebugAspect';
 
@@ -81,7 +108,7 @@ class AspectTest extends TestCase
         $this->assertFalse($res->shouldRewrite('no'));
     }
 
-    public function testIsMatchClassRule()
+    public function testIsMatchClassRule(): void
     {
         $rule = 'Foo/Bar';
         $this->assertSame([true, null], Aspect::isMatchClassRule('Foo/Bar', $rule));
@@ -112,7 +139,7 @@ class AspectTest extends TestCase
         $this->assertSame([false, null], Aspect::isMatchClassRule('Foo/Bar/Baz::method', $rule));
     }
 
-    public function testIsMatch()
+    public function testIsMatch(): void
     {
         $rule = 'Foo/Bar';
         $this->assertTrue(Aspect::isMatch('Foo/Bar', 'test', $rule));
@@ -140,5 +167,26 @@ class AspectTest extends TestCase
         $this->assertTrue(Aspect::isMatch('Foo/Bar', 'method2', $rule));
         $this->assertFalse(Aspect::isMatch('Foo/Bar/Baz', 'method', $rule));
         $this->assertFalse(Aspect::isMatch('Foo/Bar', 'test', $rule));
+    }
+
+    #[DataProvider('constructorMatchingRules')]
+    public function testConstructorMatchingRequiresAMethodRule(string $rule, bool $matches): void
+    {
+        $this->assertSame($matches, Aspect::isMatch('Demo', '__construct', $rule));
+    }
+
+    /**
+     * Provide class-only and explicit method rules for constructors.
+     */
+    public static function constructorMatchingRules(): array
+    {
+        return [
+            ['Demo', false],
+            ['Demo*', false],
+            ['Demo::__construct', true],
+            ['Demo*::__construct', true],
+            ['Demo::*', true],
+            ['Demo*::*', true],
+        ];
     }
 }

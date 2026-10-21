@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon;
 
+use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 use Hypervel\Saloon\Traits\OAuth2\AuthorizationCodeGrant;
-use Hypervel\Saloon\Traits\OAuth2\CreatesOAuthAuthenticator;
+use Hypervel\Saloon\Traits\OAuth2\ClientCredentialsGrant;
+use Hypervel\Saloon\Traits\OAuth2\ParsesOAuthTokenResponses;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -14,7 +16,7 @@ use SensitiveParameter;
 class SensitiveParameterTest extends TestCase
 {
     #[DataProvider('sensitiveParameters')]
-    public function testOAuthTokenAndStateParametersAreSensitive(
+    public function testSecretParametersAreSensitive(
         string $class,
         string $method,
         string $parameterName,
@@ -33,17 +35,21 @@ class SensitiveParameterTest extends TestCase
     }
 
     /**
-     * Get secret-bearing OAuth parameters from internal call boundaries.
+     * Get secret-bearing authentication parameters.
      *
      * @return list<array{class-string, string, string}>
      */
     public static function sensitiveParameters(): array
     {
         return [
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'response'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'fallbackRefreshToken'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticator', 'accessToken'],
-            [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticator', 'refreshToken'],
+            [CookieAuthenticator::class, '__construct', 'value'],
+            [ParsesOAuthTokenResponses::class, 'parseOAuthTokenResponse', 'response'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticatorFromResponse', 'response'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticatorFromResponse', 'fallbackRefreshToken'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticator', 'accessToken'],
+            [AuthorizationCodeGrant::class, 'createOAuthAuthenticator', 'refreshToken'],
+            [ClientCredentialsGrant::class, 'createOAuthAuthenticatorFromResponse', 'response'],
+            [ClientCredentialsGrant::class, 'createOAuthAuthenticator', 'accessToken'],
             [AuthorizationCodeGrant::class, 'validateState', 'state'],
             [AuthorizationCodeGrant::class, 'validateState', 'expectedState'],
         ];

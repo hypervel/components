@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Core\Bootstrap;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\OnTask;
 use Hypervel\Core\Events\TaskTerminated;
+use Hypervel\Coroutine\Coroutine;
 use Swoole\Constant;
 use Swoole\Server;
 use Swoole\Server\Task;
@@ -44,6 +46,14 @@ class TaskCallback
             $task->data = $data;
         }
 
+        // Tasks run outside a coroutine share the worker's context, so each one gets an
+        // empty context of its own, as a coroutine task would, until it has terminated.
+        $workerContext = Coroutine::inCoroutine() ? null : CoroutineContext::getContainer();
+
+        if ($workerContext !== null) {
+            CoroutineContext::flush();
+        }
+
         $exception = null;
 
         try {
@@ -67,6 +77,11 @@ class TaskCallback
             }
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
+        }
+
+        if ($workerContext !== null) {
+            CoroutineContext::flush();
+            CoroutineContext::setMany($workerContext);
         }
 
         if ($exception !== null) {

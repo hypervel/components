@@ -47,7 +47,7 @@ class JoinLateralTest extends PostgresTestCase
         Schema::drop('users');
     }
 
-    public function testJoinLateral()
+    public function testJoinLateral(): void
     {
         $subquery = DB::table('posts')
             ->select('title as best_post_title', 'rating as best_post_rating')
@@ -72,7 +72,7 @@ class JoinLateralTest extends PostgresTestCase
         $this->assertCount(0, $userWithoutPosts);
     }
 
-    public function testLeftJoinLateral()
+    public function testLeftJoinLateral(): void
     {
         $subquery = DB::table('posts')
             ->select('title as best_post_title', 'rating as best_post_rating')

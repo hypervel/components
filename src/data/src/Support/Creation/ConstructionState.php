@@ -6,6 +6,11 @@ namespace Hypervel\Data\Support\Creation;
 
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
+use Hypervel\Data\RuleInferrers\RuleInferrer;
+use Hypervel\Data\Support\DataClass;
+use Hypervel\Data\Support\DataMethod;
+use Hypervel\Data\Support\DataMethodMatch;
+use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
 
@@ -18,12 +23,32 @@ final class ConstructionState
     private ?array $unknownInput = null;
 
     /**
+     * The rule inferrers resolved for the current compilation.
+     *
+     * @var list<RuleInferrer>
+     */
+    private array $ruleInferrers = [];
+
+    /**
+     * Whether named factories and constructors wait for the cast that owns the current value.
+     */
+    private bool $executionDeferred = false;
+
+    /**
+     * Whether a deferred named factory was recorded anywhere in the structure.
+     */
+    private bool $hasNamedFactories = false;
+
+    /**
      * @var array{
      *     class: null|class-string<BaseData>,
      *     mappings: array<string, array-key>,
      *     children: array<string, array>,
+     *     selectedTypes?: array<string, ?NamedType>,
      *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
      *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
+     *     namedFactory?: array{DataClass, DataMethod, DataMethodMatch},
+     *     contextualPrepared?: true,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }
@@ -114,6 +139,32 @@ final class ConstructionState
     }
 
     /**
+     * Write the normalized input the current node's declared values are filled over.
+     *
+     * @param array<array-key, mixed> $input
+     */
+    public function writeNodeInput(array $input): void
+    {
+        $path = $this->path();
+
+        if ($path === []) {
+            $this->payload = $input;
+
+            return;
+        }
+
+        $this->writeAtPath($path, $input, false);
+    }
+
+    /**
+     * Restore the given value at the current nested path when it cannot be read as node input.
+     */
+    public function writeNodeValue(mixed $value): void
+    {
+        $this->writeAtPath($this->path(), $value, false);
+    }
+
+    /**
      * Write a mapped property value beneath the current path.
      *
      * @param non-empty-list<array-key> $path
@@ -139,6 +190,28 @@ final class ConstructionState
             $value,
             true,
         );
+    }
+
+    /**
+     * Remove a mapped property value beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
+     */
+    public function forgetPropertyValue(array $path): void
+    {
+        $path = [...$this->path(), ...$path];
+        $lastKey = array_pop($path);
+        $slot = &$this->payload;
+
+        foreach ($path as $pathKey) {
+            if (! array_key_exists($pathKey, $slot) || ! is_array($slot[$pathKey])) {
+                return;
+            }
+
+            $slot = &$slot[$pathKey];
+        }
+
+        unset($slot[$lastKey]);
     }
 
     /**
@@ -179,6 +252,16 @@ final class ConstructionState
         $value = $this->valueAtPath($path);
 
         return $value instanceof UnknownProperty ? null : $value;
+    }
+
+    /**
+     * Read a value beneath the current path, or an unknown property when it is absent.
+     *
+     * @param non-empty-list<array-key> $path
+     */
+    public function read(array $path): mixed
+    {
+        return $this->valueAtPath($path);
     }
 
     /**
@@ -246,6 +329,26 @@ final class ConstructionState
     public function unknownInput(): ?array
     {
         return $this->unknownInput;
+    }
+
+    /**
+     * Set the rule inferrers resolved for the current compilation.
+     *
+     * @param list<RuleInferrer> $ruleInferrers
+     */
+    public function setRuleInferrers(array $ruleInferrers): void
+    {
+        $this->ruleInferrers = $ruleInferrers;
+    }
+
+    /**
+     * Get the rule inferrers resolved for the current compilation.
+     *
+     * @return list<RuleInferrer>
+     */
+    public function ruleInferrers(): array
+    {
+        return $this->ruleInferrers;
     }
 
     /**
@@ -329,7 +432,7 @@ final class ConstructionState
         $node['class'] = null;
         $node['mappings'] = [];
         $node['children'] = [];
-        unset($node['autoLazy'], $node['paginatorSource']);
+        unset($node['selectedTypes'], $node['autoLazy'], $node['paginatorSource'], $node['namedFactory'], $node['contextualPrepared']);
 
         if ($this->pathContainsItem()) {
             $this->markEnclosingCollectionsNonUniform();
@@ -416,6 +519,147 @@ final class ConstructionState
         }
 
         return $this->structureNodeAtCurrentPath()['class'] ?? null;
+    }
+
+    /**
+     * Determine if named factories and constructors wait for the cast that owns the current value.
+     */
+    public function executionDeferred(): bool
+    {
+        return $this->executionDeferred;
+    }
+
+    /**
+     * Start or stop deferring execution beneath a cast-owned value.
+     */
+    public function setExecutionDeferred(bool $deferred): void
+    {
+        $this->executionDeferred = $deferred;
+    }
+
+    /**
+     * Record the named factory that creates the current node once its owning cast declines.
+     *
+     * Each node keeps its own match, because the match holds that node's input.
+     */
+    public function recordNamedFactory(DataClass $dataClass, DataMethod $method, DataMethodMatch $match): void
+    {
+        if ($this->pathContainsItem()) {
+            $node = &$this->ensureOverrideNodeAtCurrentPath();
+        } else {
+            $node = &$this->ensureStructureNodeAtCurrentPath();
+        }
+
+        $node['namedFactory'] = [$dataClass, $method, $match];
+        $this->hasNamedFactories = true;
+    }
+
+    /**
+     * Forget the named factory recorded for the current node, whose input a validation hook replaced.
+     */
+    public function forgetNamedFactory(): void
+    {
+        if (! $this->hasNamedFactories) {
+            return;
+        }
+
+        if ($this->pathContainsItem()) {
+            $node = &$this->ensureOverrideNodeAtCurrentPath();
+        } else {
+            $node = &$this->ensureStructureNodeAtCurrentPath();
+        }
+
+        unset($node['namedFactory']);
+    }
+
+    /**
+     * Get the named factory recorded for the current node.
+     *
+     * @return null|array{DataClass, DataMethod, DataMethodMatch}
+     */
+    public function namedFactory(): ?array
+    {
+        if (! $this->hasNamedFactories) {
+            return null;
+        }
+
+        $node = $this->pathContainsItem()
+            ? $this->overrideNodeAtCurrentPath()
+            : $this->structureNodeAtCurrentPath();
+
+        return $node['namedFactory'] ?? null;
+    }
+
+    /**
+     * Record that the current node's contextual property values were resolved and filled for validation.
+     */
+    public function markContextualValuesPrepared(): void
+    {
+        if ($this->pathContainsItem()) {
+            $node = &$this->ensureOverrideNodeAtCurrentPath();
+        } else {
+            $node = &$this->ensureStructureNodeAtCurrentPath();
+        }
+
+        $node['contextualPrepared'] = true;
+    }
+
+    /**
+     * Determine if the current node's contextual property values were resolved and filled for validation.
+     */
+    public function contextualValuesPrepared(): bool
+    {
+        $node = $this->pathContainsItem()
+            ? $this->overrideNodeAtCurrentPath()
+            : $this->structureNodeAtCurrentPath();
+
+        return $node['contextualPrepared'] ?? false;
+    }
+
+    /**
+     * Record the declared type a property's value selected on the current node.
+     *
+     * Null records that the value is kept by a type that needs no conversion, or that no single type selects it.
+     */
+    public function recordSelectedType(string $property, ?NamedType $type): void
+    {
+        $template = &$this->ensureStructureNodeAtCurrentPath();
+
+        if (! $this->pathContainsItem() || ! array_key_exists($property, $template['selectedTypes'] ?? [])) {
+            $template['selectedTypes'][$property] = $type;
+
+            return;
+        }
+
+        $matchesTemplate = $template['selectedTypes'][$property] === $type;
+
+        if ($matchesTemplate
+            && ! array_key_exists($property, $this->overrideNodeAtCurrentPath()['selectedTypes'] ?? [])
+        ) {
+            return;
+        }
+
+        $override = &$this->ensureOverrideNodeAtCurrentPath();
+        unset($override['selectedTypes'][$property]);
+
+        if (! $matchesTemplate) {
+            $override['selectedTypes'][$property] = $type;
+            $this->markEnclosingCollectionsNonUniform();
+        }
+    }
+
+    /**
+     * Get the declared type a property's value selected on the current node.
+     */
+    public function selectedType(string $property): ?NamedType
+    {
+        $override = $this->overrideNodeAtCurrentPath();
+
+        if ($override !== null && array_key_exists($property, $override['selectedTypes'] ?? [])) {
+            return $override['selectedTypes'][$property];
+        }
+
+        return $this->structureNodeAtCurrentPath()['selectedTypes'][$property] ?? null;
     }
 
     /**
@@ -544,6 +788,7 @@ final class ConstructionState
         $payload = $this->payloadAtCurrentPath();
         $snapshot->payload = self::payloadSkeleton($this->path(), $payload);
         $snapshot->unknownInput = null;
+        $snapshot->ruleInferrers = [];
 
         $templatePath = [];
         $exactPath = [];
@@ -698,6 +943,10 @@ final class ConstructionState
             if ($path === []) {
                 if (array_key_exists($property, $node['mappings'])) {
                     $pruned['mappings'][$property] = $node['mappings'][$property];
+                }
+
+                if (array_key_exists($property, $node['selectedTypes'] ?? [])) {
+                    $pruned['selectedTypes'][$property] = $node['selectedTypes'][$property];
                 }
 
                 if (array_key_exists($property, $node['children'])) {
@@ -876,8 +1125,11 @@ final class ConstructionState
      *     class: null|class-string<BaseData>,
      *     mappings: array<string, array-key>,
      *     children: array<string, array>,
+     *     selectedTypes?: array<string, ?NamedType>,
      *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
      *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
+     *     namedFactory?: array{DataClass, DataMethod, DataMethodMatch},
+     *     contextualPrepared?: true,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }

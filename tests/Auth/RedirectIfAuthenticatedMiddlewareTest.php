@@ -29,7 +29,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         RedirectIfAuthenticated::flushState();
     }
 
-    public function testItCanGenerateDefinitionViaStaticMethod()
+    public function testItCanGenerateDefinitionViaStaticMethod(): void
     {
         $signature = RedirectIfAuthenticated::using('foo');
         $this->assertSame('Hypervel\Auth\Middleware\RedirectIfAuthenticated:foo', $signature);
@@ -41,7 +41,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame('Hypervel\Auth\Middleware\RedirectIfAuthenticated:foo,bar,baz', $signature);
     }
 
-    public function testPassesThroughWhenGuest()
+    public function testPassesThroughWhenGuest(): void
     {
         $this->swapAuthGuard(authenticated: false);
 
@@ -54,7 +54,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame($response, $result);
     }
 
-    public function testRedirectsWhenAuthenticated()
+    public function testRedirectsWhenAuthenticated(): void
     {
         $this->swapAuthGuard(authenticated: true);
 
@@ -66,7 +66,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame(302, $result->getStatusCode());
     }
 
-    public function testCustomRedirectCallbackIsUsed()
+    public function testCustomRedirectCallbackIsUsed(): void
     {
         $this->swapAuthGuard(authenticated: true);
 
@@ -81,7 +81,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertStringContainsString('/custom-path', $result->headers->get('Location'));
     }
 
-    public function testDefaultRedirectFallsBackToSlash()
+    public function testDefaultRedirectFallsBackToSlash(): void
     {
         $this->swapAuthGuard(authenticated: true);
 
@@ -94,7 +94,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame(302, $result->getStatusCode());
     }
 
-    public function testMultipleGuardsRedirectsIfAnyAuthenticated()
+    public function testMultipleGuardsRedirectsIfAnyAuthenticated(): void
     {
         $guestGuard = m::mock(Guard::class);
         $guestGuard->shouldReceive('check')->andReturn(false);
@@ -115,7 +115,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame(302, $result->getStatusCode());
     }
 
-    public function testPassesThroughWhenAllGuardsAreGuests()
+    public function testPassesThroughWhenAllGuardsAreGuests(): void
     {
         $guard1 = m::mock(Guard::class);
         $guard1->shouldReceive('check')->andReturn(false);
@@ -197,7 +197,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertFalse(CoroutineContext::has(AuthManager::DEFAULT_GUARD_CONTEXT_KEY));
     }
 
-    public function testBareGuestMiddlewareUsesCurrentDefaultGuardSelectedByShouldUse()
+    public function testBareGuestMiddlewareUsesCurrentDefaultGuardSelectedByShouldUse(): void
     {
         $auth = $this->makeAuthManager(webAuthenticated: true, secondaryAuthenticated: false);
         Auth::swap($auth);
@@ -213,7 +213,7 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame('secondary', $auth->getDefaultDriver());
     }
 
-    public function testFlushStateClearsRedirectCallback()
+    public function testFlushStateClearsRedirectCallback(): void
     {
         RedirectIfAuthenticated::redirectUsing(fn () => '/custom');
 

@@ -11,6 +11,7 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use RedisException;
 
 /**
@@ -24,7 +25,7 @@ class FlushByPatternTest extends TestCase
      * Returns both the connection (as a partial mock) and the client so tests
      * can set up unlink expectations while using FakeRedisClient for scan behavior.
      *
-     * @return array{m\MockInterface&PhpRedisConnectionStub, FakeRedisClient}
+     * @return array{MockInterface&PhpRedisConnectionStub, FakeRedisClient}
      */
     private function createConnectionWithClient(FakeRedisClient $client): array
     {
@@ -45,7 +46,7 @@ class FlushByPatternTest extends TestCase
         $connection->shouldNotReceive('unlink');
 
         $this->expectException(InvalidRedisConnectionException::class);
-        $this->expectExceptionMessage('SafeScan requires a raw Redis connection.');
+        $this->expectExceptionMessageIsOrContains('SafeScan requires a raw Redis connection.');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }
@@ -208,7 +209,7 @@ class FlushByPatternTest extends TestCase
             });
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('UNLINK is not permitted');
+        $this->expectExceptionMessageIs('UNLINK is not permitted');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }
@@ -238,7 +239,7 @@ class FlushByPatternTest extends TestCase
             });
 
         $this->expectException(RedisException::class);
-        $this->expectExceptionMessage('Redis UNLINK failed while deleting keys by pattern.');
+        $this->expectExceptionMessageIs('Redis UNLINK failed while deleting keys by pattern.');
 
         (new FlushByPattern($connection))->execute('cache:test:*');
     }

@@ -91,6 +91,8 @@ Schedule::command('emails:send Taylor --force')->daily();
 Schedule::command(SendEmailsCommand::class, ['Taylor', '--force'])->daily();
 ```
 
+Scheduled commands and closures run within the scheduler process, so static and singleton state persists between tasks. If a command needs a separate process, schedule it with `Schedule::exec('php artisan emails:send Taylor --force')` instead.
+
 <a name="scheduling-artisan-closure-commands"></a>
 #### Scheduling Artisan Closure Commands
 
@@ -146,6 +148,8 @@ Schedule::exec('node /path/to/script.js')->daily();
 ```
 
 If the shell command launches a Hypervel Artisan command, the child command receives the task's visible and hidden [context](/docs/{{version}}/context).
+
+Scheduled tasks run as the scheduler's OS user. To run a task as another user, use `exec` with an explicit command, such as `sudo -u reports -- /usr/local/bin/generate-reports`.
 
 <a name="schedule-frequency-options"></a>
 ### Schedule Frequency Options
@@ -324,7 +328,7 @@ use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('report:generate')
     ->timezone('America/New_York')
-    ->at('2:00')
+    ->at('2:00');
 ```
 
 If you are repeatedly assigning the same timezone to all of your scheduled tasks, you can specify which timezone should be assigned to all schedules by defining a `schedule_timezone` option within your application's `app` configuration file:
@@ -338,7 +342,7 @@ If you are repeatedly assigning the same timezone to all of your scheduled tasks
 When this option is omitted, scheduled tasks use the application timezone.
 
 > [!WARNING]
-> Remember that some timezones utilize daylight savings time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
+> Remember that some timezones utilize daylight saving time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
 
 When using `schedule:list --timezone`, the next due date is displayed in the requested timezone while the cron expression remains in the timezone in which it is evaluated. If these timezones differ, the CLI displays the expression timezone beside the expression. JSON output provides the display timezone as `timezone` and the expression timezone as `expression_timezone`.
 
@@ -438,13 +442,13 @@ Schedule::command('analytics:report')
 
 Hypervel starts background tasks as coroutines inside the `schedule:run` process. This is well suited to I/O-bound work such as HTTP calls, queries, and file or network I/O because coroutines yield while waiting. For CPU-bound work, coroutines offer limited benefit. In those cases, schedule the task using `exec` so the operating system runs it in a separate process:
 
-Unlike Laravel's detached background processes, Hypervel observes the exit status of background tasks. A non-zero exit dispatches a `ScheduledTaskFailed` event and is reported through the exception handler.
-
 ```php
 Schedule::exec('php artisan reports:compute')
     ->daily()
     ->runInBackground();
 ```
+
+Unlike Laravel's detached background processes, Hypervel observes the exit status of background tasks. A non-zero exit dispatches a `ScheduledTaskFailed` event and is reported through the exception handler.
 
 <a name="maintenance-mode"></a>
 ### Maintenance Mode
@@ -498,7 +502,7 @@ Schedule::daily()
     });
 ```
 
-Group definitions also replay event lifecycle callbacks and output handlers on every event in the group, so shared hooks may be defined once:
+You may also apply event callbacks, output handlers, and event macros to every task in a group. These methods may appear before or after the group's frequency settings:
 
 ```php
 Schedule::daily()
@@ -570,7 +574,9 @@ Schedule::command('users:delete')->everyTenSeconds()->runInBackground();
 <a name="stopping-the-scheduler"></a>
 ### Stopping the Scheduler
 
-When deploying your application, you should signal the long-running `schedule:run` process to stop so that the next invocation picks up your newly deployed code. The `schedule:interrupt` command writes a flag to the cache that `schedule:run` polls. After receiving the signal, the scheduler stops accepting new events and waits for any in-flight background coroutines to finish before exiting:
+When the long-running `schedule:run` process receives `SIGTERM`, `SIGINT`, or `SIGQUIT`, it stops starting new tasks and waits for running tasks to finish. A second termination signal stops the process immediately and releases its owned overlap locks, unless the task disables `releaseOnTerminationSignals`. Configure your process manager's shutdown timeout to allow your longest task to finish. A forced `SIGKILL` cannot release overlap locks; they remain until they expire or you run `schedule:clear-cache`.
+
+When deploying your application, you may also use `schedule:interrupt` to stop the scheduler so that the next invocation picks up your newly deployed code. This command writes a flag to the cache that `schedule:run` polls. After detecting the flag, the scheduler finishes the current set of due events and waits for running background tasks before exiting.
 
 This command should be invoked after your application is finished deploying:
 
@@ -578,18 +584,18 @@ This command should be invoked after your application is finished deploying:
 php artisan schedule:interrupt
 ```
 
-By default, the interrupt signal expires after one minute. You may use the `--minutes` option to extend this window if your deployment process takes longer:
+By default, the interrupt flag expires after one minute. You may use the `--minutes` option to extend this window if your deployment process takes longer:
 
 ```shell
 php artisan schedule:interrupt --minutes=5
 ```
 
-If you do not want the scheduler to poll for pause or interrupt signals, call `Schedule::withoutInterruptionPolling()` during boot.
+If you do not want the scheduler to poll for pause or interrupt flags, call `Schedule::withoutInterruptionPolling()` during boot. The `schedule:pause` command will then fail instead of pausing the scheduler. Operating-system termination signals still stop the scheduler.
 
 <a name="running-the-scheduler-locally"></a>
 ### Running the Scheduler Locally
 
-No separate local development command is needed. The `schedule:run` command runs in the foreground as a long-running process, so you may start it in a local terminal and stop it with Control+C:
+No separate local development command is needed. The `schedule:run` command runs in the foreground as a long-running process. Press Control+C to stop after running tasks finish, or press it again to stop immediately:
 
 ```shell
 php artisan schedule:run
@@ -691,7 +697,7 @@ Schedule::command('emails:send')
     });
 ```
 
-If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting an `Hypervel\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
+If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting a `Hypervel\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
 
 ```php
 use Hypervel\Support\Stringable;

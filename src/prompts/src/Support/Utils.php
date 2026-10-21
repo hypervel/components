@@ -89,6 +89,14 @@ class Utils
     }
 
     /**
+     * Strip terminal controls without interpreting Symfony markup or escapes.
+     */
+    public static function stripTerminalControls(string $text): string
+    {
+        return self::filterTerminalControls($text, preserveFormatting: false);
+    }
+
+    /**
      * Split text into bounded Unicode grapheme units.
      *
      * @return list<string>

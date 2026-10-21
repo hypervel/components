@@ -15,6 +15,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
+use Hypervel\Reverb\Webhooks\Contracts\WebhookSender;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
@@ -22,6 +23,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use JsonException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
 
 class EventHandlerTest extends ReverbTestCase
@@ -67,6 +69,35 @@ class EventHandlerTest extends ReverbTestCase
             'data' => '{}',
             'channel' => 'test-channel',
         ]);
+    }
+
+    public function testSubscriptionSucceedsWhenWebhookHandoffFails(): void
+    {
+        $webhooks = $this->webhookConfig();
+        $webhooks['url'] = 'https://example.com/webhook';
+        $webhooks['events'] = ['channel_occupied'];
+        $webhooks['batching']['enabled'] = false;
+        config()->set('reverb.apps.apps.0.webhooks', $webhooks);
+
+        $failure = new RuntimeException('The delivery queue is unavailable.');
+        $sender = m::mock(WebhookSender::class);
+        $sender->expects('send')->andThrow($failure);
+        $this->app->instance(WebhookSender::class, $sender);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $this->pusher->subscribe($this->connection, 'test-channel');
+
+        $this->connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel',
+        ]);
+        $this->assertSame(1, $this->app->make(SharedState::class)->getSubscriptionCount(
+            $this->connection->app()->id(),
+            'test-channel',
+        ));
     }
 
     public function testPresenceSubscriptionSurvivesSiblingPublicationFailure(): void
@@ -230,6 +261,64 @@ class EventHandlerTest extends ReverbTestCase
             'event' => 'pusher_internal:subscription_succeeded',
             'data' => '{}',
         ]);
+    }
+
+    public function testFallsBackToLocalMembersWhenTheGatherFails(): void
+    {
+        $failure = new RuntimeException('Unable to gather metrics.');
+        $metrics = m::mock(MetricsHandler::class);
+        $metrics->expects('gather')->andThrow($failure);
+        $this->app->instance(MetricsHandler::class, $metrics);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $data = json_encode(['user_id' => 1, 'user_info' => ['name' => 'Joe']]);
+
+        $this->pusher->handle(
+            $this->connection,
+            'pusher:subscribe',
+            [
+                'channel' => 'presence-test-channel',
+                'auth' => static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+                'channel_data' => $data,
+            ]
+        );
+
+        $this->connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => json_encode(['presence' => ['count' => 1, 'ids' => [1], 'hash' => [1 => ['name' => 'Joe']]]]),
+            'channel' => 'presence-test-channel',
+        ]);
+    }
+
+    public function testGatherCancellationIsNotAnsweredWithLocalMembers(): void
+    {
+        $cancellation = new CanceledException;
+        $metrics = m::mock(MetricsHandler::class);
+        $metrics->expects('gather')->andThrow($cancellation);
+        $this->app->instance(MetricsHandler::class, $metrics);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $data = json_encode(['user_id' => 1, 'user_info' => ['name' => 'Joe']]);
+
+        try {
+            $this->pusher->subscribe(
+                $this->connection,
+                'presence-test-channel',
+                static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+                $data,
+            );
+            $this->fail('Expected the gather cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->connection->assertNothingReceived();
     }
 
     public function testCanUnsubscribeFromAChannel(): void

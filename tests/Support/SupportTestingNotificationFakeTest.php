@@ -13,6 +13,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
+use Hypervel\Tests\Notifications\Fixtures\NotificationStub;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\ExpectationFailedException;
 
@@ -24,6 +25,9 @@ class SupportTestingNotificationFakeTest extends TestCase
 
     private UserStub $user;
 
+    /**
+     * Set up the notification fake.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -39,7 +43,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             $this->fake->assertSentTo($this->user, NotificationStub::class);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Hypervel\Tests\Support\NotificationStub] notification was not sent.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was not sent.', $e->getMessage());
         }
 
         $this->fake->send($this->user, new NotificationStub);
@@ -82,7 +86,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             $this->fake->assertNotSentTo($this->user, NotificationStub::class);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Support\NotificationStub] notification was sent.', $e->getMessage());
+            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was sent.', $e->getMessage());
         }
     }
 
@@ -96,7 +100,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             });
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Support\NotificationStub] notification was sent.', $e->getMessage());
+            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was sent.', $e->getMessage());
         }
     }
 
@@ -197,6 +201,38 @@ class SupportTestingNotificationFakeTest extends TestCase
         $this->fake->assertSentOnDemandTimes(NotificationStub::class, 3);
     }
 
+    public function testAssertSentToOnce(): void
+    {
+        $this->fake->send($this->user, new NotificationStub);
+
+        $this->fake->assertSentToOnce($this->user, NotificationStub::class);
+
+        $this->fake->send($this->user, new NotificationStub);
+
+        try {
+            $this->fake->assertSentToOnce($this->user, NotificationStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('Expected [' . NotificationStub::class . '] to be sent 1 times, but was sent 2 times.', $e->getMessage());
+        }
+    }
+
+    public function testAssertSentOnDemandOnce(): void
+    {
+        $this->fake->send(new AnonymousNotifiable, new NotificationStub);
+
+        $this->fake->assertSentOnDemandOnce(NotificationStub::class);
+
+        $this->fake->send(new AnonymousNotifiable, new NotificationStub);
+
+        try {
+            $this->fake->assertSentOnDemandOnce(NotificationStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('Expected [' . NotificationStub::class . '] to be sent 1 times, but was sent 2 times.', $e->getMessage());
+        }
+    }
+
     public function testAssertSentToWhenNotifiableHasPreferredLocale(): void
     {
         $user = new LocalizedUserStub;
@@ -228,21 +264,19 @@ class SupportTestingNotificationFakeTest extends TestCase
     }
 }
 
-class NotificationStub extends Notification
-{
-    public function via(mixed $notifiable): array
-    {
-        return ['mail'];
-    }
-}
-
 class NotificationWithFalsyShouldSendStub extends Notification
 {
+    /**
+     * Get the notification channels.
+     */
     public function via(mixed $notifiable): array
     {
         return ['mail'];
     }
 
+    /**
+     * Determine whether to send the notification.
+     */
     public function shouldSend(mixed $notifiable, string $channel): bool
     {
         return false;
@@ -255,6 +289,9 @@ class UserStub extends User
 
 class LocalizedUserStub extends User implements HasLocalePreference
 {
+    /**
+     * Get the preferred locale.
+     */
     public function preferredLocale(): string
     {
         return 'au';
@@ -265,15 +302,24 @@ class NotificationWithSerialization extends NotificationStub implements ShouldQu
 {
     use Queueable;
 
+    /**
+     * Create a new notification.
+     */
     public function __construct(public string $value)
     {
     }
 
+    /**
+     * Prepare the notification for serialization.
+     */
     public function __serialize(): array
     {
         return ['value' => $this->value . '-serialized'];
     }
 
+    /**
+     * Restore the notification after serialization.
+     */
     public function __unserialize(array $data): void
     {
         $this->value = $data['value'] . '-unserialized';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Support\Manager;
 
 class MaintenanceModeManager extends Manager
@@ -27,7 +28,7 @@ class MaintenanceModeManager extends Manager
     /**
      * Create an instance of the cache based maintenance driver.
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     protected function createCacheDriver(): CacheBasedMaintenanceMode
     {

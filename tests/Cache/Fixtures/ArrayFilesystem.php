@@ -23,7 +23,23 @@ class ArrayFilesystem implements Filesystem
 
     public function exists(string $path): bool
     {
-        return array_key_exists($path, $this->files) || $this->files($path) !== [];
+        return $this->fileExists($path) || $this->directoryExists($path);
+    }
+
+    /**
+     * Determine if a file exists.
+     */
+    public function fileExists(string $path): bool
+    {
+        return array_key_exists($path, $this->files);
+    }
+
+    /**
+     * Determine if a directory exists.
+     */
+    public function directoryExists(string $path): bool
+    {
+        return $this->files($path) !== [];
     }
 
     public function get(string $path): ?string

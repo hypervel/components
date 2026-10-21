@@ -8,12 +8,14 @@
 - [Defining Rate Limits](#defining-rate-limits)
     - [Choosing a Rate Limit](#choosing-a-rate-limit)
     - [Fixed Windows](#fixed-windows)
+    - [Calendar Windows](#calendar-windows)
     - [Sliding Windows](#sliding-windows)
     - [Leaky Buckets](#leaky-buckets)
     - [Weighted Operations](#weighted-operations)
     - [Unlimited](#unlimited)
 - [Using the Rate Limiter](#using-the-rate-limiter)
     - [Consuming Capacity](#consuming-capacity)
+    - [Consuming Multiple Limits](#consuming-multiple-limits)
     - [Inspecting State](#inspecting-state)
     - [Attempting Operations](#attempting-operations)
     - [Clearing State](#clearing-state)
@@ -32,6 +34,7 @@ Hypervel includes a powerful rate limiter that you may use to limit HTTP routes,
 The rate limiter supports:
 
 - fixed-window limits;
+- calendar windows that reset at the start of each minute, hour, day, or month;
 - sliding-window limits;
 - continuously replenishing leaky buckets;
 - weighted operations;
@@ -179,6 +182,7 @@ Hypervel provides several rate limits for different kinds of work:
 | Rate Limit | When to Use It |
 |---|---|
 | Fixed window | You want a simple limit that resets all capacity at once. |
+| Calendar window | You want capacity to reset on the clock, such as an API quota that resets at midnight. |
 | Sliding window | You want to smooth the traffic spike that may occur at a fixed-window boundary. |
 | Leaky bucket | You want capacity to replenish continuously or need precise burst control. |
 | Exponential backoff | You want repeated failures to create progressively longer delays. |
@@ -205,6 +209,36 @@ $limit = Limit::perMinute(120, decayMinutes: 2);
 ```
 
 A denied operation does not consume capacity or extend the active window.
+
+<a name="calendar-windows"></a>
+### Calendar Windows
+
+The `CalendarWindow` class resets capacity at the start of each minute, hour, day, or month, rather than a fixed time after the first operation. This matches APIs whose quotas reset on the clock, such as a daily quota that resets at midnight:
+
+```php
+use Hypervel\RateLimiter\CalendarWindow;
+
+$perMinute = CalendarWindow::perMinute(60);
+$perHour = CalendarWindow::perHour(1000);
+$perDay = CalendarWindow::perDay(10_000);
+$perMonth = CalendarWindow::perMonth(100_000);
+```
+
+A daily window may reset at another time of day, given in the 24-hour `HH:MM` or `HH:MM:SS` format:
+
+```php
+$limit = CalendarWindow::perDay(10_000, at: '01:00');
+```
+
+Calendar windows follow your application's timezone. If a provider resets its quota in another timezone, use the `timezone` method:
+
+```php
+$limit = CalendarWindow::perDay(10_000)->timezone('America/Los_Angeles');
+```
+
+Windows follow the local clock when daylight saving time begins or ends, so a daily window may last 23 or 25 hours, and an hour that happens twice is two separate hourly windows. When the clocks go back and a daily reset time happens twice, the window resets the first time. When the clocks go forward past a daily reset time, the window resets later by the same amount that day.
+
+Calendar windows support the same `by`, `cost`, `globally`, `after`, and `response` modifiers as fixed windows. A denied operation does not consume capacity, and `resetAfter()` returns the time until the active window resets, or zero when no window is active.
 
 <a name="sliding-windows"></a>
 ### Sliding Windows
@@ -275,7 +309,7 @@ $limit = Limit::perMinute(100)
     ->by('uploads:'.$user->id);
 ```
 
-The cost may not exceed the fixed-window or sliding-window capacity, or the leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
+The cost may not exceed the fixed-window, calendar-window, or sliding-window capacity, or the leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
 
 <a name="unlimited"></a>
 ### Unlimited
@@ -322,6 +356,32 @@ A `LimitResult` provides:
 - `resetAfter()`, the whole seconds until all current state stops contributing to the rate limit.
 
 Durations are rounded up, ensuring a caller is never instructed to retry before capacity is actually available.
+
+<a name="consuming-multiple-limits"></a>
+### Consuming Multiple Limits
+
+Use `consumeMany` when an operation must satisfy several limits, such as an application-wide quota and a customer quota:
+
+```php
+$results = RateLimiter::consumeMany([
+    Limit::perHour(1000)->by('application')->globally(),
+    Limit::perHour(10)->by('customer:'.$customer->id),
+]);
+
+foreach ($results as $result) {
+    if ($result->denied()) {
+        return 'Try again in '.$result->retryAfter().' seconds.';
+    }
+}
+
+// Perform the operation...
+```
+
+Results follow the supplied order and stop at the first denied limit. Except on Redis Cluster, a denied group consumes no capacity. Repeating the same limit combines its costs; `Unlimited` entries require no storage. You may pass a named limiter as the second argument, just as with `consume`.
+
+Standalone Redis handles a group in a single round trip once its script is cached. A group containing only one non-unlimited limit uses the same operation as `consume`.
+
+On Redis Cluster, keys remain distributed across slots. The store checks each limit before consuming them individually, requiring up to two calls per limit. A denial during the initial checks consumes nothing, but a denial during consumption can leave earlier charges. This can occur when another request consumes capacity between the two passes, or when repeated keys exhaust their combined capacity.
 
 <a name="inspecting-state"></a>
 ### Inspecting State
@@ -454,6 +514,8 @@ RateLimiter::for('api', function ($request) {
 
 You should register named limiters during application boot because their definitions are shared for the lifetime of the worker. Named limiters may be used by routing and queue middleware. The routing documentation covers [attaching named limiters to routes](/docs/{{version}}/routing#attaching-rate-limiters-to-routes), response callbacks, global rate limits, and stacked rate limits.
 
+You may add custom methods using `RateLimiter::macro('name', $callback)`. Macro closures can use `$this` to access the rate limiter manager, including its `for` and `store` methods. Register macros during application boot; they are shared by all requests in the worker.
+
 <a name="scoping-named-rate-limits"></a>
 ### Scoping Named Rate Limits
 
@@ -491,16 +553,26 @@ Custom drivers implement `Hypervel\RateLimiter\Contracts\Store`. The contract co
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\LimitResult;
 
 interface Store
 {
     public function consume(string $key, AdmissionPolicy $policy): LimitResult;
 
+    /**
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array;
+
+    public function block(string $key, int $durationMicroseconds): CooldownResult;
+
     public function inspect(
         string $key,
-        AdmissionPolicy|Backoff $policy,
-    ): LimitResult|BackoffResult;
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult;
 
     public function recordFailure(string $key, Backoff $backoff): BackoffResult;
 
@@ -508,7 +580,9 @@ interface Store
 }
 ```
 
-A custom store receives validated `Limit`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+A custom store receives validated `Limit`, `CalendarWindow`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. A calendar window counts like a fixed window, but new state expires at the end of the window that its `window` method returns for the store's current time. Both use epoch microseconds. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+
+The `consumeMany` method evaluates entries in order, including repeated keys, and returns results through the first denial. Store all accepted changes together; on denial, leave capacity unchanged and report remaining capacity without the discarded charges. The `block` method extends a cooldown without shortening an existing block.
 
 If your custom store retains expired state, it may also implement `Hypervel\RateLimiter\Contracts\PrunableStore` so it can be targeted by the `rate-limiter:prune` command.
 

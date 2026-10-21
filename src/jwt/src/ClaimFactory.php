@@ -14,14 +14,14 @@ use Hypervel\Support\Facades\Date;
 class ClaimFactory
 {
     /**
-     * Claims stamped by the factory itself when a token is refreshed.
+     * Claims that belong to a single token and are rebuilt when it is refreshed.
      */
-    protected const array MANAGED_REFRESH_CLAIMS = ['iat', 'nbf', 'exp', 'iss', 'jti'];
+    protected const array MANAGED_REFRESH_CLAIMS = ['iat', 'nbf', 'exp', 'jti'];
 
     /**
-     * Claims owned by the guard, manager, or claim factory.
+     * Identity claims derived from the user and provider.
      */
-    protected const array RESERVED_CUSTOM_CLAIMS = ['sub', 'prv', ...self::MANAGED_REFRESH_CLAIMS];
+    protected const array RESERVED_CUSTOM_CLAIMS = ['sub', 'prv'];
 
     protected static array $subjectModelHashes = [];
 
@@ -81,25 +81,18 @@ class ClaimFactory
         array $persistentClaims,
         array $customClaims = [],
     ): array {
-        $managed = array_flip(self::MANAGED_REFRESH_CLAIMS);
-        $persistent = array_diff_key(
-            array_intersect_key($payload, array_flip($persistentClaims)),
-            $managed,
-        );
-
-        $claims = $resetClaims
-            ? $persistent
-            : array_diff_key($payload, $managed);
+        $carried = $resetClaims
+            ? array_intersect_key($payload, array_flip($persistentClaims))
+            : $payload;
 
         $this->rejectReservedCustomClaims($customClaims);
 
-        $claims = array_merge($claims, $persistent, $customClaims, [
-            'sub' => $payload['sub'],
-        ]);
-
-        if (! $refreshIssuedAt) {
-            $claims['iat'] = $payload['iat'];
-        }
+        $claims = array_merge(
+            array_diff_key($carried, array_flip(self::MANAGED_REFRESH_CLAIMS)),
+            $refreshIssuedAt ? [] : ['iat' => $payload['iat']],
+            $customClaims,
+            ['sub' => $payload['sub']],
+        );
 
         if (array_key_exists('prv', $payload)) {
             $claims['prv'] = $payload['prv'];

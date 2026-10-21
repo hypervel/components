@@ -10,7 +10,7 @@ class CastMakeCommandTest extends TestCase
         'app/Casts/Foo.php',
     ];
 
-    public function testItCanGenerateCastFile()
+    public function testItCanGenerateCastFile(): void
     {
         $this->artisan('make:cast', ['name' => 'Foo'])
             ->assertExitCode(0);
@@ -24,7 +24,7 @@ class CastMakeCommandTest extends TestCase
         ], 'app/Casts/Foo.php');
     }
 
-    public function testItCanGenerateInboundCastFile()
+    public function testItCanGenerateInboundCastFile(): void
     {
         $this->artisan('make:cast', ['name' => 'Foo', '--inbound' => true])
             ->assertExitCode(0);

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Passkeys\Http\Controllers;
 
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Actions\GenerateVerificationOptions;
@@ -21,11 +20,6 @@ use RuntimeException;
 
 class PasskeyConfirmationController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
-
     /**
      * Get passkey confirmation options for the authenticated user.
      */
@@ -42,7 +36,7 @@ class PasskeyConfirmationController extends Controller
 
         $serialized = WebAuthn::toJson($options);
 
-        $request->session()->put('passkey.confirmation_options', $serialized);
+        $request->session()->put('passkey.verification_options_' . Passkeys::guardName(), $serialized);
 
         return response()->json([
             'options' => WebAuthn::toBrowserArray($options),
@@ -67,7 +61,7 @@ class PasskeyConfirmationController extends Controller
 
         $verify(
             $request->credential(),
-            $request->verificationOptions('passkey.confirmation_options'),
+            $request->verificationOptions(),
             $user
         );
 
@@ -76,6 +70,6 @@ class PasskeyConfirmationController extends Controller
 
         $session->passwordConfirmed($guardName);
 
-        return $this->container->make(PasskeyConfirmationResponse::class);
+        return app(PasskeyConfirmationResponse::class);
     }
 }

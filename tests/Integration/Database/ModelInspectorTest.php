@@ -15,9 +15,9 @@ use Hypervel\Database\Eloquent\ModelInfo;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Http\Fixtures\ModelInspectorTestModelResource;
 
 class ModelInspectorTest extends DatabaseTestCase
 {
@@ -46,7 +46,7 @@ class ModelInspectorTest extends DatabaseTestCase
         });
     }
 
-    public function testExtractsModelData()
+    public function testExtractsModelData(): void
     {
         $extractor = new ModelInspector($this->app);
         $modelInfo = $extractor->inspect(ModelInspectorTestModel::class);
@@ -65,11 +65,26 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertModelInfo($modelInfo);
     }
 
-    private function assertModelInfo(ModelInfo|array $modelInfo)
+    public function testCommandPreservesAttributeDefaults(): void
+    {
+        $this->artisan('model:show', ['model' => ModelInspectorTestModelWithDefault::class, '--json' => true]);
+        $modelInfo = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('<info>Pending</info> a\>b', $modelInfo['attributes'][2]['default']);
+
+        $this->artisan('model:show', ['model' => ModelInspectorTestModelWithDefault::class, '-v' => true]);
+
+        $this->assertStringContainsString('default: <info>Pending</info> a\>b', Artisan::output());
+    }
+
+    /**
+     * Assert the extracted model details.
+     */
+    private function assertModelInfo(ModelInfo|array $modelInfo): void
     {
         $this->assertEquals(ModelInspectorTestModel::class, $modelInfo['class']);
         $this->assertEquals(Schema::getConnection()->getConfig()['name'], $modelInfo['database']);
-        $this->assertEquals('model_info_extractor_test_model', $modelInfo['table']);
+        $this->assertSame('model_info_extractor_test_model', $modelInfo['table']);
         $this->assertNull($modelInfo['policy']);
         $this->assertCount(8, $modelInfo['attributes']);
 
@@ -178,14 +193,17 @@ class ModelInspectorTest extends DatabaseTestCase
 
         $this->assertEmpty($modelInfo['events']);
         $this->assertCount(1, $modelInfo['observers']);
-        $this->assertEquals('created', $modelInfo['observers'][0]['event']);
+        $this->assertSame('created', $modelInfo['observers'][0]['event']);
         $this->assertCount(1, $modelInfo['observers'][0]['observer']);
-        $this->assertEquals('Hypervel\Tests\Integration\Database\ModelInspectorTestModelObserver@created', $modelInfo['observers'][0]['observer'][0]);
+        $this->assertSame('Hypervel\Tests\Integration\Database\ModelInspectorTestModelObserver@created', $modelInfo['observers'][0]['observer'][0]);
         $this->assertEquals(ModelInspectorTestModelEloquentCollection::class, $modelInfo['collection']);
         $this->assertEquals(ModelInspectorTestModelBuilder::class, $modelInfo['builder']);
     }
 
-    private function assertAttributes($expectedAttributes, $actualAttributes)
+    /**
+     * Assert the database-independent column attributes.
+     */
+    private function assertAttributes(array $expectedAttributes, array $actualAttributes): void
     {
         foreach (['name', 'increments', 'nullable', 'unique', 'fillable', 'hidden', 'appended', 'cast'] as $key) {
             $this->assertEquals($expectedAttributes[$key], $actualAttributes[$key]);
@@ -211,6 +229,9 @@ class ModelInspectorTestModel extends Model
 
     protected array $casts = ['nullable_date' => 'datetime', 'a_bool' => 'bool'];
 
+    /**
+     * Get the parent model relationship.
+     */
     public function parentModel(): BelongsTo
     {
         return $this->belongsTo(ParentTestModel::class);
@@ -224,9 +245,19 @@ class ParentTestModel extends Model
     public bool $timestamps = false;
 }
 
+class ModelInspectorTestModelWithDefault extends Model
+{
+    public ?string $table = 'model_info_extractor_test_model';
+
+    protected array $attributes = ['name' => '<info>Pending</info> a\>b'];
+}
+
 class ModelInspectorTestModelObserver
 {
-    public function created()
+    /**
+     * Handle the model's created event.
+     */
+    public function created(): void
     {
     }
 }
@@ -236,9 +267,5 @@ class ModelInspectorTestModelEloquentCollection extends Collection
 }
 
 class ModelInspectorTestModelBuilder extends Builder
-{
-}
-
-class ModelInspectorTestModelResource extends JsonResource
 {
 }

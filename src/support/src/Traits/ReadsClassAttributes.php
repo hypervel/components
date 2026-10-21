@@ -11,6 +11,8 @@ trait ReadsClassAttributes
 {
     /**
      * Get a configuration value from an attribute, falling back to a property.
+     *
+     * @param class-string $attributeClass
      */
     protected function getAttributeValue(object $target, string $attributeClass, ?string $property = null, mixed $default = null): mixed
     {
@@ -50,6 +52,8 @@ trait ReadsClassAttributes
 
     /**
      * Get an instance of the given attribute class from the target class or its parents.
+     *
+     * @param class-string $attributeClass
      */
     protected function getAttributeInstance(object $target, string $attributeClass, ?ReflectionClass &$declaringClass = null): ?object
     {

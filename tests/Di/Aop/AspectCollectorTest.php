@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Di\Aop;
 
 use Hypervel\Di\Aop\AspectCollector;
+use Hypervel\Di\Exceptions\InvalidDefinitionException;
+use Hypervel\Tests\Di\Fixtures\Aspect\TestAspect;
 use Hypervel\Tests\TestCase;
 
 class AspectCollectorTest extends TestCase
@@ -67,6 +69,51 @@ class AspectCollectorTest extends TestCase
     public function testGetPriorityReturnsZeroForUnregisteredAspect(): void
     {
         $this->assertSame(0, AspectCollector::getPriority('NonExistent'));
+    }
+
+    public function testSealedCollectorRejectsRegistration(): void
+    {
+        AspectCollector::seal();
+
+        $this->expectException(InvalidDefinitionException::class);
+        $this->expectExceptionMessageIsOrContains('register()');
+
+        AspectCollector::register(TestAspect::class);
+    }
+
+    public function testSealedCollectorRejectsRuleChanges(): void
+    {
+        AspectCollector::setAround(TestAspect::class, ['App\Foo::bar'], 5);
+        $rules = AspectCollector::getRules();
+        AspectCollector::seal();
+
+        try {
+            AspectCollector::setAround(TestAspect::class, ['App\Baz::qux'], 10);
+            $this->fail('Sealed aspect rules must reject changes.');
+        } catch (InvalidDefinitionException $exception) {
+            $this->assertStringContainsString(TestAspect::class, $exception->getMessage());
+            $this->assertSame($rules, AspectCollector::getRules());
+        }
+    }
+
+    public function testUnsealPreservesRulesAndAllowsRegistration(): void
+    {
+        AspectCollector::setAround('FirstAspect', ['App\Foo::bar']);
+        AspectCollector::seal();
+        AspectCollector::unseal();
+        AspectCollector::setAround('SecondAspect', ['App\Foo::bar']);
+
+        $this->assertSame(['FirstAspect', 'SecondAspect'], array_keys(AspectCollector::getRules()));
+    }
+
+    public function testFlushStateReopensRegistration(): void
+    {
+        AspectCollector::setAround('FirstAspect', ['App\Foo::bar']);
+        AspectCollector::seal();
+        AspectCollector::flushState();
+        AspectCollector::register(TestAspect::class);
+
+        $this->assertSame([TestAspect::class], array_keys(AspectCollector::getRules()));
     }
 
     public function testGetRuleReturnsEmptyForUnregisteredAspect(): void

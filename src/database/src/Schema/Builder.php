@@ -6,8 +6,11 @@ namespace Hypervel\Database\Schema;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
@@ -17,6 +20,12 @@ class Builder
 {
     use Macroable;
 
+    protected const int DEFAULT_STRING_LENGTH = 255;
+
+    protected const int DEFAULT_TIME_PRECISION = 0;
+
+    protected const string DEFAULT_MORPH_KEY_TYPE = 'int';
+
     /**
      * The database connection instance.
      */
@@ -25,29 +34,33 @@ class Builder
     /**
      * The schema grammar instance.
      */
-    protected Grammars\Grammar $grammar;
+    protected Grammar $grammar;
 
     /**
      * The Blueprint resolver callback.
      *
-     * @var Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint
+     * @var Closure(Connection, string, null|Closure): Blueprint
      */
     protected ?Closure $resolver = null;
 
     /**
      * The default string length for migrations.
+     *
+     * @var null|non-negative-int
      */
-    public static ?int $defaultStringLength = 255;
+    public static ?int $defaultStringLength = self::DEFAULT_STRING_LENGTH;
 
     /**
      * The default time precision for migrations.
      */
-    public static ?int $defaultTimePrecision = 0;
+    public static ?int $defaultTimePrecision = self::DEFAULT_TIME_PRECISION;
 
     /**
      * The default relationship morph key type.
+     *
+     * @var 'int'|'ulid'|'uuid'
      */
-    public static string $defaultMorphKeyType = 'int';
+    public static string $defaultMorphKeyType = self::DEFAULT_MORPH_KEY_TYPE;
 
     /**
      * Create a new database Schema manager.
@@ -63,6 +76,8 @@ class Builder
      *
      * Boot-only. The length persists in a static property for the worker
      * lifetime and applies to every Blueprint::string() across all coroutines.
+     *
+     * @param non-negative-int $length
      */
     public static function defaultStringLength(int $length): void
     {
@@ -95,17 +110,6 @@ class Builder
         }
 
         static::$defaultMorphKeyType = $type;
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$defaultStringLength = 255;
-        static::$defaultTimePrecision = 0;
-        static::$defaultMorphKeyType = 'int';
-        static::flushMacros();
     }
 
     /**
@@ -156,7 +160,7 @@ class Builder
     public function getSchemas(): array
     {
         return $this->connection->getPostProcessor()->processSchemas(
-            $this->connection->selectFromWriteConnection($this->grammar->compileSchemas())
+            $this->selectMetadata($this->grammar->compileSchemas())
         );
     }
 
@@ -170,8 +174,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
-            // Schema existence must be read from the same write connection that migrations mutate.
-            return (bool) $this->connection->scalar($sql, [], false);
+            return (bool) $this->scalarMetadata($sql);
         }
 
         foreach ($this->getTables($schema ?? $this->getCurrentSchemaName()) as $value) {
@@ -205,12 +208,12 @@ class Builder
      * Get the tables that belong to the connection.
      *
      * @param null|string|string[] $schema
-     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string, partition_of: null|string}>
      */
     public function getTables(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processTables(
-            $this->connection->selectFromWriteConnection($this->grammar->compileTables($schema))
+            $this->selectMetadata($this->grammar->compileTables($schema))
         );
     }
 
@@ -235,7 +238,7 @@ class Builder
     public function getViews(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processViews(
-            $this->connection->selectFromWriteConnection($this->grammar->compileViews($schema))
+            $this->selectMetadata($this->grammar->compileViews($schema))
         );
     }
 
@@ -247,7 +250,7 @@ class Builder
     public function getTypes(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processTypes(
-            $this->connection->selectFromWriteConnection($this->grammar->compileTypes($schema))
+            $this->selectMetadata($this->grammar->compileTypes($schema))
         );
     }
 
@@ -271,6 +274,7 @@ class Builder
     {
         $tableColumns = array_map(strtolower(...), $this->getColumnListing($table));
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($columns as $column) {
             if (! in_array(strtolower($column), $tableColumns)) {
                 return false;
@@ -322,6 +326,8 @@ class Builder
 
     /**
      * Get the data type for the given column name.
+     *
+     * @throws InvalidArgumentException
      */
     public function getColumnType(string $table, string $column, bool $fullDefinition = false): string
     {
@@ -349,7 +355,7 @@ class Builder
     /**
      * Get the columns for a given table.
      *
-     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>
+     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>
      */
     public function getColumns(string $table): array
     {
@@ -358,7 +364,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processColumns(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileColumns($schema, $table)
             )
         );
@@ -376,7 +382,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processIndexes(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileIndexes($schema, $table)
             )
         );
@@ -414,6 +420,8 @@ class Builder
     public function hasIndex(string $table, array|string $index, ?string $type = null): bool
     {
         $type = is_null($type) ? $type : strtolower($type);
+
+        $index = is_string($index) ? strtolower($index) : $index;
 
         foreach ($this->getIndexes($table) as $value) {
             $typeMatches = is_null($type)
@@ -455,8 +463,26 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processForeignKeys(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileForeignKeys($schema, $table)
+            )
+        );
+    }
+
+    /**
+     * Get the partitions of a given table.
+     *
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, bounds: string}>
+     */
+    public function getPartitions(string $table): array
+    {
+        [$schema, $table] = $this->parseSchemaAndTable($table);
+
+        $table = $this->connection->getTablePrefix() . $table;
+
+        return $this->connection->getPostProcessor()->processPartitions(
+            $this->selectMetadata(
+                $this->grammar->compilePartitions($schema, $table)
             )
         );
     }
@@ -479,6 +505,36 @@ class Builder
 
             $callback($blueprint);
         }));
+    }
+
+    /**
+     * Create a partition of a range-partitioned table for the given bounds.
+     *
+     * Each bound lists one value per partition column, from inclusive and to exclusive.
+     *
+     * @param list<Expression|float|int|string> $from
+     * @param list<Expression|float|int|string> $to
+     */
+    public function createRangePartition(string $table, string $partition, array $from, array $to): void
+    {
+        $this->executeStatements([
+            $this->grammar->compileCreateRangePartition($table, $partition, $from, $to),
+        ]);
+    }
+
+    /**
+     * Create the migration repository table for this database driver.
+     */
+    public function createMigrationRepositoryTable(string $table): void
+    {
+        $this->create($table, function (Blueprint $blueprint): void {
+            // The migrations table is responsible for keeping track of which of the
+            // migrations have actually run for the application. We'll create the
+            // table to hold the migration name as well as the batch ID.
+            $blueprint->increments('id');
+            $blueprint->string('migration');
+            $blueprint->integer('batch');
+        });
     }
 
     /**
@@ -544,6 +600,60 @@ class Builder
     }
 
     /**
+     * Truncate the given tables if they contain rows.
+     *
+     * @param list<string> $tables
+     */
+    public function truncateTables(array $tables): void
+    {
+        foreach ($tables as $table) {
+            // A stale read replica must not skip cleanup of rows on the write connection.
+            $query = $this->connection->table($table)->useWritePdo();
+
+            if ($query->exists()) {
+                $query->truncate();
+            }
+        }
+    }
+
+    /**
+     * Remove the partitions whose ancestors are among the given tables or excepted.
+     *
+     * An operation on a partitioned table covers its partitions, and an excepted one
+     * keeps them, so only partitions of other tables remain, as tables of their own.
+     *
+     * @template TTable of array{schema_qualified_name: string, partition_of: null|string}
+     *
+     * @param list<TTable> $tables
+     * @param list<string> $except
+     * @return list<TTable>
+     */
+    public function withoutCoveredPartitions(array $tables, array $except = []): array
+    {
+        $given = array_column($tables, 'partition_of', 'schema_qualified_name');
+        $parents = $given;
+
+        // Ancestors outside the given tables (such as in other schemas) are fetched in one query.
+        if (($missing = array_diff(array_filter($given), array_keys($given))) !== []) {
+            $parents += array_column(
+                $this->selectMetadata($this->grammar->compilePartitionAncestors(array_values(array_unique($missing)))),
+                'partition_of',
+                'name'
+            );
+        }
+
+        return array_values(array_filter($tables, function (array $table) use ($given, $parents, $except): bool {
+            for ($ancestor = $table['partition_of']; $ancestor !== null; $ancestor = $parents[$ancestor] ?? null) {
+                if (array_key_exists($ancestor, $given) || ! empty(array_intersect([explode('.', $ancestor, 2)[1], $ancestor], $except))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+    }
+
+    /**
      * Rename a table on the schema.
      */
     public function rename(string $from, string $to): void
@@ -575,6 +685,11 @@ class Builder
 
     /**
      * Disable foreign key constraints during the execution of a callback.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function withoutForeignKeyConstraints(Closure $callback): mixed
     {
@@ -651,6 +766,8 @@ class Builder
 
     /**
      * Create a new extension on the schema if it does not exist.
+     *
+     * @throws RuntimeException
      */
     public function ensureExtensionExists(string $name, ?string $schema = null): void
     {
@@ -697,9 +814,33 @@ class Builder
     }
 
     /**
+     * Read schema metadata from the same write connection that migrations mutate.
+     */
+    protected function selectMetadata(string $query): array
+    {
+        return $this->connection->selectFromWriteConnection($query);
+    }
+
+    /**
+     * Read a scalar result through the metadata execution hook.
+     *
+     * @throws MultipleColumnsSelectedException
+     */
+    protected function scalarMetadata(string $query): mixed
+    {
+        $record = (array) ($this->selectMetadata($query)[0] ?? []);
+
+        if (count($record) > 1) {
+            throw new MultipleColumnsSelectedException;
+        }
+
+        return array_first($record);
+    }
+
+    /**
      * Determine whether every executable command is declared by the framework grammar.
      *
-     * @param class-string<Grammars\Grammar> $grammar
+     * @param class-string<Grammar> $grammar
      */
     protected function commandsAreDeclaredOn(Blueprint $blueprint, string $grammar): bool
     {
@@ -727,7 +868,7 @@ class Builder
             return call_user_func($this->resolver, $connection, $table, $callback);
         }
 
-        return Container::getInstance()->make(Blueprint::class, compact('connection', 'table', 'callback'));
+        return Container::getInstance()->make(Blueprint::class, ['connection' => $connection, 'table' => $table, 'callback' => $callback]);
     }
 
     /**
@@ -750,6 +891,10 @@ class Builder
 
     /**
      * Parse the given database object reference and extract the schema and table.
+     *
+     * @return array{null|string, string}
+     *
+     * @throws InvalidArgumentException
      */
     public function parseSchemaAndTable(string $reference, bool|string|null $withDefaultSchema = null): array
     {
@@ -784,10 +929,21 @@ class Builder
     /**
      * Set the Schema Blueprint resolver callback.
      *
-     * @param Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint $resolver
+     * @param Closure(Connection, string, null|Closure): Blueprint $resolver
      */
     public function blueprintResolver(Closure $resolver): void
     {
         $this->resolver = $resolver;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$defaultStringLength = self::DEFAULT_STRING_LENGTH;
+        static::$defaultTimePrecision = self::DEFAULT_TIME_PRECISION;
+        static::$defaultMorphKeyType = self::DEFAULT_MORPH_KEY_TYPE;
+        static::flushMacros();
     }
 }

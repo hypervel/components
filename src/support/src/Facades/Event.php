@@ -18,7 +18,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static void forgetPushed()
  * @method static array getListeners(string $eventName)
  * @method static array getObservers(string $eventName)
- * @method static array getRawListeners()
+ * @method static array<array-key, array<int, null|array|callable|string>> getRawListeners()
  * @method static bool hasListeners(string $eventName)
  * @method static bool hasMacro(string $name)
  * @method static bool hasWildcardListeners(string $eventName)
@@ -28,7 +28,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static void observe(array|string $events, object|array|string $observer)
  * @method static void push(string $event, mixed $payload = [])
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Events\Dispatcher setQueueResolver(callable $resolver)
  * @method static \Hypervel\Events\Dispatcher setTransactionManagerResolver(callable $resolver)
@@ -117,6 +117,9 @@ class Event extends Facade
         }
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'events';

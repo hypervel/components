@@ -21,6 +21,9 @@ class Touches
      */
     public function __construct(array|string ...$relations)
     {
+        // A named argument keeps its name as the key, as in #[Touches(relations: [...])].
+        $relations = array_values($relations);
+
         $this->relations = is_array($relations[0] ?? null) ? $relations[0] : $relations;
     }
 }

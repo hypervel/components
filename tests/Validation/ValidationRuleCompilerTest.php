@@ -30,7 +30,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('Required', $plan->checks[0]->ruleName);
     }
 
-    public function testNullableSetsFlag()
+    public function testNullableSetsFlag(): void
     {
         $plan = $this->compile(['nullable']);
 
@@ -38,7 +38,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertCount(0, $plan->checks);
     }
 
-    public function testBailSetsFlag()
+    public function testBailSetsFlag(): void
     {
         $plan = $this->compile(['bail']);
 
@@ -46,7 +46,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertCount(0, $plan->checks);
     }
 
-    public function testSometimesSetsFlag()
+    public function testSometimesSetsFlag(): void
     {
         $plan = $this->compile(['sometimes']);
 
@@ -54,14 +54,14 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertCount(0, $plan->checks);
     }
 
-    public function testEmptyRuleStringProducesNoCheck()
+    public function testEmptyRuleStringProducesNoCheck(): void
     {
         $plan = $this->compile(['']);
 
         $this->assertCount(0, $plan->checks);
     }
 
-    public function testStringInlinesCorrectly()
+    public function testStringInlinesCorrectly(): void
     {
         $plan = $this->compile(['string']);
 
@@ -70,7 +70,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeString, $plan->checks[0]->type);
     }
 
-    public function testNumericBareInlines()
+    public function testNumericBareInlines(): void
     {
         $plan = $this->compile(['numeric']);
 
@@ -79,7 +79,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeNumeric, $plan->checks[0]->type);
     }
 
-    public function testNumericStrictDelegates()
+    public function testNumericStrictDelegates(): void
     {
         $plan = $this->compile(['numeric:strict']);
 
@@ -88,7 +88,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('Numeric', $plan->checks[0]->ruleName);
     }
 
-    public function testBooleanBareInlines()
+    public function testBooleanBareInlines(): void
     {
         $plan = $this->compile(['boolean']);
 
@@ -97,7 +97,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeBoolean, $plan->checks[0]->type);
     }
 
-    public function testBooleanStrictDelegates()
+    public function testBooleanStrictDelegates(): void
     {
         $plan = $this->compile(['boolean:strict']);
 
@@ -105,7 +105,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testIntegerBareInlines()
+    public function testIntegerBareInlines(): void
     {
         $plan = $this->compile(['integer']);
 
@@ -114,7 +114,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeInteger, $plan->checks[0]->type);
     }
 
-    public function testIntegerStrictInlines()
+    public function testIntegerStrictInlines(): void
     {
         $plan = $this->compile(['integer:strict']);
 
@@ -123,7 +123,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeIntegerStrict, $plan->checks[0]->type);
     }
 
-    public function testUuidBareInlines()
+    public function testUuidBareInlines(): void
     {
         $plan = $this->compile(['uuid']);
 
@@ -132,7 +132,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::Uuid, $plan->checks[0]->type);
     }
 
-    public function testUuidWithVersionDelegates()
+    public function testUuidWithVersionDelegates(): void
     {
         $plan = $this->compile(['uuid:4']);
 
@@ -140,7 +140,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testEmailBareInlines()
+    public function testEmailBareInlines(): void
     {
         $plan = $this->compile(['email']);
 
@@ -149,7 +149,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::Email, $plan->checks[0]->type);
     }
 
-    public function testEmailWithParamsDelegates()
+    public function testEmailWithParamsDelegates(): void
     {
         $plan = $this->compile(['email:rfc,dns']);
 
@@ -157,7 +157,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testUrlBareInlines()
+    public function testUrlBareInlines(): void
     {
         $plan = $this->compile(['url']);
 
@@ -165,7 +165,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
     }
 
-    public function testUrlWithParamsDelegates()
+    public function testUrlWithParamsDelegates(): void
     {
         $plan = $this->compile(['url:http,https']);
 
@@ -173,7 +173,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testArrayBareInlines()
+    public function testArrayBareInlines(): void
     {
         $plan = $this->compile(['array']);
 
@@ -182,7 +182,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::TypeArray, $plan->checks[0]->type);
     }
 
-    public function testArrayWithKeysDelegates()
+    public function testArrayWithKeysDelegates(): void
     {
         $plan = $this->compile(['array:name,email']);
 
@@ -230,7 +230,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(['raw' => '100', 'integer' => 100], $plan->checks[1]->param['maximum']);
     }
 
-    public function testInWithoutSiblingArrayInlines()
+    public function testInWithoutSiblingArrayInlines(): void
     {
         $plan = $this->compile(['in:a,b,c']);
 
@@ -239,7 +239,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::In, $plan->checks[0]->type);
     }
 
-    public function testInWithSiblingArrayDelegates()
+    public function testInWithSiblingArrayDelegates(): void
     {
         $plan = $this->compile(['array', 'in:a,b,c']);
 
@@ -248,7 +248,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('In', $plan->checks[1]->ruleName);
     }
 
-    public function testNotInWithSiblingArrayDelegates()
+    public function testNotInWithSiblingArrayDelegates(): void
     {
         $plan = $this->compile(['array', 'not_in:a,b,c']);
 
@@ -256,7 +256,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[1]);
     }
 
-    public function testArrayFormSiblingArrayTriggersDelegation()
+    public function testArrayFormSiblingArrayTriggersDelegation(): void
     {
         // Array-form ['array'] must be detected as a sibling array rule,
         // causing 'in' to delegate (uses array_diff branch in validateIn).
@@ -267,7 +267,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('In', $plan->checks[1]->ruleName);
     }
 
-    public function testParameterizedArrayTriggersDelegation()
+    public function testParameterizedArrayTriggersDelegation(): void
     {
         $plan = $this->compile(['array:foo,bar', 'in:a,b,c']);
 
@@ -276,7 +276,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[1]);
     }
 
-    public function testDateWithLiteralTargetInlines()
+    public function testDateWithLiteralTargetInlines(): void
     {
         $plan = $this->compile(['after:2025-01-01']);
 
@@ -287,7 +287,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertNull($plan->checks[0]->param['format']);
     }
 
-    public function testDateWithFieldRefDelegates()
+    public function testDateWithFieldRefDelegates(): void
     {
         $plan = $this->compile(['after:start_date']);
 
@@ -327,7 +327,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testDateWithSiblingFormatBaked()
+    public function testDateWithSiblingFormatBaked(): void
     {
         $plan = $this->compile(['date_format:Y-m-d', 'after:2025-01-01']);
 
@@ -406,7 +406,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(['a', '2'], $plan->checks[0]->param);
     }
 
-    public function testDateFormatStoresAllFormats()
+    public function testDateFormatStoresAllFormats(): void
     {
         $plan = $this->compile(['date_format:Y-m-d H:i:s,H:i:s']);
 
@@ -416,7 +416,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(['Y-m-d H:i:s', 'H:i:s'], $plan->checks[0]->param);
     }
 
-    public function testMixedInlineAndDelegated()
+    public function testMixedInlineAndDelegated(): void
     {
         $existsRule = new Exists('users', 'email');
 
@@ -458,7 +458,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('Unique', $plan->checks[0]->ruleName);
     }
 
-    public function testClosureRuleProducesDelegatedCheck()
+    public function testClosureRuleProducesDelegatedCheck(): void
     {
         $closure = new ClosureValidationRule(function () {
             return true;
@@ -500,7 +500,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('Accepted', $plan->checks[0]->ruleName);
     }
 
-    public function testAlphaAsciiVariant()
+    public function testAlphaAsciiVariant(): void
     {
         $plan = $this->compile(['alpha:ascii']);
 
@@ -509,7 +509,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::AlphaAscii, $plan->checks[0]->type);
     }
 
-    public function testArrayFormRuleParsedCorrectly()
+    public function testArrayFormRuleParsedCorrectly(): void
     {
         $plan = $this->compile([['required_array_keys', 'name']]);
 
@@ -519,7 +519,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(['name'], $plan->checks[0]->parameters);
     }
 
-    public function testEmptyArrayRuleSkipped()
+    public function testEmptyArrayRuleSkipped(): void
     {
         $plan = $this->compile([[]]);
 
@@ -548,7 +548,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertCount(6, $plan->checks);
     }
 
-    public function testMultipleOfLiteralInlines()
+    public function testMultipleOfLiteralInlines(): void
     {
         $plan = $this->compile(['multiple_of:5']);
 
@@ -557,7 +557,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(CheckType::MultipleOf, $plan->checks[0]->type);
     }
 
-    public function testMultipleOfFieldRefDelegates()
+    public function testMultipleOfFieldRefDelegates(): void
     {
         $plan = $this->compile(['multiple_of:other_field']);
 
@@ -627,7 +627,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame($existsRule, $plan->checks[0]->originalRule);
     }
 
-    public function testFormatCheckTypesInline()
+    public function testFormatCheckTypesInline(): void
     {
         $types = ['ip', 'ipv4', 'ipv6', 'ulid', 'json', 'ascii', 'hex_color', 'mac_address'];
         $expected = [
@@ -643,7 +643,7 @@ class ValidationRuleCompilerTest extends TestCase
         }
     }
 
-    public function testDigitsInlines()
+    public function testDigitsInlines(): void
     {
         $plan = $this->compile(['digits:5']);
 
@@ -667,7 +667,7 @@ class ValidationRuleCompilerTest extends TestCase
         }
     }
 
-    public function testRegexInlines()
+    public function testRegexInlines(): void
     {
         $plan = $this->compile(['regex:/^[a-z]+$/']);
 
@@ -677,7 +677,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('/^[a-z]+$/', $plan->checks[0]->param);
     }
 
-    public function testStartsWithInlines()
+    public function testStartsWithInlines(): void
     {
         $plan = $this->compile(['starts_with:foo,bar']);
 
@@ -687,7 +687,7 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(['foo', 'bar'], $plan->checks[0]->param);
     }
 
-    public function testCrossFieldRulesDelegated()
+    public function testCrossFieldRulesDelegated(): void
     {
         $crossFieldRules = ['same:other', 'different:other', 'confirmed', 'gt:other', 'gte:other', 'lt:other', 'lte:other'];
 
@@ -697,7 +697,7 @@ class ValidationRuleCompilerTest extends TestCase
         }
     }
 
-    public function testDateLiteralsRecognized()
+    public function testDateLiteralsRecognized(): void
     {
         foreach (['today', 'yesterday', 'tomorrow', 'now'] as $literal) {
             $plan = $this->compile(["after:{$literal}"]);

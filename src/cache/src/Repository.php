@@ -40,6 +40,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -51,7 +52,7 @@ use function Hypervel\Support\defer;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Cache\Store
+ * @mixin Store
  */
 class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract, RawReadable
 {
@@ -104,6 +105,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     public function has(array|UnitEnum|string $key): bool
     {
+        if (is_array($key)) {
+            $keys = [];
+
+            foreach ($key as $name => $value) {
+                $keys[] = is_string($name) ? $name : $value;
+            }
+
+            return ! in_array(null, $this->many($keys), true);
+        }
+
         return ! is_null($this->get($key));
     }
 
@@ -120,12 +131,6 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      *
      * When an array is given, return a key-value map. Numeric entries are
      * requested keys, while string-keyed entries use their values as defaults.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     *
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
@@ -145,18 +150,19 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     public function many(array $keys): array
     {
-        $resolvedKeys = collect($keys)->map(function ($value, $key) {
-            return is_string($key) ? $key : (string) enum_value($value);
-        })->values()->all();
+        $resolvedKeys = (new Collection($keys))
+            ->map(fn ($value, $key) => is_string($key) ? $key : (string) enum_value($value))
+            ->values()
+            ->all();
 
         // manyRaw() fires RetrievingManyKeys + per-key CacheHit/CacheMissed events and
         // routes through the RawReadable raw-read path for wrapper stores — so a cached
         // sentinel is correctly classified as CacheHit rather than CacheMissed.
         $values = $this->manyRaw($resolvedKeys);
 
-        return collect($values)->map(function ($value, $key) use ($keys) {
-            return $this->handleManyResult($keys, (string) $key, $value);
-        })->all();
+        return (new Collection($values))
+            ->map(fn ($value, $key) => $this->handleManyResult($keys, (string) $key, $value))
+            ->all();
     }
 
     /**
@@ -183,12 +189,6 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
     /**
      * Retrieve an item from the cache and delete it.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     *
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
@@ -437,6 +437,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Store multiple items in the cache.
+     */
     public function setMultiple(iterable $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->putMany(is_array($values) ? $values : iterator_to_array($values), $ttl);
@@ -448,6 +451,11 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        // A memoized value may be stale, so the underlying repository decides.
+        if ($this->store instanceof MemoizedStore) {
+            return $this->store->add($this->itemKey($key), $value, $ttl);
+        }
 
         $seconds = null;
 
@@ -473,7 +481,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         // If the value did not exist in the cache, we will put the value in the cache
         // so it exists for subsequent requests. Then, we will return true so it is
         // easy to know if the value gets added. Otherwise, we will return false.
-        if (is_null($this->get($key))) {
+        // A cached null sentinel means the key exists, as it does for native adds.
+        if (is_null($this->getRaw($key))) {
             return $this->put($key, $value, $seconds);
         }
 
@@ -765,20 +774,19 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     }
 
     /**
-     * Set the expiration of a cached item; null TTL will retain the item forever.
+     * Set the expiration of a cached item.
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $value = $this->getRaw($key);
 
-        if (is_null($value)) {
-            return false;
+        $seconds = $this->getSeconds($ttl);
+
+        if ($seconds <= 0) {
+            return $this->forget($key);
         }
 
-        return is_null($ttl)
-            ? $this->forever($key, $value)
-            : $this->store->touch($this->itemKey($key), $this->getSeconds($ttl));
+        return $this->store->touch($this->itemKey($key), $seconds);
     }
 
     /**
@@ -815,8 +823,12 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Remove an item from the cache.
      */
-    public function forget(UnitEnum|string $key): bool
+    public function forget(array|UnitEnum|string $key): bool
     {
+        if (is_array($key)) {
+            return $this->deleteMultiple($key);
+        }
+
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($this->events?->hasListeners(ForgettingKey::class)) {
@@ -846,6 +858,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Remove an item from the cache.
+     */
     public function delete(UnitEnum|string $key): bool
     {
         return $this->forget($key);
@@ -957,7 +972,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         $names = is_array($names) ? $names : func_get_args();
         $names = array_map(
-            fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
+            fn (mixed $name): string => $name instanceof UnitEnum ? (string) enum_value($name) : (string) $name,
             $names
         );
 
@@ -1002,6 +1017,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * Boot-only. Persists on the cached repository for the worker lifetime
      * and applies to every subsequent write that falls back to the default
      * TTL; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setDefaultCacheTime(?int $seconds): static
     {
@@ -1024,6 +1041,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * Boot-only. Replaces the backing store on the cached repository for the
      * worker lifetime; per-request use races and every concurrent
      * read/write through this repository would hit the wrong store.
+     *
+     * @return $this
      */
     public function setStore(Store $store): static
     {
@@ -1076,42 +1095,42 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Determine if a cached value exists.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetExists($key): bool
+    public function offsetExists($offset): bool
     {
-        return $this->has($key);
+        return $this->has($offset);
     }
 
     /**
      * Retrieve an item from the cache by key.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetGet($key): mixed
+    public function offsetGet($offset): mixed
     {
-        return $this->get($key);
+        return $this->get($offset);
     }
 
     /**
      * Store an item in the cache for the default time.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      * @param mixed $value
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet($offset, $value): void
     {
-        $this->put($key, $value, $this->default);
+        $this->put($offset, $value, $this->default);
     }
 
     /**
      * Remove an item from the cache.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetUnset($key): void
+    public function offsetUnset($offset): void
     {
-        $this->forget($key);
+        $this->forget($offset);
     }
 
     /**
@@ -1372,15 +1391,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             $this->events?->hasListeners(CacheMissed::class)
             || $this->events?->hasListeners(CacheHit::class)
         ) {
+            // PHP stores numeric-string keys as integers; event keys must be strings.
             foreach ($result as $key => $value) {
                 // Keep the per-class checks live: an earlier hit listener may register
                 // a miss listener, or vice versa, before a later result is dispatched.
                 if (is_null($value)) {
                     if ($this->events?->hasListeners(CacheMissed::class)) {
-                        $this->event(new CacheMissed($this->getName(), $key));
+                        $this->event(new CacheMissed($this->getName(), (string) $key));
                     }
                 } elseif ($this->events?->hasListeners(CacheHit::class)) {
-                    $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+                    $this->event(new CacheHit($this->getName(), (string) $key, NullSentinel::unwrap($value)));
                 }
             }
         }
@@ -1412,7 +1432,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Clone cache repository instance.
      */
-    public function __clone()
+    public function __clone(): void
     {
         $this->store = clone $this->store;
     }

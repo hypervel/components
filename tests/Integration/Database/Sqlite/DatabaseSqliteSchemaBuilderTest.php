@@ -48,7 +48,7 @@ class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
         Schema::drop('users');
     }
 
-    public function testGetTablesAndColumnListing()
+    public function testGetTablesAndColumnListing(): void
     {
         $tables = Schema::getTables();
 
@@ -70,7 +70,26 @@ class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
         Schema::drop('posts');
     }
 
-    public function testGetViews()
+    public function testQuotedEnumAndJsonKeysPreserveStoredValues(): void
+    {
+        Schema::create('quoted_values', function (Blueprint $table): void {
+            $table->enum('role', ["O'Brien"]);
+            $table->json('options');
+            $table->string('label')->virtualAsJson('options->App\Models\User');
+            $table->string('first')->virtualAsJson('options->0[0]');
+        });
+
+        DB::table('quoted_values')->insert([
+            'role' => "O'Brien",
+            'options' => json_encode(['App\Models\User' => 'value', '0' => ['first']], JSON_THROW_ON_ERROR),
+        ]);
+
+        $this->assertSame('value', DB::table('quoted_values')->where('role', "O'Brien")->value('label'));
+        $this->assertSame('value', DB::table('quoted_values')->value('options->App\Models\User'));
+        $this->assertSame('first', DB::table('quoted_values')->value('first'));
+    }
+
+    public function testGetViews(): void
     {
         DB::connection('conn1')->statement(<<<'SQL'
 CREATE VIEW users_view
@@ -81,7 +100,7 @@ SQL);
         $tableView = Schema::getViews();
 
         $this->assertCount(1, $tableView);
-        $this->assertEquals('users_view', $tableView[0]['name']);
+        $this->assertSame('users_view', $tableView[0]['name']);
 
         DB::connection('conn1')->statement(<<<'SQL'
 DROP VIEW IF EXISTS users_view;
@@ -90,7 +109,7 @@ SQL);
         $this->assertEmpty(Schema::getViews());
     }
 
-    public function testGetRawIndex()
+    public function testGetRawIndex(): void
     {
         Schema::create('table', function (Blueprint $table) {
             $table->id();

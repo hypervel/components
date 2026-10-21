@@ -15,7 +15,9 @@ use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
+use Hypervel\Scout\Engines\TurbopufferEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
+use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
@@ -139,7 +141,8 @@ class EngineManager
 
         return new MeilisearchEngine(
             $this->container->make(MeilisearchClient::class),
-            $config->boolean('scout.soft_delete')
+            $config->boolean('scout.soft_delete'),
+            $config->array('scout.meilisearch', [])
         );
     }
 
@@ -173,7 +176,8 @@ class EngineManager
 
         return new TypesenseEngine(
             $this->container->make(TypesenseClient::class),
-            $config->integer('scout.typesense.max_total_results', 1000)
+            $config->integer('scout.typesense.max_total_results', 1000),
+            $config->array('scout.typesense', [])
         );
     }
 
@@ -190,6 +194,21 @@ class EngineManager
 
         throw new RuntimeException(
             'Please install the Typesense client: typesense/typesense-php.'
+        );
+    }
+
+    /**
+     * Create a Turbopuffer engine instance.
+     */
+    public function createTurbopufferDriver(): TurbopufferEngine
+    {
+        /** @var Repository $config */
+        $config = $this->container->make('config');
+
+        return new TurbopufferEngine(
+            $this->container->make(TurbopufferClient::class),
+            $config->array('scout.turbopuffer', []),
+            $config->boolean('scout.soft_delete'),
         );
     }
 

@@ -9,16 +9,13 @@ on:
 permissions:
   contents: read
 
-env:
-  RUN_BLOCKING_TESTS: true
-
 jobs:
   grpc:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
 
     strategy:
       fail-fast: false
@@ -29,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -40,17 +37,10 @@ jobs:
         uses: ./.github/actions/log-trigger-context
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: tests/Integration/Grpc/Interop/go.mod
-          cache-dependency-path: tests/Integration/Grpc/Interop/go.sum
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v5
-        with:
-          path: /root/.composer/cache
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-${{ matrix.php }}-
+          go-version-file: tests/Integration/Grpc/Fixtures/Interop/go.mod
+          cache-dependency-path: tests/Integration/Grpc/Fixtures/Interop/go.sum
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o

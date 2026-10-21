@@ -39,10 +39,12 @@
     - [Slack Interactivity](#slack-interactivity)
     - [Routing Slack Notifications](#routing-slack-notifications)
     - [Notifying External Slack Workspaces](#notifying-external-slack-workspaces)
+    - [Incoming Webhooks](#slack-incoming-webhooks)
 - [Localizing Notifications](#localizing-notifications)
 - [Testing](#testing)
 - [Notification Events](#notification-events)
 - [Custom Channels](#custom-channels)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -172,6 +174,20 @@ When queueing notifications, a queued job will be created for each recipient and
 <a name="delaying-notifications"></a>
 #### Delaying Notifications
 
+You may configure a notification's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class InvoicePaid extends Notification implements ShouldQueue
+{
+    // ...
+}
+```
+
 If you would like to delay the delivery of the notification, you may chain the `delay` method onto your notification instantiation:
 
 ```php
@@ -284,6 +300,7 @@ namespace App\Notifications;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
@@ -291,6 +308,7 @@ use Hypervel\Queue\Attributes\Tries;
 #[Tries(5)]
 #[Timeout(120)]
 #[MaxExceptions(3)]
+#[FailOnTimeout]
 class InvoicePaid extends Notification implements ShouldQueue
 {
     use Queueable;
@@ -343,6 +361,15 @@ public function retryUntil(): DateTimeInterface
 
 > [!NOTE]
 > For more information on these job attributes and methods, please review the documentation on [queued jobs](/docs/{{version}}/queues#max-job-attempts-and-timeout).
+
+To customize the job used for all queued notifications, extend `Hypervel\Notifications\SendQueuedNotifications` and bind your subclass in a service provider's `register` method:
+
+```php
+use App\Jobs\SendNotification;
+use Hypervel\Notifications\SendQueuedNotifications;
+
+$this->app->bind(SendQueuedNotifications::class, SendNotification::class);
+```
 
 <a name="queued-notification-middleware"></a>
 #### Queued Notification Middleware
@@ -478,7 +505,7 @@ Notification::routes([
 <a name="formatting-mail-messages"></a>
 ### Formatting Mail Messages
 
-If a notification supports being sent as an email, you should define a `toMail` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Messages\MailMessage` instance.
+If a notification supports being sent as an email, you should define a `toMail` method on the notification class. This method will receive a `$notifiable` entity and should return a `Hypervel\Notifications\Messages\MailMessage` instance.
 
 The `MailMessage` class contains a few simple methods to help you build transactional email messages. Mail messages may contain lines of text as well as a "call to action". Let's take a look at an example `toMail` method:
 
@@ -1344,7 +1371,15 @@ class User extends Authenticatable
 <a name="slack-prerequisites"></a>
 ### Prerequisites
 
-Before sending Slack notifications, you must create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
+Before sending Slack notifications, you should install the Slack notification channel via Composer:
+
+```shell
+composer require hypervel/slack-notification-channel
+```
+
+Additionally, to send notifications to Slack, you must create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
+
+The scopes and token described below are used to send notifications through Slack's Web API. If you only send notifications to [incoming webhooks](#slack-incoming-webhooks), you do not need them.
 
 If you only need to send notifications to the same Slack workspace that the App is created in, you should ensure that your App has the `chat:write`, `chat:write.public`, and `chat:write.customize` scopes. These scopes can be added from the "OAuth & Permissions" App management tab within Slack.
 
@@ -1364,10 +1399,30 @@ Next, copy the App's "Bot User OAuth Token" and place it within a `slack` config
 
 If your application will be sending notifications to external Slack workspaces that are owned by your application's users, you will need to "distribute" your App via Slack. App distribution can be managed from your App's "Manage Distribution" tab within Slack. Once your App has been distributed, you may use [Socialite](/docs/{{version}}/socialite) to [obtain Slack Bot tokens](/docs/{{version}}/socialite#slack-bot-scopes) on behalf of your application's users.
 
+<a name="slack-http-client"></a>
+#### HTTP Client
+
+Slack Web API notifications use Hypervel's [HTTP client](/docs/{{version}}/http-client) and its `slack-notifications` connection. The connection is registered automatically and uses the HTTP client's default connection timeout of 10 seconds and request timeout of 30 seconds. You may customize its options in your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Http\Client\Factory;
+use Hypervel\Notifications\Slack\SlackChannel;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(Factory $http): void
+{
+    $http->registerConnection(SlackChannel::CONNECTION, [
+        'timeout' => 15,
+    ]);
+}
+```
+
 <a name="formatting-slack-notifications"></a>
 ### Formatting Slack Notifications
 
-If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cnbarrett@example.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
+If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return a `Hypervel\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cnbarrett@example.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
 
 ```php
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
@@ -1537,11 +1592,13 @@ return (new SlackMessage)
 <a name="routing-slack-notifications"></a>
 ### Routing Slack Notifications
 
-To direct Slack notifications to the appropriate Slack team and channel, define a `routeNotificationForSlack` method on your notifiable model. This method can return one of three values:
+To direct Slack notifications to the appropriate Slack team and channel, define a `routeNotificationForSlack` method on your notifiable model. This method can return one of the following values:
 
 - `null` - which defers routing to the channel configured in the notification itself. You may use the `to` method when building your `SlackMessage` to configure the channel within the notification.
 - A string specifying the Slack channel to send the notification to, e.g. `#support-channel`.
 - A `SlackRoute` instance, which allows you to specify an OAuth token and channel name, e.g. `SlackRoute::make($this->slack_channel, $this->slack_token)`. This method should be used to send notifications to external workspaces.
+- A webhook URL, as a string or `Psr\Http\Message\UriInterface` instance, which sends the notification to an [incoming webhook](#slack-incoming-webhooks).
+- `false` - which skips sending the notification to Slack.
 
 For instance, returning `#support-channel` from the `routeNotificationForSlack` method will send the notification to the `#support-channel` channel in the workspace associated with the Bot User OAuth token located in your application's `services.php` configuration file:
 
@@ -1601,6 +1658,51 @@ class User extends Authenticatable
     }
 }
 ```
+
+<a name="slack-incoming-webhooks"></a>
+### Incoming Webhooks
+
+Instead of using Slack's Web API, you may send notifications to an [incoming webhook](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks). After enabling incoming webhooks for your Slack App, Slack will provide a webhook URL for the channel you choose. Return this URL from your notifiable model's `routeNotificationForSlack` method. Since the URL may be stored on the model, each user or team can receive notifications through their own webhook:
+
+```php
+use Hypervel\Notifications\Notification;
+
+/**
+ * Route notifications for the Slack channel.
+ */
+public function routeNotificationForSlack(Notification $notification): mixed
+{
+    return $this->slack_webhook_url;
+}
+```
+
+Slack's incoming webhooks accept the Block Kit messages described above. For Slack-compatible services such as [Mattermost](https://docs.mattermost.com/integrations-guide/faq), use Slack's attachment format by returning a `Hypervel\Notifications\Messages\SlackMessage` instance from your notification's `toSlack` method:
+
+```php
+use Hypervel\Notifications\Messages\SlackAttachment;
+use Hypervel\Notifications\Messages\SlackMessage;
+
+/**
+ * Get the Slack representation of the notification.
+ */
+public function toSlack(object $notifiable): SlackMessage
+{
+    $url = url('/invoices/'.$this->invoice->id);
+
+    return (new SlackMessage)
+        ->success()
+        ->content('One of your invoices has been paid!')
+        ->attachment(function (SlackAttachment $attachment) use ($url) {
+            $attachment->title('Invoice 1322', $url)
+                ->fields([
+                    'Title' => 'Server Expenses',
+                    'Amount' => '$1,234',
+                ]);
+        });
+}
+```
+
+Webhook requests use a connection timeout of 10 seconds and a request timeout of 30 seconds. Attachment messages may override these and other [Guzzle request options](https://docs.guzzlephp.org/en/stable/request-options.html) using the `http` method, such as `->http(['timeout' => 10])`.
 
 <a name="localizing-notifications"></a>
 ## Localizing Notifications
@@ -1727,6 +1829,12 @@ class ExampleTest extends TestCase
 }
 ```
 
+To assert that a notification was sent to a recipient exactly once, use `assertSentToOnce`:
+
+```php
+Notification::assertSentToOnce($user, OrderShipped::class);
+```
+
 You may pass a closure to the `assertSentTo` or `assertNotSentTo` methods in order to assert that a notification was sent that passes a given "truth test". If at least one notification was sent that passes the given truth test then the assertion will be successful:
 
 ```php
@@ -1738,7 +1846,7 @@ Notification::assertSentTo(
 );
 ```
 
-<a name="on-demand-notification-testing"></a>
+<a name="testing-on-demand-notifications"></a>
 #### On-Demand Notifications
 
 If the code you are testing sends [on-demand notifications](#on-demand-notifications), you can test that the on-demand notification was sent via the `assertSentOnDemand` method:
@@ -1746,6 +1854,8 @@ If the code you are testing sends [on-demand notifications](#on-demand-notificat
 ```php
 Notification::assertSentOnDemand(OrderShipped::class);
 ```
+
+Use `Notification::assertSentOnDemandOnce(OrderShipped::class)` to assert that it was sent on-demand exactly once.
 
 By passing a closure as the second argument to the `assertSentOnDemand` method, you may determine if an on-demand notification was sent to the correct "route" address:
 
@@ -1910,6 +2020,13 @@ class LogFailedNotification
 }
 ```
 
+<a name="queued-notification-event-listeners"></a>
+#### Queued Notification Event Listeners
+
+[Queued listeners](/docs/{{version}}/events#queued-event-listeners) for `NotificationDelivered`, `NotificationSent`, and `NotificationFailed` can use the usual response and exception APIs with the default HTTP transports. Hypervel omits argument values from the stack traces of exceptions it prepares for queueing; the original exception remains unchanged.
+
+If your notification uses a response or exception that cannot be serialized, such as a response with a live or file-backed body, handle the event synchronously and dispatch a job containing only the data it needs.
+
 <a name="custom-channels"></a>
 ## Custom Channels
 
@@ -1997,3 +2114,10 @@ public function via(object $notifiable): array
     return ['voice'];
 }
 ```
+
+The `Notification::channel` method resolves a channel instance by name. It also accepts an enum whose value is a channel name or a custom channel class.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Notifications began as a port of [Laravel Notifications](https://github.com/illuminate/notifications) and has been adapted for Hypervel's framework architecture and coroutine runtime.

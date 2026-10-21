@@ -12,7 +12,7 @@ use Hypervel\Validation\ValidationException;
 
 class BuildableIntegrationTest extends TestCase
 {
-    public function testBuildMethodCanResolveItselfViaContainer()
+    public function testBuildMethodCanResolveItselfViaContainer(): void
     {
         config([
             'aim' => [
@@ -28,24 +28,42 @@ class BuildableIntegrationTest extends TestCase
         $config = $this->app->make(AolInstantMessengerConfig::class);
 
         $this->assertEquals(500, $config->awayMessageDuration);
-        $this->assertEquals('sad emo lyrics', $config->awayMessage);
-        $this->assertEquals('api-key', $config->apiKey);
-        $this->assertEquals('cosmastech', $config->userName);
+        $this->assertSame('sad emo lyrics', $config->awayMessage);
+        $this->assertSame('api-key', $config->apiKey);
+        $this->assertSame('cosmastech', $config->userName);
 
         config(['aim.away_message.duration' => 5]);
 
-        try {
-            $this->app->make(AolInstantMessengerConfig::class);
-            $this->fail('Expected ValidationException to be thrown');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('away_message.duration', $exception->errors());
-            $this->assertStringContainsString('60', $exception->errors()['away_message.duration'][0]);
+        for ($attempt = 1; $attempt <= 2; ++$attempt) {
+            try {
+                $this->app->make(AolInstantMessengerConfig::class);
+
+                $this->fail("Expected a validation exception on attempt {$attempt}.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('away_message.duration', $exception->errors());
+                $this->assertStringContainsString('60', $exception->errors()['away_message.duration'][0]);
+            }
         }
+
+        config([
+            'aim.away_message.duration' => 60,
+            'aim.away_message.body' => 'back online',
+        ]);
+
+        $config = $this->app->make(AolInstantMessengerConfig::class);
+
+        $this->assertEquals(60, $config->awayMessageDuration);
+        $this->assertSame('back online', $config->awayMessage);
+        $this->assertSame('api-key', $config->apiKey);
+        $this->assertSame('cosmastech', $config->userName);
     }
 }
 
 class AolInstantMessengerConfig implements SelfBuilding
 {
+    /**
+     * Create a new configuration instance.
+     */
     public function __construct(
         #[Config('aim.api_key')]
         public string $apiKey,
@@ -58,10 +76,13 @@ class AolInstantMessengerConfig implements SelfBuilding
     ) {
     }
 
+    /**
+     * Validate the configuration and build an instance.
+     */
     public static function newInstance(): static
     {
         Validator::make(config('aim'), [
-            'api-key' => 'string',
+            'api_key' => 'string',
             'user_name' => 'string',
             'away_message' => 'array',
             'away_message.duration' => ['integer', 'min:60', 'max:3600'],

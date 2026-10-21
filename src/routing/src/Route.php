@@ -21,6 +21,7 @@ use Hypervel\Routing\Matching\MethodValidator;
 use Hypervel\Routing\Matching\PortValidator;
 use Hypervel\Routing\Matching\SchemeValidator;
 use Hypervel\Routing\Matching\UriValidator;
+use Hypervel\Routing\Matching\ValidatorInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -37,6 +38,7 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use Stringable;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\CompiledRoute;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use UnexpectedValueException;
@@ -120,6 +122,11 @@ class Route
      * Indicates the maximum number of seconds the route should wait while attempting to acquire a session lock.
      */
     protected ?int $waitSeconds = null;
+
+    /**
+     * Indicates if the route should use a read-only session.
+     */
+    protected bool $readOnlySession = false;
 
     /**
      * The computed gathered middleware.
@@ -223,7 +230,7 @@ class Route
     /**
      * The validators used by the routes.
      *
-     * @var null|array<int, \Hypervel\Routing\Matching\ValidatorInterface>
+     * @var null|array<int, ValidatorInterface>
      */
     public static ?array $validators = null;
 
@@ -318,7 +325,7 @@ class Route
     /**
      * Run the controller route action and return the response.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws NotFoundHttpException
      */
     protected function runController(): mixed
     {
@@ -662,11 +669,7 @@ class Route
      */
     public function parameterNames(): array
     {
-        if (isset($this->parameterNames)) {
-            return $this->parameterNames;
-        }
-
-        return $this->parameterNames = $this->compileParameterNames();
+        return $this->parameterNames ?? $this->parameterNames = $this->compileParameterNames();
     }
 
     /**
@@ -1012,6 +1015,7 @@ class Route
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($patterns as $pattern) {
             if (Str::is($pattern, $routeName)) {
                 return true;
@@ -1448,6 +1452,24 @@ class Route
     }
 
     /**
+     * Specify that the route should read the session without saving it.
+     */
+    public function readOnlySession(bool $readOnly = true): static
+    {
+        $this->readOnlySession = $readOnly;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the route uses a read-only session.
+     */
+    public function hasReadOnlySession(): bool
+    {
+        return $this->readOnlySession;
+    }
+
+    /**
      * Add metadata to the route.
      */
     public function metadata(array $metadata): static
@@ -1499,18 +1521,14 @@ class Route
     /**
      * Get the route validators for the instance.
      *
-     * @return array<int, \Hypervel\Routing\Matching\ValidatorInterface>
+     * @return array<int, ValidatorInterface>
      */
     public static function getValidators(): array
     {
-        if (isset(static::$validators)) {
-            return static::$validators;
-        }
-
         // To match the route, we will use a chain of responsibility pattern with the
         // validator implementations. We will spin through each one making sure it
         // passes and then we will know if the route as a whole matches request.
-        return static::$validators = [
+        return static::$validators ?? static::$validators = [
             new UriValidator, new MethodValidator,
             new SchemeValidator, new HostValidator,
             new PortValidator,

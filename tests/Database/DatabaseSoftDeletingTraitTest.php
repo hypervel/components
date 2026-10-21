@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseSoftDeletingTraitTest;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
 class DatabaseSoftDeletingTraitTest extends TestCase
 {
     public function testDeleteSetsSoftDeletedColumn(): void
     {
-        $model = m::mock(Stub::class);
-        $model->makePartial();
-        $model->shouldReceive('newModelQuery')->andReturn($query = m::mock(stdClass::class));
-        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturn($query);
-        $query->shouldReceive('update')->once()->with([
+        $model = m::mock(Stub::class)->makePartial();
+        $query = m::mock(Builder::class);
+        $model->expects('newModelQuery')->andReturn($query);
+        $query->expects('where')->with('id', '=', 1)->andReturn($query);
+        $query->expects('update')->with([
             'deleted_at' => 'date-time',
             'updated_at' => 'date-time',
         ]);
-        $model->shouldReceive('syncOriginalAttributes')->once()->with([
+        $model->expects('syncOriginalAttributes')->with([
             'deleted_at',
             'updated_at',
         ]);
-        $model->shouldReceive('usesTimestamps')->once()->andReturn(true);
+        $model->expects('usesTimestamps')->andReturn(true);
         $model->delete();
 
         $this->assertSame(CarbonImmutable::class, $model->deleted_at::class);
@@ -42,24 +42,21 @@ class DatabaseSoftDeletingTraitTest extends TestCase
         $this->assertSame(1, $model->forceDeleteQuietly());
     }
 
-    public function testRestore()
+    public function testRestore(): void
     {
-        $model = m::mock(Stub::class);
-        $model->makePartial();
-        $model->shouldReceive('fireModelEvent')->with('restoring')->andReturn(true);
-        $model->shouldReceive('save')->once();
-        $model->shouldReceive('fireModelEvent')->with('restored', false)->andReturn(true);
+        $model = m::mock(Stub::class)->makePartial();
+        $model->expects('fireModelEvent')->with('restoring')->andReturn(true);
+        $model->expects('save');
 
         $model->restore();
 
         $this->assertNull($model->deleted_at);
     }
 
-    public function testRestoreCancel()
+    public function testRestoreCancel(): void
     {
-        $model = m::mock(Stub::class);
-        $model->makePartial();
-        $model->shouldReceive('fireModelEvent')->with('restoring')->andReturn(false);
+        $model = m::mock(Stub::class)->makePartial();
+        $model->expects('fireModelEvent')->with('restoring')->andReturn(false);
         $model->shouldReceive('save')->never();
 
         $this->assertFalse($model->restore());

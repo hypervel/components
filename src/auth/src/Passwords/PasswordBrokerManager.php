@@ -51,7 +51,9 @@ class PasswordBrokerManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->brokers[$name] ??= $this->resolve($name);
     }
@@ -160,8 +162,10 @@ class PasswordBrokerManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if (CoroutineContext::has(self::DEFAULT_BROKER_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::DEFAULT_BROKER_CONTEXT_KEY);
+        $name = CoroutineContext::get(self::DEFAULT_BROKER_CONTEXT_KEY);
+
+        if ($name !== null) {
+            return $name;
         }
 
         $guard = $this->app->make(AuthFactoryContract::class)->getDefaultDriver();

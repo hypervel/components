@@ -32,6 +32,7 @@ use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -41,7 +42,7 @@ class QueueBackgroundQueueTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testPushShouldRunInBackground()
+    public function testPushShouldRunInBackground(): void
     {
         unset($_SERVER['__background.test']);
 
@@ -140,7 +141,7 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertFalse($exceptionHandled);
     }
 
-    public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
+    public function testFailedJobGetsHandledWhenAnExceptionIsThrown(): void
     {
         unset($_SERVER['__background.failed']);
 
@@ -197,7 +198,7 @@ class QueueBackgroundQueueTest extends TestCase
         }
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitJobs()
+    public function testItAddsATransactionCallbackForAfterCommitJobs(): void
     {
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
@@ -210,7 +211,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->push(new BackgroundQueueAfterCommitJob));
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
@@ -223,7 +224,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->push(new BackgroundQueueAfterCommitInterfaceJob));
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs(): void
     {
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
@@ -257,7 +258,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->push($job));
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
         $background = new BackgroundQueue;
         $background->setConnectionName('background');
@@ -274,7 +275,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->push($job));
     }
 
-    public function testLaterSchedulesJobWithDelay()
+    public function testLaterSchedulesJobWithDelay(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -312,7 +313,9 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertNull($background->bulk([new BackgroundQueueBulkDelayJob]));
     }
 
-    public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(bool $afterCommit): void
     {
         $scheduled = null;
         $timer = m::mock(Timer::class);
@@ -327,20 +330,33 @@ class QueueBackgroundQueueTest extends TestCase
 
         BackgroundQueueSnapshotHandler::$receivedValue = null;
         $data = (object) ['value' => 'before'];
-        $background = new BackgroundQueue(timer: $timer);
+        $background = new BackgroundQueue(dispatchAfterCommit: $afterCommit, timer: $timer);
         $background->setConnectionName('background');
-        $background->setContainer($this->getContainer());
+        $container = $this->getContainer();
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $background->setContainer($container);
 
-        run(function () use ($background, $data, &$scheduled): void {
+        run(function () use ($background, $data, &$scheduled, $transactions, $afterCommit): void {
+            if ($afterCommit) {
+                $transactions->begin('background-test', 1);
+            }
+
             $background->later(5, BackgroundQueueSnapshotHandler::class, $data);
             $data->value = 'after';
+
+            if ($afterCommit) {
+                $this->assertNull($scheduled);
+                $transactions->commit('background-test', 1, 0);
+            }
+
             $scheduled();
         });
 
         $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
     }
 
-    public function testPushSnapshotsAfterCommitJobWhenTheTransactionCommits(): void
+    public function testPushSnapshotsAfterCommitJobAtDispatch(): void
     {
         $afterCommit = null;
         $container = $this->getContainer();
@@ -367,10 +383,10 @@ class QueueBackgroundQueueTest extends TestCase
             $data->value = 'after';
         });
 
-        $this->assertSame('at-commit', BackgroundQueueSnapshotHandler::$receivedValue);
+        $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
     }
 
-    public function testLaterWithDateInterval()
+    public function testLaterWithDateInterval(): void
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
@@ -424,7 +440,7 @@ class QueueBackgroundQueueTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testLaterAddsTransactionCallbackForAfterCommitJobs()
+    public function testLaterAddsTransactionCallbackForAfterCommitJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -446,7 +462,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(5, new BackgroundQueueAfterCommitJob));
     }
 
-    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs()
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -468,7 +484,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(5, new BackgroundQueueAfterCommitInterfaceJob));
     }
 
-    public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs()
+    public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -518,7 +534,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(5, $job));
     }
 
-    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
@@ -543,7 +559,7 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(5, $job));
     }
 
-    public function testLaterClampsNegativeIntegerDelay()
+    public function testLaterClampsNegativeIntegerDelay(): void
     {
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
@@ -571,7 +587,7 @@ class QueueBackgroundQueueTest extends TestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()
+    public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown(): void
     {
         unset($_SERVER['__background.failed']);
 
@@ -608,7 +624,7 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertTrue($_SERVER['__background.failed']);
     }
 
-    public function testLaterDoesNotExecuteJobWhenWorkerIsClosing()
+    public function testLaterDoesNotExecuteJobWhenWorkerIsClosing(): void
     {
         unset($_SERVER['__background.later.test']);
 

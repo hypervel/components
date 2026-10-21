@@ -20,7 +20,7 @@ trait ClientCredentialsBasicAuthGrant
     /**
      * Resolve the client-credentials request.
      *
-     * @param list<string> $scopes
+     * @param list<?string> $scopes
      */
     protected function resolveAccessTokenRequest(
         OAuthConfig $oauthConfig,

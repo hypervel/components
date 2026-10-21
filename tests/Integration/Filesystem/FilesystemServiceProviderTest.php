@@ -26,8 +26,7 @@ class FilesystemServiceProviderTest extends TestCase
 
     public function testItThrowsWhenServedDisksHaveConflictingUris(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The [other] disk conflicts with the [local] disk at [/storage]. Each served disk must have a unique URL.');
+        $this->expectExceptionObject(new InvalidArgumentException('The [other] disk conflicts with the [local] disk at [/storage]. Each served disk must have a unique URL.'));
 
         config(['filesystems.disks' => [
             'local' => [

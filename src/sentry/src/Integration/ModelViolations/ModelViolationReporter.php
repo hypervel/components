@@ -26,6 +26,9 @@ abstract class ModelViolationReporter
 
     private ?Closure $callback;
 
+    /**
+     * Create a new model violation reporter instance.
+     */
     public function __construct(
         ?callable $callback,
         private readonly bool $suppressDuplicateReports,
@@ -56,7 +59,7 @@ abstract class ModelViolationReporter
         if ($this->reportAfterResponse) {
             // defer() instead of app()->terminating() — terminating callbacks
             // accumulate on the process-global Application in Swoole workers.
-            defer(function () use ($model, $property, $origin) {
+            defer(function () use ($model, $property, $origin): void {
                 $this->report($model, $property, $origin);
             }, always: true);
         } else {
@@ -109,16 +112,16 @@ abstract class ModelViolationReporter
     /**
      * Report the violation to Sentry.
      */
-    private function report(Model $model, string $property, mixed $origin): void
+    private function report(Model $model, string $property, ?array $origin): void
     {
-        SentrySdk::getCurrentHub()->withScope(function (Scope $scope) use ($model, $property, $origin) {
+        SentrySdk::getCurrentHub()->withScope(function (Scope $scope) use ($model, $property, $origin): void {
             $scope->setContext('violation', array_merge([
                 'model' => get_class($model),
                 'origin' => $origin,
             ], $this->getViolationContext($model, $property)));
 
             SentrySdk::getCurrentHub()->captureEvent(
-                tap(Event::createEvent(), static function (Event $event) {
+                tap(Event::createEvent(), static function (Event $event): void {
                     $event->setLevel(Severity::warning());
                 }),
                 EventHint::fromArray([

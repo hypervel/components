@@ -74,14 +74,14 @@ class CoroutineIsolationTest extends TestCase
     ): array {
         $mockClient = new MockClient([
             static function (PendingRequest $pendingRequest) use ($tenant): MockResponse {
-                $cookieGroup = $pendingRequest->cookies()[0];
+                $cookie = $pendingRequest->cookies()[0];
 
                 return MockResponse::make([
                     'mock' => $tenant,
                     'header' => $pendingRequest->headers()['X-Tenant'],
                     'authorization' => $pendingRequest->headers()['Authorization'],
                     'middleware' => $pendingRequest->headers()['X-Middleware'],
-                    'cookie' => $cookieGroup['cookies']['session'],
+                    'cookie' => $cookie['Value'],
                 ]);
             },
         ]);

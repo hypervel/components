@@ -10,6 +10,9 @@ use Hypervel\Database\LazyLoadingViolationException;
 
 class LazyLoadingModelViolationReporter extends ModelViolationReporter
 {
+    /**
+     * Determine if the violation should be reported.
+     */
     protected function shouldReport(Model $model, string $property): bool
     {
         // Hypervel uses these checks itself to not throw an exception if the model doesn't exist or was just created
@@ -21,6 +24,9 @@ class LazyLoadingModelViolationReporter extends ModelViolationReporter
         return parent::shouldReport($model, $property);
     }
 
+    /**
+     * Get the context data for the violation.
+     */
     protected function getViolationContext(Model $model, string $property): array
     {
         return [
@@ -29,6 +35,9 @@ class LazyLoadingModelViolationReporter extends ModelViolationReporter
         ];
     }
 
+    /**
+     * Get the exception representing the violation.
+     */
     protected function getViolationException(Model $model, string $property): Exception
     {
         return new LazyLoadingViolationException($model, $property);

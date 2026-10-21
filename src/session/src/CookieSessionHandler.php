@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 use SessionHandlerInterface;
 
 class CookieSessionHandler implements SessionHandlerInterface
@@ -41,6 +42,22 @@ class CookieSessionHandler implements SessionHandlerInterface
     public function close(): bool
     {
         return true;
+    }
+
+    /**
+     * Create a new session ID.
+     */
+    public function create_sid(): string
+    {
+        return session_create_id() ?: throw new RuntimeException('Unable to create a session ID.');
+    }
+
+    /**
+     * Determine if the session ID exists.
+     */
+    public function validateId(string $id): bool
+    {
+        return $this->getRequest()->cookies->has($id);
     }
 
     public function read(string $sessionId): false|string

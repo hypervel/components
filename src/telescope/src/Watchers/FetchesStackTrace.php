@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 
@@ -22,7 +23,10 @@ trait FetchesStackTrace
                 return false;
             }
 
-            return ! Str::contains($frame['file'], $this->ignoredPaths());
+            // A generated AOP proxy runs its source file's code, so the source decides whether the frame is ignored.
+            $file = GenerateProxies::proxySources()[$frame['file']] ?? $frame['file'];
+
+            return ! Str::contains($file, $this->ignoredPaths());
         });
     }
 

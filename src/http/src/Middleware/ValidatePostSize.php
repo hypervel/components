@@ -14,7 +14,7 @@ class ValidatePostSize
     /**
      * Handle an incoming request.
      *
-     * @throws \Hypervel\Http\Exceptions\PostTooLargeException
+     * @throws PostTooLargeException
      */
     public function handle(Request $request, Closure $next): Response
     {

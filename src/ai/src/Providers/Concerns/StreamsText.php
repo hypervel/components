@@ -1,0 +1,185 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Ai\Providers\Concerns;
+
+use Generator;
+use Hypervel\Ai\Ai;
+use Hypervel\Ai\Contracts\Agent;
+use Hypervel\Ai\Contracts\HasStructuredOutput;
+use Hypervel\Ai\Events\AgentStreamAbandoned;
+use Hypervel\Ai\Events\AgentStreamed;
+use Hypervel\Ai\Events\StreamingAgent;
+use Hypervel\Ai\Events\ToolApprovalRequested;
+use Hypervel\Ai\Events\ToolApprovalResolved;
+use Hypervel\Ai\Gateway\TextGenerationOptions;
+use Hypervel\Ai\Messages\UserMessage;
+use Hypervel\Ai\Prompts\AgentPrompt;
+use Hypervel\Ai\Responses\Data\Meta;
+use Hypervel\Ai\Responses\StreamableAgentResponse;
+use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Streaming\Events\ToolApprovalRequest;
+use Hypervel\Support\Str;
+use InvalidArgumentException;
+use Throwable;
+use WeakReference;
+
+use function Hypervel\Ai\pipeline;
+
+trait StreamsText
+{
+    use ResumesToolApprovals;
+
+    /**
+     * Stream the response from the given agent.
+     */
+    public function stream(AgentPrompt $prompt): StreamableAgentResponse
+    {
+        $prompt->markAsStreaming();
+        $prompt->setContextRunner($prompt->contextRunner() ?? Ai::captureContext());
+
+        $invocationId = $prompt->invocationId ?? (string) Str::uuid7();
+
+        $resolvedApprovalResults = null;
+
+        try {
+            $prompt->captureConversation();
+
+            $response = pipeline()
+                ->send($prompt)
+                ->through($this->gatherMiddlewareFor($prompt->agent))
+                ->then(function (AgentPrompt $prompt) use ($invocationId, &$resolvedApprovalResults): StreamableAgentResponse {
+                    $agent = $prompt->agent;
+
+                    if ($agent instanceof HasStructuredOutput) {
+                        throw new InvalidArgumentException('Streaming structured output is not currently supported.');
+                    }
+
+                    $meta = new Meta($this->name(), $prompt->model);
+
+                    $messages = $this->withoutForeignReplayBlocks([
+                        ...($prompt->messages ?? []),
+                        ...$prompt->conversationMessages(),
+                    ]);
+
+                    if (! $prompt->hasApprovalDecisions()) {
+                        $messages[] = new UserMessage($prompt->prompt, $prompt->attachments->all());
+                    }
+
+                    $tools = $this->resolveTools($prompt);
+                    $approval = $this->resumableApprovalFor($prompt);
+                    $recordApprovalResults = $this->approvalResultRecorderFor($prompt, $resolvedApprovalResults);
+
+                    // Validate eagerly so a mismatch throws before the stream begins, then thread the result into stream() so it isn't re-validated there...
+                    $validatedApproval = $approval !== null
+                        ? $this->textGenerationLoop()->validateApproval($approval, $messages, $tools)
+                        : null;
+
+                    $context = $this->runContextFor($invocationId, $prompt);
+
+                    $streamable = new StreamableAgentResponse(
+                        $invocationId,
+                        function () use ($invocationId, $prompt, $agent, $messages, $tools, $approval, $recordApprovalResults, $validatedApproval, $context): Generator {
+                            // Re-iteration needs fresh run state with the dependencies captured by the factory.
+                            $prompt->setRunContext($runContext = clone $context);
+
+                            if ($this->events->hasListeners(StreamingAgent::class)) {
+                                $this->events->dispatch(new StreamingAgent($invocationId, $prompt));
+                            }
+
+                            $instructions = (string) $agent->instructions();
+                            $options = TextGenerationOptions::forAgent($agent);
+
+                            if ($prompt->middleware !== []) {
+                                $options = $options->withMiddleware($prompt->middleware);
+                            }
+
+                            foreach ($this->textGenerationLoop()->stream(
+                                $invocationId,
+                                $this,
+                                $prompt->model,
+                                $instructions,
+                                $messages,
+                                $tools,
+                                null,
+                                $options,
+                                $prompt->timeout,
+                                $approval,
+                                $recordApprovalResults,
+                                $validatedApproval,
+                                $runContext,
+                            ) as $event) {
+                                if ($event instanceof ToolApprovalRequest) {
+                                    $this->throwIfNotResumable($prompt);
+                                }
+
+                                yield $event;
+                            }
+                        },
+                        $meta,
+                    );
+
+                    // Surfaced before iteration because the remembering middleware only records it once the stream has drained...
+                    if (($selection = $prompt->conversationSelection())?->conversationId !== null) {
+                        $streamable->withinConversation(
+                            $selection->conversationId,
+                            $selection->participant,
+                        );
+                    }
+
+                    return $streamable;
+                });
+        } catch (Throwable $exception) {
+            $this->recordAgentFailure($invocationId, $prompt, $exception);
+
+            throw $exception;
+        }
+
+        // Avoid retaining the response through its own failure callback.
+        $responseReference = WeakReference::create($response);
+        $iterationCompleted = false;
+
+        return $response->usingContext($prompt->contextRunner())->onIterationFailure(function (?Throwable $exception) use ($invocationId, $prompt, $responseReference, &$iterationCompleted): void {
+            if ($iterationCompleted) { // @phpstan-ignore if.alwaysFalse (The completion callback updates this shared flag.)
+                return;
+            }
+
+            if ($exception !== null) {
+                // The response owns the "has anything reached the consumer" flag so this failure check and the caller's failover decision can never drift apart...
+                $this->recordAgentFailure($invocationId, $prompt, $exception, retryable: ! $responseReference->get()->hasYielded());
+            } elseif ($this->events->hasListeners(AgentStreamAbandoned::class)) {
+                $this->events->dispatch(new AgentStreamAbandoned($invocationId, $prompt));
+            }
+        })->then(function (StreamedAgentResponse $response) use ($invocationId, $prompt, &$resolvedApprovalResults, &$iterationCompleted): void {
+            // Success-listener failures must not also report a failed provider iteration.
+            $iterationCompleted = true;
+
+            if ($this->events->hasListeners(AgentStreamed::class)) {
+                $this->events->dispatch(
+                    new AgentStreamed($invocationId, $prompt, $response)
+                );
+            }
+
+            if ($response->hasPendingApprovals() && $this->events->hasListeners(ToolApprovalRequested::class)) {
+                $this->events->dispatch(new ToolApprovalRequested(
+                    $invocationId,
+                    $prompt->agent,
+                    $response->pendingApprovals,
+                    $response->conversationId,
+                    $response->conversationUser,
+                ));
+            }
+
+            if ($resolvedApprovalResults !== null && $this->events->hasListeners(ToolApprovalResolved::class)) {
+                $this->events->dispatch(new ToolApprovalResolved(
+                    $invocationId,
+                    $prompt->agent,
+                    $resolvedApprovalResults,
+                    $response->conversationId,
+                    $response->conversationUser,
+                ));
+            }
+        });
+    }
+}

@@ -5,6 +5,8 @@
 
 includes:
   - src/database/extension.neon
+  - src/foundation/extension.neon
+  - src/scout/extension.neon
 
 parameters:
   tmpDir: .cache/phpstan
@@ -56,7 +58,7 @@ parameters:
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
-    # NodeTrait methods - mixed in at app level, not on base Model class
+    # HasNode methods - mixed in at app level, not on base Model class
     - message: '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
       path: src/nested-set/*
 
@@ -66,14 +68,6 @@ parameters:
     # Generic template type limitations - PHPStan can't resolve methods through generic TModel/TRelatedModel
     - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
     - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
-
-    # Deep generic template limitations - PHPStan can't fully resolve complex generic type relationships
-    - identifier: generics.lessTypes
-      path: src/database/*
-    - identifier: generics.notSubtype
-      path: src/database/*
-    - identifier: method.templateTypeNotInParameter
-      path: src/database/*
 
     # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant
     # for semantic documentation on collection-like classes even though it violates strict variance rules.

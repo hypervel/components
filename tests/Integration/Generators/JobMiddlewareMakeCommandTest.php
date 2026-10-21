@@ -11,7 +11,7 @@ class JobMiddlewareMakeCommandTest extends TestCase
         'tests/Feature/Jobs/Middleware/FooTest.php',
     ];
 
-    public function testItCanGenerateJobMiddlewareFile()
+    public function testItCanGenerateJobMiddlewareFile(): void
     {
         $this->artisan('make:job-middleware', ['name' => 'Foo'])
             ->assertExitCode(0);
@@ -24,7 +24,7 @@ class JobMiddlewareMakeCommandTest extends TestCase
         $this->assertFilenameNotExists('tests/Feature/Jobs/Middleware/FooTest.php');
     }
 
-    public function testItCanGenerateJobMiddlewareFileWithTest()
+    public function testItCanGenerateJobMiddlewareFileWithTest(): void
     {
         $this->artisan('make:job-middleware', ['name' => 'Foo', '--test' => true])
             ->assertExitCode(0);

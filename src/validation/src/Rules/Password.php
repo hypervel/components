@@ -29,7 +29,7 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
     /**
      * The validator performing the validation.
      */
-    protected ?ValidatorContract $validator;
+    protected ?ValidatorContract $validator = null;
 
     /**
      * The data under validation.
@@ -302,8 +302,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
         $validator = Validator::make(
             $this->data,
             [$attribute => [...$this]],
-            $this->validator->customMessages, // @phpstan-ignore-line
-            $this->validator->customAttributes // @phpstan-ignore-line
+            $this->validator->customMessages, // @phpstan-ignore property.notFound
+            $this->validator->customAttributes // @phpstan-ignore property.notFound
         )->after(function ($validator) use ($attribute, $value) {
             if (! is_string($value)) {
                 return;

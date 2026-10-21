@@ -15,13 +15,13 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EnsureEmailIsVerifiedTest extends TestCase
 {
-    public function testItCanGenerateDefinitionViaStaticMethod()
+    public function testItCanGenerateDefinitionViaStaticMethod(): void
     {
         $signature = EnsureEmailIsVerified::redirectTo('route.name');
         $this->assertSame('Hypervel\Auth\Middleware\EnsureEmailIsVerified:route.name', $signature);
     }
 
-    public function testVerifiedUserPassesThrough()
+    public function testVerifiedUserPassesThrough(): void
     {
         $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturnTrue();
@@ -51,7 +51,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $this->assertSame($expectedResponse, $result);
     }
 
-    public function testGuestRequestReturnsJsonWhenExpectsJson()
+    public function testGuestRequestReturnsJsonWhenExpectsJson(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('user')->andReturn(null);
@@ -63,7 +63,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
-    public function testUnverifiedUserReturnsJsonWhenExpectsJson()
+    public function testUnverifiedUserReturnsJsonWhenExpectsJson(): void
     {
         $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturnFalse();

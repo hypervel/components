@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Closure;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
@@ -14,6 +15,7 @@ use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use RuntimeException;
 
 class Grammar extends BaseGrammar
@@ -293,6 +295,16 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile a "where binary" clause.
+     *
+     * @throws RuntimeException
+     */
+    protected function whereBinary(Builder $query, array $where): string
+    {
+        throw new RuntimeException('This database engine does not support binary comparison operations.');
+    }
+
+    /**
      * Compile a bitwise operator where clause.
      */
     protected function whereBitwise(Builder $query, array $where): string
@@ -302,6 +314,8 @@ class Grammar extends BaseGrammar
 
     /**
      * Compile a "where like" clause.
+     *
+     * @throws RuntimeException
      */
     protected function whereLike(Builder $query, array $where): string
     {
@@ -487,6 +501,13 @@ class Grammar extends BaseGrammar
      */
     protected function whereColumn(Builder $query, array $where): string
     {
+        if ($where['operator'] === '<=>') {
+            $where['column'] = $where['first'];
+            $where['value'] = new QueryExpression($this->wrap($where['second']));
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
+
         $operator = str_replace('?', '??', $where['operator']);
 
         return $this->wrap($where['first']) . ' ' . $operator . ' ' . $this->wrap($where['second']);
@@ -683,6 +704,8 @@ class Grammar extends BaseGrammar
 
     /**
      * Compile a "where fulltext" clause.
+     *
+     * @throws RuntimeException
      */
     public function whereFullText(Builder $query, array $where): string
     {
@@ -695,6 +718,24 @@ class Grammar extends BaseGrammar
     public function whereExpression(Builder $query, array $where): string
     {
         return $where['column']->getValue($this);
+    }
+
+    /**
+     * Compile a vector distance expression for the given column.
+     *
+     * @throws RuntimeException
+     */
+    public function compileVectorDistanceExpression(Expression|string $column): string
+    {
+        throw new RuntimeException('This database engine does not support vector distance queries.');
+    }
+
+    /**
+     * Determine if the grammar supports vector distance queries.
+     */
+    public function supportsVectorDistance(): bool
+    {
+        return false;
     }
 
     /**
@@ -954,10 +995,18 @@ class Grammar extends BaseGrammar
         }
 
         if (isset($query->unionOffset)) {
-            $sql .= ' ' . $this->compileOffset($query, $query->unionOffset);
+            $sql .= ' ' . $this->compileUnionOffset($query, $query->unionOffset);
         }
 
         return ltrim($sql);
+    }
+
+    /**
+     * Compile the offset applied to the complete union.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return $this->compileOffset($query, $offset);
     }
 
     /**
@@ -1093,6 +1142,11 @@ class Grammar extends BaseGrammar
      */
     public function compileUpdate(Builder $query, array $values): string
     {
+        // Drivers with a row-identifier rewrite handle offsets before reaching direct DML.
+        if ($query->offset > 0) {
+            throw new RuntimeException('This database engine does not support offsets in this update statement.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         $columns = $this->compileUpdateColumns($query, $values);
@@ -1117,6 +1171,25 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Qualified and unqualified references must share one assignment.
+            $column = last(explode('.', explode('->', $key, 2)[0]));
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
+    }
+
+    /**
      * Compile an update statement without joins into SQL.
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
@@ -1129,6 +1202,10 @@ class Grammar extends BaseGrammar
      */
     protected function compileUpdateWithJoins(Builder $query, string $table, string $columns, string $where): string
     {
+        if ($query->limit !== null) {
+            throw new RuntimeException('This database engine does not support limits in joined update statements.');
+        }
+
         $joins = $this->compileJoins($query, $query->joins);
 
         return "update {$table} {$joins} set {$columns} {$where}";
@@ -1159,10 +1236,44 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Prepare the bindings for an update statement with joins.
+     */
+    public function prepareBindingsForUpdateWithJoins(array $bindings, array $values): array
+    {
+        return $this->prepareBindingsForUpdate($bindings, $values);
+    }
+
+    /**
+     * Prepare update values in column order, encoding JSON assignments.
+     */
+    protected function prepareValueBindingsForUpdate(array $values): array
+    {
+        $bindings = [];
+
+        foreach ($this->groupJsonColumnsForUpdate($values) as $group) {
+            foreach ($group as $key => $value) {
+                // Subquery closures contain SQL bindings, not a JSON value to encode.
+                $bindings[] = $value instanceof Closure
+                    ? $value()
+                    : (is_array($value) || ($this->isJsonSelector($key) && ! $this->isExpression($value))
+                        ? json_encode($value, JSON_THROW_ON_ERROR)
+                        : $value);
+            }
+        }
+
+        return Arr::flatten($bindings);
+    }
+
+    /**
      * Compile a delete statement into SQL.
      */
     public function compileDelete(Builder $query): string
     {
+        // Ignoring an offset would delete rows the caller explicitly excluded.
+        if ($query->offset > 0) {
+            throw new RuntimeException('This database engine does not support offsets in this delete statement.');
+        }
+
         $table = $this->wrapTable($query->from);
 
         $where = $this->compileWheres($query);
@@ -1192,6 +1303,28 @@ class Grammar extends BaseGrammar
         $joins = $this->compileJoins($query, $query->joins);
 
         return "delete {$alias} from {$table} {$joins} {$where}";
+    }
+
+    /**
+     * Qualify the row identifier selected by a limited or joined write rewrite.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function qualifyRowIdentifier(Builder $query, string $identifier): string
+    {
+        $alias = $query->getFromAlias();
+
+        if ($alias !== null) {
+            return $alias . '.' . $identifier;
+        }
+
+        // In a join, an unqualified identifier can resolve to the outer query in
+        // PostgreSQL or a string literal in SQLite, silently affecting the wrong rows.
+        if ($query->joins) {
+            throw new InvalidArgumentException('Joined writes on a raw query source require an explicit alias set through from().');
+        }
+
+        return $identifier;
     }
 
     /**
@@ -1304,9 +1437,9 @@ class Grammar extends BaseGrammar
         }, $bindings);
 
         $query = '';
+        $bindingIndex = 0;
 
         $isStringLiteral = false;
-        $bindingIndex = 0;
 
         for ($i = 0; $i < strlen($sql); ++$i) {
             $char = $sql[$i];

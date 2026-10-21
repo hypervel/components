@@ -64,6 +64,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Routing\Router prependMiddlewareToGroup(string $group, string $middleware)
  * @method static \Hypervel\Routing\Router pushMiddlewareToGroup(string $group, string $middleware)
  * @method static \Hypervel\Routing\Route put(string $uri, callable|array|string|null $action = null)
+ * @method static \Hypervel\Routing\Route query(string $uri, callable|array|string|null $action = null)
  * @method static \Hypervel\Routing\Route redirect(string $uri, string $destination, int $status = 302)
  * @method static \Hypervel\Routing\Router removeMiddlewareFromGroup(string $group, array|string $middleware)
  * @method static array<int, mixed> resolveMiddleware(array $middleware, array $excluded = [])
@@ -83,7 +84,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Routing\Route substituteBindings(\Hypervel\Routing\Route $route)
  * @method static mixed substituteImplicitBindings(\Hypervel\Routing\Route $route)
  * @method static \Hypervel\Routing\Router substituteImplicitBindingsUsing(callable $callback)
- * @method static ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : \Hypervel\Routing\Router) tap(null|callable $callback = null)
+ * @method static ($callback is null ? \Hypervel\Support\HigherOrderTapProxy<\Hypervel\Routing\Router> : \Hypervel\Routing\Router) tap(null|callable $callback = null)
  * @method static \Symfony\Component\HttpFoundation\Response toResponse(\Hypervel\Http\Request $request, mixed $response)
  * @method static array uniqueMiddleware(array $middleware)
  * @method static bool uses(array|string ...$patterns)
@@ -116,6 +117,9 @@ namespace Hypervel\Support\Facades;
  */
 class Route extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'router';

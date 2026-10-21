@@ -9,10 +9,11 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Support\ClassInvoker;
-use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\Scout\Models\UuidSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\PrefixSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class DatabaseEngineTest extends ScoutTestCase
@@ -47,6 +48,26 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertCount(3, $results);
     }
 
+    public function testSemanticSearchRequiresPostgresAndEmbeddingSource(): void
+    {
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage((new SearchableModel)->getConnection()->getDriverName() === 'pgsql'
+            ? 'Database semantic search requires the model to define a [toSearchableEmbedding] method.'
+            : 'Database semantic search requires PostgreSQL with pgvector.');
+
+        SearchableModel::search('Taylor')->semantic()->get();
+    }
+
+    public function testHybridSearchFallsBackToNormalTextSearchWhenVectorsAreNotSupported(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search('Taylor')->hybrid()->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame('Taylor Otwell', $models->first()->title);
+    }
+
     public function testSearchWithWhereClause(): void
     {
         $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);
@@ -60,7 +81,49 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertEquals($model1->id, $results->first()->id);
     }
 
-    public function testSearchWithMultipleComparisonsOnTheSameField(): void
+    public function testItCanFilterWithGreaterThan(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search()->where('title', '>', 'B')->get();
+
+        $this->assertSame(['Taylor Otwell'], $models->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithLessThan(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search()->where('title', '<', 'B')->get();
+
+        $this->assertSame(['Abigail Otwell'], $models->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithGreaterThanOrEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Taylor Otwell'], SearchableModel::search()->where('title', '>=', 'T')->get()->pluck('title')->all());
+        $this->assertCount(2, SearchableModel::search()->where('title', '>=', 'A')->get());
+    }
+
+    public function testItCanFilterWithLessThanOrEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Abigail Otwell'], SearchableModel::search()->where('title', '<=', 'Abigail Otwell')->get()->pluck('title')->all());
+        $this->assertCount(2, SearchableModel::search()->where('title', '<=', 'Taylor Otwell')->get());
+    }
+
+    public function testItCanFilterWithNotEqual(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $this->assertSame(['Taylor Otwell'], SearchableModel::search()->where('title', '!=', 'Abigail Otwell')->get()->pluck('title')->all());
+        $this->assertSame(['Abigail Otwell'], SearchableModel::search()->where('title', '!=', 'Taylor Otwell')->get()->pluck('title')->all());
+    }
+
+    public function testItCanFilterWithMultipleWhereComparisons(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body']);
         $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
@@ -448,6 +511,15 @@ class DatabaseEngineTest extends ScoutTestCase
         $results = SearchableModel::search('Test')->get();
 
         $this->assertCount(2, $results);
+    }
+
+    /**
+     * Create the models used by the where comparison tests.
+     */
+    private function createAbigailAndTaylor(): void
+    {
+        SearchableModel::create(['title' => 'Taylor Otwell', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Abigail Otwell', 'body' => 'Body']);
     }
 }
 

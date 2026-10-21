@@ -1,0 +1,72 @@
+{
+    "name": "hypervel/pennant",
+    "description": "A simple, lightweight library for managing feature flags in Hypervel.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "php",
+        "pennant",
+        "feature",
+        "flags",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": "^8.4",
+        "ext-swoole": "^6.3.0RC1",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4",
+        "symfony/console": "^8.1.2",
+        "symfony/finder": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Pennant\\": "src/"
+        },
+        "files": [
+            "src/helpers.php",
+            "src/functions.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Pennant\\PennantServiceProvider"
+            ],
+            "aliases": {
+                "Feature": "Hypervel\\Pennant\\Feature"
+            }
+        }
+    }
+}

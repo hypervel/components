@@ -48,9 +48,8 @@ class RoleMiddleware
         }
 
         $roles = explode('|', self::parseRolesToString($role));
-        $hasAnyRole = Closure::fromCallable([$user, 'hasAnyRole']);
 
-        if (! $hasAnyRole($roles)) {
+        if (! $user->hasAnyRole($roles)) {
             throw UnauthorizedException::forRoles($roles);
         }
 
@@ -77,7 +76,7 @@ class RoleMiddleware
         $role = enum_value($role);
 
         if (is_array($role)) {
-            return implode('|', array_map(fn ($r) => enum_value($r), $role));
+            return implode('|', array_map(enum_value(...), $role));
         }
 
         return (string) $role;

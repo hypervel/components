@@ -6,10 +6,11 @@ namespace Hypervel\Http\Resources\JsonApi;
 
 use BadMethodCallException;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use JsonSerializable;
 use Override;
 
@@ -39,6 +40,11 @@ class JsonApiResource extends JsonResource
      * The resource's "meta" for JSON:API.
      */
     protected array $jsonApiMeta = [];
+
+    /**
+     * The included resources resolved for this response.
+     */
+    protected ?array $includedResources = null;
 
     /**
      * Set the JSON:API version for the request.
@@ -86,6 +92,27 @@ class JsonApiResource extends JsonResource
     }
 
     /**
+     * Transform the resource into its default attributes.
+     */
+    #[Override]
+    public function toArray(Request $request): array|Arrayable|JsonSerializable
+    {
+        $relationshipNames = (new Collection($this->toRelationships($request)))
+            ->map(fn ($value, $key) => is_int($key) ? $value : $key)
+            ->all();
+        $excluded = ['id', 'type', ...$relationshipNames];
+
+        if ($this->resource instanceof Model) {
+            // Filter before traversing relations without changing the shared model's visibility.
+            return (clone $this->resource)->makeHidden($excluded)->toArray();
+        }
+
+        return (new Collection(parent::toArray($request)))
+            ->except($excluded)
+            ->all();
+    }
+
+    /**
      * Get the resource's relationships.
      */
     public function toRelationships(Request $request): Arrayable|array
@@ -121,16 +148,14 @@ class JsonApiResource extends JsonResource
     {
         $jsonApiRequest = $this->resolveJsonApiRequestFrom($request);
 
-        return array_filter([
-            'included' => $this->resolveIncludedResourceObjects($jsonApiRequest)
-                ->uniqueStrict('_uniqueKey')
-                ->map(fn ($included) => Arr::except($included, ['_uniqueKey']))
-                ->values()
-                ->all(),
+        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest);
+
+        return [
+            ...($included !== [] || $jsonApiRequest->has('include')) ? ['included' => $included] : [],
             ...($implementation = static::$jsonApiInformation)
                 ? ['jsonapi' => $implementation]
                 : [],
-        ]);
+        ];
     }
 
     /**
@@ -168,7 +193,12 @@ class JsonApiResource extends JsonResource
     #[Override]
     public function toResponse(Request $request): JsonResponse
     {
-        return parent::toResponse($this->resolveJsonApiRequestFrom($request));
+        $request = $this->resolveJsonApiRequestFrom($request);
+
+        // Merge duplicate linkage before the primary resource is serialized.
+        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request);
+
+        return parent::toResponse($request);
     }
 
     /**

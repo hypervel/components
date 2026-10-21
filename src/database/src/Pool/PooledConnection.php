@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
-use Closure;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
-use Hypervel\Engine\Exceptions\CoroutineCreateException;
+use Hypervel\Database\LeasableConnection;
+use Hypervel\Database\PdoConnection;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -37,6 +36,10 @@ class PooledConnection implements PoolConnection
 
     protected ?Connection $connection = null;
 
+    protected ?ConnectionLease $lease = null;
+
+    protected bool $driverConnectionConfigured = false;
+
     protected ConnectionFactory $factory;
 
     protected LoggerInterface $logger;
@@ -53,7 +56,7 @@ class PooledConnection implements PoolConnection
 
     protected bool $invalid = false;
 
-    protected ?Dispatcher $dispatcher = null;
+    protected bool $connectionEstablishedEventPending = false;
 
     /**
      * Create a new pooled connection instance.
@@ -65,10 +68,6 @@ class PooledConnection implements PoolConnection
     ) {
         $this->factory = $container->make('db.factory');
         $this->logger = $container->make(StdoutLoggerInterface::class);
-
-        if ($container->bound('events')) {
-            $this->dispatcher = $container->make('events');
-        }
 
         $this->reconnect();
     }
@@ -86,6 +85,28 @@ class PooledConnection implements PoolConnection
      */
     public function getActiveConnection(): Connection
     {
+        if ($this->lease !== null) {
+            return $this->lease->connection;
+        }
+
+        $connection = $this->getDriverConnection();
+
+        if (! $this->driverConnectionConfigured) {
+            $this->configureConnection($connection);
+            $connection->setReconnector($this->refresh(...));
+            $this->driverConnectionConfigured = true;
+        }
+
+        return $connection;
+    }
+
+    /**
+     * Get the internal driver resource holder for the current generation.
+     *
+     * @internal
+     */
+    public function getDriverConnection(): Connection
+    {
         if ($this->check()) {
             $this->availableForReuse = false;
 
@@ -100,25 +121,74 @@ class PooledConnection implements PoolConnection
     }
 
     /**
+     * Determine whether borrowers receive a caller-owned logical connection for this slot.
+     *
+     * @internal
+     */
+    public function usesSessionLeases(): bool
+    {
+        return $this->pool->usesSessionLeases()
+            || ($this->getDriverConnection() instanceof LeasableConnection && $this->pool->supportsDriverSessionLeases());
+    }
+
+    /**
+     * Create a caller-owned logical connection for this borrowed slot.
+     *
+     * @internal
+     */
+    public function newLease(): ConnectionLease
+    {
+        $lease = new ConnectionLease($this->pool, $this, $this->factory, $this->getDriverConnection());
+        $this->configureConnection($lease->connection);
+
+        return $lease;
+    }
+
+    /**
+     * Attach a logical owner without retaining its state between borrowers.
+     *
+     * @internal
+     */
+    public function attachLease(ConnectionLease $lease): void
+    {
+        $this->lease = $lease;
+        $this->connection?->unsetEventDispatcher();
+        $this->connection?->unsetTransactionManager();
+        $this->driverConnectionConfigured = false;
+        $lease->connection->setResourceReleaser($this->forgetDriverConnection(...));
+    }
+
+    /**
+     * Forget physical resources after their logical owner disconnected.
+     */
+    protected function forgetDriverConnection(): void
+    {
+        $connection = $this->connection;
+
+        try {
+            if ($connection instanceof LeasableConnection) {
+                // The driver's logical owner never holds these resources itself.
+                $connection->disconnect();
+            } elseif ($connection instanceof PdoConnection) {
+                // The connection's grammar retains it until cyclic garbage collection.
+                $connection->setPdo(null)->setReadPdo(null);
+            }
+        } finally {
+            $this->connection = null;
+            $this->connectionEstablishedEventPending = false;
+            $this->markInvalid();
+        }
+    }
+
+    /**
      * Reconnect to the database.
      */
     public function reconnect(): bool
     {
-        $this->close();
+        $this->closeDriverConnection();
 
         $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
-
-        if ($sharedPdo !== null) {
-            // In-memory SQLite: use shared PDO so all pool slots see same data
-            $this->connection = $this->factory->makeSqliteFromSharedPdo(
-                $sharedPdo,
-                $this->config,
-                $this->config['name'] ?? null
-            );
-        } else {
-            // Normal path: factory creates a fresh connection with new driver resources.
-            $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
-        }
+        $this->connection = $this->makeConnection();
 
         if (! $this->connection->isReusable()) {
             $this->markInvalid();
@@ -132,40 +202,67 @@ class PooledConnection implements PoolConnection
             throw new RuntimeException('Database connection is not reusable after reconnecting.');
         }
 
-        // Configure event dispatcher for query events
-        if ($this->container->bound('events')) {
-            $this->connection->setEventDispatcher($this->container->make('events'));
-        }
-
-        // Configure transaction manager for after-commit callbacks
-        if ($this->container->has('db.transactions')) {
-            $this->connection->setTransactionManager($this->container->make('db.transactions'));
-        }
-
-        // Set up reconnector for the connection
-        $this->connection->setReconnector(function ($connection) {
-            $this->logger->warning('Database connection refreshing.');
-            $this->refresh($connection);
-        });
-
-        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
-        // Reconnection can be triggered after fake swaps the container binding.
-        if ($this->container->bound('events')) {
-            /** @var Dispatcher $events */
-            $events = $this->container->make('events');
-
-            if ($events->hasListeners(ConnectionEstablished::class)) {
-                $events->dispatch(new ConnectionEstablished($this->connection));
-            }
-        }
-
         $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->stampGeneration($now);
         $this->availableForReuse = false;
         $this->markValid();
+        $this->connectionEstablishedEventPending = true;
+
+        if (! $this->usesSessionLeases()) {
+            $this->configureConnection($this->connection);
+            $this->connection->setReconnector($this->refresh(...));
+            $this->driverConnectionConfigured = true;
+        }
+
+        if ($this->lease !== null) {
+            // The held owner must keep its services out of, and still disconnect, the replacement.
+            $this->attachLease($this->lease);
+        }
 
         return true;
+    }
+
+    /**
+     * Configure services used by the caller-visible connection.
+     */
+    protected function configureConnection(Connection $connection): void
+    {
+        if ($this->container->bound('events')) {
+            $connection->setEventDispatcher($this->container->make('events'));
+        }
+
+        if ($this->container->has('db.transactions')) {
+            $connection->setTransactionManager($this->container->make('db.transactions'));
+        }
+    }
+
+    /**
+     * Notify listeners after the resolver has registered the connection.
+     *
+     * @internal
+     */
+    public function dispatchConnectionEstablishedEvent(): void
+    {
+        if (! $this->connectionEstablishedEventPending) {
+            return;
+        }
+
+        // Consume before dispatch so this generation is notified only once.
+        $this->connectionEstablishedEventPending = false;
+
+        // Resolve from the container so Event::fake() also applies to reconnects.
+        if ($this->container->bound('events')) {
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $connection = $this->lease->connection ?? $this->connection;
+                $connection->withPinnedSession(
+                    static fn () => $events->dispatch(new ConnectionEstablished($connection))
+                );
+            }
+        }
     }
 
     /**
@@ -223,53 +320,22 @@ class PooledConnection implements PoolConnection
             return false;
         }
 
-        $result = new Channel(1);
         $connection = $this->connection;
-        $started = null;
-        $callable = static function () use ($connection, $result): void {
-            try {
-                $healthy = $connection->ping();
-            } catch (CanceledException) {
-                return;
-            } catch (Throwable) {
-                $healthy = false;
-            }
-
-            $result->push($healthy, 0.0);
-        };
-        $wrapper = static function (Closure $run) use (&$started): void {
-            $started = Coroutine::id();
-            $run();
-        };
 
         try {
-            FrameworkCoroutine::createOwned($callable, $wrapper);
+            // The pool must not discard the connection while canceled heartbeat cleanup is still running.
+            $healthy = (new Waiter)->wait(
+                static fn (): bool => $connection->ping(),
+                $timeout,
+                waitForChildTermination: true,
+            );
         } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
             throw $exception;
-        } catch (CoroutineCreateException) {
+        } catch (Throwable) {
             return false;
         }
 
-        try {
-            $healthy = $result->pop($timeout);
-        } catch (CanceledException $exception) {
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy === false && $result->isCanceled()) {
-            $exception = new CanceledException('Waiting for a database heartbeat was canceled.');
-            $this->cancelHeartbeatCoroutine($started);
-
-            throw $exception;
-        }
-
-        if ($healthy !== true) {
-            $this->cancelHeartbeatCoroutine($started);
-
+        if (! $healthy) {
             return false;
         }
 
@@ -279,21 +345,38 @@ class PooledConnection implements PoolConnection
     }
 
     /**
-     * Cancel a live heartbeat coroutine.
-     */
-    private function cancelHeartbeatCoroutine(?int $coroutineId): void
-    {
-        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
-            Coroutine::cancelById($coroutineId, throwException: true);
-        }
-    }
-
-    /**
      * Close the database connection.
      */
     public function close(): bool
     {
+        try {
+            if ($this->lease !== null) {
+                $this->lease->connection->disconnect();
+            } else {
+                $this->closeDriverConnection();
+            }
+        } finally {
+            $this->lease?->detach();
+            $this->lease = null;
+            $this->connection = null;
+            $this->connectionEstablishedEventPending = false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Close the internal resource holder without settling its borrowed slot.
+     */
+    protected function closeDriverConnection(): void
+    {
+        $this->connectionEstablishedEventPending = false;
+        $this->driverConnectionConfigured = false;
+
         if ($this->connection instanceof Connection) {
+            // The pool's recorded date format may have come from this connection's grammar.
+            $this->pool->forgetDateFormat();
+
             try {
                 $this->connection->disconnect();
             } finally {
@@ -302,8 +385,64 @@ class PooledConnection implements PoolConnection
                 $this->connection = null;
             }
         }
+    }
 
-        return true;
+    /**
+     * Clean up the owning connection and notify listeners before detachment.
+     */
+    protected function prepareForRelease(): void
+    {
+        $connection = $this->lease->connection ?? $this->connection;
+
+        if ($connection !== null) {
+            $errorCount = $connection->getErrorCount();
+
+            // An ended owner's in-flight operations must stop before another borrower reuses the slot.
+            if ($this->lease === null || $this->lease->hasEnded()) {
+                $connection->resetForPool();
+            }
+
+            if ($errorCount > self::MAX_ERROR_COUNT) {
+                $this->logger->warning('Connection has too many errors, marking as stale.');
+                $this->markInvalid();
+            }
+
+            if ($connection->transactionLevel() > 0) {
+                $connection->rollBack(0);
+                $this->logger->error('Database transaction was not committed or rolled back before release.');
+            }
+        }
+
+        $this->lastReleaseTime = hrtime(true) / 1e9;
+        $events = $this->pool->getOptions()->events;
+
+        if (in_array(ConnectionReleasing::class, $events, true)
+            && $this->container->bound('events')
+        ) {
+            // Event::fake() can replace the dispatcher after this connection was created.
+            /** @var Dispatcher $dispatcher */
+            $dispatcher = $this->container->make('events');
+
+            if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
+                $dispatcher->dispatch(new ConnectionReleasing($this));
+            }
+        }
+    }
+
+    /**
+     * Record the physical holder's grammar format without borrowing a session.
+     *
+     * A fresh logical lease is built from the same factory configuration as
+     * the holder, so owner-specific grammar changes must not reach the pool.
+     * Without leases the holder is the caller-visible connection itself.
+     *
+     * @internal
+     */
+    public function recordDateFormat(): void
+    {
+        if (! $this->invalid && $this->connection instanceof Connection) {
+            $this->pool->recordDateFormat($this->connection);
+        }
     }
 
     /**
@@ -315,34 +454,14 @@ class PooledConnection implements PoolConnection
         $ordinaryFailure = null;
 
         try {
-            if ($this->connection instanceof Connection) {
-                $errorCount = $this->connection->getErrorCount();
-
-                // Reset wrapper state before another coroutine borrows it.
-                $this->connection->resetForPool();
-
-                // Check error count and mark as stale if too high
-                if ($errorCount > self::MAX_ERROR_COUNT) {
-                    $this->logger->warning('Connection has too many errors, marking as stale.');
-                    $this->markInvalid();
-                }
-
-                // Roll back any uncommitted transactions (including nested savepoints)
-                if ($this->connection->transactionLevel() > 0) {
-                    $this->connection->rollBack(0);
-                    $this->logger->error('Database transaction was not committed or rolled back before release.');
-                }
+            if ($this->lease !== null) {
+                $this->lease->connection->withPinnedSession($this->prepareForRelease(...));
+            } else {
+                $this->prepareForRelease();
             }
 
-            $this->lastReleaseTime = hrtime(true) / 1e9;
-
-            // Dispatch release event if configured
-            $events = $this->pool->getOptions()->events;
-            if (in_array(ConnectionReleasing::class, $events, true)
-                && $this->dispatcher?->hasListeners(ConnectionReleasing::class)
-            ) {
-                $this->dispatcher->dispatch(new ConnectionReleasing($this));
-            }
+            // Recorded after the listeners, which may still change a shared connection's grammar.
+            $this->recordDateFormat();
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
             $this->markInvalid();
@@ -356,10 +475,30 @@ class PooledConnection implements PoolConnection
             } catch (Throwable $loggingException) {
                 $ordinaryFailure = $loggingException;
             }
+        } finally {
+            $this->lease?->detach();
+            $this->lease = null;
+        }
+
+        $discard = false;
+
+        try {
+            // Callbacks may leave a raw transaction outside the framework counters.
+            if ($this->connection?->hasPhysicalTransaction()) {
+                $discard = true;
+                $this->logger->error('Database transaction was not committed or rolled back before release.');
+            }
+        } catch (CanceledException $transactionCancellation) {
+            $discard = true;
+            $cancellationFailure ??= $transactionCancellation;
+        } catch (Throwable $exception) {
+            $discard = true;
+            $ordinaryFailure ??= $exception;
         }
 
         try {
-            if ($cancellationFailure === null
+            if (! $discard
+                && $cancellationFailure === null
                 && $this->connection !== null
                 && ! $this->connection->isReusable()
             ) {
@@ -372,10 +511,14 @@ class PooledConnection implements PoolConnection
             $ordinaryFailure ??= $exception;
         }
 
-        $this->availableForReuse = true;
+        $this->availableForReuse = ! $discard;
 
         try {
-            $this->pool->release($this);
+            if ($discard) {
+                $this->pool->discard($this);
+            } else {
+                $this->pool->release($this);
+            }
         } catch (CanceledException $releaseCancellation) {
             $cancellationFailure ??= $releaseCancellation;
         } catch (Throwable $exception) {
@@ -450,6 +593,8 @@ class PooledConnection implements PoolConnection
     protected function markInvalid(): void
     {
         $this->invalid = true;
+        // Date casts must not keep using a format its replacement may not have.
+        $this->pool->forgetDateFormat();
     }
 
     /**
@@ -470,47 +615,54 @@ class PooledConnection implements PoolConnection
     }
 
     /**
+     * Create driver resources for a new physical connection generation.
+     */
+    protected function makeConnection(): Connection
+    {
+        $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
+
+        if ($sharedPdo !== null) {
+            // Creating a fresh PDO would discard the shared in-memory database.
+            return $this->factory->makeSqliteFromSharedPdo(
+                $sharedPdo,
+                $this->config,
+                $this->config['name'] ?? null
+            );
+        }
+
+        $config = $this->config;
+        $name = $config['name'] ?? null;
+
+        if (($config[Connection::READ_WRITE_TYPE_CONFIG_KEY] ?? null) === ConnectionName::READ
+            && $this->factory->hasReadConfig($config)
+            && $this->factory->getExtension($config, $name) === null
+        ) {
+            $config = $this->factory->configForRead($config);
+        }
+
+        return $this->factory->make($config, $name);
+    }
+
+    /**
      * Refresh the database connection resources.
      */
     protected function refresh(Connection $connection): void
     {
-        $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
+        $this->pool->forgetDateFormat();
 
         try {
-            if ($sharedPdo !== null) {
-                // For shared in-memory SQLite, rebind to the same PDO.
-                // Creating a fresh PDO would give us a new empty database.
-                $fresh = $this->factory->makeSqliteFromSharedPdo(
-                    $sharedPdo,
-                    $this->config,
-                    $this->config['name'] ?? null
-                );
-            } else {
-                $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
-            }
+            $connection->refreshFrom($this->makeConnection());
 
-            $connection->refreshFrom($fresh);
+            // The resolver already owns a refreshed connection, so notify immediately.
+            $this->connectionEstablishedEventPending = true;
+            $this->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
             $this->markInvalid();
 
             throw $exception;
         }
 
-        if ($sharedPdo === null) {
-            $this->logger->warning('Database connection refreshed.');
-        }
-
-        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
-        // Reconnection can be triggered after fake swaps the container binding.
-        if ($this->container->bound('events')) {
-            /** @var Dispatcher $events */
-            $events = $this->container->make('events');
-
-            if ($events->hasListeners(ConnectionEstablished::class)) {
-                $events->dispatch(new ConnectionEstablished($connection));
-            }
-        }
-
+        $this->recordDateFormat();
         $this->stampGeneration(hrtime(true) / 1e9);
     }
 }

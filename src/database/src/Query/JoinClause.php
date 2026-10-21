@@ -50,7 +50,8 @@ class JoinClause extends Builder
     {
         $this->type = $type;
         $this->table = $table;
-        $this->parentClass = get_class($parentQuery);
+        // Parent queries need the root builder's constructor, not a join constructor.
+        $this->parentClass = $parentQuery instanceof self ? $parentQuery->parentClass : get_class($parentQuery);
         $this->parentGrammar = $parentQuery->getGrammar();
         $this->parentProcessor = $parentQuery->getProcessor();
         $this->parentConnection = $parentQuery->getConnection();

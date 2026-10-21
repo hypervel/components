@@ -11,6 +11,7 @@ use Hypervel\Cache\SwooleTableState;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -25,6 +26,8 @@ use Throwable;
 
 class CacheSwooleStoreIntervalTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     protected string $tempDir;
 
     protected function setUp(): void
@@ -859,8 +862,12 @@ PHP);
         float $conflictProportion = 0.2,
         int $hashSeed = 12345
     ): SwooleTableState {
-        return (new SwooleTableManager(new Container))
+        $state = (new SwooleTableManager(new Container))
             ->createState($rows, $bytes, $conflictProportion, $hashSeed);
+
+        $this->trackSwooleTable($state->table());
+
+        return $state;
     }
 
     private function createControllableState(): ControllableIntervalSwooleTableState

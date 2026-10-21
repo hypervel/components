@@ -26,16 +26,16 @@ class EloquentWhereTest extends DatabaseTestCase
         });
     }
 
-    public function testWhereAndWhereOrBehavior()
+    public function testWhereAndWhereOrBehavior(): void
     {
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -70,16 +70,16 @@ class EloquentWhereTest extends DatabaseTestCase
         );
     }
 
-    public function testWhereNot()
+    public function testWhereNot(): void
     {
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -97,23 +97,23 @@ class EloquentWhereTest extends DatabaseTestCase
         })->first()));
     }
 
-    public function testWhereIn()
+    public function testWhereIn(): void
     {
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user1 */
+        /** @var UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
             'address' => 'test-address1',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user2 */
+        /** @var UserWhereTest $user2 */
         $user2 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email2',
             'address' => 'test-address2',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user3 */
+        /** @var UserWhereTest $user3 */
         $user3 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email3',
@@ -144,7 +144,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testWhereInCanAcceptQueryable()
+    public function testWhereInCanAcceptQueryable(): void
     {
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
@@ -189,23 +189,23 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testWhereIntegerInRaw()
+    public function testWhereIntegerInRaw(): void
     {
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user1 */
+        /** @var UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
             'address' => 'test-address1',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user2 */
+        /** @var UserWhereTest $user2 */
         $user2 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email2',
             'address' => 'test-address2',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $user3 */
+        /** @var UserWhereTest $user3 */
         $user3 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email3',
@@ -228,16 +228,16 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertCount(2, $users);
     }
 
-    public function testFirstWhere()
+    public function testFirstWhere(): void
     {
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Hypervel\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -257,7 +257,7 @@ class EloquentWhereTest extends DatabaseTestCase
         );
     }
 
-    public function testSole()
+    public function testSole(): void
     {
         $expected = UserWhereTest::create([
             'name' => 'test-name',
@@ -268,7 +268,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertTrue($expected->is(UserWhereTest::where('name', 'test-name')->sole()));
     }
 
-    public function testSoleFailsForMultipleRecords()
+    public function testSoleFailsForMultipleRecords(): void
     {
         UserWhereTest::create([
             'name' => 'test-name',
@@ -287,7 +287,7 @@ class EloquentWhereTest extends DatabaseTestCase
         UserWhereTest::where('name', 'test-name')->sole();
     }
 
-    public function testSoleFailsIfNoRecords()
+    public function testSoleFailsIfNoRecords(): void
     {
         try {
             UserWhereTest::where('name', 'test-name')->sole();
@@ -297,7 +297,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertSame(UserWhereTest::class, $exception->getModel());
     }
 
-    public function testSoleValue()
+    public function testSoleValue(): void
     {
         $expected = UserWhereTest::create([
             'name' => 'test-name',
@@ -305,7 +305,7 @@ class EloquentWhereTest extends DatabaseTestCase
             'address' => 'test-address',
         ]);
 
-        $this->assertEquals('test-name', UserWhereTest::where('name', 'test-name')->soleValue('name'));
+        $this->assertSame('test-name', UserWhereTest::where('name', 'test-name')->soleValue('name'));
     }
 
     public function testExpressionValuesPreserveSqlAndModelAttributeAccess(): void
@@ -322,6 +322,7 @@ class EloquentWhereTest extends DatabaseTestCase
             $this->assertEquals([$expected], UserWhereTest::query()->pluck($expression)->all());
         }
 
+        $this->assertSame([1.0], UserWhereTest::query()->withCasts(['id' => 'float'])->pluck('id')->all());
         $this->assertSame(2.0, UserWhereTest::query()->withCasts(['total' => 'float'])->value(new Expression('id + 1 as total')));
         $this->assertSame([2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(new Expression('id + 1 as total'))->all());
         $this->assertSame(['Taylor' => 2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(
@@ -362,7 +363,7 @@ class EloquentWhereTest extends DatabaseTestCase
         $this->assertSame(['Taylor' => 'Total: 3!'], $query->pluck(new Expression('id + 1 as total'), 'name')->all());
     }
 
-    public function testChunkMap()
+    public function testChunkMap(): void
     {
         UserWhereTest::create([
             'name' => 'first-name',

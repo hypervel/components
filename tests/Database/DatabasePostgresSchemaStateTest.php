@@ -15,7 +15,32 @@ use Symfony\Component\Process\Process;
 
 class DatabasePostgresSchemaStateTest extends TestCase
 {
-    public function testBaseVariablesNormalizeEnvironmentValues(): void
+    public function testBaseVariablesUseConfiguredConnectionByDefault(): void
+    {
+        $schemaState = new PostgresSchemaState(m::mock(PostgresConnection::class));
+
+        $variables = (new ReflectionMethod(PostgresSchemaState::class, 'baseVariables'))->invoke($schemaState, [
+            'host' => 'pooler-host',
+            'port' => '6432',
+            'username' => 'root',
+            'password' => 'secret',
+            'database' => 'hypervel',
+            'sslmode' => 'prefer',
+        ]);
+
+        $this->assertSame([
+            'HYPERVEL_LOAD_HOST' => 'pooler-host',
+            'HYPERVEL_LOAD_PORT' => '6432',
+            'HYPERVEL_LOAD_USER' => 'root',
+            'PGPASSWORD' => 'secret',
+            'PGSSLMODE' => 'prefer',
+            'HYPERVEL_LOAD_DATABASE' => 'hypervel',
+        ], $variables);
+    }
+
+    // REMOVED: Direct PDO configuration; schema operations use their resolved named connection.
+
+    public function testBaseVariablesDoNotExportEmptySslMode(): void
     {
         $connection = m::mock(PostgresConnection::class);
         $schemaState = new PostgresSchemaState($connection);

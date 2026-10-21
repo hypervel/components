@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
@@ -12,6 +13,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -56,10 +58,14 @@ class RequestWatcher extends Watcher
 
         Telescope::recordRequest(IncomingEntry::make([
             'ip_address' => $event->request->ip(),
-            'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
+            'uri' => $this->hideQueryParameters(str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/'),
             'method' => $event->request->method(),
             'controller_action' => $event->request->route()?->getActionName(),
-            'middleware' => array_values($event->request->route()?->gatherMiddleware() ?? []),
+            // Closure middleware would otherwise be stored as an empty JSON object.
+            'middleware' => array_map(
+                static fn (Closure|string $middleware): string => $middleware instanceof Closure ? 'Closure' : $middleware,
+                array_values($event->request->route()?->gatherMiddleware() ?? []),
+            ),
             'headers' => $this->headers($event->request->headers->all()),
             'payload' => $this->payload($this->input($event->request)),
             'session' => $this->payload($this->sessionVariables($event->request)),
@@ -111,6 +117,12 @@ class RequestWatcher extends Watcher
             ->map(fn ($header) => implode(', ', $header))
             ->all();
 
+        foreach (['location', 'referer'] as $header) {
+            if (isset($headers[$header])) {
+                $headers[$header] = $this->hideQueryParameters($headers[$header]);
+            }
+        }
+
         return $this->hideParameters(
             $headers,
             Telescope::$hiddenRequestHeaders
@@ -137,7 +149,17 @@ class RequestWatcher extends Watcher
      */
     private function sessionVariables(Request $request): array
     {
-        return $request->hasSession() ? $request->session()->all() : [];
+        $session = $request->hasSession() ? $request->session()->all() : [];
+
+        foreach (['_previous.url', 'url.intended'] as $key) {
+            $url = Arr::get($session, $key);
+
+            if (is_string($url)) {
+                Arr::set($session, $key, $this->hideQueryParameters($url));
+            }
+        }
+
+        return $session;
     }
 
     /**
@@ -184,13 +206,18 @@ class RequestWatcher extends Watcher
                 return Telescope::PURGED_VALUE;
             }
 
-            if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
+            $contentType = strtolower($response->headers->get('Content-Type') ?? '');
+
+            // Scalar JSON such as 0, false or null is shown as sent instead of being labeled empty or HTML.
+            if (Str::startsWith($contentType, 'text/plain')
+                || ($jsonError === JSON_ERROR_NONE && Str::contains($contentType, ['/json', '+json']))
+            ) {
                 return $this->contentWithinLimits($content) ? $content : Telescope::PURGED_VALUE;
             }
         }
 
         if ($response instanceof RedirectResponse) {
-            return 'Redirected to ' . $response->getTargetUrl();
+            return 'Redirected to ' . $this->hideQueryParameters($response->getTargetUrl());
         }
 
         if ($response instanceof HypervelResponse && $response->getOriginalContent() instanceof View) {
@@ -200,7 +227,7 @@ class RequestWatcher extends Watcher
             ];
         }
 
-        if (is_string($content) && empty($content)) {
+        if ($content === '') {
             return 'Empty Response';
         }
 

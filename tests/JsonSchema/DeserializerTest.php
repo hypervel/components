@@ -197,7 +197,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsMalformedIntegerValuedConstraints(array $schema, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         JsonSchema::fromArray($schema);
     }
@@ -330,7 +330,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAdditionalPropertiesItCannotRepresent(mixed $additionalProperties): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Schema-valued or malformed JSON Schema [additionalProperties] cannot be represented.');
+        $this->expectExceptionMessageIs('Schema-valued or malformed JSON Schema [additionalProperties] cannot be represented.');
 
         JsonSchema::fromArray([
             'type' => 'object',
@@ -351,7 +351,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsARequiredNameWithoutAPropertySchema(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to represent required property [missing] because it has no property schema.');
+        $this->expectExceptionMessageIs('Unable to represent required property [missing] because it has no property schema.');
 
         JsonSchema::fromArray([
             'type' => 'object',
@@ -488,7 +488,7 @@ class DeserializerTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testReferenceSiblingAnnotationsOverrideTargetAnnotations(): void
+    public function testItMergesSiblingKeysOverARef(): void
     {
         $type = JsonSchema::fromArray([
             'type' => 'object',
@@ -828,7 +828,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsOverlyDeepActiveReferencePaths(array $schema): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('JSON Schema reference paths may not contain more than 1 distinct references.');
+        $this->expectExceptionMessageIs('JSON Schema reference paths may not contain more than 1 distinct references.');
 
         JsonSchemaDepthLimitedDeserializer::deserialize($schema);
     }
@@ -858,7 +858,7 @@ class DeserializerTest extends TestCase
     public function testReferenceFollowsConsumeTheTotalExpansionBudget(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('JSON Schema reconstruction exceeded the maximum expansion of 1 schema fragments.');
+        $this->expectExceptionMessageIs('The JSON Schema is too large to deserialize; it expands beyond [1] fragments.');
 
         JsonSchemaNodeLimitedDeserializer::deserialize([
             '$ref' => '#/$defs/value',
@@ -1393,7 +1393,6 @@ class DeserializerTest extends TestCase
     public static function conflictingNullableCompositionSiblingProvider(): array
     {
         return [
-            'type in anyOf' => ['anyOf', ['type' => 'string'], ['type' => 'integer'], 'type', 'an anyOf branch'],
             'scalar constraint in oneOf' => [
                 'oneOf',
                 ['type' => 'string', 'minLength' => 1],
@@ -1478,7 +1477,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsEmptyInputCompositions(string $keyword): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("The JSON Schema [{$keyword}] keyword must be a non-empty array.");
+        $this->expectExceptionMessageIs("The JSON Schema [{$keyword}] keyword must be a non-empty array.");
 
         JsonSchema::fromArray([$keyword => []]);
     }
@@ -1515,11 +1514,36 @@ class DeserializerTest extends TestCase
         ];
     }
 
+    public function testItRoundTripsANestedNullableAnyOf(): void
+    {
+        $schema = JsonSchema::anyOf([
+            JsonSchema::anyOf([
+                JsonSchema::object(['city' => JsonSchema::string()]),
+                JsonSchema::object(['country' => JsonSchema::string()]),
+            ])->description('A location.'),
+        ])->nullable()->description('An optional location.')->toArray();
+
+        $this->assertSame($schema, JsonSchema::fromArray($schema)->toArray());
+    }
+
+    public function testItRejectsTypeConstraintsBesideANestedAnyOf(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Structural keywords [type] are not supported alongside a general JSON Schema anyOf.');
+
+        JsonSchema::fromArray([
+            'anyOf' => [
+                ['type' => 'string', 'anyOf' => [['type' => 'integer']]],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
     #[DataProvider('survivingCompositionProvider')]
     public function testItRejectsACompositionThatSurvivesNullableCollapse(array $schema, string $keyword, string $composition): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Structural keywords [{$keyword}] are not supported alongside a nullable \"{$composition}\"."
         );
 
@@ -1562,12 +1586,6 @@ class DeserializerTest extends TestCase
                     'value' => ['type' => 'string', 'oneOf' => [['type' => 'integer']]],
                 ],
             ], 'oneOf', 'anyOf'],
-            'anyOf inside anyOf branch' => [[
-                'anyOf' => [
-                    ['type' => 'string', 'anyOf' => [['type' => 'integer']]],
-                    ['type' => 'null'],
-                ],
-            ], 'anyOf', 'anyOf'],
         ];
     }
 
@@ -1575,7 +1593,7 @@ class DeserializerTest extends TestCase
     public function testGeneralAnyOfRejectsCompetingStructuralKeywords(string $keyword, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Structural keywords [{$keyword}] are not supported alongside a general JSON Schema anyOf.");
+        $this->expectExceptionMessageIs("Structural keywords [{$keyword}] are not supported alongside a general JSON Schema anyOf.");
 
         JsonSchema::fromArray([
             'anyOf' => [
@@ -1658,7 +1676,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAnEmptyTypeArray(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A JSON Schema [type] array must contain at least one type.');
+        $this->expectExceptionMessageIs('A JSON Schema [type] array must contain at least one type.');
 
         JsonSchema::fromArray(['type' => []]);
     }
@@ -1756,7 +1774,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsTypeSpecificConstraintsOnANullOnlyTypeArray(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
+        $this->expectExceptionMessageIs('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
 
         JsonSchema::fromArray([
             'type' => ['null'],
@@ -1767,7 +1785,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsTypeSpecificConstraintsOnAScalarNullType(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
+        $this->expectExceptionMessageIs('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
 
         JsonSchema::fromArray([
             'type' => 'null',
@@ -1796,7 +1814,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsANonBareNullBranchInOneOf(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Only a nullable "oneOf" (a single schema plus a bare "null" branch) is supported.');
+        $this->expectExceptionMessageIs('Only a nullable "oneOf" (a single schema plus a bare "null" branch) is supported.');
 
         JsonSchema::fromArray([
             'oneOf' => [
@@ -1809,7 +1827,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsATypeSpecificKeywordOnANonBareNullBranch(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
+        $this->expectExceptionMessageIs('Type-specific keywords [minLength] are not supported on a JSON Schema union.');
 
         JsonSchema::fromArray([
             'anyOf' => [
@@ -1823,7 +1841,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsUnsupportedJsonSchema202012Assertions(array $schema, string $keyword): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Unsupported JSON Schema assertion keywords [{$keyword}] cannot be represented.");
+        $this->expectExceptionMessageIs("Unsupported JSON Schema assertion keywords [{$keyword}] cannot be represented.");
 
         JsonSchema::fromArray($schema);
     }
@@ -1872,7 +1890,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAnUnsupportedAssertionReachedThroughARef(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
+        $this->expectExceptionMessageIs('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
 
         JsonSchema::fromArray([
             '$ref' => '#/$defs/value',
@@ -1885,7 +1903,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAnUnsupportedAssertionMergedFromANullableCompositionBranch(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
+        $this->expectExceptionMessageIs('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
 
         JsonSchema::fromArray([
             'anyOf' => [
@@ -1898,7 +1916,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAnUnsupportedAssertionOnAGeneralAnyOfBranch(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
+        $this->expectExceptionMessageIs('Unsupported JSON Schema assertion keywords [const] cannot be represented.');
 
         JsonSchema::fromArray([
             'anyOf' => [
@@ -1950,7 +1968,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsMalformedRecognizedKeywordValues(array $schema, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         JsonSchema::fromArray($schema);
     }
@@ -1981,7 +1999,7 @@ class DeserializerTest extends TestCase
     public function testItRoutesNullRecognizedKeywordsWithoutATypeToTheirOwningGuard(array $schema, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         JsonSchema::fromArray($schema);
     }
@@ -2077,6 +2095,19 @@ class DeserializerTest extends TestCase
         ]);
     }
 
+    public function testItThrowsWhenAUnionBranchConflictsWithSiblingKeys(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Conflicting [type] between an anyOf branch and its sibling keys.'));
+
+        JsonSchema::fromArray([
+            'type' => 'integer',
+            'anyOf' => [
+                ['type' => 'string', 'minLength' => 3],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
     public function testItThrowsForAnUnsupportedOneOfUnion(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Only a nullable "oneOf" (a single schema plus a bare "null" branch) is supported.'));
@@ -2119,7 +2150,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsAMalformedEnum(mixed $enum): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The JSON Schema [enum] keyword must be an array.');
+        $this->expectExceptionMessageIs('The JSON Schema [enum] keyword must be an array.');
 
         JsonSchema::fromArray([
             'type' => 'string',

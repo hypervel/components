@@ -36,4 +36,14 @@ class SupervisorOptionsTest extends IntegrationTestCase
         $this->assertFalse((new SupervisorOptions('name', 'redis', balance: true))->balancing());
         $this->assertFalse((new SupervisorOptions('name', 'redis', balance: false))->balancing());
     }
+
+    public function testJsonOptionIsPassedToWorkers(): void
+    {
+        $options = new SupervisorOptions('name', 'redis');
+        $this->assertStringNotContainsString('--json', $options->toWorkerCommand());
+
+        $options->json = true;
+        $this->assertStringContainsString('--json', $options->toWorkerCommand());
+        $this->assertStringContainsString('--json', $options->toSupervisorCommand());
+    }
 }

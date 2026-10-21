@@ -132,7 +132,7 @@ class FakeProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed.
      *
-     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
+     * @throws ProcessFailedException
      */
     public function throw(?callable $callback = null): static
     {
@@ -152,7 +152,7 @@ class FakeProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed and the given condition is true.
      *
-     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
+     * @throws ProcessFailedException
      */
     public function throwIf(bool $condition, ?callable $callback = null): static
     {

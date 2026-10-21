@@ -13,6 +13,7 @@ use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -141,7 +142,9 @@ class TestCaseTest extends TestCase
     }
 
     #[Test]
-    public function itKeepsWithEnvActiveAcrossRequestsUntilTestTeardown(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function itKeepsWithEnvActiveAcrossRequestsUntilTestTeardown(bool $loadEnvironmentVariables): void
     {
         $key = 'TESTBENCH_REQUEST_ENV';
         $serverValue = $this->snapshotEnvironmentValue($_SERVER, $key);
@@ -154,7 +157,7 @@ class TestCaseTest extends TestCase
             putenv($key);
             Env::flushRepository();
 
-            $testCase->createTestApplication();
+            $testCase->createTestApplication($loadEnvironmentVariables);
 
             $this->assertSame('active', $testCase->requestEnvironment());
             $this->assertSame('active', $testCase->requestEnvironment());
@@ -232,6 +235,7 @@ class FailingEnvironmentTestCaseFixture extends \Hypervel\Testbench\TestCase
     }
 }
 
+#[WithEnv('TESTBENCH_REQUEST_ENV', 'class-default')]
 class WithEnvRequestLifecycleTestCaseFixture extends \Hypervel\Testbench\TestCase
 {
     #[WithEnv('TESTBENCH_REQUEST_ENV', 'active')]
@@ -239,8 +243,9 @@ class WithEnvRequestLifecycleTestCaseFixture extends \Hypervel\Testbench\TestCas
     {
     }
 
-    public function createTestApplication(): void
+    public function createTestApplication(bool $loadEnvironmentVariables): void
     {
+        $this->loadEnvironmentVariables = $loadEnvironmentVariables;
         $this->app = $this->createApplication();
 
         $this->app->make(Router::class)->get(

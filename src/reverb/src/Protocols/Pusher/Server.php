@@ -21,6 +21,7 @@ use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Str;
 use JsonException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Server
@@ -67,6 +68,10 @@ class Server
                 }
             }
 
+            if ($e instanceof CanceledException) {
+                throw $e;
+            }
+
             try {
                 $this->error($connection, $e);
             } catch (Throwable $throwable) {
@@ -98,16 +103,13 @@ class Server
                 throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
             }
 
-            // Try-decode data field instead of validate-then-decode (avoids double parse)
+            // Decode JSON string data once instead of validating it first. Other strings stay as sent,
+            // since some clients send pings with empty string data.
             if (is_string($event['data'] ?? null)) {
-                try {
-                    $event['data'] = json_decode(
-                        $event['data'],
-                        associative: true,
-                        flags: JSON_THROW_ON_ERROR,
-                    );
-                } catch (JsonException $exception) {
-                    throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
+                $data = json_decode($event['data'], associative: true);
+
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $event['data'] = $data;
                 }
             }
 
@@ -136,6 +138,8 @@ class Server
             if (app('events')->hasListeners(MessageReceived::class)) {
                 MessageReceived::dispatch($from, $message);
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             $terminateOnLimit = $e instanceof RateLimitExceeded
                 && $from->app()->rateLimiting()['terminate_on_limit'];

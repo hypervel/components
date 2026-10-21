@@ -27,19 +27,19 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->db->setAsGlobal();
     }
 
-    public function testHasColumnWithTablePrefix()
+    public function testHasColumnWithTablePrefix(): void
     {
-        $this->db->connection()->setTablePrefix('test_');
+        $this->db::connection()->setTablePrefix('test_');
 
-        $this->db->connection()->getSchemaBuilder()->create('table1', function (Blueprint $table) {
+        $this->db::connection()->getSchemaBuilder()->create('table1', function (Blueprint $table) {
             $table->integer('id');
             $table->string('name');
         });
 
-        $this->assertTrue($this->db->connection()->getSchemaBuilder()->hasColumn('table1', 'name'));
+        $this->assertTrue($this->db::connection()->getSchemaBuilder()->hasColumn('table1', 'name'));
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexDisabled()
+    public function testHasColumnAndIndexWithPrefixIndexDisabled(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -56,7 +56,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertTrue($this->schemaBuilder()->hasIndex('table1', 'table1_name_index'));
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexEnabled()
+    public function testHasColumnAndIndexWithPrefixIndexEnabled(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -175,9 +175,9 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertFalse($builder->hasForeignKey('posts', ['missing_id']));
     }
 
-    public function testDropColumnWithTablePrefix()
+    public function testDropColumnWithTablePrefix(): void
     {
-        $this->db->connection()->setTablePrefix('test_');
+        $this->db::connection()->setTablePrefix('test_');
 
         $this->schemaBuilder()->create('pandemic_table', function (Blueprint $table) {
             $table->integer('id');
@@ -200,7 +200,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
 
     private function schemaBuilder(): Builder
     {
-        return $this->db->connection()->getSchemaBuilder();
+        return $this->db::connection()->getSchemaBuilder();
     }
 }
 

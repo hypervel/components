@@ -43,7 +43,7 @@ class EventServiceProvider extends ServiceProvider
      *
      * @var null|iterable<int, string>
      */
-    protected static $eventDiscoveryPaths;
+    protected static ?iterable $eventDiscoveryPaths = null;
 
     /**
      * Register the application's event listeners.
@@ -82,6 +82,8 @@ class EventServiceProvider extends ServiceProvider
 
     /**
      * Get the events and handlers.
+     *
+     * @return array<string, array<int, string>>
      */
     public function listens(): array
     {

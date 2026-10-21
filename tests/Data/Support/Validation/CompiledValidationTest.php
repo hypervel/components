@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Data\Support\Validation;
 use Hypervel\Data\Support\Validation\CompiledValidation;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\ValidationData;
 use stdClass;
 
 class CompiledValidationTest extends TestCase
@@ -26,7 +27,7 @@ class CompiledValidationTest extends TestCase
 
         $payload = $compiled->restorePreservedValues(
             ['items' => ['other' => 'value']],
-            ['items' => ['first.item' => $preserved]],
+            ValidationData::encodeKeys(['items' => ['first.item' => $preserved]]),
         );
 
         $this->assertSame($preserved, $payload['items']['first.item']);
@@ -77,14 +78,14 @@ class CompiledValidationTest extends TestCase
                     '*' => ['id' => 4],
                 ],
             ],
-            [
+            ValidationData::encodeKeys([
                 'items' => [
                     0 => ['id' => 1],
                     1 => ['id' => 2, 'secret' => 'two'],
                     'literal.item' => ['id' => 3, 'secret' => null],
                     '*' => ['id' => 4, 'secret' => 'star'],
                 ],
-            ],
+            ]),
         );
 
         $this->assertArrayNotHasKey('secret', $payload['items'][0]);
@@ -113,12 +114,12 @@ class CompiledValidationTest extends TestCase
                     'other' => ['id' => 2],
                 ],
             ],
-            [
+            ValidationData::encodeKeys([
                 'items' => [
                     '*' => ['id' => 1, 'secret' => 'star'],
                     'other' => ['id' => 2, 'secret' => 'other'],
                 ],
-            ],
+            ]),
         );
 
         $this->assertSame('star', $payload['items']['*']['secret']);

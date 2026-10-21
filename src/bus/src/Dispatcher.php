@@ -195,8 +195,6 @@ class Dispatcher implements QueueingDispatcher
 
     /**
      * Retrieve the handler for a command.
-     *
-     * @return bool|mixed
      */
     public function getCommandHandler(mixed $command): mixed
     {
@@ -263,7 +261,7 @@ class Dispatcher implements QueueingDispatcher
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
         if (! $this->allowsDispatchingAfterResponses) {
-            $this->dispatchSync($command);
+            $this->dispatchSync($command, $handler);
 
             return;
         }
@@ -285,6 +283,14 @@ class Dispatcher implements QueueingDispatcher
         if (is_object($command)) {
             DispatchLockContext::delegate($command);
         }
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container;
     }
 
     /**

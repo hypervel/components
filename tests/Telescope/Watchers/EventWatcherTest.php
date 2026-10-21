@@ -33,7 +33,7 @@ use Telescope\Dummies\IgnoredEvent;
 ])]
 class EventWatcherTest extends FeatureTestCase
 {
-    public function testEventWatcherRegistersAnyEvents()
+    public function testEventWatcherRegistersAnyEvents(): void
     {
         Event::listen(DummyEvent::class, function ($payload) {
         });
@@ -46,7 +46,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertSame(DummyEvent::class, $entry->content['name']);
     }
 
-    public function testEventWatcherStoresPayloads()
+    public function testEventWatcherStoresPayloads(): void
     {
         Event::listen(DummyEvent::class, function ($payload) {
         });
@@ -63,7 +63,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertContains('PHP', $entry->content['payload']['data']);
     }
 
-    public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
+    public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists(): void
     {
         Event::listen(DummyEventWithObject::class, function ($payload) {
         });
@@ -81,7 +81,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertContains('PHP', $entry->content['payload']['thing']['properties']);
     }
 
-    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberMethods()
+    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberMethods(): void
     {
         Event::listen(DummyEvent::class, DummyEventSubscriber::class . '@handleDummyEvent');
 
@@ -97,7 +97,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertContains('PHP', $entry->content['payload']['data']);
     }
 
-    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberClasses()
+    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberClasses(): void
     {
         Event::listen(DummyEvent::class, [DummyEventSubscriber::class, 'handleDummyEvent']);
 
@@ -113,7 +113,7 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertContains('PHP', $entry->content['payload']['data']);
     }
 
-    public function testEventWatcherIgnoreEvent()
+    public function testEventWatcherIgnoreEvent(): void
     {
         event(new IgnoredEvent);
 

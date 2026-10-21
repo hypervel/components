@@ -6,7 +6,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\Operations\SafeScan;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -42,7 +41,7 @@ class Prune
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount): array {
             $pattern = $this->context->tagScanPattern();
-            $optPrefix = $this->context->optPrefix();
+            $optPrefix = $this->context->optPrefix($connection);
             $prefix = $this->context->prefix();
             $now = time();
 
@@ -97,7 +96,7 @@ class Prune
         $removed = 0;
         $isCluster = $connection->isCluster();
 
-        $iterator = PhpRedis::initialScanCursor();
+        $iterator = null;
 
         do {
             // Tag members omit OPT_PREFIX, so scan every member without prefixing the pattern.

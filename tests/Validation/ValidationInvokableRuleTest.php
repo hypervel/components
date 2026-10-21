@@ -16,7 +16,7 @@ use Hypervel\Validation\Validator;
 
 class ValidationInvokableRuleTest extends TestCase
 {
-    public function testItCanPass()
+    public function testItCanPass(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -31,7 +31,7 @@ class ValidationInvokableRuleTest extends TestCase
         $this->assertSame([], $validator->messages()->messages());
     }
 
-    public function testItCanFail()
+    public function testItCanFail(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -51,7 +51,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanReturnMultipleErrorMessages()
+    public function testItCanReturnMultipleErrorMessages(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -73,7 +73,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanTranslateMessages()
+    public function testItCanTranslateMessages(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.translated-error' => 'Translated error message.'], 'en');
@@ -94,7 +94,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItPerformsReplacementsWhenTranslating()
+    public function testItPerformsReplacementsWhenTranslating(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.translated-error' => 'attribute: :attribute input: :input position: :position index: :index baz: :baz'], 'en');
@@ -119,7 +119,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItLooksForLanguageFileCustomisations()
+    public function testItLooksForLanguageFileCustomisations(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.translated-error' => 'attribute: :attribute'], 'en');
@@ -143,7 +143,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanSpecifyLocaleWhenTranslating()
+    public function testItCanSpecifyLocaleWhenTranslating(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.translated-error' => 'English'], 'en');
@@ -167,7 +167,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanAccessDataDuringValidation()
+    public function testItCanAccessDataDuringValidation(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule, DataAwareRule {
@@ -197,7 +197,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $rule->data);
     }
 
-    public function testItCanAccessValidatorDuringValidation()
+    public function testItCanAccessValidatorDuringValidation(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -225,7 +225,7 @@ class ValidationInvokableRuleTest extends TestCase
         $this->assertSame($validator, $rule->validator);
     }
 
-    public function testItCanBeExplicit()
+    public function testItCanBeExplicit(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -243,7 +243,7 @@ class ValidationInvokableRuleTest extends TestCase
         $this->assertSame([], $validator->messages()->messages());
     }
 
-    public function testItCanBeImplicit()
+    public function testItCanBeImplicit(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -265,7 +265,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItIsExplicitByDefault()
+    public function testItIsExplicitByDefault(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -281,7 +281,7 @@ class ValidationInvokableRuleTest extends TestCase
         $this->assertSame([], $validator->messages()->messages());
     }
 
-    public function testItCanSpecifyTheValidationErrorKeyForTheErrorMessage()
+    public function testItCanSpecifyTheValidationErrorKeyForTheErrorMessage(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -305,7 +305,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanTranslateWithChoices()
+    public function testItCanTranslateWithChoices(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.translated-error' => 'There is one error.|There are many errors.'], 'en');
@@ -326,7 +326,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testExplicitRuleCanUseInlineValidationMessages()
+    public function testExplicitRuleCanUseInlineValidationMessages(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -357,7 +357,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testImplicitRuleCanUseInlineValidationMessages()
+    public function testImplicitRuleCanUseInlineValidationMessages(): void
     {
         $trans = $this->getArrayTranslator();
         $rule = new class implements ValidationRule {
@@ -388,7 +388,7 @@ class ValidationInvokableRuleTest extends TestCase
         ], $validator->messages()->messages());
     }
 
-    public function testItCanReturnInvokableRule()
+    public function testItCanReturnInvokableRule(): void
     {
         $rule = new class implements ValidationRule {
             public function validate($attribute, $value, $fail): void

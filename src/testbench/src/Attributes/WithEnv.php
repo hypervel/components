@@ -10,7 +10,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
 use Hypervel\Testbench\Foundation\Env;
-use Hypervel\Testbench\Foundation\UndefinedValue;
 
 use function Hypervel\Testbench\parse_environment_variables;
 
@@ -20,6 +19,9 @@ use function Hypervel\Testbench\parse_environment_variables;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class WithEnv implements Invokable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $key,
         public readonly ?string $value
@@ -28,19 +30,23 @@ final class WithEnv implements Invokable
 
     /**
      * Handle the attribute.
+     *
+     * @return Closure():void
      */
     public function __invoke(ApplicationContract $app): Closure
     {
         $key = $this->key;
-        $value = Env::get($key, new UndefinedValue);
+        $repository = Env::getRepository();
+        $value = $repository->get($key);
 
         self::setEnvironmentVariable($app, $key, $this->value);
 
-        return static function () use ($app, $key, $value): void {
-            if ($value instanceof UndefinedValue) {
-                Env::forget($key);
+        // Keep the writer that owns this value even if a scoped environment helper replaces the repository.
+        return static function () use ($repository, $key, $value): void {
+            if ($value === null) {
+                $repository->clear($key);
             } else {
-                self::setEnvironmentVariable($app, $key, $value);
+                $repository->set($key, $value);
             }
         };
     }

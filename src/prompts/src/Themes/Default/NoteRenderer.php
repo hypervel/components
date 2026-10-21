@@ -8,6 +8,10 @@ use Hypervel\Prompts\Note;
 
 class NoteRenderer extends Renderer
 {
+    use Concerns\InteractsWithStrings;
+
+    protected int $minWidth = 0;
+
     /**
      * Render the note.
      */
@@ -19,10 +23,10 @@ class NoteRenderer extends Renderer
             case 'intro':
             case 'outro':
                 $lines = array_map(fn ($line) => " {$line} ", $lines);
-                $longest = max(array_map(fn ($line) => mb_strlen($line), $lines));
+                $longest = $this->longest($lines);
 
                 foreach ($lines as $line) {
-                    $line = mb_str_pad($line, $longest, ' ');
+                    $line = $this->pad($line, $longest);
                     $this->line(" {$this->bgCyan($this->black($line))}");
                 }
 

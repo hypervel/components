@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
@@ -12,6 +13,9 @@ use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Override;
 
+/**
+ * @property MySqlConnection $connection
+ */
 class MySqlGrammar extends Grammar
 {
     /**
@@ -42,13 +46,25 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Compile a "where binary" clause.
+     */
+    protected function whereBinary(Builder $query, array $where): string
+    {
+        $operator = $where['not'] ? '!=' : '=';
+
+        return $this->wrap($where['column']) . ' ' . $operator . ' cast(' . $this->parameter($where['value']) . ' as binary)';
+    }
+
+    /**
      * Compile a "where like" clause.
      */
     protected function whereLike(Builder $query, array $where): string
     {
-        $where['operator'] = $where['not'] ? 'not ' : '';
+        $where['operator'] = $where['not'] ? 'not like' : 'like';
 
-        $where['operator'] .= $where['caseSensitive'] ? 'like binary' : 'like';
+        if ($where['caseSensitive']) {
+            return $this->wrap($where['column']) . ' ' . $where['operator'] . ' cast(' . $this->parameter($where['value']) . ' as binary)';
+        }
 
         return $this->whereBasic($query, $where);
     }
@@ -288,6 +304,24 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Compile an offset, supplying MySQL's unbounded limit when needed.
+     */
+    protected function compileOffset(Builder $query, int $offset): string
+    {
+        return ($query->limit === null ? 'limit 18446744073709551615 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
+     * Compile a union offset independently of the first select's limit.
+     */
+    protected function compileUnionOffset(Builder $query, int $offset): string
+    {
+        return ($query->unionLimit === null ? 'limit 18446744073709551615 ' : '')
+            . parent::compileOffset($query, $offset);
+    }
+
+    /**
      * Compile the lock into SQL.
      */
     protected function compileLock(Builder $query, bool|string $value): string
@@ -316,13 +350,42 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
+        if (isset($query->joins)) {
+            // Joined updates cannot rely on earlier assignments to the same column.
+            return (new Collection($this->groupJsonColumnsForUpdate($values)))
+                ->map(function (array $group, string $column): string {
+                    return $this->isJsonSelector(array_key_first($group))
+                        ? $this->compileJsonUpdateColumn($column, $group)
+                        : $this->wrap($column) . ' = ' . $this->parameter(reset($group));
+                })->implode(', ');
+        }
+
         return (new Collection($values))->map(function ($value, $key) {
             if ($this->isJsonSelector($key)) {
-                return $this->compileJsonUpdateColumn($key, $value);
+                return $this->compileJsonUpdateColumn(explode('->', $key, 2)[0], [$key => $value]);
             }
 
             return $this->wrap($key) . ' = ' . $this->parameter($value);
         })->implode(', ');
+    }
+
+    /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Joined updates can assign columns belonging to different tables.
+            $column = explode('->', $key, 2)[0];
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
     }
 
     /**
@@ -372,19 +435,25 @@ class MySqlGrammar extends Grammar
     /**
      * Prepare a JSON column being updated using the JSON_SET function.
      */
-    protected function compileJsonUpdateColumn(string $key, mixed $value): string
+    protected function compileJsonUpdateColumn(string $key, array $values): string
     {
-        if (is_bool($value)) {
-            $value = $value ? 'true' : 'false';
-        } elseif (is_array($value)) {
-            $value = 'cast(? as json)';
-        } else {
-            $value = $this->parameter($value);
+        $field = $this->wrap($key);
+        $paths = [];
+
+        foreach ($values as $path => $value) {
+            if (is_bool($value)) {
+                $value = $value ? 'true' : 'false';
+            } elseif (is_array($value)) {
+                $value = $this->compileJsonValueCast('?');
+            } else {
+                $value = $this->parameter($value);
+            }
+
+            $path = $this->wrapJsonPath(explode('->', $path, 2)[1]);
+            $paths[] = ', ' . $path . ', ' . $value;
         }
 
-        [$field, $path] = $this->wrapJsonFieldAndPath($key);
-
-        return "{$field} = json_set({$field}{$path}, {$value})";
+        return "{$field} = json_set({$field}" . implode('', $paths) . ')';
     }
 
     /**
@@ -392,7 +461,7 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
-        $sql = parent::compileUpdateWithoutJoins($query, $table, $columns, $where);
+        $sql = parent::compileUpdateWithoutJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
 
         if (! empty($query->orders)) {
             $sql .= ' ' . $this->compileOrders($query, $query->orders);
@@ -403,6 +472,22 @@ class MySqlGrammar extends Grammar
         }
 
         return $sql;
+    }
+
+    /**
+     * Compile an update statement with joins into SQL.
+     */
+    protected function compileUpdateWithJoins(Builder $query, string $table, string $columns, string $where): string
+    {
+        return parent::compileUpdateWithJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
+    }
+
+    /**
+     * Compile the table an update statement changes, with the query's index hint.
+     */
+    protected function compileUpdatedTable(Builder $query, string $table): string
+    {
+        return $query->indexHint === null ? $table : $table . ' ' . $this->compileIndexHint($query, $query->indexHint);
     }
 
     /**
@@ -419,6 +504,22 @@ class MySqlGrammar extends Grammar
             ->all();
 
         return parent::prepareBindingsForUpdate($bindings, $values);
+    }
+
+    /**
+     * Prepare the bindings for an update statement with joins.
+     */
+    public function prepareBindingsForUpdateWithJoins(array $bindings, array $values): array
+    {
+        $ordered = [];
+
+        foreach ($this->groupJsonColumnsForUpdate($values) as $group) {
+            foreach ($group as $key => $value) {
+                $ordered[$key] = $value;
+            }
+        }
+
+        return $this->prepareBindingsForUpdate($bindings, $ordered);
     }
 
     /**
@@ -469,6 +570,22 @@ class MySqlGrammar extends Grammar
     public function compileThreadCount(): string
     {
         return 'select variable_value as `Value` from performance_schema.session_status where variable_name = \'threads_connected\'';
+    }
+
+    /**
+     * Quote the given string literal.
+     *
+     * @param array<string>|string $value
+     */
+    #[Override]
+    public function quoteString(string|array $value): string
+    {
+        // The parent quotes array members through this method.
+        if (is_string($value) && $this->connection->usesBackslashEscapes()) {
+            $value = str_replace('\\', '\\\\', $value);
+        }
+
+        return parent::quoteString($value);
     }
 
     /**

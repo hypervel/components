@@ -62,7 +62,7 @@ class EventClearCommandTest extends TestCase
         $this->app->instance(Filesystem::class, $files);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to delete the event cache file [{$path}].");
+        $this->expectExceptionMessageIs("Unable to delete the event cache file [{$path}].");
 
         $this->artisan('event:clear');
     }

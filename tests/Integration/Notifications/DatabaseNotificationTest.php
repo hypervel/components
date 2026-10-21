@@ -17,6 +17,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Notifications\Fixtures\NotificationStub;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -170,13 +171,5 @@ class UuidUserStub extends \Hypervel\Foundation\Auth\User
     public function casts(): array
     {
         return array_merge(parent::casts(), ['id' => AsStringable::class]);
-    }
-}
-
-class NotificationStub extends \Hypervel\Notifications\Notification
-{
-    public function via(mixed $notifiable): array
-    {
-        return ['mail'];
     }
 }

@@ -25,30 +25,32 @@ class DatabaseMigrationInstallCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testFireCallsRepositoryToInstall()
+    public function testFireCallsRepositoryToInstall(): void
     {
         $app = new ApplicationDatabaseInstallStub;
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repository);
         $command->setHypervel($app);
-        $repo->shouldReceive('setSource')->once()->with('foo');
-        $repo->shouldReceive('createRepository')->once();
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(false);
+        $repository->expects('setSource')->with('foo');
+        $repository->expects('createRepository');
+        $repository->expects('repositoryExists')->andReturn(false);
 
         $this->runCommand($command, ['--database' => 'foo']);
     }
 
-    public function testFireCallsRepositoryToInstallExists()
+    public function testFireCallsRepositoryToInstallExists(): void
     {
         $app = new ApplicationDatabaseInstallStub;
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repository);
         $command->setHypervel($app);
-        $repo->shouldReceive('setSource')->once()->with('foo');
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $repository->expects('setSource')->with('foo');
+        $repository->expects('repositoryExists')->andReturn(true);
 
         $this->runCommand($command, ['--database' => 'foo']);
     }
 
-    public function testSetSourceReceivesSwappedNameWhenMigrationsConnectionConfigured()
+    public function testSetSourceReceivesSwappedNameWhenMigrationsConnectionConfigured(): void
     {
         $app = new ApplicationDatabaseInstallStub;
         $app->instance('config', new Repository([
@@ -60,16 +62,17 @@ class DatabaseMigrationInstallCommandTest extends TestCase
             ],
         ]));
 
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repository);
         $command->setHypervel($app);
-        $repo->shouldReceive('setSource')->once()->with('pgsql');
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(false);
-        $repo->shouldReceive('createRepository')->once();
+        $repository->expects('setSource')->with('pgsql');
+        $repository->expects('repositoryExists')->andReturn(false);
+        $repository->expects('createRepository');
 
         $this->runCommand($command, ['--database' => 'pgsql-pooled']);
     }
 
-    public function testSetSourceRoutesThroughDefaultWhenNoDatabaseOptionGiven()
+    public function testSetSourceRoutesThroughDefaultWhenNoDatabaseOptionGiven(): void
     {
         // Regression for the null-handling fix: when no --database is passed
         // and the configured default is a pooled connection with a
@@ -86,15 +89,16 @@ class DatabaseMigrationInstallCommandTest extends TestCase
             ],
         ]));
 
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repository);
         $command->setHypervel($app);
-        $repo->shouldReceive('setSource')->once()->with('pgsql');
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $repository->expects('setSource')->with('pgsql');
+        $repository->expects('repositoryExists')->andReturn(true);
 
         $this->runCommand($command);
     }
 
-    public function testSetSourceHonorsContextOverrideWhenNoDatabaseOptionGiven()
+    public function testSetSourceHonorsContextOverrideWhenNoDatabaseOptionGiven(): void
     {
         // End-to-end regression for the "effective default" fix at the
         // command level. Scenario: a caller wraps the command in
@@ -119,15 +123,19 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'tenant-pooled');
 
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repository);
         $command->setHypervel($app);
-        $repo->shouldReceive('setSource')->once()->with('tenant-direct');
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $repository->expects('setSource')->with('tenant-direct');
+        $repository->expects('repositoryExists')->andReturn(true);
 
         $this->runCommand($command);
     }
 
-    protected function runCommand($command, $options = [])
+    /**
+     * Run the command with the given options.
+     */
+    protected function runCommand(InstallCommand $command, array $options = []): int
     {
         return $command->run(new ArrayInput($options), new NullOutput);
     }

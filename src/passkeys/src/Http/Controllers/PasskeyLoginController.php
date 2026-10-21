@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Passkeys\Http\Controllers;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Actions\GenerateVerificationOptions;
@@ -19,11 +18,6 @@ use Hypervel\Routing\Controller;
 
 class PasskeyLoginController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
-
     /**
      * Get passkey login options.
      */
@@ -33,7 +27,7 @@ class PasskeyLoginController extends Controller
 
         $serialized = WebAuthn::toJson($options);
 
-        $request->session()->put('passkey.login_options', $serialized);
+        $request->session()->put('passkey.verification_options_' . Passkeys::guardName(), $serialized);
 
         return response()->json([
             'options' => WebAuthn::toBrowserArray($options),
@@ -49,7 +43,7 @@ class PasskeyLoginController extends Controller
     ): PasskeyLoginResponse {
         $passkey = $verify(
             $request->credential(),
-            $request->verificationOptions('passkey.login_options')
+            $request->verificationOptions()
         );
 
         $user = $passkey->user;
@@ -62,6 +56,6 @@ class PasskeyLoginController extends Controller
 
         $request->session()->regenerate();
 
-        return $this->container->make(PasskeyLoginResponse::class);
+        return app(PasskeyLoginResponse::class);
     }
 }

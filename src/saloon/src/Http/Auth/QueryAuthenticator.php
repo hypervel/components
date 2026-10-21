@@ -8,15 +8,15 @@ use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
 use SensitiveParameter;
 
-readonly class QueryAuthenticator implements Authenticator
+class QueryAuthenticator implements Authenticator
 {
     /**
      * Create a query authenticator.
      */
     public function __construct(
-        public string $parameter,
+        public readonly string $parameter,
         #[SensitiveParameter]
-        public string $value,
+        public readonly string $value,
     ) {
     }
 

@@ -12,10 +12,12 @@
 - [Managing User Sessions](#managing-user-sessions)
 - [Session Cache](#session-cache)
 - [Session Blocking](#session-blocking)
+- [Read-Only Sessions](#read-only-sessions)
 - [Configuring the Session Cookie](#configuring-the-session-cookie)
 - [Adding Custom Session Drivers](#adding-custom-session-drivers)
     - [Implementing the Driver](#implementing-the-driver)
     - [Registering the Driver](#registering-the-driver)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -133,7 +135,7 @@ $value = $request->session()->get('key', function () {
 <a name="the-global-session-helper"></a>
 #### The Global Session Helper
 
-You may also use the global `session` PHP function to retrieve and store data in the session. When the `session` helper is called with a single, string argument, it will return the value of that session key. When the helper is called with an array of key / value pairs, those values will be stored in the session:
+You may also use the global `session` PHP function to retrieve and store data in the session. When the `session` helper is called with a single string or enum argument, it will return the value of that session key. When the helper is called with an array of key / value pairs, those values will be stored in the session:
 
 ```php
 Route::get('/home', function () {
@@ -150,6 +152,24 @@ Route::get('/home', function () {
 
 > [!NOTE]
 > There is little practical difference between using the session via an HTTP request instance versus using the global `session` helper. Both methods are [testable](/docs/{{version}}/testing) via the `assertSessionHas` method which is available in all of your test cases.
+
+<a name="enum-session-keys"></a>
+#### Enum Session Keys
+
+You may use enums as session keys. Backed enums use their value as the key, while unbacked enums use their case name:
+
+```php
+enum SessionKey: string
+{
+    case Cart = 'cart';
+}
+
+session()->put(SessionKey::Cart, $items);
+
+$items = session(SessionKey::Cart);
+
+session()->forget(SessionKey::Cart);
+```
 
 <a name="retrieving-all-session-data"></a>
 #### Retrieving All Session Data
@@ -440,6 +460,25 @@ Route::post('/profile', function () {
 })->block();
 ```
 
+<a name="read-only-sessions"></a>
+## Read-Only Sessions
+
+Some routes only need to read the session, such as endpoints your frontend polls in the background while the user works in your application. Since the entire session is saved at the end of each request, a request like this can overwrite data that a concurrent request saved in the meantime, and it ages the session's flash data. To prevent this, you may chain the `readOnlySession` method onto the route definition:
+
+```php
+Route::get('/notifications/unread', function () {
+    // ...
+})->readOnlySession();
+```
+
+The session is started as usual, so the route can read session data and authenticate the user. However, the session is not saved when the request finishes, and neither the session cookie nor the `XSRF-TOKEN` cookie is added to the response. Changes made to the session are available until the request ends, and regenerating or invalidating the session ID does not delete the stored session. The request is also not recorded as the session's previous URL.
+
+You may also make the current request's session read-only from your route or controller using the `markAsReadOnly` method:
+
+```php
+$request->session()->markAsReadOnly();
+```
+
 <a name="configuring-the-session-cookie"></a>
 ## Configuring the Session Cookie
 
@@ -478,6 +517,14 @@ If multiple callbacks are registered, they will be executed in the order they we
 
 > [!NOTE]
 > Session cookie callbacks persist for the lifetime of the Swoole worker. You should register them during application boot, not dynamically during a request.
+
+If your application creates another cookie that should follow these settings, use `StartSession::resolveCookieConfig` to apply the same callbacks:
+
+```php
+$cookie = StartSession::resolveCookieConfig($request, config()->array('session'));
+```
+
+The returned array contains `path`, `domain`, `secure`, `http_only`, `same_site`, and `partitioned`. Use these values when creating or expiring the cookie so both operations use the same path and domain.
 
 <a name="adding-custom-session-drivers"></a>
 ## Adding Custom Session Drivers
@@ -537,7 +584,7 @@ Since the purpose of these methods is not readily understandable, here is an ove
 - The `read` method should return the string version of the session data associated with the given `$sessionId`. There is no need to do any serialization or other encoding when retrieving or storing session data in your driver, as Hypervel will perform the serialization for you.
 - The `write` method should write the given `$data` string associated with the `$sessionId` to a persistent storage system of your choice and return `true` when the write succeeds or `false` when it fails. A failed write will cause the request to fail rather than accepting the loss of session data. Again, you should not perform any serialization - Hypervel will have already handled that for you.
 - The `destroy` method should remove the data associated with the `$sessionId` from persistent storage.
-- The `gc` method should destroy all session data older than the given `$lifetime` in seconds. For self-expiring systems like Redis, this method may return `0`.
+- The `gc` method should destroy all session data that is older than the given `$lifetime`, which is a number of seconds. For self-expiring systems like Redis, this method may return `0`.
 
 </div>
 
@@ -580,3 +627,8 @@ class SessionServiceProvider extends ServiceProvider
 ```
 
 Once the session driver has been registered, you may specify the `custom` driver as your application's session driver using the `SESSION_DRIVER` environment variable or within the application's `config/session.php` configuration file.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Session began as a port of [Laravel Session](https://github.com/illuminate/session) and has been adapted for Hypervel's framework architecture and coroutine runtime.

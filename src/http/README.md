@@ -7,11 +7,21 @@ Documentation: https://hypervel.org/docs/requests
 
 ## Differences From Laravel
 
+`Request::all([])` returns an empty array. Use `all()` to retrieve every input field.
+
+Laravel's `withNtlmAuth()` is omitted. Integrations requiring NTLM must supply their own authentication middleware.
+
 Laravel's deprecated `Request::get()` method is intentionally not ported because it mixes route attributes, query parameters, and request body input behind one ambiguous API. Use `input()`, `query()`, or `route()` to select the intended source explicitly.
 
 Hypervel creates requests from Swoole's server request instead of `Request::capture()`. Responses are also emitted by Hypervel's server bridge rather than by calling `Response::sendContent()` directly.
 
-Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. They are built around Guzzle promise concurrency, while Hypervel uses Swoole coroutine-native concurrency through `parallel`, `Hypervel\Coroutine\Parallel`, and `defer`. See the Concurrent Requests section in the Boost HTTP client docs.
+JSON:API resources load requested relationships before attribute callbacks run; default attributes exclude reserved fields and declared relationship names. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#jsonapi-resources).
+
+Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. They are built around Guzzle promise concurrency, while Hypervel uses Swoole coroutine-native concurrency through `parallel`, `Hypervel\Coroutine\Parallel`, and `defer`. See the [concurrent requests documentation](https://hypervel.org/docs/http-client#concurrent-requests).
+
+Pending Guzzle promises and active cURL multi-handlers belong to the coroutine that created their work. Create and finish each operation in that coroutine, then share completed results. See [Guzzle promises](https://hypervel.org/docs/http-client#guzzle-promises).
+
+The HTTP client requires `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/guzzle`. Laravel supports Guzzle 7 and 8; Hypervel does not support Guzzle 7 or SDKs limited to it. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#http-client-and-concurrency).
 
 `TrustHosts` fails closed when no trusted host patterns resolve. If the middleware is enabled and no resolver, `at()` list, or valid `app.url` host provides a trusted pattern, Hypervel rejects all hosts using a never-matching sentinel. Laravel and Symfony leave the trusted host list empty in this case, which accepts every host. Configure a valid `app.url`, `TrustHosts::at()`, or `TrustHosts::resolveHostsUsing()` when enabling the middleware.
 

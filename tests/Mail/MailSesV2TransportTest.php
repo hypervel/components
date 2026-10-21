@@ -6,21 +6,29 @@ namespace Hypervel\Tests\Mail;
 
 use Aws\Command;
 use Aws\Exception\AwsException;
+use Aws\Result;
 use Aws\SesV2\SesV2Client;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
+use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 
 class MailSesV2TransportTest extends TestCase
 {
     // REMOVED: Laravel's SES v1 transport tests. Hypervel supports SES v2 only.
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,7 +45,7 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($this->app);
 
-        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
+        /** @var SesV2Transport $transport */
         $transport = $manager->createSymfonyTransport(['transport' => 'ses-v2']);
 
         $ses = $transport->ses();
@@ -56,16 +64,16 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
         $message->bcc('you@example.com');
         $message->replyTo(new Address('taylor@example.com', 'Taylor Otwell'));
+        $message->getHeaders()->addIdHeader('Message-ID', 'mime-message-id@example.com');
         $message->getHeaders()->add(new MetadataHeader('FooTag', 'TagValue'));
         $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['Source'] === 'myself@example.com'
                     && $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com']
@@ -75,7 +83,30 @@ class MailSesV2TransportTest extends TestCase
             }))
             ->andReturn($sesResult);
 
-        (new SesV2Transport($client))->send($message);
+        $sentMessage = (new SesV2Transport($client))->send($message);
+
+        $this->assertSame('mime-message-id@example.com', $sentMessage->getMessageId());
+        $headers = $sentMessage->getOriginalMessage()->getHeaders();
+        $this->assertSame('ses-message-id', $headers->get('X-Message-ID')->getBodyAsString());
+        $this->assertSame('ses-message-id', $headers->get('X-SES-Message-ID')->getBodyAsString());
+    }
+
+    public function testSendRawMessageWithExplicitEnvelope(): void
+    {
+        $message = new RawMessage("From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Raw mail\r\n\r\nBody");
+        $envelope = new Envelope(new Address('sender@example.com'), [new Address('recipient@example.com')]);
+
+        $client = m::mock(SesV2Client::class);
+        $client->expects('sendEmail')->with([
+            'Source' => 'sender@example.com',
+            'Destination' => ['ToAddresses' => ['recipient@example.com']],
+            'Content' => ['Raw' => ['Data' => $message->toString()]],
+        ])->andReturn(new Result(['MessageId' => 'ses-message-id']));
+
+        $sentMessage = (new SesV2Transport($client))->send($message, $envelope);
+
+        $this->assertInstanceOf(SentMessage::class, $sentMessage);
+        $this->assertSame('ses-message-id', $sentMessage->getMessageId());
     }
 
     public function testSendWithTenantName(): void
@@ -89,11 +120,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === 'my-tenant';
             }))
@@ -113,11 +143,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === '0';
             }))
@@ -136,11 +165,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);
             }))
@@ -160,11 +188,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);
             }))
@@ -182,7 +209,7 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
 
         $client = m::mock(SesV2Client::class);
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->andThrow(new AwsException('Email address is not verified.', new Command('sendRawEmail')));
 
         $this->expectException(TransportException::class);
@@ -214,10 +241,10 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($this->app);
 
-        /** @var \Hypervel\Mail\Mailer $mailer */
+        /** @var Mailer $mailer */
         $mailer = $manager->removePoolableDriver('ses-v2')->mailer('ses');
 
-        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
+        /** @var SesV2Transport $transport */
         $transport = $mailer->getSymfonyTransport();
 
         $this->assertSame('eu-west-1', $transport->ses()->getRegion());

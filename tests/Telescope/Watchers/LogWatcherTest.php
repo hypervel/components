@@ -21,7 +21,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => true,
     ])]
-    public function testLogWatcherRegistersEntryForAnyLevelByDefault(string $level)
+    public function testLogWatcherRegistersEntryForAnyLevelByDefault(string $level): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -46,7 +46,7 @@ class LogWatcherTest extends FeatureTestCase
             'level' => 'error',
         ],
     ])]
-    public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority(string $level)
+    public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority(string $level): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -74,7 +74,7 @@ class LogWatcherTest extends FeatureTestCase
             'level' => 'debug',
         ],
     ])]
-    public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority(string $level)
+    public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority(string $level): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -96,7 +96,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => false,
     ])]
-    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheBooleanFormat(string $level)
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheBooleanFormat(string $level): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -117,7 +117,7 @@ class LogWatcherTest extends FeatureTestCase
             'level' => 'error',
         ],
     ])]
-    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheArrayFormat(string $level)
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheArrayFormat(string $level): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -148,7 +148,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => true,
     ])]
-    public function testLogWatcherRegistersEntryWithExceptionKey()
+    public function testLogWatcherRegistersEntryWithExceptionKey(): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -171,7 +171,7 @@ class LogWatcherTest extends FeatureTestCase
             'level' => 'info',
         ],
     ])]
-    public function testLogWatcherInterpolatesMessage(string $message, array $context, string $expectedMessage)
+    public function testLogWatcherInterpolatesMessage(string $message, array $context, string $expectedMessage): void
     {
         $logger = $this->app->make(LoggerInterface::class);
 
@@ -235,7 +235,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => true,
     ])]
-    public function testLogWatcherStoresExtraWhenContextFacadeUsed()
+    public function testLogWatcherStoresExtraWhenContextFacadeUsed(): void
     {
         ContextRepository::getInstance()->add('trace_id', 'abc-123');
 
@@ -251,7 +251,7 @@ class LogWatcherTest extends FeatureTestCase
     #[WithConfig('telescope.watchers', [
         LogWatcher::class => true,
     ])]
-    public function testLogWatcherOmitsExtraWhenContextFacadeNotUsed()
+    public function testLogWatcherOmitsExtraWhenContextFacadeNotUsed(): void
     {
         $logger = $this->app->make(LoggerInterface::class);
         $logger->error('test message');

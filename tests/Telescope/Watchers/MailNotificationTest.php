@@ -14,14 +14,14 @@ use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-#[WithConfig('mail.driver', 'array')]
+#[WithConfig('mail.default', 'array')]
 #[WithConfig('telescope.watchers', [
     MailWatcher::class => true,
     NotificationWatcher::class => true,
 ])]
 class MailNotificationTest extends FeatureTestCase
 {
-    public function testMailWatcherRegistersValidHtml()
+    public function testMailWatcherRegistersValidHtml(): void
     {
         Notification::route('mail', 'to@hypervel.org')
             ->notify(new TestMailNotification);
@@ -37,12 +37,18 @@ class TestMailNotification extends BaseNotification
 {
     use Queueable;
 
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(mixed $notifiable): array
     {
         return ['mail'];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
             ->subject('Check out this awesome HTML and raw email!')

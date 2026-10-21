@@ -13,6 +13,7 @@
     - [Customizing Monolog for Channels](#customizing-monolog-for-channels)
     - [Creating Monolog Handler Channels](#creating-monolog-handler-channels)
     - [Creating Custom Channels via Factories](#creating-custom-channels-via-factories)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -41,6 +42,7 @@ Each log channel is powered by a "driver". The driver determines how and where t
 | ------------ | -------------------------------------------------------------------- |
 | `custom`     | A driver that calls a specified factory to create a channel.         |
 | `daily`      | A `RotatingFileHandler` based Monolog driver which rotates daily.    |
+| `monthly`    | A `RotatingFileHandler` based Monolog driver which rotates monthly.  |
 | `errorlog`   | An `ErrorLogHandler` based Monolog driver.                           |
 | `monolog`    | A Monolog factory driver that may use any supported Monolog handler. |
 | `single`     | A single file or path based logger channel (`StreamHandler`).        |
@@ -69,10 +71,10 @@ By default, Monolog is instantiated with a "channel name" that matches the curre
 <a name="channel-prerequisites"></a>
 ### Channel Prerequisites
 
-<a name="configuring-the-single-and-daily-channels"></a>
-#### Configuring the Single and Daily Channels
+<a name="configuring-the-single-daily-and-monthly-channels"></a>
+#### Configuring the Single, Daily, and Monthly Channels
 
-The `single` and `daily` channels have three optional configuration options: `bubble`, `permission`, and `locking`.
+The `single`, `daily`, and `monthly` channels have three optional configuration options: `bubble`, `permission`, and `locking`.
 
 <div class="overflow-auto">
 
@@ -86,15 +88,7 @@ The `single` and `daily` channels have three optional configuration options: `bu
 
 When `permission` is `null`, the operating system determines the log file's permissions.
 
-Additionally, the retention policy for the `daily` channel can be configured via the `LOG_DAILY_DAYS` environment variable or by setting the `days` configuration option.
-
-<div class="overflow-auto">
-
-| Name   | Description                                                 | Default |
-| ------ | ----------------------------------------------------------- | ------- |
-| `days` | The number of days that daily log files should be retained. | `14`    |
-
-</div>
+Additionally, the retention policy for the `daily` and `monthly` channels can be configured via the `max_files` configuration option. The `LOG_DAILY_DAYS` environment variable may also be used to configure retention for the `daily` channel. If no retention is configured, daily channels keep seven files and monthly channels keep three.
 
 <a name="configuring-the-papertrail-channel"></a>
 #### Configuring the Papertrail Channel
@@ -354,6 +348,14 @@ use Hypervel\Support\Facades\Log;
 Log::channel('slack')->info('Something happened!');
 ```
 
+The `channel` and `driver` methods also accept enum cases. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\LogChannel;
+
+Log::channel(LogChannel::Slack)->info('Something happened!');
+```
+
 If you would like to create an on-demand logging stack consisting of multiple channels, you may use the `stack` method:
 
 ```php
@@ -409,7 +411,7 @@ To get started, define a `tap` array on the channel's configuration. The `tap` a
 ],
 ```
 
-Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives an `Hypervel\Log\Logger` instance. The `Hypervel\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
+Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives a `Hypervel\Log\Logger` instance. The `Hypervel\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
 
 ```php
 <?php
@@ -545,3 +547,8 @@ class CreateCustomLogger
     }
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Log began as a port of [Laravel Log](https://github.com/illuminate/log) and has been adapted for Hypervel's framework architecture and coroutine runtime.

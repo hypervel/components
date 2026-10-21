@@ -107,7 +107,7 @@ class DiscoverEventsTest extends TestCase
     {
         $events = DiscoverEvents::within([], getcwd());
 
-        $this->assertEquals([], $events);
+        $this->assertSame([], $events);
     }
 
     public function testEventsCanBeDiscoveredUsingCustomClassNameGuessing(): void

@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Closure;
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Routing\Controllers\HasMiddleware;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
@@ -18,6 +23,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\RequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[WithConfig('telescope.watchers', [
@@ -44,6 +50,17 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('/emails', $entry->content['uri']);
         $this->assertSame($result, $entry->content['response']);
         $this->assertSame(5000, $entry->content['duration']);
+    }
+
+    public function testRequestWatcherRecordsClosureMiddleware(): void
+    {
+        Route::get('/closure-middleware', ClosureMiddlewareController::class)->middleware(StartSession::class);
+
+        $this->get('/closure-middleware')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([StartSession::class, 'Closure'], $entry->content['middleware']);
     }
 
     public function testRequestWatcherRecordsResponseAtTheEntryContentChildLimit(): void
@@ -73,7 +90,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(Telescope::PURGED_VALUE, $entry->content['response']);
     }
 
-    public function testRequestWatcherRegisters404()
+    public function testRequestWatcherRegisters404(): void
     {
         $this->get('/whatever');
 
@@ -85,7 +102,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('/whatever', $entry->content['uri']);
     }
 
-    public function testRequestWatcherHidesPassword()
+    public function testRequestWatcherHidesPassword(): void
     {
         Route::post('/auth', fn () => 'success');
 
@@ -104,7 +121,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['payload']['password_confirmation']);
     }
 
-    public function testRequestWatcherHidesAuthorization()
+    public function testRequestWatcherHidesAuthorization(): void
     {
         Route::post('/dashboard', fn () => 'success');
 
@@ -121,7 +138,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['headers']['authorization']);
     }
 
-    public function testRequestWatcherHidesPhpAuthPw()
+    public function testRequestWatcherHidesPhpAuthPw(): void
     {
         Route::post('/dashboard', fn () => 'success');
 
@@ -134,6 +151,48 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(EntryType::REQUEST, $entry->type);
         $this->assertSame('POST', $entry->content['method']);
         $this->assertSame('********', $entry->content['headers']['php-auth-pw']);
+    }
+
+    public function testSignedRequestCredentialsAreHiddenInTheUriAndPayload(): void
+    {
+        Route::get('/signed-download', fn () => 'file')->name('signed-download')->middleware(['web', 'signed']);
+        $url = URL::temporarySignedRoute('signed-download', now()->addMinutes(5));
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+        $this->withHeader('Referer', $url)->get($url)->assertSuccessful()->assertSessionHas('_previous.url', $url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $maskedUrl = str_replace($query['signature'], Telescope::REDACTED_VALUE, $url);
+        $this->assertSame('/signed-download?expires=' . $query['expires'] . '&signature=********', $entry->content['uri']);
+        $this->assertSame(['expires' => $query['expires'], 'signature' => Telescope::REDACTED_VALUE], $entry->content['payload']);
+        $this->assertSame($maskedUrl, $entry->content['headers']['referer']);
+        $this->assertSame($maskedUrl, $entry->content['session']['_previous']['url']);
+    }
+
+    public function testIntendedSignedUrlIsHiddenInTheRecordedSession(): void
+    {
+        Route::get('/login', fn () => 'Login')->name('login')->middleware('web');
+        Route::get('/protected', fn () => 'Private')->name('protected')->middleware(['web', 'auth', 'signed']);
+        $url = URL::signedRoute('protected');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+        $this->get($url)->assertRedirect(route('login'))->assertSessionHas('url.intended', $url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(str_replace($query['signature'], Telescope::REDACTED_VALUE, $url), $entry->content['session']['url']['intended']);
+    }
+
+    public function testRedirectCredentialsAreHiddenInTheRecordedTargetAndHeader(): void
+    {
+        $url = 'https://bucket.s3.amazonaws.com/private.txt?X-Amz-Signature=signature&X-Amz-Security-Token=session&X-Amz-Expires=300';
+        Route::get('/download', fn () => redirect($url));
+
+        $this->get('/download')->assertRedirect($url);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $masked = 'https://bucket.s3.amazonaws.com/private.txt?X-Amz-Signature=********&X-Amz-Security-Token=********&X-Amz-Expires=300';
+        $this->assertSame('Redirected to ' . $masked, $entry->content['response']);
+        $this->assertSame($masked, $entry->content['response_headers']['location']);
     }
 
     public function testRequestWatcherHidesNestedFalseySecrets(): void
@@ -212,7 +271,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertFalse($watcher->contentWithinLimits(str_repeat('é', 513)));
     }
 
-    public function testItStoresAndDisplaysArrayOfRequestAndResponseHeaders()
+    public function testItStoresAndDisplaysArrayOfRequestAndResponseHeaders(): void
     {
         Route::post('/dashboard', function () {
             /* @phpstan-ignore-next-line */
@@ -233,7 +292,7 @@ class RequestWatchersTest extends FeatureTestCase
     }
 
     #[RequiresPhpExtension('gd')]
-    public function testRequestWatcherHandlesFileUploads()
+    public function testRequestWatcherHandlesFileUploads(): void
     {
         $image = UploadedFile::fake()->image('avatar.jpg');
 
@@ -249,7 +308,7 @@ class RequestWatchersTest extends FeatureTestCase
     }
 
     #[RequiresPhpExtension('gd')]
-    public function testRequestWatcherHandlesUnlinkedFileUploads()
+    public function testRequestWatcherHandlesUnlinkedFileUploads(): void
     {
         $image = UploadedFile::fake()->image('unlinked-image.jpg');
 
@@ -266,7 +325,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('0', $uploadedImage['size']);
     }
 
-    public function testRequestWatcherPlainTextResponse()
+    public function testRequestWatcherPlainTextResponse(): void
     {
         Route::get('/fake-plain-text', function () {
             return Response::make(
@@ -285,7 +344,52 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('plain telescope response', $entry->content['response']);
     }
 
-    public function testRequestWatcherRecordsPlainTextPayload()
+    #[DataProvider('scalarResponseProvider')]
+    public function testRequestWatcherRecordsScalarResponseAsSentUnderAJsonMediaType(string $contentType, string $body, string $recorded): void
+    {
+        Route::get('/scalar', fn (): HttpResponse => Response::make($body, 200, ['Content-Type' => $contentType]));
+
+        $this->get('/scalar')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame($recorded, $entry->content['response']);
+    }
+
+    /**
+     * Provide scalar response bodies and their recorded values.
+     */
+    public static function scalarResponseProvider(): array
+    {
+        return [
+            'zero' => ['application/json', '0', '0'],
+            'false' => ['application/json', 'false', 'false'],
+            'null' => ['application/json', 'null', 'null'],
+            'string' => ['application/json', '"ok"', '"ok"'],
+            '+json with charset' => ['application/problem+json; charset=utf-8', '42', '42'],
+            'malformed json' => ['application/json', '{"id":', 'HTML Response'],
+            'html' => ['text/html', '0', 'HTML Response'],
+        ];
+    }
+
+    #[WithConfig('telescope.watchers', [
+        RequestWatcher::class => [
+            'enabled' => true,
+            'size_limit' => 1,
+        ],
+    ])]
+    public function testRequestWatcherPurgesOversizedScalarJsonResponse(): void
+    {
+        Route::get('/scalar', fn (): JsonResponse => response()->json(str_repeat('x', 2000)));
+
+        $this->get('/scalar')->assertSuccessful();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['response']);
+    }
+
+    public function testRequestWatcherRecordsPlainTextPayload(): void
     {
         Route::post('/receive-plain-text', function () {
             return response()->json(['ok' => 'yeah']);
@@ -304,7 +408,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame('plain-text-content', $entry->content['payload']);
     }
 
-    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists()
+    public function testRequestWatcherCallsFormatForTelescopeMethodIfItExists(): void
     {
         View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
 
@@ -357,7 +461,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(Telescope::PURGED_VALUE, $data['deep']);
     }
 
-    public function testRequestWatcherStoresFacadeContextWhenPresent()
+    public function testRequestWatcherStoresFacadeContextWhenPresent(): void
     {
         Route::get('/with-context', fn () => 'ok');
 
@@ -386,7 +490,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
-    public function testRequestWatcherOmitsFacadeContextWhenAbsent()
+    public function testRequestWatcherOmitsFacadeContextWhenAbsent(): void
     {
         Route::get('/no-context', fn () => 'ok');
 
@@ -397,7 +501,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertNull($entry->content['context']);
     }
 
-    public function testRequestWatcherRecordsCoroutineContext()
+    public function testRequestWatcherRecordsCoroutineContext(): void
     {
         Route::get('/coroutine', fn () => 'ok');
 
@@ -418,6 +522,27 @@ class RequestWatchersTest extends FeatureTestCase
         }
 
         return $value;
+    }
+}
+
+class ClosureMiddlewareController implements HasMiddleware
+{
+    /**
+     * Get the middleware that should be assigned to the controller.
+     */
+    public static function middleware(): array
+    {
+        return [
+            static fn (Request $request, Closure $next): mixed => $next($request),
+        ];
+    }
+
+    /**
+     * Handle the request.
+     */
+    public function __invoke(): string
+    {
+        return 'ok';
     }
 }
 

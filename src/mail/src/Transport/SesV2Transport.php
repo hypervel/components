@@ -6,6 +6,7 @@ namespace Hypervel\Mail\Transport;
 
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
+use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
@@ -26,13 +27,16 @@ class SesV2Transport extends AbstractTransport implements Stringable
     }
 
     /**
+     * Send the given message.
+     *
      * @throws TransportException
      */
     protected function doSend(SentMessage $message): void
     {
         $options = $this->options;
+        $originalMessage = $message->getOriginalMessage();
 
-        if ($message->getOriginalMessage() instanceof Message) {
+        if ($originalMessage instanceof Message) {
             if ($listManagementOptions = $this->listManagementOptions($message)) {
                 $options['ListManagementOptions'] = $listManagementOptions;
             }
@@ -41,7 +45,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
                 $options['TenantName'] = $tenantName;
             }
 
-            foreach ($message->getOriginalMessage()->getHeaders()->all() as $header) {
+            foreach ($originalMessage->getHeaders()->all() as $header) {
                 if ($header instanceof MetadataHeader) {
                     $options['EmailTags'][] = ['Name' => $header->getKey(), 'Value' => $header->getValue()];
                 }
@@ -55,7 +59,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
                     [
                         'Source' => $message->getEnvelope()->getSender()->toString(),
                         'Destination' => [
-                            'ToAddresses' => collect($message->getEnvelope()->getRecipients())
+                            'ToAddresses' => (new Collection($message->getEnvelope()->getRecipients()))
                                 ->map
                                 ->toString()
                                 ->values() // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->toString() returns Collection, not string)
@@ -81,10 +85,13 @@ class SesV2Transport extends AbstractTransport implements Stringable
 
         $messageId = $result->get('MessageId');
 
-        /* @phpstan-ignore-next-line */
-        $message->getOriginalMessage()->getHeaders()->addHeader('X-Message-ID', $messageId);
-        /* @phpstan-ignore-next-line */
-        $message->getOriginalMessage()->getHeaders()->addHeader('X-SES-Message-ID', $messageId);
+        if ($originalMessage instanceof Message) {
+            $originalMessage->getHeaders()->addHeader('X-Message-ID', $messageId);
+            $originalMessage->getHeaders()->addHeader('X-SES-Message-ID', $messageId);
+        } else {
+            // Symfony only derives a message ID from structured messages.
+            $message->setMessageId($messageId);
+        }
     }
 
     /**
@@ -92,8 +99,10 @@ class SesV2Transport extends AbstractTransport implements Stringable
      */
     protected function listManagementOptions(SentMessage $message): ?array
     {
-        /* @phpstan-ignore-next-line */
-        if ($header = $message->getOriginalMessage()->getHeaders()->get('X-SES-LIST-MANAGEMENT-OPTIONS')) {
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+
+        if ($header = $originalMessage->getHeaders()->get('X-SES-LIST-MANAGEMENT-OPTIONS')) {
             if (preg_match('/^(contactListName=)*(?<ContactListName>[^;]+)(;\s?topicName=(?<TopicName>.+))?$/ix', $header->getBodyAsString(), $listManagementOptions)) {
                 return array_filter($listManagementOptions, fn ($e) => in_array($e, ['ContactListName', 'TopicName'], true), ARRAY_FILTER_USE_KEY);
             }
@@ -107,8 +116,10 @@ class SesV2Transport extends AbstractTransport implements Stringable
      */
     protected function tenantName(SentMessage $message): ?string
     {
-        // SES transports receive an Email even though Symfony exposes RawMessage here.
-        if ($header = $message->getOriginalMessage()->getHeaders()->get('X-SES-TENANT-NAME')) { // @phpstan-ignore method.notFound
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+
+        if ($header = $originalMessage->getHeaders()->get('X-SES-TENANT-NAME')) {
             $tenantName = $header->getBodyAsString();
 
             return $tenantName === '' ? null : $tenantName;

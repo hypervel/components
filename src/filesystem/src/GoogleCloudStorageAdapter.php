@@ -72,10 +72,14 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
      */
     public function readStream(string $path): mixed
     {
-        return $this->readStreamWithOptions(
-            $path,
-            ($this->config['stream_reads'] ?? true) ? ['restOptions' => ['stream' => true]] : []
-        );
+        try {
+            return $this->readStreamRangeOrFail($path);
+        } catch (UnableToReadFile $exception) {
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
     }
 
     /**
@@ -91,17 +95,31 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
             return $this->readStream($path);
         }
 
-        return $this->readStreamWithOptions(
-            $path,
-            [
-                'restOptions' => [
-                    'headers' => [
-                        'Range' => "bytes={$start}-{$end}",
-                    ],
-                    ...(($this->config['stream_reads'] ?? true) ? ['stream' => true] : []),
-                ],
-            ]
-        );
+        try {
+            return $this->readStreamRangeOrFail($path, $start, $end);
+        } catch (UnableToReadFile $exception) {
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
+    }
+
+    /**
+     * Open a whole-object or ranged stream without applying the disk's failure policy.
+     *
+     * @return resource
+     */
+    public function readStreamRangeOrFail(string $path, ?int $start = null, ?int $end = null): mixed
+    {
+        [$start, $end] = $this->normalizeStreamRange($start, $end);
+        $options = ($this->config['stream_reads'] ?? true) ? ['restOptions' => ['stream' => true]] : [];
+
+        if ($start !== null || $end !== null) {
+            $options['restOptions']['headers']['Range'] = "bytes={$start}-{$end}";
+        }
+
+        return $this->readStreamWithOptions($path, $options);
     }
 
     /**
@@ -112,6 +130,11 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
         return $this->client;
     }
 
+    /**
+     * Read an object without applying the disk's failure policy.
+     *
+     * @return resource
+     */
     private function readStreamWithOptions(string $path, array $options): mixed
     {
         $prefixedPath = $this->prefixer->prefixPath($path);
@@ -121,26 +144,14 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
-
-            throw_if($this->throwsExceptions(), $exception);
-
-            $this->report($exception);
-
-            return null;
+            throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }
 
         if (! is_resource($stream)) {
-            $exception = UnableToReadFile::fromLocation(
+            throw UnableToReadFile::fromLocation(
                 $path,
                 'Downloaded object does not contain a file resource.',
             );
-
-            throw_if($this->throwsExceptions(), $exception);
-
-            $this->report($exception);
-
-            return null;
         }
 
         return $stream;

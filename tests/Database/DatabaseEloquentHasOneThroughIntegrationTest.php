@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
@@ -72,7 +74,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         parent::tearDown();
     }
 
-    public function testItLoadsAHasOneThroughRelationWithCustomKeys()
+    public function testItLoadsAHasOneThroughRelationWithCustomKeys(): void
     {
         $this->seedData();
         $contract = Position::first()->contract;
@@ -80,7 +82,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $contract->title);
     }
 
-    public function testItLoadsADefaultHasOneThroughRelation()
+    public function testItLoadsADefaultHasOneThroughRelation(): void
     {
         $this->migrateDefault();
         $this->seedDefaultData();
@@ -92,7 +94,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->resetDefault();
     }
 
-    public function testItLoadsARelationWithCustomIntermediateAndLocalKey()
+    public function testItLoadsARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $contract = IntermediatePosition::first()->contract;
@@ -100,7 +102,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $contract->title);
     }
 
-    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey()
+    public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $contract = IntermediatePosition::with('contract')->first()->contract;
@@ -108,7 +110,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $contract->title);
     }
 
-    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $position = IntermediatePosition::whereHas('contract', function ($query) {
@@ -118,7 +120,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertCount(1, $position);
     }
 
-    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey()
+    public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey(): void
     {
         $this->seedData();
         $position = IntermediatePosition::withWhereHas('contract', function ($query) {
@@ -127,13 +129,12 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 
         $this->assertCount(1, $position);
         $this->assertTrue($position->first()->relationLoaded('contract'));
-        $this->assertEquals($position->first()->contract->pluck('title')->unique()->toArray(), ['A title']);
+        $this->assertEquals(['A title'], $position->first()->contract->pluck('title')->unique()->toArray());
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].'));
 
         Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
@@ -141,7 +142,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         Position::first()->contract()->firstOrFail();
     }
 
-    public function testFindOrFailThrowsAnException()
+    public function testFindOrFailThrowsAnException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
@@ -151,7 +152,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         Position::first()->contract()->findOrFail(1);
     }
 
-    public function testFirstRetrievesFirstRecord()
+    public function testFirstRetrievesFirstRecord(): void
     {
         $this->seedData();
         $contract = Position::first()->contract()->first();
@@ -160,7 +161,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $contract->title);
     }
 
-    public function testAllColumnsAreRetrievedByDefault()
+    public function testAllColumnsAreRetrievedByDefault(): void
     {
         $this->seedData();
         $contract = Position::first()->contract()->first();
@@ -176,7 +177,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         ], array_keys($contract->getAttributes()));
     }
 
-    public function testOnlyProperColumnsAreSelectedIfProvided()
+    public function testOnlyProperColumnsAreSelectedIfProvided(): void
     {
         $this->seedData();
         $contract = Position::first()->contract()->first(['title', 'body']);
@@ -188,7 +189,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         ], array_keys($contract->getAttributes()));
     }
 
-    public function testChunkReturnsCorrectModels()
+    public function testChunkReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -208,7 +209,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testCursorReturnsCorrectModels()
+    public function testCursorReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -229,7 +230,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         }
     }
 
-    public function testEachReturnsCorrectModels()
+    public function testEachReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -248,7 +249,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testLazyReturnsCorrectModels()
+    public function testLazyReturnsCorrectModels(): void
     {
         $this->seedData();
         $this->seedDataExtended();
@@ -267,7 +268,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         });
     }
 
-    public function testIntermediateSoftDeletesAreIgnored()
+    public function testIntermediateSoftDeletesAreIgnored(): void
     {
         $this->seedData();
         SoftDeletesUser::first()->delete();
@@ -277,7 +278,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $contract->title);
     }
 
-    public function testEagerLoadingLoadsRelatedModelsCorrectly()
+    public function testEagerLoadingLoadsRelatedModelsCorrectly(): void
     {
         $this->seedData();
         $position = SoftDeletesPosition::with('contract')->first();
@@ -354,20 +355,16 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseSessionConfiguratorTest;
 
 use Closure;
 use Exception;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Database\Connection;
@@ -14,9 +15,12 @@ use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SessionConfigurator;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Tests\TestCase;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
@@ -326,7 +330,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $connection = $this->connection($pdo);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Reentrant database session configuration is not allowed.');
+        $this->expectExceptionMessageIs('Reentrant database session configuration is not allowed.');
 
         try {
             $connection->getPdo();
@@ -335,10 +339,15 @@ class DatabaseSessionConfiguratorTest extends TestCase
         }
     }
 
-    public function testUnknownWriteSessionIsReplacedOnceAndTheReplacementIsConfigured(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownWriteSessionIsReplacedOnce(bool $configureSession): void
     {
         $configurator = $this->configurator();
-        PdoConnection::configureSessionUsing($configurator);
+
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($configurator);
+        }
+
         $oldPdo = $this->pdo();
         $newPdo = $this->pdo();
         $connection = $this->connection($oldPdo);
@@ -352,14 +361,19 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
         $this->assertSame($newPdo, $connection->getPdo());
         $this->assertSame(1, $reconnects);
-        $this->assertSame(2, $configurator->applyCalls);
+        $this->assertSame($configureSession ? 2 : 0, $configurator->applyCalls);
         $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($newPdo));
     }
 
-    public function testUnknownReadSessionRecoveryKeepsTheReadRoute(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownReadSessionRecoveryKeepsTheReadRoute(bool $configureSession): void
     {
         $configurator = $this->configurator();
-        PdoConnection::configureSessionUsing($configurator);
+
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($configurator);
+        }
+
         $writePdo = $this->pdo();
         $oldReadPdo = $this->pdo();
         $newReadPdo = $this->pdo();
@@ -373,7 +387,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
         $this->assertSame($newReadPdo, $connection->getReadPdo());
         $this->assertSame($writePdo, $connection->getRawPdo());
-        $this->assertSame(2, $configurator->applyCalls);
+        $this->assertSame($configureSession ? 2 : 0, $configurator->applyCalls);
     }
 
     public function testUnknownReadFallbackRecoveryUsesTheReplacementWritePdo(): void
@@ -430,7 +444,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         });
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Reentrant database session configuration is not allowed.');
+        $this->expectExceptionMessageIs('Reentrant database session configuration is not allowed.');
 
         try {
             $connection->getPdo();
@@ -440,9 +454,13 @@ class DatabaseSessionConfiguratorTest extends TestCase
         }
     }
 
-    public function testUnknownSessionInsideTransactionFailsWithoutReconnect(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownSessionInsideTransactionFailsWithoutReconnect(bool $configureSession): void
     {
-        PdoConnection::configureSessionUsing($this->configurator());
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($this->configurator());
+        }
+
         $pdo = $this->pdo();
         $connection = $this->connection($pdo);
         $connection->beginTransaction();
@@ -464,6 +482,17 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertSame(0, $reconnects);
     }
 
+    /**
+     * Provide session configurator registration states.
+     */
+    public static function sessionConfigurationProvider(): array
+    {
+        return [
+            'configured' => [true],
+            'unconfigured' => [false],
+        ];
+    }
+
     public function testUnknownSessionWithoutAReconnectorPreservesTheExistingFailure(): void
     {
         PdoConnection::configureSessionUsing($this->configurator());
@@ -473,7 +502,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $connection->markSessionStateUnknownForTest($pdo);
 
         $this->expectException(LostConnectionException::class);
-        $this->expectExceptionMessage('Lost connection and no reconnector available.');
+        $this->expectExceptionMessageIs('Lost connection and no reconnector available.');
 
         $connection->getPdo();
     }
@@ -680,13 +709,13 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertNull(TestSessionConnection::physicalSessionStateCount());
     }
 
-    public function testDefaultConcurrencyErrorDetectorDoesNotRetryOrdinaryExceptions(): void
+    public function testDefaultConcurrencyErrorDetectorDoesNotRetryHttpFailures(): void
     {
         $this->assertFalse(Container::getInstance()->has(ConcurrencyErrorDetectorContract::class));
 
         $connection = $this->connection();
         $attempts = 0;
-        $exception = new RuntimeException('Ordinary application failure.');
+        $exception = new RequestException(new Response(new PsrResponse(500, [], 'database is locked')));
         $caught = null;
 
         try {
@@ -695,7 +724,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
                 throw $exception;
             }, 2);
-        } catch (RuntimeException $throwable) {
+        } catch (RequestException $throwable) {
             $caught = $throwable;
         }
 
@@ -749,26 +778,32 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
     }
 
-    public function testNestedDriverOwnedRollbackInvalidatesWithoutIssuingAnotherRollback(): void
+    public function testNestedDriverOwnedRollbackDiscardsTheUnusableSession(): void
     {
         $configurator = $this->configurator();
         PdoConnection::configureSessionUsing($configurator);
-        $pdo = new TrackingPdo;
+        $pdo = $this->pdo();
         $connection = $this->connection($pdo);
-        $connection->getPdo();
-        $connection->setTransactionLevelForTest(2);
-        $exception = new QueryException('test', 'select 1', [], new Exception('Deadlock found when trying to get lock'));
+        $connection->beginTransaction();
+        $exception = new QueryException('test', 'select 1', [], new PDOException('Deadlock found when trying to get lock'));
 
         try {
-            $connection->handleTransactionExceptionForTest($exception);
+            $connection->transaction(static function () use ($pdo, $exception): never {
+                // Simulate a server-side deadlock that discards the whole transaction and its savepoints.
+                $pdo->rollBack();
+
+                throw $exception;
+            });
             $this->fail('Expected deadlock exception was not thrown.');
         } catch (DeadlockException $caught) {
             $this->assertSame($exception, $caught->getPrevious());
         }
 
-        $this->assertSame(0, $pdo->rollbackCalls);
+        $this->assertSame(0, $connection->transactionLevel());
+        $this->assertNull($connection->getRawPdo());
+        $this->assertFalse($pdo->inTransaction());
         $this->assertSame([], TestSessionConnection::appliedStatesForTest($pdo));
-        $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
+        $this->assertTrue(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
     }
 
     public function testNonLostCommitFailureMarksThePhysicalSessionUnknown(): void
@@ -1013,16 +1048,6 @@ class TestSessionConnection extends PdoConnection
     {
         return static::$physicalSessionStates[$pdo]->appliedStates ?? [];
     }
-
-    public function setTransactionLevelForTest(int $level): void
-    {
-        $this->transactions = $level;
-    }
-
-    public function handleTransactionExceptionForTest(Throwable $exception): void
-    {
-        $this->handleTransactionException($exception, 1, 1);
-    }
 }
 
 class CommitRetryPdo extends PDO
@@ -1069,22 +1094,6 @@ class CommitRetryPdo extends PDO
     {
         ++$this->rollbackCalls;
         $this->transactionActive = false;
-
-        return true;
-    }
-}
-
-class TrackingPdo extends PDO
-{
-    public int $rollbackCalls = 0;
-
-    public function __construct()
-    {
-    }
-
-    public function rollBack(): bool
-    {
-        ++$this->rollbackCalls;
 
         return true;
     }

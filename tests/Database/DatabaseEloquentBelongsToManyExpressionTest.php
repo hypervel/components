@@ -6,16 +6,24 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBelongsToManyExpressionTest;
 
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 {
+    /**
+     * Set up the database schema.
+     */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -42,14 +50,20 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
         $this->assertEquals(2, $tags->first()->getKey());
     }
 
-    public function testQualifiedColumnExpression(): void
+    #[TestWith(['wherePivotNotIn', ['2_t2']])]
+    #[TestWith(['orWherePivotNotIn', ['1_t1', '2_t2']])]
+    #[TestWith(['orWherePivotIn', ['3_t3']])]
+    public function testQualifiedColumnExpression(string $method, array $values): void
     {
         $this->seedData();
 
-        $tags = Post::findOrFail(2)
-            ->tags()
-            ->wherePivotNotIn(new Expression("taggables.tag_id || '_' || taggables.type"), ['2_t2'])
-            ->get();
+        $relation = Post::findOrFail(2)->tags();
+
+        if (str_starts_with($method, 'or')) {
+            $relation->wherePivot('tag_id', 0);
+        }
+
+        $tags = $relation->{$method}(new Expression("taggables.tag_id || '_' || taggables.type"), $values)->get();
 
         $this->assertCount(1, $tags);
         $this->assertEquals(3, $tags->first()->getKey());
@@ -61,10 +75,10 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
         $post = Post::query()->firstOrFail();
         Tag::addGlobalScope(
             'default',
-            static fn () => throw new Exception('Default global scope.')
+            static fn (): never => throw new Exception('Default global scope.')
         );
 
-        $this->expectExceptionMessage('Default global scope.');
+        $this->expectExceptionObject(new Exception('Default global scope.'));
         $post->tags()->get();
     }
 
@@ -133,20 +147,16 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\ConnectionInterface
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

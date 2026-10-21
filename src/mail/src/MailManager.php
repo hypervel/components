@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
+use Aws\Middleware;
 use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
@@ -14,6 +15,7 @@ use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\CloudflareTransport;
@@ -22,6 +24,7 @@ use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -45,7 +48,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Mail\Mailer
+ * @mixin Mailer
  */
 class MailManager implements FactoryContract
 {
@@ -316,19 +319,15 @@ class MailManager implements FactoryContract
                 'transport' => $transport,
                 'account_id' => $config['account_id']
                     ?? $this->config->get('services.cloudflare.account_id'),
-                'token' => $config['token']
-                    ?? $config['key']
-                    ?? $this->config->get('services.cloudflare.token')
-                    ?? $this->config->get('services.cloudflare.key'),
+                // Laravel's legacy "token" credential name is not supported.
+                'key' => $config['key'] ?? $this->config->get('services.cloudflare.key'),
                 ...$this->httpClientConstructionConfig($config),
             ],
             'mailgun' => $this->mailgunTransportConstructionConfig($config),
             'postmark' => [
                 'transport' => $transport,
-                'token' => $config['token']
-                    ?? $config['key']
-                    ?? $this->config->get('services.postmark.token')
-                    ?? $this->config->get('services.postmark.key'),
+                // Laravel's legacy "token" credential name is not supported.
+                'key' => $config['key'] ?? $this->config->get('services.postmark.key'),
                 ...(isset($config['message_stream_id'])
                     ? ['message_stream_id' => $config['message_stream_id']]
                     : []),
@@ -483,12 +482,19 @@ class MailManager implements FactoryContract
      */
     protected function createSesV2Transport(array $config): SesV2Transport
     {
-        $config = Arr::except($config, ['transport']);
+        $config = $this->addSesCredentials(Arr::except($config, ['transport']));
 
-        return new SesV2Transport(
-            new SesV2Client($this->addSesCredentials($config)),
-            $config['options'] ?? []
+        if (is_callable($config['credentials'] ?? null)) {
+            $config['credentials'] = new SerializedCredentialProvider($config['credentials']);
+        }
+
+        $client = new SesV2Client($config);
+        $client->getHandlerList()->prependInit(
+            Middleware::tap(ConnectionResolver::releaseIdleConnections(...)),
+            'release_idle_database_connections',
         );
+
+        return new SesV2Transport($client, $config['options'] ?? []);
     }
 
     /**
@@ -522,7 +528,7 @@ class MailManager implements FactoryContract
     {
         return new CloudflareTransport(
             $config['account_id'],
-            $config['token'],
+            $config['key'],
             $this->getHttpClient($config),
         );
     }
@@ -564,7 +570,7 @@ class MailManager implements FactoryContract
         return $factory->create(new Dsn( // @phpstan-ignore return.type
             'postmark+api',
             'default',
-            $config['token'],
+            $config['key'],
             null,
             null,
             $options
@@ -665,6 +671,7 @@ class MailManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
+        // REMOVED: Laravel 6-style mail.driver configuration; use named mail.mailers entries.
         $config = $this->config->get("mail.mailers.{$name}");
 
         if (isset($config['url'])) {
@@ -813,7 +820,7 @@ class MailManager implements FactoryContract
     /**
      * Dynamically call the default driver instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->mailer()->{$method}(...$parameters);
     }

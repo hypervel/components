@@ -293,13 +293,16 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
-     * Return an object to the idle channel without recording user activity.
+     * Return an object to the idle channel without recording activity, or destroy it when the pool has closed.
      *
      * @param T $object
      */
     protected function requeue(object $object): void
     {
-        $this->channel->push($object);
+        // Maintenance may resume while a concurrent close is still draining the channel.
+        if (! $this->channel->push($object)) {
+            $this->destroyObject($object);
+        }
     }
 
     /**

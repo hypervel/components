@@ -64,7 +64,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         $cache->get('key');
     }
@@ -76,7 +76,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         $cache->getAuthoritativeRaw('key');
     }
@@ -91,7 +91,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         $cache->many(['key1', 'key2']);
     }
@@ -106,7 +106,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         $cache->getMultiple(['key1', 'key2']);
     }
@@ -121,7 +121,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot check existence via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot check existence via tags in any mode');
 
         $cache->has('key');
     }
@@ -136,7 +136,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot pull items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot pull items via tags in any mode');
 
         $cache->pull('key');
     }
@@ -151,7 +151,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot forget items via tags in any mode');
 
         $cache->forget('key');
     }
@@ -166,7 +166,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot touch items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot touch items via tags in any mode');
 
         $cache->touch('key', 60);
     }
@@ -181,7 +181,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot forget items via tags in any mode');
 
         $cache->delete('key');
     }
@@ -196,7 +196,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot forget items via tags in any mode');
 
         $cache->deleteMultiple(['key1', 'key2']);
     }
@@ -235,7 +235,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot forget items via tags in any mode');
 
         unset($cache['key']);
     }
@@ -595,12 +595,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->once()
             ->andReturn(['key1', 'key2']);
 
-        // After getting keys, Flush uses pipeline for delete operations
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('unlink')->andReturn($connection);
-        $connection->shouldReceive('zrem')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([2, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->flush();
@@ -620,11 +620,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('hkeys')
             ->once()
             ->andReturn(['key1', 'key2']);
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('unlink')->andReturn($connection);
-        $connection->shouldReceive('zrem')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([2, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->clear();
@@ -1361,7 +1362,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->andReturnNull();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Callback failed');
+        $this->expectExceptionMessageIs('Callback failed');
 
         $store = $this->createStore($connection);
         $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, function () {
@@ -1383,7 +1384,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->andReturnNull();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Forever callback failed');
+        $this->expectExceptionMessageIs('Forever callback failed');
 
         $store = $this->createStore($connection);
         $store->setTagMode('any')->tags(['users'])->rememberForever('mykey', function () {
@@ -1455,7 +1456,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache = $store->setTagMode('any')->tags(['users']);
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+        $this->expectExceptionMessageIsOrContains('Cannot get items via tags in any mode');
 
         $cache->flexibleNullable('mykey', [60, 120], fn () => 'v');
     }

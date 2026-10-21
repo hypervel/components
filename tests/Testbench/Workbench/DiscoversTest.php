@@ -17,8 +17,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
-use function Hypervel\Testbench\package_version_compare;
-
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class DiscoversTest extends TestCase
 {
@@ -35,14 +33,10 @@ class DiscoversTest extends TestCase
     #[Test]
     public function itCanResolveWebRoutesUsingMacroFromDiscovers(): void
     {
-        $contentType = package_version_compare('symfony/http-foundation', '7.4.0', '>=')
-            ? 'text/plain; charset=utf-8'
-            : 'text/plain; charset=UTF-8';
-
         $this->get('/hello-world')
             ->assertOk()
             ->assertSee('Hello world')
-            ->assertHeader('Content-Type', $contentType);
+            ->assertHeader('Content-Type', 'text/plain; charset=utf-8');
     }
 
     #[Test]

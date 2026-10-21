@@ -12,6 +12,7 @@ use Override;
 use Pdo\Mysql;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /**
  * @property MySqlConnection $connection
@@ -157,6 +158,8 @@ class MySqlSchemaState extends SchemaState
      * Execute the given dump process.
      *
      * @param array<string, string> $variables
+     *
+     * @throws Throwable
      */
     protected function executeDumpProcess(Process $process, ?callable $output, array $variables, int $depth = 0): Process
     {

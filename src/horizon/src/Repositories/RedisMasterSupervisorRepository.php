@@ -65,6 +65,10 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
         });
 
         return collect($records)->map(function ($record) {
+            if (! is_array($record)) {
+                return null;
+            }
+
             return $record['name']
                 ? (object) array_merge($record, [
                     'supervisors' => json_decode($record['supervisors'], true),
@@ -80,7 +84,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
      */
     public function update(MasterSupervisor $master): void
     {
-        /** @phpstan-ignore-next-line */
+        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         $supervisors = $master->supervisors->map->name->all();
 
         $this->pipeline(function ($pipe) use ($master, $supervisors) {
@@ -131,7 +135,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
         $this->connection()->zRemRangeByScore(
             'masters',
             '-inf',
-            (string) CarbonImmutable::now()->subSeconds(14)->getTimestamp()
+            CarbonImmutable::now()->subSeconds(14)->getTimestamp()
         );
     }
 

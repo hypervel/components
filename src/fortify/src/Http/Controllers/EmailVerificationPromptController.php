@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\MustVerifyEmail;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\VerifyEmailViewResponse;
 use Hypervel\Fortify\Http\Responses\RedirectAsIntended;
 use Hypervel\Http\Request;
@@ -15,7 +16,7 @@ class EmailVerificationPromptController extends Controller
     /**
      * Display the email verification prompt.
      */
-    public function __invoke(Request $request): mixed
+    public function __invoke(Request $request): Responsable
     {
         /** @var MustVerifyEmail $user */
         $user = $request->user();

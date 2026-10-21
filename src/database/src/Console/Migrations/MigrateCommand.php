@@ -24,7 +24,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
     /**
      * The name and signature of the console command.
      */
-    protected ?string $signature = 'migrate {--database= : The database connection to use}
+    protected ?string $signature = 'migrate {--database= : The default database connection to use}
                 {--force : Force the operation to run when in production}
                 {--path=* : The path(s) to the migrations files to be executed}
                 {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
@@ -64,7 +64,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
     public function handle(): int
     {
         if (! $this->confirmToProceed()) {
-            return 1;
+            return self::FAILURE;
         }
 
         try {
@@ -73,17 +73,19 @@ class MigrateCommand extends BaseCommand implements Isolatable
             if ($this->option('graceful')) {
                 $this->components->warn($e->getMessage());
 
-                return 0;
+                return self::SUCCESS;
             }
 
             throw $e;
         }
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
      * Run the pending migrations.
+     *
+     * @throws RuntimeException
      */
     protected function runMigrations(): void
     {
@@ -124,11 +126,13 @@ class MigrateCommand extends BaseCommand implements Isolatable
             // Forwards the user-supplied --database so seeders run on the chosen app
             // connection rather than silently falling back to database.default.
             if ($this->option('seed') && ! $this->option('pretend')) {
-                $this->call('db:seed', array_filter([
+                if ($this->call('db:seed', array_filter([
                     '--database' => $this->option('database'),
                     '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
                     '--force' => true,
-                ]));
+                ])) !== self::SUCCESS) {
+                    throw new RuntimeException('Database seeding failed after migrations ran.');
+                }
             }
         });
     }

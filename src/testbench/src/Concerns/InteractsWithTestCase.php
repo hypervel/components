@@ -44,7 +44,9 @@ trait InteractsWithTestCase
     protected static array $testCaseMethodTestingFeatures = [];
 
     /**
-     * Check if the test case uses a specific trait.
+     * Determine if the test case uses the given trait, or the Testing trait by default.
+     *
+     * @api
      *
      * @param null|class-string $trait
      */
@@ -65,19 +67,23 @@ trait InteractsWithTestCase
     /**
      * Cache and return traits used by test case.
      *
+     * @internal
+     *
      * @return array<class-string, class-string>
      */
     public static function cachedUsesForTestCase(): array
     {
         /** @var array<class-string, class-string> $uses */
         $uses = static::$cachedTestCaseUses[static::class]
-            ??= array_flip(class_uses_recursive(static::class));
+            ??= class_uses_recursive(static::class);
 
         return $uses;
     }
 
     /**
      * Programmatically add a testing feature attribute.
+     *
+     * @api
      */
     public static function usesTestingFeature(object $attribute, int $flag = Attribute::TARGET_CLASS): void
     {
@@ -114,6 +120,8 @@ trait InteractsWithTestCase
 
     /**
      * Execute BeforeEach lifecycle attributes.
+     *
+     * @internal
      */
     protected function setUpTheTestEnvironmentUsingTestCase(): void
     {
@@ -127,6 +135,8 @@ trait InteractsWithTestCase
 
     /**
      * Execute AfterEach lifecycle attributes.
+     *
+     * @internal
      */
     protected function tearDownTheTestEnvironmentUsingTestCase(): void
     {
@@ -160,10 +170,17 @@ trait InteractsWithTestCase
     }
 
     /**
-     * Execute BeforeAll lifecycle attributes.
+     * Load test fixtures and execute BeforeAll lifecycle attributes.
+     *
+     * @internal
      */
     public static function setUpBeforeClassUsingTestCase(): void
     {
+        if (static::usesTestingConcern(WithFixtures::class)) {
+            /* @phpstan-ignore-next-line */
+            static::setupWithFixturesForTestingEnvironment();
+        }
+
         static::resolvePhpUnitAttributesForMethod(static::class)
             ->flatten()
             ->filter(static fn ($instance) => $instance instanceof BeforeAll)
@@ -172,6 +189,8 @@ trait InteractsWithTestCase
 
     /**
      * Execute AfterAll lifecycle attributes and clear caches.
+     *
+     * @internal
      */
     public static function tearDownAfterClassUsingTestCase(): void
     {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
+use Hypervel\Validation\ValidationData;
+
 /**
  * Immutable output from one complete validation-rule compilation.
  */
@@ -32,16 +34,19 @@ final readonly class CompiledValidation
     /**
      * Restore only values deliberately excluded from validation.
      *
+     * Values come from the validator's own data, which has already dropped everything an exclusion
+     * rule removed, so an excluded parent is never recreated.
+     *
      * @param array<array-key, mixed> $payload
-     * @param array<array-key, mixed> $sourcePayload
+     * @param array<array-key, mixed> $validatorData the validator's data, with its encoded keys
      * @return array<array-key, mixed>
      */
-    public function restorePreservedValues(array $payload, array $sourcePayload): array
+    public function restorePreservedValues(array $payload, array $validatorData): array
     {
         foreach ($this->preservedPaths as $path) {
             $this->restoreValueAtPath(
                 $payload,
-                $sourcePayload,
+                $validatorData,
                 $path->rawSegments(),
             );
         }
@@ -50,7 +55,7 @@ final readonly class CompiledValidation
     }
 
     /**
-     * Restore one exact or wildcard path from the source payload.
+     * Restore one exact or wildcard path from the validator's data.
      *
      * @param list<null|array-key> $segments
      */
@@ -61,7 +66,7 @@ final readonly class CompiledValidation
         int $offset = 0,
     ): void {
         if ($offset === count($segments)) {
-            $target = $source;
+            $target = is_array($source) ? ValidationData::decodeKeys($source) : $source;
 
             return;
         }
@@ -73,7 +78,9 @@ final readonly class CompiledValidation
         $segment = $segments[$offset];
 
         if ($segment === null) {
-            foreach ($source as $key => $value) {
+            foreach ($source as $encodedKey => $value) {
+                $key = is_int($encodedKey) ? $encodedKey : ValidationData::replacePlaceholderInString($encodedKey);
+
                 if (! is_array($target)) {
                     $target = [];
                 }
@@ -93,11 +100,13 @@ final readonly class CompiledValidation
             return;
         }
 
-        if (! array_key_exists($segment, $source)) {
+        $encodedSegment = ValidationData::encodeKey($segment);
+
+        if (! array_key_exists($encodedSegment, $source)) {
             return;
         }
 
-        $value = $source[$segment];
+        $value = $source[$encodedSegment];
         $nextOffset = $offset + 1;
 
         // A failed descent must not materialize an empty container in the validated payload.

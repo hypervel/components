@@ -18,6 +18,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 {
@@ -39,7 +40,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             [456],
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('insert')->with(
             'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)',
@@ -79,7 +80,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -127,7 +128,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -172,7 +173,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -228,7 +229,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $relatedSql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $relatedBindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -278,7 +279,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -333,7 +334,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('select')->with(
             'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
@@ -381,7 +382,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('select')->with(
             'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
@@ -458,7 +459,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -566,7 +567,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('update')
@@ -671,7 +672,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('update')
@@ -694,13 +695,16 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $this->assertSame('baz', $result->val);
     }
 
-    public function testPivotMembershipCheckIncludesEveryConfiguredPivotConstraint(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPivotMembershipCheckIncludesEveryConfiguredPivotConstraint(bool $customRelatedKey): void
     {
         $source = new SourceModel;
         $source->id = 123;
         $source->exists = true;
         $related = new RelatedModel;
         $related->id = 456;
+        $related->code = 'related-code';
         $this->mockConnectionForModels([$source, $related], 'SQLite');
 
         $relation = (new InspectableBelongsToMany(
@@ -710,7 +714,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'source_id',
             'related_id',
             'id',
-            'id',
+            $customRelatedKey ? 'code' : 'id',
         ))
             ->wherePivot('status', 'active')
             ->wherePivotIn('kind', ['primary', 'secondary'])
@@ -719,7 +723,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
         $source->getConnection()->expects('select')->with(
             'select exists(select * from "pivot_table" where ("status" = ? and "kind" in (?, ?) and "expired_at" is null and "score" between ? and ?) and "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
-            ['active', 'primary', 'secondary', 10, 20, 123, 456],
+            ['active', 'primary', 'secondary', 10, 20, 123, $customRelatedKey ? 'related-code' : 456],
             false,
         )->andReturn([['exists' => 1]]);
 

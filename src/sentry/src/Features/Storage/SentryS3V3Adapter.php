@@ -29,4 +29,14 @@ class SentryS3V3Adapter extends AwsS3V3Adapter implements DecoratedFilesystem, I
         $this->recordSpans = $recordSpans;
         $this->recordBreadcrumbs = $recordBreadcrumbs;
     }
+
+    /**
+     * Open a whole-object or ranged stream without applying the disk's failure policy.
+     *
+     * @return resource
+     */
+    public function readStreamRangeOrFail(string $path, ?int $start = null, ?int $end = null): mixed
+    {
+        return $this->withSentry(__FUNCTION__, func_get_args(), $path, compact('path', 'start', 'end'));
+    }
 }

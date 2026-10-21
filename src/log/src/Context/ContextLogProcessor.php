@@ -30,9 +30,6 @@ class ContextLogProcessor implements ContextLogProcessorContract
             return $record;
         }
 
-        return $record->with(extra: [
-            ...$record->extra,
-            ...$context,
-        ]);
+        return $record->with(extra: array_replace($record->extra, $context));
     }
 }

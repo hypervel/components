@@ -20,7 +20,7 @@ class WebSocketTest extends EngineIntegrationTestCase
      */
     protected int $serverPort = 19503;
 
-    public function testWebSocket()
+    public function testWebSocket(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort(), false);
         $client->set(['open_websocket_pong_frame' => true]);
@@ -32,11 +32,9 @@ class WebSocketTest extends EngineIntegrationTestCase
         $this->assertSame('received: Hello World!', $ret->data);
         $this->assertSame(Opcode::TEXT, $ret->opcode);
 
-        if (SWOOLE_VERSION_ID > 60102) {
-            $client->push('', Opcode::PING);
-            $ret = $client->recv(1);
-            $this->assertInstanceOf(SwooleFrame::class, $ret);
-            $this->assertSame(Opcode::PONG, $ret->opcode);
-        }
+        $client->push('', Opcode::PING);
+        $ret = $client->recv(1);
+        $this->assertInstanceOf(SwooleFrame::class, $ret);
+        $this->assertSame(Opcode::PONG, $ret->opcode);
     }
 }

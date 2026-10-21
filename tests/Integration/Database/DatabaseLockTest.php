@@ -46,6 +46,68 @@ class DatabaseLockTest extends DatabaseTestCase
         $otherLock->release();
     }
 
+    public function testOwnerCanAcquireItsLiveLockAgainWithinTheSameSecond(): void
+    {
+        // A frozen clock gives the second acquisition the expiration the lock already has, so its update changes nothing.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
+        $lock = Cache::driver('database')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+        $this->assertTrue($lock->get());
+
+        $this->assertFalse(Cache::driver('database')->lock('foo', 10)->get());
+
+        $lock->release();
+    }
+
+    public function testOwnerCanRefreshItsLockToTheExpirationItAlreadyHas(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+
+        $lock = Cache::driver('database')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->assertTrue($lock->refresh());
+        $this->assertFalse(Cache::store('database')->restoreLock('foo', 'other_owner')->refresh());
+
+        $lock->release();
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    #[TestWith(['get'])]
+    #[TestWith(['refresh'])]
+    public function testAnUnchangedUpdateIsConfirmedAgainstTheCurrentRowRatherThanATransactionSnapshot(string $operation): void
+    {
+        if (! in_array($this->driver, ['mysql', 'mariadb'], true)) {
+            $this->markTestSkipped('Only MySQL and MariaDB count changed rows, so only they read the lock back after an update.');
+        }
+
+        $config = $this->app->make('config');
+        $config->set('database.connections.other', $config->array('database.connections.' . $config->string('database.default')));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfSecond());
+        $lock = Cache::driver('database')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+        $snapshotIsolation = $this->driver === 'mariadb'
+            && (DB::selectOne("show variables like 'innodb_snapshot_isolation'")?->Value ?? 'OFF') === 'ON';
+        DB::statement('set transaction isolation level repeatable read');
+
+        if ($snapshotIsolation) {
+            // MariaDB rolls back the transaction when a locking operation encounters the newer row.
+            $this->expectException(QueryException::class);
+            $this->expectExceptionMessage('1020 Record has changed since last read');
+        }
+
+        DB::transaction(function () use ($lock, $operation): void {
+            // The first read fixes the transaction's snapshot while the lock is still this owner's.
+            $this->assertSame($lock->owner(), DB::table('cache_locks')->value('owner'));
+            // Another connection gives the live lock to another owner and commits.
+            DB::connection('other')->table('cache_locks')->update(['owner' => 'other_owner']);
+
+            $this->assertFalse($lock->{$operation}());
+        });
+    }
+
     public function testLockCanBeForceReleased(): void
     {
         $lock = Cache::driver('database')->lock('foo');
@@ -104,6 +166,20 @@ class DatabaseLockTest extends DatabaseTestCase
         $secondLock = Cache::store('database')->restoreLock('foo', 'other_owner');
         $this->assertTrue($secondLock->isOwnedBy($firstLock->owner()));
         $this->assertFalse($secondLock->isOwnedByCurrentProcess());
+        $this->assertFalse($secondLock->release());
+        $this->assertTrue($firstLock->isOwnedByCurrentProcess());
+    }
+
+    public function testExpiredLockCanBeReleasedByItsOwner(): void
+    {
+        $lock = Cache::store('database')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
+
+        $this->assertTrue($lock->release());
+        $this->assertSame(0, DB::table('cache_locks')->count());
+        $this->assertFalse($lock->release());
     }
 
     public function testLockCanBeRefreshed(): void
@@ -111,7 +187,10 @@ class DatabaseLockTest extends DatabaseTestCase
         $lock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($lock->get());
 
+        // Refresh the lock for another 20 seconds
         $this->assertTrue($lock->refresh(20));
+
+        // Lock should still be held
         $this->assertFalse(Cache::driver('database')->lock('foo', 10)->get());
 
         $lock->release();
@@ -122,9 +201,13 @@ class DatabaseLockTest extends DatabaseTestCase
         $firstLock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($firstLock->get());
 
+        // Create a new lock with a different owner
         $secondLock = Cache::store('database')->restoreLock('foo', 'other_owner');
 
+        // Second lock should not be able to refresh
         $this->assertFalse($secondLock->refresh(20));
+
+        // Original lock should still be able to refresh
         $this->assertTrue($firstLock->refresh(20));
 
         $firstLock->release();
@@ -132,10 +215,12 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testExpiredLockCannotBeRefreshedByPreviousOwner(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
         $lock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($lock->get());
 
-        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
+        DB::table('cache_locks')->update(['expiration' => $now->subDay()->getTimestamp()]);
 
         $this->assertFalse($lock->refresh(20));
     }
@@ -149,10 +234,10 @@ class DatabaseLockTest extends DatabaseTestCase
         $insertBuilder = m::mock(Builder::class);
         $deleteBuilder = m::mock(Builder::class);
 
-        $insertBuilder->shouldReceive('insert')->once()->andReturn(true);
+        $insertBuilder->expects('insert')->andReturn(true);
 
-        $deleteBuilder->shouldReceive('where')->with('expiration', '<=', m::any())->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('delete')->once()->andThrow(
+        $deleteBuilder->expects('where')->with('expiration', '<=', m::any())->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where expiration <= ?',
@@ -161,7 +246,8 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
+        $connection->shouldReceive('getDriverName')->andReturn('mysql');
+        $connection->expects('table')->times(2)->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 0, lottery: [1, 1]);
@@ -180,18 +266,13 @@ class DatabaseLockTest extends DatabaseTestCase
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(Connection::class);
-        $ownerBuilder = m::mock(Builder::class);
         $deleteBuilder = m::mock(Builder::class);
 
         $owner = 'owner-123';
 
-        $ownerBuilder->shouldReceive('where')->with('key', 'foo')->once()->andReturnSelf();
-        $ownerBuilder->shouldReceive('where')->with('expiration', '>', m::type('int'))->once()->andReturnSelf();
-        $ownerBuilder->shouldReceive('first')->once()->andReturn((object) ['owner' => $owner]);
-
-        $deleteBuilder->shouldReceive('where')->with('key', 'foo')->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('where')->with('owner', $owner)->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('delete')->once()->andThrow(
+        $deleteBuilder->expects('where')->with('key', 'foo')->andReturnSelf();
+        $deleteBuilder->expects('where')->with('owner', $owner)->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where key = ? and owner = ?',
@@ -200,7 +281,7 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn($ownerBuilder, $deleteBuilder);
+        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);
@@ -209,7 +290,7 @@ class DatabaseLockTest extends DatabaseTestCase
             $this->assertTrue($lock->release());
         } else {
             $this->expectException(QueryException::class);
-            $this->expectExceptionMessage($message);
+            $this->expectExceptionMessageIsOrContains($message);
             $lock->release();
         }
     }

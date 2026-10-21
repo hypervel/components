@@ -5,55 +5,74 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite\Console;
 
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Database\SQLiteDatabase;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithMigration;
-use Hypervel\Tests\Integration\Database\Sqlite\SqliteTestCase;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Override;
 
 /**
  * Tests that migrate:fresh works correctly with WAL journal mode.
  *
- * WAL (Write-Ahead Logging) journal mode requires a file-based database,
- * so this test is skipped when using :memory:.
+ * WAL (Write-Ahead Logging) journal mode requires a file-based database.
+ * This test owns its file so resetting it cannot affect another parallel worker.
  *
  * The DatabaseMigrations trait runs migrate:fresh in setUp, so this test
  * verifies that the migration succeeded with WAL mode enabled.
  */
 #[WithMigration]
-class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase
+class MigrateFreshCommandWithJournalModeWalTest extends TestCase
 {
+    use DatabaseMigrations;
+
+    protected string $databaseDirectory;
+
+    /**
+     * Configure the test-owned SQLite file with WAL enabled.
+     */
     #[Override]
     protected function defineEnvironment(Application $app): void
     {
         parent::defineEnvironment($app);
 
-        // Set WAL journal mode before any database connections are established.
-        // This must be in defineEnvironment(), not WithConfig attribute, because
-        // RequiresDatabase processes before WithConfig and establishes the connection.
-        $app->make('config')->set('database.connections.sqlite.journal_mode', 'wal');
+        $app->make('config')->set('database.default', 'sqlite');
+        $app->make('config')->set('database.connections.sqlite', [
+            'driver' => 'sqlite',
+            'database' => $this->databaseDirectory . '/database.sqlite',
+            'prefix' => '',
+            'journal_mode' => 'wal',
+        ]);
     }
 
+    /**
+     * Create a fresh database file before migrations run.
+     */
     #[Override]
     protected function setUp(): void
     {
-        $databasePath = $this->getConfiguredDatabasePath();
-
-        if ($this->isConfiguredForInMemoryDatabase() || SQLiteDatabase::isUri($databasePath)) {
-            parent::setUp();
-            $this->markTestSkipped('The WAL migration test requires a plain SQLite filesystem path.');
-        }
-
-        // Delete any existing database file to start fresh, then create an
-        // empty file. The connector will set WAL mode via the journal_mode
-        // config when the connection is established.
-        $this->deleteSqliteDatabaseFile($databasePath);
-        touch($databasePath);
-
-        $this->beforeApplicationDestroyed(fn () => $this->deleteSqliteDatabaseFile());
+        $this->databaseDirectory = ParallelTesting::tempDir('MigrateFreshCommandWithJournalModeWalTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->databaseDirectory);
+        $files->ensureDirectoryExists($this->databaseDirectory);
+        touch($this->databaseDirectory . '/database.sqlite');
 
         parent::setUp();
+    }
+
+    /**
+     * Close the application before removing its database and WAL files.
+     */
+    #[Override]
+    protected function tearDown(): void
+    {
+        try {
+            parent::tearDown();
+        } finally {
+            (new Filesystem)->deleteDirectory($this->databaseDirectory);
+        }
     }
 
     public function testMigrateFreshWorksWithWalJournalMode(): void

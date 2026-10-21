@@ -13,7 +13,7 @@ use function Hypervel\Prompts\multisearch;
 
 class MultiSearchPromptTest extends TestCase
 {
-    public function testSupportsDefaultResults()
+    public function testSupportsDefaultResults(): void
     {
         $promptFake = function () {
             Prompt::fake([
@@ -53,7 +53,7 @@ class MultiSearchPromptTest extends TestCase
             },
         );
 
-        $assertPrompt = function () {
+        $assertPrompt = function (): void {
             Prompt::assertStrippedOutputContains(<<<'OUTPUT'
          ┌ What are your favorite colors? ──────────────────────────────┐
          │ Search...                                                    │
@@ -125,6 +125,13 @@ class MultiSearchPromptTest extends TestCase
          │   ◻ Blue                                                   │ │
          └────────────────────────────────────────────────── 2 selected ┘
         OUTPUT);
+
+            Prompt::assertStrippedOutputContains(<<<'OUTPUT'
+         ┌ What are your favorite colors? ──────────────────────────────┐
+         │ Violet                                                       │
+         │ Green                                                        │
+         └──────────────────────────────────────────────────────────────┘
+        OUTPUT);
         };
 
         $assertPrompt();
@@ -152,7 +159,7 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['Violet', 'Green'], $result);
     }
 
-    public function testSupportsNoDefaultResults()
+    public function testSupportsNoDefaultResults(): void
     {
         $promptFake = function () {
             Prompt::fake([
@@ -283,7 +290,7 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['Violet', 'Green'], $result);
     }
 
-    public function testTransformsValues()
+    public function testTransformsValues(): void
     {
         Prompt::fake([Key::DOWN, Key::CTRL_A, Key::ENTER]);
 
@@ -300,7 +307,21 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['RED', 'GREEN', 'BLUE'], $result);
     }
 
-    public function testValidates()
+    public function testRendersInfoForTheHighlightedOptionWithTheSelectionCount(): void
+    {
+        Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::ENTER]);
+
+        multisearch(
+            label: 'What are your favorite colors?',
+            options: fn (): array => ['red' => 'Red', 'green' => 'Green'],
+            info: fn (int|string|null $value): string => $value === null ? '' : "Key: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Key: red · 1 selected');
+        Prompt::assertStrippedOutputContains('Key: green · 1 selected');
+    }
+
+    public function testValidates(): void
     {
         Prompt::fake(['a', Key::DOWN, Key::SPACE, Key::ENTER, Key::DOWN, Key::SPACE, Key::ENTER]);
 
@@ -365,7 +386,7 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
-    public function testSupportsTheHomeAndEndKeysWhileNavigatingOptions()
+    public function testSupportsTheHomeAndEndKeysWhileNavigatingOptions(): void
     {
         Prompt::fake([Key::DOWN, Key::END[0], Key::SPACE, Key::HOME[0], Key::SPACE, Key::ENTER]);
 
@@ -381,7 +402,7 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['blue', 'red'], $result);
     }
 
-    public function testCanFallback()
+    public function testCanFallback(): void
     {
         Prompt::fallbackWhen(true);
 
@@ -403,7 +424,7 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['result'], $result);
     }
 
-    public function testSupportsCustomValidation()
+    public function testSupportsCustomValidation(): void
     {
         Prompt::fake(['a', Key::DOWN, Key::SPACE, Key::ENTER, Key::DOWN, Key::SPACE, Key::ENTER]);
 
@@ -431,7 +452,7 @@ class MultiSearchPromptTest extends TestCase
         Prompt::validateUsing(fn () => null);
     }
 
-    public function testSupportsSelectingAllOptions()
+    public function testSupportsSelectingAllOptions(): void
     {
         Prompt::fake([Key::DOWN, Key::CTRL_A, Key::ENTER]);
 

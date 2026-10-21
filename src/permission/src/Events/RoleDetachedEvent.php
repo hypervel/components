@@ -18,6 +18,8 @@ class RoleDetachedEvent
     use SerializesModels;
 
     /**
+     * Create a new event instance.
+     *
      * Internally the HasRoles trait passes an array of role ids (e.g. ints or UUIDs).
      * Theoretically one could register the event to other places passing other types.
      * So a Listener should inspect the type of $rolesOrIds received before using.

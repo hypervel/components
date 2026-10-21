@@ -15,7 +15,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class ForgetCommandTest extends TestCase
 {
-    public function testForgetKeyFromDefaultStore()
+    public function testForgetKeyFromDefaultStore(): void
     {
         $cacheManager = m::mock(CacheManager::class);
         $repository = m::mock(Repository::class);
@@ -35,7 +35,7 @@ class ForgetCommandTest extends TestCase
         );
     }
 
-    public function testForgetKeyFromSpecifiedStore()
+    public function testForgetKeyFromSpecifiedStore(): void
     {
         $cacheManager = m::mock(CacheManager::class);
         $repository = m::mock(Repository::class);

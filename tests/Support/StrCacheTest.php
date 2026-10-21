@@ -9,18 +9,18 @@ use Hypervel\Tests\TestCase;
 
 class StrCacheTest extends TestCase
 {
-    public function testSnake()
+    public function testSnake(): void
     {
         $this->assertSame('foo_bar', StrCache::snake('fooBar'));
         $this->assertSame('foo_bar_baz', StrCache::snake('fooBarBaz'));
     }
 
-    public function testSnakeWithCustomDelimiter()
+    public function testSnakeWithCustomDelimiter(): void
     {
         $this->assertSame('foo-bar', StrCache::snake('fooBar', '-'));
     }
 
-    public function testSnakeReturnsCachedResult()
+    public function testSnakeReturnsCachedResult(): void
     {
         $first = StrCache::snake('fooBar');
         $second = StrCache::snake('fooBar');
@@ -29,13 +29,13 @@ class StrCacheTest extends TestCase
         $this->assertSame('foo_bar', $second);
     }
 
-    public function testCamel()
+    public function testCamel(): void
     {
         $this->assertSame('fooBar', StrCache::camel('foo_bar'));
         $this->assertSame('fooBarBaz', StrCache::camel('foo_bar_baz'));
     }
 
-    public function testCamelReturnsCachedResult()
+    public function testCamelReturnsCachedResult(): void
     {
         $first = StrCache::camel('foo_bar');
         $second = StrCache::camel('foo_bar');
@@ -43,14 +43,14 @@ class StrCacheTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testStudly()
+    public function testStudly(): void
     {
         $this->assertSame('FooBar', StrCache::studly('foo_bar'));
         $this->assertSame('FooBarBaz', StrCache::studly('foo_bar_baz'));
         $this->assertSame('Cbor', StrCache::studly('CBOR', normalize: true));
     }
 
-    public function testStudlyReturnsCachedResult()
+    public function testStudlyReturnsCachedResult(): void
     {
         $first = StrCache::studly('foo_bar');
         $second = StrCache::studly('foo_bar');
@@ -58,20 +58,20 @@ class StrCacheTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testStudlyCacheKeysIncludeNormalizeFlag()
+    public function testStudlyCacheKeysIncludeNormalizeFlag(): void
     {
         $this->assertSame('CBOR', StrCache::studly('CBOR'));
         $this->assertSame('Cbor', StrCache::studly('CBOR', normalize: true));
         $this->assertSame('CBOR', StrCache::studly('CBOR'));
     }
 
-    public function testPlural()
+    public function testPlural(): void
     {
         $this->assertSame('users', StrCache::plural('user'));
         $this->assertSame('children', StrCache::plural('child'));
     }
 
-    public function testPluralReturnsCachedResult()
+    public function testPluralReturnsCachedResult(): void
     {
         $first = StrCache::plural('user');
         $second = StrCache::plural('user');
@@ -79,19 +79,19 @@ class StrCacheTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testPluralWithCountNotCached()
+    public function testPluralWithCountNotCached(): void
     {
         $this->assertSame('user', StrCache::plural('user', 1));
         $this->assertSame('users', StrCache::plural('user', 3));
     }
 
-    public function testSingular()
+    public function testSingular(): void
     {
         $this->assertSame('user', StrCache::singular('users'));
         $this->assertSame('child', StrCache::singular('children'));
     }
 
-    public function testSingularReturnsCachedResult()
+    public function testSingularReturnsCachedResult(): void
     {
         $first = StrCache::singular('users');
         $second = StrCache::singular('users');
@@ -99,12 +99,12 @@ class StrCacheTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testPluralStudly()
+    public function testPluralStudly(): void
     {
         $this->assertSame('UserProfiles', StrCache::pluralStudly('UserProfile'));
     }
 
-    public function testPluralStudlyReturnsCachedResult()
+    public function testPluralStudlyReturnsCachedResult(): void
     {
         $first = StrCache::pluralStudly('UserProfile');
         $second = StrCache::pluralStudly('UserProfile');
@@ -112,13 +112,13 @@ class StrCacheTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testPluralStudlyWithCountNotCached()
+    public function testPluralStudlyWithCountNotCached(): void
     {
         $this->assertSame('UserProfile', StrCache::pluralStudly('UserProfile', 1));
         $this->assertSame('UserProfiles', StrCache::pluralStudly('UserProfile', 5));
     }
 
-    public function testFlush()
+    public function testFlush(): void
     {
         StrCache::snake('fooBar');
         StrCache::camel('foo_bar');
@@ -134,7 +134,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('fooBar', StrCache::camel('foo_bar'));
     }
 
-    public function testFlushSnake()
+    public function testFlushSnake(): void
     {
         StrCache::snake('fooBar');
         StrCache::camel('foo_bar');
@@ -145,7 +145,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('fooBar', StrCache::camel('foo_bar'));
     }
 
-    public function testFlushCamel()
+    public function testFlushCamel(): void
     {
         StrCache::camel('foo_bar');
 
@@ -155,7 +155,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('fooBar', StrCache::camel('foo_bar'));
     }
 
-    public function testFlushStudly()
+    public function testFlushStudly(): void
     {
         StrCache::studly('foo_bar');
 
@@ -164,7 +164,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('FooBar', StrCache::studly('foo_bar'));
     }
 
-    public function testFlushPlural()
+    public function testFlushPlural(): void
     {
         StrCache::plural('user');
 
@@ -173,7 +173,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('users', StrCache::plural('user'));
     }
 
-    public function testFlushSingular()
+    public function testFlushSingular(): void
     {
         StrCache::singular('users');
 
@@ -182,7 +182,7 @@ class StrCacheTest extends TestCase
         $this->assertSame('user', StrCache::singular('users'));
     }
 
-    public function testFlushPluralStudly()
+    public function testFlushPluralStudly(): void
     {
         StrCache::pluralStudly('UserProfile');
 

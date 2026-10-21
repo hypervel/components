@@ -9,6 +9,7 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class CursorResourceTest extends TestCase
 {
@@ -25,8 +26,7 @@ class CursorResourceTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].'));
 
         $paginator = new CursorResourceTestPaginator([
             new CursorResourceTestModel,
@@ -35,6 +35,7 @@ class CursorResourceTest extends TestCase
         $paginator->toResourceCollection();
     }
 
+    #[RunInSeparateProcess]
     public function testItCanGuessResourceWhenNotProvided(): void
     {
         $paginator = new CursorResourceTestPaginator([

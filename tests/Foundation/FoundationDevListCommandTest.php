@@ -62,7 +62,7 @@ class FoundationDevListCommandTest extends TestCase
 
     public function testJsonOutputContainsAllFields(): void
     {
-        DevCommands::register('echo hello', 'greeter');
+        DevCommands::register('tail -f storage/logs/hypervel.log | grep "\<error\>"', 'errors');
 
         $this->artisan('dev:list', ['--json' => true])
             ->assertSuccessful();

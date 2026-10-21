@@ -24,12 +24,18 @@ class LoadConfigurationWithWorkbench extends LoadConfiguration
      */
     protected readonly bool $usesWorkbenchConfigFile;
 
+    /**
+     * Construct a new bootstrap class.
+     */
     public function __construct()
     {
         $this->usesWorkbenchConfigFile = Workbench::configuration()->getWorkbenchDiscoversAttributes()['config'] === true
             && is_dir(workbench_path('config'));
     }
 
+    /**
+     * Bootstrap the given application.
+     */
     #[Override]
     public function bootstrap(Application $app): void
     {
@@ -42,6 +48,9 @@ class LoadConfigurationWithWorkbench extends LoadConfiguration
         }
     }
 
+    /**
+     * Resolve the configuration file.
+     */
     #[Override]
     protected function resolveConfigurationFile(string $path, string $key): string
     {
@@ -51,6 +60,8 @@ class LoadConfigurationWithWorkbench extends LoadConfiguration
     }
 
     /**
+     * Extend the loaded configuration.
+     *
      * @param Collection<string, string> $configurations
      * @return Collection<string, string>
      */

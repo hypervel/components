@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 
 class MigrateWithRealpathTest extends TestCase
 {
+    use DatabaseMigrations;
+
+    /**
+     * Set up the migration test.
+     */
     protected function setUp(): void
     {
         parent::setUp();
-
-        if ($this->app->make('config')->string('database.default') !== 'testing') {
-            $this->artisan('db:wipe', ['--drop-views' => true]);
-        }
 
         $options = [
             '--path' => realpath(__DIR__ . '/Fixtures/'),
@@ -24,17 +26,17 @@ class MigrateWithRealpathTest extends TestCase
 
         $this->artisan('migrate', $options);
 
-        $this->beforeApplicationDestroyed(function () use ($options) {
+        $this->beforeApplicationDestroyed(function () use ($options): void {
             $this->artisan('migrate:rollback', $options);
         });
     }
 
-    public function testRealpathMigrationHasProperlyExecuted()
+    public function testRealpathMigrationHasProperlyExecuted(): void
     {
         $this->assertTrue(Schema::hasTable('members'));
     }
 
-    public function testMigrationsHasTheMigratedTable()
+    public function testMigrationsHasTheMigratedTable(): void
     {
         $this->assertDatabaseHas('migrations', [
             'id' => 1,

@@ -106,7 +106,7 @@ class LoadConfigurationTest extends TestCase
         $config = $app->make('config');
 
         // All centralized framework configs should be loaded
-        foreach (['app', 'auth', 'cache', 'database', 'logging', 'session', 'view'] as $key) {
+        foreach (['app', 'auth', 'cache', 'database', 'logging', 'services', 'session', 'view'] as $key) {
             $this->assertNotNull(
                 $config->get($key),
                 "Framework config '{$key}' should be loaded by LoadConfiguration."
@@ -139,7 +139,7 @@ class LoadConfigurationTest extends TestCase
         $app->dontMergeFrameworkConfiguration();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [app.env] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [app.env] must be a string, NULL given.');
 
         (new LoadConfiguration)->bootstrap($app);
     }
@@ -151,9 +151,28 @@ class LoadConfigurationTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [app.timezone] must be a string, NULL given.');
+        $this->expectExceptionMessageIs('Configuration value for key [app.timezone] must be a string, NULL given.');
 
         (new LoadConfiguration)->bootstrap(new Application);
+    }
+
+    public function testSubclassConfigurationResolverIsUsed(): void
+    {
+        $loader = new class extends LoadConfiguration {
+            protected static ?Closure $alwaysUseConfig = null;
+        };
+
+        $loader::alwaysUse(static fn (): array => [
+            'app' => ['env' => 'custom', 'timezone' => 'UTC'],
+        ]);
+
+        try {
+            $loader->bootstrap($app = new Application);
+
+            $this->assertSame('custom', $app->environment());
+        } finally {
+            $loader::flushState();
+        }
     }
 
     public function testAppConfigOverridesBaseConfigValues(): void

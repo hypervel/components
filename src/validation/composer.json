@@ -1,8 +1,8 @@
 {
     "name": "hypervel/validation",
-    "type": "library",
     "description": "The Hypervel Validation package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "validation",
@@ -23,16 +23,11 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Validation\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
         "ext-mbstring": "*",
-        "brick/math": "^0.17",
+        "brick/math": "^1.0",
         "egulias/email-validator": "^4.0",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
@@ -45,23 +40,28 @@
         "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/translation": "^0.4",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1"
     },
     "suggest": {
         "hypervel/foundation": "Required to use ValidatesWhenResolvedTrait with precognitive requests."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Validation\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Validation\\ValidationServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

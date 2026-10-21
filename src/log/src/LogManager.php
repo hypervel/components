@@ -19,6 +19,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\FormattableHandlerInterface;
@@ -36,13 +37,14 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Log\Logger
+ * @mixin Logger
  */
 class LogManager implements LoggerInterface
 {
@@ -167,6 +169,8 @@ class LogManager implements LoggerInterface
             }
 
             return $logger;
+        } catch (CanceledException $e) {
+            throw $e;
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
                 $logger->emergency('Unable to create configured logger. Using emergency logger.', [
@@ -263,20 +267,25 @@ class LogManager implements LoggerInterface
             $config['channels'] = explode(',', $config['channels']);
         }
 
-        $handlers = Collection::make($config['channels'])->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getHandlers() // @phpstan-ignore-line
-                : $this->channel($channel)->getHandlers(); // @phpstan-ignore-line
-        })->all();
+        $handlers = (new Collection($config['channels']))
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getHandlers() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound
+            })
+            ->all();
 
-        $processors = Collection::make($config['channels'])->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getProcessors() // @phpstan-ignore-line
-                : $this->channel($channel)->getProcessors(); // @phpstan-ignore-line
+        $processors = (new Collection($config['channels']))
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getProcessors() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound
+            })
             // Filter out the wrapped context processor from constituent channels.
             // Each constituent already had one pushed by get(); without filtering,
             // the stack would accumulate duplicates from every constituent.
-        })->reject(fn ($processor) => $processor instanceof ResolvedContextLogProcessor)->all();
+            ->reject(fn (callable $processor): bool => $processor instanceof ResolvedContextLogProcessor)
+            ->all();
 
         if ($config['ignore_exceptions'] ?? false) {
             $handlers = [new WhatFailureGroupHandler($handlers)];
@@ -309,14 +318,39 @@ class LogManager implements LoggerInterface
      */
     protected function createDailyDriver(array $config): LoggerInterface
     {
+        return $this->createRotatingDriver(
+            $config,
+            RotatingFileHandler::FILE_PER_DAY,
+            $config['max_files'] ?? $config['days'] ?? 7,
+        );
+    }
+
+    /**
+     * Create an instance of the monthly file log driver.
+     */
+    protected function createMonthlyDriver(array $config): LoggerInterface
+    {
+        return $this->createRotatingDriver(
+            $config,
+            RotatingFileHandler::FILE_PER_MONTH,
+            $config['max_files'] ?? 3,
+        );
+    }
+
+    /**
+     * Create an instance of a rotating file log driver.
+     */
+    protected function createRotatingDriver(array $config, string $dateFormat, int $maxFiles): LoggerInterface
+    {
         return new Monolog($this->parseChannel($config), [
             $this->prepareHandler(new RotatingFileHandler(
                 $config['path'],
-                $config['days'] ?? 7,
+                $maxFiles,
                 $this->level($config),
                 $config['bubble'] ?? true,
                 $config['permission'] ?? null,
-                $config['locking'] ?? false
+                $config['locking'] ?? false,
+                $dateFormat,
             ), $config),
         ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
@@ -382,7 +416,7 @@ class LogManager implements LoggerInterface
             );
         }
 
-        Collection::make($config['processors'] ?? [])->each(function ($processor) {
+        (new Collection($config['processors'] ?? []))->each(function ($processor) {
             $processor = $processor['processor'] ?? $processor;
 
             if (! is_a($processor, ProcessorInterface::class, true)) {
@@ -409,7 +443,7 @@ class LogManager implements LoggerInterface
             $config
         );
 
-        $processors = Collection::make($config['processors'] ?? [])
+        $processors = (new Collection($config['processors'] ?? []))
             ->map(function ($processor) {
                 $resolved = $this->app->make(
                     $processor['processor'] ?? $processor,
@@ -472,7 +506,7 @@ class LogManager implements LoggerInterface
     /**
      * Get a Monolog formatter instance.
      */
-    protected function formatter(): \Monolog\Formatter\FormatterInterface
+    protected function formatter(): FormatterInterface
     {
         return new LineFormatter(null, $this->dateFormat, true, true, true);
     }
@@ -503,7 +537,7 @@ class LogManager implements LoggerInterface
         }
 
         CoroutineContext::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
-            return array_merge($currentContext ?: [], $context);
+            return array_replace($currentContext ?: [], $context);
         });
 
         return $this;
@@ -587,6 +621,9 @@ class LogManager implements LoggerInterface
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent channel resolution.
      *
@@ -613,8 +650,12 @@ class LogManager implements LoggerInterface
      * coroutines may already hold a reference to the channel and next
      * resolution will rebuild with fresh handlers (file handles, etc.).
      */
-    public function forgetChannel(?string $driver = null): void
+    public function forgetChannel(UnitEnum|string|null $driver = null): void
     {
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
         $driver = $this->parseDriver($driver);
 
         if (isset($this->channels[$driver])) {
@@ -751,12 +792,8 @@ class LogManager implements LoggerInterface
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->driver()->{$method}(...$parameters);
     }

@@ -98,7 +98,7 @@ PHP,
         };
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage($expectedMessage);
+        $this->expectExceptionMessageIs($expectedMessage);
 
         $strategy->start();
     }

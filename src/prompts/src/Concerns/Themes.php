@@ -17,12 +17,12 @@ use Hypervel\Prompts\NumberPrompt;
 use Hypervel\Prompts\PasswordPrompt;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Progress;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SearchPrompt;
 use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\Spinner;
 use Hypervel\Prompts\Stream;
 use Hypervel\Prompts\SuggestPrompt;
-use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Table;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\TextareaPrompt;
@@ -63,7 +63,7 @@ trait Themes
     /**
      * The default theme registry.
      *
-     * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
+     * @var array<string, array<class-string<Prompt>, class-string<callable&object>>>
      */
     protected const array DEFAULT_THEMES = [
         self::DEFAULT_THEME => [
@@ -101,7 +101,7 @@ trait Themes
     /**
      * The available themes.
      *
-     * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
+     * @var array<string, array<class-string<Prompt>, class-string<callable&object>>>
      */
     protected static array $themes = self::DEFAULT_THEMES;
 
@@ -132,7 +132,7 @@ trait Themes
      * Boot-only. Themes persist in a static property for the worker lifetime
      * and are available to every subsequent prompt render.
      *
-     * @param array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>> $renderers
+     * @param array<class-string<Prompt>, class-string<callable&object>> $renderers
      */
     public static function addTheme(string $name, array $renderers): void
     {
@@ -155,7 +155,7 @@ trait Themes
             throw new InvalidArgumentException("Prompt renderer for [{$class}] not found.");
         }
 
-        return new $renderer($this);
+        return new $renderer($this, static::output()->getFormatter());
     }
 
     /**
@@ -164,9 +164,8 @@ trait Themes
     protected function renderTheme(): string
     {
         $renderer = $this->getRenderer();
-        $frame = $renderer($this);
 
-        return static::output()->isDecorated() ? $frame : Utils::stripEscapeSequences($frame);
+        return $renderer($this);
     }
 
     /**

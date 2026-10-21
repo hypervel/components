@@ -12,8 +12,14 @@ use Hypervel\Database\Console\PruneCommand;
 use Hypervel\Database\Events\ModelPruningFinished;
 use Hypervel\Database\Events\ModelPruningStarting;
 use Hypervel\Database\Events\ModelsPruned;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
+use Hypervel\Tests\Database\Fixtures\Pruning\Models\NonPrunableTestModel;
+use Hypervel\Tests\Database\Fixtures\Pruning\Models\NonPrunableTrait;
+use Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithoutPrunableRecords;
+use Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords;
+use Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -26,15 +32,15 @@ class PruneCommandTest extends TestCase
     {
         parent::setUp();
 
-        Application::setInstance($container = new Application(__DIR__ . '/Pruning'));
+        Application::setInstance($container = new Application(__DIR__ . '/Fixtures/Pruning'));
 
         Closure::bind(
-            fn () => $this->namespace = 'Hypervel\Tests\Database\Pruning\\',
+            fn () => $this->namespace = 'Hypervel\Tests\Database\Fixtures\Pruning\\',
             $container,
             Application::class,
         )();
 
-        $container->useAppPath(__DIR__ . '/Pruning');
+        $container->useAppPath(__DIR__ . '/Fixtures/Pruning');
 
         $container->singleton(DispatcherContract::class, function () {
             return new Dispatcher;
@@ -54,19 +60,19 @@ class PruneCommandTest extends TestCase
         $this->expectExceptionObject(new InvalidArgumentException('The --model and --except options cannot be combined.'));
 
         $this->artisan([
-            '--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
-            '--except' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
+            '--model' => PrunableTestModelWithPrunableRecords::class,
+            '--except' => PrunableTestModelWithPrunableRecords::class,
         ]);
     }
 
-    public function testPrunableModelWithPrunableRecords()
+    public function testPrunableModelWithPrunableRecords(): void
     {
-        $output = $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+        $output = $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
 
         $output = $output->fetch();
 
         $this->assertStringContainsString(
-            'Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithPrunableRecords',
+            'Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords',
             $output,
         );
 
@@ -76,7 +82,7 @@ class PruneCommandTest extends TestCase
         );
     }
 
-    public function testPrunableTestModelWithoutPrunableRecords()
+    public function testPrunableTestModelWithoutPrunableRecords(): void
     {
         $observedEvents = [];
         $events = Application::getInstance()->make(DispatcherContract::class);
@@ -92,16 +98,16 @@ class PruneCommandTest extends TestCase
                 $observedEvents[] = $event;
             }
         );
-        $output = $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithoutPrunableRecords::class]);
+        $output = $this->artisan(['--model' => PrunableTestModelWithoutPrunableRecords::class]);
 
         $this->assertStringContainsString(
-            'No prunable [Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithoutPrunableRecords] records found.',
+            'No prunable [Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithoutPrunableRecords] records found.',
             $output->fetch()
         );
         $this->assertSame([], $observedEvents);
     }
 
-    public function testPrunableSoftDeletedModelWithPrunableRecords()
+    public function testPrunableSoftDeletedModelWithPrunableRecords(): void
     {
         $db = new DB;
         $db->addConnection([
@@ -121,12 +127,12 @@ class PruneCommandTest extends TestCase
             ['value' => 4, 'deleted_at' => '2021-12-02 00:00:00'],
         ]);
 
-        $output = $this->artisan(['--model' => Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class]);
+        $output = $this->artisan(['--model' => PrunableTestSoftDeletedModelWithPrunableRecords::class]);
 
         $output = $output->fetch();
 
         $this->assertStringContainsString(
-            'Hypervel\Tests\Database\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords',
+            'Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords',
             $output,
         );
 
@@ -135,22 +141,22 @@ class PruneCommandTest extends TestCase
             $output,
         );
 
-        $this->assertEquals(2, Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
+        $this->assertEquals(2, PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
     }
 
-    public function testNonPrunableTest()
+    public function testNonPrunableTest(): void
     {
-        $output = $this->artisan(['--model' => Pruning\Models\NonPrunableTestModel::class]);
+        $output = $this->artisan(['--model' => NonPrunableTestModel::class]);
 
         $this->assertStringContainsString(
-            'No prunable [Hypervel\Tests\Database\Pruning\Models\NonPrunableTestModel] records found.',
+            'No prunable [Hypervel\Tests\Database\Fixtures\Pruning\Models\NonPrunableTestModel] records found.',
             $output->fetch(),
         );
     }
 
-    public function testNonPrunableTestWithATrait()
+    public function testNonPrunableTestWithATrait(): void
     {
-        $output = $this->artisan(['--model' => Pruning\Models\NonPrunableTrait::class]);
+        $output = $this->artisan(['--model' => NonPrunableTrait::class]);
 
         $this->assertStringContainsString(
             'No prunable models found.',
@@ -160,38 +166,47 @@ class PruneCommandTest extends TestCase
 
     public function testNonModelFilesAreIgnoredTest(): void
     {
-        $output = $this->artisan([
-            '--path' => 'Models',
-            // The soft-delete fixture needs a database; its dedicated tests set one up.
-            '--except' => [Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class],
+        $db = new DB;
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
         ]);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+        DB::connection('default')->getSchemaBuilder()->create('prunables', function (Blueprint $table): void {
+            $table->string('name')->nullable();
+            $table->string('value')->nullable();
+            $table->datetime('deleted_at')->nullable();
+        });
+
+        $output = $this->artisan(['--path' => 'Models']);
 
         $output = $output->fetch();
 
         $this->assertStringContainsString(
-            'Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithPrunableRecords',
+            'Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords',
             $output,
         );
 
         $this->assertStringContainsString('20 records', $output);
 
         $this->assertStringNotContainsString(
-            'No prunable [Hypervel\Tests\Database\Pruning\Models\AbstractPrunableModel] records found.',
+            'No prunable [Hypervel\Tests\Database\Fixtures\Pruning\Models\AbstractPrunableModel] records found.',
             $output,
         );
 
         $this->assertStringNotContainsString(
-            'No prunable [Hypervel\Tests\Database\Pruning\Models\SomeClass] records found.',
+            'No prunable [Hypervel\Tests\Database\Fixtures\Pruning\Models\SomeClass] records found.',
             $output,
         );
 
         $this->assertStringNotContainsString(
-            'No prunable [Hypervel\Tests\Database\Pruning\Models\SomeEnum] records found.',
+            'No prunable [Hypervel\Tests\Database\Fixtures\Pruning\Models\SomeEnum] records found.',
             $output,
         );
     }
 
-    public function testTheCommandMayBePretended()
+    public function testTheCommandMayBePretended(): void
     {
         $db = new DB;
         $db->addConnection([
@@ -213,19 +228,19 @@ class PruneCommandTest extends TestCase
         ]);
 
         $output = $this->artisan([
-            '--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
+            '--model' => PrunableTestModelWithPrunableRecords::class,
             '--pretend' => true,
         ]);
 
         $this->assertStringContainsString(
-            '3 [Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithPrunableRecords] records will be pruned.',
+            '3 [Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords] records will be pruned.',
             $output->fetch(),
         );
 
-        $this->assertEquals(5, Pruning\Models\PrunableTestModelWithPrunableRecords::count());
+        $this->assertEquals(5, PrunableTestModelWithPrunableRecords::count());
     }
 
-    public function testTheCommandMayBePretendedOnSoftDeletedModel()
+    public function testTheCommandMayBePretendedOnSoftDeletedModel(): void
     {
         $db = new DB;
         $db->addConnection([
@@ -246,19 +261,19 @@ class PruneCommandTest extends TestCase
         ]);
 
         $output = $this->artisan([
-            '--model' => Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class,
+            '--model' => PrunableTestSoftDeletedModelWithPrunableRecords::class,
             '--pretend' => true,
         ]);
 
         $this->assertStringContainsString(
-            '2 [Hypervel\Tests\Database\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords] records will be pruned.',
+            '2 [Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords] records will be pruned.',
             $output->fetch(),
         );
 
-        $this->assertEquals(4, Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
+        $this->assertEquals(4, PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
     }
 
-    public function testTheCommandDispatchesEventsWithoutRemovingApplicationListeners(): void
+    public function testTheCommandDispatchesEvents(): void
     {
         $events = Application::getInstance()->make(DispatcherContract::class);
         $startingEvents = [];
@@ -274,19 +289,21 @@ class PruneCommandTest extends TestCase
             $finishedEvents[] = $event;
         });
 
-        $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
-        $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+        $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
+
+        // Application listeners must survive the previous command invocation.
+        $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
 
         $this->assertCount(2, $startingEvents);
         $this->assertCount(4, $prunedEvents);
         $this->assertCount(2, $finishedEvents);
         $this->assertSame([10, 20, 10, 20], array_column($prunedEvents, 'count'));
         $this->assertSame(
-            [Pruning\Models\PrunableTestModelWithPrunableRecords::class],
+            [PrunableTestModelWithPrunableRecords::class],
             $startingEvents[0]->models,
         );
         $this->assertSame(
-            [Pruning\Models\PrunableTestModelWithPrunableRecords::class],
+            [PrunableTestModelWithPrunableRecords::class],
             $finishedEvents[1]->models,
         );
     }

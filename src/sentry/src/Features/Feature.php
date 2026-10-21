@@ -6,6 +6,7 @@ namespace Hypervel\Sentry\Features;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Sentry\SentryConfig;
+use Sentry\DataCollection\DataCollectionPolicy;
 use Sentry\SentrySdk;
 
 abstract class Feature
@@ -104,6 +105,39 @@ abstract class Feature
         }
 
         return $client->getOptions()->shouldSendDefaultPii();
+    }
+
+    /**
+     * Determine whether AI inputs may be collected.
+     */
+    protected function shouldCollectGenAiInputs(): bool
+    {
+        return $this->shouldCollectGenAi('inputs');
+    }
+
+    /**
+     * Determine whether AI outputs may be collected.
+     */
+    protected function shouldCollectGenAiOutputs(): bool
+    {
+        return $this->shouldCollectGenAi('outputs');
+    }
+
+    /**
+     * Resolve the AI payload policy for the current client.
+     *
+     * @param 'inputs'|'outputs' $type
+     */
+    private function shouldCollectGenAi(string $type): bool
+    {
+        $dataCollection = DataCollectionPolicy::fromHub(SentrySdk::getCurrentHub())->getDataCollection();
+
+        // The legacy options collect both inputs and outputs based on send_default_pii.
+        if ($dataCollection === null) {
+            return $this->shouldSendDefaultPii();
+        }
+
+        return $dataCollection->getGenAi()[$type];
     }
 
     /**

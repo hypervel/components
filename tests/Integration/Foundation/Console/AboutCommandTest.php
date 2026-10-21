@@ -4,29 +4,57 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
+use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Testbench\remote;
 
 class AboutCommandTest extends TestCase
 {
-    public function testItCanDisplayAboutCommandAsJson()
+    protected string $directory;
+
+    /**
+     * Prepare an isolated bootstrap directory for cache checks.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->directory = ParallelTesting::tempDir('AboutCommandTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->directory);
+        $files->ensureDirectoryExists($this->directory);
+    }
+
+    /**
+     * Remove the temporary bootstrap directory.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            (new Filesystem)->deleteDirectory($this->directory);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
+    public function testItCanDisplayAboutCommandAsJson(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local', 'APP_DEBUG' => 'true'])->mustRun();
 
-        tap(json_decode($process->getOutput(), true), function ($output) {
+        tap(json_decode($process->getOutput(), true), function (array $output): void {
             Assert::assertArraySubset([
                 'php_version' => PHP_VERSION,
                 'swoole_version' => swoole_version(),
                 'environment' => 'local',
                 'debug_mode' => true,
             ], $output['environment']);
-
-            $this->assertArrayHasKey('aop_proxies', $output['cache']);
         });
     }
 
@@ -42,8 +70,35 @@ class AboutCommandTest extends TestCase
         $this->assertSame('', $output['environment']['url']);
     }
 
+    #[DataProvider('proxyCacheStates')]
+    public function testItReportsWhetherAopProxiesAreCached(bool $cached): void
+    {
+        $this->app->useBootstrapPath($this->directory);
+
+        if ($cached) {
+            $files = new Filesystem;
+            $files->ensureDirectoryExists($this->app->bootstrapPath('cache/aop'));
+            $files->put($this->app->bootstrapPath('cache/aop/Example.proxy.php'), '<?php');
+        }
+
+        $this->withoutMockingConsoleOutput();
+        $this->artisan(AboutCommand::class, ['--json' => null]);
+
+        $output = json_decode(Artisan::output(), true);
+
+        $this->assertSame($cached, $output['cache']['aop_proxies']);
+    }
+
+    /**
+     * Provide empty and populated proxy caches.
+     */
+    public static function proxyCacheStates(): array
+    {
+        return ['empty' => [false], 'populated' => [true]];
+    }
+
     #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/Fixtures/compiled-views')]
-    public function testItRespectsCustomPathForCompiledViews()
+    public function testItRespectsCustomPathForCompiledViews(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local'])->mustRun();
 
@@ -54,7 +109,7 @@ class AboutCommandTest extends TestCase
         });
     }
 
-    public function testItReportsCompiledViewsWhenCached()
+    public function testItReportsCompiledViewsWhenCached(): void
     {
         remote('view:cache')->mustRun();
 

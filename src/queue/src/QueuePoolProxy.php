@@ -11,6 +11,8 @@ use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
@@ -19,6 +21,7 @@ use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 {
@@ -55,7 +58,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -63,7 +66,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -71,7 +74,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -79,7 +82,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -119,7 +122,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -127,7 +130,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -135,7 +138,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -167,7 +170,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -175,7 +178,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -183,7 +186,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto the queue.
      */
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -191,7 +194,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -199,7 +202,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -207,7 +210,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto a specific queue after (n) seconds.
      */
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -215,7 +218,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -240,7 +243,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null, int $index = 0): ?Job
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?Job
     {
         $lease = $this->lease();
 
@@ -314,6 +317,16 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
         $this->connectionName = $name;
 
         return $this;
+    }
+
+    /**
+     * Return idle database sessions before waiting for a queue connection.
+     */
+    protected function lease(): Lease
+    {
+        ConnectionResolver::releaseIdleConnections();
+
+        return parent::lease();
     }
 
     /**

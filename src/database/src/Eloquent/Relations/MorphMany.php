@@ -8,17 +8,17 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\MorphOneOrMany<TRelatedModel, TDeclaringModel, \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>>
+ * @extends MorphOneOrMany<TRelatedModel, TDeclaringModel, EloquentCollection<int, TRelatedModel>>
  */
 class MorphMany extends MorphOneOrMany
 {
     /**
      * Convert the relationship to a "morph one" relationship.
      *
-     * @return \Hypervel\Database\Eloquent\Relations\MorphOne<TRelatedModel, TDeclaringModel>
+     * @return MorphOne<TRelatedModel, TDeclaringModel>
      */
     public function one(): MorphOne
     {

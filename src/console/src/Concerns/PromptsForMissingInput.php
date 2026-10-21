@@ -10,6 +10,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\text;
@@ -34,8 +35,7 @@ trait PromptsForMissingInput
     protected function promptForMissingArguments(InputInterface $input, OutputInterface $output): void
     {
         $prompted = (new Collection($this->getDefinition()->getArguments()))
-            ->reject(fn (InputArgument $argument) => $argument->getName() === 'command')
-            ->filter(fn (InputArgument $argument) => $argument->isRequired() && match (true) {
+            ->filter(fn (InputArgument $argument) => $argument->getName() !== 'command' && $argument->isRequired() && match (true) {
                 $argument->isArray() => empty($input->getArgument($argument->getName())),
                 default => is_null($input->getArgument($argument->getName())),
             })
@@ -89,7 +89,6 @@ trait PromptsForMissingInput
     protected function didReceiveOptions(InputInterface $input): bool
     {
         return (new Collection($this->getDefinition()->getOptions()))
-            ->reject(fn ($option) => $input->getOption($option->getName()) === $option->getDefault())
-            ->isNotEmpty();
+            ->contains(fn (InputOption $option): bool => $input->getOption($option->getName()) !== $option->getDefault());
     }
 }

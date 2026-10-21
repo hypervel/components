@@ -147,8 +147,10 @@ trait TypedValue
     }
 
     /**
-     * Character offset of the word boundary immediately before the cursor (Intl + punctuation).
-     * Punctuation (e.g. . - _) is treated as a word boundary so "word.word" deletes in two steps.
+     * Get the character offset of the word boundary immediately before the cursor.
+     *
+     * Uses the later of the intl word boundary, when the extension is loaded, and the start of
+     * the last run of letters and numbers, so punctuation such as . - _ ends a word.
      */
     protected function findWordStartBeforeCursor(): int
     {

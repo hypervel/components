@@ -16,6 +16,9 @@ use Hypervel\Testbench\Foundation\Env;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class RequiresEnv implements Actionable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $key,
         public readonly ?string $message = null

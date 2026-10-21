@@ -25,6 +25,9 @@ use RuntimeException;
 
 class NewPasswordController extends Controller
 {
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
         private readonly Container $container,
         private readonly Config $config,
@@ -56,6 +59,9 @@ class NewPasswordController extends Controller
             'password' => 'required',
         ]);
 
+        // Here we will attempt to reset the user's password. If it is successful we
+        // will update the password on an actual user model and persist it to the
+        // database. Otherwise we will parse the error and return the response.
         $status = $this->broker()->reset(
             $request->only(Fortify::email(), 'password', 'password_confirmation', 'token'),
             function ($user) use ($request): void {

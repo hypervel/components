@@ -47,7 +47,7 @@ The Hypervel framework has a few system requirements. Hypervel ships with its ow
 - POSIX PHP Extension
 - Redis PHP Extension >= 6.1
 - Session PHP Extension
-- Swoole PHP Extension >= 6.2.2
+- Swoole PHP Extension >= 6.3.0
 - Tokenizer PHP Extension
 - XML PHP Extension
 
@@ -80,6 +80,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffer_size 32k;
+        proxy_buffers 8 32k;
+        proxy_busy_buffers_size 64k;
 
         proxy_pass http://127.0.0.1:8000;
     }
@@ -135,6 +138,8 @@ The `serve` command also accepts `--host` and `--port` options for overriding th
 
 <a name="graceful-shutdown"></a>
 ### Graceful Shutdown
+
+Sending `SIGTERM` or `SIGINT` to the server's main process starts a graceful shutdown. `Ctrl+C` sends `SIGINT` to the entire terminal process group and can interrupt active requests. To allow requests to finish, signal the main process only.
 
 The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful shutdown allowance in seconds. It defaults to `3`. Increase this value when long-running requests, WebSocket connections, or server-process cleanup need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
 

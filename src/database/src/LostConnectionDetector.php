@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use ErrorException;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Hypervel\Support\Str;
+use PDOException;
 use Throwable;
 
 class LostConnectionDetector implements LostConnectionDetectorContract
@@ -15,6 +17,23 @@ class LostConnectionDetector implements LostConnectionDetectorContract
      */
     public function causedByLostConnection(Throwable $e): bool
     {
+        // Query context includes application SQL and bindings, not just the failure message.
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
+        // mysqlnd can report protocol failures as PHP warnings even in exception mode.
+        if ($e instanceof ErrorException) {
+            return Str::startsWith($e->getMessage(), [
+                'Packets out of order. Expected',
+                'Error while sending',
+            ]);
+        }
+
+        if (! $e instanceof PDOException && ! $e instanceof LostConnectionException) {
+            return false;
+        }
+
         $message = $e->getMessage();
 
         return Str::contains($message, [
@@ -85,12 +104,23 @@ class LostConnectionDetector implements LostConnectionDetectorContract
             'Broken pipe',
             'SQLSTATE[25006]: Read only sql transaction: 7',
             'failed: Connection refused',
+
+            // PlanetScale MySQL / Vitess related things...
             'vtgate connection error: no healthy endpoints',
             'primary is not serving, there may be a reparent operation in progress',
             'current keyspace is being resharded',
             'no healthy tablet available',
             'transaction pool connection limit exceeded',
             'SSL operation failed with code 5',
+
+            // PlanetScale PostgreSQL / pg_bouncer related things...
+            'no primary available for branch',
+            'no replica available for branch',
+            'no running members available for branch',
+            'failed to connect to upstream',
+            'failed to send startup message',
+            'failed to read startup message',
+            'canceling statement due to conflict with recovery',
         ]);
     }
 }

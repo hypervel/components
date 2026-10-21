@@ -22,7 +22,7 @@ trait SerializesModels
         [$class, $properties, $classLevelWithoutRelations] = [
             get_class($this),
             ClassMetadataCache::properties($this),
-            ClassMetadataCache::hasClassAttribute($this, WithoutRelations::class),
+            ClassMetadataCache::hasClassAttribute($this, WithoutRelations::class, ascend: true),
         ];
 
         foreach ($properties as $property) {

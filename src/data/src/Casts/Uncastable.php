@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Casts;
 
-enum Uncastable
+enum Uncastable: string
 {
-    case Instance;
+    case Instance = 'Instance';
 
     /**
      * Get the uncastable sentinel.

@@ -126,7 +126,7 @@ class EventFake implements Fake, DispatcherContract
         }
 
         PHPUnit::assertTrue(
-            $this->dispatched($event, $callback)->count() > 0,
+            $this->dispatched($event, $callback)->isNotEmpty(),
             "The expected [{$event}] event was not dispatched."
         );
     }
@@ -202,14 +202,14 @@ class EventFake implements Fake, DispatcherContract
     public function dispatched(string $event, ?callable $callback = null): Collection
     {
         if (! $this->hasDispatched($event)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: function () {
             return true;
         };
 
-        return Collection::make($this->events[$event])->filter(function ($arguments) use ($callback) {
+        return (new Collection($this->events[$event]))->filter(function ($arguments) use ($callback) {
             return $callback(...$arguments);
         });
     }
@@ -328,12 +328,11 @@ class EventFake implements Fake, DispatcherContract
         }
 
         return (new Collection($this->eventsToFake))
-            ->filter(function ($event) use ($eventName, $payload) {
+            ->contains(function (mixed $event) use ($eventName, $payload): mixed {
                 return $event instanceof Closure
                     ? $event($eventName, $payload)
                     : $event === $eventName;
-            })
-            ->isNotEmpty();
+            });
     }
 
     /**
@@ -360,13 +359,12 @@ class EventFake implements Fake, DispatcherContract
             return false;
         }
 
-        return Collection::make($this->eventsToDispatch)
-            ->filter(function ($event) use ($eventName, $payload) {
+        return (new Collection($this->eventsToDispatch))
+            ->contains(function (mixed $event) use ($eventName, $payload): mixed {
                 return $event instanceof Closure
                     ? $event($eventName, $payload)
                     : $event === $eventName;
-            })
-            ->isNotEmpty();
+            });
     }
 
     /**

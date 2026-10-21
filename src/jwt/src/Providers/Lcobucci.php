@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Jwt\Providers;
 
+use DateInterval;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
@@ -11,16 +12,21 @@ use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
-use Hypervel\Support\Collection;
+use Hypervel\Jwt\Providers\Lcobucci\OpenSslSigner;
+use Hypervel\Jwt\Providers\Lcobucci\ParsedKey;
+use Hypervel\Support\Facades\Date;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer;
 use Lcobucci\JWT\Signer\Ecdsa;
+use Lcobucci\JWT\Signer\Ecdsa\ConversionFailed;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
+use Lcobucci\JWT\Token\Plain;
 use Lcobucci\JWT\Token\RegisteredClaims;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use SensitiveParameter;
 use Throwable;
 
 class Lcobucci extends Provider implements ProviderContract
@@ -31,19 +37,31 @@ class Lcobucci extends Provider implements ProviderContract
     protected Signer $signer;
 
     /**
-     * \Lcobucci\JWT\Configuration.
+     * The configuration that signs and verifies tokens.
      */
     protected Configuration $config;
 
     /**
-     * Create the Lcobucci provider.
+     * Whether the provider has no private key, so it can only verify tokens.
      */
-    public function __construct(string $secret, string $algo, array $keys, ?Configuration $config = null)
-    {
+    protected bool $verifiesOnly = false;
+
+    /**
+     * Create the Lcobucci provider.
+     *
+     * A given configuration signs and verifies tokens instead of one built from the secret and keys.
+     */
+    public function __construct(
+        #[SensitiveParameter]
+        string $secret,
+        string $algo,
+        #[SensitiveParameter]
+        array $keys,
+        ?Configuration $config = null,
+    ) {
         parent::__construct($secret, $algo, $keys);
 
-        $this->signer = $this->getSigner();
-        $this->config = $config ?: $this->buildConfig();
+        $this->configure($config);
     }
 
     /**
@@ -64,10 +82,14 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Create a JSON Web Token.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     public function encode(array $payload): string
     {
+        if ($this->verifiesOnly) {
+            throw new JwtException('Private key is not set.');
+        }
+
         $builder = $this->getBuilderFromClaims($payload);
 
         try {
@@ -82,12 +104,12 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Decode a JSON Web Token.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
-    public function decode(string $token): array
+    public function decode(#[SensitiveParameter] string $token): array
     {
         try {
-            /** @var \Lcobucci\JWT\Token\Plain */
+            /** @var Plain */
             $token = $this->config->parser()->parse($token);
         } catch (Throwable $exception) {
             throw new TokenInvalidException(
@@ -97,21 +119,21 @@ class Lcobucci extends Provider implements ProviderContract
             );
         }
 
-        if (! $this->config->validator()->validate($token, ...$this->config->validationConstraints())) {
+        try {
+            $verified = $this->config->validator()->validate($token, ...$this->config->validationConstraints());
+        } catch (ConversionFailed) {
+            // ECDSA verification rejects a signature of the wrong length before comparing it.
+            $verified = false;
+        }
+
+        if (! $verified) {
             throw new TokenInvalidException('Token Signature could not be verified.');
         }
 
-        return Collection::wrap($token->claims()->all())
-            ->map(function ($claim) {
-                if ($claim instanceof DateTimeInterface) {
-                    return $claim->getTimestamp();
-                }
-
-                return is_object($claim) && method_exists($claim, 'getValue')
-                    ? $claim->getValue()
-                    : $claim;
-            })
-            ->toArray();
+        return array_map(
+            static fn (mixed $claim): mixed => $claim instanceof DateTimeInterface ? $claim->getTimestamp() : $claim,
+            $token->claims()->all(),
+        );
     }
 
     /**
@@ -127,13 +149,13 @@ class Lcobucci extends Provider implements ProviderContract
                     $builder = $builder->identifiedBy($value);
                     break;
                 case RegisteredClaims::EXPIRATION_TIME:
-                    $builder = $builder->expiresAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->expiresAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::NOT_BEFORE:
-                    $builder = $builder->canOnlyBeUsedAfter(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->canOnlyBeUsedAfter($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUED_AT:
-                    $builder = $builder->issuedAt(DateTimeImmutable::createFromFormat('U', (string) $value));
+                    $builder = $builder->issuedAt($this->getDateFromClaim($value));
                     break;
                 case RegisteredClaims::ISSUER:
                     $builder = $builder->issuedBy($value);
@@ -155,40 +177,71 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
+     * Convert a date claim value to a date with whole-second precision.
+     */
+    protected function getDateFromClaim(int|string|DateTimeInterface|DateInterval $value): DateTimeImmutable
+    {
+        if ($value instanceof DateInterval) {
+            $value = Date::now()->add($value);
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            $value = $value->getTimestamp();
+        }
+
+        return DateTimeImmutable::createFromFormat('U', (string) $value);
+    }
+
+    /**
      * Build the configuration.
      */
     protected function buildConfig(): Configuration
     {
+        $verificationKey = $this->getVerificationKey();
         $config = $this->isAsymmetric()
             ? Configuration::forAsymmetricSigner(
                 $this->signer,
-                $this->getSigningKey(),
-                $this->getVerificationKey()
+                // lcobucci needs a signing key even to verify, so a provider without a private
+                // key fills the slot with the public key, and encode() refuses to sign.
+                $this->verifiesOnly ? $verificationKey : $this->getSigningKey(),
+                $verificationKey
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
 
         return $config->withValidationConstraints(
-            new SignedWith($this->signer, $this->getVerificationKey())
+            new SignedWith($this->signer, $verificationKey)
         );
     }
 
     /**
-     * Rebuild cached derived state after a configuration change.
+     * Build the signer, and the configuration unless one is given.
      *
-     * Signer is rebuilt before config because buildConfig() reads $this->signer.
+     * @throws JwtException
+     */
+    protected function configure(?Configuration $config = null): void
+    {
+        // buildConfig() reads the signer and the verification-only flag.
+        $this->signer = $this->getSigner();
+        $this->verifiesOnly = $config === null && $this->isAsymmetric() && ! $this->getPrivateKey();
+        $this->config = $config ?? $this->buildConfig();
+    }
+
+    /**
+     * Rebuild the signer and configuration after a setting changes.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * A configuration given to the constructor is replaced by one built from the new settings.
+     *
+     * @throws JwtException
      */
     protected function onConfigurationChanged(): void
     {
-        $this->signer = $this->getSigner();
-        $this->config = $this->buildConfig();
+        $this->configure();
     }
 
     /**
      * Get the signer instance.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     protected function getSigner(): Signer
     {
@@ -196,33 +249,38 @@ class Lcobucci extends Provider implements ProviderContract
             throw new JwtException('The given algorithm could not be found');
         }
 
-        $signer = $this->signers[$this->algo];
+        $signer = new $this->signers[$this->algo];
 
-        if (is_subclass_of($signer, Ecdsa::class) && method_exists($signer, 'create')) {
-            /* @phpstan-ignore-next-line */
-            return $signer::create();
-        }
-
-        return new $signer;
-    }
-
-    protected function isAsymmetric(): bool
-    {
-        return is_subclass_of($this->signer, Rsa::class)
-            || is_subclass_of($this->signer, Ecdsa::class);
+        return $signer instanceof Rsa || $signer instanceof Ecdsa ? new OpenSslSigner($signer) : $signer;
     }
 
     /**
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * Determine if the algorithm is asymmetric, and thus requires a public/private key combo.
      */
-    protected function getSigningKey(): mixed
+    protected function isAsymmetric(): bool
+    {
+        return $this->signer instanceof OpenSslSigner
+            || $this->signer instanceof Rsa
+            || $this->signer instanceof Ecdsa;
+    }
+
+    /**
+     * Get the key used to sign the tokens.
+     *
+     * @throws JwtException
+     */
+    protected function getSigningKey(): Key
     {
         if ($this->isAsymmetric()) {
             if (! $privateKey = $this->getPrivateKey()) {
                 throw new JwtException('Private key is not set.');
             }
 
-            return $this->getKey($privateKey, $this->getPassphrase() ?? '');
+            $key = $this->getKey($privateKey, $this->getPassphrase() ?? '');
+
+            return $this->signer instanceof OpenSslSigner
+                ? ParsedKey::fromPrivateKey($key->contents(), $key->passphrase())
+                : $key;
         }
 
         if (! $secret = $this->getSecret()) {
@@ -233,16 +291,22 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * Get the key used to verify the tokens.
+     *
+     * @throws JwtException
      */
-    protected function getVerificationKey(): mixed
+    protected function getVerificationKey(): Key
     {
         if ($this->isAsymmetric()) {
             if (! $public = $this->getPublicKey()) {
                 throw new JwtException('Public key is not set.');
             }
 
-            return $this->getKey($public);
+            $key = $this->getKey($public);
+
+            return $this->signer instanceof OpenSslSigner
+                ? ParsedKey::fromPublicKey($key->contents())
+                : $key;
         }
 
         if (! $secret = $this->getSecret()) {
@@ -255,7 +319,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Get the signing key instance.
      */
-    protected function getKey(string $contents, string $passphrase = ''): Key
+    protected function getKey(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): Key
     {
         if (str_starts_with($contents, 'file://')) {
             return InMemory::file($contents, $passphrase);

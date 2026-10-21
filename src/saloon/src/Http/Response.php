@@ -11,6 +11,20 @@ use Hypervel\Saloon\Contracts\FakeResponse;
 use Hypervel\Saloon\Exceptions\Request\ClientException;
 use Hypervel\Saloon\Exceptions\Request\RequestException;
 use Hypervel\Saloon\Exceptions\Request\ServerException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\BadGatewayException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\BadRequestException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\ConflictException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\ForbiddenException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\GatewayTimeoutException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\InternalServerErrorException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\MethodNotAllowedException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\NotFoundException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\PaymentRequiredException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\RequestTimeOutException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\ServiceUnavailableException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\TooManyRequestsException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\UnauthorizedException;
+use Hypervel\Saloon\Exceptions\Request\Statuses\UnprocessableEntityException;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
@@ -62,7 +76,7 @@ class Response extends HttpResponse
         $saloonResponse->cookies = $response->cookies;
         $saloonResponse->transferStats = $response->transferStats;
         $saloonResponse->decoded = $response->decoded;
-        $saloonResponse->hasDecoded = $response->hasDecoded;
+        $saloonResponse->decodedJson = $response->decodedJson;
         $saloonResponse->decodingFlags = $response->decodingFlags;
         $saloonResponse->decodeUsing = $response->decodeUsing;
         $saloonResponse->truncateExceptionsAt = $response->truncateExceptionsAt;
@@ -84,9 +98,11 @@ class Response extends HttpResponse
         }
 
         $body = $stream->getContents();
-        $this->response = $this->response->withBody(Utils::streamFor($body));
+        $buffer = Utils::streamFor($body);
+        $buffer->seek(0, SEEK_END);
+        $this->response = $this->response->withBody($buffer);
         $this->decoded = null;
-        $this->hasDecoded = false;
+        $this->decodedJson = false;
         $this->decodingFlags = 0;
 
         return $body;
@@ -99,6 +115,9 @@ class Response extends HttpResponse
     {
         return $this->response->getBody();
     }
+
+    // withBufferedBody() is not included: body() buffers a stream that can't be rewound. getSenderException() is not
+    // included either, since an error status never throws in the transport. See the package README.
 
     /**
      * Get the pending request.
@@ -202,11 +221,39 @@ class Response extends HttpResponse
             return $exception;
         }
 
-        return match (true) {
-            $this->clientError() => new ClientException($this, $this->truncateExceptionsAt),
-            $this->serverError() => new ServerException($this, $this->truncateExceptionsAt),
-            default => new RequestException($this, $this->truncateExceptionsAt),
+        $status = $this->status();
+
+        $exception = match (true) {
+            $status === 400 => BadRequestException::class,
+            $status === 401 => UnauthorizedException::class,
+            $status === 402 => PaymentRequiredException::class,
+            $status === 403 => ForbiddenException::class,
+            $status === 404 => NotFoundException::class,
+            $status === 405 => MethodNotAllowedException::class,
+            $status === 408 => RequestTimeOutException::class,
+            $status === 409 => ConflictException::class,
+            $status === 422 => UnprocessableEntityException::class,
+            $status === 429 => TooManyRequestsException::class,
+            $status === 500 => InternalServerErrorException::class,
+            $status === 502 => BadGatewayException::class,
+            $status === 503 => ServiceUnavailableException::class,
+            $status === 504 => GatewayTimeoutException::class,
+            $this->serverError() => ServerException::class,
+            $this->clientError() => ClientException::class,
+            default => RequestException::class,
         };
+
+        return new $exception($this, $this->truncateExceptionsAt);
+    }
+
+    /**
+     * Get the JSON decoded body as an array. Provide a key to find a specific item in the JSON.
+     *
+     * Alias of json()
+     */
+    public function array(int|string|null $key = null, mixed $default = null): mixed
+    {
+        return $this->json(is_int($key) ? (string) $key : $key, $default);
     }
 
     /**
@@ -235,7 +282,7 @@ class Response extends HttpResponse
     {
         if ($this->failed()) {
             throw new LogicException(
-                'Unable to create a data transfer object because the response failed.',
+                'Unable to create data transfer object as the response has failed.',
                 0,
                 $this->toException(),
             );
@@ -254,6 +301,8 @@ class Response extends HttpResponse
         return simplexml_load_string($this->body(), ...$arguments);
     }
 
+    // xmlReader() is not included; see the package README.
+
     /**
      * Parse the HTML or XML response into a DOM crawler.
      */
@@ -268,6 +317,22 @@ class Response extends HttpResponse
     public function dataUrl(): string
     {
         return 'data:' . $this->header('Content-Type') . ';base64,' . base64_encode($this->body());
+    }
+
+    /**
+     * Determine if the response is in JSON format.
+     */
+    public function isJson(): bool
+    {
+        return str_contains(mb_strtolower($this->header('Content-Type')), 'json');
+    }
+
+    /**
+     * Determine if the response is in XML format.
+     */
+    public function isXml(): bool
+    {
+        return str_contains(mb_strtolower($this->header('Content-Type')), 'xml');
     }
 
     /**

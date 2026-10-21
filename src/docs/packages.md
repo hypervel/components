@@ -81,6 +81,20 @@ php -f vendor/bin/facade.php -- Courier\\Facades\\Courier
 
 You may pass several facade class names to the same command. The generator replaces the facade's class docblock with the generated `@method` and `@see` definitions. Any `@mixin` tags declared directly on the facade are preserved.
 
+If some of the underlying class's methods should not appear in the facade's docblock, define an `ignoredFacadeDocumenterMethods` method on the facade that returns their names. The generator also asks you to exclude methods with defaults such as `new DateTimeImmutable`, since those defaults cannot be written in a `@method` tag:
+
+```php
+/**
+ * Get methods that should be excluded from the generated facade docblock.
+ *
+ * @return array<int, string>
+ */
+protected static function ignoredFacadeDocumenterMethods(): array
+{
+    return ['extend'];
+}
+```
+
 To check the docblock without changing the file, add the `--lint` option. The command exits with a non-zero status when the generated docblock is not current, making it suitable for continuous integration:
 
 ```shell
@@ -176,7 +190,7 @@ class TestState
 }
 ```
 
-Use your Composer package name as the callback name. Registrar classes are discovered during PHPUnit extension bootstrap, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
+Use your Composer package name as the callback name. Registrar classes are discovered when Hypervel's [PHPUnit extension](/docs/{{version}}/testing#test-state-cleanup) boots, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
 
 Test-state callbacks run after the test application has been destroyed. Use them for process-local state that can be reset directly, not cleanup that resolves container services. Use the appropriate testing trait to clean up external resources.
 
@@ -305,7 +319,7 @@ public function register(): void
 
 The replacement file should define the original class name. In the example above, Composer is still being asked to load `VendorPackage\Client`; Hypervel simply tells Composer to load that class from your replacement file instead of the dependency's original file. The replacement should remain compatible with the original class's public API, since other code will still interact with it as `VendorPackage\Client`.
 
-Class map overrides mutate Composer's autoloader immediately and must be registered before the target class, interface, or trait has been loaded. If the target has already been loaded, Hypervel will throw an exception. For this reason, class map overrides should be registered in the service provider's `register` method before resolving services or referencing classes that may load the target.
+Class map overrides take effect immediately and must be registered before the target class, interface, or trait has been loaded. Register them in the service provider's `register` method before resolving services or referencing classes that may load the target. Registration closes after proxy generation; registering an override during `boot` or later throws an exception. Repeating an override for the same source file during registration is safe, including when Testbench boots another application. Attempting to replace a loaded target with a different source file throws an exception.
 
 > [!WARNING]
 > Class map overrides affect the worker's autoloader for the lifetime of the process. They should only be used for boot-time package integration, not request-specific behavior.
@@ -403,6 +417,30 @@ public function boot(): void
     $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
 }
 ```
+
+<a name="loading-routes-before-the-application-routes"></a>
+#### Loading Routes Before the Application's Routes
+
+The `loadRoutesFrom` method registers your routes while your service provider boots, which is before the application's own service providers boot. So, route patterns the application defines using `Route::pattern` in its service providers will not apply to your routes. Registering your routes later, after the application has booted, has the opposite problem: a broad application route defined earlier, such as a catch-all route for a single-page application, would be matched before yours.
+
+When your routes need the application's route patterns and must not be shadowed by its broader routes, you may register them using the `beforeLoadingRoutes` method of the `RouteServiceProvider`. The given callback runs just before the application's routes are loaded. When an application configures its routing using the `withRouting` method, that happens after every other service provider has booted:
+
+```php
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
+use Hypervel\Support\Facades\Route;
+
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    RouteServiceProvider::beforeLoadingRoutes(function () {
+        Route::middleware('web')->group(__DIR__.'/../routes/web.php');
+    });
+}
+```
+
+Your routes are then matched before the routes the application defines in the same domain scope, such as a catch-all route. Routes that specify a domain are still matched before routes that do not, and an application route with the same HTTP method, domain, and URI as one of your routes replaces it. When the application's routes are cached, the callback is not called, since the cached routes already include your routes.
 
 <a name="migrations"></a>
 ### Migrations

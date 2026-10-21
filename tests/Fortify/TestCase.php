@@ -13,7 +13,6 @@ use Hypervel\Passkeys\PasskeysServiceProvider;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
-use Workbench\App\Models\User;
 
 abstract class TestCase extends TestbenchTestCase
 {
@@ -34,7 +33,7 @@ abstract class TestCase extends TestbenchTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $config = $app->make(Config::class);
-        $userModel = $config->get('auth.providers.users.model', User::class);
+        $userModel = $config->string('auth.providers.users.model');
 
         $config->set([
             'app.key' => 'base64:' . base64_encode(str_repeat('a', 32)),
@@ -61,32 +60,8 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
-     * Create fixture tables after refreshing the database.
+     * Create the admins table.
      */
-    protected function afterRefreshingDatabase(): void
-    {
-        Schema::create('users', function (Blueprint $table): void {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password')->nullable();
-            $table->text('two_factor_secret')->nullable();
-            $table->text('two_factor_recovery_codes')->nullable();
-            $table->timestamp('two_factor_confirmed_at')->nullable();
-            $table->rememberToken();
-            $table->timestamps();
-        });
-
-        $this->createAdminsTable();
-
-        Schema::create('password_reset_tokens', function (Blueprint $table): void {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        });
-    }
-
     protected function createAdminsTable(): void
     {
         Schema::create('admins', function (Blueprint $table): void {

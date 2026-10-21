@@ -17,10 +17,14 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use PDO;
 
 class DatabaseManagerTest extends TestCase
 {
+    // REMOVED: Laravel's ::direct parsing, PDO selection and refresh tests.
+    // Hypervel uses a separate named connection for that endpoint.
+
     protected DB $db;
 
     protected function setUp(): void
@@ -35,7 +39,29 @@ class DatabaseManagerTest extends TestCase
         ]);
     }
 
-    public function testDisconnectDisconnectsNonPooledConnection()
+    public function testReconnectorAcceptsArrayCallable(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+        $reconnector = new class {
+            public ?Connection $connection = null;
+
+            /**
+             * Record the connection requesting reconnection.
+             */
+            public function reconnect(Connection $connection): void
+            {
+                $this->connection = $connection;
+            }
+        };
+
+        $manager->setReconnector([$reconnector, 'reconnect']);
+        $connection = $manager->connection();
+        $connection->reconnect();
+
+        $this->assertSame($connection, $reconnector->connection);
+    }
+
+    public function testDisconnectDisconnectsNonPooledConnection(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -56,7 +82,7 @@ class DatabaseManagerTest extends TestCase
     // REMOVED: Capsule's setter writes unused configuration and cannot safely
     // define a connection-wide row shape. Use Query\Builder::fetchUsing() per query.
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         try {
             DatabaseManager::macro('stateTest', fn () => 'state');
@@ -71,7 +97,7 @@ class DatabaseManagerTest extends TestCase
         }
     }
 
-    public function testDisconnectWithNamedNonPooledConnection()
+    public function testDisconnectWithNamedNonPooledConnection(): void
     {
         $this->db->addConnection([
             'driver' => 'sqlite',
@@ -151,7 +177,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame('default', $manager->connection()->getName());
     }
 
-    public function testDisconnectWithNoExistingConnectionDoesNotError()
+    public function testDisconnectWithNoExistingConnectionDoesNotError(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -161,7 +187,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testReconnectAfterDisconnectOnNonPooledConnection()
+    public function testReconnectAfterDisconnectOnNonPooledConnection(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -355,7 +381,7 @@ class DatabaseManagerTest extends TestCase
         }
     }
 
-    public function testExtendWorksEndToEndThroughNonPooledPath()
+    public function testExtendWorksEndToEndThroughNonPooledPath(): void
     {
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
         $manager = $this->db->getDatabaseManager();
@@ -375,7 +401,7 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame($custom, $result);
     }
 
-    public function testForgetExtensionWorksEndToEndThroughNonPooledPath()
+    public function testForgetExtensionWorksEndToEndThroughNonPooledPath(): void
     {
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
         $manager = $this->db->getDatabaseManager();
@@ -420,6 +446,43 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame('split', $connection->getName());
         $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
         $this->assertNotNull($connection->getPdo());
+    }
+
+    public function testNonPooledReadExtensionRetainsCompleteConfigurationThroughReconnect(): void
+    {
+        $config = [
+            'driver' => 'http',
+            'database' => 'analytics',
+            'host' => 'base.test',
+            'read' => [
+                ['host' => 'read-one.test', 'username' => 'reader-one'],
+                ['host' => 'read-two.test', 'username' => 'reader-two'],
+            ],
+            'write' => ['host' => 'write.test'],
+        ];
+        $this->db->addConnection($config, 'read-extension');
+        $manager = $this->db->getDatabaseManager();
+        $receivedConfigurations = [];
+        $manager->extend('http', static function (array $config) use (&$receivedConfigurations): Connection {
+            $receivedConfigurations[] = $config;
+
+            return m::mock(Connection::class . '[replaceDriverResources]', [$config['database'], $config['prefix'], $config])
+                ->shouldAllowMockingProtectedMethods();
+        });
+        $expected = $config + [
+            'prefix' => '',
+            'name' => 'read-extension',
+            Connection::READ_WRITE_TYPE_CONFIG_KEY => 'read',
+        ];
+
+        $connection = $manager->connection('read-extension::read');
+
+        $this->assertSame([$expected], $receivedConfigurations);
+        $this->assertSame($expected + ['mask_bindings_in_exception_messages' => false], $connection->getConfig());
+        $connection->shouldReceive('replaceDriverResources')->once()->with(m::type(Connection::class));
+
+        $this->assertSame($connection, $manager->reconnect('read-extension::read'));
+        $this->assertSame([$expected, $expected], $receivedConfigurations);
     }
 
     public function testNonPooledReadConnectionReconnectsUsingReadSuffix(): void
@@ -557,7 +620,7 @@ class DatabaseManagerTest extends TestCase
     public function testDirectConnectionSuffixIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Database connection suffix [::direct] is not supported. Configure a direct connection and use migrations_connection instead.'
         );
 

@@ -6,7 +6,7 @@
     - [The Public Disk](#the-public-disk)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Driver Pools](#driver-pools)
-    - [Scoped and Read-Only Filesystems](#scoped-and-read-only-filesystems)
+    - [Scoped, Read-Only, and Read-Through Filesystems](#scoped-and-read-only-filesystems)
     - [Amazon S3 Compatible Filesystems](#amazon-s3-compatible-filesystems)
 - [Obtaining Disk Instances](#obtaining-disk-instances)
     - [On-Demand Disks](#on-demand-disks)
@@ -23,10 +23,12 @@
     - [Automatic Streaming](#automatic-streaming)
     - [File Uploads](#file-uploads)
     - [File Visibility](#file-visibility)
+    - [Image Manipulation](#image-manipulation)
 - [Deleting Files](#deleting-files)
 - [Directories](#directories)
 - [Testing](#testing)
 - [Custom Filesystems](#custom-filesystems)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -108,6 +110,8 @@ AWS_USE_PATH_STYLE_ENDPOINT=false
 The credential variables use the AWS SDK's standard names, while the region follows the AWS CLI convention. The remaining `AWS_*` values configure this S3 disk and work with any compatible service.
 
 The optional `AWS_ROOT` value scopes the disk to a key prefix within the bucket. When it is empty, the disk operates from the bucket root.
+
+If you supply a callable `credentials` provider, calls to that provider run one at a time, including when it is shared with SQS or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
 
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration
@@ -207,7 +211,6 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
     'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
     'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'),
     'api_endpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'),
-    'visibility' => 'public',
     'visibility_handler' => null,
     'metadata' => ['cacheControl' => 'public,max-age=86400'],
     'throw' => false,
@@ -230,6 +233,8 @@ The `s3` and `gcs` drivers pool their SDK clients by default. The bucket-specifi
 
 Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. These configurations must use the same pool options; a mismatch throws immediately instead of silently reusing the first configuration's settings. Different credentials, regions, endpoints, or client options produce different pools.
 
+The `ftp` and `sftp` drivers keep an open connection inside each disk, so Hypervel pools these disks whole. Each operation borrows a disk with its own connection, so concurrent requests never share one.
+
 You may configure a pool using the disk's `pool` option:
 
 ```php
@@ -247,7 +252,7 @@ You may configure a pool using the disk's `pool` option:
 ],
 ```
 
-`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
+`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown. Each worker has its own pools, so an FTP or SFTP disk may open up to `max_objects` connections in every worker; keep that total within your server's connection limit.
 
 An explicit pool name may be useful when multiple configurations intentionally identify the same operational resource:
 
@@ -283,12 +288,29 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 });
 ```
 
-`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` or `readStreamRange()` retain their client lease until the stream is closed or destroyed.
+Finish any lazy work, such as iterating a `listContents()` listing, inside the callback, since the borrow ends when it returns. Unpooled Flysystem disks also accept `withAdapter()` and `withDriver()`, passing their own adapter and driver, so code written this way works with any Flysystem-backed disk, pooled or not. A custom driver that returns its own `Filesystem` implementation is not required to provide these methods. For example, this counts a directory's files on any Flysystem-backed disk:
+
+```php
+use Hypervel\Support\Facades\Storage;
+use League\Flysystem\FilesystemOperator;
+
+$files = Storage::disk($name)->withDriver(function (FilesystemOperator $driver) {
+    $files = 0;
+
+    foreach ($driver->listContents('reports', true) as $attributes) {
+        $files += $attributes->isFile() ? 1 : 0;
+    }
+
+    return $files;
+});
+```
+
+`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. A stream returned by `readStream()` or `readStreamRange()` that still reads from its connection keeps that connection out of the pool until the stream is closed or destroyed. Fully buffered reads, including FTP and SFTP downloads, return the connection to the pool before you consume the stream.
 
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
 <a name="scoped-and-read-only-filesystems"></a>
-### Scoped and Read-Only Filesystems
+### Scoped, Read-Only, and Read-Through Filesystems
 
 Scoped disks allow you to define a filesystem where all paths are automatically prefixed with a given path prefix.
 
@@ -360,6 +382,28 @@ Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `
 
 Failed writes follow the scoped disk's `throw` and `report` options.
 
+Read-through disks allow you to migrate files between disks without downtime. When reading a file, Hypervel checks the primary disk first. If the file only exists on the fallback disk, Hypervel reads it from the fallback disk and copies it to the primary disk for future requests:
+
+```php
+'assets' => [
+    'driver' => 'read-through',
+    'primary' => 's3',
+    'fallback' => 'legacy-s3',
+],
+```
+
+New files and directory listings use the primary disk. URLs, file existence checks, and metadata use the disk containing the file without copying it. Deletions remove files or directories from both disks, and visibility changes apply to the disk containing the file. The `primary` and `fallback` options may also contain inline disk configurations.
+
+To scope a read-through disk per request or tenant, wrap it in `ScopedCloudFilesystemProxy`. Dynamic scoped proxies cannot be used as its primary or fallback disk.
+
+Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream. Stream promotion and fallback copy/move operations buffer up to 2 MB in memory, then use PHP's system temporary directory; allow enough temporary disk space for large files and concurrent operations.
+
+Promoted files use the primary disk's default visibility rather than inheriting the fallback file's visibility. Fallback copy and move operations use the same default. Configure a private primary disk when migrating private files.
+
+Promotion does not lock files across the two disks. Coordinate writes and deletions to a path while it is being copied; otherwise, promotion can overwrite a concurrent write or restore a deleted file.
+
+By default, a `FilesystemException` raised while writing the promoted copy does not fail the read. Set `throw_on_promotion_failure` to `true` to treat it as a read failure; set the disk's `throw` option to `true` to receive that failure as an exception. Other errors, including pool wait timeouts, still propagate.
+
 <a name="amazon-s3-compatible-filesystems"></a>
 ### Amazon S3 Compatible Filesystems
 
@@ -414,6 +458,8 @@ $disk = Storage::build($configuration, 'tenant-uploads');
 
 Hypervel uses this name as part of the pool identity for drivers that pool the complete filesystem instance. An on-demand disk does not register a serving route of its own. When a named on-demand disk enables `serve`, Hypervel generates signed URLs through the configured served disk with that name. Use matching storage configuration because the route resolves the configured disk, not the on-demand instance. An anonymous scoped disk may instead generate signed URLs through a named parent disk that has serving enabled. S3 and Google Cloud Storage client pools continue to use the client configuration rather than the logical disk name.
 
+The disk name `ondemand` is reserved and cannot be used in your `filesystems.disks` configuration. In tests, `Storage::fake('ondemand')` or `Storage::persistentFake('ondemand')` replaces disks returned by `Storage::build()` when no logical name is supplied. Builds with an explicit logical name continue to use their own configuration.
+
 <a name="retrieving-files"></a>
 ## Retrieving Files
 
@@ -429,7 +475,7 @@ If the file you are retrieving contains JSON, you may use the `json` method to r
 $orders = Storage::json('orders.json');
 ```
 
-The `exists` method may be used to determine if a file exists on the disk:
+The `exists` method may be used to determine if a file or directory exists on the disk:
 
 ```php
 if (Storage::disk('s3')->exists('file.jpg')) {
@@ -437,7 +483,7 @@ if (Storage::disk('s3')->exists('file.jpg')) {
 }
 ```
 
-The `missing` method may be used to determine if a file is missing from the disk:
+The `missing` method may be used to determine if a file or directory is missing from the disk:
 
 ```php
 if (Storage::disk('s3')->missing('file.jpg')) {
@@ -456,6 +502,8 @@ if (Storage::disk('s3')->directoryMissing('photos')) {
     // ...
 }
 ```
+
+The `Hypervel\Contracts\Filesystem\Filesystem` contract includes `exists`, `fileExists`, and `directoryExists`, so these checks are available when a disk is injected through the contract. Custom implementations must provide all three methods.
 
 <a name="retrieving-images"></a>
 ### Images
@@ -509,7 +557,7 @@ If you would like to modify the host for URLs generated using the `Storage` faca
 'public' => [
     'driver' => 'local',
     'root' => storage_path('app/public'),
-    'url' => env('APP_URL').'/storage',
+    'url' => rtrim((string) env('APP_URL'), '/').'/storage',
     'visibility' => 'public',
     'throw' => false,
 ],
@@ -531,18 +579,19 @@ $url = Storage::temporaryUrl(
 <a name="serving-files-from-configured-disks"></a>
 #### Serving Files From Configured Disks
 
-To enable Hypervel's signed download and upload routes for a disk, add the `serve` option to the disk's configuration array within the `config/filesystems.php` configuration file. This option is most commonly used to generate temporary URLs for files stored using the `local` driver:
+Hypervel's signed download and upload routes allow you to generate temporary URLs for disks that cannot create them on their own, such as disks using the `local` driver. The default `local` disk enables these routes using the `serve` option in your application's `config/filesystems.php` configuration file:
 
 ```php
 'local' => [
     'driver' => 'local',
     'root' => storage_path('app/private'),
-    'serve' => true, // [tl! add]
+    'serve' => true,
+    'visibility' => 'private',
     'throw' => false,
 ],
 ```
 
-Any configured disk may enable these routes. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
+Any other configured disk may enable these routes by adding the `serve` option to its configuration array. Each served disk registers its routes at its `url` path, or at `/storage` when it has no `url`, so every served disk must use a different path. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
 
 A named scoped disk uses its own route when it enables `serve`. Otherwise, it uses the nearest named parent disk with serving enabled and includes each intervening scope in the signed path. Anonymous scoped disks cannot register routes, but they may use a named served parent.
 
@@ -714,6 +763,8 @@ When `throw` is `false`, you may set the `report` option to `true` to report the
 ],
 ```
 
+If neither the `throw` nor `report` options are defined, the disk will silently return `false` on failure and the underlying exception will not be thrown or logged.
+
 <a name="prepending-appending-to-files"></a>
 ### Prepending and Appending To Files
 
@@ -741,6 +792,18 @@ Storage::copy('old/file.jpg', 'new/file.jpg');
 
 Storage::move('old/file.jpg', 'new/file.jpg');
 ```
+
+You may use the `copyToDisk` and `moveToDisk` methods to copy or move a file to another disk. The source file's path will be used on the destination disk unless you provide a third argument:
+
+```php
+Storage::disk('local')->copyToDisk('s3', 'reports/report.csv');
+
+Storage::disk('local')->moveToDisk(
+    's3', 'reports/report.csv', 'archive/report.csv'
+);
+```
+
+Transfers from pooled disks, including S3 and Google Cloud Storage, buffer live source streams before writing to the destination so the source's pool slot is available during the write. Already buffered sources, including FTP and SFTP downloads, are reused without another copy. Buffering keeps up to 2 MB in memory per transfer, then uses PHP's system temporary directory; allow enough temporary disk space for large files and concurrent transfers. Local sources stream directly.
 
 <a name="automatic-streaming"></a>
 ### Automatic Streaming
@@ -864,6 +927,15 @@ $name = $file->hashName(); // Generate a unique, random name...
 $extension = $file->extension(); // Determine the file's extension based on the file's MIME type...
 ```
 
+If you need to resize, crop, or convert an uploaded image before storing it, you may use Hypervel's [image manipulation features](/docs/{{version}}/images):
+
+```php
+$path = $request->image('avatar')
+    ->cover(400, 400)
+    ->toWebp()
+    ->storePublicly('avatars', 'public');
+```
+
 <a name="file-visibility"></a>
 ### File Visibility
 
@@ -918,6 +990,24 @@ When using the `local` driver, `public` [visibility](#file-visibility) translate
     ],
     'throw' => false,
 ],
+```
+
+<a name="image-manipulation"></a>
+### Image Manipulation
+
+If you need to resize, crop, or convert an uploaded image before storing it, you may use Hypervel's [image manipulation features](/docs/{{version}}/images):
+
+```php
+$path = $request->image('avatar')
+    ->cover(400, 400)
+    ->toWebp()
+    ->storePublicly('avatars', 'public');
+```
+
+You may also create an image instance from a file already stored on one of your filesystem disks:
+
+```php
+$image = Storage::disk('public')->image('avatars/photo.jpg');
 ```
 
 <a name="deleting-files"></a>
@@ -1139,8 +1229,13 @@ Storage::extend('dropbox', function (Application $app, array $config, ?string $n
 
 The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk. You may omit the third argument when your driver does not need the disk name.
 
-The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients.
+The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients. A poolable driver's `pool` option configures that pool, so it is left out of `$config`. Other drivers receive it like any other option, which lets a driver that wraps another disk pass it on to `Storage::build()`.
 
 Custom whole-driver pools include the logical disk name in their construction fingerprint. If the name does not affect your custom driver and several named disks may safely share one pool, configure the same `pool.fingerprint` for each disk. A shared `pool.name` may also choose the pool's identity, but it does not replace the shared fingerprint.
 
 Once you have created and registered the extension's service provider, you may use the `dropbox` driver in your `config/filesystems.php` configuration file.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Filesystem began as a port of [Laravel Filesystem](https://github.com/illuminate/filesystem) and has been adapted for Hypervel's framework architecture and coroutine runtime.

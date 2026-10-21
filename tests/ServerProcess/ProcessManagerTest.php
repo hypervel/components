@@ -12,12 +12,12 @@ use RuntimeException;
 
 class ProcessManagerTest extends TestCase
 {
-    public function testIsNotRunningInitially()
+    public function testIsNotRunningInitially(): void
     {
         $this->assertFalse(ProcessManager::isRunning());
     }
 
-    public function testSetRunning()
+    public function testSetRunning(): void
     {
         ProcessManager::setRunning(true);
         $this->assertTrue(ProcessManager::isRunning());
@@ -26,12 +26,12 @@ class ProcessManagerTest extends TestCase
         $this->assertFalse(ProcessManager::isRunning());
     }
 
-    public function testAllReturnsEmptyArrayInitially()
+    public function testAllReturnsEmptyArrayInitially(): void
     {
         $this->assertSame([], ProcessManager::all());
     }
 
-    public function testRegisterProcess()
+    public function testRegisterProcess(): void
     {
         $process = m::mock(ProcessInterface::class);
 
@@ -41,7 +41,7 @@ class ProcessManagerTest extends TestCase
         $this->assertSame($process, ProcessManager::all()[0]);
     }
 
-    public function testRegisterMultipleProcesses()
+    public function testRegisterMultipleProcesses(): void
     {
         $process1 = m::mock(ProcessInterface::class);
         $process2 = m::mock(ProcessInterface::class);
@@ -54,7 +54,7 @@ class ProcessManagerTest extends TestCase
         $this->assertSame($process2, ProcessManager::all()[1]);
     }
 
-    public function testFlushState()
+    public function testFlushState(): void
     {
         ProcessManager::register(m::mock(ProcessInterface::class));
         ProcessManager::setRunning(true);
@@ -66,17 +66,17 @@ class ProcessManagerTest extends TestCase
         $this->assertFalse(ProcessManager::isRunning());
     }
 
-    public function testRegisterThrowsWhenRunning()
+    public function testRegisterThrowsWhenRunning(): void
     {
         ProcessManager::setRunning(true);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Processes are running');
+        $this->expectExceptionMessageIsOrContains('Processes are running');
 
         ProcessManager::register(m::mock(ProcessInterface::class));
     }
 
-    public function testRegisterWorksAfterStoppingAndClearing()
+    public function testRegisterWorksAfterStoppingAndClearing(): void
     {
         ProcessManager::setRunning(true);
         ProcessManager::setRunning(false);

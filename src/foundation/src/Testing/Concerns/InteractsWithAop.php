@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\ProxyDispatcher;
 use Hypervel\Di\Aop\ProxyMarker;
 use LogicException;
@@ -26,14 +27,9 @@ trait InteractsWithAop
     /**
      * Determine if the given instance is already running through an AOP proxy.
      *
-     * This is useful in tests that need to handle both execution paths
-     * explicitly. In isolated runs, the target class may be proxied during
-     * bootstrap and should be called normally. In larger test runs, load order
-     * may mean the original class was loaded before proxy generation, so the
-     * test must use callWithAspects() instead.
-     *
-     * Keeping this check separate makes it clear whether the test is using the
-     * real proxy path or the manual pipeline path.
+     * Call generated proxies normally. Use callWithAspects() only for focused
+     * tests that register aspects directly without generating proxies; it does
+     * not bypass bootstrap's rejection of targets loaded before generation.
      */
     protected function isAopProxied(object $instance): bool
     {
@@ -47,6 +43,9 @@ trait InteractsWithAop
      * matching aspects from AspectCollector, and executes them in priority order.
      * The original method is called via reflection at the end of the pipeline.
      * The instance must not already be proxied.
+     *
+     * After application bootstrap, call {@see AspectCollector::unseal()} before
+     * registering aspects for this helper.
      *
      * @param object $instance The object instance to call the method on
      * @param string $method The method name to intercept
@@ -69,7 +68,8 @@ trait InteractsWithAop
             $className,
             $method,
             $this->buildAopArguments($reflectionMethod, $arguments),
-            $reflectionMethod->getClosure($instance)
+            $reflectionMethod->getClosure($instance),
+            $reflectionMethod->isStatic() ? null : $instance
         );
     }
 

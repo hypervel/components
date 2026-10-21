@@ -14,6 +14,8 @@ class NestedSetServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // These macros include the depth column and indexes, replacing upstream's separate
+        // depth and index macros. Custom layouts use ordinary Blueprint methods.
         Blueprint::macro('nestedSet', function (array $scopes = []): void {
             NestedSet::columns($this, $scopes);
         });

@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Database;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Console\CommandMutex;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Console\Migrations\MigrateCommand;
 use Hypervel\Database\Events\SchemaLoaded;
@@ -24,10 +26,12 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Throwable;
 
@@ -45,13 +49,14 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
-        $migrator->shouldReceive('getNotes')->andReturn([]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
 
         $this->runCommand($command);
     }
@@ -60,21 +65,24 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(false);
-        $migrator->shouldReceive('resolveConnection')->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('getName')->andReturn('mysql');
-        $migrator->shouldReceive('deleteRepository')->once();
-        $connection->shouldReceive('getSchemaState')->andReturn($schemaState = m::mock(SchemaState::class));
-        $schemaState->shouldReceive('handleOutputUsing')->andReturnSelf();
-        $schemaState->shouldReceive('load')->once()->with(__DIR__ . '/Fixtures/schema.sql');
-        $dispatcher->shouldReceive('hasListeners')->once()->with(SchemaLoaded::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(SchemaLoaded::class));
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
-        $migrator->shouldReceive('getNotes')->andReturn([]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(false);
+        $connection = m::mock(Connection::class);
+        $migrator->expects('resolveConnection')->andReturn($connection);
+        $connection->expects('getName')->andReturn('mysql');
+        $migrator->expects('deleteRepository');
+        $schemaState = m::mock(SchemaState::class);
+        $connection->expects('getSchemaState')->andReturn($schemaState);
+        $schemaState->expects('handleOutputUsing')->andReturnSelf();
+        $schemaState->expects('load')->with(__DIR__ . '/Fixtures/schema.sql');
+        $dispatcher->expects('hasListeners')->with(SchemaLoaded::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->with(m::type(SchemaLoaded::class));
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
 
         $this->runCommand($command, ['--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
     }
@@ -83,38 +91,41 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(false);
-        $migrator->shouldReceive('resolveConnection')->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('getName')->andReturn('mysql');
-        $migrator->shouldReceive('deleteRepository')->once();
-        $connection->shouldReceive('getSchemaState')->andReturn($schemaState = m::mock(SchemaState::class));
-        $schemaState->shouldReceive('handleOutputUsing')->andReturnSelf();
-        $schemaState->shouldReceive('load')->once()->with(__DIR__ . '/Fixtures/schema.sql');
-        $dispatcher->shouldReceive('hasListeners')->once()->with(SchemaLoaded::class)->andReturnFalse();
-        $dispatcher->shouldReceive('dispatch')->never();
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
-        $migrator->shouldReceive('getNotes')->andReturn([]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(false);
+        $connection = m::mock(Connection::class);
+        $migrator->expects('resolveConnection')->andReturn($connection);
+        $migrator->expects('deleteRepository');
+        $schemaState = m::mock(SchemaState::class);
+        $connection->expects('getSchemaState')->andReturn($schemaState);
+        $schemaState->expects('handleOutputUsing')->andReturnSelf();
+        $schemaState->expects('load')->with(__DIR__ . '/Fixtures/schema.sql');
+        $dispatcher->expects('hasListeners')->with(SchemaLoaded::class)->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
 
         $this->runCommand($command, ['--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
-        $this->addToAssertionCount(1);
     }
 
     public function testMigrationRepositoryCreatedWhenNecessary(): void
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $params = [$migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class)];
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $params = [$migrator, $dispatcher];
         $command = $this->getMockBuilder(MigrateCommand::class)->onlyMethods(['callSilent'])->setConstructorArgs($params)->getMock();
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator, repositoryExists: false);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
-        $command->expects($this->once())->method('callSilent')->with($this->equalTo('migrate:install'), $this->equalTo([]));
+        $migrator->expects('hasRunAnyMigrations')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
+        $command->expects($this->once())->method('callSilent')->with('migrate:install', []);
 
         $this->runCommand($command);
     }
@@ -123,12 +134,14 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => false]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => false]);
 
         $this->runCommand($command, ['--pretend' => true]);
     }
@@ -137,12 +150,14 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator, 'foo');
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
 
         $this->runCommand($command, ['--database' => 'foo']);
     }
@@ -151,12 +166,14 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $migrator = m::mock(Migrator::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
-        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => true]);
+        $migrator->expects('hasRunAnyMigrations')->andReturn(true);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => true]);
 
         $this->runCommand($command, ['--step' => true]);
     }
@@ -195,6 +212,40 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         ]);
 
         $this->runCommand($command, ['--seed' => true, '--seeder' => 'Database\Seeders\CustomSeeder']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSeedFailureHonorsGracefulOption(bool $graceful): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $command = $this->getMockBuilder(MigrateCommand::class)
+            ->onlyMethods(['call'])
+            ->setConstructorArgs([$migrator = m::mock(Migrator::class), m::mock(Dispatcher::class)])
+            ->getMock();
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator);
+        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
+        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
+        $migrator->shouldReceive('run')->once();
+        $command->expects($this->once())->method('call')->with('db:seed', [
+            '--class' => 'Database\Seeders\DatabaseSeeder',
+            '--force' => true,
+        ])->willReturn(1);
+
+        if (! $graceful) {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageIs('Database seeding failed after migrations ran.');
+        }
+
+        $code = $command->run(new ArrayInput([
+            '--seed' => true,
+            '--graceful' => $graceful,
+        ]), $output = new BufferedOutput);
+
+        $this->assertSame(0, $code);
+        $this->assertStringContainsString('Database seeding failed after migrations ran.', $output->fetch());
     }
 
     public function testSeedOptionForwardsDatabaseToSeedCommand(): void
@@ -248,8 +299,8 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $migrator->shouldReceive('run')->once();
         $command->expects($this->once())->method('call');
 
-        $contextBefore = \Hypervel\Context\CoroutineContext::get(
-            \Hypervel\Database\ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
+        $contextBefore = CoroutineContext::get(
+            ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
         );
 
         $this->runCommand($command, ['--database' => 'pgsql-pooled', '--seed' => true]);
@@ -262,8 +313,8 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
 
         $this->assertSame(
             $contextBefore,
-            \Hypervel\Context\CoroutineContext::get(
-                \Hypervel\Database\ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
+            CoroutineContext::get(
+                ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY
             ),
             'Context key must be in the same state as before the command ran',
         );
@@ -501,6 +552,9 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $this->assertTrue($adminConnection->disconnected);
     }
 
+    /**
+     * Expect the connection preflight and migration repository checks.
+     */
     private function expectMigrationPreflight(
         Migrator $migrator,
         ?string $database = null,
@@ -508,9 +562,9 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     ): void {
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
 
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, $database)->andReturn([$database ?? 'default']);
-        $migrator->shouldReceive('usingConnection')->twice()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('getMigrationConnections')->with($paths, $database)->andReturn([$database ?? 'default']);
+        $migrator->shouldReceive('usingConnection')->twice()->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
         $migrator->shouldReceive('repositoryExists')->twice()->andReturn($repositoryExists);
@@ -534,6 +588,9 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         return $command;
     }
 
+    /**
+     * Run the command with the given input.
+     */
     protected function runCommand(MigrateCommand $command, array $input = []): int
     {
         if (! $command->getDefinition()->hasOption('no-interaction')) {

@@ -9,42 +9,42 @@ use Hypervel\Tests\TestCase;
 
 class GenericUserTest extends TestCase
 {
-    public function testGetAuthIdentifierNameReturnsId()
+    public function testGetAuthIdentifierNameReturnsId(): void
     {
         $user = new GenericUser(['id' => 1]);
 
         $this->assertSame('id', $user->getAuthIdentifierName());
     }
 
-    public function testGetAuthIdentifierReturnsIdValue()
+    public function testGetAuthIdentifierReturnsIdValue(): void
     {
         $user = new GenericUser(['id' => 42]);
 
         $this->assertSame(42, $user->getAuthIdentifier());
     }
 
-    public function testGetAuthPasswordNameReturnsPassword()
+    public function testGetAuthPasswordNameReturnsPassword(): void
     {
         $user = new GenericUser(['id' => 1]);
 
         $this->assertSame('password', $user->getAuthPasswordName());
     }
 
-    public function testGetAuthPasswordReturnsPasswordValue()
+    public function testGetAuthPasswordReturnsPasswordValue(): void
     {
         $user = new GenericUser(['id' => 1, 'password' => 'secret']);
 
         $this->assertSame('secret', $user->getAuthPassword());
     }
 
-    public function testGetRememberTokenReturnsTokenValue()
+    public function testGetRememberTokenReturnsTokenValue(): void
     {
         $user = new GenericUser(['id' => 1, 'remember_token' => 'token123']);
 
         $this->assertSame('token123', $user->getRememberToken());
     }
 
-    public function testSetRememberTokenUpdatesToken()
+    public function testSetRememberTokenUpdatesToken(): void
     {
         $user = new GenericUser(['id' => 1, 'remember_token' => 'old']);
 
@@ -53,21 +53,21 @@ class GenericUserTest extends TestCase
         $this->assertSame('new', $user->getRememberToken());
     }
 
-    public function testGetRememberTokenNameReturnsColumnName()
+    public function testGetRememberTokenNameReturnsColumnName(): void
     {
         $user = new GenericUser(['id' => 1]);
 
         $this->assertSame('remember_token', $user->getRememberTokenName());
     }
 
-    public function testMagicGetReturnsAttributeValue()
+    public function testMagicGetReturnsAttributeValue(): void
     {
         $user = new GenericUser(['id' => 1, 'name' => 'Taylor']);
 
         $this->assertSame('Taylor', $user->name);
     }
 
-    public function testMagicSetUpdatesAttribute()
+    public function testMagicSetUpdatesAttribute(): void
     {
         $user = new GenericUser(['id' => 1]);
 
@@ -76,21 +76,21 @@ class GenericUserTest extends TestCase
         $this->assertSame('Taylor', $user->name);
     }
 
-    public function testMagicIssetReturnsTrueForExistingAttribute()
+    public function testMagicIssetReturnsTrueForExistingAttribute(): void
     {
         $user = new GenericUser(['id' => 1, 'name' => 'Taylor']);
 
         $this->assertTrue(isset($user->name));
     }
 
-    public function testMagicIssetReturnsFalseForMissingAttribute()
+    public function testMagicIssetReturnsFalseForMissingAttribute(): void
     {
         $user = new GenericUser(['id' => 1]);
 
         $this->assertFalse(isset($user->name));
     }
 
-    public function testMagicUnsetRemovesAttribute()
+    public function testMagicUnsetRemovesAttribute(): void
     {
         $user = new GenericUser(['id' => 1, 'name' => 'Taylor']);
 

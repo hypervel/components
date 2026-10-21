@@ -11,14 +11,14 @@ use Hypervel\Testbench\TestCase;
 
 class AuthServiceProviderTest extends TestCase
 {
-    public function testPoliciesReturnsEmptyArrayByDefault()
+    public function testPoliciesReturnsEmptyArrayByDefault(): void
     {
         $provider = new AuthServiceProvider($this->app);
 
         $this->assertSame([], $provider->policies());
     }
 
-    public function testPoliciesReturnsDefinedPolicies()
+    public function testPoliciesReturnsDefinedPolicies(): void
     {
         $provider = new AuthServiceProviderWithPolicies($this->app);
 
@@ -28,7 +28,7 @@ class AuthServiceProviderTest extends TestCase
         ], $provider->policies());
     }
 
-    public function testRegisterPoliciesRegistersWithGate()
+    public function testRegisterPoliciesRegistersWithGate(): void
     {
         $provider = new AuthServiceProviderWithPolicies($this->app);
         $provider->registerPolicies();
@@ -41,7 +41,7 @@ class AuthServiceProviderTest extends TestCase
         ], $gate->policies());
     }
 
-    public function testRegisterPoliciesDoesNothingWhenNoPoliciesDefined()
+    public function testRegisterPoliciesDoesNothingWhenNoPoliciesDefined(): void
     {
         $gate = $this->app->make(GateContract::class);
         $policiesBefore = $gate->policies();
@@ -52,7 +52,7 @@ class AuthServiceProviderTest extends TestCase
         $this->assertSame($policiesBefore, $gate->policies());
     }
 
-    public function testRegisterDefersPoliciesToBootingCallback()
+    public function testRegisterDefersPoliciesToBootingCallback(): void
     {
         // Fresh Gate so we can observe the empty → populated transition
         $freshGate = new Gate($this->app, fn () => null);
@@ -73,7 +73,7 @@ class AuthServiceProviderTest extends TestCase
         ], $freshGate->policies());
     }
 
-    public function testPoliciesAreRegisteredDuringAppBoot()
+    public function testPoliciesAreRegisteredDuringAppBoot(): void
     {
         // Register the provider so it participates in the boot lifecycle.
         // Testbench calls register() + boot() on providers returned here.

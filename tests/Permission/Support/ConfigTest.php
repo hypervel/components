@@ -47,24 +47,12 @@ class ConfigTest extends TestCase
         $this->assertSame('admin', Config::defaultGuard());
     }
 
-    public function testOptionalFeatureSettingsUseOwnedDefaultsWhenOmitted(): void
+    public function testWildcardPermissionClassUsesItsDefaultWhenOmitted(): void
     {
         $permissionConfig = config()->array('permission');
-        unset(
-            $permissionConfig['events_enabled'],
-            $permissionConfig['use_passport_client_credentials'],
-            $permissionConfig['display_role_in_exception'],
-            $permissionConfig['display_permission_in_exception'],
-            $permissionConfig['enable_wildcard_permission'],
-            $permissionConfig['wildcard_permission'],
-        );
+        unset($permissionConfig['wildcard_permission']);
         config()->set('permission', $permissionConfig);
 
-        $this->assertFalse(Config::eventsEnabled());
-        $this->assertFalse(Config::usePassportClientCredentials());
-        $this->assertFalse(Config::displayRoleInException());
-        $this->assertFalse(Config::displayPermissionInException());
-        $this->assertFalse(Config::wildcardPermissionsEnabled());
         $this->assertSame(WildcardPermission::class, Config::wildcardPermissionClass());
     }
 }

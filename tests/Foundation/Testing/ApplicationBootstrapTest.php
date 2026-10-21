@@ -58,7 +58,6 @@ class ApplicationBootstrapTest extends TestCase
         $this->filesystem->ensureDirectoryExists($this->appBasePath . '/bootstrap/cache');
         $this->filesystem->ensureDirectoryExists($this->appBasePath . '/config');
         $this->filesystem->ensureDirectoryExists($this->appBasePath . '/routes');
-        $this->filesystem->ensureDirectoryExists($this->appBasePath . '/storage/framework/aop');
         $this->filesystem->put($this->appBasePath . '/bootstrap/app.php', <<<'PHP'
 <?php
 

@@ -137,7 +137,7 @@ class PoolFingerprintTest extends TestCase
     public function testClosuresAreRejectedWithTheirListPath(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('at [$.values[1]] is of type [Closure]');
+        $this->expectExceptionMessageIsOrContains('at [$.values[1]] is of type [Closure]');
 
         PoolFingerprint::fromConfig(['values' => ['first', static fn (): null => null]]);
     }

@@ -79,6 +79,8 @@ class Role extends Model implements RoleContract
     }
 
     /**
+     * Create a new role.
+     *
      * @return Role|RoleContract
      *
      * @throws RoleAlreadyExists
@@ -289,18 +291,10 @@ class Role extends Model implements RoleContract
     public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
     {
         if ($this->getWildcardClass()) {
-            if ($this->hasDeniedPermission($permission, $guardName)) {
-                return false;
-            }
-
             return $this->hasWildcardPermission($permission, $guardName);
         }
 
         $permission = $this->filterPermission($permission, $guardName);
-
-        if ($this->hasDeniedPermission($permission, $guardName)) {
-            return false;
-        }
 
         if (! $this->getGuardNames()->contains($permission->guard_name)) {
             throw GuardDoesNotMatch::create(
@@ -309,10 +303,9 @@ class Role extends Model implements RoleContract
             );
         }
 
-        $matches = $this->relationCollection($this, 'permissions')
-            ->filter(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
+        $rolePermission = $this->relationCollection($this, 'permissions')
+            ->first(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
 
-        return $matches->isNotEmpty()
-            && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsDenied($rolePermission));
+        return $rolePermission !== null && ! $this->pivotIsDenied($rolePermission);
     }
 }

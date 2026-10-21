@@ -11,14 +11,14 @@ class CommentResource extends JsonApiResource
     /**
      * The resource's attributes.
      */
-    protected array $attributes = [
+    public array $attributes = [
         'content',
     ];
 
     /**
      * The resource's relationships.
      */
-    protected array $relationships = [
+    public array $relationships = [
         'posts',
         'commenter' => UserResource::class,
     ];

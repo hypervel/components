@@ -62,7 +62,7 @@ In addition, developers are left maintaining two separate code repositories, oft
 <a name="inertia"></a>
 ### Inertia
 
-Thankfully, Hypervel offers the best of both worlds. [Inertia](https://inertiajs.com) bridges the gap between your Hypervel application and your modern React, Svelte, or Vue frontend, allowing you to build full-fledged, modern frontends using React, Svelte, or Vue while leveraging Hypervel routes and controllers for routing, data hydration, and authentication — all within a single code repository. With this approach, you can enjoy the full power of both Hypervel and React / Svelte / Vue without crippling the capabilities of either tool.
+Thankfully, Hypervel offers the best of both worlds. [Inertia](/docs/{{version}}/inertia) bridges the gap between your Hypervel application and your modern React, Svelte, or Vue frontend, allowing you to build full-fledged, modern frontends using React, Svelte, or Vue while leveraging Hypervel routes and controllers for routing, data hydration, and authentication — all within a single code repository. With this approach, you can enjoy the full power of both Hypervel and React / Svelte / Vue without crippling the capabilities of either tool.
 
 After installing Inertia into your Hypervel application, you will write routes and controllers like normal. However, instead of returning a Blade template from your controller, you will return an Inertia page:
 
@@ -108,9 +108,23 @@ export default function Show({ user }) {
 
 As you can see, Inertia allows you to leverage the full power of React, Svelte, or Vue when building your frontend, while providing a light-weight bridge between your Hypervel-powered backend and your JavaScript powered frontend.
 
+For installation instructions and guidance on pages, forms, navigation, and props, see the [Inertia documentation](/docs/{{version}}/inertia).
+
 #### Server-Side Rendering
 
-If you're concerned about diving into Inertia because your application requires server-side rendering, don't worry. Inertia offers [server-side rendering support](https://inertiajs.com/server-side-rendering). And, when deploying your application via [SonicStack](https://sonicstack.io), it's a breeze to ensure that Inertia's server-side rendering process is always running.
+If you're concerned about diving into Inertia because your application requires server-side rendering, don't worry. Inertia offers [server-side rendering support](/docs/{{version}}/inertia#server-side-rendering). And, when deploying your application via [SonicStack](https://sonicstack.io), it's a breeze to ensure that Inertia's server-side rendering process is always running.
+
+#### DevTools
+
+[Inertia DevTools](/docs/{{version}}/inertia#devtools) is a browser extension that records every Inertia visit and displays it in a dedicated DevTools panel. Hypervel's Inertia adapter includes the recorder; see the Inertia guide for setup, redaction, and access controls.
+
+#### Previous URL
+
+You may opt into [tracking the previous location](/docs/{{version}}/inertia#redirects-previous-url) for Inertia visits using the `store_previous_url` configuration option.
+
+#### Big Integers
+
+Inertia can [preserve large integers](/docs/{{version}}/inertia#big-integers) as native JavaScript `BigInt` values, avoiding precision loss for values such as 64-bit database IDs.
 
 <a name="inertia-starter-kits"></a>
 ### Starter Kits

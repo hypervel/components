@@ -32,8 +32,10 @@
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing the Current Route](#accessing-the-current-route)
 - [Cross-Origin Resource Sharing (CORS)](#cors)
+    - [Skipping CORS Handling](#skipping-cors-handling)
     - [Dynamic CORS Configuration](#dynamic-cors-configuration)
 - [Route Caching](#route-caching)
+- [Credits](#credits)
 
 <a name="basic-routing"></a>
 ## Basic Routing
@@ -107,9 +109,12 @@ Route::put($uri, $callback);
 Route::patch($uri, $callback);
 Route::delete($uri, $callback);
 Route::options($uri, $callback);
+Route::query($uri, $callback);
 ```
 
-Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs using the `any` method:
+The `query` method registers a route for HTTP `QUERY` requests. Like `GET`, a `QUERY` request only reads data, but it sends its query in the request body, which suits searches that are too large or complex to fit in a URL. `QUERY` routes in the `web` middleware group are subject to [CSRF protection](/docs/{{version}}/csrf).
+
+Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs, including `QUERY`, using the `any` method:
 
 ```php
 Route::match(['get', 'post'], '/', function () {
@@ -122,7 +127,7 @@ Route::any('/', function () {
 ```
 
 > [!NOTE]
-> When defining multiple routes that share the same URI, routes using the `get`, `post`, `put`, `patch`, `delete`, and `options` methods should be defined before routes using the `any`, `match`, and `redirect` methods. This ensures the incoming request is matched with the correct route.
+> When defining multiple routes that share the same URI, routes using the `get`, `post`, `put`, `patch`, `delete`, `options`, and `query` methods should be defined before routes using the `any`, `match`, and `redirect` methods. This ensures the incoming request is matched with the correct route.
 
 <a name="dependency-injection"></a>
 #### Dependency Injection
@@ -196,6 +201,8 @@ The `route:list` Artisan command can easily provide an overview of all of the ro
 php artisan route:list
 ```
 
+The output includes custom binding fields such as `{post:slug}` and the file and line where each closure route is defined.
+
 By default, the route middleware that are assigned to each route will not be displayed in the `route:list` output; however, you can instruct Hypervel to display the route middleware and middleware group names by adding the `-v` option to the command:
 
 ```shell
@@ -213,7 +220,7 @@ php artisan route:list -v --middleware=auth
 
 Use `-vv` to match middleware within middleware groups.
 
-You may also instruct Hypervel to only show routes that begin with a given URI:
+You may also instruct Hypervel to only show routes whose URI contains a given string:
 
 ```shell
 php artisan route:list --path=api
@@ -684,19 +691,7 @@ Route::get('/posts/{post:slug}', function (Post $post) {
 });
 ```
 
-If you would like model binding to always use a database column other than `id` when retrieving a given model class, you may override the `getRouteKeyName` method on the Eloquent model:
-
-```php
-/**
- * Get the route key for the model.
- */
-public function getRouteKeyName(): string
-{
-    return 'slug';
-}
-```
-
-Alternatively, you may apply the `RouteKey` attribute to the model:
+If you would like model binding to always use a database column other than `id` when retrieving a given model class, you may apply the `RouteKey` attribute to the Eloquent model:
 
 ```php
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
@@ -708,8 +703,6 @@ class Post extends Model
     // ...
 }
 ```
-
-The attribute applies to implicit route model binding, while overriding `getRouteKeyName` remains available when the key must be determined by custom logic.
 
 <a name="implicit-model-binding-scoping"></a>
 #### Custom Keys and Scoping
@@ -771,6 +764,20 @@ Route::get('/locations/{location:slug}', [LocationsController::class, 'show'])
     ->missing(function (Request $request) {
         return Redirect::route('locations.index');
     });
+```
+
+Implicit model binding also treats invalid route values as missing models. When binding an integer primary key, Hypervel rejects malformed integers and values outside PHP's integer range without querying the database. If the database rejects a value for its column, such as a number too large for an `integer` column on PostgreSQL, implicit binding also treats the model as missing. Hypervel still reports these database exceptions. You may disable that reporting using the `reportRouteModelBindingExceptions` method, typically within the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Database\Eloquent\Model;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Model::reportRouteModelBindingExceptions(! $this->app->isProduction());
+}
 ```
 
 <a name="implicit-enum-binding"></a>
@@ -909,7 +916,7 @@ use Hypervel\Support\Facades\RateLimiter;
 public function boot(): void
 {
     RateLimiter::for('api', function (Request $request) {
-        return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        return Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip());
     });
 }
 ```
@@ -960,7 +967,7 @@ The optional third argument to `RateLimiter::for` selects a configured store for
 
 ```php
 RateLimiter::for('api', function (Request $request) {
-    return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+    return Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip());
 }, store: 'redis');
 ```
 
@@ -984,7 +991,7 @@ To illustrate this feature using another example, we can limit access to the rou
 ```php
 RateLimiter::for('uploads', function (Request $request) {
     return $request->user()
-        ? Limit::perMinute(100)->by($request->user()->id)
+        ? Limit::perMinute(100)->by($request->user()->getAuthIdentifier())
         : Limit::perMinute(10)->by($request->ip());
 });
 ```
@@ -1008,13 +1015,13 @@ Hypervel includes each rate limit's type and algorithm settings in its stored ke
 ```php
 RateLimiter::for('uploads', function (Request $request) {
     return [
-        Limit::perMinute(10)->by($request->user()->id),
-        Limit::perDay(1000)->by($request->user()->id),
+        Limit::perMinute(10)->by($request->user()->getAuthIdentifier()),
+        Limit::perDay(1000)->by($request->user()->getAuthIdentifier()),
     ];
 });
 ```
 
-Hypervel consumes the rate limits in the order they are returned. If a later rate limit denies the request, capacity already consumed by earlier rate limits is not restored.
+Hypervel [consumes the limits together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied request does not consume capacity from the other limits, subject to the documented Redis Cluster limitation. The first denied limit determines the response.
 
 When several rate limits apply, the `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers describe the rate limit with the least remaining capacity. Hypervel also leaves a lower `X-RateLimit-Remaining` value already set by your application in place.
 
@@ -1033,7 +1040,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 RateLimiter::for('resource-not-found', function (Request $request) {
     return Limit::perMinute(10)
-        ->by($request->user()?->id ?: $request->ip())
+        ->by($request->user()?->getAuthIdentifier() ?? $request->ip())
         ->after(function (Response $response) {
             // Only count 404 responses toward the rate limit to prevent enumeration...
             return $response->getStatusCode() === 404;
@@ -1126,6 +1133,26 @@ This command will place a `cors.php` configuration file within your application'
 > [!NOTE]
 > For more information on CORS and CORS headers, please consult the [MDN web documentation on CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#The_HTTP_response_headers).
 
+<a name="skipping-cors-handling"></a>
+### Skipping CORS Handling
+
+You may skip CORS handling for selected requests by calling the `HandleCors` middleware's `skipWhen` method from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Http\Middleware\HandleCors;
+use Hypervel\Http\Request;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    HandleCors::skipWhen(static fn (Request $request): bool => $request->is('webhooks/*'));
+}
+```
+
+If any registered callback returns `true`, the middleware skips CORS handling for that request, including the dynamic configuration resolver described below. Keep these callbacks inexpensive, since they are checked before CORS path matching.
+
 <a name="dynamic-cors-configuration"></a>
 ### Dynamic CORS Configuration
 
@@ -1151,7 +1178,7 @@ public function boot(): void
 }
 ```
 
-The closure receives the current HTTP request instance and should return the full CORS options array, including `paths`. Except for requests explicitly excluded with `skipWhen`, it runs before path matching because its returned paths determine whether CORS applies. Keep the resolver inexpensive since it runs for every request that reaches the middleware.
+The closure receives the current HTTP request instance and should return the full CORS options array, including `paths`. Except for requests explicitly excluded with [`skipWhen`](#skipping-cors-handling), it runs before path matching because its returned paths determine whether CORS applies. Keep the resolver inexpensive since it runs for every request that reaches the middleware.
 
 If you only need to override a few options, you may merge your changes with the values defined in your `cors.php` configuration file:
 
@@ -1179,3 +1206,8 @@ You may use the `route:clear` command to clear the route cache:
 ```shell
 php artisan route:clear
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Routing began as a port of [Laravel Routing](https://github.com/illuminate/routing) and has been adapted for Hypervel's framework architecture and coroutine runtime.

@@ -51,6 +51,8 @@ class Fortify
 
     private static ?Closure $confirmPasswordsUsingCallback = null;
 
+    private static ?Closure $recoveryCodeGenerator = null;
+
     private static bool $registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
 
     private static ?EncrypterContract $encrypter = null;
@@ -321,6 +323,24 @@ class Fortify
     }
 
     /**
+     * Register a callback that should be used to generate recovery codes.
+     *
+     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent recovery code generation.
+     */
+    public static function generateRecoveryCodesUsing(callable $callback): void
+    {
+        self::$recoveryCodeGenerator = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Get the configured recovery code generator.
+     */
+    public static function recoveryCodeGenerator(): ?Closure
+    {
+        return self::$recoveryCodeGenerator;
+    }
+
+    /**
      * Determine if Fortify is confirming two factor authentication configurations.
      */
     public static function confirmsTwoFactorAuthentication(): bool
@@ -426,6 +446,7 @@ class Fortify
         self::$authenticateThroughCallback = null;
         self::$authenticateUsingCallback = null;
         self::$confirmPasswordsUsingCallback = null;
+        self::$recoveryCodeGenerator = null;
         self::$registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
         self::$encrypter = null;
         self::$redirectUsingCallbacks = [];

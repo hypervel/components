@@ -2,11 +2,19 @@
 
 - [Introduction](#introduction)
     - [Configuration](#configuration)
+        - [PDO Error Mode](#pdo-error-mode)
+        - [MySQL and MariaDB SQL Modes](#mysql-and-mariadb-sql-modes)
+        - [Masking Bindings in Exception Messages](#masking-bindings-in-exception-messages)
         - [Lock Timeouts](#lock-timeouts)
+        - [PostgreSQL Keepalives](#postgresql-keepalives)
+        - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
+        - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
     - [Extending Database Connections](#extending-database-connections)
+        - [Detecting Database Failures](#detecting-database-failures)
+        - [Early Release for Custom Drivers](#early-release-for-custom-drivers)
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
@@ -14,8 +22,10 @@
     - [Monitoring Cumulative Query Time](#monitoring-cumulative-query-time)
 - [Database Transactions](#database-transactions)
 - [Connecting to the Database CLI](#connecting-to-the-database-cli)
+    - [Custom Database Clients](#custom-database-clients)
 - [Inspecting Your Databases](#inspecting-your-databases)
 - [Monitoring Your Databases](#monitoring-your-databases)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -27,9 +37,11 @@ Almost every modern web application interacts with a database. Hypervel makes in
 - MariaDB 10.3+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
 - MySQL 5.7+ ([Version Policy](https://en.wikipedia.org/wiki/MySQL#Release_history))
 - PostgreSQL 10.0+ ([Version Policy](https://www.postgresql.org/support/versioning/))
-- SQLite 3.26.0+
+- SQLite 3.32.0+
 
 </div>
+
+SQLite and PostgreSQL connections require Swoole to be built with that database's support (`--enable-swoole-sqlite` or `--enable-swoole-pgsql`), so queries run without blocking other coroutines. MySQL and MariaDB connections require the PDO MySQL extension to use PHP's default mysqlnd driver. See the [installation requirements](/docs/{{version}}/installation#requirements).
 
 <a name="configuration"></a>
 ### Configuration
@@ -37,6 +49,26 @@ Almost every modern web application interacts with a database. Hypervel makes in
 The configuration for Hypervel's database services is located in your application's `config/database.php` configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Hypervel's supported database systems are provided in this file.
 
 By default, Hypervel's sample [environment configuration](/docs/{{version}}/configuration#environment-configuration) uses SQLite. However, you are free to modify your database configuration as needed for your local database.
+
+<a name="pdo-error-mode"></a>
+#### PDO Error Mode
+
+PDO connections require `PDO::ERRMODE_EXCEPTION`, which is already the default. Setting `PDO::ATTR_ERRMODE` to warning or silent mode in a connection's `options` array throws an `InvalidArgumentException` when connecting. Other PDO options remain configurable.
+
+Exception mode ensures that failed statements throw rather than returning false and allowing a transaction to commit incomplete work. Query failures retain Laravel-style `QueryException` wrapping, including the original exception, SQL, and bindings.
+
+Custom connectors and PDO instances supplied directly, including those returned by closures, must also use exception mode. Do not change the mode through a raw PDO handle. Hypervel validates its connector options when connecting; it does not recheck the mode on every query or when a supplied handle is used.
+
+<a name="mysql-and-mariadb-sql-modes"></a>
+#### MySQL and MariaDB SQL Modes
+
+MySQL and MariaDB connections must configure either `strict` or `modes`. The shipped configuration uses `'strict' => true`. To choose the session's SQL modes explicitly, set `modes` on the connection; this takes precedence over `strict`:
+
+```php
+'modes' => ['STRICT_TRANS_TABLES', 'NO_ENGINE_SUBSTITUTION', 'NO_BACKSLASH_ESCAPES'],
+```
+
+If your application uses `NO_BACKSLASH_ESCAPES`, include it here instead of relying on the server's default mode. Hypervel uses this configuration to quote values correctly. Keep the backslash-escaping mode consistent across read and write connections.
 
 <a name="sqlite-configuration"></a>
 #### SQLite Configuration
@@ -53,6 +85,19 @@ By default, foreign key constraints are enabled for SQLite connections. If you w
 ```ini
 DB_FOREIGN_KEYS=false
 ```
+
+<a name="masking-bindings-in-exception-messages"></a>
+#### Masking Bindings in Exception Messages
+
+By default, database exceptions include bound values in the SQL shown in their messages. To leave placeholders in that SQL instead, set the `DB_MASK_BINDINGS` environment variable:
+
+```ini
+DB_MASK_BINDINGS=true
+```
+
+For custom connections, set `mask_bindings_in_exception_messages` to `true` in the connection's configuration. Omitting this option or setting it to `null` disables masking.
+
+This option does not change the database's original error message, query logs, or query events. The exception's binding accessors remain available, and `getRawSql()` still returns SQL with the bindings included.
 
 <a name="lock-timeouts"></a>
 #### Lock Timeouts
@@ -77,6 +122,36 @@ The `busy_timeout` option applies only to SQLite connections and is ignored by o
 
 The timeout is applied whenever Hypervel creates or reconnects a physical database connection. An expired timeout is treated as a concurrency error, so a [transaction configured with multiple attempts](#handling-concurrency-errors) may retry it. If different parts of your application need different timeout policies, define separate database connections for them.
 
+<a name="postgresql-keepalives"></a>
+#### PostgreSQL Keepalives
+
+PostgreSQL's client library enables TCP keepalives by default. You may adjust them using these options in your PostgreSQL connection configuration:
+
+```php
+'keepalives' => 1,
+'keepalives_idle' => 600,
+'keepalives_interval' => 30,
+'keepalives_count' => 5,
+```
+
+The idle and interval values are in seconds; the count limits unanswered probes. Set `keepalives` to `0` to disable keepalives. Omitting these options or setting them to `null` leaves the PostgreSQL client's defaults unchanged; `0` uses the system default for idle, interval, and count.
+
+These options apply to TCP connections, not Unix-domain sockets. See PostgreSQL's [connection parameter documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS) for platform support.
+
+<a name="postgresql-server-options"></a>
+#### PostgreSQL Server Options
+
+Use `server_options` to send PostgreSQL settings when a connection opens. This is useful for settings that a proxy or pooler must receive before the first query:
+
+```php
+'server_options' => [
+    'statement_timeout' => '5s',
+    'synchronous_commit' => 'off',
+],
+```
+
+These options may also be placed inside a connection's `read` or `write` configuration. Dedicated configuration keys, such as `search_path`, `timezone`, `isolation_level`, `lock_timeout`, `synchronous_commit`, `application_name`, and `charset`, take precedence over their corresponding server options. Use strings such as `'on'` and `'off'` for boolean PostgreSQL settings.
+
 <a name="configuration-using-urls"></a>
 #### Configuration Using URLs
 
@@ -94,7 +169,7 @@ These URLs typically follow a standard schema convention:
 driver://username:password@host:port/database?options
 ```
 
-For convenience, Hypervel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` configuration option is present, it will be used to extract the database connection and credential information. In Hypervel's default database configuration file, SQLite uses the `DATABASE_URL` environment variable while MariaDB, MySQL, and PostgreSQL use the `DB_URL` environment variable.
+For convenience, Hypervel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` (or corresponding `DB_URL` environment variable) configuration option is present, it will be used to extract the database connection and credential information.
 
 <a name="read-and-write-connections"></a>
 ### Read and Write Connections
@@ -163,15 +238,19 @@ $count = DB::connection('mysql::write')->table('users')->count();
 
 Use these suffixes when you need to explicitly inspect a replica or force reads through the write connection. Normal application queries do not need them; Hypervel routes reads, writes, transactions, and sticky reads automatically.
 
+Eloquent models created or retrieved through `::write` retain that connection for later saves and relation queries, including its current transaction. Models retrieved through `::read` use the base connection name for subsequent operations, so saves reach the primary.
+
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
-The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state is reset when the coroutine's connection is returned to the pool, so it will not leak into another request. It is up to you to decide if this is the desired behavior for your application.
+The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
 
-Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine needs a database connection, Hypervel borrows a connection from the worker's pool, stores it for the current coroutine, and returns it to the pool when the coroutine ends. Before a connection is returned to the pool, Hypervel resets per-request state such as query logs, query duration tracking, transaction callbacks, read / write routing state, and uncommitted transactions.
+Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine resolves a database connection, Hypervel borrows a physical session from the worker's pool. The coroutine keeps its own connection object, including query logs, callbacks and read / write routing state. Query and schema builders retain that object even if its idle session is returned to the pool and another session is borrowed later. When the coroutine or task ends, Hypervel rolls back unfinished transactions, including those started directly through PDO or SQL, and returns its remaining borrowed sessions.
+
+A connection and the query builders created from it belong to the coroutine or task that resolved them. Build queries inside each child coroutine instead of passing builders or connections between coroutines, and do not keep them after the coroutine or task finishes. Connections that support early release remain usable across releases within that execution, but throw an exception if asked to borrow another session after it finishes.
 
 Each connection may define its own `pool` configuration:
 
@@ -207,7 +286,9 @@ For the full option reference and custom maintenance behavior, see the [pool doc
 
 For a connection with separate read and write hosts, each base pool slot may lazily open one write PDO and one read PDO. It does not open one PDO per configured host. If `max_connections` is `10`, a worker may therefore hold up to roughly 20 server-side database connections for that configured connection once both sides have been used. Size your database server, PgBouncer, PgDog, or other pooler capacity with that in mind. Increase `max_connections` for more concurrent database work per worker, not simply because you configured more read hosts.
 
-Explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
+When a read side is configured, explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Extensions registered through `DB::extend` for the connection name or its top-level driver receive the complete connection configuration so they can select their own endpoints. An extension selected by a read record receives that record's merged configuration. The pool's options come from the merged read configuration. Without a read side, `::read` uses the base pool. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
+
+If your `read` configuration contains a list of connection records, Hypervel chooses a record for each new physical connection and chooses again when reconnecting. All records in an explicit `::read` pool must have the same effective `pool` options, including inherited defaults. Conflicting options throw an exception when the pool is created, since the records share one pool capacity and lifecycle policy. Derived read pools cannot use in-memory SQLite databases.
 
 Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at the database or through a proxy / pooler. They help long-running workers avoid stale sockets and rotate old idle connection generations before those connections are used by a request.
 
@@ -216,6 +297,96 @@ Hypervel's default database configuration also includes a `pgsql-pooled` connect
 You may use `migrations_connection` on any database connection to instruct migration commands to run against another configured connection. This is useful when a runtime connection points at a database pooler that does not support every operation required by migrations.
 
 When you need a direct connection for migrations or schema operations, configure it as a normal connection and reference it with `migrations_connection`. Hypervel does not use Laravel's `::direct` connection suffix.
+
+<a name="releasing-and-pinning-connections"></a>
+#### Releasing and Pinning Connections
+
+A request may spend much longer waiting for an external service than running database queries. Holding a database session throughout that wait prevents other requests from using it, even though the database has no work to do.
+
+Hypervel automatically returns the current execution's idle database sessions to their pools at these boundaries:
+
+- Before outgoing [HTTP client](/docs/{{version}}/http-client) requests, including retries and redirects, after request callbacks, and whenever reading a streamed response waits for more data.
+- Before sending [mail](/docs/{{version}}/mail), after the message is built and `MessageSending` listeners have run.
+- Before Pusher, Ably and Mercure [broadcasts](/docs/{{version}}/broadcasting).
+- Before requests from [Scout's](/docs/{{version}}/scout) default Algolia, Meilisearch and Typesense HTTP clients. This automatic release is not added to a custom Typesense `client` supplied in `client-settings`.
+- During `scout:import`, after each chunk finishes and before the command waits for the remaining chunks.
+- Before sleeping while waiting for a cache lock, a cache or Redis funnel, or a Redis throttle.
+- Before Saloon waits for a rate limit, a request delay or a retry delay.
+- Before the `retry` helper sleeps between attempts, including HTTP client retry delays.
+- Before the [Concurrency](/docs/{{version}}/concurrency) coroutine driver starts its tasks, and before a [Saloon pool](/docs/{{version}}/saloon#concurrent-requests) admits or waits for requests.
+- Before running or waiting for a [process](/docs/{{version}}/processes), and before stopping one with a positive grace period.
+- Before [filesystem](/docs/{{version}}/filesystem) operations on built-in S3, GCS, FTP and SFTP disks, and custom disks registered with `poolable: true`, except path formatting and temporary-URL capability checks.
+- Before requests from [Socialite's](/docs/{{version}}/socialite) default HTTP client and the default [Slack webhook](/docs/{{version}}/notifications#slack-notifications) client.
+- Before borrowing a pooled SQS or Beanstalkd queue connection.
+- Before each command from the S3, SQS and SES clients Hypervel creates, including commands sent inside a pooled disk's or queue's borrow callback. This happens before credentials are fetched.
+- Before starting a [gRPC](/docs/{{version}}/grpc) call or retry attempt, and before waiting for a retry delay.
+
+The next database operation borrows a session automatically. Existing connection objects, builders, query logs and sticky reads remain valid. No database connection is opened merely to release it.
+
+Registered [session configurators](#configuring-database-session-state) apply the current execution's settings before a borrowed PDO is used, updating the physical session only when its desired state changes. Ordinary database queries need no changes to take advantage of early release.
+
+Before other external work, you may release idle sessions explicitly using `DB::releaseIdleConnections()`. This is also useful before starting concurrent work: each child coroutine owns its own connections and cannot release a session held by its parent.
+
+```php
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Http;
+
+use function Hypervel\Coroutine\parallel;
+
+$order = DB::table('orders')->find($orderId);
+
+DB::releaseIdleConnections();
+
+$responses = parallel([
+    fn () => Http::get($inventoryUrl),
+    fn () => Http::get($shippingUrl),
+]);
+```
+
+Faked HTTP requests do not release connections. If you provide your own Guzzle client using `setClient`, call `DB::releaseIdleConnections()` yourself before sending requests.
+
+Process waits release idle sessions when the wait begins. If an output callback performs database work, it may call `DB::releaseIdleConnections()` before returning to wait for more output.
+
+The same applies to filesystem and gRPC streams: opening a stream releases idle sessions, but reading each chunk or message does not. Consumers and raw-access callbacks that query the database may release their sessions before further external work. Commands from an S3 disk's client already release before each command, including inside raw-access callbacks.
+
+Socialite clients configured with a custom Guzzle `handler` or supplied through `setHttpClient()`, injected SQS clients, and unpooled custom filesystem drivers control their own transports. Call `DB::releaseIdleConnections()` before their external waits when needed. AWS SDK clients you create yourself can release before each command the same way Hypervel's clients do:
+
+```php
+use Aws\Middleware;
+use Aws\Sqs\SqsClient;
+use Hypervel\Support\Facades\DB;
+
+$client = new SqsClient($config);
+
+$client->getHandlerList()->prependInit(
+    Middleware::tap(fn () => DB::releaseIdleConnections()),
+    'release_idle_database_connections',
+);
+```
+
+Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
+
+When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes.
+
+If your code requires the same physical session across an external call, wrap the entire operation in `DB::withPinnedSession()`. For a named connection, call `withPinnedSession()` on that connection. For example, a PostgreSQL session-level advisory lock must be released on the session that acquired it:
+
+```php
+$connection = DB::connection('pgsql');
+
+$response = $connection->withPinnedSession(function () use ($connection, $accountId, $paymentUrl, $payload) {
+    $connection->selectFromWriteConnection('select pg_advisory_lock(?)', [$accountId]);
+
+    try {
+        return Http::post($paymentUrl, $payload);
+    } finally {
+        $connection->selectFromWriteConnection('select pg_advisory_unlock(?)', [$accountId]);
+    }
+});
+```
+
+Pinning is also needed for temporary tables, retained raw PDOs or statements, and manual session changes spanning a release boundary. It applies to a manual `disableForeignKeyConstraints` / `enableForeignKeyConstraints` pair; prefer the scoped `withoutForeignKeyConstraints` method. Each pin protects its connection until the callback returns or throws, and pins may be nested. Complete any lazy work inside the callback rather than returning it for later execution. Pinning prevents early release but does not prevent replacing a broken connection during the normal lost-connection retry.
+
+Connections registered through `DB::extend` retain their complete driver object until execution ends; early release leaves them alone unless the driver [opts in](#early-release-for-custom-drivers). This includes extensions selected by read records in an explicit `::read` pool. All drivers retain their complete connection when selectable write records (or read records in an explicit `::read` pool) specify different drivers, database names or table prefixes. PDO drivers registered through `Connection::resolverFor` participate in early release when those values agree.
 
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
@@ -319,6 +490,8 @@ Connection::resolverFor('mysql', function (
 });
 ```
 
+For a custom PDO driver name, also bind `db.connector.{driver}` in your service provider. The connector must implement `Hypervel\Database\Connectors\ConnectorInterface`; its `connect` method receives the configuration and returns a PDO instance. Existing driver names use Hypervel's built-in connectors unless you replace their binding.
+
 If your driver uses an HTTP client, native extension, or another non-PDO transport, extend the driver-neutral `Connection` class and register it during application boot using the `DB::extend` method:
 
 ```php
@@ -335,29 +508,134 @@ DB::extend('clickhouse', function (array $config, ?string $name): Connection {
 });
 ```
 
-The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The configuration includes the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
+The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The resolver receives the complete connection configuration with its base URL parsed and any `read` and `write` records retained. The driver owns endpoint selection and parsing of role-specific URLs. Pooled connections also include the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
 
 Custom connections implement their own query execution, transactions, escaping, health check, reconnection, and cleanup behavior. They must also return their driver key, such as `clickhouse`, from the protected `getDefaultDriverName` method. Hypervel uses this value when the connection has no configured driver name; an explicitly configured driver name still takes precedence.
 
 Hypervel's database pool calls these connection methods without assuming PDO, so a native or HTTP driver does not need to create a fake PDO instance.
 
+Drivers with separate read and write resources may call the protected `resolveReadWriteType` method before selecting a resource. It returns `read` or `write`, honoring active transactions, forced write routing, and sticky reads. Pass `false` for a write operation. The method also records the selected role for query events and exceptions. Resource lookup remains the driver's responsibility; if a read falls back to the write resource, record that fallback in `latestReadWriteTypeRetrieved`.
+
+An explicit `::read` connection with a configured read side carries `read_write_type = 'read'`. The driver must use that side for every operation, including statements and forced-write reads, just as Hypervel's PDO drivers do. Without a read side, use the connection's ordinary fallback behavior; direct resolution may still supply the read marker. Do not require a write marker for `::write`: pooled resolution forces write routing through `useWriteConnectionWhenReading`, which the role resolver already honors.
+
+Use the protected `run` method when your execution callback returns a completed response. If execution continues while rows are consumed, use `runStreaming` instead. It accepts the same query, bindings, and callback arguments, with the callback returning an iterable. Hooks and execution begin when iteration starts, and success is logged only after normal exhaustion. The recorded duration includes consumer work between yields, which also counts toward cumulative query-duration thresholds. Iteration failures follow the normal query-exception and `QueryFailed` paths; cancellation passes through unchanged. The callback remains responsible for closing its resources in a `finally` block when iteration ends or is abandoned.
+
+If an active stream is explicitly closed, its next advancement must throw `Hypervel\Database\StreamClosedException` instead of ending as though the query completed. `runStreaming` passes this exception through unchanged, without incrementing the connection's error count, logging a successful query, or dispatching query events. Resource cleanup still belongs in the driver's `finally` block.
+
+`runStreaming` calls the existing lost-connection retry hook only before the first value has been yielded. Drivers must also reject retries when their operation cannot be replayed safely, including when a progress callback has already exposed part of the response. The streaming boundary restores the outer operation's role when a consumer resumes it after running another query. Existing PDO cursors retain their execute-time event boundary.
+
+Both execution methods construct database errors through the protected `newQueryException` method. Drivers whose parameter types need custom error formatting may override this method to return a `QueryException` subclass. Preserve the original query, bindings, and cause; exceptions that are not database failures may be rethrown unchanged. The base implementation continues to prepare bindings and enrich unique-constraint errors with the reported index or columns. It returns an `InvalidValueException` when the protected `isDataTypeError` method identifies an invalid or out-of-range value; override that method to classify your driver's errors.
+
+Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
+
+Query builders with statement-level options may override the protected `Query\Builder::ensureCanEmbedQuery` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member; call the parent to preserve the built-in rejection of embedded timeouts.
+
+Custom Eloquent builders may override the public `ensureCanCreateOrFirst(): void` method to reject helpers that depend on unique-constraint recovery. Both `firstOrCreate` and `createOrFirst` call it before reading or writing, including their relationship forms; `updateOrCreate` and `incrementOrCreate` reach it through those helpers. Helpers delegate to each other, so validation may run more than once per operation; keep overrides side-effect-free. Relationships use the related model's builder, even when the parent uses another driver. The default method imposes no restriction, and ordinary `create`, `save`, and `firstOrNew` are unchanged.
+
+The migration repository delegates its table definition to `Schema\Builder::createMigrationRepositoryTable`. A driver may override this method when it needs a different physical schema, while retaining the standard repository and migration commands. Its table must support storing migration names and integer batch numbers; the default definition also includes an auto-incrementing `id`. Repository reads may return batch numbers as integers or numeric strings, depending on the driver, and do not require an `id` column.
+
+Schema builders may override the protected `selectMetadata(string $query): array` method to customize metadata execution without copying the public inspection methods. The default reads from the write connection, so schema checks observe the same database that migrations modify. It covers schema, table, view, type, column, index, and foreign-key list reads, including built-in builder overrides, SQLite's stored table definitions, and the checks derived from them. Session-state reads and capability probes retain their own execution paths. Return the raw rows expected by the driver's processor. For schema writes, the protected `executeStatements(array $statements): void` method executes compiled statements in order and throws if a statement returns false.
+
+The native `DatabaseTruncation` testing trait delegates to `Schema\Builder::truncateTables` after applying its table filters. It passes the complete list of selected schema-qualified names with the connection's table prefix temporarily disabled. The default implementation checks for rows on the write connection and truncates non-empty tables through the query builder, so replica lag cannot skip cleanup. Drivers with engine-specific reset behavior may override this bulk method while keeping `getTables` accurate and using the native testing traits. If a selected table cannot be safely reset, throw an exception instead of silently leaving test data behind.
+
+To add column modifiers, a `Schema\Blueprint` subclass may override the protected `newColumnDefinition(array $attributes)` method and return its own `ColumnDefinition` subclass. Declare `@extends Blueprint<YourColumnDefinition>` on the Blueprint subclass so static analysis recognizes the custom return type from inherited helpers such as `string`, `unsignedBigInteger`, and `timestamps`. Foreign-ID helpers retain their specialized definition and constraint methods. Column-list accessors continue to return base definitions because a Blueprint may contain several definition types.
+
+Custom query builders may declare their binding-slot names through the third `Query\Builder` template argument, after the result key and row types. Initialize the additional keys in the builder's `bindings` array; the existing binding methods validate those keys at runtime. The `newQuery`, `forNestedWhere`, and protected `cloneForPaginationCount` methods return `static`, retaining the concrete builder and its binding types. Overrides must preserve that return contract. The protected `forSubQuery` method returns a base query builder because a join's subquery belongs to its parent query, not the join itself.
+
+<a name="detecting-database-failures"></a>
+#### Detecting Database Failures
+
+The default lost-connection and concurrency detectors recognize PDO failures. The lost-connection detector also recognizes the framework's `LostConnectionException` and native mysqlnd protocol warnings, which can occur even in exception mode. An application or HTTP exception does not become a database failure merely because its message contains database error text.
+
+For a non-PDO driver, bind a detector that recognizes that driver's failures. Extend the default detector to preserve recovery for built-in databases. For example, if your driver reports lost sessions using a `ConnectionLostException`, your application detector could be:
+
+```php
+namespace App\Database;
+
+use Hypervel\Database\LostConnectionDetector as BaseLostConnectionDetector;
+use Hypervel\Database\QueryException;
+use Throwable;
+use Vendor\Database\ConnectionLostException;
+
+class LostConnectionDetector extends BaseLostConnectionDetector
+{
+    /**
+     * Determine if the exception represents a lost database connection.
+     */
+    public function causedByLostConnection(Throwable $e): bool
+    {
+        while ($e instanceof QueryException && $e->getPrevious() !== null) {
+            $e = $e->getPrevious();
+        }
+
+        return $e instanceof ConnectionLostException || parent::causedByLostConnection($e);
+    }
+}
+```
+
+Replace the example vendor exception with your driver's exception type. Register the detector in your service provider's `register` method:
+
+```php
+$this->app->singleton(
+    \Hypervel\Contracts\Database\LostConnectionDetector::class,
+    \App\Database\LostConnectionDetector::class,
+);
+```
+
+Use the same approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Detectors may receive a query exception or the failure it wraps, so unwrap query exceptions before checking your driver's exception. The SQL and bindings in a query exception are not evidence of a database failure.
+
+A connection's protected recovery methods can customize its own behavior, but shared consumers such as queue workers and cache locks use the bound detectors. Queue workers only consult the detector for database exceptions and their causes, not every exception thrown by a job.
+
+<a name="early-release-for-custom-drivers"></a>
+#### Early Release for Custom Drivers
+
+By default, a connection registered through `DB::extend` keeps its pool slot until the execution that resolved it ends. To let [early release](#releasing-and-pinning-connections) return the slot between operations, implement the `Hypervel\Database\LeasableConnection` interface. When the pool's selectable endpoint records agree on driver, database and table prefix, the pool keeps the connection your extension creates as the physical connection and gives each caller its own logical connection, created by the `newLeasedConnection` method.
+
+The logical connection holds the caller's state, such as its grammar, listeners, query log and table prefix, but none of the physical connection's resources. Instead, it calls the given closure whenever an operation needs them. The closure returns the physical connection currently held for the caller, borrowing one from the pool after an early release:
+
+```php
+use Closure;
+use Hypervel\Database\Connection;
+use Hypervel\Database\LeasableConnection;
+
+class ClickHouseConnection extends Connection implements LeasableConnection
+{
+    protected ?Closure $physical = null;
+
+    public function newLeasedConnection(Closure $physical): static
+    {
+        $connection = new static(
+            database: $this->database,
+            tablePrefix: $this->tablePrefix,
+            config: $this->config,
+        );
+
+        $connection->physical = $physical;
+
+        return $connection;
+    }
+
+    protected function client(): Client
+    {
+        $owner = $this->physical === null ? $this : ($this->physical)();
+
+        return $owner->client ??= $owner->connectClient();
+    }
+}
+```
+
+Queries executed through `run` and `runStreaming` keep their physical connection until they finish. Wrap any other operation that relies on the same physical connection across a wait, such as a control request or a server-side session, in `withPinnedSession`. Calling `disconnect` on the logical connection closes the physical connection it currently holds, and the next operation borrows a replacement. When the execution that owns a logical connection ends, its `resetForPool` method runs before the physical connection returns to the pool, so stop any work that is still using it there.
+
+The pool retains modified sessions when the standard host, port and write settings can select different servers. If your driver's routing or session state requires additional retention, override `hasPinnedSession` and include the parent's result in your check.
+
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
-
-```shell
-composer require --dev phpstan/extension-installer
-```
-
-Without the extension installer, add the package extension to your `phpstan.neon` file:
-
-```neon
-includes:
-    - vendor/hypervel/database/extension.neon
-```
+The Hypervel database package includes a PHPStan extension that understands named scopes, soft deleting query methods such as `withTrashed` and `restore`, and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis setup instructions](/docs/{{version}}/installation#static-analysis) to enable it in your application.
 
 A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
+
+Configure a [custom Eloquent builder](/docs/{{version}}/eloquent#custom-eloquent-builders) on the model, for example with `#[UseEloquentBuilder(YourBuilder::class)]`, then add the `HasBuilder` trait with `@use HasBuilder<YourBuilder<static>>` for static typing. The extension follows the model's declared `query()` return type, including through relationships. If your Eloquent builder also uses a custom query builder, declare that type on `getQuery()`. Forwarded methods retain the Eloquent builder or relationship when they are chainable, while custom Eloquent terminal methods retain their result types. Query builders declaring `TKey` and `TValue` templates preserve model-valued callback signatures during forwarding; direct `getQuery()` and `toBase()` calls keep their raw-row types.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
@@ -659,6 +937,8 @@ DB::transaction(function () {
 });
 ```
 
+The `transaction` method commits or rolls back the transaction it starts, so don't call `commit` or `rollBack` for that transaction inside the closure. If you do, an exception is thrown when the closure returns. You may nest `transaction` calls, or pair your own `beginTransaction` with `commit` or `rollBack` inside the closure. If a nested failure ends the outer transaction, such as a MySQL deadlock, the outer `transaction` call throws even when the closure catches the nested exception.
+
 <a name="handling-concurrency-errors"></a>
 #### Handling Concurrency Errors
 
@@ -723,7 +1003,37 @@ If the connection has separate read and write hosts, you may connect to either h
 php artisan db mysql --read
 ```
 
-The `--read` and `--write` options understand list-style read / write configuration and host arrays. When a side contains multiple hosts, the command connects to the first configured host for that side.
+The `--read` and `--write` options understand list-style read / write configuration and host arrays. The command selects the first record for the requested side, applies that record's URL if present, and selects its first host. URL values override matching connection options, while omitted values remain inherited. A base connection with a host array also uses its first host when neither option is given.
+
+<a name="custom-database-clients"></a>
+### Custom Database Clients
+
+Custom database drivers may support the `db` command by registering a resolver with `DatabaseCliManager` in a service provider's `boot` method. The resolver returns the executable, argument list, and optional environment variables for the client:
+
+```php
+use Hypervel\Database\DatabaseCliConfiguration;
+use Hypervel\Database\DatabaseCliManager;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(DatabaseCliManager $clients): void
+{
+    $clients->extend('analytics', function (array $connection): DatabaseCliConfiguration {
+        return new DatabaseCliConfiguration(
+            command: 'analytics-client',
+            arguments: [$connection['database']],
+            environment: ['ANALYTICS_HOST' => $connection['host']],
+        );
+    });
+}
+```
+
+The resolver receives the connection configuration after URL parsing, read/write selection, and host-list selection. It is called once per command invocation and does not need to open a database connection. Validate any requirements specific to your client in the resolver; a client that uses a local file or socket does not need a host.
+
+Pass arguments as separate list entries, not a shell command string. Use the environment map for credentials when the client supports it. Both arguments and environment variables default to empty arrays.
+
+Resolvers remain registered for the worker lifetime, so register them only during application boot. Registering a resolver for a built-in driver replaces its client configuration. Otherwise, built-in drivers continue through `DbCommand`'s existing argument and environment helpers, including any subclass overrides.
 
 <a name="inspecting-your-databases"></a>
 ## Inspecting Your Databases
@@ -815,3 +1125,8 @@ public function boot(): void
     });
 }
 ```
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Database began as a port of [Laravel Database](https://github.com/illuminate/database) and has been adapted for Hypervel's framework architecture and coroutine runtime.

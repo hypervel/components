@@ -77,7 +77,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         $store = $this->redisStore()->setTagMode(TagMode::All);
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
-        $this->expectExceptionMessage('TagMode::Any is required');
+        $this->expectExceptionMessageIsOrContains('TagMode::Any is required');
 
         $this->validator()->validateAnyModeTags(
             $this->repository($store),
@@ -92,7 +92,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         $store->shouldNotReceive('getTagMode');
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
-        $this->expectExceptionMessage('does not support tags');
+        $this->expectExceptionMessageIsOrContains('does not support tags');
 
         $this->validator()->validateAnyModeTags(
             $this->repository($store),
@@ -130,7 +130,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         ]);
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
-        $this->expectExceptionMessage('can retain an identity cache entry in another worker or node');
+        $this->expectExceptionMessageIsOrContains('can retain an identity cache entry in another worker or node');
 
         $this->validator()->validate($this->repository($stack), 'Auth user cache');
     }
@@ -225,7 +225,7 @@ class ModelCacheStoreValidatorTest extends TestCase
             ]);
 
             $this->expectException(UnsupportedModelCacheStoreException::class);
-            $this->expectExceptionMessage('msgpack.php_only=1');
+            $this->expectExceptionMessageIsOrContains('msgpack.php_only=1');
 
             $validator->validate($this->repository($this->redisStore()), 'Sanctum token cache');
         } finally {
@@ -257,7 +257,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         $validator = $this->validator(connectionOptions: ['serializer' => PHP_INT_MAX]);
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
-        $this->expectExceptionMessage('not verified to preserve model objects');
+        $this->expectExceptionMessageIsOrContains('not verified to preserve model objects');
 
         $validator->validate($this->repository($this->redisStore()), 'Auth user cache');
     }
@@ -290,7 +290,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         ]);
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
-        $this->expectExceptionMessage('serializer [' . Redis::SERIALIZER_JSON . ']');
+        $this->expectExceptionMessageIsOrContains('serializer [' . Redis::SERIALIZER_JSON . ']');
 
         $validator->validate($this->repository($this->redisStore()), 'Auth user cache');
     }

@@ -27,7 +27,7 @@ class ConcurrentTest extends TestCase
         $this->getContainer();
     }
 
-    public function testConcurrent()
+    public function testConcurrent(): void
     {
         $concurrent = new Concurrent($limit = 10);
         $this->assertSame($limit, $concurrent->getLimit());
@@ -53,7 +53,7 @@ class ConcurrentTest extends TestCase
         $this->assertSame(15, $count);
     }
 
-    public function testException()
+    public function testException(): void
     {
         $con = new Concurrent(10);
         $count = 0;
@@ -219,7 +219,7 @@ class ConcurrentTest extends TestCase
         $concurrent->closeForTest();
 
         $this->expectException(ChannelClosedException::class);
-        $this->expectExceptionMessage('The concurrency channel is closed.');
+        $this->expectExceptionMessageIs('The concurrency channel is closed.');
 
         $concurrent->waitForAvailableSlot(0.001);
     }

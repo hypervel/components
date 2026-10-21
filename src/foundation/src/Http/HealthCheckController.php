@@ -34,6 +34,8 @@ class HealthCheckController
 
     /**
      * Run the application health check.
+     *
+     * @throws Throwable
      */
     public function __invoke(Request $request): Response
     {

@@ -113,6 +113,11 @@ class Unique extends ObjectValidationAttribute
      */
     public static function create(string ...$parameters): static
     {
+        // An ignored id, id column and where conditions stay in the original rule string.
+        if (count($parameters) > 2) {
+            throw CannotBuildValidationRule::create('Could not make a unique rule from more than a table and column.');
+        }
+
         return new static(rule: new BaseUnique($parameters[0], $parameters[1] ?? 'NULL'));
     }
 }

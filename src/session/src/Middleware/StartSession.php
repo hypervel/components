@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
@@ -70,7 +71,7 @@ class StartSession
         $lockFor = $request->route()->locksFor()
             ?: $this->manager->defaultRouteBlockLockSeconds();
 
-        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */
+        /** @var LockProvider&Repository $store */
         $store = $this->cache->store($this->manager->blockDriver());
         $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)
@@ -138,6 +139,10 @@ class StartSession
             $session->setRequestOnHandler($request);
 
             $session->start();
+
+            if ($request->route() instanceof Route && $request->route()->hasReadOnlySession()) {
+                $session->markAsReadOnly();
+            }
         });
     }
 
@@ -161,7 +166,7 @@ class StartSession
         // Here we will see if this request hits the garbage collection lottery by hitting
         // the odds needed to perform garbage collection on any given request. If we do
         // hit it, we'll call this handler to let it delete all the expired sessions.
-        if ($this->configHitsLottery($config)) {
+        if (! $session->isReadOnly() && $this->configHitsLottery($config)) {
             $session->getHandler()->gc($this->getSessionLifetimeInSeconds());
         }
     }
@@ -183,7 +188,8 @@ class StartSession
             && $request->route() instanceof Route
             && ! $request->ajax()
             && ! $request->prefetch()
-            && ! $request->isPrecognitive()) {
+            && ! $request->isPrecognitive()
+            && ! $session->isReadOnly()) {
             $session->setPreviousUrl($request->fullUrl());
 
             if (method_exists($session, 'setPreviousRoute')) {
@@ -197,8 +203,9 @@ class StartSession
      */
     protected function addCookieToResponse(Request $request, Response $response, Session $session): void
     {
-        if ($this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
-            $cookieConfig = $this->resolveSessionCookieConfig($request, $config);
+        // The ID of a read-only session is never saved, so the browser keeps its current cookie.
+        if (! $session->isReadOnly() && $this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
+            $cookieConfig = static::resolveCookieConfig($request, $config);
 
             $response->headers->setCookie(new Cookie(
                 $session->getName(),
@@ -220,7 +227,7 @@ class StartSession
      *
      * @return array{path: string, domain: ?string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
-    protected function resolveSessionCookieConfig(Request $request, array $config): array
+    public static function resolveCookieConfig(Request $request, array $config): array
     {
         $cookieConfig = [
             'path' => $config['path'],
@@ -272,13 +279,11 @@ class StartSession
     }
 
     /**
-     * Get the cookie lifetime in seconds.
+     * Get the cookie expiration date.
      */
     protected function getCookieExpirationDate(): DateTimeInterface|int
     {
-        $expiresOnClose = $this->manager->getSessionConfig()['expire_on_close'];
-
-        return $expiresOnClose
+        return $this->manager->getSessionConfig()['expire_on_close']
             ? 0
             : CarbonImmutable::now()->addSeconds($this->getSessionLifetimeInSeconds());
     }

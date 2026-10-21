@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Casts;
 
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 
@@ -30,11 +29,11 @@ class CastableCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): mixed {
         $this->cast ??= $this->castableClass::dataCastUsing($this->arguments);
 
-        return $this->cast->cast($property, $value, $state, $context);
+        return $this->cast->cast($property, $value, $properties, $context);
     }
 }

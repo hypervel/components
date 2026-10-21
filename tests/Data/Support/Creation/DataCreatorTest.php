@@ -9,6 +9,9 @@ use Closure;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Container\Attributes\RouteParameter;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Attributes\AutoClosureLazy;
 use Hypervel\Data\Attributes\AutoInertiaDeferred;
@@ -19,9 +22,16 @@ use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
+use Hypervel\Data\Attributes\Validation\Exclude;
+use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\Max;
+use Hypervel\Data\Attributes\Validation\Min;
+use Hypervel\Data\Attributes\Validation\RequiredIf;
 use Hypervel\Data\Attributes\WithCast;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Casts\Castable;
+use Hypervel\Data\Casts\IterableItemCast;
+use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -38,7 +48,6 @@ use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
 use Hypervel\Data\Resource;
 use Hypervel\Data\Support\Creation\AutoLazyReplayMode;
-use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\CreationMode;
@@ -47,22 +56,32 @@ use Hypervel\Data\Support\Creation\ValidationStrategy;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Http\Request;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Data\Fixtures\Casts\StringToUpperCast;
+use Hypervel\Tests\Data\Fixtures\Concerns\BindsRouteParameters;
+use Hypervel\Tests\Data\Fixtures\Enums\DummyBackedEnum;
+use Hypervel\Tests\Data\Fixtures\SimpleData;
+use Hypervel\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
+use RuntimeException;
 use Throwable;
 use TypeError;
 use WeakReference;
 
 class DataCreatorTest extends TestCase
 {
-    // REMOVED: Configurable pipeline, prepareForPipeline(), and inherited-context factory tests; use the fixed engine and fresh factory hooks.
-    // REMOVED: withOptionalValues()/withoutOptionalValues() tests; Optional declarations always preserve absence.
+    use BindsRouteParameters;
+
+    // REMOVED: Configurable pipeline tests; use the fixed engine and factory hooks.
     // REMOVED: Data-specific From* injection tests; Hypervel contextual attributes cover the same outcomes directly.
     // REMOVED: UnserializeCast tests; serialized request input is not accepted by a built-in cast.
 
@@ -85,11 +104,33 @@ class DataCreatorTest extends TestCase
         $this->assertInstanceOf(Optional::class, $data->note);
     }
 
-    public function testFirstSourceContainingAPropertyWinsAndMappingCanBeDisabled(): void
+    public function testMalformedNumbersFailWithPhpsTypeErrorWithAndWithoutHooks(): void
     {
-        $first = BasicCreationData::from(
-            ['name' => 'First'],
-            ['profile' => ['name' => 'Second']],
+        $payload = ['name' => 'Taylor', 'age' => '12abc'];
+        $rejected = 0;
+
+        foreach ([
+            static fn (): BasicCreationData => BasicCreationData::from($payload),
+            static fn (): BasicCreationData => BasicCreationData::factory()
+                ->prepareData(static fn (array $data): array => $data)
+                ->from($payload),
+        ] as $create) {
+            try {
+                $create();
+            } catch (TypeError) {
+                ++$rejected;
+            }
+        }
+
+        $this->assertSame(2, $rejected);
+        $this->assertSame(21, BasicCreationData::from([...$payload, 'age' => ' 21 '])->age);
+    }
+
+    public function testLaterSourceContainingAPropertyWinsAndMappingCanBeDisabled(): void
+    {
+        $later = BasicCreationData::from(
+            ['name' => 'First', 'nickname' => 'Tay', 'note' => 'kept'],
+            ['profile' => ['name' => 'Second'], 'nickname' => null, 'note' => Optional::create()],
         );
         $unmapped = BasicCreationData::factory()
             ->withoutPropertyNameMapping()
@@ -98,9 +139,70 @@ class DataCreatorTest extends TestCase
                 'profile' => ['name' => 'Mapped'],
             ]);
 
-        $this->assertSame('First', $first->name);
+        $this->assertSame('Second', $later->name);
+        $this->assertNull($later->nickname);
+        $this->assertSame('kept', $later->note);
         $this->assertSame('Plain', $unmapped->name);
         $this->assertNotSame(BasicCreationData::factory(), BasicCreationData::factory());
+    }
+
+    public function testAnExplicitOptionalIsKeptWhenNoSourceSuppliesAValue(): void
+    {
+        $data = OptionalDefaultCreationData::from(['note' => Optional::create()], []);
+
+        $this->assertInstanceOf(Optional::class, $data->note);
+    }
+
+    public function testAPrepareDataHookReturningItsInputChangesNothing(): void
+    {
+        $sources = [
+            ['name' => 'First', 'meta' => ['a' => 1]],
+            ['name' => 'Second', 'meta' => ['b' => 2]],
+        ];
+
+        $plain = PrepareDataIdentityData::from(...$sources);
+        $hooked = PrepareDataIdentityData::factory()
+            ->prepareData(static fn (array $data): array => $data)
+            ->from(...$sources);
+
+        $this->assertSame(['b' => 2], $plain->meta);
+        $this->assertSame($plain->toArray(), $hooked->toArray());
+
+        $mappedCases = [
+            'php name after a dot mapping' => [
+                ['profile' => ['name' => 'old', 'bio' => 'kept'], 'user_code' => 'a'],
+                ['name' => 'new'],
+            ],
+            'dot mapping after a php name' => [
+                ['name' => 'old', 'user_code' => 'a'],
+                ['profile' => ['name' => 'new']],
+            ],
+            'php name after a flat mapping' => [
+                ['name' => 'Taylor', 'user_code' => 'old'],
+                ['code' => 'new'],
+            ],
+        ];
+
+        foreach ($mappedCases as $case => $mappedSources) {
+            $plain = MappedPrepareDataIdentityData::from(...$mappedSources);
+            $hooked = MappedPrepareDataIdentityData::factory()
+                ->prepareData(static fn (array $data): array => $data)
+                ->from(...$mappedSources);
+
+            $this->assertSame($plain->all(), $hooked->all(), $case);
+        }
+
+        $received = null;
+        MappedPrepareDataIdentityData::factory()
+            ->prepareData(static function (array $data) use (&$received): array {
+                $received = $data;
+
+                return $data;
+            })
+            ->from(...$mappedCases['php name after a dot mapping']);
+
+        // The selected value moves to the spelling resolution reads first; sibling input remains.
+        $this->assertSame(['name' => 'new', 'bio' => 'kept'], $received['profile']);
     }
 
     public function testFreshDefaultFactoriesShareOnlyTheirImmutableContext(): void
@@ -118,117 +220,6 @@ class DataCreatorTest extends TestCase
 
         $this->assertNotSame($default, $first->get());
         $this->assertSame($default, BasicCreationData::factory()->get());
-    }
-
-    public function testEveryFactoryMutatorInvalidatesAndRebuildsTheCreateContext(): void
-    {
-        $hook = static fn (mixed $value): mixed => $value;
-        $cases = [
-            'validationStrategy' => [
-                static fn (CreationContextFactory $factory) => $factory->validationStrategy(ValidationStrategy::Disabled),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
-            ],
-            'withoutValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutValidation(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
-            ],
-            'onlyValidateRequests' => [
-                static fn (CreationContextFactory $factory) => $factory->onlyValidateRequests(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::OnlyRequests, $context->validationStrategy),
-            ],
-            'alwaysValidate' => [
-                static fn (CreationContextFactory $factory) => $factory->alwaysValidate(),
-                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Always, $context->validationStrategy),
-            ],
-            'withPropertyNameMapping' => [
-                static fn (CreationContextFactory $factory) => $factory->withPropertyNameMapping(),
-                fn (CreationContext $context) => $this->assertTrue($context->mapPropertyNames),
-            ],
-            'withoutPropertyNameMapping' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutPropertyNameMapping(),
-                fn (CreationContext $context) => $this->assertFalse($context->mapPropertyNames),
-            ],
-            'withoutMagicalCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->withoutMagicalCreation(),
-                fn (CreationContext $context) => $this->assertTrue($context->disableMagicalCreation),
-            ],
-            'withMagicalCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->withMagicalCreation(),
-                fn (CreationContext $context) => $this->assertFalse($context->disableMagicalCreation),
-            ],
-            'ignoreMagicalMethod' => [
-                static fn (CreationContextFactory $factory) => $factory->ignoreMagicalMethod('fromString'),
-                fn (CreationContext $context) => $this->assertSame(['fromString'], $context->ignoredMagicalMethods),
-            ],
-            'withCast' => [
-                static fn (CreationContextFactory $factory) => $factory->withCast(CreationSource::class, CreationIdentifierCast::class),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSource::class => CreationIdentifierCast::class],
-                    $context->casts,
-                ),
-            ],
-            'withCastCollection' => [
-                static fn (CreationContextFactory $factory) => $factory->withCastCollection([
-                    CreationSource::class => CreationIdentifierCast::class,
-                ]),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSource::class => CreationIdentifierCast::class],
-                    $context->casts,
-                ),
-            ],
-            'withNormalizers' => [
-                static fn (CreationContextFactory $factory) => $factory->withNormalizers(CreationSourceNormalizer::class),
-                fn (CreationContext $context) => $this->assertSame(
-                    [CreationSourceNormalizer::class],
-                    $context->normalizers,
-                ),
-            ],
-            'prepareData' => [
-                static fn (CreationContextFactory $factory) => $factory->prepareData($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->prepareDataHooks),
-            ],
-            'beforeValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeValidation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeValidationHooks),
-            ],
-            'beforeRules' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeRules($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeRulesHooks),
-            ],
-            'afterRules' => [
-                static fn (CreationContextFactory $factory) => $factory->afterRules($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterRulesHooks),
-            ],
-            'withValidator' => [
-                static fn (CreationContextFactory $factory) => $factory->withValidator($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->withValidatorHooks),
-            ],
-            'afterValidation' => [
-                static fn (CreationContextFactory $factory) => $factory->afterValidation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterValidationHooks),
-            ],
-            'beforeCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->beforeCreation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeCreationHooks),
-            ],
-            'afterCreation' => [
-                static fn (CreationContextFactory $factory) => $factory->afterCreation($hook),
-                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterCreationHooks),
-            ],
-        ];
-
-        foreach ($cases as $name => [$mutate, $verify]) {
-            $factory = BasicCreationData::factory();
-            $before = $factory->get();
-
-            $this->assertSame($before, $factory->get(), $name);
-            $mutate($factory);
-            $after = $factory->get();
-
-            $this->assertNotSame($before, $after, $name);
-            $this->assertSame($after, $factory->get(), $name);
-            $verify($after);
-        }
     }
 
     public function testFromRetainsTheLateStaticFactoryBoundary(): void
@@ -452,19 +443,6 @@ class DataCreatorTest extends TestCase
     }
 
     /**
-     * Test a named factory is invoked once before an exact array exit.
-     */
-    public function testDirectArrayCreationDoesNotRematchNamedFactories(): void
-    {
-        DirectNamedFactoryCreationData::$calls = 0;
-
-        $data = DirectNamedFactoryCreationData::from('9');
-
-        $this->assertSame(9, $data->id);
-        $this->assertSame(1, DirectNamedFactoryCreationData::$calls);
-    }
-
-    /**
      * Test the direct exit cannot replace an array-returning engine mode.
      */
     public function testDirectArrayCreationIsCreateModeOnly(): void
@@ -658,18 +636,27 @@ class DataCreatorTest extends TestCase
         $payload = [
             'items' => [
                 'tenant.eu' => ['profile' => ['name' => 'Europe']],
-                'tenant' => ['name' => 'Global'],
+                'tenant' => ['profile' => ['name' => 'Global']],
             ],
         ];
 
         $rules = MappedItemListCreationData::getValidationRules($payload);
         $data = MappedItemListCreationData::validateAndCreate($payload);
 
-        $this->assertArrayHasKey('items.tenant\.eu.profile.name', $rules);
-        $this->assertArrayHasKey('items.tenant.name', $rules);
+        $this->assertArrayHasKey('items.*.profile.name', $rules);
         $this->assertSame(['tenant.eu', 'tenant'], array_keys($data->items));
         $this->assertSame('Europe', $data->items['tenant.eu']->name);
         $this->assertSame('Global', $data->items['tenant']->name);
+
+        // The wildcard rule reaches the dotted key as one item.
+        try {
+            MappedItemListCreationData::validateAndCreate([
+                'items' => ['tenant.eu' => ['profile' => ['name' => 123]]],
+            ]);
+            $this->fail('Expected the dotted item to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items.tenant.eu.profile.name'], array_keys($exception->errors()));
+        }
     }
 
     public function testPreservesLazyCollectionTraversalWhenValidationIsNotRunning(): void
@@ -742,13 +729,6 @@ class DataCreatorTest extends TestCase
         $this->assertNotSame($paginator, $children);
         $this->assertSame(2, $children->currentPage());
         $this->assertSame(8, $children->items()[0]->id);
-
-        RecordingAutoLazy::reset();
-        AutoLazyNamedFactoryData::$source = null;
-        $named = AutoLazyNamedFactoryData::from('named');
-
-        $this->assertSame(AutoLazyNamedFactoryData::$source, RecordingAutoLazy::$payloads['title']);
-        $this->assertSame('named', $named->title->resolve());
     }
 
     public function testAutomaticLazyReplayConstructsExactAndCoercingChildrenOnce(): void
@@ -1021,20 +1001,18 @@ class DataCreatorTest extends TestCase
         $this->assertSame(2, $resource->id);
     }
 
-    public function testNamedFactoriesCanReturnTheTargetOrAnotherNormalizableValue(): void
+    public function testNamedFactoriesMustReturnTheRequestedObject(): void
     {
         $direct = NamedFactoryCreationData::factory()
             ->beforeCreation(fn (): never => throw new CannotCreateData('should not run'))
             ->from('Taylor');
-        $continued = NamedFactoryCreationData::factory()
-            ->beforeCreation(fn (array $properties): array => [
-                ...$properties,
-                'value' => strtoupper($properties['value']),
-            ])
-            ->from(42);
 
         $this->assertSame('direct:Taylor', $direct->value);
-        $this->assertSame('NUMBER:42', $continued->value);
+
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('the named factory [fromNumber()] returned [array] instead of an instance of');
+
+        NamedFactoryCreationData::from(42);
     }
 
     public function testNamedPayloadMatchesANamedFactory(): void
@@ -1049,17 +1027,6 @@ class DataCreatorTest extends TestCase
         $data = ChildCreationData::from(payload: ['id' => '7']);
 
         $this->assertSame(7, $data->id);
-    }
-
-    public function testNamedPayloadRetainsAutomaticLazyFactoryProvenance(): void
-    {
-        RecordingAutoLazy::reset();
-        AutoLazyNamedFactoryData::$source = null;
-
-        $data = AutoLazyNamedFactoryData::from(title: 'named');
-
-        $this->assertSame(AutoLazyNamedFactoryData::$source, RecordingAutoLazy::$payloads['title']);
-        $this->assertSame('named', $data->title->resolve());
     }
 
     public function testNamedPayloadRetainsAutomaticLazySourceWithoutAFactory(): void
@@ -1088,59 +1055,203 @@ class DataCreatorTest extends TestCase
         );
     }
 
-    public function testContextualConstructorValuesOverrideClientPayload(): void
+    public function testContextualValuesAreConvertedLikeUnvalidatedInput(): void
+    {
+        $request = $this->bindRouteParameters([
+            'id' => '123',
+            'status' => 'foo',
+            'at' => '2026-10-04T10:00:00+00:00',
+            'child' => ['string' => 'nested'],
+            'choice' => ['string' => 'selected'],
+            'items' => [['string' => 'first'], ['string' => 'second']],
+        ]);
+
+        $data = ContextualConversionCreationData::from($request);
+
+        $this->assertSame(123, $data->id);
+        $this->assertSame(DummyBackedEnum::FOO, $data->status);
+        $this->assertEquals(new DateTimeImmutable('2026-10-04T10:00:00+00:00'), $data->at);
+        $this->assertEquals(new SimpleData('nested'), $data->child);
+        $this->assertEquals(new SimpleData('selected'), $data->choice);
+        $this->assertEquals([new SimpleData('first'), new SimpleData('second')], $data->items);
+        $this->assertNull($data->missing);
+    }
+
+    public function testContextualValuesWinOverHooksAndResolveOnceInTheirBuildContext(): void
     {
         config()->set('app.name', 'Server');
+        $this->app->bind(ContextualCreationContract::class, ContextualCreationDefault::class);
+        $this->app->when(ContextualResolutionCreationData::class)
+            ->needs(ContextualCreationContract::class)
+            ->give(ContextualCreationForData::class);
+        $parameterCallbacks = 0;
+        $classCallbacks = 0;
+        $this->app->afterResolvingAttribute(
+            ContextualCreationDependency::class,
+            function () use (&$parameterCallbacks): void {
+                ++$parameterCallbacks;
+            },
+        );
+        $this->app->afterResolvingAttribute(
+            ContextualCreationMarker::class,
+            function () use (&$classCallbacks): void {
+                ++$classCallbacks;
+            },
+        );
 
-        $data = ContextualCreationData::from([
-            'id' => '7',
-            'name' => 'Client',
-        ]);
+        $data = ContextualResolutionCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'dependency' => 'hook'])
+            ->from(['dependency' => 'client']);
 
-        $this->assertSame(7, $data->id);
-        $this->assertSame('Server', $data->name);
+        $this->assertSame(ContextualCreationForData::class, $data->dependency);
+        $this->assertSame('Server', $data->label);
+        $this->assertSame(1, $parameterCallbacks);
+        $this->assertSame(1, $classCallbacks);
     }
 
-    public function testResolvesAbstractPropertyMorphsBeforeFillingConcreteProperties(): void
+    public function testValidatedContextualValuesUseTheObjectsRules(): void
     {
-        $shape = ShapeCreationData::from([
-            'type' => 'circle',
-            'radius' => '12',
+        ValidatedContextualValue::$values = ['id' => 500, 'owner' => null, 'child' => 50];
+
+        try {
+            ValidatedContextualData::validate([
+                'id' => 1,
+                'owner_id' => 2,
+                'child' => ['value' => 1, 'name' => 'Child'],
+            ]);
+            $this->fail('Expected the contextual values to be validated.');
+        } catch (ValidationException $exception) {
+            $this->assertEqualsCanonicalizing(['id', 'owner_id', 'child.value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$values = ['id' => 5, 'owner' => 3, 'child' => 1];
+
+        try {
+            // The rule referencing the contextual property sees the server value, not the client's.
+            ValidatedContextualData::validate(['id' => 7]);
+            $this->fail('Expected the dependent rule to read the contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['note'], array_keys($exception->errors()));
+        }
+
+        $data = ValidatedContextualData::validateAndCreate([
+            'id' => 7,
+            'note' => 'Checked',
+            'child' => ['value' => 9, 'name' => 'Child'],
         ]);
 
-        $this->assertInstanceOf(CircleCreationData::class, $shape);
-        $this->assertSame(12, $shape->radius);
+        $this->assertSame(5, $data->id);
+        $this->assertSame(3, $data->ownerId);
+        $this->assertSame(1, $data->child?->value);
     }
 
-    public function testResolvesMorphsFromBackedEnumsDefaultsAndNestedCollections(): void
+    public function testHooksCannotReplaceValidatedContextualValues(): void
     {
-        $default = DefaultShapeCreationData::from(['radius' => '3']);
-        $mapped = DefaultShapeCreationData::from([
-            'status' => 'active',
-            'radius' => '4',
-        ]);
-        $nested = ShapeListCreationData::from([
-            'shapes' => [
-                [
-                    'type' => 'circle',
-                    'radius' => '5',
-                ],
-                [
-                    'type' => 'square',
-                    'side' => '6',
-                ],
-            ],
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values = ['id' => 5, 'owner' => 3];
+        $validated = null;
+
+        $data = ValidatedContextualData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static function (array $payload): array {
+                unset($payload['owner_id']);
+
+                return [...$payload, 'id' => 1];
+            })
+            ->afterValidation(static function (array $payload) use (&$validated): array {
+                $validated = $payload;
+
+                return [...$payload, 'id' => 2];
+            })
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'id' => 3, 'ownerId' => 4])
+            ->from(['note' => 'Checked']);
+
+        $this->assertSame(5, $validated['id']);
+        $this->assertSame(3, $validated['owner_id']);
+        $this->assertSame(5, $data->id);
+        $this->assertSame(3, $data->ownerId);
+        // The missing child is never prepared, so its contextual value is not resolved.
+        $this->assertSame(['id' => 1, 'owner' => 1], ValidatedContextualValue::$resolutions);
+    }
+
+    public function testExcludedContextualValuesAreNotRestored(): void
+    {
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values = ['defaulted' => 'server', 'nullable' => 'server', 'service' => 'service'];
+
+        $data = ExcludedContextualData::validateAndCreate([
+            'skip' => true,
+            'defaulted' => 'client',
+            'nullable' => 'client',
         ]);
 
-        $this->assertInstanceOf(DefaultCircleCreationData::class, $default);
-        $this->assertSame(CreationStatus::Active, $default->status);
-        $this->assertSame(3, $default->radius);
-        $this->assertInstanceOf(DefaultCircleCreationData::class, $mapped);
-        $this->assertSame(4, $mapped->radius);
-        $this->assertInstanceOf(CircleCreationData::class, $nested->shapes[0]);
-        $this->assertSame(5, $nested->shapes[0]->radius);
-        $this->assertInstanceOf(SquareCreationData::class, $nested->shapes[1]);
-        $this->assertSame(6, $nested->shapes[1]->side);
+        $this->assertSame('default', $data->defaulted);
+        $this->assertNull($data->nullable);
+        $this->assertSame('service', $data->serviceLabel);
+        $this->assertSame(['nullable' => 1, 'defaulted' => 1, 'service' => 1], ValidatedContextualValue::$resolutions);
+        // A constructor-only contextual parameter is not a validation field.
+        $this->assertArrayNotHasKey('service', ExcludedContextualData::validate(['skip' => false]));
+
+        ValidatedContextualValue::$values['required'] = 'server';
+
+        $this->expectException(CannotCreateData::class);
+
+        RequiredExcludedContextualData::validateAndCreate(['skip' => true]);
+    }
+
+    public function testHookMorphingAPreparedNodeResolvesTheNewClassesContextualValues(): void
+    {
+        ValidatedContextualValue::$values = ['first' => 1, 'second' => 50];
+        $factory = ContextualMorphData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [...$payload, 'type' => 'second']);
+
+        try {
+            $factory->from(['type' => 'first']);
+            $this->fail('Expected the new class to validate its own contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values['second'] = 2;
+
+        $data = $factory->from(['type' => 'first']);
+
+        $this->assertInstanceOf(SecondContextualMorphData::class, $data);
+        $this->assertSame(2, $data->value);
+        $this->assertSame(['first' => 1, 'second' => 1], ValidatedContextualValue::$resolutions);
+    }
+
+    public function testHookMorphingAPreparedItemResolvesTheNewClassesContextualValues(): void
+    {
+        ValidatedContextualValue::$values = ['first' => 1, 'second' => 50];
+        $factory = ContextualMorphListData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static function (array $payload): array {
+                $payload['items'][1]['type'] = 'second';
+
+                return $payload;
+            });
+        $input = ['items' => [['type' => 'first'], ['type' => 'first']]];
+
+        try {
+            $factory->from($input);
+            $this->fail('Expected the new item class to validate its own contextual value.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items.1.value'], array_keys($exception->errors()));
+        }
+
+        ValidatedContextualValue::$resolutions = [];
+        ValidatedContextualValue::$values['second'] = 2;
+
+        $data = $factory->from($input);
+
+        $this->assertInstanceOf(FirstContextualMorphData::class, $data->items[0]);
+        $this->assertSame(1, $data->items[0]->value);
+        $this->assertInstanceOf(SecondContextualMorphData::class, $data->items[1]);
+        $this->assertSame(2, $data->items[1]->value);
+        $this->assertSame(['first' => 2, 'second' => 1], ValidatedContextualValue::$resolutions);
     }
 
     public function testResolvesIntegerBackedMorphFromNumericString(): void
@@ -1228,6 +1339,14 @@ class DataCreatorTest extends TestCase
         }
     }
 
+    public function testRejectsInputNoNormalizerCanRead(): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('no normalizer accepted the value');
+
+        ChildCreationData::from(42);
+    }
+
     public function testRejectsAmbiguousDataObjectUnionsWithoutAnExplicitCast(): void
     {
         $this->expectException(CannotCreateData::class);
@@ -1236,10 +1355,29 @@ class DataCreatorTest extends TestCase
         AmbiguousCreationData::from(['child' => ['id' => 1]]);
     }
 
-    public function testRejectsAmbiguousDataCollectableUnionsWithoutAnExplicitCast(): void
+    public function testDataObjectUnionsKeepAcceptedArraysAndBuildOtherValues(): void
+    {
+        $kept = DataObjectUnionCreationData::validateAndCreate(['child' => ['name' => 'kept']]);
+        $built = DataObjectUnionCreationData::validateAndCreate([
+            'child' => (object) ['external_name' => 'Taylor'],
+            'containers' => (object) ['external_name' => 'Abigail'],
+        ]);
+        $items = DataObjectUnionListData::validateAndCreate(['items' => [
+            ['child' => (object) ['external_name' => 'Taylor']],
+            ['child' => ['name' => 'kept']],
+        ]]);
+
+        $this->assertSame(['name' => 'kept'], $kept->child);
+        $this->assertSame('Taylor', $built->child->name);
+        $this->assertSame('Abigail', $built->containers->name);
+        $this->assertSame('Taylor', $items->items[0]->child->name);
+        $this->assertSame(['name' => 'kept'], $items->items[1]->child);
+    }
+
+    public function testRejectsAmbiguousContainerUnionsWithoutAnExplicitCast(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessageIsOrContains('ambiguous data-collectable union');
+        $this->expectExceptionMessageIsOrContains('ambiguous container union');
 
         AmbiguousDataCollectableCreationData::from([
             'children' => [['id' => 1]],
@@ -1261,17 +1399,18 @@ class DataCreatorTest extends TestCase
         $this->assertSame($package, $packageData->children);
     }
 
-    public function testRejectsFinishedLookingUnionContainerWithTheWrongItems(): void
+    public function testConvertsItemsOfAContainerOnlyOneUnionTypeAccepts(): void
     {
-        $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessageIsOrContains('ambiguous data-collectable union');
-
-        AmbiguousDataCollectableCreationData::from([
+        $data = AmbiguousDataCollectableCreationData::from([
             'children' => new Collection([new AlternateChildCreationData(1)]),
         ]);
+
+        $this->assertInstanceOf(Collection::class, $data->children);
+        $this->assertInstanceOf(ChildCreationData::class, $data->children->first());
+        $this->assertSame(1, $data->children->first()->id);
     }
 
-    public function testExplicitCastOwnsAnAmbiguousDataCollectableUnion(): void
+    public function testExplicitCastOwnsAnAmbiguousContainerUnion(): void
     {
         $data = CastedAmbiguousDataCollectableCreationData::from(['children' => '7']);
 
@@ -1280,11 +1419,419 @@ class DataCreatorTest extends TestCase
         $this->assertSame(7, $data->children->first()->id);
     }
 
+    public function testTypedContainerUnionsCastItemsInTheContainerTheValueSelects(): void
+    {
+        $arrays = TypedContainerUnionCreationData::from([
+            'both' => ['a' => '1'],
+            'shorthand' => ['2'],
+            'arrayOnly' => ['3'],
+        ]);
+        $collections = TypedContainerUnionCreationData::from([
+            'both' => new Collection(['a' => '1']),
+            'shorthand' => new Collection(['2']),
+            'arrayOnly' => new Collection(['3']),
+        ]);
+
+        $this->assertSame(['a' => 1], $arrays->both);
+        $this->assertSame([2], $arrays->shorthand);
+        $this->assertSame([3], $arrays->arrayOnly);
+        $this->assertInstanceOf(Collection::class, $collections->both);
+        $this->assertSame(['a' => 1], $collections->both->all());
+        $this->assertInstanceOf(Collection::class, $collections->shorthand);
+        $this->assertSame([2], $collections->shorthand->all());
+        $this->assertInstanceOf(Collection::class, $collections->arrayOnly);
+        $this->assertSame([3], $collections->arrayOnly->all());
+    }
+
+    public function testRejectsValuesNoSingleContainerTypeAccepts(): void
+    {
+        foreach ([
+            static fn (): OverlappingContainerUnionCreationData => OverlappingContainerUnionCreationData::from([
+                'values' => new Collection([1]),
+            ]),
+            static fn (): TypedContainerUnionCreationData => TypedContainerUnionCreationData::from([
+                'both' => new LazyCollection(['1']),
+                'shorthand' => [],
+                'arrayOnly' => [],
+            ]),
+        ] as $create) {
+            try {
+                $create();
+                $this->fail('Expected an ambiguous container union.');
+            } catch (CannotCreateData $exception) {
+                $this->assertStringContainsString('ambiguous container union', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testMixedContainerUnionsSelectTheDataOrPlainTypeByContainer(): void
+    {
+        $plain = MixedContainerUnionCreationData::from(['children' => ['a' => '1', 'b' => '2']]);
+        $data = MixedContainerUnionCreationData::from(['children' => new Collection([['id' => '3']])]);
+
+        $this->assertSame(['a' => 1, 'b' => 2], $plain->children);
+        $this->assertInstanceOf(Collection::class, $data->children);
+        $this->assertInstanceOf(ChildCreationData::class, $data->children->first());
+        $this->assertSame(3, $data->children->first()->id);
+        $this->assertSame(['children' => ['a' => 1, 'b' => 2]], $plain->toArray());
+        $this->assertSame(['children' => [['id' => 3]]], $data->toArray());
+
+        // The plain array type has no item data rules, so its integers pass validation.
+        $this->assertSame([1, 2], MixedContainerUnionCreationData::validateAndCreate(['children' => [1, 2]])->children);
+
+        try {
+            MixedContainerUnionCreationData::validateAndCreate(['children' => new Collection([['id' => 'x']])]);
+            $this->fail('Expected the selected data collection rules to run.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['children.0.id'], array_keys($exception->errors()));
+        }
+    }
+
+    public function testCollectionItemsSelectTheirOwnContainerTypes(): void
+    {
+        try {
+            MixedContainerUnionListData::validateAndCreate(['items' => [
+                ['children' => [1, 2]],
+                ['children' => new Collection([['id' => 'x']])],
+            ]]);
+            $this->fail('Expected only the second item to use the data collection rules.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['items.1.children.0.id'], array_keys($exception->errors()));
+        }
+
+        $data = MixedContainerUnionListData::validateAndCreate(['items' => [
+            ['children' => [1, 2]],
+            ['children' => new Collection([['id' => '3']])],
+        ]]);
+
+        $this->assertSame([1, 2], $data->items[0]->children);
+        $this->assertSame(3, $data->items[1]->children->first()->id);
+    }
+
+    public function testValidationHooksReselectTheContainerType(): void
+    {
+        $data = MixedContainerUnionCreationData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [
+                ...$payload,
+                'children' => new Collection([['id' => '4']]),
+            ])
+            ->from(['children' => [1, 2]]);
+        $plain = MixedContainerUnionCreationData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => [...$payload, 'children' => ['5']])
+            ->from(['children' => new Collection([['id' => 'x']])]);
+
+        $this->assertSame(4, $data->children->first()->id);
+        $this->assertSame([5], $plain->children);
+    }
+
+    public function testAutomaticLazyContainerUnionsKeepTheirSelection(): void
+    {
+        $plain = AutoLazyContainerUnionCreationData::from(['children' => ['1']]);
+        $data = AutoLazyContainerUnionCreationData::from(['children' => new Collection([['id' => '2']])]);
+
+        $this->assertSame([1], $plain->children->resolve());
+        $this->assertSame(2, $data->children->resolve()->first()->id);
+    }
+
+    #[DefineEnvironment('withStringToUpperCast')]
+    public function testConfiguredItemCastsApplyToTheSelectedContainerType(): void
+    {
+        $array = ConfiguredItemCastUnionCreationData::from(['names' => ['a']]);
+        $collection = ConfiguredItemCastUnionCreationData::from(['names' => new Collection(['b'])]);
+
+        $this->assertSame(['A'], $array->names);
+        $this->assertSame(['B'], $collection->names->all());
+    }
+
+    public function testUserCastsReceiveTheDeclaredPropertyValues(): void
+    {
+        RecordingInputsCast::$properties = null;
+
+        $data = CastInputsData::from([
+            'first' => '5',
+            'recorded' => 'value',
+            'later_value' => 'raw later',
+            'count' => '7',
+        ]);
+        $properties = RecordingInputsCast::$properties;
+
+        $this->assertSame(
+            ['first', 'recorded', 'later', 'count', 'optional', 'nullable', 'default'],
+            array_keys($properties),
+        );
+        $this->assertSame(5, $properties['first']);
+        $this->assertSame('value', $properties['recorded']);
+        $this->assertSame('raw later', $properties['later']);
+        $this->assertSame('7', $properties['count']);
+        $this->assertInstanceOf(Optional::class, $properties['optional']);
+        $this->assertNull($properties['nullable']);
+        $this->assertSame($data->default, $properties['default']);
+
+        $leading = CastInputsLeadingDefaultData::from(['recorded' => 'value']);
+
+        $this->assertSame($leading->default, RecordingInputsCast::$properties['default']);
+    }
+
+    public function testIterableItemCastsShareTheDeclaredPropertyValues(): void
+    {
+        RecordingItemInputsCast::$received = [];
+
+        $data = CastInputsIterableData::from(['name' => 'Taylor', 'tags' => ['a', 'b']]);
+
+        $this->assertSame(['A', 'B'], $data->tags);
+        $this->assertSame(
+            array_fill(0, 2, ['name' => 'Taylor', 'tags' => ['a', 'b']]),
+            RecordingItemInputsCast::$received,
+        );
+    }
+
+    public function testDeferredUserCastsSeeTheValuesFromWhenTheyWereDeferred(): void
+    {
+        RecordingInputsCast::$properties = null;
+
+        $data = CastInputsLazyData::from(['first' => '5', 'recorded' => 'value']);
+
+        $this->assertNull(RecordingInputsCast::$properties);
+        $this->assertSame('value', $data->recorded->resolve());
+        $this->assertSame(['first' => 5, 'recorded' => 'value'], RecordingInputsCast::$properties);
+
+        RecordingInputsCast::$properties = null;
+
+        $factoryCast = FactoryCastInputsLazyData::factory()
+            ->withCast('string', RecordingInputsCast::class)
+            ->from(['first' => '5', 'recorded' => 'value']);
+
+        $this->assertSame('value', $factoryCast->recorded->resolve());
+        $this->assertSame(['first' => 5, 'recorded' => 'value'], RecordingInputsCast::$properties);
+    }
+
+    public function testCastOwnedPropertiesReceiveTheirInputBeforeChildCreation(): void
+    {
+        // The child's throwing fromString() would run if the child were created before the cast.
+        $data = CastOwnedParentData::from(['child' => 'Taylor']);
+
+        $this->assertSame('cast:Taylor', $data->child->name);
+    }
+
+    public function testDeclinedCastsBuildChildrenFromValidatedConcreteInput(): void
+    {
+        CastOwnedChildCast::$received = null;
+
+        $data = CastOwnedParentData::validateAndCreate([
+            'child' => ['external_name' => 'Taylor', 'undeclared' => 'dropped'],
+        ]);
+
+        $this->assertSame(['external_name' => 'Taylor'], CastOwnedChildCast::$received);
+        $this->assertSame('Taylor', $data->child->name);
+
+        $shapes = CastOwnedShapesData::validateAndCreate([
+            'shape' => ['type' => 'square', 'code' => 'abc'],
+            'shapes' => [['type' => 'square', 'code' => 'def']],
+        ]);
+
+        $this->assertInstanceOf(CastOwnedSquareData::class, $shapes->shape);
+        $this->assertSame('abc', $shapes->shape->code);
+        $this->assertInstanceOf(CastOwnedSquareData::class, $shapes->shapes[0]);
+        $this->assertSame('def', $shapes->shapes[0]->code);
+
+        try {
+            CastOwnedShapesData::validateAndCreate([
+                'shape' => ['type' => 'square', 'code' => 'ab'],
+                'shapes' => [['type' => 'square', 'code' => 'de']],
+            ]);
+            $this->fail('Expected the concrete morph rules to run.');
+        } catch (ValidationException $exception) {
+            $this->assertEqualsCanonicalizing(['shape.code', 'shapes.0.code'], array_keys($exception->errors()));
+        }
+    }
+
+    public function testValidationNormalizesCastOwnedObjectInput(): void
+    {
+        CastOwnedChildCast::$received = null;
+
+        $model = CastOwnedParentData::validateAndCreate([
+            'child' => (new CastOwnedChildModel)->setRawAttributes(['external_name' => 'Taylor']),
+        ]);
+
+        // The cast receives the validated input rather than a child created from the model.
+        $this->assertSame(['external_name' => 'Taylor'], CastOwnedChildCast::$received);
+        $this->assertSame('Taylor', $model->child->name);
+
+        $nested = CastOwnedWrapperData::validateAndCreate([
+            'wrapper' => ['child' => (object) ['external_name' => 'Abigail']],
+        ]);
+
+        $this->assertSame(['child' => ['external_name' => 'Abigail']], CastOwnedChildCast::$received);
+        $this->assertSame('Abigail', $nested->wrapper->child->name);
+
+        $shapes = CastOwnedShapesData::validateAndCreate([
+            'shape' => (object) ['type' => 'square', 'code' => 'abc'],
+            'shapes' => new Collection([(object) ['type' => 'square', 'code' => 'def']]),
+        ]);
+
+        $this->assertInstanceOf(CastOwnedSquareData::class, $shapes->shape);
+        $this->assertSame('abc', $shapes->shape->code);
+        $this->assertInstanceOf(CastOwnedSquareData::class, $shapes->shapes[0]);
+        $this->assertSame('def', $shapes->shapes[0]->code);
+
+        CountingNameNormalizer::$calls = 0;
+        $normalized = CastOwnedNormalizedParentData::validateAndCreate(['child' => 'Taylor']);
+
+        // A string the child's normalizer reads is prepared like an array, and normalized once.
+        $this->assertSame('Taylor', $normalized->child->name);
+        $this->assertSame(1, CountingNameNormalizer::$calls);
+
+        foreach ([
+            // Under validation, input only the cast or a named factory could read fails the declared rules.
+            [CastOwnedParentData::class, ['child' => 'Taylor'], ['child']],
+            [CastOwnedParentData::class, ['child' => (object) ['other' => 'Taylor']], ['child.external_name']],
+            [CastOwnedWrapperData::class, ['wrapper' => ['child' => (object) ['other' => 'Abigail']]], ['wrapper.child.external_name']],
+            [CastOwnedShapesData::class, [
+                'shape' => (object) ['type' => 'square', 'code' => 'ab'],
+                'shapes' => new Collection([(object) ['type' => 'square', 'code' => 'de']]),
+            ], ['shape.code', 'shapes.0.code']],
+        ] as [$class, $payload, $errors]) {
+            CastOwnedChildCast::$received = null;
+
+            try {
+                $class::validateAndCreate($payload);
+                $this->fail("Expected [{$class}] to fail validation before its cast.");
+            } catch (ValidationException $exception) {
+                $this->assertEqualsCanonicalizing($errors, array_keys($exception->errors()));
+                $this->assertNull(CastOwnedChildCast::$received);
+            }
+        }
+    }
+
+    public function testDeclinedCastsCreateFromThePreparedAndValidatedInput(): void
+    {
+        $outer = CastOwnedOuterData::validateAndCreate(['inner' => [
+            'child' => (object) ['external_name' => 'Taylor'],
+            'address' => ['line_1' => '1 Main St', 'city' => 'Chicago'],
+        ]]);
+
+        $this->assertInstanceOf(CastOwnedChildData::class, $outer->inner->child);
+        $this->assertSame('Taylor', $outer->inner->child->name);
+        $this->assertSame('1 Main St, Chicago', $outer->inner->address->address);
+
+        $model = (new CastOwnedChildModel)->setRawAttributes(['name' => 'Taylor']);
+        $lazy = CastOwnedLazyParentData::validateAndCreate(['child' => $model]);
+
+        $this->assertFalse($lazy->child->relation->shouldBeIncluded());
+
+        $model->setRelation('relation', ['external_name' => 'Abigail']);
+
+        $this->assertSame('Abigail', $lazy->child->relation->resolve()->name);
+    }
+
+    public function testNamedFactoriesBeneathACastRunOnlyAfterItDeclines(): void
+    {
+        PendingFactoryChildData::$calls = 0;
+
+        $accepted = PendingFactoryAcceptedData::validateAndCreate([
+            'wrapper' => ['child' => new PendingFactorySource('Taylor')],
+        ]);
+
+        $this->assertSame('cast', $accepted->wrapper->child->name);
+        $this->assertSame(0, PendingFactoryChildData::$calls);
+
+        // A factory that could build the child does not exempt its input from validation.
+        try {
+            PendingFactoryAcceptedData::validateAndCreate(['wrapper' => ['child' => new PendingFactorySource('')]]);
+            $this->fail('Expected the child rules to run before the cast.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['wrapper.child.name'], array_keys($exception->errors()));
+        }
+
+        $declined = PendingFactoryDeclinedData::validateAndCreate(['wrapper' => [
+            'child' => new PendingFactorySource('Taylor'),
+            'excluded' => new PendingFactorySource('Abigail'),
+        ]]);
+
+        $this->assertSame('factory:Taylor', $declined->wrapper->child->name);
+        $this->assertNull($declined->wrapper->excluded);
+        $this->assertSame(1, PendingFactoryChildData::$calls);
+
+        $hooked = PendingFactoryDeclinedData::factory()
+            ->alwaysValidate()
+            ->beforeValidation(static fn (array $payload): array => ['wrapper' => ['child' => ['name' => 'Hooked']]])
+            ->from(['wrapper' => ['child' => new PendingFactorySource('Taylor')]]);
+
+        // The hook replaced the input the factory matched, so the child is built from the new input.
+        $this->assertSame('Hooked', $hooked->wrapper->child->name);
+        $this->assertSame(1, PendingFactoryChildData::$calls);
+    }
+
+    public function testDeclinedCastsKeepOrdinaryUnionAndIterableConversion(): void
+    {
+        $kept = CastOwnedUnionData::validateAndCreate(['child' => ['other' => 'kept'], 'numbers' => ['1']]);
+        $reads = 0;
+        $built = CastOwnedUnionData::from([
+            'child' => (object) ['external_name' => 'Taylor'],
+            'numbers' => [],
+            'children' => LazyCollection::make(function () use (&$reads): iterable {
+                ++$reads;
+
+                yield 'first' => ['external_name' => 'Abigail'];
+            }),
+        ]);
+
+        $this->assertSame(['other' => 'kept'], $kept->child);
+        $this->assertSame([1], $kept->numbers);
+        $this->assertSame('Taylor', $built->child->name);
+        $this->assertSame(0, $reads);
+        $this->assertSame('Abigail', $built->children->get('first')->name);
+    }
+
     public function testUnrelatedUnionArmPassesThroughAmbiguousDataCollectableTypes(): void
     {
         $data = AmbiguousDataCollectableCreationData::from(['children' => 'unchanged']);
 
         $this->assertSame('unchanged', $data->children);
+    }
+
+    public function testPrepareForPipelineRunsForEachSource(): void
+    {
+        PreparedAddressData::$calls = 0;
+
+        PreparedAddressData::from(['name' => 'Taylor'], ['line_1' => '1 Main St']);
+
+        $this->assertSame(2, PreparedAddressData::$calls);
+    }
+
+    public function testNestedObjectsArePreparedBeforeValidation(): void
+    {
+        $data = PreparedOwnerData::validateAndCreate([
+            'label' => 'home',
+            'owner' => ['line_1' => '1 Main St', 'city' => 'Chicago'],
+        ]);
+
+        $this->assertSame('1 Main St, Chicago', $data->owner->address);
+    }
+
+    public function testModelSourcesArePreparedAsTheirDeclaredProperties(): void
+    {
+        $data = PreparedNameData::from((new PreparedNameModel)->forceFill(['name' => 'taylor']));
+
+        $this->assertSame('TAYLOR', $data->name);
+    }
+
+    public function testTheMorphedClassPreparesItsPayload(): void
+    {
+        $shape = PreparedShapeData::from(['type' => 'circle', 'r' => '3']);
+
+        $this->assertInstanceOf(PreparedCircleData::class, $shape);
+        $this->assertSame(3, $shape->radius);
+
+        // prepareData hooks run first, so their output selects the class whose method then prepares it.
+        $hooked = PreparedShapeData::factory()
+            ->prepareData(static fn (array $input): array => [...$input, 'type' => 'circle', 'r' => '4'])
+            ->from(['type' => 'square']);
+
+        $this->assertInstanceOf(PreparedCircleData::class, $hooked);
+        $this->assertSame(4, $hooked->radius);
     }
 
     public function testClassNormalizersCustomCastsAndCreationHooksShareOneOperation(): void
@@ -1317,6 +1864,95 @@ class DataCreatorTest extends TestCase
         $this->assertSame('item', $data->label);
     }
 
+    public function testConstructorInputsReceiveRawInputByName(): void
+    {
+        $this->assertSame(
+            ['prefix' => 'later', 'options' => ['a' => '1']],
+            ConstructorInputCreationData::from(['prefix' => 'first', 'options' => ['a' => '1']], ['prefix' => 'later'])->received,
+        );
+
+        $hooked = ConstructorInputCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'prefix' => 'hooked'])
+            ->from([]);
+
+        $this->assertSame(['prefix' => 'hooked', 'options' => []], $hooked->received);
+
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('Parameters missing: prefix');
+
+        ConstructorInputCreationData::from([]);
+    }
+
+    public function testNonPublicPromotedParametersNeverReceiveInput(): void
+    {
+        $input = ['name' => 'Taylor', 'role' => 'admin', 'trusted' => true];
+
+        $this->assertSame(
+            ['role' => 'member', 'trusted' => false],
+            NonPublicPromotedCreationData::from($input)->state(),
+        );
+        $this->assertSame(
+            ['role' => 'member', 'trusted' => false],
+            NonPublicPromotedCreationData::from(Request::create('/', 'POST', $input))->state(),
+        );
+
+        // A hook supplies a value deliberately.
+        $hooked = NonPublicPromotedCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => [...$properties, 'role' => 'editor'])
+            ->from($input);
+
+        $this->assertSame(['role' => 'editor', 'trusted' => false], $hooked->state());
+
+        try {
+            StrictNonPublicPromotedCreationData::validateAndCreate(['name' => 'Taylor', 'role' => 'admin']);
+            $this->fail('Expected the non-public promoted key to be rejected as unknown.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['role'], array_keys($exception->errors()));
+        }
+    }
+
+    /**
+     * @param class-string<Data> $class
+     */
+    #[DataProvider('requiredNonPublicPromotedClasses')]
+    public function testRequiredNonPublicPromotedParametersFailCreation(string $class): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('Parameters missing: secret');
+
+        $class::from(['name' => 'Taylor', 'prefix' => 'p', 'secret' => 'input']);
+    }
+
+    /**
+     * Get classes with a required non-public promoted parameter, with and without direct construction otherwise.
+     *
+     * @return array<string, array{class-string<Data>}>
+     */
+    public static function requiredNonPublicPromotedClasses(): array
+    {
+        return [
+            'public promoted fields only' => [RequiredNonPublicPromotedCreationData::class],
+            'with a constructor input' => [RequiredNonPublicPromotedWithInputCreationData::class],
+        ];
+    }
+
+    public function testBeforeCreationHooksReceiveOnlySuppliedUnboundProperties(): void
+    {
+        $received = null;
+
+        $data = ConstructorAssignedCreationData::factory()
+            ->beforeCreation(function (array $properties) use (&$received): array {
+                $received = $properties;
+
+                return [...$properties, 'nickname' => 'hooked'];
+            })
+            ->from(['name' => 'Taylor']);
+
+        $this->assertSame(['name' => 'Taylor'], $received);
+        $this->assertSame('hooked', $data->nickname);
+        $this->assertSame('label:Taylor', $data->label);
+    }
+
     public function testRejectsSuppliedComputedValuesAndInvalidAfterCreationResults(): void
     {
         try {
@@ -1332,6 +1968,27 @@ class DataCreatorTest extends TestCase
         BasicCreationData::factory()
             ->afterCreation(fn (): ChildCreationData => new ChildCreationData(1))
             ->from(['name' => 'Taylor']);
+    }
+
+    #[DefineEnvironment('withIgnoredComputedInput')]
+    public function testSuppliedComputedAndVirtualValuesCanBeIgnored(): void
+    {
+        $payload = ['id' => 1, 'computed' => 'client', 'virtual' => 'client'];
+
+        $created = [
+            DirectOutputOnlyCreationData::from($payload),
+            DirectOutputOnlyCreationData::validateAndCreate($payload),
+            DirectOutputOnlyCreationData::factory()
+                ->alwaysValidate()
+                ->beforeValidation(static fn (array $payload): array => [...$payload, 'computed' => 'hook'])
+                ->from(['id' => 1]),
+        ];
+
+        foreach ($created as $data) {
+            $this->assertSame(1, $data->id);
+            $this->assertSame('computed', $data->computed);
+            $this->assertSame('virtual', $data->virtual);
+        }
     }
 
     /**
@@ -1359,6 +2016,22 @@ class DataCreatorTest extends TestCase
     {
         $app->make('config')->set('data.normalizers', [CreationSourceNormalizer::class]);
     }
+
+    /**
+     * Ignore supplied computed property values.
+     */
+    protected function withIgnoredComputedInput(Application $app): void
+    {
+        $app->make('config')->set('data.features.ignore_exception_when_trying_to_set_computed_property_value', true);
+    }
+
+    /**
+     * Configure a global string cast.
+     */
+    protected function withStringToUpperCast(Application $app): void
+    {
+        $app->make('config')->set('data.casts', ['string' => StringToUpperCast::class]);
+    }
 }
 
 class BasicCreationData extends Data
@@ -1373,6 +2046,45 @@ class BasicCreationData extends Data
     }
 }
 
+class OptionalDefaultCreationData extends Data
+{
+    /**
+     * Create an optional default fixture.
+     */
+    public function __construct(
+        public string|Optional $note = 'default',
+    ) {
+    }
+}
+
+class PrepareDataIdentityData extends Data
+{
+    /**
+     * Create a prepare-data identity fixture.
+     *
+     * @param array<string, int> $meta
+     */
+    public function __construct(
+        public string $name,
+        public array $meta = [],
+    ) {
+    }
+}
+
+class MappedPrepareDataIdentityData extends Data
+{
+    /**
+     * Create a mapped prepare-data identity fixture.
+     */
+    public function __construct(
+        #[MapInputName('profile.name')]
+        public string $name,
+        #[MapInputName('user_code')]
+        public string $code,
+    ) {
+    }
+}
+
 class FactoryOverrideCreationData extends Data
 {
     public static int $factoryCalls = 0;
@@ -1383,11 +2095,14 @@ class FactoryOverrideCreationData extends Data
     ) {
     }
 
-    public static function factory(): CreationContextFactory
+    /**
+     * Create a factory without property name mapping.
+     */
+    public static function factory(?CreationContext $creationContext = null): CreationContextFactory
     {
         ++self::$factoryCalls;
 
-        return parent::factory()->withoutPropertyNameMapping();
+        return parent::factory($creationContext)->withoutPropertyNameMapping();
     }
 }
 
@@ -1487,22 +2202,6 @@ class DirectOutputOnlyCreationData extends Data
 
     public function __construct(public int $id)
     {
-    }
-}
-
-class DirectNamedFactoryCreationData extends Data
-{
-    public static int $calls = 0;
-
-    public function __construct(public int $id)
-    {
-    }
-
-    public static function fromString(string $value): array
-    {
-        ++self::$calls;
-
-        return ['id' => (int) $value];
     }
 }
 
@@ -1676,7 +2375,7 @@ class DeferredItemCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): int {
         return (int) $value;
@@ -1799,35 +2498,11 @@ class AutoLazySecondSource
     }
 }
 
-class AutoLazyNamedFactoryData extends Data
-{
-    public static ?AutoLazyNamedFactorySource $source = null;
-
-    public function __construct(
-        #[RecordingAutoLazy]
-        public Lazy|string $title,
-    ) {
-    }
-
-    public static function fromString(string $title): AutoLazyNamedFactorySource
-    {
-        return self::$source = new AutoLazyNamedFactorySource($title);
-    }
-}
-
 class AutoLazyNamedPayloadData extends Data
 {
     public function __construct(
         #[RecordingAutoLazy]
         public Lazy|string $title,
-    ) {
-    }
-}
-
-class AutoLazyNamedFactorySource
-{
-    public function __construct(
-        public readonly string $title,
     ) {
     }
 }
@@ -2210,13 +2885,232 @@ class NamedFactoryCreationDependency
     public string $value = 'dependency';
 }
 
-class ContextualCreationData extends Data
+class ContextualConversionCreationData extends Data
 {
+    /**
+     * Create a fixture whose values come from route parameters.
+     *
+     * @param array<int, SimpleData> $items
+     */
     public function __construct(
-        #[Config('app.name')]
-        public string $name,
+        #[RouteParameter('id')]
         public int $id,
+        #[RouteParameter('status')]
+        public DummyBackedEnum $status,
+        #[RouteParameter('at')]
+        public DateTimeImmutable $at,
+        #[RouteParameter('child')]
+        public SimpleData $child,
+        #[RouteParameter('choice')]
+        public SimpleData|string $choice,
+        #[RouteParameter('items')]
+        public array $items,
+        #[RouteParameter('missing')]
+        public ?SimpleData $missing,
     ) {
+    }
+}
+
+interface ContextualCreationContract
+{
+}
+
+class ContextualCreationDefault implements ContextualCreationContract
+{
+}
+
+class ContextualCreationForData implements ContextualCreationContract
+{
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContextualCreationDependency implements ContextualAttribute
+{
+    /**
+     * Resolve the class the container gives for the contract.
+     */
+    public static function resolve(self $attribute, Container $container): string
+    {
+        return $container->make(ContextualCreationContract::class)::class;
+    }
+}
+
+#[Attribute(Attribute::TARGET_CLASS)]
+class ContextualCreationMarker
+{
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ValidatedContextualValue implements ContextualAttribute
+{
+    /** @var array<string, int> */
+    public static array $resolutions = [];
+
+    /** @var array<string, mixed> */
+    public static array $values = [];
+
+    /**
+     * Create the attribute for one named server value.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Count the resolution and return the configured value.
+     */
+    public static function resolve(self $attribute, Container $container): mixed
+    {
+        static::$resolutions[$attribute->name] = (static::$resolutions[$attribute->name] ?? 0) + 1;
+
+        return static::$values[$attribute->name] ?? null;
+    }
+}
+
+class ValidatedContextualData extends Data
+{
+    /**
+     * Create a fixture whose contextual values carry and satisfy rules.
+     */
+    public function __construct(
+        #[ValidatedContextualValue('id'), Max(10)]
+        public int $id,
+        #[RequiredIf('id', 5)]
+        public ?string $note,
+        #[MapInputName('owner_id'), ValidatedContextualValue('owner')]
+        public int $ownerId,
+        public ?ValidatedContextualChildData $child = null,
+    ) {
+    }
+}
+
+class ValidatedContextualChildData extends Data
+{
+    /**
+     * Create a nested fixture with a validated contextual value.
+     */
+    public function __construct(
+        #[ValidatedContextualValue('child'), Max(10)]
+        public int $value,
+        public string $name,
+    ) {
+    }
+}
+
+class ExcludedContextualData extends Data
+{
+    #[Computed]
+    public string $serviceLabel;
+
+    /**
+     * Create a fixture whose contextual values validation may exclude.
+     */
+    public function __construct(
+        public bool $skip,
+        #[ValidatedContextualValue('nullable'), ExcludeIf('skip', true)]
+        public ?string $nullable,
+        #[ValidatedContextualValue('service')]
+        string $service,
+        #[ValidatedContextualValue('defaulted'), ExcludeIf('skip', true)]
+        public string $defaulted = 'default',
+    ) {
+        $this->serviceLabel = $service;
+    }
+}
+
+class RequiredExcludedContextualData extends Data
+{
+    /**
+     * Create a fixture whose excluded contextual value has no missing value.
+     */
+    public function __construct(
+        public bool $skip,
+        #[ValidatedContextualValue('required'), ExcludeIf('skip', true)]
+        public string $required,
+    ) {
+    }
+}
+
+abstract class ContextualMorphData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a morphable fixture whose subclasses resolve different contextual values.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Get the subclass for the given type.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return match ($properties['type']) {
+            'first' => FirstContextualMorphData::class,
+            'second' => SecondContextualMorphData::class,
+        };
+    }
+}
+
+class FirstContextualMorphData extends ContextualMorphData
+{
+    /**
+     * Create the first morph with its contextual value.
+     */
+    public function __construct(
+        string $type,
+        #[ValidatedContextualValue('first')]
+        public int $value,
+    ) {
+        parent::__construct($type);
+    }
+}
+
+class SecondContextualMorphData extends ContextualMorphData
+{
+    /**
+     * Create the second morph with a validated contextual value.
+     */
+    public function __construct(
+        string $type,
+        #[ValidatedContextualValue('second'), Max(10)]
+        public int $value,
+    ) {
+        parent::__construct($type);
+    }
+}
+
+class ContextualMorphListData extends Data
+{
+    /**
+     * Create a list of contextual morph items.
+     *
+     * @param array<array-key, ContextualMorphData> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(ContextualMorphData::class)]
+        public array $items,
+    ) {
+    }
+}
+
+#[ContextualCreationMarker]
+class ContextualResolutionCreationData extends Data
+{
+    public string $label;
+
+    /**
+     * Create a fixture with promoted and constructor-only contextual values.
+     */
+    public function __construct(
+        #[ContextualCreationDependency]
+        public string $dependency,
+        #[Config('app.name')]
+        string $appName,
+    ) {
+        $this->label = $appName;
     }
 }
 
@@ -2231,54 +3125,9 @@ abstract class ShapeCreationData extends Data implements PropertyMorphableData
     public static function morph(array $properties): ?string
     {
         return match ($properties['type']) {
-            'circle' => CircleCreationData::class,
-            'square' => SquareCreationData::class,
             'invalid' => ChildCreationData::class,
             default => null,
         };
-    }
-}
-
-class CircleCreationData extends ShapeCreationData
-{
-    public function __construct(string $type, public int $radius)
-    {
-        parent::__construct($type);
-    }
-}
-
-class SquareCreationData extends ShapeCreationData
-{
-    public function __construct(string $type, public int $side)
-    {
-        parent::__construct($type);
-    }
-}
-
-abstract class DefaultShapeCreationData extends Data implements PropertyMorphableData
-{
-    public function __construct(
-        #[PropertyForMorph]
-        public CreationStatus $status = CreationStatus::Active,
-    ) {
-    }
-
-    public static function morph(array $properties): ?string
-    {
-        return match ($properties['status']) {
-            CreationStatus::Active => DefaultCircleCreationData::class,
-            default => null,
-        };
-    }
-}
-
-class DefaultCircleCreationData extends DefaultShapeCreationData
-{
-    public function __construct(
-        public int $radius,
-        CreationStatus $status = CreationStatus::Active,
-    ) {
-        parent::__construct($status);
     }
 }
 
@@ -2303,20 +3152,6 @@ class IntegerCircleCreationData extends IntegerShapeCreationData
     public function __construct(IntegerCreationStatus $status, public int $radius)
     {
         parent::__construct($status);
-    }
-}
-
-class ShapeListCreationData extends Data
-{
-    /**
-     * Create a shape-list fixture.
-     *
-     * @param array<array-key, ShapeCreationData> $shapes
-     */
-    public function __construct(
-        #[DataCollectionOf(ShapeCreationData::class)]
-        public array $shapes,
-    ) {
     }
 }
 
@@ -2355,6 +3190,52 @@ class AmbiguousCreationData extends Data
 {
     public function __construct(
         public ChildCreationData|AlternateChildCreationData $child,
+    ) {
+    }
+}
+
+class MappedUnionChildCreationData extends Data
+{
+    /**
+     * Create a child whose input name is mapped.
+     */
+    public function __construct(
+        #[MapInputName('external_name')]
+        public string $name,
+    ) {
+    }
+}
+
+class DataObjectUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose unions keep accepted arrays and build a child from other values.
+     */
+    public function __construct(
+        public array|MappedUnionChildCreationData $child,
+        public Collection|array|MappedUnionChildCreationData|null $containers = null,
+    ) {
+    }
+
+    /**
+     * Require the child name, which a built child reads from its mapped input name.
+     */
+    public static function rules(): array
+    {
+        return ['child.name' => ['required']];
+    }
+}
+
+class DataObjectUnionListData extends Data
+{
+    /**
+     * Create a fixture whose items each hold a data object union.
+     *
+     * @param array<int, DataObjectUnionCreationData> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(DataObjectUnionCreationData::class)]
+        public array $items,
     ) {
     }
 }
@@ -2415,7 +3296,7 @@ class PriorityCreationCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): PriorityCreationCastable {
         return new PriorityCreationCastable((string) $value);
@@ -2459,12 +3340,96 @@ class CastedAmbiguousDataCollectableCreationData extends Data
     }
 }
 
+class TypedContainerUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose container unions declare their item types.
+     *
+     * @param array<string, int>|Collection<string, int> $both
+     * @param int[] $shorthand
+     * @param array<int, int> $arrayOnly
+     */
+    public function __construct(
+        public Collection|array $both,
+        public Collection|array $shorthand,
+        public Collection|array $arrayOnly,
+    ) {
+    }
+}
+
+class OverlappingContainerUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose container types both accept a collection.
+     *
+     * @param Collection<int, int>|Enumerable<int, string> $values
+     */
+    public function __construct(
+        public Collection|Enumerable $values,
+    ) {
+    }
+}
+
+class MixedContainerUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose union holds a data collection and a plain array.
+     *
+     * @param array<array-key, int>|Collection<int, ChildCreationData> $children
+     */
+    public function __construct(
+        public Collection|array $children,
+    ) {
+    }
+}
+
+class MixedContainerUnionListData extends Data
+{
+    /**
+     * Create a fixture whose items each hold a container union.
+     *
+     * @param array<int, MixedContainerUnionCreationData> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(MixedContainerUnionCreationData::class)]
+        public array $items,
+    ) {
+    }
+}
+
+class AutoLazyContainerUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose automatic lazy container union is resolved later.
+     *
+     * @param array<int, int>|Collection<int, ChildCreationData>|Lazy $children
+     */
+    public function __construct(
+        #[AutoLazy]
+        public Lazy|Collection|array $children,
+    ) {
+    }
+}
+
+class ConfiguredItemCastUnionCreationData extends Data
+{
+    /**
+     * Create a fixture whose container union holds strings.
+     *
+     * @param array<int, string>|Collection<int, string> $names
+     */
+    public function __construct(
+        public Collection|array $names,
+    ) {
+    }
+}
+
 class AmbiguousDataCollectableCreationCast implements Cast
 {
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): Collection {
         return new Collection([new ChildCreationData((int) $value)]);
@@ -2520,7 +3485,7 @@ class CreationIdentifierCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): int {
         return 123;
@@ -2532,10 +3497,701 @@ class CreationLabelCast implements Cast
     public function cast(
         DataProperty $property,
         mixed $value,
-        ConstructionState $state,
+        array $properties,
         CreationContext $context,
     ): string {
         return 'cast:' . $value;
+    }
+}
+
+class RecordingInputsCast implements Cast
+{
+    /** @var null|array<string, mixed> */
+    public static ?array $properties = null;
+
+    /**
+     * Record the declared property values and return the value.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): string {
+        static::$properties = $properties;
+
+        return $value;
+    }
+}
+
+class RecordingItemInputsCast implements Cast, IterableItemCast
+{
+    /** @var list<array<string, mixed>> */
+    public static array $received = [];
+
+    /**
+     * Leave the whole property to the item casts.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): Uncastable {
+        return Uncastable::create();
+    }
+
+    /**
+     * Record the declared property values and uppercase the item.
+     */
+    public function castIterableItem(
+        DataProperty $property,
+        mixed $value,
+        array $properties,
+        CreationContext $context,
+    ): string {
+        static::$received[] = $properties;
+
+        return strtoupper($value);
+    }
+}
+
+class CastInputsDefault
+{
+}
+
+class CastInputsData extends Data
+{
+    #[Computed]
+    public string $summary;
+
+    /**
+     * Create a cast-inputs fixture.
+     */
+    public function __construct(
+        public int $first,
+        #[WithCast(RecordingInputsCast::class)]
+        public string $recorded,
+        #[MapInputName('later_value')]
+        public string $later,
+        public int $count,
+        public string|Optional $optional,
+        public ?string $nullable,
+        #[Config('app.name')]
+        public string $appName,
+        public CastInputsDefault $default = new CastInputsDefault,
+    ) {
+        $this->summary = $recorded;
+    }
+}
+
+class CastInputsLeadingDefaultData extends Data
+{
+    /**
+     * Create a cast-inputs fixture whose default precedes the cast property.
+     */
+    public function __construct(
+        public CastInputsDefault $default = new CastInputsDefault,
+        #[WithCast(RecordingInputsCast::class)]
+        public string $recorded = 'fallback',
+    ) {
+    }
+}
+
+class CastInputsIterableData extends Data
+{
+    /**
+     * Create an iterable cast-inputs fixture.
+     *
+     * @param list<string> $tags
+     */
+    public function __construct(
+        public string $name,
+        #[WithCast(RecordingItemInputsCast::class)]
+        public array $tags,
+    ) {
+    }
+}
+
+class CastInputsLazyData extends Data
+{
+    /**
+     * Create a deferred cast-inputs fixture.
+     */
+    public function __construct(
+        public int $first,
+        #[AutoLazy, WithCast(RecordingInputsCast::class)]
+        public Lazy|string $recorded,
+    ) {
+    }
+}
+
+class FactoryCastInputsLazyData extends Data
+{
+    /**
+     * Create a deferred fixture for a factory-supplied cast.
+     */
+    public function __construct(
+        public int $first,
+        #[AutoLazy]
+        public Lazy|string $recorded,
+    ) {
+    }
+}
+
+class PreparedAddressData extends Data
+{
+    public static int $calls = 0;
+
+    /**
+     * Create a prepared address fixture.
+     */
+    public function __construct(
+        public ?string $name = null,
+        public ?string $address = null,
+    ) {
+    }
+
+    /**
+     * Join the flat address fields into one address.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        ++static::$calls;
+
+        $properties['address'] = implode(',', Arr::only($properties, ['line_1', 'city', 'state', 'zipcode']));
+
+        return $properties;
+    }
+}
+
+class PreparedRequiredAddressData extends Data
+{
+    /**
+     * Create a prepared required-address fixture.
+     */
+    public function __construct(public string $address)
+    {
+    }
+
+    /**
+     * Join the flat address fields into the required address.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['address'] = implode(', ', Arr::only($properties, ['line_1', 'city']));
+
+        return $properties;
+    }
+}
+
+class PreparedOwnerData extends Data
+{
+    /**
+     * Create a fixture whose nested owner prepares its own input.
+     */
+    public function __construct(
+        public string $label,
+        public PreparedRequiredAddressData $owner,
+    ) {
+    }
+}
+
+class PreparedNameModel extends Model
+{
+}
+
+class PreparedNameData extends Data
+{
+    /**
+     * Create a prepared name fixture.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Uppercase the name before it is read.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['name'] = strtoupper($properties['name']);
+
+        return $properties;
+    }
+}
+
+abstract class PreparedShapeData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a prepared shape fixture.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Resolve the concrete shape class.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return $properties['type'] === 'circle' ? PreparedCircleData::class : null;
+    }
+}
+
+class PreparedCircleData extends PreparedShapeData
+{
+    /**
+     * Create a prepared circle fixture.
+     */
+    public function __construct(string $type, public int $radius)
+    {
+        parent::__construct($type);
+    }
+
+    /**
+     * Read the radius from its short input name.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['radius'] ??= $properties['r'] ?? null;
+
+        return $properties;
+    }
+}
+
+class CastOwnedChildData extends Data
+{
+    /**
+     * Create a child whose input name is mapped.
+     */
+    public function __construct(
+        #[MapInputName('external_name')]
+        public string $name,
+    ) {
+    }
+
+    /**
+     * Fail if the child's own factory runs for a value the cast accepts.
+     */
+    public static function fromString(string $value): self
+    {
+        throw new RuntimeException('The named factory must not run when the cast accepts the value.');
+    }
+}
+
+class CastOwnedChildModel extends Model
+{
+}
+
+class CastOwnedNestingData extends Data
+{
+    /**
+     * Create a parent that holds a child.
+     */
+    public function __construct(
+        public CastOwnedChildData $child,
+    ) {
+    }
+}
+
+class CastOwnedWrapperData extends Data
+{
+    /**
+     * Create a fixture whose cast owns a parent that holds a child.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public CastOwnedNestingData $wrapper,
+    ) {
+    }
+}
+
+class CastOwnedAddressData extends Data
+{
+    /**
+     * Create an address built from its parts.
+     */
+    public function __construct(public string $address)
+    {
+    }
+
+    /**
+     * Combine the address parts before the address is read.
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $properties['address'] ??= "{$properties['line_1']}, {$properties['city']}";
+
+        return $properties;
+    }
+}
+
+class CastOwnedInnerData extends Data
+{
+    /**
+     * Create a value holding a union child and a prepared child.
+     */
+    public function __construct(
+        public array|CastOwnedChildData $child,
+        public ?CastOwnedAddressData $address = null,
+    ) {
+    }
+}
+
+class CastOwnedOuterData extends Data
+{
+    /**
+     * Create a fixture whose cast owns a value with nested children.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public CastOwnedInnerData $inner,
+    ) {
+    }
+}
+
+class CastOwnedLazyChildData extends Data
+{
+    /**
+     * Create a child whose relation is included only once it is loaded.
+     */
+    public function __construct(
+        public string $name,
+        #[AutoWhenLoadedLazy]
+        public Lazy|CastOwnedChildData|null $relation,
+    ) {
+    }
+}
+
+class CastOwnedLazyParentData extends Data
+{
+    /**
+     * Create a fixture whose cast owns a child read from a model.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public CastOwnedLazyChildData $child,
+    ) {
+    }
+}
+
+class CountingNameNormalizer implements Normalizer
+{
+    public static int $calls = 0;
+
+    /**
+     * Read a plain string as a name, counting each read.
+     */
+    public function normalize(mixed $value): array|Normalized|null
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        ++self::$calls;
+
+        return ['name' => $value];
+    }
+}
+
+class NormalizedNameChildData extends Data
+{
+    /**
+     * Create a child read from a plain name.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get the normalizers that read this child's input.
+     *
+     * @return list<class-string<Normalizer>>
+     */
+    public static function normalizers(): array
+    {
+        return [CountingNameNormalizer::class];
+    }
+}
+
+class CastOwnedNormalizedParentData extends Data
+{
+    /**
+     * Create a fixture whose cast owns a child read from a plain name.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public NormalizedNameChildData $child,
+    ) {
+    }
+}
+
+class PendingFactorySource
+{
+    /**
+     * Create a source a named factory reads.
+     */
+    public function __construct(public string $name)
+    {
+    }
+}
+
+class PendingFactoryChildData extends Data
+{
+    public static int $calls = 0;
+
+    /**
+     * Create a child.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Count each run while building the child from its source.
+     */
+    public static function fromSource(PendingFactorySource $source): self
+    {
+        ++self::$calls;
+
+        return new self("factory:{$source->name}");
+    }
+}
+
+class PendingFactoryWrapperData extends Data
+{
+    /**
+     * Create a wrapper whose children may come from a named factory.
+     */
+    public function __construct(
+        public PendingFactoryChildData $child,
+        #[Exclude]
+        public ?PendingFactoryChildData $excluded = null,
+    ) {
+    }
+}
+
+class AcceptingWrapperCast implements Cast
+{
+    /**
+     * Supply the wrapper without creating anything from the input.
+     */
+    public function cast(DataProperty $property, mixed $value, array $properties, CreationContext $context): PendingFactoryWrapperData
+    {
+        return new PendingFactoryWrapperData(new PendingFactoryChildData('cast'));
+    }
+}
+
+class PendingFactoryAcceptedData extends Data
+{
+    /**
+     * Create a fixture whose cast accepts the wrapper.
+     */
+    public function __construct(
+        #[WithCast(AcceptingWrapperCast::class)]
+        public PendingFactoryWrapperData $wrapper,
+    ) {
+    }
+}
+
+class PendingFactoryDeclinedData extends Data
+{
+    /**
+     * Create a fixture whose cast declines the wrapper.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public PendingFactoryWrapperData $wrapper,
+    ) {
+    }
+}
+
+class CastOwnedChildCast implements Cast
+{
+    public static mixed $received = null;
+
+    /**
+     * Record the value and build a child only from a string.
+     */
+    public function cast(DataProperty $property, mixed $value, array $properties, CreationContext $context): mixed
+    {
+        static::$received = $value;
+
+        return is_string($value) ? new CastOwnedChildData("cast:{$value}") : Uncastable::create();
+    }
+}
+
+class CastOwnedParentData extends Data
+{
+    /**
+     * Create a parent whose child is owned by a cast.
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public CastOwnedChildData $child,
+    ) {
+    }
+}
+
+abstract class CastOwnedShapeData extends Data implements PropertyMorphableData
+{
+    /**
+     * Create a property-morphable shape.
+     */
+    public function __construct(
+        #[PropertyForMorph]
+        public string $type,
+    ) {
+    }
+
+    /**
+     * Resolve the concrete shape class.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return $properties['type'] === 'square' ? CastOwnedSquareData::class : null;
+    }
+}
+
+class CastOwnedSquareData extends CastOwnedShapeData
+{
+    /**
+     * Create a square with a concrete-only rule.
+     */
+    public function __construct(
+        #[Min(3)]
+        public string $code,
+    ) {
+        parent::__construct('square');
+    }
+}
+
+class CastOwnedShapesData extends Data
+{
+    /**
+     * Create a fixture with cast-owned polymorphic properties.
+     *
+     * @param array<int, CastOwnedShapeData> $shapes
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public CastOwnedShapeData $shape,
+        #[WithCast(CastOwnedChildCast::class), DataCollectionOf(CastOwnedShapeData::class)]
+        public array $shapes,
+    ) {
+    }
+}
+
+class CastOwnedUnionData extends Data
+{
+    /**
+     * Create a fixture whose cast-owned values the cast declines.
+     *
+     * @param array<int, int>|CastOwnedChildData $numbers
+     * @param null|LazyCollection<array-key, CastOwnedChildData> $children
+     */
+    public function __construct(
+        #[WithCast(CastOwnedChildCast::class)]
+        public array|CastOwnedChildData $child,
+        #[WithCast(CastOwnedChildCast::class)]
+        public array|CastOwnedChildData $numbers,
+        #[WithCast(CastOwnedChildCast::class)]
+        public ?LazyCollection $children = null,
+    ) {
+    }
+}
+
+class ConstructorInputCreationData extends Data
+{
+    public array $received;
+
+    /**
+     * Create a fixture whose constructor parameters have no public data properties.
+     *
+     * @param array<string, mixed> $options
+     */
+    public function __construct(string $prefix, array $options = [])
+    {
+        $this->received = ['prefix' => $prefix, 'options' => $options];
+    }
+}
+
+class NonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a fixture with protected and private promoted state.
+     */
+    public function __construct(
+        public string $name,
+        protected string $role = 'member',
+        private bool $trusted = false,
+    ) {
+    }
+
+    /**
+     * Get the non-public promoted state.
+     *
+     * @return array{role: string, trusted: bool}
+     */
+    public function state(): array
+    {
+        return ['role' => $this->role, 'trusted' => $this->trusted];
+    }
+}
+
+#[FailOnUnknownFields]
+class StrictNonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a strict fixture with protected promoted state.
+     */
+    public function __construct(
+        public string $name,
+        protected string $role = 'member',
+    ) {
+    }
+}
+
+class RequiredNonPublicPromotedCreationData extends Data
+{
+    /**
+     * Create a fixture whose only non-public promoted parameter is required.
+     */
+    public function __construct(
+        public string $name,
+        private string $secret,
+    ) {
+    }
+}
+
+class RequiredNonPublicPromotedWithInputCreationData extends Data
+{
+    /**
+     * Create a fixture with a constructor input and a required non-public promoted parameter.
+     */
+    public function __construct(
+        public string $name,
+        string $prefix,
+        protected string $secret,
+    ) {
+    }
+}
+
+class ConstructorAssignedCreationData extends Data
+{
+    public ?string $nickname;
+
+    public string|Optional $label;
+
+    /**
+     * Create a fixture whose constructor assigns an unbound property.
+     */
+    public function __construct(public string $name)
+    {
+        $this->label = "label:{$name}";
     }
 }
 

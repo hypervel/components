@@ -1,0 +1,42 @@
+{
+    "name": "hypervel/mcp-conformance",
+    "description": "Local conformance harness for Hypervel MCP.",
+    "type": "project",
+    "require": {
+        "php": "^8.4",
+        "hypervel/components": "0.4.x-dev"
+    },
+    "license": "MIT",
+    "autoload-dev": {
+        "psr-4": {
+            "Hypervel\\Dogfood\\Mcp\\Conformance\\": "conformance/",
+            "Workbench\\App\\": "workbench/app/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "components",
+        "type": "path",
+        "url": "../..",
+        "options": {
+            "symlink": true,
+            "versions": {
+                "hypervel/components": "0.4.x-dev"
+            }
+        }
+    }],
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "tbachert/spi": true
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@php vendor/bin/testbench package:discover --ansi",
+        "serve": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php vendor/bin/testbench serve --ansi"
+        ]
+    }
+}

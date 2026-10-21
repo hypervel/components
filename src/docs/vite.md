@@ -218,6 +218,14 @@ npm run dev
 npm run build
 ```
 
+You may retrieve the development server's URL using `Vite::devServerUrl()`. The method respects custom hot file paths and returns `null` when the development server is not running:
+
+```php
+use Hypervel\Support\Facades\Vite;
+
+$url = Vite::devServerUrl();
+```
+
 <a name="working-with-scripts"></a>
 ## Working With JavaScript
 
@@ -543,15 +551,27 @@ Depending on the provider, font definitions may accept several options that allo
 
 </div>
 
+Optimized fallbacks require the `fontaine` package, which is not installed by default. If you want the Laravel Vite plugin to generate metric-adjusted fallback font faces, you should install `fontaine` as a development dependency:
+
+```shell
+npm install --save-dev fontaine
+```
+
+If `fontaine` is not installed or cannot read a font file, the plugin will skip the optimized fallback for that font and continue using any fonts configured via the `fallbacks` option.
+
+Local fonts are resolved from the `src` or `variants` options described above instead of using `weights`, `styles`, and `subsets`.
+
 <a name="working-with-blade-and-routes"></a>
 ## Working With Blade and Routes
 
 <a name="blade-processing-static-assets"></a>
 ### Processing Static Assets With Vite
 
-When referencing assets in your JavaScript or CSS, Vite automatically processes and versions them. In addition, when building Blade based applications, Vite can also process and version static assets that you reference solely in Blade templates.
+When referencing assets in your JavaScript or CSS, Vite automatically processes and versions them. In addition, when building Blade-based applications, Vite can also process and version static assets that you reference solely in Blade templates.
 
-However, in order to accomplish this, you need to make Vite aware of your assets by specifying them in the plugin's `assets` option. For example, if you want to process and version all images stored in `resources/images` and all fonts stored in `resources/fonts`, you should add the following to your Vite configuration:
+However, to accomplish this, you need to make Vite aware of your assets by specifying them in the plugin's `assets` option. This option is intended for static files that you want to reference directly with `Vite::asset`. If you want Hypervel to generate font CSS and preload links, use the [`fonts` option](#working-with-fonts) instead.
+
+For example, if you want to process and version all images stored in `resources/images` and all fonts stored in `resources/fonts`, you should add the following to your Vite configuration:
 
 ```js
 laravel({
@@ -565,9 +585,6 @@ These assets will now be processed by Vite when running `npm run build`. You can
 ```blade
 <img src="{{ Vite::asset('resources/images/logo.png') }}">
 ```
-
-> [!NOTE]
-> Prior to version 3 of the Laravel Vite plugin, static assets had to be imported in your application's entry point using `import.meta.glob`. The `assets` option was introduced due to changes in Vite 8.
 
 <a name="blade-refreshing-on-save"></a>
 ### Refreshing on Save
@@ -854,7 +871,7 @@ npm run build
 node bootstrap/ssr/ssr.js
 ```
 
-If you are using [SSR with Inertia](https://inertiajs.com/server-side-rendering), you may instead use the `inertia:start-ssr` Artisan command to start the SSR server:
+If you are using [SSR with Inertia](/docs/{{version}}/inertia#server-side-rendering), you may instead use the `inertia:start-ssr` Artisan command to start the SSR server:
 
 ```shell
 php artisan inertia:start-ssr
@@ -866,17 +883,7 @@ php artisan inertia:start-ssr
 <a name="configuring-inertia-ssr"></a>
 ### Configuring Inertia SSR
 
-By default, the `inertia:start-ssr` command uses Node. You may select another runtime, such as Bun, using the `--runtime` option:
-
-```shell
-php artisan inertia:start-ssr --runtime=bun
-```
-
-You may also configure the runtime using the `INERTIA_SSR_RUNTIME` environment variable. Runtime values may be executable names or absolute paths.
-
-The `hot_url` option within your application's `inertia.ssr` configuration may be used to specify the SSR server URL while Vite is running. This option may also be configured using the `INERTIA_SSR_HOT_URL` environment variable. The `connect_timeout` and `timeout` options control how long Hypervel waits for the SSR server, while the `backoff` option determines how long a worker skips SSR after a connection failure or malformed response.
-
-When an SSR render request fails, Hypervel renders the page on the client and dispatches a `Hypervel\Inertia\Ssr\SsrRenderFailed` event. To throw an exception instead, enable the `throw_on_error` option within your application's `inertia.ssr` configuration.
+For Inertia's Vite plugin setup, client-side hydration, runtime selection, timeouts, error handling, and deployment commands, see the [Inertia SSR documentation](/docs/{{version}}/inertia#server-side-rendering).
 
 <a name="script-and-style-attributes"></a>
 ## Script and Style Tag Attributes

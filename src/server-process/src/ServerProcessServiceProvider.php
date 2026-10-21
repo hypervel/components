@@ -25,12 +25,13 @@ class ServerProcessServiceProvider extends ServiceProvider
             $this->app->make(BootProcessListener::class)->handle($event);
         });
 
-        $events->observe(AfterProcessHandle::class, function (AfterProcessHandle $event) {
-            $this->app->make(LogAfterProcessStoppedListener::class)->handle($event);
+        // Observers receive the event name and payload, not the event object.
+        $events->observe(AfterProcessHandle::class, function (string $event, array $payload): void {
+            $this->app->make(LogAfterProcessStoppedListener::class)->handle($payload[0]);
         });
 
-        $events->observe(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
-            $this->app->make(LogBeforeProcessStartListener::class)->handle($event);
+        $events->observe(BeforeProcessHandle::class, function (string $event, array $payload): void {
+            $this->app->make(LogBeforeProcessStartListener::class)->handle($payload[0]);
         });
     }
 }

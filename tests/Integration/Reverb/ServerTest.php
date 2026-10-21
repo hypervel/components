@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Reverb;
 
+use Swoole\Coroutine\Http\Client;
+
 /**
  * End-to-end integration tests for the Reverb WebSocket server.
  *
- * Requires a running test server: php tests/Integration/Reverb/server.php
+ * Requires a running test server: php tests/Integration/Reverb/Fixtures/server.php
  */
 class ServerTest extends ReverbIntegrationTestCase
 {
@@ -37,6 +39,41 @@ class ServerTest extends ReverbIntegrationTestCase
         $errorData = json_decode($data['data'], associative: true);
         $this->assertSame(4001, $errorData['code']);
         $this->assertSame('Application does not exist', $errorData['message']);
+
+        $client->close();
+    }
+
+    public function testRejectsAHandshakeWithAnInvalidWebsocketKey(): void
+    {
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+        $client->set(['timeout' => 5]);
+        $client->setHeaders([
+            'Connection' => 'Upgrade',
+            'Upgrade' => 'websocket',
+            'Sec-WebSocket-Key' => 'invalid-key',
+            'Sec-WebSocket-Version' => '13',
+        ]);
+        $client->get('/app/' . $this->appKey);
+
+        $this->assertSame(400, $client->getStatusCode());
+
+        $client->close();
+    }
+
+    public function testRejectsAHandshakeRequestingAnUnsupportedWebsocketVersion(): void
+    {
+        $client = new Client($this->getServerHost(), $this->getServerPort());
+        $client->set(['timeout' => 5]);
+        $client->setHeaders([
+            'Connection' => 'Upgrade',
+            'Upgrade' => 'websocket',
+            'Sec-WebSocket-Key' => 'dGhlIHNhbXBsZSBub25jZQ==',
+            'Sec-WebSocket-Version' => '8',
+        ]);
+        $client->get('/app/' . $this->appKey);
+
+        $this->assertSame(426, $client->getStatusCode());
+        $this->assertSame('13', $client->getHeaders()['sec-websocket-version'] ?? null);
 
         $client->close();
     }
@@ -692,6 +729,47 @@ class ServerTest extends ReverbIntegrationTestCase
 
         $this->disconnect($sender);
         $this->disconnect($receiver);
+    }
+
+    public function testCanHandleAClientWhisperWhenAnotherApplicationHasActiveConnections(): void
+    {
+        ['client' => $sender, 'socketId' => $senderSocketId] = $this->connect();
+        $this->subscribe($sender, $senderSocketId, 'private-whisper-channel');
+
+        ['client' => $receiver, 'socketId' => $receiverSocketId] = $this->connect();
+        $this->subscribe($receiver, $receiverSocketId, 'private-whisper-channel');
+
+        // A second per-worker application, since the shared fixture apps enforce connection limits.
+        $otherToken = 50000 + (int) env('TEST_TOKEN', 0);
+        $otherKey = "reverb-parallel-{$otherToken}";
+        ['client' => $otherApplication, 'socketId' => $otherApplicationSocketId] = $this->connect($otherKey);
+        $response = $this->subscribe(
+            $otherApplication,
+            $otherApplicationSocketId,
+            'private-whisper-channel',
+            key: $otherKey,
+            secret: "reverb-parallel-secret-{$otherToken}",
+        );
+        $this->assertSame('pusher_internal:subscription_succeeded', json_decode($response, associative: true)['event']);
+
+        $sender->push(json_encode([
+            'event' => 'client-typing',
+            'channel' => 'private-whisper-channel',
+            'data' => ['user' => 'Joe'],
+        ]));
+
+        $message = $this->recv($receiver);
+        $this->assertNotNull($message);
+
+        $data = json_decode($message, associative: true);
+        $this->assertSame('client-typing', $data['event']);
+        $this->assertSame('private-whisper-channel', $data['channel']);
+        $this->assertSame(['user' => 'Joe'], $data['data']);
+        $this->assertNull($this->recv($otherApplication, 0.5));
+
+        $this->disconnect($sender);
+        $this->disconnect($receiver);
+        $this->disconnect($otherApplication);
     }
 
     // ── Multiple channels ──────────────────────────────────────────────

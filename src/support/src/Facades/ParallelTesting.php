@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Testing\ParallelTesting as ParallelTestingService;
+
 /**
  * @method static void callSetUpProcessCallbacks()
  * @method static void callSetUpTestCaseCallbacks(mixed $testCase)
@@ -33,6 +35,6 @@ class ParallelTesting extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return \Hypervel\Testing\ParallelTesting::class;
+        return ParallelTestingService::class;
     }
 }

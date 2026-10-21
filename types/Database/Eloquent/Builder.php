@@ -15,7 +15,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 
 use function PHPStan\Testing\assertType;
 
-/** @param \Hypervel\Database\Eloquent\Builder<User> $query */
+/** @param Builder<User> $query */
 function test(
     Builder $query,
     User $user,
@@ -35,10 +35,14 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereIn('id', [1])->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orderBy('id')->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->limit(1)->with('relation'));
-    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dump());
-    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dumpRawSql());
+    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Builder\\User, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $query->dump());
+    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Builder\\User, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $query->dumpRawSql());
     assertType('stdClass|null', $query->toBase()->first());
     assertType('stdClass|null', $query->getQuery()->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->newQuery());
+    assertType('Hypervel\Types\Builder\User|null', $query->newQuery()->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->cloneWithout(['orders']));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->cloneWithoutBindings(['order']));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => ['foo' => fn ($q) => $q]]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => function ($query) {
@@ -59,9 +63,13 @@ function test(
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOrFail([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOrNew([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->find([1]));
-    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOr([1], callback: fn () => 42));
+    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOr([1], callback: fn () => 42));
     assertType('Hypervel\Types\Builder\User', $query->findOrFail(1));
     assertType('Hypervel\Types\Builder\User|null', $query->find(1));
+    assertType('Hypervel\Types\Builder\User|null', $query->find($user));
+    assertType('Hypervel\Types\Builder\User', $query->findOrFail($user));
+    assertType('Hypervel\Types\Builder\User', $query->findOrNew($user));
+    assertType('42|Hypervel\Types\Builder\User', $query->findOr($user, fn (): int => 42));
     assertType('42|Hypervel\Types\Builder\User', $query->findOr(1, fn () => 42));
     assertType('42|Hypervel\Types\Builder\User', $query->findOr(1, callback: fn () => 42));
     assertType('Hypervel\Types\Builder\User|null', $query->first());
@@ -292,7 +300,7 @@ class Post extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** @return MorphTo<\Hypervel\Database\Eloquent\Model, $this> */
+    /** @return MorphTo<Model, $this> */
     public function taggable(): MorphTo
     {
         return $this->morphTo();
@@ -312,9 +320,9 @@ class Comment extends Model
 }
 
 /**
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Builder<TModel>
+ * @extends Builder<TModel>
  */
 class CommonBuilder extends Builder
 {

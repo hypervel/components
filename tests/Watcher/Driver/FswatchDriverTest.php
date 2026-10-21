@@ -15,6 +15,7 @@ use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class FswatchDriverTest extends TestCase
@@ -52,7 +53,7 @@ class FswatchDriverTest extends TestCase
     public function testConstructorUsesTheProbeExitCode(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The FswatchDriver requires the `fswatch` executable.');
+        $this->expectExceptionMessageIs('The FswatchDriver requires the `fswatch` executable.');
 
         new InspectableFswatchDriver(
             $this->option(),
@@ -297,7 +298,7 @@ class FswatchDriverTest extends TestCase
                 ...$resolvedPaths,
             ];
 
-        $this->assertSame($expected, $driver->commandForTest());
+        $this->assertSame($expected, $driver->commandsForTest()[$driver->isDarwin() ? 'all' : 'recursive']);
     }
 
     public function testTargetsNormalizeRootAndTrailingSlashes(): void
@@ -348,9 +349,11 @@ class FswatchDriverTest extends TestCase
             '--event',
             'Renamed',
             $this->fixturePath,
+            ...(! $darwin && ! $recursive ? [base_path()] : []),
         ];
 
-        $this->assertSame($expected, $driver->commandForTest());
+        $group = $darwin ? 'all' : ($recursive ? 'recursive' : 'shallow');
+        $this->assertSame($expected, $driver->commandsForTest()[$group]);
     }
 
     public static function commandProvider(): array
@@ -404,6 +407,10 @@ class FswatchDriverTest extends TestCase
         );
 
         $this->assertSame([
+            'shallow' => [
+                'recursive' => false,
+                'operands' => [$this->fixturePath],
+            ],
             'recursive' => [
                 'recursive' => true,
                 'operands' => [$this->fixturePath . '/app'],
@@ -432,12 +439,16 @@ class FswatchDriverTest extends TestCase
             $driver->processChunksWithTargets($channel, [$file . "\0"], $targets);
 
             $this->assertSame([
+                'shallow' => [
+                    'recursive' => false,
+                    'operands' => [$this->fixturePath],
+                ],
                 'recursive' => [
                     'recursive' => true,
                     'operands' => [$this->fixturePath . '/app'],
                 ],
             ], $targets['groups']);
-            $this->assertSame(2, count($targets['entries']));
+            $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
             $this->assertSame(0, $channel->getLength());
         } finally {
@@ -471,7 +482,7 @@ class FswatchDriverTest extends TestCase
             $this->assertSame([
                 'shallow' => [
                     'recursive' => false,
-                    'operands' => [$this->fixturePath . '/outside'],
+                    'operands' => [$this->fixturePath, $this->fixturePath . '/outside'],
                 ],
                 'recursive' => [
                     'recursive' => true,
@@ -507,12 +518,16 @@ class FswatchDriverTest extends TestCase
             $driver->processChunksWithTargets($channel, [$file . "\0"], $targets);
 
             $this->assertSame([
+                'shallow' => [
+                    'recursive' => false,
+                    'operands' => [$this->fixturePath],
+                ],
                 'recursive' => [
                     'recursive' => true,
                     'operands' => [$this->fixturePath . '/app'],
                 ],
             ], $targets['groups']);
-            $this->assertSame(2, count($targets['entries']));
+            $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
             $this->assertSame(0, $channel->getLength());
         } finally {
@@ -547,7 +562,7 @@ class FswatchDriverTest extends TestCase
             $recursiveDriver->targetsForTest()['groups']['recursive']['operands'],
         );
         $this->assertSame(
-            [$this->fixturePath . '/app', $this->fixturePath . '/app/Http'],
+            [$this->fixturePath . '/app', $this->fixturePath, $this->fixturePath . '/app/Http'],
             $shallowDriver->targetsForTest()['groups']['shallow']['operands'],
         );
     }
@@ -571,7 +586,7 @@ class FswatchDriverTest extends TestCase
             $driver->processChunksWithTargets($channel, [$file . "\0"], $targets);
 
             $this->assertSame(
-                [base_path('../packages/foo')],
+                [base_path('../packages/foo'), base_path('../packages'), realpath(base_path('..'))],
                 $targets['groups']['shallow']['operands'],
             );
             $this->assertSame(
@@ -618,7 +633,7 @@ class FswatchDriverTest extends TestCase
         $driver = new InspectableFswatchDriver(new Option(driver: FswatchDriver::class, watchPaths: $watchPaths));
 
         $this->assertSame(
-            [$configPath, $this->fixturePath . '/missing'],
+            [$configPath, $this->fixturePath . '/missing', $this->fixturePath],
             $driver->operandsForTest(),
         );
         $this->assertSame(
@@ -630,6 +645,10 @@ class FswatchDriverTest extends TestCase
                 [
                     'prefix' => $this->fixturePath . '/missing/',
                     'base' => $missingRelativePath,
+                ],
+                [
+                    'prefix' => $this->fixturePath . '/',
+                    'base' => $this->fixtureRelativePath,
                 ],
             ],
             $driver->targetsForTest()['entries'],
@@ -653,11 +672,11 @@ class FswatchDriverTest extends TestCase
         try {
             $driver->processChunksWithTargets($channel, [$file . "\0"], $targets);
 
-            $this->assertSame([$this->fixturePath . '/link/later'], $driver->operandsForTest());
-            $this->assertSame([[
-                'prefix' => $this->fixturePath . '/link/later/',
-                'base' => $missingBase,
-            ]], $targets['entries']);
+            $this->assertSame([$this->fixturePath . '/link/later', $this->fixturePath . '/real'], $driver->operandsForTest());
+            $this->assertSame([
+                ['prefix' => $this->fixturePath . '/link/later/', 'base' => $missingBase],
+                ['prefix' => $this->fixturePath . '/real/', 'base' => $this->fixtureRelativePath . '/link'],
+            ], $targets['entries']);
             $this->assertSame($file, $channel->pop());
         } finally {
             $driver->stop();
@@ -729,14 +748,14 @@ class FswatchDriverTest extends TestCase
             $this->assertSame([
                 'shallow' => [
                     'recursive' => false,
-                    'operands' => [$this->fixturePath . '/app/Generated'],
+                    'operands' => [$this->fixturePath, $this->fixturePath . '/app/Generated'],
                 ],
                 'recursive' => [
                     'recursive' => true,
                     'operands' => [$this->fixturePath . '/app'],
                 ],
             ], $targets['groups']);
-            $this->assertSame(2, count($targets['entries']));
+            $this->assertSame(3, count($targets['entries']));
         } finally {
             $driver->stop();
             $channel->close();
@@ -761,8 +780,8 @@ class FswatchDriverTest extends TestCase
         try {
             $driver->processChunksWithTargets($channel, [$file . "\0"], $targets);
 
-            $this->assertSame(1, count($driver->operandsForTest()));
-            $this->assertSame(2, count($targets['entries']));
+            $this->assertSame(2, count($driver->operandsForTest()));
+            $this->assertSame(3, count($targets['entries']));
             $this->assertSame($file, $channel->pop());
             $this->assertSame(0, $channel->getLength());
         } finally {
@@ -836,6 +855,134 @@ class FswatchDriverTest extends TestCase
             }
 
             $this->assertTrue($received, 'fswatch did not report an atomic file replacement.');
+        } finally {
+            $driver->stop();
+            $this->assertTrue($finished->wait(1));
+            $channel->close();
+        }
+
+        $this->assertNull($failure);
+    }
+
+    public function testDirectoryEventsRespectRecursiveRootsAndExcludeUnrelatedPaths(): void
+    {
+        $recursiveBase = $this->fixtureRelativePath . '/app';
+        $shallowBase = $this->fixtureRelativePath . '/config';
+        $fileBase = $this->fixtureRelativePath . '/settings/local';
+        $this->files->makeDirectory(base_path($recursiveBase . '/Nested'), 0755, true);
+        $this->files->makeDirectory(base_path($shallowBase . '/Nested'), 0755, true);
+        $this->files->makeDirectory($this->fixturePath . '/storage');
+        $this->files->put(base_path($recursiveBase . '/notes.txt'), 'ignored');
+        $driver = new InspectableFswatchDriver(new Option(driver: FswatchDriver::class, watchPaths: [
+            new WatchPath($recursiveBase, WatchPathType::Directory, $recursiveBase . '/**/*.php'),
+            new WatchPath($shallowBase, WatchPathType::Directory, $shallowBase . '/*.php'),
+            new WatchPath($fileBase . '/app.php', WatchPathType::File),
+        ]));
+        $targets = $driver->targetsForTest();
+        $this->files->makeDirectory(base_path($fileBase . '/Nested'), 0755, true);
+        $channel = new Channel(10);
+
+        try {
+            $driver->processChunksWithTargets($channel, [implode("\0", [
+                base_path($recursiveBase),
+                base_path($recursiveBase . '/Nested'),
+                base_path($shallowBase),
+                base_path($shallowBase . '/Nested'),
+                base_path($recursiveBase . '/notes.txt'),
+                $this->fixturePath . '/storage',
+                base_path(dirname($fileBase)),
+                base_path($fileBase),
+                base_path($fileBase . '/Nested'),
+            ]) . "\0"], $targets);
+
+            $this->assertSame(5, $channel->getLength());
+            $this->assertSame(base_path($recursiveBase), $channel->pop());
+            $this->assertSame(base_path($recursiveBase . '/Nested'), $channel->pop());
+            $this->assertSame(base_path($shallowBase), $channel->pop());
+            $this->assertSame(base_path(dirname($fileBase)), $channel->pop());
+            $this->assertSame(base_path($fileBase), $channel->pop());
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCreatedDirectoriesAndSubsequentFilesAreObserved(bool $missingRoot): void
+    {
+        $root = $this->fixtureRelativePath . ($missingRoot ? '/resources/skills' : '/app');
+
+        if (! $missingRoot) {
+            $this->files->makeDirectory(base_path($root));
+        }
+
+        $ready = ($missingRoot ? $this->fixtureRelativePath : $root) . '/ready.php';
+        $option = new Option(driver: FswatchDriver::class, watchPaths: [
+            new WatchPath($ready, WatchPathType::File),
+            new WatchPath($root, WatchPathType::Directory, $root . '/**/*.php'),
+        ]);
+
+        try {
+            $driver = new FswatchDriver($option);
+        } catch (InvalidArgumentException $exception) {
+            if ($exception->getMessage() === 'The FswatchDriver requires the `fswatch` executable.') {
+                $this->markTestSkipped('The fswatch executable is not available.');
+            }
+
+            throw $exception;
+        }
+
+        $channel = new Channel(100);
+        $finished = new WaitGroup(1);
+        $failure = null;
+
+        Coroutine::create(function () use ($channel, $driver, $finished, &$failure): void {
+            try {
+                $driver->watch($channel);
+            } catch (RuntimeException $exception) {
+                $failure = $exception;
+            } finally {
+                $finished->done();
+            }
+        });
+
+        try {
+            $deadline = hrtime(true) + 5_000_000_000;
+            $received = false;
+
+            while (! $received && hrtime(true) < $deadline) {
+                $this->files->put(base_path($ready), 'ready');
+                $received = $channel->pop(0.25) === base_path($ready);
+            }
+
+            $this->assertTrue($received, 'fswatch did not register the existing watch root.');
+
+            $directory = base_path($root . '/New');
+            $this->files->makeDirectory($directory, 0755, true);
+            $this->files->put($directory . '/Initial.php', 'initial');
+            $arrival = $missingRoot ? $this->fixturePath . '/resources' : $directory;
+            $deadline = hrtime(true) + 5_000_000_000;
+            $received = false;
+
+            while (! $received && hrtime(true) < $deadline) {
+                $event = $channel->pop(0.25);
+                $received = is_string($event) && ($event === $arrival || str_starts_with($event, $arrival . '/'));
+            }
+
+            $this->assertTrue($received, 'fswatch did not report the directory arrival.');
+
+            // A different filename cannot be satisfied by queued events from the initial creation.
+            $laterFile = $directory . '/Later.php';
+            $deadline = hrtime(true) + 5_000_000_000;
+            $received = false;
+
+            while (! $received && hrtime(true) < $deadline) {
+                $this->files->put($laterFile, 'later');
+                $received = $channel->pop(0.25) === $laterFile;
+            }
+
+            $this->assertTrue($received, 'fswatch did not observe subsequent changes inside the directory.');
         } finally {
             $driver->stop();
             $this->assertTrue($finished->wait(1));
@@ -994,7 +1141,7 @@ class FswatchDriverTest extends TestCase
         return new Option(
             driver: FswatchDriver::class,
             watchPaths: [
-                new WatchPath($this->fixtureRelativePath, WatchPathType::Directory),
+                new WatchPath($this->fixtureRelativePath . '/watched.php', WatchPathType::File),
             ],
         );
     }
@@ -1028,19 +1175,6 @@ class InspectableFswatchDriver extends FswatchDriver
     public function isDarwin(): bool
     {
         return $this->darwin;
-    }
-
-    /**
-     * Return the command for the configured paths.
-     *
-     * @return list<string>
-     */
-    public function commandForTest(): array
-    {
-        $targets = $this->targetsForTest();
-        $group = array_values($targets['groups'])[0];
-
-        return $this->getCommand($group['operands'], $group['recursive']);
     }
 
     /**

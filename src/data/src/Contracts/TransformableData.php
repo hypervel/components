@@ -11,7 +11,7 @@ use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use JsonSerializable;
 
 /**
- * @extends Arrayable<array-key, mixed>
+ * @extends Arrayable<array<array-key, mixed>>
  */
 interface TransformableData extends JsonSerializable, Jsonable, Arrayable
 {

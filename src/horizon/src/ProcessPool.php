@@ -43,8 +43,6 @@ class ProcessPool implements Countable
         public SupervisorOptions $options,
         ?Closure $output = null
     ) {
-        $this->options = $options;
-
         $this->output = $output ?: function () {
         };
     }
@@ -54,7 +52,7 @@ class ProcessPool implements Countable
      */
     public function scale(int $processes): void
     {
-        $processes = max(0, (int) $processes);
+        $processes = max(0, $processes);
 
         if ($processes === count($this->processes)) {
             return;
@@ -227,7 +225,7 @@ class ProcessPool implements Countable
         foreach ($this->terminatingProcesses as $process) {
             $timeout = $this->options->timeout;
 
-            if ($process['terminatedAt']->addSeconds((int) $timeout)->lte(CarbonImmutable::now())) {
+            if ($process['terminatedAt']->addSeconds($timeout)->lte(CarbonImmutable::now())) {
                 $process['process']->kill();
             }
         }

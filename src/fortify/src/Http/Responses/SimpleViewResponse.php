@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify\Http\Responses;
 
-use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\ConfirmPasswordViewResponse;
 use Hypervel\Fortify\Contracts\LoginViewResponse;
 use Hypervel\Fortify\Contracts\RegisterViewResponse;
@@ -13,6 +12,7 @@ use Hypervel\Fortify\Contracts\ResetPasswordViewResponse;
 use Hypervel\Fortify\Contracts\TwoFactorChallengeViewResponse;
 use Hypervel\Fortify\Contracts\VerifyEmailViewResponse;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Router;
 use Symfony\Component\HttpFoundation\Response;
 
 class SimpleViewResponse implements LoginViewResponse, ResetPasswordViewResponse, RegisterViewResponse, RequestPasswordResetLinkViewResponse, TwoFactorChallengeViewResponse, VerifyEmailViewResponse, ConfirmPasswordViewResponse
@@ -42,16 +42,6 @@ class SimpleViewResponse implements LoginViewResponse, ResetPasswordViewResponse
             return response()->view($this->view, ['request' => $request]);
         }
 
-        $response = ($this->view)($request);
-
-        if ($response instanceof Responsable) {
-            return $response->toResponse($request);
-        }
-
-        if ($response instanceof Response) {
-            return $response;
-        }
-
-        return response()->make($response);
+        return Router::toResponse($request, ($this->view)($request));
     }
 }

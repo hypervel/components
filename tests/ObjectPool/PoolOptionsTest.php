@@ -85,7 +85,7 @@ class PoolOptionsTest extends TestCase
     public function testUnknownOptionsAreRejectedWithTheKnownOptions(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown pool option(s) [typo]. Known options are [min_retained_objects, max_objects, wait_timeout, max_lifetime, max_idle_time, pool_idle_timeout].');
+        $this->expectExceptionMessageIs('Unknown pool option(s) [typo]. Known options are [min_retained_objects, max_objects, wait_timeout, max_lifetime, max_idle_time, pool_idle_timeout].');
 
         PoolOptions::fromArray(['typo' => true]);
     }
@@ -94,7 +94,7 @@ class PoolOptionsTest extends TestCase
     public function testCountOptionsRequireIntegers(string $name, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Pool option [{$name}] must be an integer.");
+        $this->expectExceptionMessageIs("Pool option [{$name}] must be an integer.");
 
         PoolOptions::fromArray([$name => $value]);
     }
@@ -117,7 +117,7 @@ class PoolOptionsTest extends TestCase
     public function testDurationsRequireIntegersOrFloats(string $name, mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Pool option [{$name}] must be an integer or float.");
+        $this->expectExceptionMessageIs("Pool option [{$name}] must be an integer or float.");
 
         PoolOptions::fromArray([$name => $value]);
     }
@@ -141,7 +141,7 @@ class PoolOptionsTest extends TestCase
     public function testDurationsMustBeFinite(string $name, float $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Pool option [{$name}] must be finite.");
+        $this->expectExceptionMessageIs("Pool option [{$name}] must be finite.");
 
         PoolOptions::fromArray([$name => $value]);
     }
@@ -163,7 +163,7 @@ class PoolOptionsTest extends TestCase
     public function testOptionValuesAreValidated(array $input, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         PoolOptions::fromArray($input);
     }

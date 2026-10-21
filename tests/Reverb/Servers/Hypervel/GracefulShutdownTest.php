@@ -13,18 +13,17 @@ use Hypervel\Reverb\Connection as ReverbConnection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\ReverbServiceProvider;
-use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Connection as WebSocketConnection;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
-use Hypervel\Reverb\Servers\Hypervel\HypervelServerProvider;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
@@ -202,7 +201,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Webhook flush ─────────────────────────────────────────────────
 
-    public function testFlushWebhookBuffersSchedulesFlushJob(): void
+    public function testScheduleWebhookFlushesDispatchesWhenTheBufferGrantsIt(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -213,30 +212,58 @@ class GracefulShutdownTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(true);
+        $buffer->shouldReceive('shouldScheduleFlush')->once()->andReturnTrue();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenNoBatching(): void
+    public function testScheduleWebhookFlushesContinuesAfterOneApplicationsBufferFails(): void
+    {
+        Queue::fake([FlushWebhookBatchJob::class]);
+
+        $configuration = config()->array('reverb.apps.apps.0');
+        $configuration['webhooks']['url'] = 'https://example.com/webhook';
+        $configuration['webhooks']['batching']['enabled'] = true;
+        config()->set('reverb.apps.apps', [
+            array_replace($configuration, ['app_id' => 'unavailable']),
+            array_replace($configuration, ['app_id' => 'healthy']),
+        ]);
+
+        $failure = new RuntimeException('Redis Cluster slot unavailable.');
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->expects('shouldScheduleFlush')->with('unavailable')->andThrow($failure);
+        $buffer->expects('shouldScheduleFlush')->with('healthy')->andReturnTrue();
+        $buffer->shouldNotReceive('clearFlushLock');
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $provider = $this->app->getProvider(ReverbServiceProvider::class);
+        (new ReflectionMethod($provider, 'scheduleWebhookFlushes'))->invoke($provider);
+
+        Queue::assertPushed(FlushWebhookBatchJob::class, fn (FlushWebhookBatchJob $job): bool => $job->appId === 'healthy');
+        Queue::assertPushed(FlushWebhookBatchJob::class, 1);
+    }
+
+    public function testScheduleWebhookFlushesSkipsWhenNoBatching(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
         // Default config disables batching.
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenBufferEmpty(): void
+    public function testScheduleWebhookFlushesSkipsWhenTheBufferRefuses(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -247,12 +274,11 @@ class GracefulShutdownTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('clearFlushLock')->once();
-        $buffer->shouldReceive('hasRemaining')->andReturn(false);
+        $buffer->shouldReceive('shouldScheduleFlush')->once()->andReturnFalse();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
-        $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
+        $method = new ReflectionMethod($provider, 'scheduleWebhookFlushes');
         $method->invoke($provider);
 
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
@@ -330,17 +356,9 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Scaling subscriber ────────────────────────────────────────────
 
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
     public function testDisconnectScalingSubscriberCallsDisconnect(): void
     {
-        config()->set('reverb.servers.reverb.scaling.enabled', true);
-
-        $provider = new HypervelServerProvider(
-            $this->app,
-            config()->array('reverb.servers.reverb')
-        );
-        $provider->register();
-        $this->app->make(ServerProviderManager::class)->withPublishing();
-
         $pubSub = m::mock(PubSubProvider::class);
         $pubSub->shouldReceive('disconnect')->once();
         $this->app->instance(PubSubProvider::class, $pubSub);
@@ -442,7 +460,7 @@ class GracefulShutdownServiceProviderProbe extends ReverbServiceProvider
         $this->fail('subscriber');
     }
 
-    protected function flushWebhookBuffers(): void
+    protected function scheduleWebhookFlushes(): void
     {
         $this->fail('webhooks');
     }

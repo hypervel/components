@@ -126,6 +126,8 @@ trait ResponseTrait
 
     /**
      * Add multiple cookies to the response.
+     *
+     * @return $this
      */
     public function withCookies(array $cookies): static
     {
@@ -148,6 +150,20 @@ trait ResponseTrait
         }
 
         $this->headers->setCookie($cookie);
+
+        return $this;
+    }
+
+    /**
+     * Expire multiple cookies when sending the response.
+     *
+     * @return $this
+     */
+    public function withoutCookies(array $cookies, ?string $path = null, ?string $domain = null): static
+    {
+        foreach ($cookies as $cookie) {
+            $this->withoutCookie($cookie, $path, $domain);
+        }
 
         return $this;
     }

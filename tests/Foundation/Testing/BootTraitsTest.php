@@ -12,7 +12,7 @@ use ReflectionMethod;
 
 class BootTraitsTest extends TestCase
 {
-    public function testSetUpAndTearDownTraits()
+    public function testSetUpAndTearDownTraits(): void
     {
         $testCase = new TestCaseWithTrait('foo');
 
@@ -27,7 +27,7 @@ class BootTraitsTest extends TestCase
         $this->assertTrue($testCase->tearDown);
     }
 
-    public function testSetUpAndTearDownWithAttributes()
+    public function testSetUpAndTearDownWithAttributes(): void
     {
         $testCase = new TestCaseWithAttributeTrait('foo');
 
@@ -42,7 +42,7 @@ class BootTraitsTest extends TestCase
         $this->assertTrue($testCase->attributeTearDown);
     }
 
-    public function testConventionalAndAttributeTraitsWorkTogether()
+    public function testConventionalAndAttributeTraitsWorkTogether(): void
     {
         $testCase = new TestCaseWithBothTraits('foo');
 

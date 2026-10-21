@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Http\Request;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class TrustProxies
 {
@@ -43,7 +44,7 @@ class TrustProxies
     /**
      * Handle an incoming request.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     * @throws HttpException
      */
     public function handle(Request $request, Closure $next): Response
     {

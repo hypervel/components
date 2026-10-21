@@ -32,11 +32,11 @@ class GetRefreshTokenRequest extends Request
     }
 
     /**
-     * Resolve the token endpoint.
+     * Resolve the refresh-token endpoint.
      */
     public function resolveEndpoint(): string
     {
-        return $this->oauthConfig->tokenEndpoint;
+        return $this->oauthConfig->refreshEndpoint ?? $this->oauthConfig->tokenEndpoint;
     }
 
     /**

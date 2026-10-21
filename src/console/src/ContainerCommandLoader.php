@@ -13,6 +13,8 @@ class ContainerCommandLoader implements CommandLoaderInterface
 {
     /**
      * Create a new command loader instance.
+     *
+     * @param array<string, string> $commandMap
      */
     public function __construct(
         protected Container $container,
@@ -23,7 +25,7 @@ class ContainerCommandLoader implements CommandLoaderInterface
     /**
      * Resolve a command from the container.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function get(string $name): Command
     {

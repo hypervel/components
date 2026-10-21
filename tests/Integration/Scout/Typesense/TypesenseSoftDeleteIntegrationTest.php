@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Tests\Scout\Models\TypesenseSoftDeleteSearchableModel;
+use Hypervel\Tests\Integration\Scout\Typesense\Fixtures\Models\TypesenseSoftDeleteSearchableModel;
 
 /**
  * Integration tests for Scout soft delete behavior with Typesense.

@@ -14,8 +14,8 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\Jobs\RemoveFromSearchUniquely;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use Mockery as m;
 
@@ -157,7 +157,15 @@ class RemoveFromSearchTest extends ScoutTestCase
         $this->assertSame(3, $job->tries);
         $this->assertSame([1, 5, 10], $job->backoff);
         $this->assertSame(2, $job->maxExceptions);
-        $this->assertTrue($job->failOnTimeout);
+    }
+
+    public function testJobPropertiesAreNotSetWithoutConfig(): void
+    {
+        $job = new RemoveFromSearch(Collection::make([$this->model(1)]));
+
+        $this->assertNull($job->tries);
+        $this->assertNull($job->backoff);
+        $this->assertNull($job->maxExceptions);
     }
 
     public function testSubclassJobPropertiesAreNotOverriddenByConfig(): void
@@ -173,20 +181,53 @@ class RemoveFromSearchTest extends ScoutTestCase
         $this->assertSame(5, $job->tries);
         $this->assertSame([2, 4, 8, 16, 32], $job->backoff());
         $this->assertSame(3, $job->maxExceptions);
+    }
+
+    public function testJobFailsOnTimeoutByDefault(): void
+    {
+        $job = new RemoveFromSearch(Collection::make([$this->model(1)]));
+
+        $this->assertTrue($job->failOnTimeout);
+    }
+
+    public function testSubclassCanOptOutOfFailingOnTimeout(): void
+    {
+        $job = new OverriddenRemoveFromSearch(Collection::make([$this->model(1)]));
+
         $this->assertFalse($job->failOnTimeout);
     }
 
-    public function testUniqueIdUsesSortedScoutKeys(): void
+    public function testUniqueIdIsBasedOnTheClassAndScoutKeys(): void
     {
         $models = Collection::make([$this->model(2), $this->model(1)]);
+
+        $expected = hash('sha256', json_encode([
+            SearchableModel::class,
+            [1, 2],
+        ], JSON_THROW_ON_ERROR));
 
         $job = new RemoveFromSearchUniquely($models);
 
         $this->assertInstanceOf(ShouldBeUniqueUntilProcessing::class, $job);
         $this->assertSame(3600, $job->uniqueFor);
+        $this->assertSame($expected, $job->uniqueId());
+    }
+
+    public function testUniqueIdIsNotAffectedByModelOrder(): void
+    {
+        $models = Collection::make([$this->model(3), $this->model(1), $this->model(2)]);
+
         $this->assertSame(
-            (new RemoveFromSearchUniquely($models->reverse()->values()))->uniqueId(),
-            $job->uniqueId()
+            (new RemoveFromSearchUniquely($models))->uniqueId(),
+            (new RemoveFromSearchUniquely($models->reverse()->values()))->uniqueId()
+        );
+    }
+
+    public function testUniqueIdDiffersForDifferentModels(): void
+    {
+        $this->assertNotSame(
+            (new RemoveFromSearchUniquely(Collection::make([$this->model(1), $this->model(2)])))->uniqueId(),
+            (new RemoveFromSearchUniquely(Collection::make([$this->model(3), $this->model(4)])))->uniqueId()
         );
     }
 
@@ -202,7 +243,7 @@ class OverriddenRemoveFromSearch extends RemoveFromSearch
 
     public $maxExceptions = 3;
 
-    public $failOnTimeout = false;
+    public bool $failOnTimeout = false;
 
     /**
      * Calculate the number of seconds to wait before retrying the job.

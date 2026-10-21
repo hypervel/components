@@ -50,10 +50,7 @@ class ConnectionFactory
         // Next we will check to see if an extension has been registered for a driver
         // and will call the Closure if so, which allows us to have a more generic
         // resolver for the drivers themselves which applies to all connections.
-        $driver = $config['driver'] ?? null;
-        $resolver = $name !== null && isset($this->extensions[$name])
-            ? $this->extensions[$name]
-            : ($driver !== null ? $this->extensions[$driver] ?? null : null);
+        $resolver = $this->getExtension($config, $name);
 
         if ($resolver !== null) {
             $connection = call_user_func($resolver, $config, $name);
@@ -66,6 +63,37 @@ class ConnectionFactory
         }
 
         return $this->createPdoConnectionFromConfig($config);
+    }
+
+    /**
+     * Create a logical connection from selected endpoint configuration and PDO resolvers.
+     *
+     * @param Closure(): PDO $pdo
+     * @param null|Closure(): PDO $readPdo
+     *
+     * @internal
+     */
+    public function makeWithPdoResolvers(array $config, Closure $pdo, ?Closure $readPdo = null): PdoConnection
+    {
+        return $this->createConnection(
+            $config['driver'],
+            $pdo,
+            $config['database'],
+            $config['prefix'],
+            $config,
+        )->setReadPdo($readPdo);
+    }
+
+    /**
+     * Get the extension resolver for a connection configuration.
+     */
+    public function getExtension(array $config, ?string $name): ?callable
+    {
+        $driver = $config['driver'] ?? null;
+
+        return $name !== null && isset($this->extensions[$name])
+            ? $this->extensions[$name]
+            : ($driver !== null ? $this->extensions[$driver] ?? null : null);
     }
 
     /**
@@ -170,6 +198,16 @@ class ConnectionFactory
     }
 
     /**
+     * Get the write configuration for a read / write connection.
+     *
+     * @internal
+     */
+    public function configForWrite(array $config): array
+    {
+        return $this->getWriteConfig($this->parseConfig($config, $config['name'] ?? null));
+    }
+
+    /**
      * Create a PDO-backed connection from its configuration.
      */
     protected function createPdoConnectionFromConfig(array $config): PdoConnection
@@ -203,6 +241,9 @@ class ConnectionFactory
     protected function createReadWriteConnection(array $config): PdoConnection
     {
         $connection = $this->createSingleConnection($this->getWriteConfig($config));
+
+        // The PDO resolver and its metadata must describe the same selected endpoint.
+        $config['read'] = $this->getReadWriteConfig($config, 'read');
 
         return $connection
             ->setReadPdo($this->createReadPdo($config))
@@ -275,22 +316,26 @@ class ConnectionFactory
 
     /**
      * Create a new Closure that resolves to a PDO instance with a specific host or an array of hosts.
+     *
+     * @throws PDOException
      */
     protected function createPdoResolverWithHosts(array $config): Closure
     {
         return function () use ($config) {
+            $exception = null;
+
             foreach (Arr::shuffle($this->parseHosts($config)) as $host) {
                 $config['host'] = $host;
 
                 try {
                     return $this->createConnector($config)->connect($config);
                 } catch (PDOException $e) {
-                    continue;
+                    $exception = $e;
                 }
             }
 
-            if (isset($e)) {
-                throw $e;
+            if ($exception !== null) {
+                throw $exception;
             }
         };
     }

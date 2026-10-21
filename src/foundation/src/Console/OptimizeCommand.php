@@ -7,16 +7,16 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'optimize')]
 class OptimizeCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'optimize';
+    protected ?string $signature = 'optimize {--e|except= : Do not run the commands matching the key or name}';
 
     /**
      * The console command description.
@@ -30,7 +30,7 @@ class OptimizeCommand extends Command
     {
         $this->components->info('Caching framework bootstrap, configuration, and metadata.');
 
-        $exceptions = Collection::wrap(explode(',', $this->option('except') ?? ''))
+        $exceptions = (new Stringable($this->option('except') ?? ''))->explode(',')
             ->map(fn ($except) => trim($except))
             ->filter()
             ->unique()
@@ -58,16 +58,6 @@ class OptimizeCommand extends Command
             'routes' => 'route:cache',
             'views' => 'view:cache',
             ...ServiceProvider::$optimizeCommands,
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['except', 'e', InputOption::VALUE_OPTIONAL, 'Do not run the commands matching the key or name'],
         ];
     }
 }

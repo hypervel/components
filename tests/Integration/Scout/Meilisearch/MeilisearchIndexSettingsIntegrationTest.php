@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 
 /**
  * Integration tests for Meilisearch index settings configuration.

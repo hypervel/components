@@ -6,7 +6,7 @@ namespace Hypervel\Tests\View\Blade;
 
 class BladeBreakStatementsTest extends AbstractBladeTestCase
 {
-    public function testBreakStatementsAreCompiled()
+    public function testBreakStatementsAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test
@@ -19,7 +19,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testBreakStatementsWithExpressionAreCompiled()
+    public function testBreakStatementsWithExpressionAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test
@@ -32,7 +32,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testBreakStatementsWithArgumentAreCompiled()
+    public function testBreakStatementsWithArgumentAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test
@@ -45,7 +45,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testBreakStatementsWithSpacedArgumentAreCompiled()
+    public function testBreakStatementsWithSpacedArgumentAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test
@@ -58,7 +58,7 @@ test
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
 
-    public function testBreakStatementsWithFaultyArgumentAreCompiled()
+    public function testBreakStatementsWithFaultyArgumentAreCompiled(): void
     {
         $string = '@for ($i = 0; $i < 10; $i++)
 test

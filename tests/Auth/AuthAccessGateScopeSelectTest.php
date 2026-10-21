@@ -129,7 +129,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
     public function testMissingPolicyErrorNamesBothAcceptedMethods(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Policy [null] does not define an [editScope] or [editSelect] method.'
         );
 
@@ -142,7 +142,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->policy(ScopablePost::class, NoQueryPostPolicy::class);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'does not define an [editSelect] or [editScope] method.'
         );
 
@@ -545,7 +545,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $this->registerPolicy($gate, $policy);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must return the same Eloquent builder instance it receives');
+        $this->expectExceptionMessageIsOrContains('must return the same Eloquent builder instance it receives');
 
         $gate->scope('edit', $this->createQueryBuilder());
     }
@@ -562,7 +562,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $this->registerPolicy($gate, $policy);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must return the same Eloquent builder instance it receives');
+        $this->expectExceptionMessageIsOrContains('must return the same Eloquent builder instance it receives');
 
         $gate->scope('edit', $this->createQueryBuilder());
     }
@@ -624,7 +624,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->policy(QueryAwareEmptyKeyPost::class, ScopeOnlyPostPolicy::class);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('does not define a primary key');
+        $this->expectExceptionMessageIsOrContains('does not define a primary key');
 
         $gate->select('edit', $this->createQueryBuilder(new QueryAwareEmptyKeyPost));
     }

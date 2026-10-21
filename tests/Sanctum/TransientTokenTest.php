@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class TransientTokenTest extends TestCase
 {
-    public function testCanDetermineWhatItCanAndCantDo()
+    public function testCanDetermineWhatItCanAndCantDo(): void
     {
         $token = new TransientToken;
 

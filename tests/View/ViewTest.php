@@ -39,14 +39,14 @@ class ViewTest extends TestCase
     public function testRenderProperlyRendersView(): void
     {
         $view = $this->getView(['foo' => 'bar']);
-        $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
+        $view->getFactory()->expects('incrementRender')->ordered();
+        $view->getFactory()->expects('callComposer')->ordered()->with($view);
+        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
         $view->getFactory()->shouldNotReceive('notifyRendered');
-        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->once()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
+        $view->getFactory()->expects('mergeSharedData')->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
+        $view->getEngine()->expects('get')->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
+        $view->getFactory()->expects('decrementRender')->ordered();
+        $view->getFactory()->expects('flushStateIfDoneRendering');
 
         $callback = function (View $rendered, string $contents) use ($view): ?string {
             $this->assertEquals($view, $rendered);
@@ -62,12 +62,12 @@ class ViewTest extends TestCase
     {
         $cancellation = new CanceledException;
         $view = $this->getView();
-        $view->getFactory()->shouldReceive('incrementRender')->once();
-        $view->getFactory()->shouldReceive('callComposer')->once()->with($view);
-        $view->getFactory()->shouldReceive('notifyRendering')->once()->with($view);
-        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with([])->andReturn([]);
-        $view->getEngine()->shouldReceive('get')->once()->with('path', [])->andThrow($cancellation);
-        $view->getFactory()->shouldReceive('flushState')->once();
+        $view->getFactory()->expects('incrementRender');
+        $view->getFactory()->expects('callComposer')->with($view);
+        $view->getFactory()->expects('notifyRendering')->with($view);
+        $view->getFactory()->expects('mergeSharedData')->with([])->andReturn([]);
+        $view->getEngine()->expects('get')->with('path', [])->andThrow($cancellation);
+        $view->getFactory()->expects('flushState');
 
         try {
             $view->render();
@@ -80,13 +80,13 @@ class ViewTest extends TestCase
     public function testRenderHandlingCallbackReturnValues(): void
     {
         $view = $this->getView();
-        $view->getFactory()->shouldReceive('incrementRender');
-        $view->getFactory()->shouldReceive('callComposer');
-        $view->getFactory()->shouldReceive('notifyRendering')->with($view);
-        $view->getFactory()->shouldReceive('mergeSharedData')->with([])->andReturn(['shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender');
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering');
+        $view->getFactory()->expects('incrementRender')->times(4);
+        $view->getFactory()->expects('callComposer')->times(4);
+        $view->getFactory()->expects('notifyRendering')->times(4)->with($view);
+        $view->getFactory()->expects('mergeSharedData')->times(4)->with([])->andReturn(['shared' => 'foo']);
+        $view->getEngine()->expects('get')->times(4)->andReturn('contents');
+        $view->getFactory()->expects('decrementRender')->times(4);
+        $view->getFactory()->expects('flushStateIfDoneRendering')->times(4);
 
         $this->assertSame('new contents', $view->render(function (): string {
             return 'new contents';
@@ -115,8 +115,8 @@ class ViewTest extends TestCase
             [],
         );
 
-        $factory->shouldReceive('getSections')->with()->once()->andReturn($sections = ['foo' => 'bar']);
-        $factory->shouldReceive('flushStateIfDoneRendering')->with()->once();
+        $factory->expects('getSections')->with()->andReturn($sections = ['foo' => 'bar']);
+        $factory->expects('flushStateIfDoneRendering')->with();
 
         $this->assertEquals($sections, $view->renderSections());
     }
@@ -124,13 +124,13 @@ class ViewTest extends TestCase
     public function testSectionsAreNotFlushedWhenNotDoneRendering(): void
     {
         $view = $this->getView(['foo' => 'bar']);
-        $view->getFactory()->shouldReceive('incrementRender')->twice();
-        $view->getFactory()->shouldReceive('callComposer')->twice()->with($view);
-        $view->getFactory()->shouldReceive('notifyRendering')->twice()->with($view);
-        $view->getFactory()->shouldReceive('mergeSharedData')->twice()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->twice()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender')->twice();
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->twice();
+        $view->getFactory()->expects('incrementRender')->twice();
+        $view->getFactory()->expects('callComposer')->twice()->with($view);
+        $view->getFactory()->expects('notifyRendering')->twice()->with($view);
+        $view->getFactory()->expects('mergeSharedData')->twice()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
+        $view->getEngine()->expects('get')->twice()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
+        $view->getFactory()->expects('decrementRender')->twice();
+        $view->getFactory()->expects('flushStateIfDoneRendering')->twice();
 
         $this->assertSame('contents', $view->render());
         $this->assertSame('contents', (string) $view);
@@ -139,7 +139,7 @@ class ViewTest extends TestCase
     public function testViewNestBindsASubView(): void
     {
         $view = $this->getView();
-        $view->getFactory()->shouldReceive('make')->once()->with('foo', ['data']);
+        $view->getFactory()->expects('make')->with('foo', ['data']);
         $result = $view->nest('key', 'foo', ['data']);
 
         $this->assertInstanceOf(View::class, $result);
@@ -148,7 +148,7 @@ class ViewTest extends TestCase
     public function testViewAcceptsArrayableImplementations(): void
     {
         $arrayable = m::mock(Arrayable::class);
-        $arrayable->shouldReceive('toArray')->once()->andReturn(['foo' => 'bar', 'baz' => ['qux', 'corge']]);
+        $arrayable->expects('toArray')->andReturn(['foo' => 'bar', 'baz' => ['qux', 'corge']]);
 
         $view = $this->getView($arrayable);
 
@@ -206,8 +206,7 @@ class ViewTest extends TestCase
 
     public function testViewBadMethod(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Hypervel\View\View::badMethodCall does not exist.');
+        $this->expectExceptionObject(new BadMethodCallException('Method Hypervel\View\View::badMethodCall does not exist.'));
 
         $view = $this->getView();
         $view->badMethodCall();
@@ -216,16 +215,16 @@ class ViewTest extends TestCase
     public function testViewGatherDataWithRenderable(): void
     {
         $view = $this->getView();
-        $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
-        $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
+        $view->getFactory()->expects('incrementRender')->ordered();
+        $view->getFactory()->expects('callComposer')->ordered()->with($view);
+        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
+        $view->getEngine()->expects('get')->andReturn('contents');
+        $view->getFactory()->expects('decrementRender')->ordered();
+        $view->getFactory()->expects('flushStateIfDoneRendering');
 
         $view->renderable = m::mock(Renderable::class);
-        $view->renderable->shouldReceive('render')->once()->andReturn('text');
-        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with(['renderable' => $view->renderable])->andReturn([
+        $view->renderable->expects('render')->andReturn('text');
+        $view->getFactory()->expects('mergeSharedData')->with(['renderable' => $view->renderable])->andReturn([
             'shared' => 'foo',
             'renderable' => $view->renderable,
         ]);
@@ -235,15 +234,15 @@ class ViewTest extends TestCase
     public function testViewRenderSections(): void
     {
         $view = $this->getView();
-        $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with([])->andReturn(['shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
+        $view->getFactory()->expects('incrementRender')->ordered();
+        $view->getFactory()->expects('callComposer')->ordered()->with($view);
+        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
+        $view->getFactory()->expects('mergeSharedData')->with([])->andReturn(['shared' => 'foo']);
+        $view->getEngine()->expects('get')->andReturn('contents');
+        $view->getFactory()->expects('decrementRender')->ordered();
+        $view->getFactory()->expects('flushStateIfDoneRendering');
 
-        $view->getFactory()->shouldReceive('getSections')->once()->andReturn(['foo', 'bar']);
+        $view->getFactory()->expects('getSections')->andReturn(['foo', 'bar']);
         $sections = $view->renderSections();
         $this->assertSame('foo', $sections[0]);
         $this->assertSame('bar', $sections[1]);
@@ -284,7 +283,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturn(false);
 
         $view = new View($factory, $engine, 'test', 'path');
@@ -309,7 +308,7 @@ class ViewTest extends TestCase
         $factory->flushState();
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturn(false);
 
         $view = new View($factory, $engine, 'test', 'path');
@@ -335,7 +334,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturn(false);
 
         $view = new View($factory, $engine, 'test', 'path');
@@ -367,7 +366,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturnUsing(function () use (&$order): string {
+        $engine->expects('get')->andReturnUsing(function () use (&$order): string {
             $order[] = 'engine';
 
             return 'contents';
@@ -403,7 +402,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturnUsing(function () use (&$order): string {
+        $engine->expects('get')->andReturnUsing(function () use (&$order): string {
             $order[] = 'engine';
 
             return 'contents';
@@ -469,7 +468,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andThrow($renderingException);
+        $engine->expects('get')->andThrow($renderingException);
         $events->shouldReceive('hasListeners')->andReturnFalse();
 
         try {
@@ -507,7 +506,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturnFalse();
 
         try {
@@ -568,7 +567,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andThrow($cancellation);
+        $engine->expects('get')->andThrow($cancellation);
         $events->shouldReceive('hasListeners')->andReturnFalse();
 
         try {
@@ -601,7 +600,7 @@ class ViewTest extends TestCase
         });
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturnFalse();
 
         try {
@@ -660,7 +659,7 @@ class ViewTest extends TestCase
         $factory->flushState();
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturnFalse();
 
         (new View($factory, $engine, 'test', 'path'))->render();
@@ -668,6 +667,9 @@ class ViewTest extends TestCase
         $this->assertTrue($observerCalled);
     }
 
+    /**
+     * Create a view with mocked dependencies.
+     */
     protected function getView(mixed $data = []): View
     {
         $factory = m::mock(Factory::class);
@@ -690,6 +692,9 @@ class DataObjectStub
 
 class TestView extends View
 {
+    /**
+     * Render empty contents without invoking the engine.
+     */
     protected function renderContents(): string
     {
         return '';
