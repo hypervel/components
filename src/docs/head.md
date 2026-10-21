@@ -329,7 +329,7 @@ Head::errors(function (ErrorPages $errors): void {
 
 When a response is rendered for a registered error status, that metadata takes precedence over page metadata. A [runtime error callback](#runtime-defaults) may customize it further.
 
-Hypervel automatically detects the response status when rendering an error view or executing a response callback such as Inertia's `handleExceptionsUsing()` method. If an `$exceptions->render()` callback or an exception's own `render()` or `toResponse()` method renders Head before returning its response, call `Head::status(404)` first or pass the status to `@head(404)` so the error metadata is applied.
+With the framework exception handler, Head automatically detects the response status when rendering an error view or executing a response callback such as Inertia's `handleExceptionsUsing()` method. If an `$exceptions->render()` callback or an exception's own `render()` or `toResponse()` method renders Head before returning its response, call `Head::status(404)` first or pass the status to `@head(404)` so the error metadata is applied.
 
 <a name="open-graph"></a>
 ## Open Graph
@@ -527,6 +527,10 @@ Head::preload(asset('fonts/inter.woff2'), as: 'font', crossorigin: true)
     ->feed('/feed', title: 'Hypervel RSS')
     ->feed('/feed.atom', type: 'atom', title: 'Hypervel Atom');
 ```
+
+The `paginate` method accepts both ordinary and cursor paginators. Each call replaces the complete set of previous and next links, removing links that do not apply to the new page.
+
+Feed route metadata accepts a URL, a list of URLs, a URL-to-title map, or a structured definition with `href`, optional `title`, and optional `type`. A bare URL produces an untitled RSS feed. When calling `Head::feed()` directly, pass an empty title to omit the title attribute.
 
 For local assets, `preloadAsset()` and `prefetchAsset()` resolve the URL through the `asset()` helper and detect the `as` attribute from the file extension. Font preloads automatically include `crossorigin`, which the preload specification requires even for same-origin fonts:
 
