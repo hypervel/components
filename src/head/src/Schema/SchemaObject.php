@@ -9,7 +9,6 @@ use DateTimeInterface;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Head\SchemaType;
-use Hypervel\Support\Str;
 use JsonSerializable;
 use ReflectionClass;
 
@@ -85,7 +84,7 @@ abstract class SchemaObject implements Arrayable, JsonSerializable, Transient
     /**
      * Dynamically set the schema property named by the called method.
      *
-     * @param array<int, mixed> $parameters
+     * @param array<int|string, mixed> $parameters
      */
     public function __call(string $method, array $parameters): static
     {
@@ -97,7 +96,7 @@ abstract class SchemaObject implements Arrayable, JsonSerializable, Transient
             ));
         }
 
-        return $this->set($method, $parameters[0] ?? true);
+        return $this->set($method, $parameters === [] ? true : $parameters[array_key_first($parameters)]);
     }
 
     /**
@@ -133,7 +132,7 @@ abstract class SchemaObject implements Arrayable, JsonSerializable, Transient
         $attributes = $reflection->getAttributes(SchemaType::class);
 
         return static::$types[static::class] = $attributes === []
-            ? Str::headline($reflection->getShortName())
+            ? $reflection->getShortName()
             : $attributes[0]->newInstance()->name;
     }
 

@@ -30,12 +30,12 @@ class Breadcrumbs extends SchemaObject
     /**
      * Append breadcrumb items in order.
      *
-     * @param array<string, string> $items breadcrumb names keyed to their URLs
+     * @param array<int|string, string> $items breadcrumb names keyed to their URLs
      */
     public function items(array $items): static
     {
         foreach ($items as $name => $url) {
-            $this->item($name, $url);
+            $this->item((string) $name, $url);
         }
 
         return $this;

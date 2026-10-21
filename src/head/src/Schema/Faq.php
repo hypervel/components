@@ -32,12 +32,12 @@ class Faq extends SchemaObject
     /**
      * Append questions and their answers.
      *
-     * @param array<string, string> $questions questions keyed to their answers
+     * @param array<int|string, string> $questions questions keyed to their answers
      */
     public function questions(array $questions): static
     {
         foreach ($questions as $name => $answer) {
-            $this->question($name, $answer);
+            $this->question((string) $name, $answer);
         }
 
         return $this;

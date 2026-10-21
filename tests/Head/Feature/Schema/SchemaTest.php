@@ -11,6 +11,7 @@ use Hypervel\Head\Facades\Head;
 use Hypervel\Head\Facades\Schema;
 use Hypervel\Head\Schema\Article;
 use Hypervel\Head\Schema\GenericSchemaObject;
+use Hypervel\Head\Schema\SchemaObject;
 use Hypervel\Tests\Head\Fixtures\JobPosting;
 use Hypervel\Tests\Head\TestCase;
 use Mockery as m;
@@ -78,6 +79,7 @@ class SchemaTest extends TestCase
                 ->items([
                     'Shop' => 'https://example.com/shop',
                     'Shoes' => 'https://example.com/shop/shoes',
+                    '2024' => 'https://example.com/shop/2024',
                 ])
         );
 
@@ -87,6 +89,7 @@ class SchemaTest extends TestCase
         $this->assertStringContainsString('"position":2,"name":"Shop"', $html);
         $this->assertStringContainsString('"position":3,"name":"Shoes"', $html);
         $this->assertStringContainsString('"item":"https://example.com/shop/shoes"', $html);
+        $this->assertStringContainsString('"position":4,"name":"2024","item":"https://example.com/shop/2024"', $html);
     }
 
     public function testSetsFaqQuestionsInBulk(): void
@@ -95,6 +98,7 @@ class SchemaTest extends TestCase
             Schema::faq()->questions([
                 'What is Hypervel Head?' => 'A fluent API for managing the document head.',
                 'Is it free?' => 'Yes, it is open source.',
+                '2024' => 'A year.',
             ])
         );
 
@@ -103,6 +107,7 @@ class SchemaTest extends TestCase
         $this->assertStringContainsString('"name":"What is Hypervel Head?"', $html);
         $this->assertStringContainsString('"name":"Is it free?"', $html);
         $this->assertStringContainsString('"text":"Yes, it is open source."', $html);
+        $this->assertStringContainsString('"name":"2024"', $html);
     }
 
     public function testRegistersCustomSchemaTypesAsFirstClassFactoryMethods(): void
@@ -167,6 +172,38 @@ class SchemaTest extends TestCase
         $this->assertStringContainsString('"title":"Senior Hypervel Developer"', $html);
     }
 
+    #[DataProvider('magicSetterValues')]
+    public function testMagicSchemaSettersPreserveSuppliedValues(array $arguments, mixed $expected): void
+    {
+        $schema = Schema::make('videoObject')->duration(...$arguments);
+
+        $this->assertSame($expected, $schema->toArray()['duration']);
+    }
+
+    /**
+     * Supply positional, named, and omitted magic setter values.
+     *
+     * @return iterable<string, array{array<int|string, mixed>, mixed}>
+     */
+    public static function magicSetterValues(): iterable
+    {
+        yield 'omitted' => [[], true];
+        yield 'named' => [['value' => 'PT10M'], 'PT10M'];
+        yield 'false' => [[false], false];
+        yield 'zero' => [[0], 0];
+        yield 'null' => [[null], null];
+        yield 'named null' => [['value' => null], null];
+    }
+
+    public function testInfersSchemaTypesFromConcreteClassNames(): void
+    {
+        Head::schema(new LocalBusiness)->schema(new NewsArticle);
+
+        $html = Head::toHtml();
+        $this->assertStringContainsString('"@type":"LocalBusiness"', $html);
+        $this->assertStringContainsString('"@type":"NewsArticle"', $html);
+    }
+
     public function testExplicitTypesBypassTheInferredTypeCache(): void
     {
         $this->assertSame('Article', (new Article)->toArray()['@type']);
@@ -212,4 +249,26 @@ class SchemaTest extends TestCase
 
         $this->assertStringContainsString('<script type="application/ld+json">', Head::toHtml());
     }
+
+    public function testValidatesSchemaObjectsNestedInRawArrays(): void
+    {
+        Head::schema([
+            '@context' => 'https://schema.org',
+            '@type' => 'Article',
+            'author' => [Schema::person()->name('')],
+        ]);
+
+        $this->expectException(InvalidSchema::class);
+        $this->expectExceptionMessage('JSON-LD schemas may not contain null or empty string values.');
+
+        Head::toHtml();
+    }
+}
+
+class LocalBusiness extends SchemaObject
+{
+}
+
+class NewsArticle extends Article
+{
 }

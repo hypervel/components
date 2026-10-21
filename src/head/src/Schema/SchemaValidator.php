@@ -58,6 +58,10 @@ class SchemaValidator
                 return true;
             }
 
+            if ($value instanceof SchemaObject) {
+                $value = $value->toArray();
+            }
+
             if (is_array($value) && $this->containsEmptyValue($value)) {
                 return true;
             }
