@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
+use Hypervel\Cache\DatabaseStore;
 use Hypervel\Console\MigrationGeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:cache-table', aliases: ['cache:table'])]
 class CacheTableCommand extends MigrationGeneratorCommand
 {
+    public const string TABLE = 'cache';
+
     /**
      * The name and signature of the console command.
      */
@@ -33,8 +36,8 @@ class CacheTableCommand extends MigrationGeneratorCommand
     public function handle(): int
     {
         $tables = [
-            'cache' => __DIR__ . '/stubs/cache.stub',
-            'cache_locks' => __DIR__ . '/stubs/cache-locks.stub',
+            self::TABLE => __DIR__ . '/stubs/cache.stub',
+            DatabaseStore::DEFAULT_LOCK_TABLE => __DIR__ . '/stubs/cache-locks.stub',
         ];
 
         foreach ($tables as $table => $stub) {
@@ -56,7 +59,7 @@ class CacheTableCommand extends MigrationGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return 'cache';
+        return self::TABLE;
     }
 
     /**
