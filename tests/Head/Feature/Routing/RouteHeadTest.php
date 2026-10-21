@@ -13,6 +13,7 @@ use Hypervel\Head\Routing\RouteAttributeParser;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Head\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class RouteHeadTest extends TestCase
 {
@@ -182,6 +183,40 @@ class RouteHeadTest extends TestCase
         ]);
 
         $this->withoutExceptionHandling()->get('/unknown-head-key');
+    }
+
+    #[TestWith(['/feed', '<link rel="alternate" type="application/rss+xml" href="/feed">'])]
+    #[TestWith([['/feed', '/news'], '<link rel="alternate" type="application/rss+xml" href="/feed">' . "\n" . '<link rel="alternate" type="application/rss+xml" href="/news">'])]
+    #[TestWith([['href' => '/feed.atom', 'type' => 'atom'], '<link rel="alternate" type="application/atom+xml" href="/feed.atom">'])]
+    #[TestWith([['href' => '/feed', 'title' => null], '<link rel="alternate" type="application/rss+xml" href="/feed">'])]
+    #[TestWith([['/feed' => 'News'], '<link rel="alternate" type="application/rss+xml" title="News" href="/feed">'])]
+    public function testParsesFeedRouteValues(string|array $feed, string $expected): void
+    {
+        Route::get('/feeds', fn (): string => Head::toHtml())->withHead(feed: $feed);
+
+        $this->get('/feeds')->assertOk()->assertContent($expected);
+    }
+
+    #[TestWith(['preload', ['/app.js' => 'script']])]
+    #[TestWith(['prefetch', ['/app.js' => 'script']])]
+    #[TestWith(['preconnect', ['https://cdn.example.com' => 'anonymous']])]
+    #[TestWith(['feed', ['href' => '/feed', 'title' => 42]])]
+    public function testRejectsInvalidRouteLinkValues(string $key, array $value): void
+    {
+        Route::get('/invalid-link', fn (): string => Head::toHtml())->withHead(...[$key => $value]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Invalid value for route head attribute [{$key}].");
+        $this->withoutExceptionHandling()->get('/invalid-link');
+    }
+
+    public function testPaginationIsNotAdvertisedAsARouteAttribute(): void
+    {
+        Route::get('/pagination', fn (): string => Head::toHtml())->withHead(extensions: ['pagination' => []]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown route head attribute [pagination].');
+        $this->withoutExceptionHandling()->get('/pagination');
     }
 
     public function testThrowsForInvalidValuesOnKnownRouteHeadDataKeys(): void

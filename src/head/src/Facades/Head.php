@@ -38,7 +38,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Head\HeadManager ogAudio(string $url, string|null $type = null, string|null $secureUrl = null)
  * @method static \Hypervel\Head\HeadManager ogImage(string $url, string|null $alt = null, int|null $width = null, int|null $height = null, \Hypervel\Head\Enums\ImageType|string|null $type = null, string|null $secureUrl = null)
  * @method static \Hypervel\Head\HeadManager ogVideo(string $url, string|null $alt = null, int|null $width = null, int|null $height = null, string|null $type = null, string|null $secureUrl = null)
- * @method static \Hypervel\Head\HeadManager paginate(\Hypervel\Contracts\Pagination\Paginator<int, mixed> $paginator)
+ * @method static \Hypervel\Head\HeadManager paginate(\Hypervel\Contracts\Pagination\CursorPaginator<int, mixed>|\Hypervel\Contracts\Pagination\Paginator<int, mixed> $paginator)
  * @method static \Hypervel\Head\HeadManager preconnect(string $href, string|bool|null $crossorigin = null)
  * @method static \Hypervel\Head\HeadManager prefetch(string $href, string|null $as = null)
  * @method static \Hypervel\Head\HeadManager prefetchAsset(string $path, string|null $as = null)

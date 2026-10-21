@@ -338,7 +338,7 @@ class PerformanceLinks extends GroupedTagBuilder
      */
     private function addPreloadRouteAttribute(mixed $href, mixed $attributes): bool
     {
-        if (is_string($attributes)) {
+        if (is_int($href) && is_string($attributes)) {
             $this->preload($attributes);
 
             return true;
@@ -364,7 +364,7 @@ class PerformanceLinks extends GroupedTagBuilder
      */
     private function addPrefetchRouteAttribute(mixed $href, mixed $attributes): bool
     {
-        if (is_string($attributes)) {
+        if (is_int($href) && is_string($attributes)) {
             $this->prefetch($attributes);
 
             return true;
@@ -384,7 +384,7 @@ class PerformanceLinks extends GroupedTagBuilder
      */
     private function addPreconnectRouteAttribute(mixed $href, mixed $attributes): bool
     {
-        if (is_string($attributes)) {
+        if (is_int($href) && is_string($attributes)) {
             $this->preconnect($attributes);
 
             return true;

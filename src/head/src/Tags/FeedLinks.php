@@ -54,13 +54,13 @@ class FeedLinks extends GroupedTagBuilder
      */
     public static function fromRouteAttribute(string $key, mixed $value): ?self
     {
-        if ($key !== 'feed' || ! is_array($value)) {
+        if ($key !== 'feed' || (! is_array($value) && ! is_string($value))) {
             return null;
         }
 
         $links = new self;
 
-        foreach (self::feedAttributes($value) as $href => $feed) {
+        foreach (self::feedAttributes(is_string($value) ? [$value] : $value) as $href => $feed) {
             if (! $links->addRouteAttributeFeed($href, $feed)) {
                 return null;
             }
@@ -125,7 +125,7 @@ class FeedLinks extends GroupedTagBuilder
 
             return $tags->linkWithAttributes('alternate', [
                 'type' => $type,
-                'title' => $feed['title'],
+                'title' => $feed['title'] === '' ? null : $feed['title'],
                 'href' => $feed['href'],
             ], $tags->stableKey('feed', $feed['href']));
         }, $this->headArray());
@@ -146,17 +146,25 @@ class FeedLinks extends GroupedTagBuilder
      */
     private function addRouteAttributeFeed(mixed $href, mixed $feed): bool
     {
+        if (is_int($href) && is_string($feed)) {
+            $this->feed($feed, '');
+
+            return true;
+        }
+
         if (is_string($href) && is_string($feed)) {
             $this->feed($href, $feed);
 
             return true;
         }
 
-        if (! is_array($feed) || ! is_string($feed['title'] ?? null) || is_null($url = self::routeAttributeHref($href, $feed))) {
+        if (! is_array($feed)
+            || ! is_string($title = $feed['title'] ?? '')
+            || is_null($url = self::routeAttributeHref($href, $feed))) {
             return false;
         }
 
-        $this->feed($url, $feed['title'], self::string($feed['type'] ?? null) ?? 'rss');
+        $this->feed($url, $title, self::string($feed['type'] ?? null) ?? 'rss');
 
         return true;
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Head\Concerns;
 
 use BackedEnum;
+use Hypervel\Contracts\Pagination\CursorPaginator;
 use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Head\Enums\ImageType;
 use Hypervel\Head\Enums\Media;
@@ -331,9 +332,9 @@ trait BuildsHead
     /**
      * Add rel=prev/next links from a paginator instance.
      *
-     * @param Paginator<int, mixed> $paginator
+     * @param CursorPaginator<int, mixed>|Paginator<int, mixed> $paginator
      */
-    public function paginate(Paginator $paginator): static
+    public function paginate(Paginator|CursorPaginator $paginator): static
     {
         $this->headData()->overlayBuilder(PaginationLinks::fromPaginator($paginator));
 

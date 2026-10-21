@@ -10,8 +10,11 @@ use Hypervel\Head\Facades\Head;
 use Hypervel\Head\Facades\Schema;
 use Hypervel\Head\HeadBuilder;
 use Hypervel\Head\Rendering\HeadRenderer;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Tests\Head\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class HeadRendererTest extends TestCase
 {
@@ -65,6 +68,13 @@ class HeadRendererTest extends TestCase
         $this->assertStringContainsString('<title>Dashboard</title>', $html);
         $this->assertStringContainsString('<meta name="description" content="Dashboard overview.">', $html);
         $this->assertStringNotContainsString('data-inertia', $html);
+    }
+
+    public function testOmitsAnEmptyFeedTitle(): void
+    {
+        Head::feed('/feed', '');
+
+        $this->assertSame('<link rel="alternate" type="application/rss+xml" href="/feed">', Head::toHtml());
     }
 
     public function testRendersInertiaGlobalsInBladeHtmlOutput(): void
@@ -144,5 +154,32 @@ class HeadRendererTest extends TestCase
             '<title data-inertia="title">Page title</title>',
             '<meta data-inertia="title" name="title" content="Metadata title">',
         ], Head::toInertiaElements());
+    }
+
+    #[TestWith([30, 3, ['prev' => '/posts?page=2']])]
+    #[TestWith([1, 1, []])]
+    public function testNewPaginationReplacesTheCompleteRelationSet(int $total, int $page, array $expected): void
+    {
+        Head::paginate(new LengthAwarePaginator([], 30, 10, 2, ['path' => '/posts']));
+        Head::paginate(new LengthAwarePaginator([], $total, 10, $page, ['path' => '/posts']));
+
+        $this->assertSame($expected, Head::toArray()['links']['pagination']);
+    }
+
+    public function testRendersCursorPaginationLinks(): void
+    {
+        $paginator = new CursorPaginator(
+            [['id' => 3], ['id' => 4], ['id' => 5]],
+            2,
+            new Cursor(['id' => 2]),
+            ['path' => '/posts', 'parameters' => ['id']],
+        );
+
+        Head::paginate($paginator);
+
+        $this->assertSame([
+            'prev' => $paginator->previousPageUrl(),
+            'next' => $paginator->nextPageUrl(),
+        ], Head::toArray()['links']['pagination']);
     }
 }

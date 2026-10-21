@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Head\Tags;
 
+use Hypervel\Contracts\Pagination\CursorPaginator;
 use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Head\Rendering\ResolvedHead;
 use Hypervel\Head\Rendering\TagRenderer;
@@ -39,11 +40,21 @@ class PaginationLinks extends GroupedTagBuilder
     }
 
     /**
+     * Get the supported route attribute names.
+     *
+     * @return array<int, string>
+     */
+    public static function routeAttributeKeys(): array
+    {
+        return [];
+    }
+
+    /**
      * Create previous and next links from a paginator.
      *
-     * @param Paginator<int, mixed> $paginator
+     * @param CursorPaginator<int, mixed>|Paginator<int, mixed> $paginator
      */
-    public static function fromPaginator(Paginator $paginator): self
+    public static function fromPaginator(Paginator|CursorPaginator $paginator): self
     {
         $links = new self;
 
@@ -69,15 +80,12 @@ class PaginationLinks extends GroupedTagBuilder
     }
 
     /**
-     * Overlay these pagination links onto the lower layer.
+     * Replace the lower layer's pagination links.
      */
     public function overlayOn(?TagBuilder $base): static
     {
-        if (! $base instanceof self) {
-            return $this;
-        }
-
-        return new static(array_replace($base->links, $this->links));
+        // Pagination describes one page; merging would retain relations that no longer exist.
+        return $this;
     }
 
     /**
