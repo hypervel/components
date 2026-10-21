@@ -11,16 +11,21 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Events\Dispatcher;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class QueueManagerTest extends TestCase
 {
@@ -172,6 +177,83 @@ class QueueManagerTest extends TestCase
         $manager->setDefaultDriver(QueueConnectionName::Sync);
 
         $this->assertSame('sync', $container->make('config')->get('queue.default'));
+    }
+
+    #[DataProvider('circularConnections')]
+    public function testRejectsCircularFailoverDefinitions(array $connections, string $cycle): void
+    {
+        $manager = $this->getFailoverManager($connections);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('Circular queue connection definition detected: ' . $cycle . '.');
+
+        $manager->connection('main');
+    }
+
+    /**
+     * Provide circular failover configurations.
+     */
+    public static function circularConnections(): array
+    {
+        return [
+            'self' => [[
+                'main' => ['driver' => 'failover', 'connections' => ['main']],
+            ], 'main -> main'],
+            'indirect' => [[
+                'main' => ['driver' => 'failover', 'connections' => ['first']],
+                'first' => ['driver' => 'failover', 'connections' => ['second']],
+                'second' => ['driver' => 'failover', 'connections' => ['first']],
+            ], 'first -> second -> first'],
+        ];
+    }
+
+    public function testNestedFailoverConnectionsCanShareAChild(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['first', 'second']],
+            'first' => ['driver' => 'failover', 'connections' => ['leaf']],
+            'second' => ['driver' => 'failover', 'connections' => ['leaf']],
+            'leaf' => ['driver' => 'null'],
+        ]);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+        $this->assertSame(0, $manager->connection('second')->size());
+    }
+
+    public function testCustomConnectorCanReplaceFailover(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['main']],
+        ]);
+        $manager->extend('failover', fn (): NullConnector => new NullConnector);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+    }
+
+    public function testMissingBackupConnectionRemainsDeferred(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['healthy', 'missing']],
+            'healthy' => ['driver' => 'null'],
+        ]);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+    }
+
+    public function testBackupConnectorFactoryFailureRemainsDeferred(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['healthy', 'backup']],
+            'healthy' => ['driver' => 'null'],
+            'backup' => ['driver' => 'custom', 'connections' => ['remote']],
+        ]);
+        $failure = new RuntimeException('Backup dependency unavailable');
+        $manager->extend('custom', fn () => throw $failure);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+
+        $this->expectExceptionObject($failure);
+        $manager->connection('backup');
     }
 
     public function testAddPoolableConnector(): void
@@ -439,6 +521,20 @@ class QueueManagerTest extends TestCase
         $manager->createPayloadUsing(static fn (string $connection, ?string $queue, array $payload): array => []);
 
         $this->assertFalse($manager->connected('missing'));
+    }
+
+    /**
+     * Create a manager with real failover and null connectors.
+     */
+    protected function getFailoverManager(array $connections): QueueManager
+    {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.connections', $connections);
+        $manager = new QueueManager($container);
+        $manager->addConnector('failover', fn (): FailoverConnector => new FailoverConnector($manager, new Dispatcher($container)));
+        $manager->addConnector('null', fn (): NullConnector => new NullConnector);
+
+        return $manager;
     }
 
     protected function getContainer(): Container

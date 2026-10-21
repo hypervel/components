@@ -15,6 +15,7 @@ use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\FailoverConnector;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -409,10 +410,17 @@ class QueueManager implements FactoryContract, MonitorContract
         }
 
         $constructionConfig = Arr::except($config, ['pool']);
-        $createCallback = fn () => $this->getConnector($config['driver'])
-            ->connect($constructionConfig)
-            ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
-            ->setConfig($constructionConfig);
+        $createCallback = function () use ($config, $constructionConfig): QueueContract {
+            $connector = $this->getConnector($config['driver']);
+
+            if ($connector instanceof FailoverConnector) {
+                $this->ensureConnectionsAreAcyclic($constructionConfig, $config['driver']);
+            }
+
+            return $connector->connect($constructionConfig)
+                ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
+                ->setConfig($constructionConfig);
+        };
 
         if (in_array($config['driver'], $this->poolableDrivers, true)) {
             /** @var QueuePoolProxy $proxy */
@@ -427,6 +435,39 @@ class QueueManager implements FactoryContract, MonitorContract
         }
 
         return $createCallback()->setConnectionName($name);
+    }
+
+    /**
+     * Reject circular definitions owned by the resolved failover connector.
+     *
+     * @param list<string> $path
+     */
+    protected function ensureConnectionsAreAcyclic(array $config, string $driver, array $path = []): void
+    {
+        if (($config['driver'] ?? null) !== $driver || ! is_array($config['connections'] ?? null)) {
+            return;
+        }
+
+        foreach ($config['connections'] as $name) {
+            $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+            $name = $name === null || $name === '' ? $this->getDefaultDriver() : $name;
+
+            if (! is_string($name)) {
+                continue;
+            }
+
+            if (($cycleStart = array_search($name, $path, true)) !== false) {
+                $cycle = [...array_slice($path, $cycleStart), $name];
+
+                throw new InvalidArgumentException(
+                    'Circular queue connection definition detected: ' . implode(' -> ', $cycle) . '.'
+                );
+            }
+
+            if (($child = $this->getConfig($name)) !== null) {
+                $this->ensureConnectionsAreAcyclic($child, $driver, [...$path, $name]);
+            }
+        }
     }
 
     /**
