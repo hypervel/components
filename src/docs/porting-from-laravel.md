@@ -23,6 +23,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [Development Processes](#development-processes)
+    - [Doctor](#doctor)
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
@@ -500,6 +501,11 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 ### Development Processes
 
 For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn. The default server process uses `hypervel/watcher`; Pail is not included. See [The Dev Command](/docs/{{version}}/artisan#the-dev-command).
+
+<a name="doctor"></a>
+### Doctor
+
+Replace `laravel/doctor` with `hypervel/doctor` and the `Laravel\Doctor` namespace with `Hypervel\Doctor`. Rename calls to `EnvironmentMode::fromLaravelEnvironment()` to `fromHypervelEnvironment()`. Remove explicit registrations of `ApplicationTimezoneIsValid`: Hypervel rejects invalid timezones during startup, before Doctor can run. Register custom diagnostics during provider boot, and run programmatic repairs without concurrent application traffic. See [Doctor](/docs/{{version}}/doctor).
 
 <a name="scheduling"></a>
 ### Scheduling
