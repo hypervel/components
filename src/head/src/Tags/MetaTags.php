@@ -190,11 +190,12 @@ class MetaTags extends GroupedTagBuilder
      */
     protected function inertiaKey(array $meta): string
     {
-        if (! isset($meta['media'])) {
+        if (! isset($meta['media'])
+            && $this->resolveAttribute($meta['key'], $meta['property'] ?? null) === $this->resolveAttribute($meta['key'], null)) {
             return self::inertiaAliases()[$meta['key']] ?? $meta['key'];
         }
 
-        return 'meta:' . substr(hash('xxh128', $this->tagKey($meta['key'], $meta['property'] ?? null, $meta['media'])), 0, 16);
+        return 'meta:' . substr(hash('xxh128', $this->tagKey($meta['key'], $meta['property'] ?? null, $meta['media'] ?? null)), 0, 16);
     }
 
     /**

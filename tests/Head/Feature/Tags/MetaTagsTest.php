@@ -8,9 +8,27 @@ use Hypervel\Head\Enums\Media;
 use Hypervel\Head\Facades\Head;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Head\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class MetaTagsTest extends TestCase
 {
+    #[TestWith(['description', false, 'description'])]
+    #[TestWith(['og:title', true, 'og:title'])]
+    #[TestWith(['theme-color', false, 'themeColor'])]
+    public function testInertiaPreservesDistinctMetaAttributes(string $key, bool $property, string $ownership): void
+    {
+        Head::meta($key, 'Inferred', property: $property)
+            ->meta($key, 'Explicit', property: ! $property);
+
+        $elements = Head::toInertiaElements();
+
+        $this->assertCount(2, $elements);
+        $this->assertStringContainsString('data-inertia="' . $ownership . '"', $elements[0]);
+        $this->assertStringContainsString('content="Inferred"', $elements[0]);
+        $this->assertStringContainsString('data-inertia="meta:', $elements[1]);
+        $this->assertStringContainsString('content="Explicit"', $elements[1]);
+    }
+
     public function testRendersGenericMetaTags(): void
     {
         Head::meta('format-detection', 'telephone=no')
