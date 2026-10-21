@@ -6,7 +6,6 @@ namespace Hypervel\Head;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Head\Inertia\Integration as InertiaIntegration;
 use Hypervel\Head\Rendering\HeadRenderer;
 use Hypervel\Head\Routing\HeadRouteMacros;
@@ -63,19 +62,22 @@ class HeadServiceProvider extends ServiceProvider
      */
     protected function registerExceptionStatusResolver(): void
     {
-        $this->callAfterResolving(ExceptionHandler::class, function (object $handler): void {
+        $this->callAfterResolving(ExceptionHandler::class, function (ExceptionHandler $handler): void {
             $head = $this->app->make(HeadManager::class);
 
-            /** @var Handler $handler */
-            $handler->renderable(function (Throwable $exception, Request $request) use ($head): void {
-                $head->status(
-                    $exception instanceof HttpExceptionInterface ? $exception->getStatusCode() : 500
-                );
-            });
+            if (is_callable([$handler, 'renderable'])) {
+                $handler->renderable(function (Throwable $exception, Request $request) use ($head): void {
+                    $head->status(
+                        $exception instanceof HttpExceptionInterface ? $exception->getStatusCode() : 500
+                    );
+                });
+            }
 
-            $handler->beforeResponding(function (Response $response) use ($head): void {
-                $head->status($response->getStatusCode());
-            });
+            if (is_callable([$handler, 'beforeResponding'])) {
+                $handler->beforeResponding(function (Response $response) use ($head): void {
+                    $head->status($response->getStatusCode());
+                });
+            }
         });
     }
 }

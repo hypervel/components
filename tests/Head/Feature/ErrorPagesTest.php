@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Head\Feature;
 use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\MaintenanceMode;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Head\ErrorPages;
 use Hypervel\Head\Facades\Head;
@@ -158,6 +160,21 @@ class ErrorPagesTest extends TestCase
             }],
             'earlier application renderer' => [fn (): Throwable => new HeadEarlyRenderedException],
         ];
+    }
+
+    public function testSharesHeadWhenGlobalMiddlewareRejectsTheRequest(): void
+    {
+        $maintenance = new ArrayMaintenanceMode;
+        $maintenance->activate(['status' => 503]);
+        $this->app->instance(MaintenanceMode::class, $maintenance);
+
+        Head::errors(fn (ErrorPages $errors): ErrorPages => $errors->status(503, title: 'Maintenance'));
+        Inertia::handleExceptionsUsing(fn (ExceptionResponse $response): ExceptionResponse => $response->render('Error'));
+
+        $this->get('/maintenance', ['X-Inertia' => 'true'])
+            ->assertStatus(503)
+            ->assertJsonPath('component', 'Error')
+            ->assertJsonPath('props.head.0', '<title data-inertia="title">Maintenance</title>');
     }
 }
 

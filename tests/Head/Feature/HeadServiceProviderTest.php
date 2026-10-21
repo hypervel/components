@@ -84,4 +84,17 @@ class HeadServiceProviderTest extends TestCase
             ->assertNotFound()
             ->assertSee('<title>Early handler</title>', false);
     }
+
+    public function testSupportsCustomExceptionHandlersWithoutRenderingHooks(): void
+    {
+        $handler = $this->createStub(ExceptionHandler::class);
+        $this->app->singleton(ExceptionHandler::class, fn (): ExceptionHandler => $handler);
+
+        $this->assertSame($handler, $this->app->make(ExceptionHandler::class));
+
+        Head::errors(fn (ErrorPages $errors): ErrorPages => $errors->status(404, title: 'Not found'));
+        Head::status(404);
+
+        $this->assertSame('<title>Not found</title>', Head::toHtml());
+    }
 }

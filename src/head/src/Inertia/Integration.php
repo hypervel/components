@@ -27,7 +27,7 @@ class Integration
      */
     public function register(): void
     {
-        if (! $this->app->providerIsLoaded(InertiaServiceProvider::class)) {
+        if ($this->app->getProviders(InertiaServiceProvider::class) === []) {
             return;
         }
 
@@ -40,14 +40,15 @@ class Integration
      */
     protected function registerMiddleware(): void
     {
-        $push = static function (Kernel $kernel): void {
-            $kernel->pushMiddleware(ShareHead::class);
+        $prepend = static function (Kernel $kernel): void {
+            // Register the lazy prop before global middleware can render an error.
+            $kernel->prependMiddleware(ShareHead::class);
         };
 
-        $this->app->afterResolving(Kernel::class, $push);
+        $this->app->afterResolving(Kernel::class, $prepend);
 
         if ($this->app->resolved(Kernel::class)) {
-            $push($this->app->make(Kernel::class));
+            $prepend($this->app->make(Kernel::class));
         }
     }
 

@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Head\Feature;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Head\Facades\Head;
 use Hypervel\Head\HeadManager;
+use Hypervel\Head\HeadServiceProvider;
 use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\InertiaServiceProvider;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Facades\Route;
@@ -15,6 +17,16 @@ use Hypervel\Tests\Head\TestCase;
 
 class InertiaCustomPropTest extends TestCase
 {
+    /**
+     * Register an application subclass of the Inertia provider.
+     *
+     * @return array<int, class-string>
+     */
+    protected function getPackageProviders(Application $app): array
+    {
+        return [HeadCustomInertiaServiceProvider::class, HeadServiceProvider::class];
+    }
+
     /**
      * Configure a custom shared head prop before providers boot.
      */
@@ -36,4 +48,8 @@ class InertiaCustomPropTest extends TestCase
             ->assertJsonPath('props.head', 'An unrelated app prop')
             ->assertJsonPath('props._head.0', '<title data-inertia="title">Dashboard</title>');
     }
+}
+
+class HeadCustomInertiaServiceProvider extends InertiaServiceProvider
+{
 }
