@@ -1,0 +1,68 @@
+{
+    "name": "hypervel/doctor",
+    "description": "First-party diagnostics for Hypervel applications.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "php",
+        "doctor",
+        "diagnostics",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": "^8.4",
+        "composer-runtime-api": "^2.2",
+        "composer/semver": "^3.5.1",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/process": "^0.4",
+        "hypervel/prompts": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/redis": "^0.4",
+        "hypervel/session": "^0.4",
+        "hypervel/support": "^0.4",
+        "laravel/agent-detector": "^2.0.5",
+        "monolog/monolog": "^3.10",
+        "symfony/console": "^8.1.2",
+        "symfony/finder": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Doctor\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Doctor\\DoctorServiceProvider"
+            ]
+        }
+    }
+}

@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "composer/semver": "^3.4",
+        "composer/semver": "^3.5.1",
         "composer-runtime-api": "^2.2",
         "ext-posix": "*",
         "mockery/mockery": "^1.6.15",
