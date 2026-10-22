@@ -157,6 +157,44 @@ class MigratorCoroutineIsolationTest extends TestCase
         $this->assertStringContainsString('Nothing to migrate', $output->fetch());
     }
 
+    public function testReplacementMigratorDoesNotInheritReleasedInstanceState(): void
+    {
+        run(function (): void {
+            $resolver = m::mock(ConnectionResolverInterface::class);
+            $repository = new DatabaseMigrationRepository($resolver, 'migrations');
+            $files = new Filesystem;
+            $output = new BufferedOutput;
+            $migrator = new Migrator($repository, $resolver, $files);
+            $migrator->setConnection('previous');
+            $migrator->setOutput(new OutputStyle(new ArrayInput([]), $output));
+            unset($migrator);
+
+            $replacement = new Migrator($repository, $resolver, $files);
+
+            $this->assertNull($replacement->getConnection());
+            $replacement->runPending([]);
+            $this->assertSame('', $output->fetch());
+            $replacement->setConnection('replacement');
+            $this->assertSame('replacement', $replacement->getConnection());
+        });
+    }
+
+    public function testReplacementRepositoryDoesNotInheritReleasedInstanceConnection(): void
+    {
+        run(function (): void {
+            $connection = m::mock(Connection::class);
+            $resolver = m::mock(ConnectionResolverInterface::class);
+            $resolver->expects('connection')->with(null)->andReturn($connection);
+            $repository = new DatabaseMigrationRepository($resolver, 'migrations');
+            $repository->setSource('previous');
+            unset($repository);
+
+            $replacement = new DatabaseMigrationRepository($resolver, 'migrations');
+
+            $this->assertSame($connection, $replacement->getConnection());
+        });
+    }
+
     /**
      * Build a real migrator and repository with named connection doubles.
      *

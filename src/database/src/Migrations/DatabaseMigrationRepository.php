@@ -9,6 +9,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Query\Builder;
+use WeakReference;
 
 class DatabaseMigrationRepository implements MigrationRepositoryInterface
 {
@@ -18,12 +19,21 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
      * The name of the database connection to use.
      */
     protected ?string $connection {
-        get => Coroutine::inCoroutine()
-            ? CoroutineContext::get(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this))
-            : $this->nonCoroutineConnection;
+        get {
+            if (! Coroutine::inCoroutine()) {
+                return $this->nonCoroutineConnection;
+            }
+
+            $state = CoroutineContext::get(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this));
+
+            // A released object's ID may be reused while its context entry survives.
+            return $state !== null && $state[0]->get() === $this ? $state[1] : null;
+        }
         set {
             if (Coroutine::inCoroutine()) {
-                CoroutineContext::set(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
+                CoroutineContext::set(self::CONNECTION_CONTEXT_KEY_PREFIX . spl_object_id($this), [
+                    WeakReference::create($this), $value,
+                ]);
             } else {
                 $this->nonCoroutineConnection = $value;
             }

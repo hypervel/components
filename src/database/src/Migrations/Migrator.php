@@ -31,6 +31,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
+use WeakReference;
 
 class Migrator
 {
@@ -908,9 +909,14 @@ class Migrator
      */
     private function currentState(): ?MigratorState
     {
-        return Coroutine::inCoroutine()
-            ? CoroutineContext::get(self::STATE_CONTEXT_KEY_PREFIX . spl_object_id($this))
-            : $this->nonCoroutineState;
+        if (! Coroutine::inCoroutine()) {
+            return $this->nonCoroutineState;
+        }
+
+        $state = CoroutineContext::get(self::STATE_CONTEXT_KEY_PREFIX . spl_object_id($this));
+
+        // A released object's ID may be reused while its context entry survives.
+        return $state?->owner->get() === $this ? $state : null;
     }
 
     /**
@@ -922,7 +928,7 @@ class Migrator
             return $state;
         }
 
-        $state = new MigratorState;
+        $state = new MigratorState(WeakReference::create($this));
 
         if (Coroutine::inCoroutine()) {
             CoroutineContext::set(self::STATE_CONTEXT_KEY_PREFIX . spl_object_id($this), $state);
