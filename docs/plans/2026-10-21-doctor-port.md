@@ -6,10 +6,7 @@ Target branch: `feature/doctor`, based on `0.4`. All paths below are relative to
 
 This is a new package port plus the framework corrections described below. Implementation, the timezone architectural adaptation, and the shared Redis requirements API are authorized. API-compatible correctness fixes and their supporting refactors do not need separate approval, including those in other framework packages. This plan alone does not authorize staging, committing, or pushing.
 
-The package and diagnostic, repair, and framework corrections are implemented and verified. Remaining work:
-
-- Audit the entire package independently against framework consumers, including repair persistence and test expectations; resolve findings before pushing.
-- Complete both repositories' CI and review workflows before merging.
+The package and diagnostic, repair, and framework corrections are implemented and verified. The independent package audit and review of its corrections are complete. Remaining work: complete both repositories' CI and review workflows before merging.
 
 The additive `config:show --json`, `Migrator::getPendingMigrations()`, and `DotenvManager::getLoadedVariableNames()` APIs are approved. Preserve existing command behavior and protected extension points.
 
@@ -89,6 +86,8 @@ if ($this->input()->boolean('fix')) {
 Thus `--fix` applies unambiguous fixes and skips choice-based fixes even with interactive input; an explicit interactive run can still choose an option. Do not select a store on the user's behalf.
 
 Before prompting without `--fix`, require both interactive command input and interactive Prompts state; piped input must not accept a repair automatically. Preserve numeric fix-option keys when adding the decline choice, and pass the selected key as a string.
+
+Write JSON, agent JSON, and GitHub annotations as raw console output so diagnostic text retains literal markup and backslashes, including with decorated output. Apply the same correction to `route:list --json`, `queue:monitor --json`, `queue:failed --json`, and queue-worker JSON pause/resume events; preserve human formatting.
 
 Keep upstream repairs and scope restrictions, translating commands to Hypervel. `make:cache-table` is canonical. Scheduler advice uses Hypervel's long-running `schedule:run`; do not recommend nonexistent `schedule:work` or an every-minute launcher for the long-running command. Background/deferred queues pass the asynchronous diagnostic in both environment modes with in-process coroutine wording and no worker advice; ordinary external queues retain worker advice. Apply this to the first concrete failover child as well.
 
@@ -220,7 +219,7 @@ The new diagnostic skips when no Redis connection is active. Otherwise check the
 
 Use application-owned path APIs: `config_path`, `storage_path`, `database_path`, and selected environment path/file. Avoid reconstructing them from `base_path`.
 
-- `ConfigurationFilesCanBeLoaded`: recursively inspect nested PHP config files as `LoadConfiguration` does; preserve file attribution. Rethrow cancellation from both file evaluation and the enclosing diagnostic catch. Do not instantiate a second application or duplicate the loader.
+- `ConfigurationFilesCanBeLoaded`: recursively inspect nested PHP config files as `LoadConfiguration` does; evaluate each file in a closure so its local variables cannot corrupt diagnostic state or failure attribution. Rethrow cancellation from both file evaluation and the enclosing diagnostic catch. Do not instantiate a second application or duplicate the loader.
 - `ConfigurationCanBeCached`: validate `eval('return ' . var_export($configuration, true) . ';')` instead of writing and requiring a unique temporary file. This preserves `__set_state` validation while removing filesystem work and scripts retained by CLI OPcache across programmatic runs. Preserve detailed serialization errors; remove the obsolete temp-file helper, imports and cleanup. The framework's cache-building command already uses eval for per-value error diagnosis; its main validation runs in a fresh subprocess, so it does not need this worker-lifetime fix.
 - Attribute serialization failures by evaluating flattened values, matching `ConfigCacheCommand`; do not reject every object or maintain an allowed-object list. Preserve the actual failure's key and cause. Pass through cancellation from export evaluation and failure attribution.
 - `Configured`: generic getters are intentional where the diagnostic must recognize missing/malformed/union values. Use typed getters for genuinely fixed-type configuration, not to bypass a diagnostic's error reporting.
@@ -242,11 +241,11 @@ Application-key generation, debug-mode repair, and cache-default selection must 
 - Preserve normal environment inheritance in Foundation's configuration and route cache builders. Forward explicit `--env` from process argv into both build children, including nested Artisan calls; retain their existing cache-path and autoloader overrides.
 - Add `config:show --json` for a section or individual key, preserving JSON value types and existing missing-key behavior. Normal output is unchanged.
 - After writing the selected environment file, run `config:cache` in a clean child only if its cache file currently exists, then read the exact key through a clean `config:show --json` child. This also supports maintenance commands that build a cache after an uncached boot and then invoke Doctor programmatically. `configurationIsCached()` records this application's boot state and must not decide whether a maintenance operation rebuilds the current file. A failed command or mismatched value fails the repair. Update current config from the verified value, including restoring a mismatched fresh app key after `key:generate` changed memory. Never print secret values in failure details.
-- Recheck an existing application key before generating, so stale fix results cannot rotate a key. Extend the owning `KeyGenerateCommand` replacement pattern to handle exported assignments while preserving the protected hook and matching the current key.
+- Recheck an existing application key before generating, so stale fix results cannot rotate a key. Extend the owning `KeyGenerateCommand` replacement pattern to handle exported assignments while preserving the protected hook and matching the current key. Accept and preserve trailing whitespace and comments ignored by dotenv without matching a different or longer key.
 - Document `server:reload` or restart after deployment-setting changes; do not restart workers automatically.
 - At worker start, `ReloadDotenvAndConfig` skips dotenv reload when the configuration cache file currently exists, and loads dotenv when that file has been removed. Preserve the memoized application API and existing config rebuild/replay. Do not flush inherited dotenv values: that would change cache-path resolution when `APP_CONFIG_CACHE` came from the file. Document that, when an uncached master switches to cached workers, a full restart removes inherited dotenv values visible through runtime `env()` calls; cached configuration itself takes effect on worker reload.
 
-Composer autoload inspection uses `dump-autoload --dry-run --no-scripts`, since dry-run alone still executes pre-autoload scripts. Keep scripts enabled for the explicit repair.
+Composer autoload inspection uses `dump-autoload --dry-run --no-scripts`, since dry-run alone still executes pre-autoload scripts. Keep scripts enabled for the explicit repair. Composer lock and autoload repairs run without a process timeout, matching the framework's Composer commands; inspection processes retain their existing bounds.
 
 ### Subprocess inheritance and server bootstrap
 
@@ -317,7 +316,7 @@ For required extensions, follow Composer's platform normalization:
 - A real loaded version is one candidate; each provider/replacement is another. Compare real versions with `Semver::satisfies()`. Provider/replacement links are ranges, not versions: parse both link and requirement with `VersionParser::parseConstraints()` and compare with `matches()`, as Composer does. Resolve `self.version` to the providing package's exact version constraint. One candidate must match every requiring constraint for that platform package. Do not demand a physical extension when a valid Composer provider satisfies the graph.
 - Report the loaded version or absence, requiring package names, and unmet constraints. Do not compare against duplicated Swoole literals.
 
-`PhpVersionSatisfiesComposerRequirement` uses the same snapshot for all `php` constraints, including upper bounds. Check actual `PHP_VERSION`, not `config.platform` emulation. Skip only if no applicable PHP requirement exists. Preserve message codes but update summaries/details to name requiring packages and constraints. Recommend a compatible PHP or dependency version; do not tell users to edit the root constraint to resolve a dependency's requirement. No Composer subprocess or dependency solver is needed.
+`PhpVersionSatisfiesComposerRequirement` uses the same snapshot for all `php` constraints, including upper bounds. Check actual `PHP_VERSION`, not `config.platform` emulation. Normalize once using Composer's version parser; only if normalization fails, strip the distribution suffix at the first `~`, `+`, or `-` and normalize again. Preserve valid prereleases and display the original version. Skip only if no applicable PHP requirement exists. Preserve message codes but update summaries/details to name requiring packages and constraints. Recommend a compatible PHP or dependency version; do not tell users to edit the root constraint to resolve a dependency's requirement. No Composer subprocess or dependency solver is needed.
 
 Fresh metadata matters: `ComposerLockIsFresh` can install/update packages, and the post-fix check must see that new graph even when root composer.json is unchanged. Do not add a worker cache plus invalidation mechanism for this small per-run read.
 
@@ -352,7 +351,9 @@ Keep all applicable upstream coverage. Add regressions to the corresponding upst
 | Platform | Root-only operation, installed dependencies, dev versus no-dev, exclusion of dependency require-dev, providers/replacements including self.version, actual version constraints and normalization, PHP upper bounds, missing metadata, nondefault vendor path, and changed installed metadata on the post-fix pass. Use fixture installed.json/installed.php through protected vendorPath override. |
 | Shared constants | Constructor/factory/generator/config agree with the owning cache/session defaults. Extend existing behavioral tests rather than asserting every literal at every caller. |
 
-Inspect existing coverage before adding files. Do not retest `makeTransient` binding semantics already covered by container tests, add production test seams, or assert incidental helper call counts. Network-call avoidance is verified through inactive/unsupported cases that must succeed without a server, not by mirroring the implementation's loop counts.
+Inspect existing coverage before adding files. Do not retest `makeTransient` binding semantics already covered by container tests, add speculative production test seams, or assert incidental helper call counts. Network-call avoidance is verified through inactive/unsupported cases that must succeed without a server, not by mirroring the implementation's loop counts.
+
+Audit regressions cover literal markup and backslashes through actual machine-output commands, config files declaring local variables before failure, distro PHP versions and valid prereleases, unlimited Composer repair timeouts through existing process assertions, and trailing dotenv key comments/whitespace through the existing key-generation provider. Keep documentation output examples consistent with the renderer and diagnostic messages.
 
 Correction coverage must exercise real boundaries: fresh application boots for repaired settings in cached/uncached and explicit-environment modes; external overrides and config that ignores the written variable; actual cache migration generation against SQLite, including partially missing and recorded-but-dropped tables; supported mail factory precedence and URLs; read-only remote queue operations and absent Beanstalkd tubes; enum/default wrapper names and failover events; piped CLI input and numeric option keys; exported/stale app keys; SQLite creation races; preserved directory modes; nested cancellation and actual serialization-error attribution. Correct test expectations that contradict owning factories instead of preserving copied upstream assumptions.
 

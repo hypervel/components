@@ -507,7 +507,7 @@ php artisan doctor --format=github
 When Doctor detects that it is running inside an AI coding agent such as Claude Code or Cursor — using [Laravel Agent Detector](https://github.com/laravel/agent-detector) — it defaults to an agent-optimized format instead of CLI output. The format follows the [Laravel PAO](https://github.com/laravel/pao) convention: a single line of JSON with aggregate counts up front and only actionable outcomes itemized, letting agents use Doctor as a minimal, parseable completion gate:
 
 ```json
-{"tool":"doctor","result":"failed","diagnostics":27,"failed":1,"warnings":1,"notices":0,"passed":19,"skipped":6,"issues":[{"name":".env file exists","status":"fail","summary":"The application does not have an environment file.","fix":"Run `cp .env.example .env`, then review the copied values.","fixable":true}]}
+{"tool":"doctor","result":"failed","diagnostics":27,"failed":1,"warnings":0,"notices":0,"passed":20,"skipped":6,"issues":[{"name":".env file exists","status":"fail","summary":"The selected environment file [/var/www/app/.env] does not exist.","fix":"Copy [/var/www/app/.env.example] to [/var/www/app/.env], then review the copied values.","fixable":true,"links":{"Configuration documentation":"https://hypervel.org/docs/configuration#environment-configuration"}}]}
 ```
 
 Issues marked `fixable` may be fixed by re-running Doctor with `--fix`, which applies every available deterministic fix, re-runs the diagnostics, and appends the fix outcomes to the payload. Issues that carry an `options` map instead of the `fixable` flag require a choice `--fix` will not make: the agent should apply the change itself following the issue's `fix` remediation, or escalate the shortlist of options to a human.
