@@ -81,6 +81,36 @@ class SqliteDatabaseExistsTest extends TestCase
         ];
     }
 
+    #[DataProvider('splitDatabaseRoles')]
+    public function testInspectsAndRepairsTheSelectedSplitDatabase(string $suffix, string $database): void
+    {
+        config([
+            'database.default' => 'testing' . $suffix,
+            'database.connections.testing' => [
+                'driver' => 'sqlite', 'database' => $this->basePath . '/base.sqlite',
+                'write' => ['database' => $this->basePath . '/writer.sqlite'],
+                'read' => ['database' => $this->basePath . '/reader.sqlite'],
+            ],
+        ]);
+        $diagnostic = new SqliteDatabaseExists;
+        $result = $diagnostic->check();
+
+        $this->assertSame('sqlite-database-exists.missing', $result->code);
+        $this->assertSame($this->basePath . '/' . $database, $result->context['database']);
+        $this->assertSame('pass', $diagnostic->fix($result)->status->value);
+        $this->assertFileExists($this->basePath . '/' . $database);
+        $this->assertFileDoesNotExist($this->basePath . '/base.sqlite');
+        $this->assertSame('pass', $diagnostic->check()->status->value);
+    }
+
+    /**
+     * Provide selected database roles and their effective paths.
+     */
+    public static function splitDatabaseRoles(): array
+    {
+        return [['', 'writer.sqlite'], ['::write', 'writer.sqlite'], ['::read', 'reader.sqlite']];
+    }
+
     public function testReportsAMissingSqliteDatabaseFileAndCarriesThePathToTheFix(): void
     {
         $basePath = $this->basePath;

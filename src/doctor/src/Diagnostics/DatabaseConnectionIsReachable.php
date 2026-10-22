@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
@@ -51,14 +54,20 @@ class DatabaseConnectionIsReachable extends Diagnostic
             return $this->skip('not-configured');
         }
 
-        $configuration = $this->configuration($connection);
+        $name = ConnectionName::parse($connection);
+        $configuration = $this->configuration($name->base);
 
         if ($configuration === null) {
             return $this->skip('connection-missing', ['connection' => $connection]);
         }
 
         try {
-            $this->probe($connection, $configuration);
+            $failures = $this->probe($name, $configuration);
+
+            if ($failures !== []) {
+                return $this->fail('unreachable', ['connection' => $connection])
+                    ->withDetails(implode(PHP_EOL, $failures));
+            }
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $e) {
@@ -70,23 +79,92 @@ class DatabaseConnectionIsReachable extends Diagnostic
     }
 
     /**
-     * Probe the database connection.
+     * Probe every record the selected connection can use.
      *
      * @param array<string, mixed> $configuration
+     * @return list<string>
      */
-    private function probe(string $connection, array $configuration): void
+    private function probe(ConnectionName $name, array $configuration): array
     {
         /** @var ConnectionFactory $factory */
         $factory = app('db.factory');
-        $database = $factory->make(
-            $this->withConnectionTimeout($configuration),
-            $connection,
-        );
+        $failures = [];
+
+        foreach ($this->probeConfigurations($factory, $name, $configuration) as $label => [$selected, $read]) {
+            try {
+                $this->probeConnection($factory, $name->base, $selected, $read);
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
+                $failures[] = ($label === '' ? '' : "[{$label}] ") . $exception->getMessage();
+            }
+        }
+
+        return $failures;
+    }
+
+    /**
+     * Select records without changing the factory's extension resolution path.
+     *
+     * @return iterable<string, array{array<string, mixed>, bool}>
+     */
+    private function probeConfigurations(ConnectionFactory $factory, ConnectionName $name, array $configuration): iterable
+    {
+        $extension = $factory->getExtension($configuration, $name->base);
+
+        if ($extension !== null || ! $factory->hasReadConfig($configuration)) {
+            if ($name->role !== null) {
+                $configuration[Connection::READ_WRITE_TYPE_CONFIG_KEY] = $name->role;
+            }
+
+            yield '' => [$extension !== null ? $configuration : $this->withConnectionTimeout($configuration), false];
+
+            return;
+        }
+
+        foreach ($name->role !== null ? [$name->role] : [ConnectionName::WRITE, ConnectionName::READ] as $role) {
+            $records = isset($configuration[$role][0]) ? $configuration[$role] : [$configuration[$role]];
+
+            foreach (array_values($records) as $index => $record) {
+                $selected = array_replace($configuration, [$role => $record]);
+                $effective = $role === ConnectionName::READ
+                    ? $factory->configForRead($selected)
+                    : $factory->configForWrite($selected);
+
+                if ($name->isRead()) {
+                    $selected = $factory->getExtension($effective, $name->base) !== null
+                        ? $effective
+                        : $this->withConnectionTimeout($effective);
+                } else {
+                    // Base split connections resolve read connectors without another extension lookup.
+                    $selected[$role]['options'] = $this->withConnectionTimeout($effective)['options'];
+                }
+
+                if ($name->role !== null) {
+                    $selected[Connection::READ_WRITE_TYPE_CONFIG_KEY] = $name->role;
+                }
+
+                yield $role . ' record ' . ($index + 1) => [$selected, $name->role === null && $role === ConnectionName::READ];
+            }
+        }
+    }
+
+    /**
+     * Open and release a transient connection through its owning factory.
+     */
+    private function probeConnection(ConnectionFactory $factory, string $name, array $configuration, bool $read): void
+    {
+        $database = $factory->make($configuration, $name);
 
         $failure = null;
 
         try {
-            $database->getServerVersion();
+            if ($read) {
+                /** @var PdoConnection $database */
+                $database->getReadPdo();
+            } else {
+                $database->getServerVersion();
+            }
         } catch (Throwable $exception) {
             $failure = $exception;
         } finally {
@@ -133,7 +211,7 @@ class DatabaseConnectionIsReachable extends Diagnostic
         $options = $configuration['options'] ?? [];
 
         if (! is_array($options)) {
-            $options = [];
+            return $configuration;
         }
 
         $options[PDO::ATTR_TIMEOUT] ??= self::CONNECTION_TIMEOUT_SECONDS;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Database\ConnectionName;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Diagnostic;
@@ -49,13 +51,22 @@ class SqliteDatabaseExists extends Diagnostic implements Fixable
     public function check(): DiagnosticResult
     {
         $connection = Configured::string('database.default');
-        $configuration = $connection === null ? null : config("database.connections.{$connection}");
+        $name = $connection === null ? null : ConnectionName::parse($connection);
+        $configuration = $name === null ? null : config("database.connections.{$name->base}");
 
         if (! is_array($configuration)) {
             return $this->skip('not-sqlite');
         }
 
-        $configuration = app('db.factory')->parseConfig($configuration, $connection);
+        /** @var ConnectionFactory $factory */
+        $factory = app('db.factory');
+        $configuration = $factory->parseConfig($configuration, $name->base);
+
+        if ($factory->hasReadConfig($configuration) && $factory->getExtension($configuration, $name->base) === null) {
+            $configuration = $name->isRead()
+                ? $factory->configForRead($configuration)
+                : $factory->configForWrite($configuration);
+        }
 
         if (($configuration['driver'] ?? null) !== 'sqlite') {
             return $this->skip('not-sqlite');
