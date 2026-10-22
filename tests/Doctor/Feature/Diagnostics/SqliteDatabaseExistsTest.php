@@ -150,4 +150,26 @@ class SqliteDatabaseExistsTest extends TestCase
         $this->assertSame('pass', $result->status->value);
         $this->assertSame($database, $result->context['database']);
     }
+
+    public function testRepairPreservesAFileCreatedAfterItsInitialCheck(): void
+    {
+        $database = $this->basePath . '/database.sqlite';
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => $database,
+        ]);
+        $diagnostic = new SqliteDatabaseExists;
+        $result = $diagnostic->check();
+
+        File::partialMock()->shouldReceive('ensureDirectoryExists')
+            ->once()->with($this->basePath)
+            ->andReturnUsing(function () use ($database): void {
+                file_put_contents($database, 'database created by another process');
+            });
+
+        $fix = $diagnostic->fix($result);
+
+        $this->assertSame('sqlite-database-exists.fix.already-exists', $fix->code);
+        $this->assertSame('database created by another process', file_get_contents($database));
+    }
 }

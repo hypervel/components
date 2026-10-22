@@ -99,9 +99,15 @@ class SqliteDatabaseExists extends Diagnostic implements Fixable
 
         File::ensureDirectoryExists(dirname($database));
 
-        if (File::put($database, '') === false) {
-            return $this->fixFailed('creation-failed');
+        $handle = @fopen($database, 'x');
+
+        if ($handle === false) {
+            return is_file($database)
+                ? $this->fixed('already-exists')
+                : $this->fixFailed('creation-failed');
         }
+
+        fclose($handle);
 
         return $this->fixed('created');
     }
