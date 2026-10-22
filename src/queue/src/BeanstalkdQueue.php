@@ -14,10 +14,12 @@ use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
+use Pheanstalk\Exception\TubeNotFoundException;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\JobId;
 use Pheanstalk\Values\TubeName;
+use Pheanstalk\Values\TubeStats;
 use UnitEnum;
 
 class BeanstalkdQueue extends Queue implements QueueContract
@@ -45,7 +47,11 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function size(UnitEnum|string|null $queue = null): int
     {
-        $stats = $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)));
+        $stats = $this->tubeStats($queue);
+
+        if ($stats === null) {
+            return 0;
+        }
 
         return $stats->currentJobsReady
             + $stats->currentJobsDelayed
@@ -57,7 +63,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function pendingSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReady;
+        return $this->tubeStats($queue)->currentJobsReady ?? 0;
     }
 
     /**
@@ -65,7 +71,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function delayedSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsDelayed;
+        return $this->tubeStats($queue)->currentJobsDelayed ?? 0;
     }
 
     /**
@@ -73,7 +79,19 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function reservedSize(UnitEnum|string|null $queue = null): int
     {
-        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReserved;
+        return $this->tubeStats($queue)->currentJobsReserved ?? 0;
+    }
+
+    /**
+     * Get tube statistics, treating a tube that has not been created as empty.
+     */
+    protected function tubeStats(UnitEnum|string|null $queue): ?TubeStats
+    {
+        try {
+            return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)));
+        } catch (TubeNotFoundException) {
+            return null;
+        }
     }
 
     /**
