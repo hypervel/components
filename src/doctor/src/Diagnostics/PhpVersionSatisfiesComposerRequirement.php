@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Doctor\Diagnostics;
 
 use Composer\Semver\Semver;
+use Composer\Semver\VersionParser;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\ComposerJson;
 use Hypervel\Doctor\Support\InstalledPackages;
+use UnexpectedValueException;
 
 class PhpVersionSatisfiesComposerRequirement extends Diagnostic
 {
@@ -54,10 +56,20 @@ class PhpVersionSatisfiesComposerRequirement extends Diagnostic
             return $this->skip('constraint-missing');
         }
 
+        $version = $this->phpVersion();
+        $parser = new VersionParser;
+
+        try {
+            $normalized = $parser->normalize($version);
+        } catch (UnexpectedValueException) {
+            // Composer strips distribution suffixes only when the version is otherwise invalid.
+            $normalized = $parser->normalize(preg_replace('#^([^~+-]+).*$#', '$1', $version));
+        }
+
         $unsatisfied = [];
 
         foreach ($requirements as $package => $constraint) {
-            if (! Semver::satisfies(PHP_VERSION, $constraint)) {
+            if (! Semver::satisfies($normalized, $constraint)) {
                 $unsatisfied[] = "- {$package} requires php {$constraint}.";
             }
         }
@@ -67,7 +79,15 @@ class PhpVersionSatisfiesComposerRequirement extends Diagnostic
         }
 
         return $this->fail('unsatisfied', [
-            'version' => PHP_VERSION,
+            'version' => $version,
         ])->withDetails(implode(PHP_EOL, $unsatisfied));
+    }
+
+    /**
+     * Get the running PHP interpreter's version.
+     */
+    protected function phpVersion(): string
+    {
+        return PHP_VERSION;
     }
 }

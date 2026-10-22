@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
 use Hypervel\Doctor\Diagnostics\PhpVersionSatisfiesComposerRequirement;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Doctor\Support\ComposerJson;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
@@ -101,5 +102,50 @@ class PhpVersionSatisfiesComposerRequirementTest extends TestCase
         ]], JSON_THROW_ON_ERROR));
 
         $this->assertSame('pass', $diagnostic->check()->status->value);
+    }
+
+    #[DataProvider('phpVersions')]
+    public function testChecksDistributionAndPrereleaseVersions(string $version, string $constraint, string $status): void
+    {
+        file_put_contents($this->basePath . '/composer.json', json_encode([
+            'require' => ['php' => $constraint],
+        ], JSON_THROW_ON_ERROR));
+
+        $diagnostic = new class($this->app->make(ComposerJson::class)) extends PhpVersionSatisfiesComposerRequirement {
+            public string $version;
+
+            /**
+             * Supply a platform version independently of the test runner's PHP build.
+             */
+            protected function phpVersion(): string
+            {
+                return $this->version;
+            }
+        };
+        $diagnostic->version = $version;
+
+        $result = $diagnostic->check();
+
+        $this->assertSame($status, $result->status->value);
+
+        if ($status === 'fail') {
+            $this->assertSame("PHP {$version} does not satisfy the application or installed package requirements.", $result->summary);
+            $this->assertSame("- root requires php {$constraint}.", $result->details);
+        }
+    }
+
+    /**
+     * Provide distribution suffixes and prereleases with meaningful version constraints.
+     */
+    public static function phpVersions(): array
+    {
+        return [
+            'Ubuntu build passes' => ['8.4.12-1ubuntu2.14', '^8.4', 'pass'],
+            'Ubuntu build fails upper bound' => ['8.4.12-1ubuntu2.14', '<8.4', 'fail'],
+            'Sury build passes' => ['8.4.12-1+ubuntu24.04.1+deb.sury.org+1', '^8.4', 'pass'],
+            'Sury build fails upper bound' => ['8.4.12-1+ubuntu24.04.1+deb.sury.org+1', '<8.4', 'fail'],
+            'development version is not the stable release' => ['8.4.0-dev', '8.4.0', 'fail'],
+            'development version satisfies its own constraint' => ['8.4.0-dev', '8.4.0-dev', 'pass'],
+        ];
     }
 }
