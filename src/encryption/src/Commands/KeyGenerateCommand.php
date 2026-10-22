@@ -126,7 +126,7 @@ class KeyGenerateCommand extends Command
     {
         $escaped = preg_quote($this->hypervel->make('config')->get('app.key') ?? '', '/');
 
-        return "/^APP_KEY=([\"']?){$escaped}\\1(?=\\r?$)/m";
+        return "/^(?:[ \\t]*export[ \\t]+)?\\KAPP_KEY=([\"']?){$escaped}\\1(?=\\r?$)/m";
     }
 
     /**
