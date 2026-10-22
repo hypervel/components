@@ -19,6 +19,7 @@ use Hypervel\Doctor\Results\Status;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Logger;
 use Laravel\AgentDetector\AgentDetector;
+use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\info;
@@ -170,7 +171,7 @@ class DoctorCommand extends Command
     {
         $report = $this->runner($doctor)->run();
 
-        $this->line(json_encode($report, JSON_THROW_ON_ERROR));
+        $this->output->writeln(json_encode($report, JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
 
         return $this->exitCode($report, $failOn);
     }
@@ -185,7 +186,7 @@ class DoctorCommand extends Command
         $report = $this->runner($doctor)->run();
 
         foreach ((new GithubRenderer)->annotations($report) as $annotation) {
-            $this->line($annotation);
+            $this->output->writeln($annotation, OutputInterface::OUTPUT_RAW);
         }
 
         return $this->exitCode($report, $failOn);
@@ -204,7 +205,7 @@ class DoctorCommand extends Command
             ))
             ->run();
 
-        $this->line((new AgentRenderer)->render($report));
+        $this->output->writeln((new AgentRenderer)->render($report), OutputInterface::OUTPUT_RAW);
 
         return $this->exitCode($report, $failOn);
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Doctor\Feature;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Doctor\Console\DoctorCommand;
+use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Diagnostics\ApplicationKeyIsSet;
 use Hypervel\Doctor\Diagnostics\BootstrapCacheMatchesEnvironment;
 use Hypervel\Doctor\Diagnostics\CacheStoreIsReachable;
@@ -522,6 +523,54 @@ class DoctorServiceProviderTest extends TestCase
         $this->assertStringNotContainsString('Related links guide', $contents);
         $this->assertStringNotContainsString('Links', $contents);
         $this->assertSame(0, $exitCode);
+    }
+
+    #[DataProvider('machineOutputFormats')]
+    public function testMachineOutputPreservesLiteralDiagnosticText(string $format, bool $decorated): void
+    {
+        $diagnostic = new class extends Diagnostic {
+            public string $group = 'testing';
+
+            /**
+             * Report literal text that resembles console formatting.
+             */
+            public function check(): DiagnosticResult
+            {
+                return DiagnosticResult::fail('<info>Literal\path</info> \<error>message</error>');
+            }
+        };
+        Doctor::diagnostic($diagnostic::class);
+        $output = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, $decorated);
+
+        $exitCode = $this->app->make(Kernel::class)->call('doctor', [
+            '--only' => 'testing',
+            '--format' => $format,
+        ], $output);
+        $contents = $output->fetch();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringNotContainsString("\033[", $contents);
+
+        if ($format === 'github') {
+            $this->assertStringContainsString($diagnostic->check()->summary, $contents);
+
+            return;
+        }
+
+        $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($diagnostic->check()->summary, $payload[$format === 'json' ? 'diagnostics' : 'issues'][0]['summary']);
+    }
+
+    /**
+     * Provide machine formats with both terminal output modes.
+     */
+    public static function machineOutputFormats(): array
+    {
+        return [
+            ['json', false], ['json', true],
+            ['agent', false], ['agent', true],
+            ['github', false], ['github', true],
+        ];
     }
 
     public function testRendersDiagnosticLinksInJsonOutput(): void
