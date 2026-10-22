@@ -23,6 +23,8 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 {
     use InteractsWithTime;
 
+    public const string DEFAULT_LOCK_TABLE = 'cache_locks';
+
     /**
      * The database connection resolver.
      */
@@ -81,7 +83,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         ?string $connectionName,
         string $table,
         string $prefix = '',
-        string $lockTable = 'cache_locks',
+        string $lockTable = self::DEFAULT_LOCK_TABLE,
         array $lockLottery = [2, 100],
         int $defaultLockTimeoutInSeconds = 86400,
         array|bool|null $serializableClasses = null,

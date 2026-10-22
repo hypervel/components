@@ -5,16 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
+use Hypervel\Redis\RedisRequirements;
 
 /**
  * Checks that PHPRedis is installed with the version required by the tag mode.
  */
 final class PhpRedisCheck implements EnvironmentCheckInterface
 {
-    private const string MINIMUM_VERSION = '6.1.0';
-
-    private const string ANY_TAG_MINIMUM_VERSION = '6.3.0';
-
     private ?string $installedVersion = null;
 
     /**
@@ -84,7 +81,7 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
     private function requiredVersion(): string
     {
         return $this->taggingMode === 'any'
-            ? self::ANY_TAG_MINIMUM_VERSION
-            : self::MINIMUM_VERSION;
+            ? RedisRequirements::HASH_FIELD_EXPIRATION_PHPREDIS_VERSION
+            : RedisRequirements::MINIMUM_PHPREDIS_VERSION;
     }
 }

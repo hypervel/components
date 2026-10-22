@@ -226,6 +226,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      * Run an Artisan console command by name.
      *
      * @throws CommandNotFoundException
+     * @throws Throwable when command execution fails
      */
     public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {

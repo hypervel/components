@@ -22,6 +22,8 @@ use function Hypervel\Support\enum_value;
  */
 class SessionManager extends Manager
 {
+    public const string DEFAULT_REDIS_CONNECTION = 'session';
+
     /**
      * Call a custom driver creator.
      */
@@ -112,7 +114,7 @@ class SessionManager extends Manager
         $connection = $this->config->get('session.connection');
 
         if ($connection === null || $connection === '') {
-            $connection = 'session';
+            $connection = self::DEFAULT_REDIS_CONNECTION;
         }
 
         return $this->buildSession(new RedisSessionHandler(

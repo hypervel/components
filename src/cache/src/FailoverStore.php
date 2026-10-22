@@ -19,6 +19,7 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
+use WeakReference;
 
 use function Hypervel\Support\enum_value;
 
@@ -27,8 +28,8 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
     /**
      * Context key prefix for the caches which failed on the last action.
      *
-     * Scoped per instance via spl_object_id() so multiple failover stores
-     * in the same coroutine don't share failure history.
+     * Entries pair a weak owner with its failure list. A dead or different owner
+     * means no history, since released object IDs may be reused within a coroutine.
      *
      * Stored in coroutine Context instead of an instance property because this
      * store is a worker-lifetime singleton (cached in CacheManager::$stores).
@@ -348,8 +349,7 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
     protected function attemptOnAllStores(Closure|string $method, array $arguments = []): mixed
     {
         $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
-
-        $failingCaches = CoroutineContext::get($contextKey, []);
+        $failingCaches = $this->failingCaches($contextKey);
 
         [$lastException, $failedCaches] = [null, []];
 
@@ -382,7 +382,7 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
                 }
             }
         } finally {
-            CoroutineContext::set($contextKey, $failedCaches);
+            $this->rememberFailingCaches($contextKey, $failedCaches);
         }
 
         throw $lastException ?? new RuntimeException('All failover cache stores failed.');
@@ -396,7 +396,7 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
     protected function attemptOnEveryStore(string $method, array $arguments): array
     {
         $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
-        $failingCaches = CoroutineContext::get($contextKey, []);
+        $failingCaches = $this->failingCaches($contextKey);
         $results = [];
         $lastException = null;
         $failedCaches = [];
@@ -425,10 +425,32 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
                 }
             }
         } finally {
-            CoroutineContext::set($contextKey, $failedCaches);
+            $this->rememberFailingCaches($contextKey, $failedCaches);
         }
 
         return [$results, $lastException];
+    }
+
+    /**
+     * Get failure history belonging to this store instance.
+     *
+     * @return list<string>
+     */
+    private function failingCaches(string $contextKey): array
+    {
+        $state = CoroutineContext::get($contextKey);
+
+        return $state !== null && $state[0]->get() === $this ? $state[1] : [];
+    }
+
+    /**
+     * Remember the stores that failed during the current operation.
+     *
+     * @param list<string> $failedCaches
+     */
+    private function rememberFailingCaches(string $contextKey, array $failedCaches): void
+    {
+        CoroutineContext::set($contextKey, [WeakReference::create($this), $failedCaches]);
     }
 
     /**

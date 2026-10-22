@@ -86,23 +86,26 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
-    public function testPushFailsOverOnException(): void
+    #[DataProvider('failedConnectionNames')]
+    public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
         $queue = m::mock(QueueManager::class);
         $events = m::mock(DispatcherContract::class);
         $failover = new FailoverQueue($queue, $events, [
-            'redis',
+            $connection,
             'sync',
         ]);
 
         $redis = m::mock(RedisQueue::class);
-        $queue->expects('connection')->with('redis')->andReturn($redis);
+        $queue->expects('connection')->with($connection)->andReturn($redis);
 
         $sync = m::mock(SyncQueue::class);
         $queue->expects('connection')->with('sync')->andReturn($sync);
 
         $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch');
+        $events->expects('dispatch')->with(m::on(
+            fn (QueueFailedOver $event): bool => $event->connectionName === $expectedName,
+        ));
 
         $redis->expects('push')->andReturnUsing(
             fn (): never => throw new Exception('error')
@@ -111,6 +114,39 @@ class FailoverQueueTest extends TestCase
         $sync->expects('push');
 
         $failover->push('some-job');
+    }
+
+    /**
+     * Provide supported failover connection names.
+     */
+    public static function failedConnectionNames(): array
+    {
+        return [
+            'named connection' => ['redis', 'redis'],
+            'enum connection' => [IntegerQueueName::Zero, '0'],
+            'default connection' => [null, null],
+        ];
+    }
+
+    public function testReplacementQueueReportsItsOwnFirstFailure(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $primary = m::mock(Queue::class);
+        $secondary = m::mock(Queue::class);
+        $primary->allows('push')->andThrow(new RuntimeException('Primary unavailable.'));
+        $secondary->allows('push')->andReturn('job-id');
+        $manager->allows('connection')->with('primary')->andReturn($primary);
+        $manager->allows('connection')->with('secondary')->andReturn($secondary);
+        $events->allows('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->twice()->with(m::type(QueueFailedOver::class));
+
+        $queue = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $queue->push('job'));
+        unset($queue);
+
+        $replacement = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $replacement->push('job'));
     }
 
     public function testCancellationDoesNotFailOverOrEmitAnEvent(): void

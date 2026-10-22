@@ -37,8 +37,6 @@ if (file_exists($dotenvPath . '/.env')) {
 
 Bootstrapper::bootstrap();
 
-putenv('APP_RUNNING_IN_CONSOLE=false');
-$_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
 $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
 $app = TestbenchApplication::create();

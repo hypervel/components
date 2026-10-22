@@ -1711,6 +1711,19 @@ return [
                 'description' => 'The configuration file or key to show',
             ],
         ],
+        'options' => [
+            [
+                'name' => 'json',
+                'shortcut' => null,
+                'negatable' => false,
+                'valueRequired' => false,
+                'valueOptional' => false,
+                'isArray' => false,
+                'acceptValue' => false,
+                'default' => false,
+                'description' => 'Output the configuration as JSON',
+            ],
+        ],
     ],
     \Hypervel\Foundation\Console\ConsoleMakeCommand::class => [
         'name' => 'make:command',

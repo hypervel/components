@@ -11,9 +11,19 @@ class DotenvManager
     /**
      * The keys and values loaded from the last load/reload call.
      *
-     * @var null|array<string, string>
+     * @var null|array<string, null|string>
      */
     protected static ?array $cachedValues = null;
+
+    /**
+     * Get the names loaded from dotenv, excluding external environment variables.
+     *
+     * @return list<string>
+     */
+    public static function getLoadedVariableNames(): array
+    {
+        return array_keys(static::$cachedValues ?? []);
+    }
 
     /**
      * Load environment variables from the given paths.

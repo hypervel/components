@@ -183,8 +183,8 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertSame('', $config->get('app.key'));
     }
 
-    #[DataProvider('quotedKeyLines')]
-    public function testExactQuotedKeyLinesAreReplaced(string $configuredKey, string $line, string $suffix): void
+    #[DataProvider('environmentKeyLines')]
+    public function testExactKeyLinesAreReplaced(string $configuredKey, string $line, string $suffix, string $prefix = ''): void
     {
         $config = $this->app->make('config');
         $config->set('app.key', $configuredKey);
@@ -200,21 +200,30 @@ class KeyGenerateCommandTest extends TestCase
 
         $this->assertIsString($generatedKey);
         $this->assertStringStartsWith('base64:', $generatedKey);
-        $this->assertSame("APP_KEY={$generatedKey}{$suffix}", $contents);
+        $this->assertSame("{$prefix}APP_KEY={$generatedKey}{$suffix}", $contents);
     }
 
     /**
-     * Provide supported quoted environment key lines.
+     * Provide supported environment key lines and suffixes that dotenv ignores.
      *
-     * @return array<string, array{string, string, string}>
+     * @return array<string, array{0: string, 1: string, 2: string, 3?: string}>
      */
-    public static function quotedKeyLines(): array
+    public static function environmentKeyLines(): array
     {
         return [
             'empty double quotes' => ['', 'APP_KEY=""', ''],
             'empty single quotes' => ['', "APP_KEY=''", ''],
             'quoted current key' => ['base64:current', 'APP_KEY="base64:current"', ''],
             'CRLF quoted current key' => ['base64:current', "APP_KEY=\"base64:current\"\r\nAPP_NAME=Hypervel", "\r\nAPP_NAME=Hypervel"],
+            'exported empty key' => ['', 'export APP_KEY=', '', 'export '],
+            'exported quoted key' => ['base64:current', 'export APP_KEY="base64:current"', '', 'export '],
+            'indented export' => ['', "\texport\tAPP_KEY=''", '', "\texport\t"],
+            'trailing whitespace' => ['base64:current', "APP_KEY=base64:current \t", " \t"],
+            'trailing comment' => ['base64:current', 'APP_KEY=base64:current # rotate yearly', ' # rotate yearly'],
+            'quoted key with comment' => ['base64:current', 'APP_KEY="base64:current" # rotate yearly', ' # rotate yearly'],
+            'adjacent comment' => ['base64:current', 'APP_KEY=base64:current#rotate', '#rotate'],
+            'empty key with whitespace' => ['', 'APP_KEY=   ', '   '],
+            'CRLF with comment' => ['base64:current', "APP_KEY=base64:current # rotate\r\nAPP_NAME=Hypervel", " # rotate\r\nAPP_NAME=Hypervel"],
         ];
     }
 
@@ -243,6 +252,7 @@ class KeyGenerateCommandTest extends TestCase
         return [
             'longer prefixed key' => ['APP_KEY=base64:currentsuffix'],
             'mismatched quotes' => ['APP_KEY="base64:current\''],
+            'exported different key' => ['export APP_KEY=base64:other'],
         ];
     }
 

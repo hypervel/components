@@ -351,8 +351,7 @@ class Commander
             return;
         }
 
-        putenv('APP_RUNNING_IN_CONSOLE=false');
-        $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
+        // Forked server workers inherit this flag; separate Artisan processes must not.
         $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
     }
 

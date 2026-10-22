@@ -333,6 +333,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         $this->flushAiState();
         $this->flushDataState();
+        $this->flushDoctorState();
         $this->flushFortifyState();
         $this->flushHeadState();
         $this->flushHorizonState();
@@ -374,6 +375,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Data\DataCollection::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Data\Lazy::class, 'flushMacros');
         $this->callIfExists(\Hypervel\Data\PaginatedDataCollection::class, 'flushMacros');
+    }
+
+    /**
+     * Flush Doctor state.
+     */
+    protected function flushDoctorState(): void
+    {
+        $this->callIfExists(\Hypervel\Doctor\DiagnosticSource::class, 'flushState');
     }
 
     /**

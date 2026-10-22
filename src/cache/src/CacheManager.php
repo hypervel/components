@@ -215,7 +215,7 @@ class CacheManager implements FactoryContract
             $config['connection'] ?? null,
             $config['table'],
             $this->getPrefix($config),
-            $config['lock_table'] ?? 'cache_locks',
+            $config['lock_table'] ?? DatabaseStore::DEFAULT_LOCK_TABLE,
             $config['lock_lottery'] ?? [2, 100],
             $config['lock_timeout'] ?? 86400,
             serializableClassPolicy: $this->serializableClassPolicy,
@@ -235,6 +235,8 @@ class CacheManager implements FactoryContract
      */
     protected function createFailoverDriver(array $config): Repository
     {
+        $this->ensureStoresAreAcyclic($config);
+
         return $this->repository(new FailoverStore(
             $this,
             $this->app->make(DispatcherContract::class),
@@ -357,6 +359,8 @@ class CacheManager implements FactoryContract
      */
     protected function createStackDriver(array $config): Repository
     {
+        $this->ensureStoresAreAcyclic($config);
+
         $stores = collect($config['stores'])->map(function ($config, $name) {
             if (! is_array($config)) {
                 $name = $config;
@@ -369,6 +373,44 @@ class CacheManager implements FactoryContract
         })->all();
 
         return $this->repository(new StackStore($stores), $config);
+    }
+
+    /**
+     * Reject circular built-in store definitions before resolving their layers.
+     *
+     * @param list<string> $path
+     */
+    protected function ensureStoresAreAcyclic(array $config, array $path = []): void
+    {
+        $driver = $config['driver'] ?? null;
+
+        if (! in_array($driver, ['stack', 'failover'], true)
+            || isset($this->customCreators[$driver])
+            || ! is_array($config['stores'] ?? null)) {
+            return;
+        }
+
+        foreach ($config['stores'] as $name => $options) {
+            $name = $driver === 'stack' && is_array($options) ? $name : $options;
+            $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+            $name ??= $this->getDefaultDriver();
+
+            if (! is_string($name)) {
+                continue;
+            }
+
+            if (($cycleStart = array_search($name, $path, true)) !== false) {
+                $cycle = [...array_slice($path, $cycleStart), $name];
+
+                throw new InvalidArgumentException(
+                    'Circular cache store definition detected: ' . implode(' -> ', $cycle) . '.'
+                );
+            }
+
+            if (($child = $this->getConfig($name)) !== null) {
+                $this->ensureStoresAreAcyclic($child, [...$path, $name]);
+            }
+        }
     }
 
     /**

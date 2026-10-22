@@ -4,34 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Redis\RedisRequirements;
+
 /**
  * Skips tests when the environment doesn't support Redis hash field
  * expiration.
- *
- * Hash field expiration requires:
- * - phpredis >= 6.3.0 (HSETEX command)
- * - Redis >= 8.0.0 or Valkey >= 9.0.0 (HEXPIRE command)
  *
  * Expects InteractsWithRedis on the same class — uses redisClient() to
  * probe the server version. The support check is memoized per process.
  */
 trait RequiresHashFieldExpiration
 {
-    /**
-     * Minimum phpredis version required for hash field expiration.
-     */
-    private const string PHPREDIS_MIN_VERSION = '6.3.0';
-
-    /**
-     * Minimum Redis version required for hash field expiration.
-     */
-    private const string REDIS_MIN_VERSION = '8.0.0';
-
-    /**
-     * Minimum Valkey version required for hash field expiration.
-     */
-    private const string VALKEY_MIN_VERSION = '9.0.0';
-
     /**
      * Cached result of the hash field expiration support check.
      */
@@ -64,34 +47,12 @@ trait RequiresHashFieldExpiration
      */
     private function checkHashFieldExpirationSupport(): bool
     {
-        $phpredisVersion = $this->detectedPhpredisVersion();
+        $error = RedisRequirements::hashFieldExpirationClientError($this->detectedPhpredisVersion())
+            ?? RedisRequirements::hashFieldExpirationServerError($this->detectedServerInfo());
 
-        if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
-            self::$hashFieldExpirationSkipReason = 'Hash field expiration requires phpredis >= '
-                . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})";
+        self::$hashFieldExpirationSkipReason = $error ?? '';
 
-            return false;
-        }
-
-        $info = $this->detectedServerInfo();
-
-        if (isset($info['valkey_version'])) {
-            if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
-                self::$hashFieldExpirationSkipReason = 'Hash field expiration requires Valkey >= '
-                    . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})";
-
-                return false;
-            }
-        } elseif (isset($info['redis_version'])) {
-            if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
-                self::$hashFieldExpirationSkipReason = 'Hash field expiration requires Redis >= '
-                    . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})";
-
-                return false;
-            }
-        }
-
-        return true;
+        return $error === null;
     }
 
     /**

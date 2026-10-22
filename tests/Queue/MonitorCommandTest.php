@@ -13,19 +13,23 @@ use Hypervel\Queue\Console\MonitorCommand;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class MonitorCommandTest extends TestCase
 {
-    public function testItDisplaysQueueMetricsAsJsonAndDispatchesBusyEvent(): void
+    #[DataProvider('outputDecoration')]
+    public function testItDisplaysQueueMetricsAsJsonAndDispatchesBusyEvent(bool $decorated): void
     {
+        $name = '<info>Queue\name</info> \<error>literal</error>';
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('size')->with('default')->andReturn(1001);
-        $queue->shouldReceive('pendingSize')->with('default')->andReturn(0);
-        $queue->shouldReceive('delayedSize')->with('default')->andReturn(2);
-        $queue->shouldReceive('reservedSize')->with('default')->andReturn(3);
-        $queue->shouldReceive('creationTimeOfOldestPendingJob')->with('default')->andReturn(null);
+        $queue->shouldReceive('size')->with($name)->andReturn(1001);
+        $queue->shouldReceive('pendingSize')->with($name)->andReturn(0);
+        $queue->shouldReceive('delayedSize')->with($name)->andReturn(2);
+        $queue->shouldReceive('reservedSize')->with($name)->andReturn(3);
+        $queue->shouldReceive('creationTimeOfOldestPendingJob')->with($name)->andReturn(null);
 
         $manager = m::mock(Factory::class);
         $manager->shouldReceive('connection')->with('redis')->andReturn($queue);
@@ -36,18 +40,33 @@ class MonitorCommandTest extends TestCase
             ->once()
             ->with(m::on(fn (mixed $event): bool => $event instanceof QueueBusy
                 && $event->connectionName === 'redis'
-                && $event->queue === 'default'
+                && $event->queue === $name
                 && $event->size === 1001));
 
         $output = $this->runCommand(
             new MonitorCommand($manager, $events, new Repository(['queue' => ['default' => 'sync']])),
-            ['queues' => 'redis:default', '--json' => true],
+            ['queues' => 'redis:' . $name, '--json' => true],
+            $decorated,
         );
 
-        $this->assertJsonStringEqualsJsonString(
-            '[{"connection":"redis","queue":"default","size":1001,"pending":0,"delayed":2,"reserved":3,"oldest_pending":null,"status":"ALERT"}]',
-            $output,
-        );
+        $this->assertSame([[
+            'connection' => 'redis',
+            'queue' => $name,
+            'size' => 1001,
+            'pending' => 0,
+            'delayed' => 2,
+            'reserved' => 3,
+            'oldest_pending' => null,
+            'status' => 'ALERT',
+        ]], json_decode($output, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Provide terminal and redirected output modes.
+     */
+    public static function outputDecoration(): array
+    {
+        return [[false], [true]];
     }
 
     public function testItDisplaysDetailedQueueMetricsForTheDefaultConnection(): void
@@ -84,11 +103,11 @@ class MonitorCommandTest extends TestCase
      *
      * @param array<string, mixed> $arguments
      */
-    private function runCommand(MonitorCommand $command, array $arguments): string
+    private function runCommand(MonitorCommand $command, array $arguments, bool $decorated = false): string
     {
         $command->setHypervel(new Application);
 
-        $output = new BufferedOutput;
+        $output = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, $decorated);
         $command->run(new ArrayInput($arguments), $output);
 
         return $output->fetch();

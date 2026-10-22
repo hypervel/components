@@ -20,6 +20,7 @@ When working on Hypervel, start from this frame:
 
 - **Development monorepo:** Applications install individual subtree-split packages, never `hypervel/components`. Root `composer.json` and `package.json` metadata is development-only. Determine installed-application behavior from the relevant package manifests and the application's dependencies and discovery settings.
 - Hypervel is Laravel-shaped at the API level.
+- **Database connections are driver-neutral.** `ConnectionInterface` and `Connection` support custom drivers registered through `DB::extend()`, including non-PDO transports.
 - Hypervel is not request-per-process PHP — workers are long-lived, and PHP state does not disappear after each request.
 - Singletons, static properties, manager registries, callbacks, config, and cached metadata can persist for the worker lifetime.
 - Per-request state must live in coroutine-scoped storage (CoroutineContext), not process-global state.
@@ -929,7 +930,7 @@ Update upstream test imports to point at the new Fixtures namespace.
 
 Tests for these features should be **removed** (not commented out) without asking — they will never be supported:
 
-- **Databases:** SQL Server, MongoDB, DynamoDB — Hypervel only supports MySQL, MariaDB, PostgreSQL, and SQLite
+- **Built-in database drivers:** SQL Server, MongoDB, DynamoDB are not provided. Hypervel ships MySQL, MariaDB, PostgreSQL, and SQLite drivers.
 - **Cache drivers:** Memcached, APC / APCu, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
 - **Container access:** ArrayAccess and dynamic service properties

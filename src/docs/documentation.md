@@ -100,6 +100,7 @@
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
     - [API Client](/docs/{{version}}/api-client)
+    - [Doctor](/docs/{{version}}/doctor)
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
     - [Head](/docs/{{version}}/head)

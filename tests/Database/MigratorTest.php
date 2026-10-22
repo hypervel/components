@@ -35,12 +35,10 @@ class MigratorTest extends TestCase
     }
 
     /**
-     * Set up the test environment.
+     * Set up migration state in the test coroutine.
      */
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         $this->output = m::mock(OutputStyle::class);
         $this->output->shouldReceive('newLinesWritten')->andReturn(0);
         $this->subject = $this->app->make('migrator');

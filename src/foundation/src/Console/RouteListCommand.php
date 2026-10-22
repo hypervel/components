@@ -18,6 +18,7 @@ use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Terminal;
 
 #[AsCommand(name: 'route:list')]
@@ -185,7 +186,8 @@ class RouteListCommand extends Command
         $routes = new Collection($routes);
 
         $this->output->writeln(
-            $this->option('json') ? $this->asJson($routes) : $this->forCli($routes)
+            $this->option('json') ? $this->asJson($routes) : $this->forCli($routes),
+            $this->option('json') ? OutputInterface::OUTPUT_RAW : OutputInterface::OUTPUT_NORMAL,
         );
     }
 
