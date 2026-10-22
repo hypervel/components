@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Doctor\Diagnostics\PublicStorageLinkExists;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
-use Hypervel\Process\FakeProcessResult;
-use Hypervel\Process\PendingProcess;
+use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\File;
-use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class PublicStorageLinkExistsTest extends TestCase
 {
@@ -55,18 +57,9 @@ class PublicStorageLinkExistsTest extends TestCase
             'root' => $basePath . '/storage/app/public',
         ], 'filesystems.links' => [$basePath . '/public/storage' => $basePath . '/storage/app/public']]);
 
-        Process::fake(function () use ($basePath): FakeProcessResult {
-            symlink($basePath . '/storage/app/public', $basePath . '/public/storage');
-
-            return Process::result(output: 'The [public/storage] link has been connected.');
-        });
-
         $diagnostic = new PublicStorageLinkExists;
         $result = $diagnostic->check();
         $fix = $diagnostic->fix(DiagnosticResult::fail('missing'));
-
-        Process::assertRan(fn (PendingProcess $process): bool => $process->command === [PHP_BINARY, 'artisan', 'storage:link']
-            && $process->path === $basePath);
 
         $this->assertSame('fail', $result->status->value);
         $this->assertSame('Create the public storage link using `php artisan storage:link`?', $result->confirmation);
@@ -137,11 +130,6 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$existing => $root, $missing => $root, $this->basePath . '/unrelated' => '/unrelated'],
         ]);
-        Process::fake(function () use ($missing): FakeProcessResult {
-            symlink('assets', $missing);
-
-            return Process::result();
-        });
         $diagnostic = new PublicStorageLinkExists;
         $result = $diagnostic->check();
 
@@ -171,14 +159,15 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$link => $root, $this->basePath . '/missing' => $root],
         ]);
-        Process::fake();
+        $kernel = m::mock(Kernel::class);
+        $kernel->shouldNotReceive('call');
+        Artisan::swap($kernel);
         $diagnostic = new PublicStorageLinkExists;
         $result = $diagnostic->check();
 
         $this->assertSame('public-storage-link-exists.' . $code, $result->code);
         $this->assertFalse($result->fixable);
         $this->assertSame('fail', $diagnostic->fix($result)->status->value);
-        Process::assertNothingRan();
 
         match ($kind) {
             'wrong' => $this->assertSame($this->basePath, readlink($link)),
@@ -199,7 +188,8 @@ class PublicStorageLinkExistsTest extends TestCase
         ];
     }
 
-    public function testSuccessfulCommandWithoutTheExpectedLinkDoesNotReportARepair(): void
+    #[DataProvider('commandFailures')]
+    public function testReportsWhenTheCommandDoesNotRepairTheLink(int $exitCode, ?string $exceptionClass): void
     {
         $root = $this->basePath . '/assets';
         mkdir($root);
@@ -208,14 +198,45 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$this->basePath . '/uploads' => $root],
         ]);
-        Process::fake(['*' => Process::result(output: 'The link already exists.')]);
+        $kernel = m::mock(Kernel::class);
+        Artisan::swap($kernel);
+        $command = $kernel->shouldReceive('call')->once()->with('storage:link');
+
+        if ($exceptionClass !== null) {
+            $exception = new $exceptionClass('The link could not be created.');
+            $command->andThrow($exception);
+
+            if ($exception instanceof CanceledException) {
+                $this->expectExceptionObject($exception);
+            }
+        } else {
+            $command->andReturn($exitCode);
+            $kernel->shouldReceive('output')->once()->andReturn('The link could not be created.');
+        }
+
         $diagnostic = new PublicStorageLinkExists;
 
         $result = $diagnostic->fix($diagnostic->check());
 
         $this->assertSame('fail', $result->status->value);
-        $this->assertStringContainsString($this->basePath . '/uploads', $result->details);
-        $this->assertStringContainsString('The link already exists.', $result->details);
+        $this->assertStringContainsString('The link could not be created.', $result->details);
+
+        if ($exceptionClass === null) {
+            $this->assertStringContainsString($this->basePath . '/uploads', $result->details);
+        }
+    }
+
+    /**
+     * Provide unsuccessful repairs, including a zero exit without a link.
+     */
+    public static function commandFailures(): array
+    {
+        return [
+            'zero exit without link' => [0, null],
+            'nonzero exit' => [1, null],
+            'exception' => [1, RuntimeException::class],
+            'cancellation' => [1, CanceledException::class],
+        ];
     }
 
     #[DataProvider('disksWithoutLinks')]

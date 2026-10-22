@@ -12,7 +12,9 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Details;
-use Hypervel\Support\Facades\Process;
+use Hypervel\Support\Facades\Artisan;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PublicStorageLinkExists extends Diagnostic implements Fixable
 {
@@ -96,14 +98,21 @@ class PublicStorageLinkExists extends Diagnostic implements Fixable
             );
         }
 
-        $process = Process::path(base_path())->run([PHP_BINARY, 'artisan', 'storage:link']);
+        try {
+            $exitCode = Artisan::call('storage:link');
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            return $this->fixFailed('creation-failed')->withDetails($exception->getMessage());
+        }
+
         $failures = $this->inspectLinks($links);
 
-        if (! $process->successful() || $failures !== []) {
+        if ($exitCode !== 0 || $failures !== []) {
             return $this->fixFailed('creation-failed')
                 ->withDetails(trim($this->linkDetails($links, $failures) . PHP_EOL . Details::processOutput(
-                    $process->output(),
-                    $process->errorOutput(),
+                    Artisan::output(),
+                    '',
                     'The storage:link command exited without output.',
                 )));
         }
