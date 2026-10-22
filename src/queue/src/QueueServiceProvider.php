@@ -16,17 +16,22 @@ use Hypervel\Queue\Console\ClearCommand;
 use Hypervel\Queue\Console\FailedTableCommand;
 use Hypervel\Queue\Console\FlushFailedCommand;
 use Hypervel\Queue\Console\ForgetFailedCommand;
+use Hypervel\Queue\Console\ForgetOutboxCommand;
 use Hypervel\Queue\Console\ListenCommand;
 use Hypervel\Queue\Console\ListFailedCommand;
+use Hypervel\Queue\Console\ListOutboxCommand;
 use Hypervel\Queue\Console\MonitorCommand;
+use Hypervel\Queue\Console\MonitorOutboxCommand;
 use Hypervel\Queue\Console\OutboxTableCommand;
 use Hypervel\Queue\Console\PauseCommand;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Queue\Console\PruneFailedJobsCommand;
+use Hypervel\Queue\Console\RelayCommand;
 use Hypervel\Queue\Console\RestartCommand;
 use Hypervel\Queue\Console\ResumeCommand;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
+use Hypervel\Queue\Console\RetryOutboxCommand;
 use Hypervel\Queue\Console\TableCommand;
 use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
@@ -65,17 +70,22 @@ class QueueServiceProvider extends ServiceProvider
             FailedTableCommand::class,
             FlushFailedCommand::class,
             ForgetFailedCommand::class,
+            ForgetOutboxCommand::class,
             ListenCommand::class,
             ListFailedCommand::class,
+            ListOutboxCommand::class,
             MonitorCommand::class,
+            MonitorOutboxCommand::class,
             OutboxTableCommand::class,
             PauseCommand::class,
             PruneBatchesCommand::class,
             PruneFailedJobsCommand::class,
+            RelayCommand::class,
             RestartCommand::class,
             ResumeCommand::class,
             RetryBatchCommand::class,
             RetryCommand::class,
+            RetryOutboxCommand::class,
             TableCommand::class,
             WorkCommand::class,
         ]);

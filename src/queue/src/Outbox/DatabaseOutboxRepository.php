@@ -301,7 +301,7 @@ class DatabaseOutboxRepository
              SUM(CASE WHEN available_at <= ? THEN 1 ELSE 0 END) AS eligible,
              SUM(CASE WHEN lease_token IS NULL AND available_at > ? AND attempts = 0 THEN 1 ELSE 0 END) AS delayed,
              SUM(CASE WHEN lease_token IS NOT NULL AND available_at > ? THEN 1 ELSE 0 END) AS leased,
-             SUM(CASE WHEN attempts > 0 AND (lease_token IS NULL OR available_at <= ?) THEN 1 ELSE 0 END) AS retrying,
+             SUM(CASE WHEN lease_token IS NULL AND available_at > ? AND attempts > 0 THEN 1 ELSE 0 END) AS retrying,
              MIN(CASE WHEN available_at <= ? THEN available_at END) AS oldest_eligible',
             [$now, $now, $now, $now, $now],
         )->first();
