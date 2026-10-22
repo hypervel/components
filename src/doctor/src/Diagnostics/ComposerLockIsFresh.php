@@ -117,7 +117,7 @@ class ComposerLockIsFresh extends Diagnostic implements Fixable
             default => throw new LogicException("Unexpected composer.lock result [{$result->code}]."),
         };
 
-        $process = Process::path(base_path())->run([
+        $process = Process::path(base_path())->forever()->run([
             ...Composer::command(),
             ...$arguments,
             '--no-interaction',

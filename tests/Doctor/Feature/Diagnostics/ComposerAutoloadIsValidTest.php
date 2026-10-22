@@ -106,7 +106,7 @@ class ComposerAutoloadIsValidTest extends TestCase
             '--strict-psr',
             '--strict-ambiguous',
             '--no-interaction',
-        ] && $process->path === $basePath);
+        ] && $process->path === $basePath && $process->timeout === null);
 
         $this->assertSame('pass', $fix->status->value);
     }

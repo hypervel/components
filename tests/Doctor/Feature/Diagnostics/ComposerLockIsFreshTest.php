@@ -163,7 +163,8 @@ class ComposerLockIsFreshTest extends TestCase
         $fix = (new ComposerLockIsFresh)->fix($result());
 
         Process::assertRan(fn (PendingProcess $process): bool => $process->command === $command
-            && $process->path === $basePath);
+            && $process->path === $basePath
+            && $process->timeout === null);
 
         $this->assertSame('pass', $fix->status->value);
         $this->assertSame('composer-lock-is-fresh.fix.fixed', $fix->code);

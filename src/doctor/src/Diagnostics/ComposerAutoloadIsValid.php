@@ -78,7 +78,7 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
      */
     public function fix(DiagnosticResult $result, ?string $option = null): FixResult
     {
-        $process = Process::path(base_path())->run([
+        $process = Process::path(base_path())->forever()->run([
             ...Composer::command(),
             'dump-autoload',
             '--optimize',
