@@ -103,6 +103,7 @@ class QueueConnectionIsReachable extends Diagnostic
             'sync' => null,
             'database' => $this->probeDatabaseQueue($configuration),
             'redis' => $this->probeRedisQueue($configuration),
+            'sqs', 'beanstalkd' => Queue::connection($connection)->size(),
             default => Queue::connection($connection),
         };
     }

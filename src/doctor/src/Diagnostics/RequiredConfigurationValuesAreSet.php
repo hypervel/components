@@ -62,6 +62,7 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         return [
             ...array_intersect_key($required, array_flip(Configured::missing(array_keys($required)))),
             ...$this->missingMercureValues(),
+            ...$this->missingMailValues(),
         ];
     }
 
@@ -76,7 +77,6 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
             ...$this->broadcastingValues(),
             ...$this->filesystemValues(),
             ...$this->loggingValues(),
-            ...$this->mailValues(),
             ...$this->queueValues(),
         ];
     }
@@ -179,68 +179,81 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         }
 
         if ($driver === 'monolog' && config("logging.channels.{$channel}.handler") === SyslogUdpHandler::class) {
-            return $this->values("logging.channels.{$channel}.handler_with", ['host', 'port'], "{$channel} log channel");
+            $prefix = "logging.channels.{$channel}";
+            $with = config("{$prefix}.with") ?? [];
+            $handlerWith = config("{$prefix}.handler_with") ?? [];
+            $values = [];
+
+            foreach (['host', 'port'] as $key) {
+                $source = array_key_exists($key, $handlerWith) || ! array_key_exists($key, $with)
+                    ? 'handler_with'
+                    : 'with';
+                $values["{$prefix}.{$source}.{$key}"] = "{$channel} log channel";
+            }
+
+            return $values;
         }
 
         return [];
     }
 
     /**
-     * Get configuration keys required by the default mailer.
+     * Get missing values from the active mailers' effective configuration.
      *
      * @return array<string, string>
      */
-    private function mailValues(): array
+    private function missingMailValues(): array
     {
         $values = [];
 
         foreach (ActiveDrivers::mailers(Configured::string('mail.default', 'log')) as $mailer) {
-            $values = [...$values, ...$this->mailerValues($mailer)];
+            $values = [...$values, ...$this->missingMailerValues($mailer)];
         }
 
         return $values;
     }
 
     /**
-     * Get configuration keys required by a mailer.
+     * Get missing values using the mail transport factory's credential choices.
      *
      * @return array<string, string>
      */
-    private function mailerValues(string $mailer): array
+    private function missingMailerValues(string $mailer): array
     {
-        return match (Configured::string("mail.mailers.{$mailer}.transport", $mailer)) {
-            'smtp' => $this->values("mail.mailers.{$mailer}", ['host'], 'smtp mailer'),
-            'sendmail' => $this->values("mail.mailers.{$mailer}", ['path'], 'sendmail mailer'),
-            'postmark' => $this->postmarkValues($mailer),
-            'resend' => $this->values('services.resend', ['key'], 'resend mailer'),
+        $configuration = ActiveDrivers::mailerConfiguration($mailer);
+        $transport = $configuration['transport'] ?? $mailer;
+        $prefix = "mail.mailers.{$mailer}";
+        $keys = match ($transport) {
+            'smtp' => ['host'],
+            'sendmail' => ['path'],
+            'postmark', 'resend' => ['key'],
+            'cloudflare' => ['account_id', 'key'],
+            'mailgun' => ['secret', 'domain'],
             default => [],
         };
-    }
 
-    /**
-     * Get configuration keys required by a Postmark mailer.
-     *
-     * @return array<string, string>
-     */
-    private function postmarkValues(string $mailer): array
-    {
-        $required = $this->values('services.postmark', ['token'], 'postmark mailer');
-        $credentials = [
-            "mail.mailers.{$mailer}.token",
-            "mail.mailers.{$mailer}.key",
-            'services.postmark.token',
-            'services.postmark.key',
-        ];
+        if ($transport === 'mailgun' && ! isset($configuration['secret'])) {
+            $configuration = config()->array('services.mailgun', []);
+            $prefix = 'services.mailgun';
+        }
 
-        foreach ($credentials as $credential) {
-            if (config($credential) !== null) {
-                return Configured::missing([$credential]) === []
-                    ? []
-                    : [$credential => 'postmark mailer'];
+        $missing = [];
+
+        foreach ($keys as $key) {
+            $value = $configuration[$key] ?? null;
+            $location = "{$prefix}.{$key}";
+
+            if ($value === null && in_array($transport, ['postmark', 'resend', 'cloudflare'], true)) {
+                $location = "services.{$transport}.{$key}";
+                $value = config($location);
+            }
+
+            if (blank($value)) {
+                $missing[$location] = "{$transport} mailer";
             }
         }
 
-        return $required;
+        return $missing;
     }
 
     /**
@@ -255,7 +268,8 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
 
         foreach (ActiveDrivers::queueConnections($connection) as $name) {
             if (Configured::string("queue.connections.{$name}.driver", $name) !== 'sqs'
-                || config("queue.connections.{$name}.overflow.enabled") !== true) {
+                || config("queue.connections.{$name}.overflow.enabled") !== true
+                || config("queue.connections.{$name}.overflow.store") === null) {
                 continue;
             }
 

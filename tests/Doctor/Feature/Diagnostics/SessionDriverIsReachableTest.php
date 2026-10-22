@@ -42,10 +42,11 @@ class SessionDriverIsReachableTest extends TestCase
         }
     }
 
-    public function testPassesWhenFileSessionsCanBeReached(): void
+    #[DataProvider('fileDrivers')]
+    public function testPassesWhenFileSessionsCanBeReached(string $driver): void
     {
         config([
-            'session.driver' => 'file',
+            'session.driver' => $driver,
             'session.files' => $this->path,
         ]);
 
@@ -54,10 +55,11 @@ class SessionDriverIsReachableTest extends TestCase
         $this->assertSame('pass', $result->status->value);
     }
 
-    public function testLinksToSessionConfigurationWhenTheDriverCannotBeReached(): void
+    #[DataProvider('fileDrivers')]
+    public function testLinksToSessionConfigurationWhenTheDriverCannotBeReached(string $driver): void
     {
         config([
-            'session.driver' => 'file',
+            'session.driver' => $driver,
             'session.files' => $this->path . '/missing',
         ]);
 
@@ -65,6 +67,14 @@ class SessionDriverIsReachableTest extends TestCase
 
         $this->assertSame('fail', $result->status->value);
         $this->assertEquals([Link::docs('session', 'configuration')], $result->links);
+    }
+
+    /**
+     * Provide file-backed session driver names.
+     */
+    public static function fileDrivers(): array
+    {
+        return [['file'], ['native']];
     }
 
     #[DataProvider('redisConnections')]

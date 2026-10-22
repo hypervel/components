@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Doctor\Diagnostics\QueueConnectionIsReachable;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Doctor\TestCase;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class QueueConnectionIsReachableTest extends TestCase
 {
@@ -60,6 +65,7 @@ class QueueConnectionIsReachableTest extends TestCase
             'queue.connections' => [
                 'main' => ['driver' => 'failover', 'connections' => $children],
                 'healthy' => ['driver' => 'sync'],
+                '0' => ['driver' => 'sync'],
                 'broken' => ['driver' => 'unsupported'],
                 'nested' => ['driver' => 'failover', 'connections' => ['healthy', 'broken', 'broken']],
             ],
@@ -71,6 +77,10 @@ class QueueConnectionIsReachableTest extends TestCase
 
         if (in_array('broken', $children, true) || in_array('nested', $children, true)) {
             $this->assertSame(1, substr_count($result->details, '[broken]'));
+        }
+
+        if (in_array(null, $children, true) || in_array('', $children, true)) {
+            $this->assertStringContainsString('Circular queue connection definition', $result->details);
         }
     }
 
@@ -88,6 +98,9 @@ class QueueConnectionIsReachableTest extends TestCase
             'empty' => [[], 'fail'],
             'cycle beside healthy' => [['main', 'healthy'], 'fail'],
             'implicit null child' => [['null'], 'pass'],
+            'enum child' => [[IntegerQueueName::Zero], 'pass'],
+            'default child cycle' => [[null], 'fail'],
+            'empty child selects default' => [[''], 'fail'],
         ];
     }
 
@@ -96,5 +109,37 @@ class QueueConnectionIsReachableTest extends TestCase
         config(['queue.default' => 'null', 'queue.connections' => []]);
 
         $this->assertSame('pass', (new QueueConnectionIsReachable)->check()->status->value);
+    }
+
+    #[DataProvider('remoteQueues')]
+    public function testRemoteQueuesMustCompleteAReadOnlyOperation(string $driver, bool $fails): void
+    {
+        config(['queue.default' => 'remote', 'queue.connections.remote' => ['driver' => $driver]]);
+        $queue = m::mock(QueueContract::class);
+        $probe = $queue->shouldReceive('size')->once()->withNoArgs();
+
+        if ($fails) {
+            $probe->andThrow(new RuntimeException('Queue service is unreachable.'));
+        } else {
+            $probe->andReturn(0);
+        }
+
+        Queue::shouldReceive('connection')->with('remote')->andReturn($queue);
+
+        $result = (new QueueConnectionIsReachable)->check();
+
+        $this->assertSame($fails ? 'fail' : 'pass', $result->status->value);
+
+        if ($fails) {
+            $this->assertStringContainsString('Queue service is unreachable.', $result->details);
+        }
+    }
+
+    /**
+     * Provide reachable and failing lazy queue transports.
+     */
+    public static function remoteQueues(): array
+    {
+        return [['sqs', false], ['sqs', true], ['beanstalkd', false], ['beanstalkd', true]];
     }
 }

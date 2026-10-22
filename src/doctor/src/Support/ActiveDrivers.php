@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Doctor\Support;
 
 use Hypervel\Session\SessionManager;
+use Hypervel\Support\Arr;
+use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 final class ActiveDrivers
 {
@@ -31,6 +36,12 @@ final class ActiveDrivers
 
         foreach (config()->array("cache.stores.{$store}.stores") as $name => $configuration) {
             $nested = $driver === 'stack' && is_array($configuration) ? $name : $configuration;
+
+            if ($driver === 'stack') {
+                $nested = $nested instanceof UnitEnum ? (string) enum_value($nested) : $nested;
+                $nested ??= config()->string('cache.default');
+            }
+
             $active = [...$active, ...self::cacheStores($nested, [...$seen, $store])];
         }
 
@@ -82,13 +93,14 @@ final class ActiveDrivers
             return [];
         }
 
-        $transport = Configured::string("mail.mailers.{$mailer}.transport", $mailer);
+        $configuration = self::mailerConfiguration($mailer);
+        $transport = $configuration['transport'] ?? $mailer;
 
         if (! in_array($transport, ['failover', 'roundrobin'], true)) {
             return [$mailer];
         }
 
-        $mailers = config("mail.mailers.{$mailer}.mailers");
+        $mailers = $configuration['mailers'] ?? null;
 
         if (! is_array($mailers)) {
             return [];
@@ -103,6 +115,27 @@ final class ActiveDrivers
         }
 
         return array_values(array_unique($active));
+    }
+
+    /**
+     * Get the mailer configuration after applying its connection URL.
+     *
+     * @return array<string, mixed>
+     */
+    public static function mailerConfiguration(string $mailer): array
+    {
+        $configuration = config("mail.mailers.{$mailer}");
+
+        if (! is_array($configuration)) {
+            return [];
+        }
+
+        if (isset($configuration['url'])) {
+            $configuration = array_merge($configuration, (new ConfigurationUrlParser)->parseConfiguration($configuration));
+            $configuration['transport'] = Arr::pull($configuration, 'driver');
+        }
+
+        return $configuration;
     }
 
     /**
@@ -124,6 +157,8 @@ final class ActiveDrivers
         $active = [];
 
         foreach (config()->array("queue.connections.{$connection}.connections") as $nested) {
+            $nested = $nested instanceof UnitEnum ? (string) enum_value($nested) : $nested;
+            $nested = $nested === null || $nested === '' ? config()->string('queue.default') : $nested;
             $active = [...$active, ...self::queueConnections($nested, [...$seen, $connection])];
         }
 

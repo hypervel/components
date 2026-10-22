@@ -198,12 +198,12 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
         $this->assertSame('fail', $result->status->value);
-        $this->assertStringContainsString('services.postmark.token', $result->details);
+        $this->assertStringContainsString('services.postmark.key', $result->details);
         $this->assertStringNotContainsString('services.resend.key', $result->details);
     }
 
     #[DataProvider('postmarkCredentials')]
-    public function testAcceptsEveryPostmarkCredentialLocationSupportedByHypervel(string $credential): void
+    public function testRecognizesSupportedPostmarkCredentialLocations(string $credential, string $status): void
     {
         config([
             'mail.default' => 'transactional',
@@ -217,19 +217,19 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
 
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
-        $this->assertSame('pass', $result->status->value);
+        $this->assertSame($status, $result->status->value);
     }
 
     /**
-     * Provide supported Postmark credential locations.
+     * Provide supported keys and unsupported legacy token locations.
      */
     public static function postmarkCredentials(): array
     {
         return [
-            'mailer token' => ['mail.mailers.transactional.token'],
-            'mailer key' => ['mail.mailers.transactional.key'],
-            'service token' => ['services.postmark.token'],
-            'service key' => ['services.postmark.key'],
+            'mailer token' => ['mail.mailers.transactional.token', 'fail'],
+            'mailer key' => ['mail.mailers.transactional.key', 'pass'],
+            'service token' => ['services.postmark.token', 'fail'],
+            'service key' => ['services.postmark.key', 'pass'],
         ];
     }
 
@@ -238,14 +238,14 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         config([
             'mail.default' => 'postmark',
             'mail.mailers.postmark.transport' => 'postmark',
-            'mail.mailers.postmark.token' => '',
-            'services.postmark.token' => 'fallback-token',
+            'mail.mailers.postmark.key' => '',
+            'services.postmark.key' => 'fallback-key',
         ]);
 
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
         $this->assertSame('fail', $result->status->value);
-        $this->assertStringContainsString('mail.mailers.postmark.token', $result->details);
+        $this->assertStringContainsString('mail.mailers.postmark.key', $result->details);
     }
 
     public function testResolvesMailersBehindFailoverTransports(): void
@@ -294,7 +294,7 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         $this->assertStringContainsString('mail.mailers.smtp.host', $result->details);
     }
 
-    public function testRequiresAnOverflowStoreWhenSqsQueueOverflowIsEnabled(): void
+    public function testUsesTheDefaultCacheStoreWhenSqsOverflowStoreIsNull(): void
     {
         config([
             'queue.default' => 'jobs',
@@ -305,8 +305,7 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
 
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
-        $this->assertSame('fail', $result->status->value);
-        $this->assertStringContainsString('queue.connections.jobs.overflow.store', $result->details);
+        $this->assertSame('pass', $result->status->value);
     }
 
     public function testIgnoresTheOverflowStoreWhenSqsQueueOverflowIsDisabled(): void
@@ -361,12 +360,85 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         config([
             'queue.default' => 'main',
             'queue.connections.main' => ['driver' => 'failover', 'connections' => ['sync', 'overflow']],
-            'queue.connections.overflow' => ['driver' => 'sqs', 'overflow' => ['enabled' => true, 'store' => null]],
+            'queue.connections.overflow' => ['driver' => 'sqs', 'overflow' => ['enabled' => true, 'store' => '']],
         ]);
 
         $result = (new RequiredConfigurationValuesAreSet)->check();
 
         $this->assertSame('fail', $result->status->value);
         $this->assertStringContainsString('queue.connections.overflow.overflow.store', $result->details);
+    }
+
+    #[DataProvider('effectiveMailerConfigurations')]
+    public function testChecksTheMailFactorysEffectiveConfiguration(array $mailer, array $services, string $status, ?string $missing): void
+    {
+        config([
+            'mail.default' => 'selected',
+            'mail.mailers.selected' => $mailer,
+            'services' => $services,
+        ]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+
+        $this->assertSame($status, $result->status->value, $result->details ?? '');
+
+        if ($missing !== null) {
+            $this->assertStringContainsString($missing, $result->details);
+        }
+    }
+
+    /**
+     * Provide mail URLs and transport-specific credential precedence.
+     */
+    public static function effectiveMailerConfigurations(): array
+    {
+        return [
+            'SMTP URL supplies transport and host' => [['url' => 'smtp://mail.example.test:587'], [], 'pass', null],
+            'URL overrides wrapper transport' => [['transport' => 'failover', 'url' => 'smtp://mail.example.test', 'mailers' => ['missing']], [], 'pass', null],
+            'undefined failover child preserves other missing credentials' => [['transport' => 'failover', 'mailers' => ['missing', 'postmark']], [], 'fail', 'services.postmark.key'],
+            'URL query overrides an existing host' => [['transport' => 'smtp', 'host' => 'original', 'url' => 'smtp://mail.example.test?host='], [], 'fail', 'mail.mailers.selected.host'],
+            'Resend mailer key' => [['transport' => 'resend', 'key' => 'key'], [], 'pass', null],
+            'Resend null falls back' => [['transport' => 'resend', 'key' => null], ['resend' => ['key' => 'service-key']], 'pass', null],
+            'Resend empty override' => [['transport' => 'resend', 'key' => ''], ['resend' => ['key' => 'service-key']], 'fail', 'mail.mailers.selected.key'],
+            'Cloudflare mixed sources' => [['transport' => 'cloudflare', 'account_id' => 'account'], ['cloudflare' => ['key' => 'service-key']], 'pass', null],
+            'Cloudflare legacy token' => [['transport' => 'cloudflare', 'account_id' => 'account', 'token' => 'legacy'], [], 'fail', 'services.cloudflare.key'],
+            'Mailgun service record' => [['transport' => 'mailgun', 'secret' => null, 'domain' => 'ignored'], ['mailgun' => ['secret' => 'secret', 'domain' => 'mail.example.test']], 'pass', null],
+            'Mailgun selected mailer record' => [['transport' => 'mailgun', 'secret' => 'secret', 'domain' => 'mail.example.test'], [], 'pass', null],
+            'Mailgun does not merge records' => [['transport' => 'mailgun', 'secret' => 'secret'], ['mailgun' => ['domain' => 'ignored']], 'fail', 'mail.mailers.selected.domain'],
+        ];
+    }
+
+    #[DataProvider('syslogArguments')]
+    public function testUsesTheMergedSyslogHandlerArguments(?array $handlerWith, string $status): void
+    {
+        config([
+            'logging.default' => 'papertrail',
+            'logging.channels.papertrail' => [
+                'driver' => 'monolog',
+                'handler' => SyslogUdpHandler::class,
+                'with' => ['host' => 'logs.example.test', 'port' => 514],
+                'handler_with' => $handlerWith,
+            ],
+        ]);
+
+        $result = (new RequiredConfigurationValuesAreSet)->check();
+
+        $this->assertSame($status, $result->status->value);
+
+        if ($status === 'fail') {
+            $this->assertStringContainsString('logging.channels.papertrail.handler_with.host', $result->details);
+        }
+    }
+
+    /**
+     * Provide merged and overridden handler arguments.
+     */
+    public static function syslogArguments(): array
+    {
+        return [
+            'with only' => [null, 'pass'],
+            'partial override' => [['port' => 1514], 'pass'],
+            'null field overrides with' => [['host' => null], 'fail'],
+        ];
     }
 }

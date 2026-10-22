@@ -70,7 +70,7 @@ class SessionDriverIsReachable extends Diagnostic
     {
         match ($driver) {
             'array', 'cookie' => null,
-            'file' => $this->probeFileSessions(),
+            'file', 'native' => $this->probeFileSessions(),
             'database' => $this->probeDatabaseSessions(),
             'redis' => $this->probeRedisSessions(),
             default => $this->probeSessionManager(),
