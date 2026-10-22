@@ -319,7 +319,11 @@ class PostgresGrammar extends Grammar
     protected function compileLock(Builder $query, bool|string $value): string
     {
         if (! is_string($value)) {
-            return $value ? 'for update' : 'for share';
+            $lock = $value ? 'for update' : 'for share';
+
+            return $query->skipLocked && $this->connection->supportsSkipLocked()
+                ? $lock . ' skip locked'
+                : $lock;
         }
 
         return $value;

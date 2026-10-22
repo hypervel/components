@@ -196,6 +196,11 @@ class Builder implements BuilderContract
     public string|bool|null $lock = null;
 
     /**
+     * Whether to skip rows locked by another transaction.
+     */
+    public bool $skipLocked = false;
+
+    /**
      * The query execution timeout in seconds.
      */
     public ?int $timeout = null;
@@ -2860,6 +2865,10 @@ class Builder implements BuilderContract
      */
     public function lock(string|bool $value = true): static
     {
+        if ($this->skipLocked && is_string($value)) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        }
+
         $this->lock = $value;
         $this->useWritePdo();
 
@@ -2880,6 +2889,20 @@ class Builder implements BuilderContract
     public function sharedLock(): static
     {
         return $this->lock(false);
+    }
+
+    /**
+     * Skip rows locked by another transaction when supported by the server.
+     */
+    public function skipLocked(): static
+    {
+        if (! is_bool($this->lock)) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        }
+
+        $this->skipLocked = true;
+
+        return $this;
     }
 
     /**

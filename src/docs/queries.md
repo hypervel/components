@@ -1865,6 +1865,24 @@ DB::transaction(function () {
 });
 ```
 
+When several workers read from a queue-like table, you may call `skipLocked` after `lockForUpdate` or `sharedLock` to skip rows locked by another transaction:
+
+```php
+DB::transaction(function () {
+    $jobs = DB::table('jobs')
+        ->where('status', 'pending')
+        ->orderBy('id')
+        ->limit(100)
+        ->lockForUpdate()
+        ->skipLocked()
+        ->get();
+
+    // Process or claim the selected jobs within this transaction.
+});
+```
+
+Skipping locked rows does not give a complete view of the matching data, so use it for work claiming rather than general-purpose reads. The modifier cannot be combined with a custom string lock clause. On unsupported database versions, the query retains its normal locking behavior; SQLite does not acquire row locks. If your operation requires skipping locked rows, check `DB::supportsSkipLocked()` before choosing this approach.
+
 <a name="reusable-query-components"></a>
 ## Reusable Query Components
 

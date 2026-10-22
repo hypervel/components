@@ -327,6 +327,12 @@ class MySqlGrammar extends Grammar
     protected function compileLock(Builder $query, bool|string $value): string
     {
         if (! is_string($value)) {
+            if ($query->skipLocked && $this->connection->supportsSkipLocked()) {
+                // MySQL's legacy shared-lock syntax cannot take SKIP LOCKED; MariaDB requires it.
+                return ($value ? 'for update' : ($this->connection->isMaria() ? 'lock in share mode' : 'for share'))
+                    . ' skip locked';
+            }
+
             return $value ? 'for update' : 'lock in share mode';
         }
 
