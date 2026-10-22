@@ -537,6 +537,27 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertSame(['third', 'first', 'second'], $failedStores);
     }
 
+    public function testReplacementStoreReportsItsOwnFirstFailure(): void
+    {
+        $cache = m::mock(CacheManager::class);
+        $events = m::mock(Dispatcher::class);
+        $primary = m::mock(RepositoryContract::class);
+        $secondary = m::mock(RepositoryContract::class);
+        $primary->allows('get')->andThrow(new RuntimeException('Primary unavailable.'));
+        $secondary->allows('get')->andReturn('value');
+        $cache->allows('store')->with('primary')->andReturn($primary);
+        $cache->allows('store')->with('secondary')->andReturn($secondary);
+        $events->allows('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->twice()->with(m::type(CacheFailedOver::class));
+
+        $store = new FailoverStore($cache, $events, ['primary', 'secondary']);
+        $this->assertSame('value', $store->get('key'));
+        unset($store);
+
+        $replacement = new FailoverStore($cache, $events, ['primary', 'secondary']);
+        $this->assertSame('value', $replacement->get('key'));
+    }
+
     public function testFailoverEventCarriesLogicalAndFailedBackingStoreNames(): void
     {
         $exception = new RuntimeException('primary unavailable');
