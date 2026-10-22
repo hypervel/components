@@ -56,6 +56,8 @@ final class ActiveDrivers
      */
     public static function logChannels(string $channel, array $seen = []): array
     {
+        $channel = trim($channel);
+
         if (in_array($channel, $seen, true)) {
             return [];
         }
@@ -66,6 +68,10 @@ final class ActiveDrivers
 
         $channels = config("logging.channels.{$channel}.channels");
 
+        if (is_string($channels)) {
+            $channels = explode(',', $channels);
+        }
+
         if (! is_array($channels)) {
             return [];
         }
@@ -73,6 +79,8 @@ final class ActiveDrivers
         $active = [];
 
         foreach ($channels as $nested) {
+            $nested = $nested instanceof UnitEnum ? (string) enum_value($nested) : $nested;
+
             if (is_string($nested) && $nested !== '') {
                 $active = [...$active, ...self::logChannels($nested, [...$seen, $channel])];
             }

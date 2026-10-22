@@ -135,12 +135,13 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
         $this->assertSame('pass', $result->status->value);
     }
 
-    public function testRequiresTheWebhookUrlForActiveSlackLogChannels(): void
+    #[DataProvider('loggingStacks')]
+    public function testRequiresTheWebhookUrlForActiveSlackLogChannels(array|string $channels): void
     {
         config([
             'logging.default' => 'stack',
             'logging.channels.stack.driver' => 'stack',
-            'logging.channels.stack.channels' => ['single', 'alerts'],
+            'logging.channels.stack.channels' => $channels,
             'logging.channels.single.driver' => 'single',
             'logging.channels.alerts.driver' => 'slack',
             'logging.channels.alerts.url' => null,
@@ -150,6 +151,18 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
 
         $this->assertSame('fail', $result->status->value);
         $this->assertStringContainsString('logging.channels.alerts.url', $result->details);
+    }
+
+    /**
+     * Provide the channel forms accepted by the logging stack driver.
+     */
+    public static function loggingStacks(): array
+    {
+        return [
+            'array' => [['single', 'alerts']],
+            'comma separated' => ['single, alerts '],
+            'enum' => [['single', DoctorLogChannel::Alerts]],
+        ];
     }
 
     public function testIgnoresInactiveLogChannels(): void
@@ -441,4 +454,9 @@ class RequiredConfigurationValuesAreSetTest extends TestCase
             'null field overrides with' => [['host' => null], 'fail'],
         ];
     }
+}
+
+enum DoctorLogChannel: string
+{
+    case Alerts = 'alerts';
 }
