@@ -10,8 +10,8 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Support\Arr;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
-use UnitEnum;
 
 class ConfigurationCanBeCached extends Diagnostic
 {
@@ -42,6 +42,8 @@ class ConfigurationCanBeCached extends Diagnostic
     {
         try {
             $this->cacheConfiguration();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             return $this->fail('cannot-cache')
                 ->withDetails($e->getMessage());
@@ -57,6 +59,8 @@ class ConfigurationCanBeCached extends Diagnostic
     {
         try {
             eval('return ' . var_export(config()->all(), true) . ';');
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             throw $this->serializationException($e);
         }
@@ -68,9 +72,13 @@ class ConfigurationCanBeCached extends Diagnostic
     private function serializationException(Throwable $previous): Throwable
     {
         foreach (Arr::dot(config()->all()) as $key => $value) {
-            if (is_object($value) && ! $value instanceof UnitEnum && ! method_exists($value, '__set_state')) {
+            try {
+                eval('return ' . var_export($value, true) . ';');
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $exception) {
                 return new LogicException(
-                    sprintf('The configuration value at [%s] is not serializable.', $key),
+                    sprintf('The configuration value at [%s] is not serializable: %s', $key, $exception->getMessage()),
                     0,
                     $previous,
                 );

@@ -10,6 +10,7 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Swoole\Coroutine\CanceledException;
 
 class ConfigurationFilesCanBeLoadedTest extends TestCase
 {
@@ -66,5 +67,15 @@ class ConfigurationFilesCanBeLoadedTest extends TestCase
         file_put_contents($this->directory . '/nested/valid.php', '<?php return ["key" => "value"];');
 
         $this->assertSame('pass', (new ConfigurationFilesCanBeLoaded)->check()->status->value);
+    }
+
+    public function testConfigurationEvaluationDoesNotSwallowCancellation(): void
+    {
+        File::put($this->directory . '/nested/canceled.php', '<?php throw new \Swoole\Coroutine\CanceledException("Configuration load canceled.");');
+
+        $this->expectException(CanceledException::class);
+        $this->expectExceptionMessage('Configuration load canceled.');
+
+        (new ConfigurationFilesCanBeLoaded)->check();
     }
 }

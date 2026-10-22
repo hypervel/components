@@ -8,6 +8,7 @@ use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Finder\Finder;
 use Throwable;
 
@@ -53,6 +54,8 @@ class ConfigurationFilesCanBeLoaded extends Diagnostic
         foreach ($files as $file) {
             try {
                 require $file->getPathname();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $e) {
                 return $this->fail('load-failed')
                     ->withDetails(sprintf('%s: %s', $file->getRelativePathname(), $e->getMessage()));
