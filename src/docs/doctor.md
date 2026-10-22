@@ -195,10 +195,10 @@ Doctor ships with a focused suite of diagnostics that cover common configuration
 - **Environment** — the selected environment file, `APP_KEY`, PHP version constraints, and required and recommended PHP extensions.
 - **Composer** — installed dependencies, optimized autoload validation, lock-file consistency, and local repairs for eligible dependency problems.
 - **Configuration** — configuration files can be loaded and cached, configuration values required by the active drivers are set, and bootstrap cache files are reported when their presence does not match the current environment.
-- **Database** — the default connection is reachable, the SQLite database file exists when needed, and pending migrations can be applied automatically in local environments.
+- **Database** — the default connection is reachable, including its selectable read and write records. Explicit `::read` or `::write` defaults check that role. Doctor also checks the selected SQLite database file and can apply pending migrations automatically in local environments.
 - **Cache, queue, scheduler, and session** — selected drivers and active Redis data and lock connections are reachable, degraded failover capacity is reported, `sync` queues are flagged outside local environments, and scheduled tasks prompt advice to keep `schedule:run` running. Background and deferred queues run in coroutines and need no external worker; null queues intentionally discard jobs.
 - **Storage** — the default filesystem disk is reachable, required directories are writable, and the `storage:link` symlink exists when expected.
-- **Security** — debug mode matches the environment, `.env` is ignored, and Composer dependencies are audited.
+- **Security** — debug mode matches the environment, `.env` is ignored, and Composer dependencies pass the configured audit policy, including vulnerability, abandoned-package, and filter-list checks.
 
 Platform checks read the root Composer manifest and installed package metadata. This includes dependency extension constraints, such as the framework's Swoole requirement, without keeping a second version list. Compatible Composer providers and replacements can satisfy extension requirements. Root development requirements apply only when the installed metadata records a development installation. Checks inspect the PHP process running Doctor, not Composer's emulated platform.
 

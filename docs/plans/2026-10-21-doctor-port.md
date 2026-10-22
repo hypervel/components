@@ -6,7 +6,7 @@ Target branch: `feature/doctor`, based on `0.4`. All paths below are relative to
 
 This is a new package port plus the framework corrections described below. Implementation, the timezone architectural adaptation, and the shared Redis requirements API are authorized. API-compatible correctness fixes and their supporting refactors do not need separate approval, including those in other framework packages. This plan alone does not authorize staging, committing, or pushing.
 
-The package and diagnostic, repair, and framework corrections are implemented and verified. The independent package audit and review of its corrections are complete. Remaining work: complete both repositories' CI and review workflows before merging.
+The package and diagnostic and instance-lifetime corrections are implemented and verified. Remaining work: publish the latest corrections and finish both repositories' CI and review workflows before merging.
 
 The additive `config:show --json`, `Migrator::getPendingMigrations()`, and `DotenvManager::getLoadedVariableNames()` APIs are approved. Preserve existing command behavior and protected extension points.
 
@@ -115,7 +115,13 @@ try {
 
 Use the framework's driver-neutral API: `getPdo()` exists only on PDO connections; `getServerVersion()` belongs to the driver-neutral connection contract. Preserve an explicitly configured PDO timeout and upstream's default probe timeout where applicable; that option does not bound custom transports, which own their timeouts. Do not invent a driver registry or cast a custom connection to PDO. Remove SQL Server-specific probing.
 
+Parse configured default role suffixes with `ConnectionName`, looking up the base name and following `DatabaseManager`'s role selection. Keep the configured default rather than adopting the coroutine's ambient default. Preserve non-array PDO options so the owning connector reports invalid configuration; never inject PDO options into a selected custom extension.
+
+For built-in split connections, check every selectable read/write record for the requested role. Keep base probes on the full configuration with one raw record selected: `getServerVersion()` opens writes, and `PdoConnection::getReadPdo()` opens reads. Standalone merged read configurations would wrongly invoke extensions that normal base connections bypass. Explicit read aliases retain the manager's selected-config extension resolution. Reuse factory merging, preserve connector host-array failover, and apply timeout defaults to effective record options as well as base options. Report failures by role and record index without dumping configuration. No new factory hook or pool change is needed.
+
 Identify drivers from normalized configuration, not connection names. A connection named `analytics` can be SQLite. Use `SQLiteDatabase::isInMemory()` and `isUri()` so `:memory:` and supported `file:` URI forms never become bogus local files. A URI is handled by the SQLite connector, not by Doctor's plain-file creation repair. Keep schema probes cheap (`hasTable`), without counting application tables or reading application rows.
+
+SQLite file inspection uses the effective selected role, including `configForWrite()` when the factory has a read side. Keep the inspected path in the repair result; do not repair a different file after configuration changes.
 
 Create missing SQLite files exclusively so a file created between inspection and repair is never truncated; an existing regular file needs no recreation.
 
@@ -127,8 +133,8 @@ Implement the migration correctness fix as follows:
 
 - Add `Migrations/MigratorState` with nullable `connection` and `OutputStyle` fields. Implement `ReplicableContext::replicate()` by cloning the state, so `Coroutine::fork()` inherits values without sharing subsequent field mutation.
 - Preserve `Migrator::$connection` and `$output` as protected typed properties through PHP 8.4 hooks. Reads use `currentState()?->...` without allocating state; setters initialize state when needed.
-- Store state in `CoroutineContext` under a private/protected owning key prefix plus `spl_object_id($this)`. Outside coroutines use a private instance state field. Follow the existing `ClientManager` property-hook pattern, without its client-resource cleanup machinery.
-- Make `DatabaseMigrationRepository::$connection` a corresponding hooked nullable property. A scalar context value plus non-coroutine instance field is sufficient; no second state class is needed.
+- Store state in `CoroutineContext` under an owning key prefix plus `spl_object_id($this)`, with a `WeakReference` to the owning migrator. Accept state only when its owner is the current instance, replacing stale entries on initialization. Copies retain the weak owner but clone mutable state. Constructor/clone resets alone cannot clear stale entries in other coroutines. Outside coroutines keep instance-owned state; do not add client-resource cleanup machinery.
+- Make `DatabaseMigrationRepository::$connection` a corresponding hooked nullable property. Store a weak owner and connection pair in context, validating ownership on reads; keep the non-coroutine instance field. No second state class is needed.
 - Preserve `usingConnection()`'s independent stored-connection and default-context snapshots/restoration. Keep the repository interface and custom bindings; custom implementations own their own coroutine safety.
 - Keep migration paths, resolver callbacks, exclusions and immutable file metadata worker-lived. Do not scope the entire migrator, which would lose boot-registered paths. Do not lock all migrations or clone repositories inside Doctor.
 - Correct the existing docblock that incorrectly claims no worker-global mutation. Update any touched public worker configuration mutator warnings.
@@ -154,6 +160,7 @@ Extend existing `Support/ActiveDrivers`, alongside `logChannels()` and `mailers(
 
 - Cache `stack` accepts numeric store names and named entries with per-layer options; follow `CacheManager::createStackDriver()`'s actual shape, including enum names and null selecting the default store. Cache failover children retain their string-name contract.
 - Failover cache uses configured child stores; failover queue uses child connections. Redis discovery unwraps both wrapper types, and required service-configuration checks follow active failover queue branches.
+- Logging stack discovery accepts comma-separated names, trims names, and normalizes enum names as LogManager does. Inline logger objects have no configured channel name to traverse.
 - A stack round-trip already reaches its layers and propagates false/exception failure. Do not repeat those layer probes just to reproduce the wrapper's work.
 - Probe the selected cache repository, including wrappers, and every failover child (primary included). Probe a child stack as a whole; traverse ordinary stack layers only to discover nested failovers. Deduplicate supplemental probes by name within the check. A false write, wrong read, or thrown probe/cleanup error fails. Successful writes/reads with unhealthy failover children warn, including when wrapper cleanup returns false; explain that cleanup could not be confirmed and list child failures separately, without claiming they were its only cause. Cleanup false without unhealthy failover children fails. Queue failover retains all-healthy/pass, partly-healthy/warn, all-unhealthy/fail verdicts using its non-writing probes.
 - Judge async configuration by the first concrete child of a failover queue; fallback children are checked for reachability. Resolve the configured driver rather than treating the connection name as the driver.
@@ -162,6 +169,8 @@ Extend existing `Support/ActiveDrivers`, alongside `logChannels()` and `mailers(
 - Include each active Redis cache store's effective lock connection (`lock_connection ?? connection`) as well as its data connection. Lock-only connections need reachability/base client support, not hash-field feature requirements. Deduplicate names within each check. Reachability and feature compatibility are separate diagnostics; do not add a global probe-result cache to couple them.
 
 Do not misreport an empty/malformed wrapper discovery as verified healthy. Let actual supported manager resolution expose invalid required configuration; avoid a second framework configuration validator.
+
+FailoverStore and FailoverQueue failure history must belong to the actual instance, not a recycled object ID. Store a weak owner and failure-list pair in the existing context entry; a missing or different owner means empty history. Preserve episode/recovery behavior, finally updates, and copied-child isolation without a shared registry or strong owner retention.
 
 Reject recursive built-in wrapper configurations at construction in their owning managers. Cache stack construction recurses immediately; lazy cache/queue failover cycles can exhaust process memory during an operation. Use local configuration walks, with no worker state or per-operation checks:
 
@@ -246,6 +255,8 @@ Application-key generation, debug-mode repair, and cache-default selection must 
 - At worker start, `ReloadDotenvAndConfig` skips dotenv reload when the configuration cache file currently exists, and loads dotenv when that file has been removed. Preserve the memoized application API and existing config rebuild/replay. Do not flush inherited dotenv values: that would change cache-path resolution when `APP_CONFIG_CACHE` came from the file. Document that, when an uncached master switches to cached workers, a full restart removes inherited dotenv values visible through runtime `env()` calls; cached configuration itself takes effect on worker reload.
 
 Composer autoload inspection uses `dump-autoload --dry-run --no-scripts`, since dry-run alone still executes pre-autoload scripts. Keep scripts enabled for the explicit repair. Composer lock and autoload repairs run without a process timeout, matching the framework's Composer commands; inspection processes retain their existing bounds.
+
+Composer audit distinguishes vulnerable packages, completed reports that fail configured abandoned/filter policies, and failures to run the audit. Recognize completed JSON reports by their advisories array; let Composer's exit status decide policy failure rather than reimplementing its policy. Exit-zero report-only findings pass. Include useful package/replacement or filter-list details without calling every reported match a blocking finding.
 
 ### Subprocess inheritance and server bootstrap
 
@@ -340,8 +351,8 @@ Keep all applicable upstream coverage. Add regressions to the corresponding upst
 |---|---|
 | Core/CLI | Fresh diagnostic on rerun; original callback/result semantics; cancellation identity from check/fix plus a representative probe; interactive `--fix` never prompts for a choice; normal interactive choices still work; JSON/GitHub formats and exit statuses; generated strict-typed stubs. |
 | Source attribution | Actual root resolves to `hypervel/components`; a real vendor class resolves to the deeper vendor package path. Do not mutate global InstalledVersions, test the test-cleanup hook itself, or invent split-package attribution in the development root. |
-| Database | Aliased and URL-configured drivers; registered factory extension and driver-neutral probe; connection cleanup after success/failure; SQLite memory/URI/file repair distinction. |
-| Migrations | Existing routing tests remain intact. New `tests/Database/MigratorCoroutineIsolationTest.php` follows the existing flat migration test placement and uses real migrator/repository with a mocked resolver: overlapping selected connections, independent restoration, output isolation, fork inheritance without parent mutation, independent live instances, and non-coroutine behavior. Doctor checks the configured migrations target and restores ambient context. |
+| Database | Aliased and URL-configured drivers; configured read/write suffixes; healthy split and unreachable read records with record-owned options; extension resolution and untouched custom options; invalid built-in options; cleanup after success/failure; effective SQLite role paths and memory/URI/file repair distinction. |
+| Migrations | Existing routing tests remain intact. `tests/Database/MigratorCoroutineIsolationTest.php` covers overlapping selected connections, independent restoration, output isolation, fork inheritance without parent mutation, independent live and released/replacement instances, and non-coroutine behavior. Doctor checks the configured migrations target and restores ambient context. |
 | Cache/wrappers | False put, mismatched read, plain cleanup failure and preserved primary cancellation/error; null skip; session round-trip; stack named/numeric entries; failover healthy/degraded/failed; dead primary/backup and nested failover with successful write/read but false cleanup warn; false-writing primary fails while a false-writing backup warns; nested wrappers and cycles; duplicate names produce useful unduplicated diagnostics; eligible/ineligible creation repair and honest label; already-generated pending migrations; re-probe before switching. |
 | Manager cycles | Extend existing CacheManagerTest/QueueManagerTest: self/indirect cycles reject with their chain; valid nested/shared children work; cache on-demand labels do not create false cycles; custom creators/connectors remain authoritative; missing backups and throwing custom queue connector factories stay lazy. Preserve existing pooled connector behavior. |
 | Redis/session | Correct session fallback; missing required database session/queue tables fail; active Redis data/lock names are included and inactive stores excluded; base client and conditional feature minimums; Redis versus Valkey precedence; unknown server version; no INFO required for lock-only/inactive features or unsupported clients. Existing manual Redis checks retain their command behavior. Extend existing trait/check tests and add focused RedisRequirements/Doctor tests. |
@@ -352,6 +363,8 @@ Keep all applicable upstream coverage. Add regressions to the corresponding upst
 | Shared constants | Constructor/factory/generator/config agree with the owning cache/session defaults. Extend existing behavioral tests rather than asserting every literal at every caller. |
 
 Inspect existing coverage before adding files. Do not retest `makeTransient` binding semantics already covered by container tests, add speculative production test seams, or assert incidental helper call counts. Network-call avoidance is verified through inactive/unsupported cases that must succeed without a server, not by mirroring the implementation's loop counts.
+
+Add released/replacement-instance regressions to the existing cache and queue failover tests. Composer audit cases cover abandoned/filter policy failures, failed execution, report-only success, and a missing lock. Remove ineffective subprocess-autoloader environment setup and redundant fixture path resets; keep explicit environment overrides and the piped-input subprocess's actual autoloader setting.
 
 Audit regressions cover literal markup and backslashes through actual machine-output commands, config files declaring local variables before failure, distro PHP versions and valid prereleases, unlimited Composer repair timeouts through existing process assertions, and trailing dotenv key comments/whitespace through the existing key-generation provider. Keep documentation output examples consistent with the renderer and diagnostic messages.
 
