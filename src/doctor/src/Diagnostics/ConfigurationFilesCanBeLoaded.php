@@ -53,7 +53,7 @@ class ConfigurationFilesCanBeLoaded extends Diagnostic
 
         foreach ($files as $file) {
             try {
-                require $file->getPathname();
+                (fn (): mixed => require $file->getPathname())();
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $e) {

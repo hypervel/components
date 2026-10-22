@@ -43,7 +43,7 @@ class ConfigurationFilesCanBeLoadedTest extends TestCase
     #[DataProvider('configurationFiles')]
     public function testReportsConfigurationFilesThatCannotLoad(string $file): void
     {
-        file_put_contents($this->directory . '/' . $file, "<?php\n\nthrow new RuntimeException('broken config');\n");
+        file_put_contents($this->directory . '/' . $file, "<?php\n\n\$file = 'application-data.json';\nthrow new RuntimeException('broken config');\n");
 
         $result = (new ConfigurationFilesCanBeLoaded)->check();
 
