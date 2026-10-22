@@ -128,6 +128,27 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
+    public function testReplacementQueueReportsItsOwnFirstFailure(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $primary = m::mock(Queue::class);
+        $secondary = m::mock(Queue::class);
+        $primary->allows('push')->andThrow(new RuntimeException('Primary unavailable.'));
+        $secondary->allows('push')->andReturn('job-id');
+        $manager->allows('connection')->with('primary')->andReturn($primary);
+        $manager->allows('connection')->with('secondary')->andReturn($secondary);
+        $events->allows('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->twice()->with(m::type(QueueFailedOver::class));
+
+        $queue = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $queue->push('job'));
+        unset($queue);
+
+        $replacement = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $replacement->push('job'));
+    }
+
     public function testCancellationDoesNotFailOverOrEmitAnEvent(): void
     {
         $manager = m::mock(QueueManager::class);
