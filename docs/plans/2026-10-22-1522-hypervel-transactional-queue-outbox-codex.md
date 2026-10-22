@@ -24,7 +24,7 @@ The result is a queue feature, not a generic event bus, inbox/deduplication syst
 
 Implemented: framework prerequisites, public selection and wrapper propagation, schema/configuration, owner-aware staging and repository operations, Redis/Horizon/database/SQS/pooled raw publication, relay/worker resource boundaries, operator commands, and guarded delivery events/telemetry.
 
-Next: complete the remaining live-engine/concurrency and API-integration coverage. Canonical documentation, approved performance checks and final verification also remain. The full feature is not yet complete.
+Implementation, live-engine/concurrency and API-integration coverage, canonical documentation and the retained benchmark harness are complete and verified. Only performance measurements, including the PostgreSQL claim-design comparison, remain owner-deferred until an idle-machine window. The harness is functionally verified; no performance results are claimed.
 
 ### Hypervel
 
@@ -543,19 +543,21 @@ Place engine-specific cases under `tests/Integration/Queue/Database/{Postgres|My
 
 ### Performance gates
 
-- Pin direct dispatch before/after query count, outbox service-resolution count, serialized fields, and payload transformations in automated tests: all remain unchanged when outbox is unselected. Use a repeatable local benchmark to measure the minimal cached job/config selection checks and investigate any material CPU or allocation regression; do not place unstable wall-time thresholds in CI.
-- Obtain the owner's confirmation that the machine is idle before any benchmark. Benchmark single and 1k/10k staging, lease claims, Redis Lua batches, database inserts and SQS request construction; compare query/network counts and allocation as well as throughput.
-- Verify one insert per normal bulk chunk, claim transaction control only for the separate locking-select/update path, publication using existing destination/protocol batches, and at most one accepted delete, deferred release and failed-row release per non-empty binding-safe settlement subset. Record peak borrowed source/transport connections and prove no lease spans unrelated work or sleep.
-- Profile PostgreSQL/MySQL plans with representative pending/live-leased/retrying backlogs and concurrency. Compare the indexed availability/lease update against the prior separate-reservation predicate, including PostgreSQL index-write/HOT costs. Confirm the chosen design with evidence; resolve a substantive contrary result before changing the plan. Do not add indexes or tune engine settings speculatively.
+- Automated tests pin unselected dispatch's service resolution, serialized fields and payload transformations, set-based staging, bounded claim statements, transport batching and settlement statements. Use multiple rows per settlement outcome so query-count assertions detect per-row regressions. Tiny-pool tests own phase-release correctness; do not duplicate their instrumentation in benchmarks.
+- Retain a developer-only harness under `tests/Benchmarks/QueueOutbox/`, following the existing Database and RateLimiter harnesses. Use `benchmark.php`, a README and cohesive fixtures only where needed. No production hooks, dependencies, Artisan command or CI timing thresholds. Raw reports and disposable data stay outside Git.
+- Cases: direct Redis dispatch for baseline/current CPU and allocation comparison; transactional single and bulk staging (including 1k/10k jobs); real-worker relay to Redis/database queues; concurrent claim/accepted-settlement/refill cycles against mixed eligible, delayed, live-leased and retrying backlogs. Seeded live leases use an explicit `--leased` count, defaulting to batch × concurrency, rather than growing with backlog size. Include refill in cycle throughput and report claim latency separately. Seed deadlines beyond the bounded run. Report the in-memory restart-cache choice so relay timings do not imply external cache I/O. Use plain queued jobs so the direct case loads in a pre-feature worktree.
+- Create isolated randomly named tables from shipped migration stubs and use a unique Redis queue; remove only owned resources in `finally`, never flush a shared Redis database. SQLite is functional-only evidence. Verify exact row/target counts and no remaining borrowed sessions on every run. Tiny invocations validate the harness while the machine is busy; draw no performance conclusions from them.
+- Warm up outside timing; record wall time, process CPU, peak/ending heap and GC deltas, payload size and non-secret runtime/backend settings. Use fresh-process samples and alternate baseline/current worktrees with independent dependencies. Obtain fresh idle-machine confirmation before performance measurements.
+- Keep executing query plans opt-in and outside timing: capture actual claim SQL once, then run PostgreSQL `EXPLAIN (ANALYZE, BUFFERS, WAL)`, MySQL `EXPLAIN ANALYZE` on its locking select, MariaDB `ANALYZE FORMAT=JSON`, or SQLite `EXPLAIN QUERY PLAN`. Roll back executing diagnostic statements. Document supported engine versions; no optimizer assertions or capability framework.
+- PostgreSQL alone also supports a harness-only reservation comparison: add unindexed `reserved_until`, change only the claim CTE to retain indexed availability and filter live reservations, seed equivalent lease states, and reuse accepted settlement. Compare claim latency/scanning and statement WAL, not WAL alone. Whole-cycle `pg_current_wal_insert_lsn()` differences are cluster-wide workload WAL, including refill/settlement and background activity—not isolated index writes. Do not force checkpoints, change fillfactor/autovacuum or reset statistics. After approved measurements, record findings and remove the temporary comparison variant. Investigate substantive contrary evidence before changing production design.
 
-Run focused files immediately as they are added, then affected package suites, cross-package integration suites, analysis, and the repository checkpoint:
+Run focused files immediately as they are added. Verify coherent slices with formatter fixes, static analysis and affected package/integration suites. Use full verification for framework-wide changes; after localized corrections rerun only affected checks and finish any stages not yet completed. Do not repeat completed whole-framework verification merely to obtain one green invocation on the latest revision.
 
 ```bash
 cd /home/binaryfire/workspace/contrib/hypervel/components-queue-outbox
 composer test:parallel -- tests/Queue --filter Outbox
 composer test:parallel -- tests/Bus --filter Outbox
 composer test:parallel -- tests/Horizon --filter Outbox
-composer fix
 
 cd /home/binaryfire/workspace/contrib/hypervel/hypervel
 composer cs-fix
@@ -564,7 +566,7 @@ composer test
 
 ```
 
-Run each new or changed test file immediately. The filters are only a coherent-slice inner loop. `composer fix` includes `composer test:testbench`, satisfying the Testbench migration-change check without a duplicate run, plus formatting, analysis, parallel tests and dogfood suites. When verifying the Testbench change independently, run `composer test:testbench` directly.
+The filters are examples, not substitutes for covering other affected behavior. `composer fix` includes formatting, analysis, parallel tests, `composer test:testbench` and dogfood suites; do not repeat those stages separately when already completed. When verifying a Testbench change independently, run `composer test:testbench` directly. Reuse unchanged skeleton verification and confirm Foundation configuration/schema parity.
 
 If implementation uses a components worktree, copy `.env` from the main components checkout and run `composer install` in the worktree; never symlink `vendor` or Composer state.
 
@@ -575,7 +577,7 @@ If implementation uses a components worktree, copy `.env` from the main componen
 3. Integrate single/bulk staging, existing fast paths, SQS delay selection, forwarding and the prerequisite snapshot lifecycle.
 4. Add the raw-batch SPI and first-party driver implementations, including pooled and Horizon paths.
 5. Add claim/publication/settlement resource scopes, relay/daemon and operator commands, guarded events, and OpenTelemetry listeners.
-6. Complete canonical docs and the exact-owner compatibility note, approved benchmarks, focused suites, static analysis and `composer fix`.
+6. Complete canonical docs, the exact-owner compatibility note, retained benchmark harness and scoped verification above. Finish review and commits before the owner-deferred performance measurements; investigate any later measured bottleneck through the same review workflow.
 
 Before completion, re-read every changed file and confirm:
 
