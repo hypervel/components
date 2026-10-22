@@ -65,6 +65,7 @@ class ComposerAutoloadIsValidTest extends TestCase
             'composer',
             'dump-autoload',
             '--dry-run',
+            '--no-scripts',
             '--optimize',
             '--strict-psr',
             '--strict-ambiguous',

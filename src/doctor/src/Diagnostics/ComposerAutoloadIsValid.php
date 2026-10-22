@@ -57,6 +57,7 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
             ...Composer::command(),
             'dump-autoload',
             '--dry-run',
+            '--no-scripts',
             '--optimize',
             '--strict-psr',
             '--strict-ambiguous',
