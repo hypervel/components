@@ -6,7 +6,12 @@ Target branch: `feature/doctor`, based on `0.4`. All paths below are relative to
 
 This is a new package port plus the framework corrections described below. Implementation, the timezone architectural adaptation, and the shared Redis requirements API are authorized. API-compatible correctness fixes and their supporting refactors do not need separate approval, including those in other framework packages. This plan alone does not authorize staging, committing, or pushing.
 
-Implementation and verification are complete.
+The package and diagnostic, repair, and framework corrections are implemented and verified. Remaining work:
+
+- Audit the entire package independently against framework consumers, including repair persistence and test expectations; resolve findings before pushing.
+- Complete both repositories' CI and review workflows before merging.
+
+The additive `config:show --json`, `Migrator::getPendingMigrations()`, and `DotenvManager::getLoadedVariableNames()` APIs are approved. Preserve existing command behavior and protected extension points.
 
 Follow the repository's `AGENTS.md` and other applicable instructions; this plan does not override them.
 
@@ -83,6 +88,8 @@ if ($this->input()->boolean('fix')) {
 
 Thus `--fix` applies unambiguous fixes and skips choice-based fixes even with interactive input; an explicit interactive run can still choose an option. Do not select a store on the user's behalf.
 
+Before prompting without `--fix`, require both interactive command input and interactive Prompts state; piped input must not accept a repair automatically. Preserve numeric fix-option keys when adding the decline choice, and pass the selected key as a string.
+
 Keep upstream repairs and scope restrictions, translating commands to Hypervel. `make:cache-table` is canonical. Scheduler advice uses Hypervel's long-running `schedule:run`; do not recommend nonexistent `schedule:work` or an every-minute launcher for the long-running command. Background/deferred queues pass the asynchronous diagnostic in both environment modes with in-process coroutine wording and no worker advice; ordinary external queues retain worker advice. Apply this to the first concrete failover child as well.
 
 Honor the queue manager's built-in `null` connection without requiring a configuration record. Reachability can resolve it normally; the asynchronous diagnostic skips with an explicit explanation that null queues discard jobs, including named null drivers and null failover children.
@@ -111,6 +118,8 @@ Use the framework's driver-neutral API: `getPdo()` exists only on PDO connection
 
 Identify drivers from normalized configuration, not connection names. A connection named `analytics` can be SQLite. Use `SQLiteDatabase::isInMemory()` and `isUri()` so `:memory:` and supported `file:` URI forms never become bogus local files. A URI is handled by the SQLite connector, not by Doctor's plain-file creation repair. Keep schema probes cheap (`hasTable`), without counting application tables or reading application rows.
 
+Create missing SQLite files exclusively so a file created between inspection and repair is never truncated; an existing regular file needs no recreation.
+
 ### Migrations: fix the owning state first
 
 `DatabaseServiceProvider` registers both `migrator` and `migration.repository` as singletons. Their connection fields currently override the coroutine default. A verified interleaving is A `usingConnection('tenant_a')`, B `usingConnection('tenant_b')`, then A querying the repository: A's context is `tenant_a` but its repository resolves `tenant_b`. Restoration can also leave stale connection state. Concurrent `queue:work --concurrency` provisioning jobs calling migration commands exercise this path. `migrate:install` directly changes repository source as well.
@@ -136,17 +145,21 @@ protected ?string $connection {
 }
 ```
 
-Doctor then obtains migration files from registered paths plus `database_path('migrations')`, and inspects the repository inside `usingConnection(null, ...)`. This applies `migrations_connection` consistently with `migrate:status`, without changing ambient context afterward. Preserve the local-only subprocess migration repair and its error output.
+Doctor then obtains migration files from registered paths plus `database_path('migrations')`, and inspects the repository inside `usingConnection(null, ...)`. This applies `migrations_connection` consistently with `migrate:status`, without changing ambient context afterward. Preserve the local-only repair, using `Artisan::call('migrate', ['--no-interaction' => true])` so it repairs the inspected application's configuration and registered paths. Keep the existing refusal to create a missing database without `--force`. Rethrow cancellation; convert other command exceptions and nonzero exits into the existing failed-fix result with useful details.
+
+Expose `Migrator::getPendingMigrations(array $files, array $ran): array` by delegating to the existing protected `pendingMigrations()` method. Doctor uses that result so registered exclusions and subclass filtering remain authoritative; do not duplicate exclusion normalization or widen the protected method's visibility.
 
 ### Active services and wrappers
 
 Extend existing `Support/ActiveDrivers`, alongside `logChannels()` and `mailers()`, with `cacheStores(string $store, array $seen = []): array`, `queueConnections(string $connection, array $seen = []): array`, and `redisConnections(): array`, returning ordered lists of names. Keep the existing static-helper style. Walk only selected services, not every configured tenant/inactive store. Use path-local cycle detection and deduplicate names while preserving configured order. These discovery lists do not replace wrapper-aware reachability verdicts.
 
-- Cache `stack` accepts numeric store names and named entries with per-layer options; follow `CacheManager::createStackDriver()`'s actual shape.
+- Cache `stack` accepts numeric store names and named entries with per-layer options; follow `CacheManager::createStackDriver()`'s actual shape, including enum names and null selecting the default store. Cache failover children retain their string-name contract.
 - Failover cache uses configured child stores; failover queue uses child connections. Redis discovery unwraps both wrapper types, and required service-configuration checks follow active failover queue branches.
 - A stack round-trip already reaches its layers and propagates false/exception failure. Do not repeat those layer probes just to reproduce the wrapper's work.
 - Probe the selected cache repository, including wrappers, and every failover child (primary included). Probe a child stack as a whole; traverse ordinary stack layers only to discover nested failovers. Deduplicate supplemental probes by name within the check. A false write, wrong read, or thrown probe/cleanup error fails. Successful writes/reads with unhealthy failover children warn, including when wrapper cleanup returns false; explain that cleanup could not be confirmed and list child failures separately, without claiming they were its only cause. Cleanup false without unhealthy failover children fails. Queue failover retains all-healthy/pass, partly-healthy/warn, all-unhealthy/fail verdicts using its non-writing probes.
 - Judge async configuration by the first concrete child of a failover queue; fallback children are checked for reachability. Resolve the configured driver rather than treating the connection name as the driver.
+- Normalize failover queue enum, null, and empty-string child names exactly as `QueueManager::connection()` does. Normalize enum names before emitting `QueueFailedOver`, preserving null's meaning.
+- Probe SQS and Beanstalkd with their read-only `size()` operation: resolving a lazy queue is not a connection test. SQS requires `sqs:GetQueueAttributes`; preserve useful permission errors. In `BeanstalkdQueue`, centralize tube-stat retrieval and treat only `TubeNotFoundException` as an empty tube for size, pending, delayed, and reserved counts. Retain other failures.
 - Include each active Redis cache store's effective lock connection (`lock_connection ?? connection`) as well as its data connection. Lock-only connections need reachability/base client support, not hash-field feature requirements. Deduplicate names within each check. Reachability and feature compatibility are separate diagnostics; do not add a global probe-result cache to couple them.
 
 Do not misreport an empty/malformed wrapper discovery as verified healthy. Let actual supported manager resolution expose invalid required configuration; avoid a second framework configuration validator.
@@ -165,15 +178,15 @@ Resolve the chosen repository once. Use a unique short-lived probe key, require 
 Retain upstream's fixed `file`, `database`, and `redis` repair candidates, removing Memcached. A candidate must be configured and use a different driver from the failing store. Do not enumerate every configured store. Require the candidate probe to pass except for the supported database-table creation repair:
 
 - `make:cache-table` generates separate `cache` and `cache_locks` migrations using the default schema connection. It does not consume arbitrary cache table/connection settings.
-- Creation is eligible only for the generated table names and effective default data/lock connections. Use the same predicate when presenting and executing the repair. A custom layout is still selectable if its existing store passes the probe.
+- Creation is eligible only when both tables are missing, using the generated table names and effective default data/lock connections. Use the same predicate when presenting and executing the repair. A partially missing schema requires manual repair and must not be offered as healthy merely because cache-value operations succeed. A custom layout is still selectable if its existing tables and store pass the probes.
 - Add `DatabaseStore::DEFAULT_LOCK_TABLE = 'cache_locks'`; use it in the constructor default, `CacheManager`, the generator, and Doctor. Add `CacheTableCommand::TABLE = 'cache'`: use it in both `handle()`'s table map and `migrationTableName()`, with `DEFAULT_LOCK_TABLE` for the other map key. Doctor compares against those actual generator constants. Keep `cache.stores.*.table` required, without a fallback.
 - Keep shipped config values concrete/readable and test agreement with their owning constants. Treat omitted/null optional lock settings exactly as the manager does.
 - The option label states that it creates cache tables and runs all pending migrations. An existing but unrun generated migration is valid: the generator warns and returns success, then `migrate --force` applies it.
-- Re-probe before updating the selected store. Do not claim success merely because generation/migration commands exited successfully.
+- Recheck both tables and re-probe before updating the selected store. Do not claim success merely because generation/migration commands exited successfully. Persist and verify the selected default using the environment-repair behavior below.
 
 ### Sessions and Redis feature requirements
 
-Add public `SessionManager::DEFAULT_REDIS_CONNECTION = 'session'` and use it in the factory and both Doctor consumers. Do not change database-session connection fallback semantics or interpret the string `session` as the database default. Read database-session and database-queue table names as required settings, matching `SessionManager` and `DatabaseConnector`; remove upstream's invented `sessions` and `jobs` fallbacks and misleading fallback names in errors.
+Add public `SessionManager::DEFAULT_REDIS_CONNECTION = 'session'` and use it in the factory and both Doctor consumers. Do not change database-session connection fallback semantics or interpret the string `session` as the database default. Read database-session and database-queue table names as required settings, matching `SessionManager` and `DatabaseConnector`; remove upstream's invented `sessions` and `jobs` fallbacks and misleading fallback names in errors. The `native` session alias uses the same file-path probe as `file`.
 
 Add `Hypervel\Redis\RedisRequirements` with owning constants:
 
@@ -207,15 +220,41 @@ The new diagnostic skips when no Redis connection is active. Otherwise check the
 
 Use application-owned path APIs: `config_path`, `storage_path`, `database_path`, and selected environment path/file. Avoid reconstructing them from `base_path`.
 
-- `ConfigurationFilesCanBeLoaded`: recursively inspect nested PHP config files as `LoadConfiguration` does; preserve file attribution. Do not instantiate a second application or duplicate the loader.
+- `ConfigurationFilesCanBeLoaded`: recursively inspect nested PHP config files as `LoadConfiguration` does; preserve file attribution. Rethrow cancellation from both file evaluation and the enclosing diagnostic catch. Do not instantiate a second application or duplicate the loader.
 - `ConfigurationCanBeCached`: validate `eval('return ' . var_export($configuration, true) . ';')` instead of writing and requiring a unique temporary file. This preserves `__set_state` validation while removing filesystem work and scripts retained by CLI OPcache across programmatic runs. Preserve detailed serialization errors; remove the obsolete temp-file helper, imports and cleanup. The framework's cache-building command already uses eval for per-value error diagnosis; its main validation runs in a fresh subprocess, so it does not need this worker-lifetime fix.
+- Attribute serialization failures by evaluating flattened values, matching `ConfigCacheCommand`; do not reject every object or maintain an allowed-object list. Preserve the actual failure's key and cause. Pass through cancellation from export evaluation and failure attribution.
 - `Configured`: generic getters are intentional where the diagnostic must recognize missing/malformed/union values. Use typed getters for genuinely fixed-type configuration, not to bypass a diagnostic's error reporting.
 - `RequiredConfigurationValuesAreSet`: add active Mercure broadcaster requirements for `url`, effective publishing credentials (`publish_secret` or `secret`), and effective subscription credentials (`subscribe_secret` or `secret`). Match the factory's truthy fallback precedence rather than Postmark's non-null precedence. Do not instantiate a hub or duplicate its algorithm/key validation merely to check required values.
+- Normalize mailer URLs through `ConfigurationUrlParser`, sharing the normalized record between active-mailer traversal and required-value checks. Match `MailManager`: Postmark/Resend use mailer `key` then service `key`, never legacy `token`; Cloudflare selects `account_id` and `key` per field; Mailgun selects the whole mailer record when `secret` is set, otherwise the service record. Match LogManager's merge of `with` then `handler_with`, including null overrides. Omitted/null SQS overflow store means the default cache store, not missing configuration.
 - `StorageIsWritable`: include `storage/framework` itself, the standard required storage directories, and deduplicated parent directories of `getCachedConfigPath`, `getCachedRoutesPath`, `getCachedEventsPath`, and `getCachedPackagesPath`. Honor relocated configured session/view/file-cache paths where those services are active. Display actual paths. In `fix()`, recompute failures and create/chmod only failing paths, then recheck; leave healthy directories' permissions unchanged. In particular, a configured shared directory such as `/tmp` must not have its sticky bit removed by a repair for another path.
+- Include the effective file-cache lock directory as well as its data directory. For existing failing directories, add owner access while preserving other permission and special bits; use normal creation permissions for new directories.
 - `BootstrapCacheMatchesEnvironment`: report config, routes and events separately. Remove all compiled-view scanning; on-demand compiled views prove neither deployment optimization nor stale bootstrap config. Production: warn when none are cached; report a partial cache as a notice identifying cached/uncached types; pass when all are cached. Local: pass when none are cached, otherwise notice naming cached types. Missing optional optimizations are advice, not an application failure. Keep one upstream diagnostic/result rather than inventing nested diagnostic results.
 - `EnvironmentFileExists`: inspect exactly `environmentFilePath()`, never `.env*`. Fix that selected file, using `.env.example` under `environmentPath()` when available. Never overwrite an existing selected file. In production, missing file skips; existing files are still checked by applicable diagnostics.
 - `PublicStorageLinkExists`: use the configured public disk root and matching configured links as described below. Treat `.gitkeep` and `.gitignore` as placeholders; do not alter Testbench's skeleton or delete its placeholder to make tests pass.
 - Retain configured filesystem links, disk probes, and local repair restrictions. Tenant-driver exceptions remain errors when a caller deliberately selects a tenant resource without context.
+
+### Persistent environment repairs
+
+Application-key generation, debug-mode repair, and cache-default selection must verify the setting a fresh application actually reads. Share this logic within Doctor, without changing the fix callback APIs or introducing a general repair framework.
+
+- Select the environment filename in `LoadEnvironmentVariables` before returning for cached configuration; keep dotenv loading skipped in cached mode. This makes all environment-file consumers use the selected file.
+- Add read-only `DotenvManager::getLoadedVariableNames(): array`, using existing loaded-key tracking. Doctor's configuration rebuild and verification subprocesses exclude those inherited variables through Process's `false` environment values; genuinely external values remain. Forward explicit `--env` from process argv and pass the application's resolved `APP_CONFIG_CACHE` after exclusions. Share one Process setup for both operations; do not reload or mutate the parent's environment.
+- Preserve normal environment inheritance in Foundation's configuration and route cache builders. Forward explicit `--env` from process argv into both build children, including nested Artisan calls; retain their existing cache-path and autoloader overrides.
+- Add `config:show --json` for a section or individual key, preserving JSON value types and existing missing-key behavior. Normal output is unchanged.
+- After writing the selected environment file, run `config:cache` in a clean child only if its cache file currently exists, then read the exact key through a clean `config:show --json` child. This also supports maintenance commands that build a cache after an uncached boot and then invoke Doctor programmatically. `configurationIsCached()` records this application's boot state and must not decide whether a maintenance operation rebuilds the current file. A failed command or mismatched value fails the repair. Update current config from the verified value, including restoring a mismatched fresh app key after `key:generate` changed memory. Never print secret values in failure details.
+- Recheck an existing application key before generating, so stale fix results cannot rotate a key. Extend the owning `KeyGenerateCommand` replacement pattern to handle exported assignments while preserving the protected hook and matching the current key.
+- Document `server:reload` or restart after deployment-setting changes; do not restart workers automatically.
+- At worker start, `ReloadDotenvAndConfig` skips dotenv reload when the configuration cache file currently exists, and loads dotenv when that file has been removed. Preserve the memoized application API and existing config rebuild/replay. Do not flush inherited dotenv values: that would change cache-path resolution when `APP_CONFIG_CACHE` came from the file. Document that, when an uncached master switches to cached workers, a full restart removes inherited dotenv values visible through runtime `env()` calls; cached configuration itself takes effect on worker reload.
+
+Composer autoload inspection uses `dump-autoload --dry-run --no-scripts`, since dry-run alone still executes pre-autoload scripts. Keep scripts enabled for the explicit repair.
+
+### Subprocess inheritance and server bootstrap
+
+Doctor's clean-environment policy belongs only to its persistent-setting repairs. Keep normal inheritance for Foundation's cache builders, queue listeners, Horizon, Concurrency, development commands, watcher commands, scheduler processes, and Composer. Preserve Horizon's and the watcher's intentional parent dotenv reloads. Their children and custom commands may depend on inherited values; Doctor's independent-launch verification does not establish a general subprocess policy.
+
+Remove the `runningInConsole()` argv guards from both `LoadEnvironmentVariables` and `Application::detectEnvironment()`. This architectural adaptation is approved: server-mode Artisan commands receive real process argv, and their explicit `--env` selects both the file and application environment. Preserve `EnvironmentDetector`'s protected parsing hooks and all other console/HTTP mode behavior. Update the tests that previously required ignoring argv and record this deliberate public behavior in Foundation's Laravel differences.
+
+The framework-owned `APP_RUNNING_IN_CONSOLE=false` flag describes the current process, so server entrypoints set it only in `$_SERVER`. Swoole workers inherit it through forking; separately executed Artisan children must determine their own mode. Update Testbench's runtime skeleton, Commander, and matching integration server fixtures. Extend context-propagation coverage through the actual Concurrency process driver with a server-mode parent. Apply the matching two-line removal to the separate `hypervel/hypervel` skeleton's `artisan`; that repository correction is authorized.
 
 ### Public storage links
 
@@ -232,7 +271,7 @@ Evaluate each expected link in this order:
 
 Keep one diagnostic result with path-specific details. Mark it fixable only when every failing expected link is missing. Preserve `linked`, `missing`, `unused`, `created`, and `creation-failed`; add distinct message codes for wrong symlinks and conflicting paths. Do not add per-link result objects, inode/bind-mount detection, or a generic link-management layer.
 
-Run plain `storage:link` in the existing subprocess for repair, without `--force` or `--relative`, then evaluate the expected links again using the same inspection routine. Return `created` only when the command succeeds and every expected link resolves correctly. Otherwise return `creation-failed` with useful path details and process output. A zero exit status alone is insufficient: `StorageLinkCommand` intentionally reports existing-path conflicts while remaining successful for idempotent deployment calls. Keep that command unchanged, including its rule that replacing a dangling symlink requires explicit `--force`. Forcing the command would also replace other configured links beyond this diagnostic's scope.
+Run plain `storage:link` through `Artisan::call()` against the inspected application's configuration, without `--force` or `--relative`, then evaluate the expected links again using the same inspection routine. Return `created` only when the command succeeds and every expected link resolves correctly. Otherwise return `creation-failed` with useful path details and command output. Rethrow cancellation and convert other command exceptions into that failed-fix result. A zero exit status alone is insufficient: `StorageLinkCommand` intentionally reports existing-path conflicts while remaining successful for idempotent deployment calls. Preserve those conflict semantics, including the explicit `--force` requirement for dangling symlinks. Remove the stale literal `filesystems.links` fallbacks from both storage link commands; shipped configuration owns that required setting. Forcing the command would also replace other configured links beyond this diagnostic's scope.
 
 ### Git tracking and ignoring
 
@@ -286,6 +325,8 @@ Fresh metadata matters: `ComposerLockIsFresh` can install/update packages, and t
 
 Keep the upstream extension model: subclass `Diagnostic`, implement `check(): DiagnosticResult`, optionally implement `Fixable`, register classes through `Doctor::diagnostic()`/`diagnostics()` during provider boot, and select by class/group/package. Keep `make:diagnostic`, its fixable stub, message/remediation/link APIs and programmatic runs. No new plugin registry or tenancy hook is required.
 
+Bundled diagnostics interpret built-in driver names using their standard semantics, as Laravel Doctor does. Applications replacing those semantics can select custom diagnostics instead. Mention this briefly beside custom diagnostics; do not add manager introspection APIs or a Laravel-differences entry for it.
+
 Doctor checks selected application resources. A tenant-scoped driver that requires tenant context must retain that guard; do not swallow its exception or automatically iterate tenants. Applications and packages can register specialized diagnostics through the existing extension API. No framework tenancy hooks are needed for this port.
 
 ## Testing and verification
@@ -312,6 +353,10 @@ Keep all applicable upstream coverage. Add regressions to the corresponding upst
 | Shared constants | Constructor/factory/generator/config agree with the owning cache/session defaults. Extend existing behavioral tests rather than asserting every literal at every caller. |
 
 Inspect existing coverage before adding files. Do not retest `makeTransient` binding semantics already covered by container tests, add production test seams, or assert incidental helper call counts. Network-call avoidance is verified through inactive/unsupported cases that must succeed without a server, not by mirroring the implementation's loop counts.
+
+Correction coverage must exercise real boundaries: fresh application boots for repaired settings in cached/uncached and explicit-environment modes; external overrides and config that ignores the written variable; actual cache migration generation against SQLite, including partially missing and recorded-but-dropped tables; supported mail factory precedence and URLs; read-only remote queue operations and absent Beanstalkd tubes; enum/default wrapper names and failover events; piped CLI input and numeric option keys; exported/stale app keys; SQLite creation races; preserved directory modes; nested cancellation and actual serialization-error attribution. Correct test expectations that contradict owning factories instead of preserving copied upstream assumptions.
+
+Use real commands for Doctor's migration and storage-link repairs on disposable SQLite tables and configured links; retain failure/output/conflict coverage. Extend the existing repair data provider to cover dotenv loaded before a sequential cache build and programmatic repair, retaining external-override cases. Extend the real route-cache child tests for explicit environment selection and the process-driver test for context propagation from an HTTP-mode parent. Cover both environment-file selection and application-environment detection with server mode enabled, updating the two tests that explicitly required ignoring argv. Preserve existing launcher-inheritance and reload coverage.
 
 Use fakes for ordinary external-service failure paths. If an integration test needs a real service, put it in the appropriate `tests/Integration/...` directory, use its service isolation trait, and update CI discovery only if a new directory requires it. No benchmark without fresh owner confirmation that the machine is idle.
 
