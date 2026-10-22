@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Concerns;
 
 use Hypervel\Support\Arr;
+use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Str;
 
 trait ReplacesAttributes
@@ -453,7 +454,14 @@ trait ReplacesAttributes
             return str_replace(':value', $this->getDisplayableAttribute($parameters[0]), $message);
         }
 
-        return str_replace(':value', (string) $this->getSize($attribute, $value), $message);
+        try {
+            $size = $this->getSize($attribute, $value);
+        } catch (MathException) {
+            // Rejected exponents fail validation; rendering their message must not throw.
+            $size = $this->trim($value);
+        }
+
+        return str_replace(':value', (string) $size, $message);
     }
 
     /**

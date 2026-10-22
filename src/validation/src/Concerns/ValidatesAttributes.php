@@ -24,6 +24,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
 use Hypervel\Validation\Rules\Exists;
@@ -1349,7 +1350,9 @@ trait ValidatesAttributes
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
             try {
-                return BigNumber::of((string) $this->trim($value))->isGreaterThan((string) $this->trim($comparedToValue));
+                // Either field can contain scientific notation that expands beyond the allowed range.
+                return BigNumber::of((string) $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value)))
+                    ->isGreaterThan((string) $this->ensureExponentWithinAllowedRange($parameters[0], $this->trim($comparedToValue)));
             } catch (MathException|BrickMathException) {
                 return false;
             }
@@ -1393,7 +1396,9 @@ trait ValidatesAttributes
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
             try {
-                return BigNumber::of((string) $this->trim($value))->isLessThan((string) $this->trim($comparedToValue));
+                // Either field can contain scientific notation that expands beyond the allowed range.
+                return BigNumber::of((string) $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value)))
+                    ->isLessThan((string) $this->ensureExponentWithinAllowedRange($parameters[0], $this->trim($comparedToValue)));
             } catch (MathException|BrickMathException) {
                 return false;
             }
@@ -1437,7 +1442,9 @@ trait ValidatesAttributes
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
             try {
-                return BigNumber::of((string) $this->trim($value))->isGreaterThanOrEqualTo((string) $this->trim($comparedToValue));
+                // Either field can contain scientific notation that expands beyond the allowed range.
+                return BigNumber::of((string) $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value)))
+                    ->isGreaterThanOrEqualTo((string) $this->ensureExponentWithinAllowedRange($parameters[0], $this->trim($comparedToValue)));
             } catch (MathException|BrickMathException) {
                 return false;
             }
@@ -1481,7 +1488,9 @@ trait ValidatesAttributes
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
             try {
-                return BigNumber::of((string) $this->trim($value))->isLessThanOrEqualTo((string) $this->trim($comparedToValue));
+                // Either field can contain scientific notation that expands beyond the allowed range.
+                return BigNumber::of((string) $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value)))
+                    ->isLessThanOrEqualTo((string) $this->ensureExponentWithinAllowedRange($parameters[0], $this->trim($comparedToValue)));
             } catch (MathException|BrickMathException) {
                 return false;
             }
@@ -1919,20 +1928,24 @@ trait ValidatesAttributes
      * Validate the value of an attribute is a multiple of a given value.
      *
      * @param array<int, int|string> $parameters
-     *
-     * @throws MathException
      */
     public function validateMultipleOf(string $attribute, mixed $value, mixed $parameters): bool
     {
         $this->requireParameterCount(1, $parameters, 'multiple_of');
 
-        return $this->isMultipleOf($value, $parameters[0]);
+        // Numeric input can still expand to an unsafe size before divisibility is checked.
+        try {
+            return $this->isMultipleOf(
+                $this->ensureExponentWithinAllowedRange($attribute, $value),
+                $parameters[0],
+            );
+        } catch (MathException) {
+            return false;
+        }
     }
 
     /**
      * Determine if a value is an exact multiple of a divisor.
-     *
-     * @throws MathException
      */
     protected function isMultipleOf(mixed $value, mixed $divisor): bool
     {
@@ -1957,8 +1970,9 @@ trait ValidatesAttributes
             }
 
             return $numerator->remainder($denominator)->isZero();
-        } catch (BrickMathException $e) {
-            throw new MathException('An error occurred while handling the multiple_of input values.', previous: $e);
+        } catch (BrickMathException) {
+            // Malformed numeric input fails validation rather than escaping as an application error.
+            return false;
         }
     }
 
@@ -2786,16 +2800,13 @@ trait ValidatesAttributes
 
         $stringValue = (string) $value;
 
-        if (! Str::contains($stringValue, 'e', ignoreCase: true)) {
+        if (($scale = Number::exponent($stringValue)) === null) {
             return $value;
         }
 
-        $scale = (int) (Str::contains($stringValue, 'e')
-            ? Str::after($stringValue, 'e')
-            : Str::after($stringValue, 'E'));
-
         $withinRange = (
-            $this->ensureExponentWithinAllowedRangeUsing ?? fn ($scale) => $scale <= 1000 && $scale >= -1000
+            $this->ensureExponentWithinAllowedRangeUsing
+                ?? fn (int $scale) => $scale <= Number::MAX_EXPONENT && $scale >= -Number::MAX_EXPONENT
         )($scale, $attribute, $value);
 
         if (! $withinRange) {

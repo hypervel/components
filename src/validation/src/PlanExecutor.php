@@ -355,7 +355,7 @@ trait PlanExecutor
             CheckType::DateBeforeOrEq => $this->inlineCompareDates($value, $check->param, '<='),
             CheckType::DateEquals => $this->inlineCompareDates($value, $check->param, '='),
 
-            CheckType::MultipleOf => $this->isMultipleOf($value, $check->param),
+            CheckType::MultipleOf => $this->validateMultipleOf($attribute, $value, [$check->param]),
         };
     }
 

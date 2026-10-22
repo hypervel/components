@@ -175,6 +175,82 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
+    public function testFieldComparisonsEnforceEachOperandsExponentPolicy(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach (['gt', 'gte', 'lt', 'lte'] as $rule) {
+                foreach (['value', 'other'] as $attribute) {
+                    $data = ['value' => '1e1001', 'other' => '1E-1001'];
+                    $validator = $this->makeValidator($data, ['value' => $rule . ':other'], validatorClass: $validatorClass);
+                    $seen = [];
+                    $validator->ensureExponentWithinAllowedRangeUsing(
+                        function (int $scale, string $field, mixed $input) use (&$seen, $attribute): bool {
+                            $seen[] = [$field, $input];
+
+                            return $field !== $attribute;
+                        },
+                    );
+
+                    $this->assertFalse($validator->passes());
+                    $this->assertContains([$attribute, $data[$attribute]], $seen);
+                }
+            }
+        }
+    }
+
+    public function testRejectedComparisonExponentsRemainPrintableInValidationMessages(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.gt.numeric' => ':attribute must be greater than :value.'], 'en');
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = new $validatorClass($translator, ['value' => 5, 'other' => '1e1001'], ['value' => 'gt:other']);
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('value must be greater than 1e1001.', $validator->messages()->first('value'));
+        }
+    }
+
+    public function testNumericInputBeyondTheDefaultExponentRangeFailsValidation(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                [['value' => '1e1001', 'other' => 1], 'gt:other'],
+                [['value' => '1e1001', 'other' => 1], 'gte:other'],
+                [['value' => '1e-1001', 'other' => 1], 'lt:other'],
+                [['value' => '1e-1001', 'other' => 1], 'lte:other'],
+                [['value' => 1, 'other' => '1e-1001'], 'gt:other'],
+                [['value' => 1, 'other' => '1e-1001'], 'gte:other'],
+                [['value' => 1, 'other' => '1e1001'], 'lt:other'],
+                [['value' => 1, 'other' => '1e1001'], 'lte:other'],
+                [['value' => '1e1001'], 'multiple_of:1'],
+                [['value' => '1e-1001'], 'multiple_of:1e-1001'],
+                [['value' => "5\x0C"], 'multiple_of:1'],
+                [['value' => "\0" . '5'], 'multiple_of:1'],
+                [['value' => NAN], 'multiple_of:1'],
+            ] as [$data, $rule]) {
+                $this->assertFalse($this->makeValidator($data, ['value' => $rule], validatorClass: $validatorClass)->passes());
+            }
+        }
+    }
+
+    public function testMultipleOfHonorsExponentOverridesWithoutRestrictingRuleLiterals(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => '1e1001'], ['value' => 'multiple_of:1'], validatorClass: $validatorClass);
+            $arguments = [];
+            $validator->ensureExponentWithinAllowedRangeUsing(function (...$values) use (&$arguments): bool {
+                $arguments[] = $values;
+
+                return true;
+            });
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame([[1001, 'value', '1e1001']], $arguments);
+            $this->assertTrue($this->makeValidator(['value' => 0], ['value' => 'multiple_of:1e1001'], validatorClass: $validatorClass)->passes());
+        }
+    }
+
     public function testMalformedAndNonFiniteNumericSizesFailWithoutWarnings(): void
     {
         $literalCases = [
