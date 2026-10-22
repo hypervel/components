@@ -62,7 +62,7 @@ First-party fixes cover deterministic local repairs such as creating a missing `
 
 Environment-file checks use the file selected by your application. A missing environment file is skipped in production, where deployment variables may be supplied externally. Doctor does not untrack files from Git or replace conflicting storage links automatically.
 
-Run repairs as maintenance operations without concurrent application traffic. Repairs may change deployment files, run migrations, or update process-wide configuration.
+Run repairs as maintenance operations without concurrent application traffic. Repairs may change deployment files, run migrations, or update process-wide configuration. After changing deployment settings, run `php artisan server:reload` or restart the server so running workers use the new settings.
 
 > [!NOTE]
 > Fixes are only available with the CLI and agent [output formats](#output-formats). With agent output, `--fix` applies every available deterministic fix and reports the outcomes in the payload's `fixes` array. Doctor rejects `--fix` with the JSON and GitHub report formats so machine-readable reports never mutate the application.
@@ -204,12 +204,16 @@ Platform checks read the root Composer manifest and installed package metadata. 
 
 Redis feature checks use the framework's shared Redis requirements. Higher client and server requirements apply only when active cache stores use `any` tag mode or Redis sessions enable user session tracking. Ordinary Redis use requires only the base client version; separate lock connections do not inherit hash-field requirements. Server version inspection on a cluster checks its default node.
 
+SQS and Beanstalkd reachability checks read queue sizes without publishing jobs. The SQS check requires the `sqs:GetQueueAttributes` permission.
+
 Doctor runs after application startup. Startup guards still reject unsupported runtime settings and invalid application timezones before the command can run. Doctor does not bypass those guards.
 
 <a name="creating-diagnostics"></a>
 ## Creating Diagnostics
 
 A diagnostic is a single class that, like an Artisan command, can declare its definition as properties. Extend `Hypervel\Doctor\Diagnostic` and implement a `check` method that returns a `DiagnosticResult`. When `$name` or `$group` are not set, Doctor derives defaults from the class name.
+
+Bundled diagnostics assume the standard behavior of built-in driver names. If your application replaces that behavior, select custom diagnostics for those services.
 
 The `make:diagnostic` Artisan command scaffolds a diagnostic into `app/Doctor/Diagnostics`. The command asks whether the diagnostic should offer a fix, or accepts the `--fixable` option directly:
 
@@ -219,7 +223,7 @@ php artisan make:diagnostic HorizonIsRunning --fixable
 
 To offer a fix, implement the `Hypervel\Doctor\Contracts\Fixable` contract and mark each repairable failure with `->fixable()`. Doctor only attempts fixes for explicitly fixable `fail` results from diagnostics that implement the contract. Other failures and unexpected `error` results are never fixed automatically. Pass one or more `EnvironmentMode` values to limit where an automatic fix may run, such as `->fixable(EnvironmentMode::Local)` for a developer-machine-only repair.
 
-The following diagnostic checks whether the application key is set. Because Hypervel provides a key generator, it implements `Fixable`:
+The following diagnostic checks whether the application's report directory exists and offers to create it in local environments:
 
 ```php
 <?php
@@ -233,15 +237,14 @@ use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\EnvironmentMode;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
-use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
-use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\File;
 
-class ApplicationKeyIsSet extends Diagnostic implements Fixable
+class ReportDirectoryExists extends Diagnostic implements Fixable
 {
-    public string $name = 'App key is set';
+    public string $name = 'Report directory exists';
 
-    public string $group = 'environment';
+    public string $group = 'filesystem';
 
     /**
      * Get the diagnostic's named message definitions.
@@ -249,17 +252,15 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
     protected function messages(): array
     {
         return [
-            'configured' => 'The application key is configured.',
+            'exists' => 'The report directory exists.',
 
             'missing' => Message::make(
-                summary: 'The application key is not configured.',
-                remediation: 'Generate an application key with `php artisan key:generate`.',
-                confirmation: 'Generate an application key using `php artisan key:generate`?',
-            )->link(Link::docs('encryption')),
+                summary: 'The report directory is missing.',
+                remediation: 'Create the app/reports directory within application storage.',
+                confirmation: 'Create the report directory?',
+            ),
 
-            'generated' => 'The application key was generated.',
-
-            'generation-failed' => 'The application key could not be generated.',
+            'created' => 'The report directory was created.',
         ];
     }
 
@@ -268,33 +269,26 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
      */
     public function check(): DiagnosticResult
     {
-        $key = config('app.key');
-
-        if (is_string($key) && trim($key) !== '') {
-            return $this->pass('configured');
+        if (File::isDirectory(storage_path('app/reports'))) {
+            return $this->pass('exists');
         }
 
         return $this->fail('missing')->fixable(EnvironmentMode::Local);
     }
 
     /**
-     * Generate the missing application key.
+     * Create the report directory.
      */
     public function fix(DiagnosticResult $result, ?string $option = null): FixResult
     {
-        Artisan::call('key:generate', ['--force' => true]);
+        File::ensureDirectoryExists(storage_path('app/reports'));
 
-        $key = config('app.key');
-
-        if (! is_string($key) || trim($key) === '') {
-            return $this->fixFailed('generation-failed')
-                ->withDetails(trim(Artisan::output()));
-        }
-
-        return $this->fixed('generated');
+        return $this->fixed('created');
     }
 }
 ```
+
+`ensureDirectoryExists` throws if the directory cannot be created. Doctor reports unexpected exceptions from a repair as an error result.
 
 Diagnostics should explain what failed and how to recover. Copy lives in the `messages()` registry: a plain string is used as the result's summary, while `Message::make()` may also provide remediation text, documentation links, or a confirmation prompt for fixes.
 
@@ -307,7 +301,7 @@ Message::make(
 )->link(Link::docs('queues', 'connections-vs-queues'));
 ```
 
-Statuses are declared where the decision is made. Return `$this->pass()`, `$this->fail()`, `$this->warn()`, `$this->notice()`, `$this->skip()`, or `$this->error()` from `check()`, and `$this->fixed()` or `$this->fixFailed()` from `fix()`. Each result also receives a stable machine-readable code derived from the class and message names, such as `application-key-is-set.missing`.
+Statuses are declared where the decision is made. Return `$this->pass()`, `$this->fail()`, `$this->warn()`, `$this->notice()`, `$this->skip()`, or `$this->error()` from `check()`, and `$this->fixed()` or `$this->fixFailed()` from `fix()`. Each result also receives a stable machine-readable code derived from the class and message names, such as `report-directory-exists.missing`.
 
 Summaries and remediation text may interpolate values using `{placeholder}` tokens supplied at the return site:
 
@@ -427,12 +421,12 @@ Details::processOutput($process->output(), $process->errorOutput(), 'The command
 Applications may register diagnostics through the Doctor facade, typically from a service provider:
 
 ```php
-use App\Doctor\Diagnostics\ApplicationKeyIsSet;
+use App\Doctor\Diagnostics\ReportDirectoryExists;
 use Hypervel\Doctor\Facades\Doctor;
 
 public function boot(): void
 {
-    Doctor::diagnostic(ApplicationKeyIsSet::class);
+    Doctor::diagnostic(ReportDirectoryExists::class);
 }
 ```
 
