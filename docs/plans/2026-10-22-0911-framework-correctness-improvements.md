@@ -4,7 +4,7 @@
 
 Independently useful database, queue, validation, and decimal-casting improvements. Keep this plan independent of private applications and packages; describe framework requirements without their names, paths, or domain details. Preserve Laravel signatures and protected extension points, except for explicitly approved behavior changes.
 
-The changes below are implemented and verified; merging remains. Record further framework changes here when they warrant planning, without duplicating consumer-specific implementation plans.
+The database capability, query-builder, queue middleware, validation, decimal-casting and pooled in-memory database restoration changes are implemented and verified; merging remains. Record further framework changes here when they warrant planning, without duplicating consumer-specific implementation plans.
 
 ## Design
 
@@ -14,6 +14,15 @@ The changes below are implemented and verified; merging remains. Record further 
 - **Validation defect:** guard both numeric field operands of `gt/gte/lt/lte` with their respective attribute names. Guard `multiple_of` input through `validateMultipleOf()` in compiled and delegated execution, preserving the calculation hook's signature. Exponent rejection and numeric parse errors fail validation rather than escaping as math exceptions. Comparison-message formatting preserves the `getSize()` hook and displays the original trimmed value if its exponent is rejected, without expanding it or throwing again. Preserve the attribute-aware override callback; developer-supplied rule literals remain trusted. Components already require Brick Math 1.0; no further version migration is needed.
 - **Decimal casts:** prevent scientific-notation expansion beyond ±1000 in request and Eloquent decimal casts, throwing their existing math exception. Share exponent extraction through internal `Number::exponent()` and the default `Number::MAX_EXPONENT` with validation, without limiting ordinary decimal-string length or changing rational parsing. Include `int` in Eloquent's decimal-cast input type so integer values retain their precision instead of passing through float conversion. Test both casts, exponent boundaries, unchanged explicit decimals/fractions and large integer precision with bounded inputs.
 
+### Pooled in-memory database restoration
+
+- `RefreshDatabase` and `DatabaseTruncation` must restore cached SQLite databases at the physical pool owner. Setting the PDO only on a logical lease loses the restored schema when setup releases that lease; `LazilyRefreshDatabase` shares the affected refresh path.
+- Add `DatabasePool::restoreSharedInMemorySqlitePdo(PDO $pdo): void`, marked `Tests only.` Drain idle wrappers through existing pool cleanup, then replace the shared PDO. Subsequent borrows use the current factory and dispatcher. Preserve normal connection/lease semantics and add no production hot-path work.
+- Add testing `DatabaseConnectionResolver::restorePooledInMemoryPdo(UnitEnum|string|null $name, PDO $pdo): bool`, also marked `Tests only.` Reuse `poolEnabled()`; return false without resolving connections when disabled. Return true immediately when the named pool already holds the supplied PDO, before releasing any leases. Otherwise release idle leases, restore through that pool and return true. Preserve existing physical-pool name resolution.
+- In `LazilyRefreshDatabase`, restore cached in-memory databases before resolving connections and registering lazy callbacks, using the existing `usingInMemoryDatabases()` condition. Migrations and transactions remain lazy. The callback's ordinary restoration becomes a no-op for an already-restored pool, so query-first, cursor-first and explicitly pinned first use retain normal session behavior. Explain this upstream difference concisely; do not change production query or foreign-key suppression pinning.
+- Keep both traits' Laravel protected signatures and bare restoration bodies unchanged. Use the pooled operation only when a bound `db.resolver` is the testing resolver and the operation returns true. Custom resolvers and manager doubles retain the existing PDO/type-check/dispatcher path. Do not implicitly read test state during pool construction, add a registry, remigrate every test or substitute a file database for this fix.
+- Document that in-memory SQLite pools use one session and serialize queries; tests requiring simultaneous database sessions still need a file-backed or server database.
+
 ## Verification
 
 - Reuse the existing database version/override/PDO-reset and queue-hook cases; add the additive builder grammar/unsupported-path checks and real multi-connection lock contention coverage.
@@ -21,3 +30,4 @@ The changes below are implemented and verified; merging remains. Record further 
 - Test exponent rejection on both comparison operands and `multiple_of`, callback overrides, and compiled/interpreted parity using safe inputs such as `1e1001`, not memory-exhaustion experiments.
 - Run each affected test file immediately and finish owning-package checks. Run formatting, PHPStan, and targeted tests in that order; retain applicable upstream tests.
 - No cache change is required: stack TTL caps, nullable unique-lock stores, and documented flexible-cache microcache behavior are already handled by current components.
+- For pooled SQLite restoration, cover setup-to-test coroutine handoff with a cached PDO seeded before eager refresh, and ordinary/pinned first queries with a cached PDO seeded before lazy hook registration. Testbench normally clears refresh state between applications; do not mistake remigration for restoration coverage. Retain the truncation cross-application regression, resolver idle release/reborrow checks, bare-path tests and existing transaction-first lazy coverage. Run the affected database/reset tests and the required Testbench package-mode suite.
