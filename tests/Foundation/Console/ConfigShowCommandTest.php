@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Foundation\Console\ConfigShowCommand;
+use Hypervel\Support\Facades\Artisan;
+use JsonException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
@@ -87,5 +90,46 @@ class ConfigShowCommandTest extends \Hypervel\Testbench\TestCase
     {
         $this->artisan(ConfigShowCommand::class, ['config' => 'invalid'])
             ->assertFailed();
+    }
+
+    #[DataProvider('jsonValues')]
+    public function testJsonPreservesTheSelectedValue(mixed $value): void
+    {
+        config()->set('test.selected', $value);
+
+        $this->assertSame(0, Artisan::call(ConfigShowCommand::class, [
+            'config' => 'test.selected',
+            '--json' => true,
+        ]));
+        $this->assertSame($value, json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Provide configuration values whose JSON types must be preserved.
+     */
+    public static function jsonValues(): array
+    {
+        return [
+            'section' => [['nested' => ['enabled' => false, 'count' => 3, 'ratio' => 1.5, 'optional' => null]]],
+            'string with console markup' => ['<info>value</info>'],
+            'boolean' => [false],
+            'null' => [null],
+            'empty array' => [[]],
+        ];
+    }
+
+    public function testJsonFailsForMissingConfiguration(): void
+    {
+        $this->artisan(ConfigShowCommand::class, ['config' => 'invalid', '--json' => true])
+            ->assertFailed();
+    }
+
+    public function testJsonReportsEncodingFailures(): void
+    {
+        config()->set('test.value', "\xB1");
+
+        $this->expectException(JsonException::class);
+
+        Artisan::call(ConfigShowCommand::class, ['config' => 'test.value', '--json' => true]);
     }
 }
