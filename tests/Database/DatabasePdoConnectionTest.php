@@ -480,7 +480,7 @@ class DatabasePdoConnectionTest extends TestCase
         string $connectionClass,
         string $serverVersion,
         ?string $configuredVersion,
-        bool|string $expectedLock,
+        bool $supportsSkipLocked,
         int $expectedMaxBindings,
     ): void {
         $pdo = new VersionedPDOStub($serverVersion);
@@ -493,27 +493,28 @@ class DatabasePdoConnectionTest extends TestCase
         /** @var class-string<PdoConnection> $connectionClass */
         $connection = new $connectionClass($pdo, 'test_db', '', $config);
 
-        $this->assertSame($expectedLock, $connection->lockForPopping());
+        $this->assertSame($supportsSkipLocked, $connection->supportsSkipLocked());
         $this->assertSame($expectedMaxBindings, $connection->maxBindings());
     }
 
     public static function databaseCapabilityProvider(): array
     {
         return [
-            'unknown PDO connection' => [PdoConnection::class, '1.0', null, true, 999],
-            'MySQL before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', null, true, 65_535],
-            'MySQL with SKIP LOCKED' => [MySqlConnection::class, '8.0.1', null, 'FOR UPDATE SKIP LOCKED', 65_535],
-            'MariaDB through MySQL before SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.5.99-MariaDB', null, true, 65_535],
-            'MariaDB through MySQL with SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.6.0-MariaDB', null, 'FOR UPDATE SKIP LOCKED', 65_535],
-            'MariaDB connection' => [MariaDbConnection::class, '5.5.5-10.6.0-MariaDB', null, 'FOR UPDATE SKIP LOCKED', 65_535],
-            'configured MySQL override' => [MySqlConnection::class, '8.0.0', '8.0.1', 'FOR UPDATE SKIP LOCKED', 65_535],
-            'configured MariaDB marker' => [MySqlConnection::class, '8.0.0', '5.5.5-10.6.0-MariaDB', 'FOR UPDATE SKIP LOCKED', 65_535],
-            'Vitess before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '18.0.0-vitess', true, 65_535],
-            'Vitess with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-vitess', 'FOR UPDATE SKIP LOCKED', 65_535],
-            'PlanetScale with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED', 65_535],
-            'PostgreSQL before SKIP LOCKED' => [PostgresConnection::class, '9.4', null, true, 65_535],
-            'PostgreSQL with SKIP LOCKED' => [PostgresConnection::class, '9.5', null, 'FOR UPDATE SKIP LOCKED', 65_535],
-            'SQLite' => [SQLiteConnection::class, '', null, true, 32_766],
+            'unknown PDO connection' => [PdoConnection::class, '1.0', null, false, 999],
+            'MySQL before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', null, false, 65_535],
+            'MySQL with SKIP LOCKED' => [MySqlConnection::class, '8.0.1', null, true, 65_535],
+            'MariaDB through MySQL before SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.5.99-MariaDB', null, false, 65_535],
+            'MariaDB through MySQL with SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.6.0-MariaDB', null, true, 65_535],
+            'MariaDB connection' => [MariaDbConnection::class, '5.5.5-10.6.0-MariaDB', null, true, 65_535],
+            'configured MySQL override' => [MySqlConnection::class, '8.0.0', '8.0.1', true, 65_535],
+            'configured MariaDB marker' => [MySqlConnection::class, '8.0.0', '5.5.5-10.6.0-MariaDB', true, 65_535],
+            'Vitess before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '18.0.0-vitess', false, 65_535],
+            'Vitess with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-vitess', true, 65_535],
+            'PlanetScale with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-PlanetScale', true, 65_535],
+            'PostgreSQL before SKIP LOCKED' => [PostgresConnection::class, '9.4', null, false, 65_535],
+            'PostgreSQL with SKIP LOCKED' => [PostgresConnection::class, '9.5', null, true, 65_535],
+            'configured PostgreSQL override' => [PostgresConnection::class, '9.4', '9.5', true, 65_535],
+            'SQLite' => [SQLiteConnection::class, '', null, false, 32_766],
         ];
     }
 
@@ -524,9 +525,9 @@ class DatabasePdoConnectionTest extends TestCase
 
             public int $bindingResolutionCount = 0;
 
-            protected function resolveLockForPopping(): bool|string
+            protected function resolveSupportsSkipLocked(): bool
             {
-                return ++$this->lockResolutionCount === 1 ? true : 'FOR UPDATE SKIP LOCKED';
+                return ++$this->lockResolutionCount > 1;
             }
 
             protected function resolveMaxBindings(): int
@@ -535,8 +536,8 @@ class DatabasePdoConnectionTest extends TestCase
             }
         };
 
-        $this->assertTrue($connection->lockForPopping());
-        $this->assertTrue($connection->lockForPopping());
+        $this->assertFalse($connection->supportsSkipLocked());
+        $this->assertFalse($connection->supportsSkipLocked());
         $this->assertSame(999, $connection->maxBindings());
         $this->assertSame(999, $connection->maxBindings());
         $this->assertSame(1, $connection->lockResolutionCount);
@@ -544,10 +545,17 @@ class DatabasePdoConnectionTest extends TestCase
 
         $connection->setPdo(new PDOStub);
 
-        $this->assertSame('FOR UPDATE SKIP LOCKED', $connection->lockForPopping());
+        $this->assertTrue($connection->supportsSkipLocked());
         $this->assertSame(65_535, $connection->maxBindings());
         $this->assertSame(2, $connection->lockResolutionCount);
         $this->assertSame(2, $connection->bindingResolutionCount);
+
+        $connection->detachPdoResources(fn () => new PDOStub, null);
+
+        $this->assertTrue($connection->supportsSkipLocked());
+        $this->assertSame(65_535, $connection->maxBindings());
+        $this->assertSame(3, $connection->lockResolutionCount);
+        $this->assertSame(3, $connection->bindingResolutionCount);
     }
 
     public function testEscapingUsesThePdoThatExecutedTheLastWrite(): void

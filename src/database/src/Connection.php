@@ -1838,6 +1838,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     abstract public function getServerVersion(): string;
 
     /**
+     * Determine whether the server supports skipping locked rows.
+     */
+    public function supportsSkipLocked(): bool
+    {
+        return false;
+    }
+
+    /**
      * Register a connection resolver.
      *
      * Boot-only. The resolver persists in a static property for the worker

@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -562,8 +563,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         $connection = $this->getDatabase();
 
-        return $connection instanceof PdoConnection
-            ? $connection->lockForPopping()
+        return $connection instanceof Connection && $connection->supportsSkipLocked()
+            ? 'FOR UPDATE SKIP LOCKED'
             : true;
     }
 

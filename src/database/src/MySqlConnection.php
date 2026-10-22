@@ -185,25 +185,21 @@ class MySqlConnection extends PdoConnection
     }
 
     /**
-     * Resolve the lock clause supported when popping queued jobs.
+     * Resolve whether the server supports skipping locked rows.
      */
-    protected function resolveLockForPopping(): bool|string
+    protected function resolveSupportsSkipLocked(): bool
     {
         $version = (string) ($this->getConfig('version') ?? $this->getServerVersion());
         $isMaria = str_contains($version, 'MariaDB') || $this->isMaria();
         $version = $this->normalizeServerVersion($version);
 
         if (Str::contains($version, ['vitess', 'PlanetScale'])) {
-            return version_compare(Str::before($version, '-'), '19.0', '>=')
-                ? 'FOR UPDATE SKIP LOCKED'
-                : true;
+            return version_compare(Str::before($version, '-'), '19.0', '>=');
         }
 
         $minimumVersion = $isMaria ? '10.6.0' : '8.0.1';
 
-        return version_compare($version, $minimumVersion, '>=')
-            ? 'FOR UPDATE SKIP LOCKED'
-            : true;
+        return version_compare($version, $minimumVersion, '>=');
     }
 
     /**

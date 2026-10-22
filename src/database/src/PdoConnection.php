@@ -42,9 +42,9 @@ class PdoConnection extends Connection
     protected int $fetchMode = PDO::FETCH_OBJ;
 
     /**
-     * The lock clause supported by the current physical connection generation.
+     * Whether the current physical connection generation supports skipping locked rows.
      */
-    protected bool|string|null $lockForPopping = null;
+    protected ?bool $supportsSkipLocked = null;
 
     /**
      * The maximum number of statement bindings supported by the current physical connection generation.
@@ -476,7 +476,7 @@ class PdoConnection extends Connection
 
         $this->pdo = $pdo;
         $this->readPdo = $readPdo;
-        $this->lockForPopping = null;
+        $this->supportsSkipLocked = null;
         $this->maxBindings = null;
     }
 
@@ -692,7 +692,7 @@ class PdoConnection extends Connection
     public function setPdo(PDO|Closure|null $pdo): static
     {
         $this->transactions = 0;
-        $this->lockForPopping = null;
+        $this->supportsSkipLocked = null;
         $this->maxBindings = null;
 
         $this->pdo = $pdo;
@@ -952,21 +952,19 @@ class PdoConnection extends Connection
     }
 
     /**
-     * Get the lock clause supported when popping queued jobs.
-     *
-     * @internal
+     * Determine whether the server supports skipping locked rows.
      */
-    public function lockForPopping(): bool|string
+    public function supportsSkipLocked(): bool
     {
-        return $this->lockForPopping ??= $this->resolveLockForPopping();
+        return $this->supportsSkipLocked ??= $this->resolveSupportsSkipLocked();
     }
 
     /**
-     * Resolve the lock clause supported when popping queued jobs.
+     * Resolve whether the server supports skipping locked rows.
      */
-    protected function resolveLockForPopping(): bool|string
+    protected function resolveSupportsSkipLocked(): bool
     {
-        return true;
+        return false;
     }
 
     /**

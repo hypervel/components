@@ -109,6 +109,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static \Hypervel\Database\Connection setTablePrefix(string $prefix)
  * @method static \Hypervel\Database\Connection setTransactionManager(\Hypervel\Database\DatabaseTransactionsManager $manager)
  * @method static bool statement(string $query, array $bindings = [])
+ * @method static bool supportsSkipLocked()
  * @method static \Hypervel\Database\Query\Builder table(\Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|\UnitEnum|string $table, string|null $as = null)
  * @method static int|null threadCount()
  * @method static float totalQueryDuration()

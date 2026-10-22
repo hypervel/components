@@ -14,6 +14,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -89,13 +90,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('Emails', $queue->getQueue(UnitQueueName::Emails));
     }
 
-    public function testLockForPoppingUsesThePdoConnectionCapability(): void
+    public function testLockForPoppingUsesTheConnectionCapability(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(PdoConnection::class);
+        $connection = m::mock(Connection::class);
 
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
-        $connection->shouldReceive('lockForPopping')->once()->andReturn('FOR UPDATE SKIP LOCKED');
+        $connection->shouldReceive('supportsSkipLocked')->once()->andReturn(true);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver,
@@ -108,7 +109,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
     }
 
-    public function testLockForPoppingUsesAConservativeFallbackForNonPdoConnections(): void
+    public function testLockForPoppingUsesAConservativeFallbackForInterfaceOnlyConnections(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(ConnectionInterface::class));
