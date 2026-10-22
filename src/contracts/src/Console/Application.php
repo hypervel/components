@@ -9,6 +9,7 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 interface Application
 {
@@ -48,6 +49,7 @@ interface Application
      * Run an Artisan console command by name.
      *
      * @throws CommandNotFoundException
+     * @throws Throwable when command execution fails
      */
     public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 
