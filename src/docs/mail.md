@@ -1240,6 +1240,16 @@ class OrderShipped extends Mailable implements ShouldQueue
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
+For transactional delivery, a mailable using `Queueable` may select the [outbox](/docs/{{version}}/queue-outbox):
+
+```php
+Mail::to($request->user())->queue(
+    (new OrderShipped($order))->viaOutbox()
+);
+```
+
+The existing queued-mail wrapper carries this choice to the queue. See the [outbox guide](/docs/{{version}}/queue-outbox#queued-producers) for the required table, relay and delivery guarantees.
+
 <a name="queued-email-failures"></a>
 #### Queued Email Failures
 

@@ -435,6 +435,14 @@ class InvoicePaid extends Notification implements ShouldQueue
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
+For transactional delivery, a queued notification using `Queueable` may select the [outbox](/docs/{{version}}/queue-outbox):
+
+```php
+$user->notify((new InvoicePaid($invoice))->viaOutbox());
+```
+
+Each queued channel job carries the notification's choice. `viaOutbox()` is a fluent setter, not a hook returning a boolean or channel map. See the [outbox guide](/docs/{{version}}/queue-outbox#queued-producers) for setup and delivery guarantees.
+
 <a name="determining-if-the-queued-notification-should-be-sent"></a>
 #### Determining if a Queued Notification Should Be Sent
 

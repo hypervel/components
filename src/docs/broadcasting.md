@@ -1001,6 +1001,20 @@ class ServerCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
+To store the broadcast job atomically with the business write, select the [transactional outbox](/docs/{{version}}/queue-outbox) on the broadcast event:
+
+```php
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
+
+class ServerCreated implements ShouldBroadcast, ShouldQueueViaOutbox
+{
+    // ...
+}
+```
+
+Dispatch this event inside the transaction. Do not also defer the whole event with `ShouldDispatchAfterCommit`: that would postpone outbox staging until after commit. See the [outbox guide](/docs/{{version}}/queue-outbox#queued-producers) for setup and guarantees.
+
 <a name="authorizing-channels"></a>
 ## Authorizing Channels
 

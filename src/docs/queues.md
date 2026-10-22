@@ -25,6 +25,7 @@
     - [Bulk Dispatching](#bulk-dispatching)
     - [Preparing Jobs Before Dispatch](#preparing-jobs-before-dispatch)
     - [Jobs & Database Transactions](#jobs-and-database-transactions)
+    - [Transactional Outbox](#transactional-outbox)
     - [Job Chaining](#job-chaining)
     - [Customizing The Queue and Connection](#customizing-the-queue-and-connection)
     - [Specifying Max Job Attempts / Timeout Values](#max-job-attempts-and-timeout)
@@ -1503,6 +1504,23 @@ Likewise, if the `after_commit` configuration option is set to `true`, you may i
 ```php
 ProcessPodcast::dispatch($podcast)->beforeCommit();
 ```
+
+<a name="transactional-outbox"></a>
+### Transactional Outbox
+
+After-commit dispatch prevents a worker from seeing uncommitted data, but a process can still stop between committing the database transaction and publishing the job. When a job must survive that gap, use the [transactional outbox](/docs/{{version}}/queue-outbox):
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::transaction(function () use ($podcast) {
+    $podcast->save();
+
+    ProcessPodcast::dispatch($podcast)->viaOutbox();
+});
+```
+
+Hypervel stores the job with the database write, then a separate relay publishes it to your existing queue. See the [outbox guide](/docs/{{version}}/queue-outbox) for setup, supported drivers, delivery guarantees and operations.
 
 <a name="job-chaining"></a>
 ### Job Chaining
