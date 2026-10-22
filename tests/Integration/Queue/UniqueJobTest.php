@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Integration\Queue\UniqueJobTest;
 use Exception;
 use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -26,6 +28,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 #[WithMigration]
 #[WithMigration('cache')]
@@ -41,6 +44,7 @@ class UniqueJobTest extends QueueTestCase
 
         $config = $app->make('config');
         $config->set('cache.default', 'database');
+        $config->set('cache.stores.custom_unique', ['driver' => 'custom_unique']);
         $config->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
@@ -212,13 +216,20 @@ class UniqueJobTest extends QueueTestCase
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
-    public function testLockIsReleasedOnModelNotFoundException(): void
+    #[DataProvider('missingModelCacheRepositories')]
+    public function testLockIsReleasedOnModelNotFoundException(string $repository): void
     {
         UniqueTestSerializesModelsJob::$handled = false;
 
+        $manager = $this->app->make('cache');
+        $manager->extend('custom_unique', static fn (): CacheRepository => $manager->repository(new WorkerArrayStore));
+
         /** @var User $user */
         $user = UserFactory::new()->create();
-        $job = new UniqueTestSerializesModelsJob($user);
+        $job = $repository === 'default'
+            ? new UniqueTestSerializesModelsJob($user)
+            : new UniqueViaSerializesModelsJob($user, $repository);
+        $cache = $repository === 'default' ? $this->app->get(Cache::class) : $job->uniqueVia();
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -230,8 +241,16 @@ class UniqueJobTest extends QueueTestCase
         } finally {
             $this->assertFalse($job::$handled);
             $this->assertModelMissing($user);
-            $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+            $this->assertTrue($cache->lock($this->getLockKey($job), 10)->get());
         }
+    }
+
+    /**
+     * Exercise named repositories whose identity must survive queued model restoration failure.
+     */
+    public static function missingModelCacheRepositories(): array
+    {
+        return [['default'], ['memo'], ['custom_unique']];
     }
 
     public function testModelNotFoundExceptionDoesNotReleaseSubsequentLock(): void
@@ -496,6 +515,27 @@ class UniqueTestSerializesModelsJob extends UniqueTestJob
 
     public function __construct(public User $user)
     {
+    }
+}
+
+class UniqueViaSerializesModelsJob extends UniqueTestSerializesModelsJob
+{
+    /**
+     * Create a unique job using the selected named cache wrapper.
+     */
+    public function __construct(User $user, public string $repository)
+    {
+        parent::__construct($user);
+    }
+
+    /**
+     * Resolve the cache repository that owns this job's unique lock.
+     */
+    public function uniqueVia(): Cache
+    {
+        $manager = Container::getInstance()->make('cache');
+
+        return $this->repository === 'memo' ? $manager->memo('database') : $manager->store($this->repository);
     }
 }
 
