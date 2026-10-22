@@ -13,7 +13,7 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Details;
-use Hypervel\Support\Facades\Process;
+use Hypervel\Support\Facades\Artisan;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -72,10 +72,10 @@ class MigrationsAreUpToDate extends Diagnostic implements Fixable
                     return $this->fail('repository-missing')->fixable(EnvironmentMode::Local);
                 }
 
-                $pending = array_values(array_diff(
-                    array_keys($files),
+                $pending = $migrator->getPendingMigrations(
+                    $files,
                     $migrator->getRepository()->getRan(),
-                ));
+                );
 
                 if ($pending === []) {
                     return $this->pass('current');
@@ -83,7 +83,7 @@ class MigrationsAreUpToDate extends Diagnostic implements Fixable
 
                 return $this->fail('pending')
                     ->fixable(EnvironmentMode::Local)
-                    ->withDetails(Details::bullets($pending));
+                    ->withDetails(Details::bullets(array_map($migrator->getMigrationName(...), $pending)));
             });
         } catch (CanceledException $exception) {
             throw $exception;
@@ -98,20 +98,20 @@ class MigrationsAreUpToDate extends Diagnostic implements Fixable
      */
     public function fix(DiagnosticResult $result, ?string $option = null): FixResult
     {
-        $process = Process::path(base_path())->run([
-            PHP_BINARY,
-            'artisan',
-            'migrate',
-            '--no-interaction',
-        ]);
-
-        if (! $process->successful()) {
+        try {
+            if (Artisan::call('migrate', ['--no-interaction' => true]) !== 0) {
+                return $this->fixFailed('migration-failed')
+                    ->withDetails(Details::processOutput(
+                        Artisan::output(),
+                        '',
+                        'The migrate command exited without output.',
+                    ));
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
             return $this->fixFailed('migration-failed')
-                ->withDetails(Details::processOutput(
-                    $process->output(),
-                    $process->errorOutput(),
-                    'The migrate command exited without output.',
-                ));
+                ->withDetails($exception->getMessage());
         }
 
         return $this->fixed('migrated');

@@ -124,6 +124,18 @@ class Migrator
     }
 
     /**
+     * Get the migration files eligible to run, respecting registered exclusions.
+     *
+     * @param string[] $files
+     * @param string[] $ran
+     * @return string[]
+     */
+    public function getPendingMigrations(array $files, array $ran): array
+    {
+        return $this->pendingMigrations($files, $ran);
+    }
+
+    /**
      * Get the migration files that have not yet run.
      *
      * @param string[] $files
