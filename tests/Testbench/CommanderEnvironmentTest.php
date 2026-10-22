@@ -30,8 +30,8 @@ class CommanderEnvironmentTest extends TestCase
 
         $commander->prepareCommandEnvironmentPublic(new ArgvInput(['testbench', 'serve']));
 
-        $this->assertSame('false', getenv('APP_RUNNING_IN_CONSOLE'));
-        $this->assertSame('false', $_ENV['APP_RUNNING_IN_CONSOLE']);
+        $this->assertFalse(getenv('APP_RUNNING_IN_CONSOLE'));
+        $this->assertArrayNotHasKey('APP_RUNNING_IN_CONSOLE', $_ENV);
         $this->assertSame('false', $_SERVER['APP_RUNNING_IN_CONSOLE']);
     }
 
@@ -47,8 +47,8 @@ class CommanderEnvironmentTest extends TestCase
             'serve',
         ]));
 
-        $this->assertSame('false', getenv('APP_RUNNING_IN_CONSOLE'));
-        $this->assertSame('false', $_ENV['APP_RUNNING_IN_CONSOLE']);
+        $this->assertFalse(getenv('APP_RUNNING_IN_CONSOLE'));
+        $this->assertArrayNotHasKey('APP_RUNNING_IN_CONSOLE', $_ENV);
         $this->assertSame('false', $_SERVER['APP_RUNNING_IN_CONSOLE']);
     }
 

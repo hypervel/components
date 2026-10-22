@@ -50,8 +50,6 @@ Bootstrapper::bootstrap();
 
 // The app must not think it's running in console — ServerStartCommand
 // refuses to start and service providers gate console-only registrations.
-putenv('APP_RUNNING_IN_CONSOLE=false');
-$_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
 $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
 // Read port, scaling flag, and worker count from environment.
