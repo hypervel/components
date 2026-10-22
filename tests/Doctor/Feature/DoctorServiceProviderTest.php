@@ -61,6 +61,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
 
 class DoctorServiceProviderTest extends TestCase
 {
@@ -120,24 +121,32 @@ class DoctorServiceProviderTest extends TestCase
         $this->app->detectEnvironment(fn (): string => 'local');
         config(['app.key' => '']);
 
-        $environmentPath = $this->temporaryPath . '/key';
-
-        mkdir($environmentPath, 0775, true);
-        file_put_contents($environmentPath . '/.env', "APP_KEY=\n");
+        $environmentPath = $this->app->basePath();
+        $path = $environmentPath . '/.env';
+        $originalEnvironmentFile = is_file($path) ? File::get($path) : null;
+        File::put($path, "APP_KEY=\n");
 
         $this->app->useEnvironmentPath($environmentPath);
         $this->app->loadEnvironmentFrom('.env');
 
         $output = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, false);
 
-        $exitCode = $this->app->make(Kernel::class)->call('doctor', [
-            '--only' => 'ApplicationKeyIsSet',
-            '--fix' => true,
-        ], $output);
+        try {
+            $exitCode = $this->withEnvironmentValues([
+                'APP_KEY' => null,
+                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
+            ], fn () => $this->app->make(Kernel::class)->call('doctor', [
+                '--only' => 'ApplicationKeyIsSet',
+                '--fix' => true,
+            ], $output));
+
+            $this->assertStringContainsString('base64:', File::get($path));
+        } finally {
+            $originalEnvironmentFile === null ? File::delete($path) : File::put($path, $originalEnvironmentFile);
+        }
 
         $contents = $output->fetch();
 
-        $this->assertStringContainsString('base64:', file_get_contents($environmentPath . '/.env'));
         $this->assertStringContainsString('Re-running diagnostics after applying fixes...', $contents);
         $this->assertMatchesRegularExpression('/Re-running diagnostics after applying fixes\.\.\..*Results.*App key is set/s', $contents);
         $this->assertStringContainsString('App key is set', $contents);
@@ -813,6 +822,22 @@ class DoctorServiceProviderTest extends TestCase
         $this->assertNull(config('doctor-testing.option-fixed'));
     }
 
+    public function testPreservesNumericFixOptionKeys(): void
+    {
+        Doctor::diagnostic(OptionFixableDiagnostic::class);
+        config(['doctor-testing.options' => [42 => 'Selected option', 99 => 'Other option']]);
+
+        $this->artisan('doctor --only=OptionFixableDiagnostic')
+            ->expectsChoice('Which option should fix the diagnostic?', '42', [
+                42 => 'Selected option',
+                99 => 'Other option',
+                '__skip__' => 'Skip — leave unfixed',
+            ])
+            ->assertSuccessful();
+
+        $this->assertSame('42', config('doctor-testing.option-fixed'));
+    }
+
     public function testKeepsTheUnreachableCacheStoreWhenItsDeclineEntryIsChosen(): void
     {
         // Prompt interception requires the app to stay in the testing environment,
@@ -870,6 +895,58 @@ class DoctorServiceProviderTest extends TestCase
     public static function interactionModes(): array
     {
         return [[true], [false]];
+    }
+
+    #[DataProvider('interactionModes')]
+    public function testPipedInputRequiresAnExplicitFixFlag(bool $fix): void
+    {
+        $script = $this->temporaryPath . '/piped-doctor.php';
+        File::put($script, <<<'PHP'
+            <?php
+
+            require getenv('HYPERVEL_AUTOLOAD_PATH');
+
+            define('BASE_PATH', getenv('DOCTOR_TEST_BASE_PATH'));
+            $app = require BASE_PATH . '/bootstrap/app.php';
+            $kernel = $app->make(\Hypervel\Contracts\Console\Kernel::class);
+            $kernel->bootstrap();
+            $app->detectEnvironment(fn () => 'local');
+            $app->register(\Hypervel\Doctor\DoctorServiceProvider::class);
+            $app->make(\Hypervel\Doctor\Doctor::class)->diagnostics([
+                \Hypervel\Tests\Doctor\Fixtures\Diagnostics\FixesSharedStateDiagnostic::class,
+                \Hypervel\Tests\Doctor\Fixtures\Diagnostics\OptionFixableDiagnostic::class,
+            ]);
+
+            $status = $kernel->call('doctor', [
+                '--only' => 'testing',
+                '--format' => 'cli',
+                ...(($argv[1] ?? '') === '--fix' ? ['--fix' => true] : []),
+            ]);
+
+            echo 'FIX_STATE=' . json_encode([
+                'fixed' => config('doctor-testing.shared-state-fixed', false),
+                'option' => config('doctor-testing.option-fixed'),
+            ]) . PHP_EOL;
+
+            exit($status);
+            PHP);
+
+        $process = new Process(
+            [PHP_BINARY, $script, ...($fix ? ['--fix'] : [])],
+            $this->app->basePath(),
+            [
+                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
+                'DOCTOR_TEST_BASE_PATH' => $this->app->basePath(),
+            ],
+        );
+        $process->setInput('');
+        $process->run();
+
+        $this->assertSame(1, $process->getExitCode(), $process->getErrorOutput());
+        $this->assertStringContainsString(
+            'FIX_STATE=' . json_encode(['fixed' => $fix, 'option' => null]),
+            $process->getOutput(),
+        );
     }
 
     public function testExposesFixOptionsInsteadOfTheFixableFlagInAgentOutput(): void

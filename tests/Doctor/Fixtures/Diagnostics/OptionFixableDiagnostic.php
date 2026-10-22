@@ -26,7 +26,7 @@ class OptionFixableDiagnostic extends Diagnostic implements Fixable
 
         return DiagnosticResult::fail('The option diagnostic failed.')
             ->fixable()
-            ->fixOptions(['a' => 'Option A', 'b' => 'Option B'])
+            ->fixOptions(config()->array('doctor-testing.options', ['a' => 'Option A', 'b' => 'Option B']))
             ->confirmUsing('Which option should fix the diagnostic?')
             ->suggest('Apply one of the diagnostic fix options.');
     }

@@ -16,6 +16,7 @@ use Hypervel\Doctor\Renderers\GithubRenderer;
 use Hypervel\Doctor\Results\DiagnosticOutcome;
 use Hypervel\Doctor\Results\DiagnosticReport;
 use Hypervel\Doctor\Results\Status;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Logger;
 use Laravel\AgentDetector\AgentDetector;
 
@@ -301,11 +302,11 @@ class DoctorCommand extends Command
             return $this->chooseFix($outcome);
         }
 
-        if (! $this->input->isInteractive()) {
+        $this->restorePrompts();
+
+        if (! $this->input->isInteractive() || ! Prompt::isInteractive()) {
             return false;
         }
-
-        $this->restorePrompts();
 
         $this->renderer()->renderFixConfirmation($outcome);
 
@@ -320,18 +321,17 @@ class DoctorCommand extends Command
      */
     protected function chooseFix(DiagnosticOutcome $outcome): bool|string
     {
-        if (! $this->input->isInteractive()) {
+        $this->restorePrompts();
+
+        if (! $this->input->isInteractive() || ! Prompt::isInteractive()) {
             return false;
         }
-
-        $this->restorePrompts();
 
         $this->renderer()->renderFixConfirmation($outcome);
 
         $choice = select(
             label: $this->confirmationPrompt($outcome),
-            options: [
-                ...$outcome->result->fixOptions,
+            options: $outcome->result->fixOptions + [
                 self::SKIP_FIX => $outcome->result->fixDeclineLabel ?? 'Skip — leave unfixed',
             ],
         );
