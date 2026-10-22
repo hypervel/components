@@ -57,11 +57,18 @@ trait RefreshDatabase
     protected function restoreInMemoryDatabase(): void
     {
         $database = $this->app->make('db');
+        $resolver = $this->app->bound('db.resolver') ? $this->app->make('db.resolver') : null;
 
         foreach ($this->connectionsToTransact() as $name) {
             $connectionName = $name ?? $this->getRefreshConnection();
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                // A lease loses setPdo() on release; restore the pool's shared database instead.
+                if ($resolver instanceof DatabaseConnectionResolver
+                    && $resolver->restorePooledInMemoryPdo($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                    continue;
+                }
+
                 $connection = $database->connection($name);
 
                 if (! $connection instanceof PdoConnection) {

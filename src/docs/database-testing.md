@@ -65,6 +65,8 @@ If you would like to totally reset the database, you may use the `Hypervel\Found
 
 By default, database tests reuse one shared connection per connection name. For tests that issue queries concurrently, use a file-backed or server database and set `database.connections.{name}.pool.testing_enabled` to `true` in your test environment configuration. Each coroutine then borrows its own connection. Use `DatabaseTruncation` or `DatabaseMigrations` for these tests, since writes committed by child coroutines are not rolled back by the test coroutine's transaction.
 
+An in-memory SQLite pool uses a single session, so its database queries run one at a time even when pooling is enabled. Use a file-backed or server database when your test needs simultaneous database sessions.
+
 Transaction-based traits require a connection with real transaction support. `DatabaseTruncation` uses the connection's schema builder to reset the selected tables, allowing custom database drivers to provide their own reset behavior without replacing the native testing traits. Driver authors should follow the [schema-builder extension contracts](/docs/{{version}}/database#extending-database-connections).
 
 <a name="combining-database-reset-traits"></a>

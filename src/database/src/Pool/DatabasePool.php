@@ -133,6 +133,20 @@ class DatabasePool extends ConnectionPool
     }
 
     /**
+     * Restore the shared in-memory database retained between tests.
+     *
+     * Tests only. Replaces the database used by every subsequent pool borrower.
+     */
+    public function restoreSharedInMemorySqlitePdo(PDO $pdo): void
+    {
+        while ($connection = $this->popIdleConnection()) {
+            $this->destroyConnection($connection);
+        }
+
+        $this->sharedInMemorySqlitePdo = $pdo;
+    }
+
+    /**
      * Record the query grammar date format of one of the pool's connections.
      *
      * @internal

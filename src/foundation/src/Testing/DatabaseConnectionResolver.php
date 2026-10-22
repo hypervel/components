@@ -16,6 +16,7 @@ use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
+use PDO;
 use Throwable;
 use UnitEnum;
 
@@ -293,6 +294,31 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         return $connection;
+    }
+
+    /**
+     * Restore a pooled in-memory database, returning false when pooling is disabled.
+     *
+     * Tests only. Replaces the database shared by this application's pool borrowers.
+     */
+    public function restorePooledInMemoryPdo(UnitEnum|string|null $name, PDO $pdo): bool
+    {
+        $connectionName = ConnectionName::parse($this->connectionName($name));
+
+        if (! $this->poolEnabled($connectionName)) {
+            return false;
+        }
+
+        $pool = $this->poolManager->pool($connectionName->requested);
+
+        if ($pool->getSharedInMemorySqlitePdo() === $pdo) {
+            return true;
+        }
+
+        static::releaseIdleConnections();
+        $pool->restoreSharedInMemorySqlitePdo($pdo);
+
+        return true;
     }
 
     /**

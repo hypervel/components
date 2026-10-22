@@ -5,21 +5,54 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactionsManager;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PDO;
 use ReflectionProperty;
 use RuntimeException;
 
 #[WithConfig('database.default', 'testing')]
 class DatabaseConnectionResolverTest extends TestCase
 {
+    /**
+     * Use coroutine-owned SQLite sessions for restoration tests.
+     */
+    protected function definePooledDatabase(Application $app): void
+    {
+        $app->make('config')->set('database.connections.testing.pool.testing_enabled', true);
+    }
+
+    #[DefineEnvironment('definePooledDatabase')]
+    public function testRestoredPdoSurvivesIdleRelease(): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $connection = $resolver->connection('testing::read');
+        $connection->statement('create table previous_database (value integer)');
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
+        $saved = new PDO('sqlite::memory:');
+        $saved->exec('create table restored_database (value integer)');
+        $saved->exec('insert into restored_database values (42)');
+
+        $this->assertTrue($resolver->restorePooledInMemoryPdo('testing::read', $saved));
+        $this->assertSame($saved, $pool->getSharedInMemorySqlitePdo());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(42, $connection->table('restored_database')->value('value'));
+        $this->assertSame($this->app->make('events'), $connection->getEventDispatcher());
+
+        $resolver->releaseIdleConnections();
+
+        $this->assertSame(42, $connection->table('restored_database')->value('value'));
+    }
+
     public function testFlushDisconnectsCachedConnection(): void
     {
         $resolver = $this->app->make(DatabaseConnectionResolver::class);

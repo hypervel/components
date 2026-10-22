@@ -49,6 +49,7 @@ class MigrateWithHypervelMigrationsTest extends TestCase
         $connection->beginTransaction();
 
         $this->assertSame(2, $connection->transactionLevel());
+        $this->assertSame(0, $connection->table('users')->count());
 
         $connection->rollBack();
 

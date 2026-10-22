@@ -106,11 +106,18 @@ trait DatabaseTruncation
 
         $database = $this->app->make('db');
         $defaultConnection = $this->app->make('config')->string('database.default');
+        $resolver = $this->app->bound('db.resolver') ? $this->app->make('db.resolver') : null;
 
         foreach ($this->connectionsToTruncate() as $name) {
             $connectionName = $name ?? $defaultConnection;
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                // A lease loses setPdo() on release; restore the pool's shared database instead.
+                if ($resolver instanceof DatabaseConnectionResolver
+                    && $resolver->restorePooledInMemoryPdo($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                    continue;
+                }
+
                 // The PDO outlives its original application; the dispatcher must not.
                 $connection = $database->connection($name);
 
