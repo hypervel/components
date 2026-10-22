@@ -76,11 +76,23 @@ class Batch implements Arrayable, JsonSerializable
                     $first->allOnConnection($this->options['connection']);
                 }
 
-                return $first->chain($chain->slice(1)->values()->all());
-            }
-            $job->withBatchId($this->id);
+                $job = $first->chain($chain->slice(1)->values()->all());
+            } else {
+                $job->withBatchId($this->id);
 
-            ++$count;
+                ++$count;
+            }
+
+            if (array_key_exists('viaOutbox', $this->options) || array_key_exists('outboxDatabase', $this->options)) {
+                // Preserve initialized nulls as well as explicit values on each job.
+                $properties = get_object_vars($job);
+
+                foreach (['viaOutbox', 'outboxDatabase'] as $property) {
+                    if (array_key_exists($property, $this->options) && ! array_key_exists($property, $properties)) {
+                        $job->{$property} = $this->options[$property];
+                    }
+                }
+            }
 
             return $job;
         });

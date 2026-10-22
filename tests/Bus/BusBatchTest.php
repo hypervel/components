@@ -180,6 +180,52 @@ class BusBatchTest extends TestCase
         $this->assertCount(2, $batch->jobs);
     }
 
+    public function testStoredOutboxDefaultsApplyToNewJobsWithoutReplacingExplicitChoices(): void
+    {
+        Queue::fake();
+
+        $defaultJob = new class {
+            use Batchable;
+        };
+        $directJob = (new TestBatchJob)->onOutboxDatabase('previous')->withoutOutbox();
+        $otherOwnerJob = (new TestBatchJob)->onOutboxDatabase('other');
+        $nullJob = new TestBatchJob;
+        $nullJob->viaOutbox = null;
+        $nullJob->outboxDatabase = null;
+
+        $batch = Bus::batch([$defaultJob, $directJob, $otherOwnerJob, $nullJob])
+            ->onOutboxDatabase('billing')
+            ->dispatch();
+
+        $this->assertTrue($defaultJob->viaOutbox);
+        $this->assertSame('billing', $defaultJob->outboxDatabase);
+        $this->assertFalse($directJob->viaOutbox);
+        $this->assertNull($directJob->outboxDatabase);
+        $this->assertSame('other', $otherOwnerJob->outboxDatabase);
+        $this->assertNull($nullJob->viaOutbox);
+        $this->assertNull($nullJob->outboxDatabase);
+
+        $added = new TestBatchJob;
+        $batch->fresh()->add([$added]);
+
+        $this->assertTrue($added->viaOutbox);
+        $this->assertSame('billing', $added->outboxDatabase);
+        $this->assertSame(5, $batch->fresh()->totalJobs);
+    }
+
+    public function testBatchOutboxDefaultsDoNotPropagateToLaterChainJobs(): void
+    {
+        Queue::fake();
+
+        $first = new TestBatchJob;
+        $second = new TestBatchJob;
+
+        Bus::batch([[$first, $second]])->viaOutbox()->dispatch();
+
+        $this->assertTrue($first->viaOutbox);
+        $this->assertArrayNotHasKey('viaOutbox', get_object_vars(unserialize($first->chained[0])));
+    }
+
     public function testJobsCanBeAddedToThePendingBatchFromIterable(): void
     {
         $batch = new PendingBatch($this->app, collect());

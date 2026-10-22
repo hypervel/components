@@ -7,6 +7,7 @@ namespace Hypervel\Broadcasting;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
@@ -67,6 +68,17 @@ class BroadcastEvent implements ShouldQueue
         $this->timeout = $this->getAttributeValue($event, Timeout::class, 'timeout');
         $this->backoff = $this->getAttributeValue($event, Backoff::class, 'backoff');
         $this->afterCommit = property_exists($event, 'afterCommit') ? $event->afterCommit : null;
+
+        if (isset($event->viaOutbox)) {
+            $this->viaOutbox = $event->viaOutbox;
+        } elseif ($event instanceof ShouldQueueViaOutbox) {
+            $this->viaOutbox = true;
+        }
+
+        if (isset($event->outboxDatabase)) {
+            $this->outboxDatabase = $event->outboxDatabase;
+        }
+
         $this->maxExceptions = $this->getAttributeValue($event, MaxExceptions::class, 'maxExceptions');
         $this->deleteWhenMissingModels = $this->getAttributeValue($event, DeleteWhenMissingModels::class, 'deleteWhenMissingModels', $this->deleteWhenMissingModels);
     }
@@ -115,6 +127,10 @@ class BroadcastEvent implements ShouldQueue
         $payload = [];
 
         foreach ((new ReflectionClass($event))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            if (! $property->isInitialized($event)) {
+                continue;
+            }
+
             $payload[$property->getName()] = $this->formatProperty($property->getValue($event));
         }
 
