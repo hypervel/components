@@ -19,6 +19,7 @@ use Hypervel\Queue\Console\ForgetFailedCommand;
 use Hypervel\Queue\Console\ListenCommand;
 use Hypervel\Queue\Console\ListFailedCommand;
 use Hypervel\Queue\Console\MonitorCommand;
+use Hypervel\Queue\Console\OutboxTableCommand;
 use Hypervel\Queue\Console\PauseCommand;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Queue\Console\PruneFailedJobsCommand;
@@ -32,6 +33,7 @@ use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
 use Hypervel\Queue\Failed\NullFailedJobProvider;
+use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Support\ServiceProvider;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
@@ -55,6 +57,7 @@ class QueueServiceProvider extends ServiceProvider
         $this->registerListener();
         $this->registerRoutes();
         $this->registerFailedJobServices();
+        $this->registerOutbox();
 
         $this->commands([
             BatchesTableCommand::class,
@@ -65,6 +68,7 @@ class QueueServiceProvider extends ServiceProvider
             ListenCommand::class,
             ListFailedCommand::class,
             MonitorCommand::class,
+            OutboxTableCommand::class,
             PauseCommand::class,
             PruneBatchesCommand::class,
             PruneFailedJobsCommand::class,
@@ -217,6 +221,23 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         $this->app->singleton('queue.routes', fn ($app) => $app->make(QueueRoutes::class));
+    }
+
+    /**
+     * Register transactional outbox services without resolving their storage.
+     */
+    protected function registerOutbox(): void
+    {
+        $this->app->singleton(DatabaseOutboxRepository::class, function ($app): DatabaseOutboxRepository {
+            $config = $app->make('config');
+
+            return new DatabaseOutboxRepository(
+                $app->make('db'),
+                $config->array('queue.outbox.databases'),
+                $config->string('queue.outbox.table'),
+                $config->integer('queue.outbox.retry_after'),
+            );
+        });
     }
 
     /**

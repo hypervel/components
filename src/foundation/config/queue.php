@@ -59,16 +59,19 @@ return [
         'sync' => [
             'driver' => 'sync',
             'after_commit' => false,
+            'outbox' => false,
         ],
 
         'background' => [
             'driver' => 'background',
             'after_commit' => true,
+            'outbox' => false,
         ],
 
         'deferred' => [
             'driver' => 'deferred',
             'after_commit' => true,
+            'outbox' => false,
         ],
 
         'database' => [
@@ -78,6 +81,7 @@ return [
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
             'after_commit' => false,
+            'outbox' => false,
         ],
 
         'beanstalkd' => [
@@ -88,6 +92,7 @@ return [
             'retry_after' => (int) env('BEANSTALKD_QUEUE_RETRY_AFTER', 90),
             'block_for' => 0,
             'after_commit' => true,
+            'outbox' => false,
             'pool' => [
                 'min_retained_objects' => 1,
                 'max_objects' => 10,
@@ -108,6 +113,7 @@ return [
             'suffix' => env('SQS_SUFFIX'),
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'after_commit' => true,
+            'outbox' => false,
             'overflow' => [
                 'enabled' => (bool) env('SQS_OVERFLOW_ENABLED', false),
                 'store' => env('SQS_OVERFLOW_STORE'),
@@ -133,6 +139,7 @@ return [
             // A value of 0 waits indefinitely and may delay worker shutdown.
             'block_for' => null,
             'after_commit' => true,
+            'outbox' => false,
         ],
 
         'failover' => [
@@ -142,7 +149,32 @@ return [
                 'deferred',
             ],
             'after_commit' => true,
+            'outbox' => false,
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Transactional Outbox
+    |--------------------------------------------------------------------------
+    |
+    | Outbox delivery stores jobs with your business transaction before sending
+    | them to a durable queue. Create the table on every listed database and
+    | run queue:relay. The retry timeout must exceed a full delivery batch,
+    | including transport timeouts and SDK retries, to avoid early redelivery.
+    |
+    | Jobs opt in with viaOutbox(), ShouldQueueViaOutbox, or their connection's
+    | outbox option. Local and failover queues retain after-commit behavior
+    | without crash durability; an already-atomic database queue inserts directly.
+    |
+    */
+
+    'outbox' => [
+        'databases' => [
+            env('QUEUE_OUTBOX_DATABASE', env('DB_CONNECTION', 'sqlite')),
+        ],
+        'table' => env('QUEUE_OUTBOX_TABLE', 'job_outbox'),
+        'retry_after' => (int) env('QUEUE_OUTBOX_RETRY_AFTER', 300),
     ],
 
     /*

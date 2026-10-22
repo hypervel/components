@@ -23,6 +23,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Events\QueuedClosure;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\QueueFailedOver;
@@ -312,6 +313,58 @@ class FailoverQueueTest extends TestCase
         $transactions->commit('later', 1, 0);
 
         $this->assertSame(['job'], $connection->pushedJobs);
+    }
+
+    public function testInlineAfterCommitChildRetainsLockOwnershipForFallback(): void
+    {
+        $container = Container::getInstance();
+        $container->instance('db.transactions', new DatabaseTransactionsManager);
+        $events = new EventDispatcher($container);
+        $container->instance(DispatcherContract::class, $events);
+        $container->instance('events', $events);
+        $failure = new RuntimeException('Scheduling failed before acceptance.');
+        $first = new class($failure) extends SyncQueue {
+            /**
+             * Configure an after-commit child whose execution cannot start.
+             */
+            public function __construct(private RuntimeException $failure)
+            {
+                parent::__construct(true);
+            }
+
+            /**
+             * Fail before the queue can accept the dispatch.
+             */
+            protected function executePayload(string $payload, ?string $queue = null): int
+            {
+                throw $this->failure;
+            }
+        };
+        $first->setContainer($container)->setConnectionName('first');
+        $second = m::mock(Queue::class);
+        $job = new FailoverQueueUniqueDebouncedJob;
+        $lock = new UniqueLock(new CacheRepository(new ArrayStore));
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $second->expects('push')->with($job)->andReturnUsing(function ($job) use ($lock): string {
+            $this->assertTrue(DispatchLockContext::has($job));
+            $this->assertFalse($lock->acquire($job));
+            DispatchLockContext::accept($job);
+
+            return 'accepted';
+        });
+        $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use ($failure): void {
+            $this->assertSame($failure, $event->exception);
+        });
+        $failover = new FailoverQueue(
+            new FailoverQueueFakeManager(['first' => $first, 'second' => $second]),
+            $events,
+            ['first', 'second'],
+        );
+        $failover->setContainer($container);
+
+        $this->assertSame('accepted', $failover->push($job));
+        $this->assertFalse(DispatchLockContext::has($job));
+        $this->assertFalse($lock->acquire($job));
     }
 
     public function testNestedCommitWaitsForTheRootTransaction(): void

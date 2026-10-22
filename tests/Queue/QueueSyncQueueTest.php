@@ -340,6 +340,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturn(null);
         $transactionManager->shouldNotReceive('addCallbackForRollback');
         $container->instance('db.transactions', $transactionManager);
@@ -354,6 +355,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturn(null);
         $transactionManager->shouldNotReceive('addCallbackForRollback');
         $container->instance('db.transactions', $transactionManager);
@@ -368,6 +370,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturn(null);
         $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -385,6 +388,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturn(null);
         $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -402,6 +406,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturn(null);
         $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -419,6 +424,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->expects('addCallback')->andReturnNull();
         $transactionManager->shouldReceive('addCallbackForRollback')->never();
         $container->instance('db.transactions', $transactionManager);
