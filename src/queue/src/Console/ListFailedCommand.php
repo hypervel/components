@@ -9,6 +9,7 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'queue:failed')]
 class ListFailedCommand extends Command
@@ -134,6 +135,6 @@ class ListFailedCommand extends Command
             'queue' => $job[2],
             'class' => $job[3],
             'failed_at' => $job[4],
-        ])->toJson());
+        ])->toJson(), OutputInterface::OUTPUT_RAW);
     }
 }
