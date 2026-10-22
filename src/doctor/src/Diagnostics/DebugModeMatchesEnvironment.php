@@ -11,6 +11,7 @@ use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
+use Hypervel\Doctor\Support\EnvironmentConfiguration;
 use Hypervel\Support\Env;
 
 class DebugModeMatchesEnvironment extends Diagnostic implements Fixable
@@ -69,7 +70,9 @@ class DebugModeMatchesEnvironment extends Diagnostic implements Fixable
 
         Env::writeVariable('APP_DEBUG', 'false', $path, overwrite: true);
 
-        config(['app.debug' => false]);
+        if (($failure = EnvironmentConfiguration::refresh('app.debug', false)) !== null) {
+            return $this->fixFailed('disable-failed')->withDetails($failure);
+        }
 
         return $this->fixed('disabled');
     }

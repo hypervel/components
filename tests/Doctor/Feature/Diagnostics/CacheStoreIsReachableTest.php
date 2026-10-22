@@ -10,7 +10,9 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Doctor\Diagnostics\CacheStoreIsReachable;
 use Hypervel\Doctor\Results\DiagnosticResult;
+use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Doctor\Support\ActiveDrivers;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\File;
@@ -27,6 +29,8 @@ class CacheStoreIsReachableTest extends TestCase
 {
     private string $directory;
 
+    private ?string $originalEnvironmentFile;
+
     /**
      * Create isolated cache and environment directories.
      */
@@ -37,7 +41,10 @@ class CacheStoreIsReachableTest extends TestCase
         File::deleteDirectory($this->directory);
         File::makeDirectory($this->directory . '/cache', 0775, true);
         File::makeDirectory($this->directory . '/database/migrations', 0775, true);
-        $this->app->useEnvironmentPath($this->directory);
+        $this->app->useEnvironmentPath($this->app->basePath());
+        $path = $this->app->environmentFilePath();
+        $this->originalEnvironmentFile = is_file($path) ? File::get($path) : null;
+        File::delete($path);
         $this->app->useDatabasePath($this->directory . '/database');
     }
 
@@ -48,6 +55,10 @@ class CacheStoreIsReachableTest extends TestCase
     {
         try {
             File::deleteDirectory($this->directory);
+            $path = $this->app->basePath('.env');
+            $this->originalEnvironmentFile === null
+                ? File::delete($path)
+                : File::put($path, $this->originalEnvironmentFile);
         } finally {
             parent::tearDown();
         }
@@ -172,7 +183,7 @@ class CacheStoreIsReachableTest extends TestCase
     {
         $this->app->detectEnvironment(fn (): string => 'local');
 
-        $basePath = $this->directory;
+        $basePath = $this->app->environmentPath();
         file_put_contents($basePath . '/.env', "CACHE_STORE=broken\n");
 
         config([
@@ -197,7 +208,7 @@ class CacheStoreIsReachableTest extends TestCase
             $this->assertSame(0, Artisan::call('make:cache-table'));
         }
 
-        $fix = $diagnostic->fix($result, 'database');
+        $fix = $this->fixCacheStore($result, 'database');
 
         $this->assertSame('pass', $fix->status->value, $fix->details ?? '');
         $this->assertSame('The default cache store was switched to [database].', $fix->summary);
@@ -216,12 +227,13 @@ class CacheStoreIsReachableTest extends TestCase
         return ['new migrations' => [false], 'pending migrations' => [true]];
     }
 
-    public function testSwitchesTheDefaultStoreByWritingTheEnvironmentFile(): void
+    #[DataProvider('persistentSwitchCases')]
+    public function testSwitchesTheDefaultStoreByWritingTheEnvironmentFile(bool $cached, ?string $externalStore): void
     {
         $this->app->detectEnvironment(fn (): string => 'local');
 
-        $environmentPath = $this->directory;
-        $cachePath = $environmentPath . '/cache';
+        $environmentPath = $this->app->environmentPath();
+        $cachePath = $this->directory . '/cache';
 
         file_put_contents($environmentPath . '/.env', "CACHE_STORE=broken\n");
 
@@ -238,12 +250,37 @@ class CacheStoreIsReachableTest extends TestCase
 
         $diagnostic = new CacheStoreIsReachable;
 
-        $fix = $diagnostic->fix($diagnostic->check(), 'file');
+        try {
+            if ($cached) {
+                $this->assertSame(0, Artisan::call('config:cache'));
+            }
 
-        $this->assertSame('pass', $fix->status->value);
-        $this->assertSame('cache-store-is-reachable.fix.switched', $fix->code);
-        $this->assertStringContainsString('CACHE_STORE=file', file_get_contents($environmentPath . '/.env'));
-        $this->assertSame('file', config('cache.default'));
+            $fix = $this->fixCacheStore($diagnostic->check(), 'file', $externalStore);
+
+            $this->assertSame($externalStore === null ? 'pass' : 'fail', $fix->status->value, $fix->details ?? '');
+            $this->assertSame('cache-store-is-reachable.fix.' . ($externalStore === null ? 'switched' : 'switch-failed'), $fix->code);
+            $this->assertStringContainsString('CACHE_STORE=file', file_get_contents($environmentPath . '/.env'));
+            $this->assertSame($externalStore ?? 'file', config('cache.default'));
+
+            if ($cached) {
+                $this->assertSame($externalStore ?? 'file', (require $this->app->getCachedConfigPath())['cache']['default']);
+            }
+        } finally {
+            File::delete($this->app->getCachedConfigPath());
+        }
+    }
+
+    /**
+     * Provide cached and externally overridden store selections.
+     */
+    public static function persistentSwitchCases(): array
+    {
+        return [
+            'uncached' => [false, null],
+            'cached' => [true, null],
+            'external override' => [false, 'array'],
+            'cached external override' => [true, 'array'],
+        ];
     }
 
     public function testFailsTheSwitchWhenTheEnvironmentFileCannotBeUpdated(): void
@@ -414,6 +451,13 @@ class CacheStoreIsReachableTest extends TestCase
                 'selected' => ['driver' => 'stack', 'stores' => ['first' => ['ttl' => 20], 'second' => []]],
                 'first' => $healthy, 'second' => $healthy,
             ], 'pass'],
+            'enum stack' => [[
+                'selected' => ['driver' => 'stack', 'stores' => [DoctorCacheStoreName::Zero]],
+                '0' => $healthy,
+            ], 'pass'],
+            'default stack cycle' => [[
+                'selected' => ['driver' => 'stack', 'stores' => [null]],
+            ], 'fail'],
             'stack with degraded failover' => [[
                 'selected' => ['driver' => 'stack', 'stores' => ['memory', 'fallback']],
                 'memory' => $healthy, 'fallback' => $failover, 'first' => $unreachable, 'second' => $healthy,
@@ -431,7 +475,8 @@ class CacheStoreIsReachableTest extends TestCase
         ];
     }
 
-    public function testMissingLockTableUsesTheMigrationSetupLabel(): void
+    #[DataProvider('partialTableNames')]
+    public function testPartiallyMissingTablesRequireManualRepair(string $existingTable): void
     {
         $this->app->detectEnvironment(fn (): string => 'local');
         config([
@@ -443,7 +488,7 @@ class CacheStoreIsReachableTest extends TestCase
                 'database' => ['driver' => 'database', 'table' => 'cache'],
             ],
         ]);
-        Schema::create('cache', function (Blueprint $table): void {
+        Schema::create($existingTable, function (Blueprint $table): void {
             $table->string('key')->primary();
             $table->text('value');
             $table->integer('expiration');
@@ -451,7 +496,83 @@ class CacheStoreIsReachableTest extends TestCase
 
         $result = (new CacheStoreIsReachable)->check();
 
-        $this->assertSame(['database' => 'Database (creates cache tables and runs all pending migrations)'], $result->fixOptions);
+        $this->assertSame([], $result->fixOptions);
+        File::put($this->app->environmentFilePath(), "CACHE_STORE=broken\n");
+
+        $fix = (new CacheStoreIsReachable)->fix($result, 'database');
+
+        $this->assertSame('fail', $fix->status->value);
+        $this->assertStringContainsString('both its data and lock tables', $fix->details);
+        $this->assertSame("CACHE_STORE=broken\n", File::get($this->app->environmentFilePath()));
+        $this->assertSame([], File::files($this->directory . '/database/migrations'));
+    }
+
+    /**
+     * Provide either half of the required database cache schema.
+     */
+    public static function partialTableNames(): array
+    {
+        return [['cache'], ['cache_locks']];
+    }
+
+    public function testDoesNotSwitchWhenRecordedMigrationsLeaveTablesMissing(): void
+    {
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''],
+            'cache.default' => 'broken',
+            'cache.stores.database' => ['driver' => 'database', 'table' => 'cache'],
+        ]);
+        File::put($this->app->environmentFilePath(), "CACHE_STORE=broken\n");
+        $this->assertSame(0, Artisan::call('make:cache-table'));
+        $this->assertSame(0, Artisan::call('migrate', ['--force' => true]));
+        Schema::drop('cache');
+        Schema::drop('cache_locks');
+
+        $diagnostic = new CacheStoreIsReachable;
+        $fix = $diagnostic->fix($diagnostic->check(), 'database');
+
+        $this->assertSame('fail', $fix->status->value);
+        $this->assertStringContainsString('both its data and lock tables', $fix->details);
+        $this->assertSame('broken', config('cache.default'));
+        $this->assertSame("CACHE_STORE=broken\n", File::get($this->app->environmentFilePath()));
+    }
+
+    public function testExistingCustomDatabaseTablesRemainSelectable(): void
+    {
+        $this->app->detectEnvironment(fn (): string => 'local');
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''],
+            'cache.default' => 'broken',
+            'cache.stores' => [
+                'broken' => ['driver' => 'broken-driver'],
+                'database' => ['driver' => 'database', 'table' => 'custom_cache', 'lock_table' => 'custom_locks'],
+            ],
+        ]);
+        Schema::create('custom_cache', function (Blueprint $table): void {
+            $table->string('key')->primary();
+            $table->text('value');
+            $table->integer('expiration');
+        });
+        Schema::create('custom_locks', function (Blueprint $table): void {
+            $table->string('key')->primary();
+            $table->string('owner');
+            $table->integer('expiration');
+        });
+
+        $this->assertSame(['database' => 'Database'], (new CacheStoreIsReachable)->check()->fixOptions);
+    }
+
+    public function testActiveCacheDiscoveryNormalizesEnumAndDefaultStackEntries(): void
+    {
+        config([
+            'cache.default' => 'array',
+            'cache.stores.selected' => ['driver' => 'stack', 'stores' => [DoctorCacheStoreName::Zero, null]],
+            'cache.stores.0' => ['driver' => 'array'],
+        ]);
+
+        $this->assertSame(['0', 'array'], ActiveDrivers::cacheStores('selected'));
     }
 
     #[DataProvider('databaseCreationConfigurations')]
@@ -507,6 +628,28 @@ class CacheStoreIsReachableTest extends TestCase
         $this->assertSame('warn', $result->status->value);
         $this->assertSame(1, substr_count($result->details, '[offline]:'));
     }
+
+    /**
+     * Repair with a fresh application and an optional external store override.
+     */
+    private function fixCacheStore(DiagnosticResult $result, string $option, ?string $externalStore = null): FixResult
+    {
+        return $this->withEnvironmentValues([
+            'CACHE_STORE' => $externalStore,
+            'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
+        ], function () use ($result, $option, $externalStore): FixResult {
+            if ($externalStore !== null) {
+                $_SERVER['CACHE_STORE'] = $_ENV['CACHE_STORE'] = $externalStore;
+            }
+
+            return (new CacheStoreIsReachable)->fix($result, $option);
+        });
+    }
+}
+
+enum DoctorCacheStoreName: int
+{
+    case Zero = 0;
 }
 
 class DoctorProbeStore extends ArrayStore

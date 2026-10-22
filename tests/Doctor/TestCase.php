@@ -53,6 +53,14 @@ abstract class TestCase extends Testbench
     }
 
     /**
+     * Get the autoloader used by independently booted Artisan processes.
+     */
+    protected function autoloadPath(): string
+    {
+        return dirname(__DIR__, 2) . '/vendor/autoload.php';
+    }
+
+    /**
      * Clear agent environment variables so output format detection stays
      * deterministic when the suite itself runs inside an AI agent.
      */

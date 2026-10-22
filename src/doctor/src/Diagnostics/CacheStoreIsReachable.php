@@ -14,6 +14,7 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
+use Hypervel\Doctor\Support\EnvironmentConfiguration;
 use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Cache;
@@ -23,6 +24,9 @@ use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class CacheStoreIsReachable extends Diagnostic implements Fixable
 {
@@ -146,6 +150,8 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
         }
 
         try {
+            $this->ensureDatabaseTablesExist($option);
+
             if (! $this->probe($option)) {
                 return $this->fixFailed('switch-failed')->withDetails('The probe key could not be removed.');
             }
@@ -158,7 +164,9 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
 
         Env::writeVariable('CACHE_STORE', $option, $path, overwrite: true);
 
-        config(['cache.default' => $option]);
+        if (($failure = EnvironmentConfiguration::refresh('cache.default', $option)) !== null) {
+            return $this->fixFailed('switch-failed')->withDetails($failure);
+        }
 
         return $this->fixed('switched', ['store' => $option]);
     }
@@ -168,7 +176,7 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
      *
      * A candidate must be configured, use a different driver than the failing
      * store, and survive a probe. The database store is also offered when its
-     * connection works but its cache or lock table is missing, since the fix
+     * connection works but both default tables are missing, since the fix
      * creates the tables before switching.
      *
      * @return array<string, string>
@@ -189,6 +197,8 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
             $needsTables = $store === 'database' && $this->cacheTableIsMissing();
 
             try {
+                $this->ensureDatabaseTablesExist($store);
+
                 if (! $this->probe($store)) {
                     continue;
                 }
@@ -209,7 +219,7 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
     }
 
     /**
-     * Determine whether the default database cache layout is missing either table.
+     * Determine whether both tables in the default database cache layout are missing.
      */
     private function cacheTableIsMissing(): bool
     {
@@ -229,11 +239,32 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
             $schema = Schema::connection($defaultConnection);
 
             return ! $schema->hasTable(CacheTableCommand::TABLE)
-                || ! $schema->hasTable(DatabaseStore::DEFAULT_LOCK_TABLE);
+                && ! $schema->hasTable(DatabaseStore::DEFAULT_LOCK_TABLE);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable) {
             return false;
+        }
+    }
+
+    /**
+     * Ensure a database candidate has both its data and lock tables.
+     */
+    private function ensureDatabaseTablesExist(string $store): void
+    {
+        $configuration = config()->array("cache.stores.{$store}");
+
+        if ($configuration['driver'] !== 'database') {
+            return;
+        }
+
+        $connection = $configuration['connection'] ?? null;
+        $lockConnection = ($configuration['lock_connection'] ?? null) ?: $connection;
+        $lockTable = $configuration['lock_table'] ?? DatabaseStore::DEFAULT_LOCK_TABLE;
+
+        if (! Schema::connection($connection)->hasTable($configuration['table'])
+            || ! Schema::connection($lockConnection)->hasTable($lockTable)) {
+            throw new RuntimeException('The database cache requires both its data and lock tables. Repair the missing tables before selecting this store.');
         }
     }
 
@@ -314,6 +345,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
 
         foreach ($stores as $name => $options) {
             $nested = $driver === 'stack' && is_array($options) ? $name : $options;
+
+            if ($driver === 'stack') {
+                $nested = $nested instanceof UnitEnum ? (string) enum_value($nested) : $nested;
+                $nested ??= config()->string('cache.default');
+            }
 
             if ($nested === 'null' || Configured::string("cache.stores.{$nested}.driver") === 'null') {
                 continue;

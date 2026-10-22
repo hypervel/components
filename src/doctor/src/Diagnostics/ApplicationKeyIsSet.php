@@ -12,6 +12,7 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Details;
+use Hypervel\Doctor\Support\EnvironmentConfiguration;
 use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Artisan;
 
@@ -57,6 +58,11 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
      */
     public function fix(DiagnosticResult $result, ?string $option = null): FixResult
     {
+        if ($this->keyIsConfigured()) {
+            return $this->fixed('configured');
+        }
+
+        $previousKey = config('app.key');
         $path = app()->environmentFilePath();
 
         if (! is_file($path) || ! is_writable($path)) {
@@ -68,9 +74,7 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
         // existing values untouched while adding the blank entry it requires.
         Env::writeVariable('APP_KEY', '', $path);
 
-        Artisan::call('key:generate', ['--force' => true]);
-
-        if (! $this->keyIsConfigured()) {
+        if (Artisan::call('key:generate', ['--force' => true]) !== 0 || ! $this->keyIsConfigured()) {
             return $this->fixFailed('generation-failed')
                 ->withDetails(Details::processOutput(
                     Artisan::output(),
@@ -79,11 +83,20 @@ class ApplicationKeyIsSet extends Diagnostic implements Fixable
                 ));
         }
 
+        $generatedKey = config()->string('app.key');
+        config(['app.key' => $previousKey]);
+
+        if (($failure = EnvironmentConfiguration::refresh('app.key', $generatedKey)) !== null) {
+            return $this->fixFailed('generation-failed')->withDetails($failure);
+        }
+
         return $this->fixed('generated');
     }
 
     /**
      * Determine whether the application key is configured.
+     *
+     * @phpstan-impure
      */
     private function keyIsConfigured(): bool
     {
