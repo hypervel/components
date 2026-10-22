@@ -827,6 +827,14 @@ public function middleware(): array
 }
 ```
 
+By default, the middleware adds three seconds to the rate limiter's calculated retry delay. You may adjust this padding without replacing the calculated delay:
+
+```php
+return [(new RateLimited('backups'))->releasePadding(0)];
+```
+
+Padding must be non-negative. A delay set with `releaseAfter` takes precedence over the calculated delay and padding.
+
 If you do not want a job to be retried when it is rate limited, you may use the `dontRelease` method:
 
 ```php

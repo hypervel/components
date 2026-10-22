@@ -11,8 +11,10 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 enum RateLimitedTestStringEnum: string
@@ -107,14 +109,19 @@ class RateLimitedTest extends TestCase
         $this->assertSame('handled', $middleware->handle(new stdClass, fn (): string => 'handled'));
     }
 
-    public function testDeniedJobUsesDecisionRetryTimeAndThreeSecondBuffer(): void
-    {
+    #[DataProvider('retryDelayProvider')]
+    public function testDeniedJobUsesConfiguredRetryDelayAfterSerialization(
+        int $retryMicroseconds,
+        ?int $padding,
+        ?int $fixedDelay,
+        int $expectedDelay,
+    ): void {
         $policy = Limit::perMinute(1);
         $store = m::mock(Limiter::class);
         $store->shouldReceive('consumeMany')
             ->once()
             ->with([$policy], 'uploads')
-            ->andReturn([new LimitResult(false, 1, 0, 7_000_000, 7_000_000)]);
+            ->andReturn([new LimitResult(false, 1, 0, $retryMicroseconds, $retryMicroseconds)]);
 
         $manager = $this->mockRateLimiter();
         $manager->shouldReceive('limiter')->andReturn(fn () => $policy);
@@ -122,9 +129,42 @@ class RateLimitedTest extends TestCase
         $manager->shouldReceive('store')->with(null)->andReturn($store);
 
         $job = m::mock();
-        $job->shouldReceive('release')->once()->with(10)->andReturnNull();
+        $job->shouldReceive('release')->once()->with($expectedDelay)->andReturnNull();
 
-        $this->assertNull((new RateLimited('uploads'))->handle($job, fn () => 'handled'));
+        $middleware = new RateLimited('uploads');
+
+        if ($padding !== null) {
+            $this->assertSame($middleware, $middleware->releasePadding($padding));
+        }
+
+        if ($fixedDelay !== null) {
+            $middleware->releaseAfter($fixedDelay);
+        }
+
+        $middleware = unserialize(serialize($middleware));
+
+        $this->assertNull($middleware->handle($job, fn () => 'handled'));
+    }
+
+    public static function retryDelayProvider(): array
+    {
+        return [
+            'default padding' => [7_000_000, null, null, 10],
+            'custom padding' => [7_000_000, 5, null, 12],
+            'zero padding preserves rounding' => [100_000, 0, null, 1],
+            'zero padding preserves long delays' => [3_600_000_000, 0, null, 3600],
+            'fixed delay overrides padding' => [7_000_000, 5, 60, 60],
+            'fixed zero overrides padding' => [7_000_000, 5, 0, 0],
+        ];
+    }
+
+    public function testNegativeReleasePaddingIsRejected(): void
+    {
+        $this->mockRateLimiter();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Release padding must not be negative.');
+
+        (new RateLimited('uploads'))->releasePadding(-1);
     }
 
     public function testGroupUsesTheFirstDeniedPolicyToReleaseTheJob(): void
