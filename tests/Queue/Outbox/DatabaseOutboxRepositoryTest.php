@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue\Outbox;
 
+use Closure;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
@@ -13,6 +18,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use RuntimeException;
 
 class DatabaseOutboxRepositoryTest extends TestCase
@@ -43,8 +49,6 @@ class DatabaseOutboxRepositoryTest extends TestCase
         $future = $this->row($now + 60);
         $repository->insert($connection, [$first, $second, $future]);
 
-        $connection->maxBindings();
-        $connection->lockForPopping();
         $transactionsStarted = 0;
         $this->app->make('events')->listen(TransactionBeginning::class, static function () use (&$transactionsStarted): void {
             ++$transactionsStarted;
@@ -87,6 +91,25 @@ class DatabaseOutboxRepositoryTest extends TestCase
         $this->assertSame($first->payload, $second->payload);
     }
 
+    public function testCustomNonPdoConnectionsUseTheConditionalClaimAndBindingFallback(): void
+    {
+        $database = DB::connection();
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('job_outbox')->andReturnUsing(fn (): Builder => $database->table('job_outbox'));
+        $connection->shouldReceive('transaction')->andReturnUsing(fn (Closure $callback): mixed => $database->transaction($callback));
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->with('custom')->andReturn($connection);
+        $repository = new DatabaseOutboxRepository($resolver, ['custom'], 'job_outbox', 300);
+        $row = $this->row(Date::now()->getTimestamp());
+        $repository->insert($connection, [$row]);
+
+        $messages = $repository->claim('custom', 1);
+
+        $this->assertSame([$row['uuid']], array_column($messages, 'uuid'));
+        $this->assertSame(1, $repository->settle('custom', $messages, new OutboxBatchResult([$messages[0]->id])));
+        $this->assertSame(0, $database->table('job_outbox')->count());
+    }
+
     public function testSettlementDeletesAcceptedDefersFutureAndBacksOffFailures(): void
     {
         Date::setTestNow('2040-01-01 12:00:00');
@@ -99,16 +122,29 @@ class DatabaseOutboxRepositoryTest extends TestCase
         $deferred['last_error'] = 'Previous failure';
         $failed = $this->row($now);
         $failed['attempts'] = 6;
-        $repository->insert(DB::connection(), [$accepted, $deferred, $failed]);
+        $repository->insert(DB::connection(), [
+            $accepted, array_replace($accepted, ['uuid' => (string) Str::uuid()]),
+            $deferred, array_replace($deferred, ['uuid' => (string) Str::uuid()]),
+            $failed, array_replace($failed, ['uuid' => (string) Str::uuid()]),
+        ]);
         $messages = $repository->claim($database, 10);
+        $connection = DB::connection();
+        $connection->enableQueryLog();
+        $connection->flushQueryLog();
 
-        $affected = $repository->settle($database, $messages, new OutboxBatchResult(
-            [$messages[0]->id],
-            [$messages[1]->id],
-            new RuntimeException(str_repeat('雪', 5000)),
-        ));
+        try {
+            $affected = $repository->settle($database, $messages, new OutboxBatchResult(
+                [$messages[0]->id, $messages[1]->id],
+                [$messages[2]->id, $messages[3]->id],
+                new RuntimeException(str_repeat('雪', 5000)),
+            ));
+            $queries = $connection->getQueryLog();
+        } finally {
+            $connection->disableQueryLog();
+        }
 
-        $this->assertSame(3, $affected);
+        $this->assertCount(3, $queries);
+        $this->assertSame(6, $affected);
         $this->assertNull($repository->find($database, $accepted['uuid']));
         $storedDeferred = $repository->find($database, $deferred['uuid']);
         $this->assertNull($storedDeferred->lease_token);
@@ -195,6 +231,30 @@ class DatabaseOutboxRepositoryTest extends TestCase
         $this->expectExceptionMessage('not configured in queue.outbox.databases');
 
         $this->repository()->claim('not-configured', 100);
+    }
+
+    public function testRetryAllUsesBoundedChunksAndExcludesMessagesAddedDuringTheOperation(): void
+    {
+        Date::setTestNow('2040-01-01 12:00:00');
+        $now = Date::now()->getTimestamp();
+        $repository = $this->repository();
+        $database = DB::connection()->getName();
+        $rows = array_map(fn (): array => array_replace($this->row($now + 600), ['attempts' => 1]), range(1, 1001));
+        $repository->insert(DB::connection(), $rows);
+        $later = array_replace($this->row($now + 600), ['attempts' => 1]);
+        $updates = 0;
+        $this->app->make('events')->listen(QueryExecuted::class, static function (QueryExecuted $event) use ($repository, $later, &$updates): void {
+            if (str_starts_with($event->sql, 'update ') && str_contains($event->sql, 'job_outbox')) {
+                if (++$updates === 1) {
+                    $repository->insert(DB::connection(), [$later]);
+                }
+            }
+        });
+
+        $this->assertSame(1001, $repository->retryAll($database));
+        $this->assertSame(2, $updates);
+        $this->assertSame($now + 600, (int) $repository->find($database, $later['uuid'])->available_at);
+        $this->assertSame(1001, DB::table('job_outbox')->where('available_at', $now)->count());
     }
 
     /**

@@ -7,10 +7,12 @@ namespace Hypervel\Tests\Queue\Outbox;
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
@@ -18,6 +20,7 @@ use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
+use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Facades\Date;
@@ -25,6 +28,9 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use Pheanstalk\Contract\PheanstalkManagerInterface;
+use Pheanstalk\Contract\PheanstalkPublisherInterface;
+use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnitEnum;
@@ -134,6 +140,40 @@ class OutboxDispatchTest extends TestCase
         $this->assertSame(100, $finalized);
         $this->assertSame(100, DB::table('job_outbox')->count());
         $this->assertSame([], $queue->published);
+    }
+
+    #[DataProvider('baseBulkDrivers')]
+    public function testBaseBulkStagesOneInsertAndKeepsTheDirectPartition(bool $beanstalk): void
+    {
+        $queue = $beanstalk
+            ? m::mock(BeanstalkdQueue::class, [m::mock(PheanstalkManagerInterface::class . ', ' . PheanstalkPublisherInterface::class . ', ' . PheanstalkSubscriberInterface::class), 'orders', 60])->makePartial()
+            : m::mock(Queue::class . ', ' . QueueContract::class)->makePartial();
+        $queue->setContainer($this->app)->setConnectionName($beanstalk ? 'beanstalkd' : 'custom');
+        $direct = (new OutboxDispatchJob)->withoutOutbox();
+        $queue->expects('push')->with($direct, '', 'orders')->andReturn('direct');
+        $jobs = array_map(static fn (): OutboxDispatchJob => (new OutboxDispatchJob)->viaOutbox(), range(1, 100));
+        $connection = DB::connection();
+        $connection->enableQueryLog();
+        $connection->flushQueryLog();
+
+        try {
+            $queue->bulk([...$jobs, $direct], queue: 'orders');
+            $inserts = array_filter($connection->getQueryLog(), static fn (array $query): bool => str_starts_with($query['query'], 'insert into'));
+        } finally {
+            $connection->disableQueryLog();
+        }
+
+        $this->assertCount(1, $inserts);
+        $this->assertSame(100, DB::table('job_outbox')->count());
+        $this->assertSame(['orders'], DB::table('job_outbox')->distinct()->pluck('queue')->all());
+    }
+
+    /**
+     * Cover the first-party and custom users of the shared bulk implementation.
+     */
+    public static function baseBulkDrivers(): array
+    {
+        return [[true], [false]];
     }
 
     public function testBulkPreparationFailureStoresNothingAndTerminatesEveryMember(): void
