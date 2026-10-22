@@ -43,6 +43,32 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('OLD_FLAG'));
     }
 
+    public function testLoadedVariableNamesExcludeExternalValuesAndFollowReloads(): void
+    {
+        $originalVersion = $_ENV['TEST_VERSION'] ?? null;
+        $_ENV['TEST_VERSION'] = 'external';
+
+        try {
+            $this->assertSame([], DotenvManager::getLoadedVariableNames());
+
+            DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
+
+            $this->assertSame(['OLD_FLAG', 'SW_VERSION'], DotenvManager::getLoadedVariableNames());
+            $this->assertSame('external', Env::get('TEST_VERSION'));
+
+            DotenvManager::reload([__DIR__ . '/Fixtures/envs/newEnv']);
+
+            $this->assertSame(['NEW_FLAG', 'SW_VERSION'], DotenvManager::getLoadedVariableNames());
+            $this->assertSame('external', Env::get('TEST_VERSION'));
+        } finally {
+            if ($originalVersion === null) {
+                unset($_ENV['TEST_VERSION']);
+            } else {
+                $_ENV['TEST_VERSION'] = $originalVersion;
+            }
+        }
+    }
+
     public function testLoadIsIdempotent(): void
     {
         DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
