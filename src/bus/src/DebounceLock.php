@@ -45,13 +45,14 @@ class DebounceLock
     public function acquireForDispatch(object $job, ?int $debounceFor = null, ?int $maxWait = null): array
     {
         [$cache, $key, $ttl, $maxWait] = $this->resolveLockValues($job, $debounceFor, $maxWait);
+        $releaseContext = DispatchLockContext::captureReleaseContext();
         $result = $this->acquireResolvedLock($cache, $key, $ttl, $maxWait);
 
         if (isset(class_uses_recursive($job)[Queueable::class])) {
             $job->debounceOwner = $result['owner'];
         }
 
-        DispatchLockContext::registerDebounce($job, $cache, $key, $result['owner']);
+        DispatchLockContext::registerDebounce($job, $cache, $key, $result['owner'], $releaseContext);
 
         return $result;
     }
