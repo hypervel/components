@@ -18,6 +18,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
+use Hypervel\Support\Number;
 use Hypervel\Validation\ValidationData;
 use InvalidArgumentException;
 use stdClass;
@@ -443,8 +444,17 @@ trait HasCasts
      */
     protected function asDecimal(mixed $value, int $decimals): string
     {
+        // Avoid PHP 8.5's warning when stringifying NAN before Brick rejects it.
+        $value = is_float($value) && is_nan($value) ? 'NAN' : (string) $value;
+        $exponent = Number::exponent($value);
+
+        // Validated numeric input can still contain exponents that exhaust worker memory.
+        if ($exponent !== null && ($exponent > Number::MAX_EXPONENT || $exponent < -Number::MAX_EXPONENT)) {
+            throw new MathException('Unable to cast value to a decimal.');
+        }
+
         try {
-            return (string) BigDecimal::of((string) $value)->toScale($decimals, RoundingMode::HalfUp);
+            return (string) BigDecimal::of($value)->toScale($decimals, RoundingMode::HalfUp);
         } catch (BrickMathException $exception) {
             throw new MathException('Unable to cast value to a decimal.', previous: $exception);
         }

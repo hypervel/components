@@ -771,7 +771,9 @@ Hypervel supports the following primitive casts:
 
 Primitive and enum casts preserve `null`. A custom caster receives a present `null` value so it may decide how nullable input should be handled. Missing paths are skipped.
 
-Use validation rules that guarantee each submitted value can be cast. For example, validate JSON strings with the `json` rule, decimals with the `numeric` rule, and formatted dates with the matching `date_format` rule. An incompatible value causes casting to throw.
+Use validation rules that guarantee each submitted value can be cast. For example, validate JSON strings with the `json` rule, decimals with the `numeric` rule and appropriate `min` and `max` bounds, and formatted dates with the matching `date_format` rule. An incompatible value causes casting to throw.
+
+Decimal casts accept scientific notation with exponents between -1000 and 1000. Values outside that range throw a `Hypervel\Support\Exceptions\MathException` to prevent excessive memory allocation, even if they passed the `numeric` rule. This does not limit the length of an ordinary decimal string.
 
 Date and time casts accept `DateTimeInterface` instances, Unix timestamps, and date strings. Numeric strings without an explicit format are treated as Unix timestamps. An explicit format takes precedence, so `datetime:!Y` parses the value `2026` as a year rather than a timestamp.
 

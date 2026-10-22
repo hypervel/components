@@ -255,7 +255,7 @@ The `casts` method should return an array where the key is the name of the attri
 
 </div>
 
-The `decimal` cast requires a non-negative integer precision, such as `decimal:2`.
+The `decimal` cast requires a non-negative integer precision, such as `decimal:2`. Scientific-notation inputs must have an exponent between -1000 and 1000; larger exponents throw a `Hypervel\Support\Exceptions\MathException` to prevent excessive memory allocation. This does not limit the length of an ordinary decimal string.
 
 To demonstrate attribute casting, let's cast the `is_admin` attribute, which is stored in our database as an integer (`0` or `1`) to a boolean value:
 
