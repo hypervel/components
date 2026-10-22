@@ -95,7 +95,6 @@ class DebugModeMatchesEnvironmentTest extends TestCase
         $environmentPath = $this->environmentPath;
         file_put_contents($environmentPath . '/.env', "APP_NAME=Hypervel\nAPP_DEBUG=true\n");
 
-        $this->app->useEnvironmentPath($environmentPath);
         $this->app->detectEnvironment(fn (): string => 'production');
         config(['app.debug' => true]);
 
@@ -112,7 +111,6 @@ class DebugModeMatchesEnvironmentTest extends TestCase
         $environmentPath = $this->environmentPath;
         file_put_contents($environmentPath . '/.env', "APP_NAME=Hypervel\n");
 
-        $this->app->useEnvironmentPath($environmentPath);
         $this->app->detectEnvironment(fn (): string => 'production');
         config(['app.debug' => true]);
 
@@ -136,7 +134,6 @@ class DebugModeMatchesEnvironmentTest extends TestCase
         try {
             $this->withEnvironmentValues([
                 'APP_DEBUG' => $externalDebug,
-                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
             ], function () use ($cached, $externalDebug, $loadDotenv): void {
                 if ($externalDebug !== null) {
                     $_SERVER['APP_DEBUG'] = $_ENV['APP_DEBUG'] = $externalDebug;
@@ -200,11 +197,7 @@ class DebugModeMatchesEnvironmentTest extends TestCase
                 Artisan::call('config:clear');
                 File::put($this->environmentPath . '/.env', "APP_DEBUG=false\n");
 
-                $failure = $this->withEnvironmentValue(
-                    'HYPERVEL_AUTOLOAD_PATH',
-                    $this->autoloadPath(),
-                    fn () => EnvironmentConfiguration::refresh('app.debug', false),
-                );
+                $failure = EnvironmentConfiguration::refresh('app.debug', false);
 
                 $this->assertNull($failure);
                 $this->assertFalse(config('app.debug'));
@@ -253,7 +246,6 @@ class DebugModeMatchesEnvironmentTest extends TestCase
     {
         return $this->withEnvironmentValues([
             'APP_DEBUG' => null,
-            'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
         ], function (): DiagnosticFixOutcome {
             $diagnostic = new DebugModeMatchesEnvironment;
 

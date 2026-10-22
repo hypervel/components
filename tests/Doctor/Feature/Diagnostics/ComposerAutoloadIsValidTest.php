@@ -91,8 +91,6 @@ class ComposerAutoloadIsValidTest extends TestCase
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
 
-        $this->app->setBasePath($basePath);
-
         Process::fake([
             '*' => Process::result(output: 'Generated autoload files'),
         ]);

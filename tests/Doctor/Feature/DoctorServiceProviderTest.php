@@ -135,7 +135,6 @@ class DoctorServiceProviderTest extends TestCase
         try {
             $exitCode = $this->withEnvironmentValues([
                 'APP_KEY' => null,
-                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
             ], fn () => $this->app->make(Kernel::class)->call('doctor', [
                 '--only' => 'ApplicationKeyIsSet',
                 '--fix' => true,
@@ -984,7 +983,7 @@ class DoctorServiceProviderTest extends TestCase
             [PHP_BINARY, $script, ...($fix ? ['--fix'] : [])],
             $this->app->basePath(),
             [
-                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
+                'HYPERVEL_AUTOLOAD_PATH' => dirname(__DIR__, 3) . '/vendor/autoload.php',
                 'DOCTOR_TEST_BASE_PATH' => $this->app->basePath(),
             ],
         );

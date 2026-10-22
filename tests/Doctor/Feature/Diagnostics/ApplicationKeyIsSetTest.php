@@ -121,7 +121,6 @@ class ApplicationKeyIsSetTest extends TestCase
         try {
             $fix = $this->withEnvironmentValues([
                 'APP_KEY' => null,
-                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
             ], function () use ($cached): DiagnosticFixOutcome {
                 if ($cached) {
                     $this->assertSame(0, Artisan::call('config:cache'));
@@ -177,7 +176,6 @@ class ApplicationKeyIsSetTest extends TestCase
         try {
             $fix = $this->withEnvironmentValues([
                 'APP_KEY' => null,
-                'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
             ], fn () => (new ApplicationKeyIsSet)->fix(DiagnosticResult::fail('missing')));
 
             $this->assertSame('fail', $fix->status->value);
@@ -198,7 +196,6 @@ class ApplicationKeyIsSetTest extends TestCase
 
         $fix = $this->withEnvironmentValues([
             'APP_KEY' => null,
-            'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
         ], fn () => $this->app->make(Doctor::class)->fix(new DiagnosticOutcome(
             new ApplicationKeyIsSet,
             DiagnosticResult::fail('The application key is not configured.')->fixable(),

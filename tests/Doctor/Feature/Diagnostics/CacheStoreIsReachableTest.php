@@ -237,8 +237,6 @@ class CacheStoreIsReachableTest extends TestCase
 
         file_put_contents($environmentPath . '/.env', "CACHE_STORE=broken\n");
 
-        $this->app->useEnvironmentPath($environmentPath);
-
         config(['cache' => [
             'default' => 'broken',
             'prefix' => '',
@@ -636,7 +634,6 @@ class CacheStoreIsReachableTest extends TestCase
     {
         return $this->withEnvironmentValues([
             'CACHE_STORE' => $externalStore,
-            'HYPERVEL_AUTOLOAD_PATH' => $this->autoloadPath(),
         ], function () use ($result, $option, $externalStore): FixResult {
             if ($externalStore !== null) {
                 $_SERVER['CACHE_STORE'] = $_ENV['CACHE_STORE'] = $externalStore;

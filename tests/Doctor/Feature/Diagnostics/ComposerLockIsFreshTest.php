@@ -48,8 +48,6 @@ class ComposerLockIsFreshTest extends TestCase
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
 
-        $this->app->setBasePath($basePath);
-
         $result = (new ComposerLockIsFresh)->check();
 
         $this->assertSame('fail', $result->status->value);
@@ -64,8 +62,6 @@ class ComposerLockIsFreshTest extends TestCase
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/composer.lock', '{}');
-
-        $this->app->setBasePath($basePath);
 
         Process::fake([
             '*' => Process::result(errorOutput: 'The lock file is not up to date.', exitCode: 1),
@@ -95,8 +91,6 @@ class ComposerLockIsFreshTest extends TestCase
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/composer.lock', '{}');
-
-        $this->app->setBasePath($basePath);
 
         Process::fake([
             '*' => Process::result(errorOutput: implode(PHP_EOL, [
@@ -133,8 +127,6 @@ class ComposerLockIsFreshTest extends TestCase
         file_put_contents($basePath . '/composer.json', '{}');
         file_put_contents($basePath . '/composer.lock', '{}');
 
-        $this->app->setBasePath($basePath);
-
         Process::fake([
             '*' => Process::result(errorOutput: 'composer.json is invalid JSON.', exitCode: 2),
         ]);
@@ -153,8 +145,6 @@ class ComposerLockIsFreshTest extends TestCase
     {
         $basePath = $this->basePath;
         file_put_contents($basePath . '/composer.json', '{}');
-
-        $this->app->setBasePath($basePath);
 
         Process::fake([
             '*' => Process::result(output: 'Writing lock file'),
