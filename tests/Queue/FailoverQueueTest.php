@@ -86,23 +86,26 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
-    public function testPushFailsOverOnException(): void
+    #[DataProvider('failedConnectionNames')]
+    public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
         $queue = m::mock(QueueManager::class);
         $events = m::mock(DispatcherContract::class);
         $failover = new FailoverQueue($queue, $events, [
-            'redis',
+            $connection,
             'sync',
         ]);
 
         $redis = m::mock(RedisQueue::class);
-        $queue->expects('connection')->with('redis')->andReturn($redis);
+        $queue->expects('connection')->with($connection)->andReturn($redis);
 
         $sync = m::mock(SyncQueue::class);
         $queue->expects('connection')->with('sync')->andReturn($sync);
 
         $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch');
+        $events->expects('dispatch')->with(m::on(
+            fn (QueueFailedOver $event): bool => $event->connectionName === $expectedName,
+        ));
 
         $redis->expects('push')->andReturnUsing(
             fn (): never => throw new Exception('error')
@@ -111,6 +114,18 @@ class FailoverQueueTest extends TestCase
         $sync->expects('push');
 
         $failover->push('some-job');
+    }
+
+    /**
+     * Provide supported failover connection names.
+     */
+    public static function failedConnectionNames(): array
+    {
+        return [
+            'named connection' => ['redis', 'redis'],
+            'enum connection' => [IntegerQueueName::Zero, '0'],
+            'default connection' => [null, null],
+        ];
     }
 
     public function testCancellationDoesNotFailOverOrEmitAnEvent(): void

@@ -22,6 +22,8 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
+use function Hypervel\Support\enum_value;
+
 class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 {
     /**
@@ -265,7 +267,11 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                         && ! in_array($connection, $failingQueues, true)
                         && $this->events->hasListeners(QueueFailedOver::class)
                     ) {
-                        $this->events->dispatch(new QueueFailedOver($connection, $job, $e));
+                        $this->events->dispatch(new QueueFailedOver(
+                            $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection,
+                            $job,
+                            $e,
+                        ));
                     }
                 }
             }
