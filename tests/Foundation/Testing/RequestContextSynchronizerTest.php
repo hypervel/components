@@ -7,11 +7,45 @@ namespace Hypervel\Tests\Foundation\Testing;
 use ArrayObject;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\DatabaseTransactionRecord;
+use Hypervel\Database\DatabaseTransactionState;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Tests\TestCase;
+use PDO;
 
 class RequestContextSynchronizerTest extends TestCase
 {
+    public function testTransactionSyncOnlyReplacesTheRetainedRoleOwnersRecords(): void
+    {
+        $base = new DatabaseTransactionRecord('testing', 1);
+        $writer = new DatabaseTransactionRecord('testing::write', 1);
+        $savepoint = new DatabaseTransactionRecord('testing::write', 2, $writer);
+        $source = new DatabaseTransactionState;
+        $source->pending->push($writer);
+        $source->committed->push($savepoint);
+        $source->current['testing::write'] = $writer;
+
+        $target = new DatabaseTransactionState;
+        $target->pending->push($base, $writer, $savepoint);
+        $target->current = ['testing' => $base, 'testing::write' => $savepoint];
+
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => 'testing']);
+        $connection->setReadWriteType('write');
+        $synchronizer = new RequestContextSynchronizer;
+        $synchronizer->syncTransactionState($source, $target, ['testing::write' => $connection]);
+
+        $this->assertSame([$base, $writer], $target->pending->all());
+        $this->assertSame([$savepoint], $target->committed->all());
+        $this->assertSame(['testing' => $base, 'testing::write' => $writer], $target->current);
+
+        $synchronizer->syncTransactionState(new DatabaseTransactionState, $target, ['testing::write' => $connection]);
+
+        $this->assertSame([$base], $target->pending->all());
+        $this->assertTrue($target->committed->isEmpty());
+        $this->assertSame(['testing' => $base], $target->current);
+    }
+
     public function testSyncContextKeysToParentCopiesPresentKeysAndForgetsMissingKeys(): void
     {
         CoroutineContext::set('foundation.testing.present', 'old');

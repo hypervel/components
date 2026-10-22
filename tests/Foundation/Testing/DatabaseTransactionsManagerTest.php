@@ -138,6 +138,38 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertFalse($manager->hasApplicableTransaction('foo'));
     }
 
+    public function testRoleWrappersExcludeOnlyTheirResolvedOwnersTransaction(): void
+    {
+        $manager = new DatabaseTransactionsManager(['foo::write']);
+        $database = m::mock(DatabaseManager::class);
+        $writer = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => 'foo']);
+        $writer->setReadWriteType('write');
+        $database->shouldReceive('connection')->once()->with('foo::write')->andReturn($writer);
+        $manager->beginTransactions($database);
+
+        $this->assertFalse($writer->hasApplicableTransaction());
+
+        $base = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => 'foo']);
+        $base->setTransactionManager($manager);
+        $base->beginTransaction();
+        $this->assertTrue($base->hasApplicableTransaction());
+
+        $called = false;
+        $writer->transaction(function () use ($writer, &$called): void {
+            $writer->afterCommit(function () use (&$called): void {
+                $called = true;
+            });
+        });
+
+        $this->assertTrue($called);
+        $this->assertTrue($base->hasApplicableTransaction());
+        $this->assertFalse($writer->hasApplicableTransaction());
+
+        $base->rollBack();
+        $writer->rollBack();
+        $this->assertTrue($manager->getPendingTransactions()->isEmpty());
+    }
+
     /**
      * Begin the real wrappers while keeping these manager tests independent of an application.
      */

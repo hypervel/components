@@ -288,7 +288,7 @@ class DatabaseTransactionsManager
      * connection. The callback runs when that transaction and its enclosing stack on the
      * same connection commit.
      *
-     * @param null|string $connection base name from Connection::getName()
+     * @param null|string $connection resolved owner name from Connection::getNameWithReadWriteType()
      */
     public function addCallback(callable $callback, ?string $connection = null): void
     {
@@ -307,7 +307,7 @@ class DatabaseTransactionsManager
      * connection. The callback runs when that transaction and its enclosing stack on the
      * same connection roll back.
      *
-     * @param null|string $connection base name from Connection::getName()
+     * @param null|string $connection resolved owner name from Connection::getNameWithReadWriteType()
      */
     public function addCallbackForRollback(callable $callback, ?string $connection = null): void
     {

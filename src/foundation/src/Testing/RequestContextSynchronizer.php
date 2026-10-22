@@ -26,7 +26,7 @@ class RequestContextSynchronizer
         $names = [];
 
         foreach ($connections as $connection) {
-            $names[$connection->getName() ?? ''] = true;
+            $names[$connection->getNameWithReadWriteType() ?? ''] = true;
         }
 
         foreach (['pending', 'committed'] as $property) {
