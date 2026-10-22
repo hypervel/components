@@ -35,8 +35,15 @@ class ReloadDotenvAndConfig
         $this->configMutationTracker->replay($config);
     }
 
+    /**
+     * Reload the selected environment file when configuration is not cached.
+     */
     protected function reloadDotenv(): void
     {
+        if (is_file($this->container->getCachedConfigPath())) {
+            return;
+        }
+
         DotenvManager::reload(
             [$this->container->environmentPath()],
             $this->container->environmentFile(),
