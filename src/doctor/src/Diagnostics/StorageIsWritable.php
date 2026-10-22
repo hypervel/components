@@ -70,7 +70,7 @@ class StorageIsWritable extends Diagnostic implements Fixable
                 $changed[] = sprintf('Created %s.', $path);
             }
 
-            if (! $this->canWriteToDirectory($path) && ! @chmod($path, 0775)) {
+            if (! $this->canWriteToDirectory($path) && ! @chmod($path, (fileperms($path) & 07777) | 0700)) {
                 throw new RuntimeException(sprintf('Unable to change permissions for [%s].', $path));
             }
         }
@@ -127,6 +127,7 @@ class StorageIsWritable extends Diagnostic implements Fixable
             if (config("cache.stores.{$store}.driver") === 'file'
                 && ($path = Configured::string("cache.stores.{$store}.path")) !== null) {
                 $paths[] = $path;
+                $paths[] = config("cache.stores.{$store}.lock_path") ?? $path;
             }
         }
 

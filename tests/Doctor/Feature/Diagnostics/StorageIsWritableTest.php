@@ -112,7 +112,11 @@ class StorageIsWritableTest extends TestCase
             'session.files' => $this->basePath . '/sessions',
             'cache.default' => 'stack',
             'cache.stores.stack' => ['driver' => 'stack', 'stores' => ['files']],
-            'cache.stores.files' => ['driver' => 'file', 'path' => $this->basePath . '/cache-data'],
+            'cache.stores.files' => [
+                'driver' => 'file',
+                'path' => $this->basePath . '/cache-data',
+                'lock_path' => $this->basePath . '/cache-locks',
+            ],
         ]);
         $environment = Env::getRepository();
         $previous = $environment->get('APP_CONFIG_CACHE');
@@ -124,7 +128,7 @@ class StorageIsWritableTest extends TestCase
             $this->assertSame('fail', $result->status->value);
             $this->assertSame('pass', $diagnostic->fix($result)->status->value);
 
-            foreach (['application-storage/framework', 'sessions', 'cache-data', 'artifacts'] as $relative) {
+            foreach (['application-storage/framework', 'sessions', 'cache-data', 'cache-locks', 'artifacts'] as $relative) {
                 $this->assertDirectoryExists($this->basePath . '/' . $relative);
             }
 
@@ -134,6 +138,34 @@ class StorageIsWritableTest extends TestCase
             $this->assertSame([], File::files($shared, true));
         } finally {
             $previous === null ? $environment->clear('APP_CONFIG_CACHE') : $environment->set('APP_CONFIG_CACHE', $previous);
+        }
+    }
+
+    public function testRepairAddsOwnerAccessWithoutWideningOtherPermissions(): void
+    {
+        if (! function_exists('posix_geteuid') || posix_geteuid() === 0) {
+            $this->markTestSkipped('Requires Unix file permissions for an unprivileged user.');
+        }
+
+        foreach ($this->storagePaths() as $path) {
+            File::ensureDirectoryExists($path);
+        }
+
+        $private = $this->basePath . '/private-views';
+        mkdir($private);
+        chmod($private, 01550);
+        config(['view.compiled' => $private]);
+
+        try {
+            $diagnostic = new StorageIsWritable;
+            $result = $diagnostic->check();
+            $this->assertSame('fail', $result->status->value);
+            $this->assertSame('pass', $diagnostic->fix($result)->status->value);
+
+            clearstatcache(true, $private);
+            $this->assertSame(01750, fileperms($private) & 07777);
+        } finally {
+            chmod($private, 0700);
         }
     }
 
