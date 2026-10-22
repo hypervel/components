@@ -12,6 +12,7 @@ use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class LoadEnvironmentVariablesTest extends TestCase
 {
@@ -112,7 +113,8 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertSame('default_value', env('TEST_KEY'));
     }
 
-    public function testSkipsWhenConfigIsCached(): void
+    #[DataProvider('cachedEnvironmentSelections')]
+    public function testSkipsLoadingButSelectsEnvironmentWhenConfigIsCached(?string $environment, ?string $option, string $file): void
     {
         $tempDir = ParallelTesting::tempDir('LoadEnvVarsTest');
         $filesystem = new Filesystem;
@@ -124,6 +126,17 @@ class LoadEnvironmentVariablesTest extends TestCase
 
         try {
             $app = new Application($tempDir);
+            $app->setRunningInConsole(true);
+            $_SERVER['argv'] = ['artisan'];
+
+            if ($environment !== null) {
+                $_SERVER['APP_ENV'] = $_ENV['APP_ENV'] = $environment;
+                putenv('APP_ENV=' . $environment);
+            }
+
+            if ($option !== null) {
+                $_SERVER['argv'][] = '--env=' . $option;
+            }
 
             // Create a fake cached config file so configurationIsCached() returns true.
             $cachePath = $app->getCachedConfigPath();
@@ -140,9 +153,22 @@ class LoadEnvironmentVariablesTest extends TestCase
             // Env vars should NOT be loaded since config is cached.
             $this->assertNull(env('APP_NAME'));
             $this->assertNull(env('TEST_KEY'));
+            $this->assertSame($tempDir . '/' . $file, $app->environmentFilePath());
         } finally {
             $filesystem->deleteDirectory($tempDir);
         }
+    }
+
+    /**
+     * Provide environment-file selection with cached configuration.
+     */
+    public static function cachedEnvironmentSelections(): array
+    {
+        return [
+            'default' => [null, null, '.env'],
+            'external environment' => ['testing', null, '.env.testing'],
+            'explicit environment wins' => ['production', 'testing', '.env.testing'],
+        ];
     }
 
     public function testLoadsPerEnvironmentFile(): void
@@ -203,19 +229,33 @@ class LoadEnvironmentVariablesTest extends TestCase
         $this->assertNull(env('APP_NAME'));
     }
 
-    public function testEnvCliOptionOverridesEnvironmentFile(): void
+    #[DataProvider('commandModes')]
+    public function testEnvCliOptionOverridesEnvironmentFile(string $command, bool $runningInConsole): void
     {
-        // Simulate `php artisan --env=testing`.
-        $_SERVER['argv'] = ['artisan', '--env=testing'];
+        $_SERVER['argv'] = ['artisan', $command, '--env=testing'];
 
         $app = $this->createApp();
-        $app->setRunningInConsole(true);
+        $app->setRunningInConsole($runningInConsole);
 
         (new LoadEnvironmentVariables)->bootstrap($app);
 
         $this->assertSame('HypervelTesting', env('APP_NAME'));
         $this->assertSame('testing_value', env('TEST_KEY'));
         $this->assertSame('.env.testing', $app->environmentFile());
+        $this->assertSame('testing', $app->detectEnvironment(fn (): string => 'production'));
+        $this->assertSame($runningInConsole, $app->runningInConsole());
+    }
+
+    /**
+     * Provide console and HTTP-mode startup commands.
+     */
+    public static function commandModes(): array
+    {
+        return [
+            'console command' => ['about', true],
+            'HTTP server' => ['serve', false],
+            'watcher' => ['watch', false],
+        ];
     }
 
     public function testMalformedEnvFileTriggersErrorHandler(): void

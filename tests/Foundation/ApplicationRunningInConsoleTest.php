@@ -321,28 +321,29 @@ class ApplicationRunningInConsoleTest extends TestCase
         $this->assertSame('staging', $app->environment());
     }
 
-    public function testDetectEnvironmentIgnoresArgvWhenNotInConsole(): void
+    public function testDetectEnvironmentUsesStartupArgumentsWhenNotInConsole(): void
     {
-        $_SERVER['argv'] = ['artisan', '--env=staging'];
+        $_SERVER['argv'] = ['artisan', 'serve', '--env=staging'];
         $app = new Application;
 
         $app->setRunningInConsole(false);
 
-        // When not in console, argv is not passed — callback determines environment
         $result = $app->detectEnvironment(fn () => 'production');
 
-        $this->assertSame('production', $result);
+        $this->assertSame('staging', $result);
+        $this->assertFalse($app->runningInConsole());
     }
 
-    public function testDetectEnvironmentIgnoresArgvWhenHttpSemanticsAreSetViaEnvVar(): void
+    public function testDetectEnvironmentUsesStartupArgumentsWhenHttpSemanticsAreSetViaEnvVar(): void
     {
-        $_SERVER['argv'] = ['artisan', '--env=staging'];
+        $_SERVER['argv'] = ['artisan', 'serve', '--env=staging'];
         putenv('APP_RUNNING_IN_CONSOLE=false');
 
         $app = new Application;
 
         $result = $app->detectEnvironment(fn () => 'production');
 
-        $this->assertSame('production', $result);
+        $this->assertSame('staging', $result);
+        $this->assertFalse($app->runningInConsole());
     }
 }

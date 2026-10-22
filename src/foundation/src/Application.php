@@ -818,9 +818,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function detectEnvironment(Closure $callback): string
     {
-        $args = $this->runningInConsole() && isset($_SERVER['argv'])
-            ? $_SERVER['argv']
-            : null;
+        // Server commands use HTTP semantics during boot but still receive startup arguments.
+        $args = $_SERVER['argv'] ?? null;
 
         return $this->instance('env', (new EnvironmentDetector)->detect($callback, $args));
     }

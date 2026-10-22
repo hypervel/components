@@ -18,11 +18,11 @@ class LoadEnvironmentVariables
      */
     public function bootstrap(Application $app): void
     {
+        $this->checkForSpecificEnvironmentFile($app);
+
         if ($app->configurationIsCached()) {
             return;
         }
-
-        $this->checkForSpecificEnvironmentFile($app);
 
         try {
             DotenvManager::safeLoad(
@@ -39,8 +39,8 @@ class LoadEnvironmentVariables
      */
     protected function checkForSpecificEnvironmentFile(Application $app): void
     {
-        if ($app->runningInConsole()
-            && ($input = new ArgvInput)->hasParameterOption('--env')
+        // Match Application::detectEnvironment(), including HTTP-mode server bootstrap.
+        if (($input = new ArgvInput)->hasParameterOption('--env')
             && $this->setEnvironmentFilePath($app, $app->environmentFile() . '.' . $input->getParameterOption('--env'))) {
             return;
         }

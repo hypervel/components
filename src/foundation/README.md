@@ -28,6 +28,8 @@ Laravel's `Application::handleRequest()` is omitted. Hypervel's HTTP server hand
 
 The `php artisan serve` command starts Hypervel's configured Swoole servers directly instead of PHP's built-in development server.
 
+Environment detection honors startup `--env` arguments even when `runningInConsole()` is false, so server commands can select their environment while booting with HTTP semantics.
+
 The default `dev` server process runs `php artisan watch` so the Watcher package can own and restart the long-running Swoole server. Official Hypervel skeletons and starter kits include `hypervel/watcher` as a development dependency.
 
 Laravel's default Pail process is omitted because Hypervel has no Pail-equivalent command. Application logging remains controlled by the application's logging configuration.
