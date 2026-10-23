@@ -301,7 +301,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      *
      * Tests only. Replaces the database shared by this application's pool borrowers.
      */
-    public function restorePooledInMemoryPdo(UnitEnum|string|null $name, PDO $pdo): bool
+    public function restoreInMemoryPdoIfPooled(UnitEnum|string|null $name, PDO $pdo): bool
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));
 

@@ -65,7 +65,7 @@ trait RefreshDatabase
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
                 // A lease loses setPdo() on release; restore the pool's shared database instead.
                 if ($resolver instanceof DatabaseConnectionResolver
-                    && $resolver->restorePooledInMemoryPdo($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                    && $resolver->restoreInMemoryPdoIfPooled($name, RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
                     continue;
                 }
 

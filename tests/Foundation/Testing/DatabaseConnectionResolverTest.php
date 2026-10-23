@@ -42,7 +42,7 @@ class DatabaseConnectionResolverTest extends TestCase
         $saved->exec('create table restored_database (value integer)');
         $saved->exec('insert into restored_database values (42)');
 
-        $this->assertTrue($resolver->restorePooledInMemoryPdo('testing::read', $saved));
+        $this->assertTrue($resolver->restoreInMemoryPdoIfPooled('testing::read', $saved));
         $this->assertSame($saved, $pool->getSharedInMemorySqlitePdo());
         $this->assertSame(0, $pool->getManagedCount());
         $this->assertSame(42, $connection->table('restored_database')->value('value'));
