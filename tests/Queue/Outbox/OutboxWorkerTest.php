@@ -62,7 +62,7 @@ class OutboxWorkerTest extends TestCase
             }
         });
 
-        $this->assertSame(Worker::EXIT_SUCCESS, $worker->run(null, new OutboxWorkerOptions(batch: 2, concurrency: 2, maxJobs: 3)));
+        $this->assertSame(Worker::EXIT_SUCCESS, $worker->run(null, new OutboxWorkerOptions(batch: 2, concurrency: 2, maxJobs: 3, memory: 1024)));
         $this->assertSame(2, $peak);
         $this->assertSame(2, $finished);
         $this->assertSame(0, $running);
@@ -78,7 +78,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->shouldReceive('deliver')->with('healthy', m::type('array'))->times(3)->andReturn(true);
         $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 60, maxJobs: 3)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 60, maxJobs: 3, memory: 1024)));
         Sleep::assertNeverSlept();
     }
 
@@ -91,7 +91,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->expects('claim')->with('empty', 100)->andReturn([]);
         $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(stopWhenEmpty: true)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024, stopWhenEmpty: true)));
         Sleep::assertNeverSlept();
     }
 
@@ -103,7 +103,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->expects('claim')->with('second', 100)->andReturn([]);
         $this->relay->expects('deliver')->with('first', m::type('array'))->andReturn(false);
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(once: true)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024, once: true)));
         Sleep::assertNeverSlept();
     }
 
@@ -112,7 +112,7 @@ class OutboxWorkerTest extends TestCase
         $worker = $this->worker(['first', 'second']);
         $this->relay->expects('claim')->with('second', 100)->andReturn([]);
 
-        $this->assertSame(0, $worker->run('second', new OutboxWorkerOptions(once: true)));
+        $this->assertSame(0, $worker->run('second', new OutboxWorkerOptions(memory: 1024, once: true)));
     }
 
     public function testFailureSleepKeepsThePublicationSlotOccupied(): void
@@ -129,7 +129,7 @@ class OutboxWorkerTest extends TestCase
             $this->assertSame(1, $claims);
         });
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 0.25, maxJobs: 2)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 0.25, maxJobs: 2, memory: 1024)));
         Sleep::assertSequence([Sleep::usleep(250_000)]);
     }
 
@@ -141,7 +141,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->expects('claim')->with('second', 100)->andReturn([]);
         Sleep::whenFakingSleep(function (): void { ($this->signalHandler)(SIGTERM); });
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(sleep: 0.25)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(sleep: 0.25, memory: 1024)));
         Sleep::assertSequence([Sleep::usleep(250_000)]);
     }
 
@@ -160,7 +160,7 @@ class OutboxWorkerTest extends TestCase
             ($this->signalHandler)(++$sleeps === 1 ? SIGUSR2 : SIGCONT);
         });
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(sleep: 0.25, maxJobs: 1)));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(sleep: 0.25, maxJobs: 1, memory: 1024)));
         Sleep::assertSequence([Sleep::usleep(250_000), Sleep::usleep(250_000)]);
     }
 
@@ -184,7 +184,7 @@ class OutboxWorkerTest extends TestCase
         });
         $this->relay->expects('deliver')->andReturn(true);
 
-        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions));
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024)));
         $this->assertFalse($borrowed);
     }
 
@@ -196,7 +196,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->expects('deliver')->andThrow($failure);
 
         try {
-            $worker->run(null, new OutboxWorkerOptions);
+            $worker->run(null, new OutboxWorkerOptions(memory: 1024));
             $this->fail('Task failure must reach the command.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
@@ -220,7 +220,7 @@ class OutboxWorkerTest extends TestCase
         });
         $coordinator = Coroutine::create(static function () use ($worker, &$caught): void {
             try {
-                $worker->run(null, new OutboxWorkerOptions(maxJobs: 1));
+                $worker->run(null, new OutboxWorkerOptions(maxJobs: 1, memory: 1024));
             } catch (CanceledException $exception) {
                 $caught = $exception;
             }

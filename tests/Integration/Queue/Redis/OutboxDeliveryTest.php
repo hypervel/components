@@ -92,7 +92,7 @@ class OutboxDeliveryTest extends TestCase
         $user->name = 'After dispatch';
         $user->save();
 
-        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true]));
+        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true, '--memory' => 1024]));
         $this->assertSame(0, DB::table('job_outbox')->count());
         $this->assertSame(2, Queue::size());
         $this->assertSame(2, $finalizations);
@@ -122,7 +122,7 @@ class OutboxDeliveryTest extends TestCase
         $this->assertSame(3, DB::table('job_outbox')->count());
         $this->assertSame(4, $batch->fresh()->pendingJobs);
         $this->assertSame(0, Queue::size());
-        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true]));
+        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true, '--memory' => 1024]));
         $this->work();
 
         $this->assertSame(1, Cache::get('first'));
@@ -140,7 +140,7 @@ class OutboxDeliveryTest extends TestCase
         OutboxDebouncedDeliveryJob::dispatch('debounced')->viaOutbox();
         OutboxDebouncedDeliveryJob::dispatch('debounced')->viaOutbox();
         OutboxDeliveryJob::dispatch('delayed')->viaOutbox()->delay(60);
-        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true]));
+        $this->assertSame(0, Artisan::call('queue:relay', ['--once' => true, '--memory' => 1024]));
         $this->assertSame(0, DB::table('job_outbox')->count());
         $this->assertNull(Queue::pop());
 
