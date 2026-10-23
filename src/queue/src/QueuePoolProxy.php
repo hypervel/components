@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Lease;
@@ -17,14 +18,19 @@ use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
+use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
+use Hypervel\Queue\Outbox\OutboxBatchResult;
+use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
-class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
+class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue, PublishesOutboxMessages
 {
+    use PublishesOutboxMessagesSequentially;
+
     /**
      * The logical connection name applied to each borrowed queue.
      */
@@ -224,6 +230,18 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     }
 
     /**
+     * Publish a stored batch while borrowing its transport only once.
+     *
+     * @param list<OutboxMessage> $messages
+     */
+    public function publishOutboxMessages(array $messages): OutboxBatchResult
+    {
+        return $this->usingConnection(fn (QueueContract $queue): OutboxBatchResult => $queue instanceof PublishesOutboxMessages
+            ? $queue->publishOutboxMessages($messages)
+            : $this->publishOutboxMessagesSequentially($queue, $messages));
+    }
+
+    /**
      * Run a callback with the underlying SQS queue.
      *
      * @param Closure(SqsQueue): mixed $callback
@@ -342,14 +360,14 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Run a callback with a borrowed queue.
      *
-     * @param Closure(Queue): mixed $callback
+     * @param Closure(Queue&QueueContract): mixed $callback
      */
     protected function usingConnection(Closure $callback): mixed
     {
         $lease = $this->lease();
 
         try {
-            /** @var Queue $queue */
+            /** @var Queue&QueueContract $queue */
             $queue = $lease->get();
             $result = $callback($queue);
         } catch (Throwable $operationException) {

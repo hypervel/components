@@ -301,6 +301,22 @@ class BeanstalkdQueue extends Queue implements QueueContract
     }
 
     /**
+     * Capture the logical destination before publication-time forwarding.
+     */
+    protected function resolveOutboxQueue(?string $queue): ?string
+    {
+        return $queue === null || $queue === '' ? $this->default : $queue;
+    }
+
+    /**
+     * Prepare bulk payloads with the same hook destination as individual pushes.
+     */
+    protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
+    {
+        return parent::prepareBatchJobs($jobs, $data, $this->getQueue($queue));
+    }
+
+    /**
      * Get the underlying Pheanstalk instance.
      *
      * @return PheanstalkManagerInterface&PheanstalkPublisherInterface&PheanstalkSubscriberInterface

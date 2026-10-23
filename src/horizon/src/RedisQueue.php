@@ -24,8 +24,6 @@ use UnitEnum;
 
 class RedisQueue extends BaseQueue
 {
-    public const string LAST_PUSHED_CONTEXT_KEY = '__horizon.queue.last_pushed';
-
     protected const string POPPING_QUEUE_CONTEXT_KEY = '__horizon.queue.popping';
 
     /**
@@ -49,11 +47,9 @@ class RedisQueue extends BaseQueue
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            static function (BaseQueue $owner, $payload, $queue) use ($job) {
+            static function (BaseQueue $owner, string $payload, ?string $queue) {
                 /** @var self $owner */
-                $owner->setLastPushed($job);
-
-                return $owner->pushRaw($payload, $queue);
+                return $owner->pushPreparedPayload($payload, $queue);
             }
         );
     }
@@ -64,25 +60,24 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
-        $job = CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
+        $payload = (new JobPayload($payload))->prepare(null);
 
-        try {
-            $payload = (new JobPayload($payload))->prepare($job);
-
-            if ($this->hasEventListeners(JobPending::class)) {
-                $this->event($this->getQueue($queue), new JobPending($payload->value));
-            }
-
-            parent::pushRaw($payload->value, $queue, $options);
-
-            if ($this->hasEventListeners(JobPushed::class)) {
-                $this->event($this->getQueue($queue), new JobPushed($payload->value));
-            }
-
-            return $payload->id();
-        } finally {
-            CoroutineContext::forget(static::LAST_PUSHED_CONTEXT_KEY);
+        if ($this->hasEventListeners(JobPending::class)) {
+            $this->event($this->getQueue($queue), new JobPending($payload->value));
         }
+
+        $this->pushPreparedPayload($payload->value, $queue, $options);
+        $this->handlePayloadPushed($payload->value, $this->normalizeQueue($queue));
+
+        return $payload->id();
+    }
+
+    /**
+     * Store a prepared payload without running Horizon's raw-push lifecycle again.
+     */
+    protected function pushPreparedPayload(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
+    {
+        return parent::pushRaw($payload, $queue, $options);
     }
 
     /**
@@ -99,43 +94,33 @@ class RedisQueue extends BaseQueue
     }
 
     /**
-     * Push a new job onto the queue after a delay.
+     * Classify a staged job without recording it as pending in Redis.
      */
-    #[Override]
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+    protected function preparePayloadForOutbox(object|string $job, string $payload): string
     {
-        $queue = $this->normalizeQueue($queue);
-
-        return $this->enqueueUsing(
-            $job,
-            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
-            $queue,
-            $delay,
-            static function (BaseQueue $owner, string $payload, ?string $queue, DateInterval|DateTimeInterface|int $delay) use ($job) {
-                // Horizon's Redis queue is not pooled, so after-commit dispatch returns this same queue type.
-                /** @var self $owner */
-                $payload = (new JobPayload($payload))->prepare($job)->value;
-
-                if ($owner->hasEventListeners(JobPending::class)) {
-                    $owner->event($owner->getQueue($queue), new JobPending($payload));
-                }
-
-                $id = $owner->laterRaw($delay, $payload, $queue);
-
-                if ($owner->hasEventListeners(JobPushed::class)) {
-                    $owner->event($owner->getQueue($queue), new JobPushed($payload));
-                }
-
-                return $id;
-            }
-        );
+        return (new JobPayload($payload))->prepareForQueueing($job)->value;
     }
 
     /**
-     * Prepare a payload for bulk storage.
+     * Stamp a relayed payload and record its pending state before publication.
      */
     #[Override]
-    protected function preparePayloadForBulk(object|string $job, string $payload, ?string $queue): string
+    protected function preparePayloadForOutboxPublication(string $payload, ?string $queue): string
+    {
+        $payload = (new JobPayload($payload))->markAsPushed()->value;
+
+        if ($this->hasEventListeners(JobPending::class)) {
+            $this->event($this->getQueue($queue), new JobPending($payload));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Prepare a payload and record its pending state before publication.
+     */
+    #[Override]
+    protected function preparePayloadForPush(object|string $job, string $payload, ?string $queue): string
     {
         $payload = (new JobPayload($payload))->prepare($job)->value;
 
@@ -147,10 +132,10 @@ class RedisQueue extends BaseQueue
     }
 
     /**
-     * Handle a payload that was stored as part of a batch.
+     * Notify Horizon after the queue has accepted the payload.
      */
     #[Override]
-    protected function handlePayloadPushedInBulk(string $payload, ?string $queue): void
+    protected function handlePayloadPushed(string $payload, ?string $queue): void
     {
         if ($this->hasEventListeners(JobPushed::class)) {
             $this->event($this->getQueue($queue), new JobPushed($payload));
@@ -268,13 +253,5 @@ class RedisQueue extends BaseQueue
     {
         return $this->container->bound(Dispatcher::class)
             && $this->container->make(Dispatcher::class)->hasListeners($event);
-    }
-
-    /**
-     * Set the job that last pushed to queue via the "push" method.
-     */
-    protected function setLastPushed(object|string $job): void
-    {
-        CoroutineContext::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
     }
 }

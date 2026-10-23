@@ -146,6 +146,24 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
     }
 
+    public function testCustomRepositoriesReceiveTheirConfiguredNameWithoutReplacingAnExplicitName(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => ['stores' => [
+                'custom' => ['driver' => 'custom'],
+                'alias' => ['driver' => 'named'],
+            ]],
+        ]));
+        $manager->extend('custom', fn (): Repository => $manager->repository(new WorkerArrayStore));
+        $named = new Repository(new WorkerArrayStore, ['store' => 'original']);
+        $manager->extend('named', static fn (): Repository => $named);
+
+        $this->assertSame('custom', $manager->store('custom')->getName());
+        $this->assertSame($named, $manager->store('alias'));
+        $this->assertSame('original', $named->getName());
+        $this->assertNull($manager->repository(new WorkerArrayStore)->getName());
+    }
+
     public function testFailoverDriverPassesItsConfiguredNameToFailoverEvents(): void
     {
         $app = $this->getApp([
@@ -742,6 +760,31 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(MemoizedStore::class, $secondMemoizedStore);
         $this->assertNotSame($firstRepository, $secondRepository);
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
+    }
+
+    public function testMemoizedRepositoriesPreserveStoreIdentityAndSuppressDuplicateEvents(): void
+    {
+        $app = $this->getApp(['cache' => ['stores' => ['named' => ['driver' => 'worker-array']]]]);
+        $events = new Event($app);
+        $app->instance(Dispatcher::class, $events);
+        $manager = new CacheManager($app);
+        $eventsSeen = [];
+        $events->listen('Hypervel\Cache\Events\*', static function (string $event, array $payload) use (&$eventsSeen): void {
+            $eventsSeen[] = $payload[0]->storeName;
+        });
+        $memo = $manager->memo('named');
+
+        $this->assertSame('named', $memo->getName());
+        $this->assertSame('named', $memo->tags('orders')->getName());
+        $this->assertNull($memo->getEventDispatcher());
+        $memo->put('key', 'value', 60);
+        $memo->get('key');
+        $afterFirstRead = count($eventsSeen);
+        $memo->get('key');
+
+        $this->assertNotEmpty($eventsSeen);
+        $this->assertSame(['named'], array_values(array_unique($eventsSeen)));
+        $this->assertCount($afterFirstRead, $eventsSeen);
     }
 
     // REMOVED: CacheApcStoreTest, CacheDynamoDbStoreTest, CacheMemcachedConnectorTest,

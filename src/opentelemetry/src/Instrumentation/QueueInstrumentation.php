@@ -22,6 +22,8 @@ use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\Events\OutboxBatchDelivered;
+use Hypervel\Queue\Events\OutboxBatchDeliveryFailed;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\TimeoutExceededException;
@@ -60,6 +62,12 @@ class QueueInstrumentation extends AbstractInstrumentation
 
     protected const string DEPTH_METRIC = 'hypervel.queue.jobs';
 
+    protected const string OUTBOX_DELIVERED_METRIC = 'hypervel.queue.outbox.delivered.messages';
+
+    protected const string OUTBOX_DURATION_METRIC = 'hypervel.queue.outbox.delivery.duration';
+
+    protected const string OUTBOX_LATENCY_METRIC = 'hypervel.queue.outbox.delivery.latency';
+
     protected const string CONNECTION_ATTRIBUTE = 'hypervel.queue.connection';
 
     protected const array DURATION_BOUNDARIES = [
@@ -88,6 +96,12 @@ class QueueInstrumentation extends AbstractInstrumentation
     protected ?CounterInterface $consumedMessages = null;
 
     protected ?HistogramInterface $processDuration = null;
+
+    protected ?CounterInterface $outboxDelivered = null;
+
+    protected ?HistogramInterface $outboxDuration = null;
+
+    protected ?HistogramInterface $outboxLatency = null;
 
     protected bool $propagation = false;
 
@@ -131,6 +145,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         $this->registerMetrics();
+        $this->registerOutboxMetrics();
 
         $producerMetrics = $this->sentMessages !== null || $this->sendDuration !== null;
         $producerTelemetry = $this->tracer !== null || $producerMetrics;
@@ -239,6 +254,68 @@ class QueueInstrumentation extends AbstractInstrumentation
                 ['ExplicitBucketBoundaries' => self::DURATION_BOUNDARIES],
             );
         }
+    }
+
+    /**
+     * Register outbox delivery metrics without observing or resolving ordinary queue operations.
+     */
+    protected function registerOutboxMetrics(): void
+    {
+        $meter = null;
+
+        if ($this->metricEnabled(self::OUTBOX_DELIVERED_METRIC)) {
+            $meter = $this->meterProvider->getMeter('hypervel.queue');
+            $this->outboxDelivered = $meter->createCounter(self::OUTBOX_DELIVERED_METRIC, '{message}', 'Outbox messages confirmed by their destination queue.');
+        }
+
+        if ($this->metricEnabled(self::OUTBOX_DURATION_METRIC)) {
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $this->outboxDuration = $meter->createHistogram(
+                self::OUTBOX_DURATION_METRIC,
+                's',
+                'Duration of outbox connection batch publication.',
+                ['ExplicitBucketBoundaries' => self::DURATION_BOUNDARIES],
+            );
+        }
+
+        if ($this->metricEnabled(self::OUTBOX_LATENCY_METRIC)) {
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $this->outboxLatency = $meter->createHistogram(
+                self::OUTBOX_LATENCY_METRIC,
+                's',
+                'Age of the oldest eligible message at the start of each outbox connection publication batch.',
+                ['ExplicitBucketBoundaries' => [1, 5, 10, 30, 60, 300, 600, 1800, 3600]],
+            );
+        }
+
+        if ($meter !== null) {
+            $this->events->listen([OutboxBatchDelivered::class, OutboxBatchDeliveryFailed::class], function (OutboxBatchDelivered|OutboxBatchDeliveryFailed $event): void {
+                $this->recordOutboxDelivery($event);
+            });
+        }
+    }
+
+    /**
+     * Record confirmed acceptance separately from publication or settlement failure.
+     */
+    protected function recordOutboxDelivery(OutboxBatchDelivered|OutboxBatchDeliveryFailed $event): void
+    {
+        $attributes = [
+            self::CONNECTION_ATTRIBUTE => $event->connectionName,
+            'hypervel.queue.outbox.database' => $event->database,
+        ];
+
+        if ($event->accepted > 0) {
+            $this->outboxDelivered?->add($event->accepted, $attributes);
+        }
+
+        $this->outboxLatency?->record($event->oldestEligibleAge, $attributes);
+
+        if ($event instanceof OutboxBatchDeliveryFailed) {
+            $attributes[ErrorAttributes::ERROR_TYPE] = $event->exception::class;
+        }
+
+        $this->outboxDuration?->record($event->duration, $attributes);
     }
 
     /**

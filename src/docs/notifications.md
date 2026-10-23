@@ -435,6 +435,14 @@ class InvoicePaid extends Notification implements ShouldQueue
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
+If you would like to store a queued notification's jobs as part of your database transaction, you may call the `viaOutbox` method provided by its `Queueable` trait:
+
+```php
+$user->notify((new InvoicePaid($invoice))->viaOutbox());
+```
+
+Send the notification inside the transaction. Hypervel will store each queued channel's job in the [transactional outbox](/docs/{{version}}/queue-outbox) and deliver it after commit. Unlike `viaQueues`, `viaOutbox` configures the notification when called; you do not implement it to return a setting. Before using this feature, follow the [outbox setup instructions](/docs/{{version}}/queue-outbox#setup).
+
 <a name="determining-if-the-queued-notification-should-be-sent"></a>
 #### Determining if a Queued Notification Should Be Sent
 

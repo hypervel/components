@@ -6,7 +6,6 @@ namespace Hypervel\Pennant\Drivers;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Database\ConnectionName;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -975,13 +974,13 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
             return;
         }
 
-        $base = ConnectionName::parse($connection)->base;
+        $owner = $db->connection($connection)->getNameWithReadWriteType();
 
         /** @var DatabaseTransactionsManager $transactions */
         $transactions = $this->container->make('db.transactions');
 
         $state->forgetOnRollback(
-            $transactions->callbackApplicableTransactions()->last(fn (DatabaseTransactionRecord $record) => $record->connection === $base),
+            $transactions->callbackApplicableTransactions()->last(fn (DatabaseTransactionRecord $record) => $record->connection === $owner),
             $connection,
         );
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Concerns;
 
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\PdoConnection;
 use RuntimeException;
 
 trait InsertsDatabaseRows
@@ -18,9 +19,8 @@ trait InsertsDatabaseRows
         ConnectionInterface $connection,
         string $table,
         array $rows,
-        int $maxBindings,
     ): void {
-        $rowsPerInsert = intdiv($maxBindings, count(reset($rows)));
+        $rowsPerInsert = intdiv($this->maxBindings($connection), count(reset($rows)));
 
         if (count($rows) <= $rowsPerInsert) {
             $this->insertDatabaseRowChunk($connection, $table, $rows);
@@ -45,5 +45,15 @@ trait InsertsDatabaseRows
         if (! $connection->table($table)->insert($rows)) {
             throw new RuntimeException('Unable to insert queued jobs into the database.');
         }
+    }
+
+    /**
+     * Get the statement binding limit without requiring a PDO-backed custom driver.
+     */
+    protected function maxBindings(ConnectionInterface $connection): int
+    {
+        return $connection instanceof PdoConnection
+            ? $connection->maxBindings()
+            : PdoConnection::DEFAULT_MAX_BINDINGS;
     }
 }

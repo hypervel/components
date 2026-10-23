@@ -59,6 +59,7 @@ class QueueConnectionTest extends TestCase
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
             $transactionManager->expects('callbackApplicableTransactions')
                 ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->expects('addCallback')->andReturn(null);
@@ -93,6 +94,7 @@ class QueueConnectionTest extends TestCase
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
             $transactionManager->expects('callbackApplicableTransactions')
                 ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->expects('addCallback')->andReturn(null);
@@ -110,6 +112,7 @@ class QueueConnectionTest extends TestCase
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
             $transactionManager->expects('callbackApplicableTransactions')
                 ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->expects('addCallback')->andReturn(null);
@@ -144,6 +147,7 @@ class QueueConnectionTest extends TestCase
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
             $transactionManager->expects('callbackApplicableTransactions')
                 ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->expects('addCallback')->andReturn(null);

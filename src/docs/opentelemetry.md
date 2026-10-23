@@ -189,6 +189,7 @@ The shipped defaults are:
 | Database and Redis pools | None | `db.client.connection.count`, `db.client.connection.max`, `db.client.connection.pending_requests` |
 | Cache | Events on the current span | `hypervel.cache.operations` |
 | Queue | Producer and consumer spans | `messaging.client.sent.messages`, `messaging.client.operation.duration`, `messaging.client.consumed.messages`, `messaging.process.duration`; `hypervel.queue.jobs` is off |
+| Queue outbox | No additional spans | `hypervel.queue.outbox.delivered.messages`, `hypervel.queue.outbox.delivery.duration`, `hypervel.queue.outbox.delivery.latency` |
 | Scheduler | Task spans | `hypervel.scheduler.task.duration`, `hypervel.scheduler.task.executions` |
 | Console | Command spans | `hypervel.console.command.duration` |
 | Events | Exact allowlist, empty by default | None |
@@ -318,7 +319,15 @@ The built-in `background` and `deferred` connections propagate the current conte
 
 Jobs dispatched after a database commit are finalized and timed only when the queue driver actually begins enqueueing them. Database and SQS batch operations retain one lifecycle per logical message. Later SQS chunks include the time spent sending earlier chunks because timing begins when the batch is finalized, and a later batch failure completes every still-outstanding message once.
 
-Terminal queue correlation normally uses the exact final encoded payload without decoding it. If another finalizer rewrites that payload afterward, the package performs one terminal decode to recover Hypervel's job UUID. Payloads from custom drivers or `Queue::createPayloadUsing()` callbacks that do not contain a string UUID are accepted, omit `messaging.message.id`, and use exact-payload correlation only. If a later finalizer rewrites such a payload, its producer span remains started but is never ended or exported, and its state remains until coroutine or process exit. A later finalizer that removes or corrupts an existing UUID, or throws after earlier messages in the same batch were finalized, likewise leaves unmatched state. A long-running non-coroutine custom process that catches and continues after such failures may retain that state until it exits.
+Terminal queue correlation normally uses the exact final encoded payload without decoding it. If another finalizer rewrites that payload afterward, the package performs one terminal decode to recover Hypervel's job UUID. Payloads from custom drivers or `Queue::createPayloadUsing()` callbacks that do not contain a string UUID are accepted, omit `messaging.message.id`, and use exact-payload correlation only. If a later finalizer rewrites such a payload, its producer span remains started but is never ended or exported, and its state remains until coroutine or process exit. A later finalizer that removes or corrupts an existing UUID likewise leaves unmatched state. A long-running non-coroutine custom process that catches and continues after such failures may retain that state until it exits.
+
+When using the [transactional outbox](/docs/{{version}}/queue-outbox), the producer span ends when the job is stored in the outbox. The relay preserves the job's trace context without creating another producer span. The following metrics are enabled by default and record delivery separately for each queue connection's batch:
+
+- `hypervel.queue.outbox.delivered.messages` counts messages accepted by the queue, including messages whose outbox records could not be deleted afterwards.
+- `hypervel.queue.outbox.delivery.duration` measures how long sending the batch takes, in seconds. If sending or updating the outbox fails, the observation includes `error.type`. Count the duration observations that include `error.type` to determine the number of failed batches.
+- `hypervel.queue.outbox.delivery.latency` records how long the oldest attempted message has been ready for delivery, in seconds, measured when sending begins. It records one value per connection batch, not one per message. Messages deferred until a future delivery time are excluded.
+
+These metrics include the configured queue connection and outbox database as attributes. Only the duration metric includes exception types. Collecting them does not query pending outbox records or decode job payloads, and does not add work to ordinary dispatches. To monitor pending counts and waiting times, use the [`queue:outbox-monitor` command](/docs/{{version}}/queue-outbox#monitoring-the-outbox).
 
 Queue depth is off by default because it performs backend I/O during metric collection. Enable it with explicit targets:
 

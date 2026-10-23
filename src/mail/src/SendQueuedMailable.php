@@ -10,6 +10,7 @@ use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -58,6 +59,16 @@ class SendQueuedMailable
             $this->afterCommit = true;
         } else {
             $this->afterCommit = property_exists($mailable, 'afterCommit') ? $mailable->afterCommit : null;
+        }
+
+        if (isset($mailable->viaOutbox)) {
+            $this->viaOutbox = $mailable->viaOutbox;
+        } elseif ($mailable instanceof ShouldQueueViaOutbox) {
+            $this->viaOutbox = true;
+        }
+
+        if (isset($mailable->outboxDatabase)) {
+            $this->outboxDatabase = $mailable->outboxDatabase;
         }
 
         $this->connection = $this->getAttributeValue($mailable, Connection::class, 'connection');

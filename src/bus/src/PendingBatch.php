@@ -12,6 +12,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
+use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
 use Throwable;
@@ -281,6 +282,45 @@ class PendingBatch
     public function queue(): ?string
     {
         return $this->options['queue'] ?? null;
+    }
+
+    /**
+     * Dispatch batched jobs through the transactional outbox by default.
+     */
+    public function viaOutbox(): static
+    {
+        $this->options['viaOutbox'] = true;
+
+        return $this;
+    }
+
+    /**
+     * Dispatch batched jobs without the transactional outbox by default.
+     */
+    public function withoutOutbox(): static
+    {
+        $this->options['viaOutbox'] = false;
+
+        unset($this->options['outboxDatabase']);
+
+        return $this;
+    }
+
+    /**
+     * Stage batched jobs on the given database connection by default.
+     */
+    public function onOutboxDatabase(UnitEnum|string $connection): static
+    {
+        $connection = (string) enum_value($connection);
+
+        if ($connection === '') {
+            throw new InvalidArgumentException('The outbox database connection must not be empty.');
+        }
+
+        $this->options['outboxDatabase'] = $connection;
+        $this->options['viaOutbox'] = true;
+
+        return $this;
     }
 
     /**

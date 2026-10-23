@@ -61,6 +61,7 @@
     - [Signals](/docs/{{version}}/signals)
     - [WebSockets](/docs/{{version}}/websockets)
     - [Queues](/docs/{{version}}/queues)
+    - [Transactional Outbox](/docs/{{version}}/queue-outbox)
     - [Rate Limiting](/docs/{{version}}/rate-limiting)
     - [Search](/docs/{{version}}/search)
     - [Strings](/docs/{{version}}/strings)
