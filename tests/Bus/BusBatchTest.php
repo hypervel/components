@@ -183,25 +183,30 @@ class BusBatchTest extends TestCase
     public function testStoredOutboxDefaultsApplyToNewJobsWithoutReplacingExplicitChoices(): void
     {
         Queue::fake();
+        $database = $this->app->make(DatabaseBatchRepository::class)->getConnection()->getName();
 
         $defaultJob = new class {
             use Batchable;
         };
         $directJob = (new TestBatchJob)->onOutboxDatabase('previous')->withoutOutbox();
-        $otherOwnerJob = (new TestBatchJob)->onOutboxDatabase('other');
+        $aliasOwnerJob = (new TestBatchJob)->onOutboxDatabase($database . '::write');
+        $propertyOptOutJob = (new TestBatchJob)->onOutboxDatabase('unused');
+        $propertyOptOutJob->viaOutbox = false;
         $nullJob = new TestBatchJob;
         $nullJob->viaOutbox = null;
         $nullJob->outboxDatabase = null;
 
-        $batch = Bus::batch([$defaultJob, $directJob, $otherOwnerJob, $nullJob])
-            ->onOutboxDatabase('billing')
+        $batch = Bus::batch([$defaultJob, $directJob, $aliasOwnerJob, $propertyOptOutJob, $nullJob])
+            ->onOutboxDatabase($database)
             ->dispatch();
 
         $this->assertTrue($defaultJob->viaOutbox);
-        $this->assertSame('billing', $defaultJob->outboxDatabase);
+        $this->assertSame($database, $defaultJob->outboxDatabase);
         $this->assertFalse($directJob->viaOutbox);
         $this->assertNull($directJob->outboxDatabase);
-        $this->assertSame('other', $otherOwnerJob->outboxDatabase);
+        $this->assertSame($database . '::write', $aliasOwnerJob->outboxDatabase);
+        $this->assertFalse($propertyOptOutJob->viaOutbox);
+        $this->assertSame('unused', $propertyOptOutJob->outboxDatabase);
         $this->assertNull($nullJob->viaOutbox);
         $this->assertNull($nullJob->outboxDatabase);
 
@@ -209,8 +214,8 @@ class BusBatchTest extends TestCase
         $batch->fresh()->add([$added]);
 
         $this->assertTrue($added->viaOutbox);
-        $this->assertSame('billing', $added->outboxDatabase);
-        $this->assertSame(5, $batch->fresh()->totalJobs);
+        $this->assertSame($database, $added->outboxDatabase);
+        $this->assertSame(6, $batch->fresh()->totalJobs);
     }
 
     public function testBatchOutboxDefaultsDoNotPropagateToLaterChainJobs(): void
