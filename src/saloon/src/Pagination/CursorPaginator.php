@@ -45,6 +45,22 @@ abstract class CursorPaginator extends Paginator
     }
 
     /**
+     * Compare page contents together with the provider's continuation cursor.
+     *
+     * @param Response<mixed> $response
+     */
+    protected function getPageChecksum(Response $response): string
+    {
+        $lastPage = $this->isLastPage($response);
+
+        return hash('xxh128', serialize([
+            $this->getBodyChecksum($response),
+            $lastPage,
+            $lastPage ? null : $this->getNextCursor($response),
+        ]));
+    }
+
+    /**
      * Get the next cursor.
      *
      * The default query encoding omits null and encodes booleans as 1/0;

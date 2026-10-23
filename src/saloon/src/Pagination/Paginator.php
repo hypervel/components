@@ -85,7 +85,7 @@ abstract class Paginator implements Countable, Iterator
     protected bool $pooling = false;
 
     /**
-     * The latest response body checksums.
+     * The latest response checksums, including continuation where available.
      *
      * @var array<int, string>
      */
@@ -128,16 +128,19 @@ abstract class Paginator implements Countable, Iterator
 
         $response = $this->connector->send($request);
 
+        // Mapping may decode pagination controls that the checksum can then reuse.
+        $items = $this->pageItems($response);
+
         // Checked here instead of in request middleware, where the callback would keep the paginator alive through
         // its own request and every response.
         if ($this->detectInfiniteLoop && ! $this->pooling) {
-            // Loading a page again after a mapping failure replaces its checksum instead of adding another page.
-            $this->lastFiveBodyChecksums[$this->currentPage] = $this->getBodyChecksum($response);
+            // Retrying a failed load replaces its checksum instead of adding another page.
+            $this->lastFiveBodyChecksums[$this->currentPage] = $this->getPageChecksum($response);
 
             if (count($this->lastFiveBodyChecksums) >= 5) {
                 if (count(array_unique($this->lastFiveBodyChecksums)) === 1) {
                     throw new PaginationException(
-                        'Potential infinite loop detected! The last 5 pages have had exactly the same body. You can use the $detectInfiniteLoop property on your paginator to disable this check.',
+                        'Potential infinite loop detected! The last 5 pages were identical. You can use the $detectInfiniteLoop property on your paginator to disable this check.',
                     );
                 }
 
@@ -145,8 +148,8 @@ abstract class Paginator implements Countable, Iterator
             }
         }
 
-        $this->currentPageItems = $this->pageItems($response);
-        // Keep the preceding response until mapping succeeds so a failed load retries the same page.
+        // Keep the preceding response until mapping and loop detection succeed so a failed load retries the same page.
+        $this->currentPageItems = $items;
         $this->currentResponse = $response;
         $this->totalResults += count($this->currentPageItems);
         $this->currentPageLoaded = true;
@@ -390,6 +393,16 @@ abstract class Paginator implements Countable, Iterator
         }
 
         return $count;
+    }
+
+    /**
+     * Get the checksum used to detect repeated pages.
+     *
+     * @param Response<mixed> $response
+     */
+    protected function getPageChecksum(Response $response): string
+    {
+        return $this->getBodyChecksum($response);
     }
 
     /**

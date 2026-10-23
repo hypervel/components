@@ -56,6 +56,19 @@ abstract class LinkPaginator extends PagedPaginator
     }
 
     /**
+     * Compare page contents together with the provider's continuation URL.
+     *
+     * @param Response<mixed> $response
+     */
+    protected function getPageChecksum(Response $response): string
+    {
+        $links = $this->getLinks($response, $response->toPsrRequest()->getUri());
+        $next = $links['next'] ?? null;
+
+        return hash('xxh128', serialize([$this->getBodyChecksum($response), $next === null ? null : (string) $next]));
+    }
+
+    /**
      * Apply numbered pagination or the provider's continuation URL.
      *
      * @param Request<mixed> $request

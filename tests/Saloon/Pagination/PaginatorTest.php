@@ -1015,6 +1015,85 @@ class PaginatorTest extends TestCase
         $this->assertSame(5, $requested);
     }
 
+    #[DataProvider('continuationPaginators')]
+    public function testEmptyPagesWithAdvancingContinuationReachLaterItems(string $class): void
+    {
+        $manager = $this->manager();
+        $responses = [];
+
+        for ($page = 1; $page <= 7; ++$page) {
+            $responses[] = MockResponse::make(['data' => $page === 6 ? [99] : []], headers: $page < 7 ? [
+                'Link' => '<?page=' . ($page + 1) . '>; rel=next',
+                'X-Next-Cursor' => json_encode($page + 1),
+            ] : []);
+        }
+
+        $fake = $manager->fake($responses);
+        $paginator = new $class(new PaginationConnectorStub($manager), new PagedRequestStub);
+
+        $this->assertSame([99], iterator_to_array($paginator->items()));
+        $this->assertSame(1, $paginator->totalResults());
+        $fake->assertSentCount(7);
+    }
+
+    #[DataProvider('continuationPaginators')]
+    public function testRepeatedContentsAndContinuationStillDetectLoopsWithCustomBodyChecksums(string $class): void
+    {
+        $manager = $this->manager();
+        $requested = 0;
+        $manager->fake([PagedRequestStub::class => static function () use (&$requested): MockResponse {
+            return MockResponse::make(['data' => [], 'request_id' => ++$requested], headers: [
+                'Link' => '<?page=2>; rel=next',
+                'X-Next-Cursor' => '2',
+            ]);
+        }]);
+        $paginator = (new $class(new PaginationConnectorStub($manager), new PagedRequestStub))->maxPages(6);
+        $caught = null;
+
+        try {
+            iterator_to_array($paginator);
+        } catch (PaginationException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(PaginationException::class, $caught);
+        $this->assertSame(5, $requested);
+    }
+
+    /**
+     * Provide continuation strategies with customized body checksums.
+     */
+    public static function continuationPaginators(): iterable
+    {
+        yield 'link' => [DataChecksumLinkPaginatorStub::class];
+        yield 'cursor header' => [HeaderCursorPaginatorStub::class];
+    }
+
+    #[DataProvider('cursorChecksumValues')]
+    public function testCursorChecksumsDistinguishScalarKindsAndTerminalPages(array $cursors): void
+    {
+        $manager = $this->manager();
+        $responses = array_map(static fn (mixed $cursor): MockResponse => MockResponse::make(
+            ['data' => []],
+            headers: ['X-Next-Cursor' => json_encode($cursor, JSON_PRESERVE_ZERO_FRACTION)],
+        ), $cursors);
+        $responses[] = MockResponse::make(['data' => []]);
+        $fake = $manager->fake($responses);
+        $paginator = new HeaderCursorPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
+
+        $this->assertSame([], iterator_to_array($paginator->items()));
+        $fake->assertSentCount(count($responses));
+    }
+
+    /**
+     * Provide cursor values that must not collide with each other or with termination.
+     */
+    public static function cursorChecksumValues(): iterable
+    {
+        yield 'scalar kinds' => [[0, false, 0.0, '0', 0]];
+        yield 'nonterminal null' => [[null, null, null, null]];
+    }
+
     public function testLoopDetectionChecksTheResponseReturnedByRequestMiddleware(): void
     {
         $manager = $this->manager();
@@ -1335,6 +1414,41 @@ class CursorPaginatorStub extends CursorPaginator
     }
 }
 
+class HeaderCursorPaginatorStub extends CursorPaginator
+{
+    /**
+     * Read a typed cursor, rejecting calls for a terminal response.
+     */
+    protected function getNextCursor(Response $response): bool|float|int|string|null
+    {
+        return json_decode($response->header('X-Next-Cursor'), flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Determine whether the next cursor header is absent.
+     */
+    protected function isLastPage(Response $response): bool
+    {
+        return $response->header('X-Next-Cursor') === '';
+    }
+
+    /**
+     * Get the items from one page.
+     */
+    protected function getPageItems(Response $response, Request $request): array
+    {
+        return $response->json('data');
+    }
+
+    /**
+     * Ignore request metadata when comparing page bodies.
+     */
+    protected function getBodyChecksum(Response $response): string
+    {
+        return hash('xxh128', json_encode($response->json('data')));
+    }
+}
+
 class RenamedOffsetPaginatorStub extends OffsetPaginatorStub
 {
     protected string $limitName = 'take';
@@ -1390,6 +1504,17 @@ class LinkPaginatorStub extends LinkHeaderPaginator
     protected function getPageItems(Response $response, Request $request): array
     {
         return $response->json('data');
+    }
+}
+
+class DataChecksumLinkPaginatorStub extends LinkPaginatorStub
+{
+    /**
+     * Ignore request metadata when comparing page bodies.
+     */
+    protected function getBodyChecksum(Response $response): string
+    {
+        return hash('xxh128', json_encode($response->json('data')));
     }
 }
 
