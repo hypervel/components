@@ -105,7 +105,7 @@ SendOrderReceipt::dispatch($order)->withoutOutbox();
 
 An explicit job choice takes precedence over the marker, followed by the queue connection's default. `afterCommit` and `beforeCommit` still control direct dispatch timing; neither disables the outbox. A selected outbox job is stored inside its owning transaction and cannot be relayed before that transaction commits.
 
-The fluent methods are available through the usual `Queueable` trait. A directly queued object may also set a public `viaOutbox` property to `true` or `false`. `viaOutbox()` is a setter, not a getter hook like `viaConnection()` or `viaQueues()`.
+The fluent methods come from `Queueable` and `Batchable`. Do not redeclare their outbox properties with defaults; PHP rejects the conflicting trait definitions. Use the marker for a class default or fluent methods for individual objects. Classes without these trait-provided properties may instead declare a public `viaOutbox` default of `true` or `false`. `viaOutbox()` is a setter, not a getter hook like `viaConnection()` or `viaQueues()`.
 
 A staged queue insertion returns the finalized job UUID instead of a broker identifier. The operator commands use this same UUID. Direct dispatch return values are unchanged.
 
@@ -154,7 +154,7 @@ Mail::to($customer)->queue(
 );
 ```
 
-For queued listeners, use the marker or a public property default: the dispatcher reads these defaults without constructing the listener. Do not rely on a listener constructor calling `viaOutbox`. When a listener uses `Queueable`, prefer the marker instead of redeclaring that trait's properties.
+For queued listeners, use the marker or, when the class has no trait-provided outbox properties, a public property default. The dispatcher reads these defaults without constructing the listener, so do not rely on its constructor calling `viaOutbox`. When a listener uses `Queueable` or `Batchable`, use the marker instead of redeclaring the trait properties.
 
 Dispatch the event while the business transaction is open. An event implementing `ShouldDispatchAfterCommit` postpones the entire event, including listener and broadcast queueing, until after commit. Adding outbox selection cannot make that later staging atomic with the earlier transaction. Select the outbox on the queued listener or broadcast event instead of deferring the whole event when you need transactional delivery.
 
