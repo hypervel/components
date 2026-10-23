@@ -700,7 +700,7 @@ Testbench also provides helpers and attributes for loading package migrations in
 <a name="loading-migrations"></a>
 ### Loading Migrations
 
-You may load migrations from a package path using the `loadMigrationsFrom` method:
+You may load migrations from a package path using the `loadMigrationsFrom` method. The method accepts a single path or an array of paths:
 
 ```php
 use function Hypervel\Testbench\workbench_path;
@@ -714,7 +714,7 @@ protected function defineDatabaseMigrations(): void
 }
 ```
 
-When used with `RefreshDatabase`, Testbench registers the migration paths before the database is refreshed. Otherwise, the migrations are run immediately and rolled back during teardown.
+Testbench registers these paths for `DatabaseMigrations`, for `RefreshDatabase` when a refresh is pending, and for `DatabaseTruncation` before its first migration or when the default database is in memory. Otherwise, the migrations are run immediately and rolled back during teardown. Passing an array of command options, such as `['--path' => $paths, '--database' => 'secondary']`, always runs the migrations immediately on the selected connection and rolls them back during teardown.
 
 You may also define database migrations with the `#[DefineDatabase]` attribute:
 

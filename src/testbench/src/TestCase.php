@@ -139,6 +139,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
         // Reset before database attributes register paths against retained schema state.
         $this->prepareDatabaseTruncationForMethod($uses);
+        $this->forgetStaleMigrationState($uses);
 
         // Version requirements and migration hooks may query before the database traits run.
         if (isset($uses[RefreshDatabase::class])

@@ -16,6 +16,7 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Foundation\Testing\WithFaker;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
@@ -239,6 +240,8 @@ trait InteractsWithTestCaseLifecycle
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        $this->forgetStaleMigrationState($uses);
+
         if (isset($uses[RefreshDatabase::class])) {
             $this->refreshDatabase(); // @phpstan-ignore method.notFound
         }
@@ -253,6 +256,24 @@ trait InteractsWithTestCaseLifecycle
 
         if (isset($uses[DatabaseTransactions::class])) {
             $this->beginDatabaseTransaction(); // @phpstan-ignore method.notFound
+        }
+    }
+
+    /**
+     * Forget retained migration state when a selected in-memory database is missing.
+     */
+    protected function forgetStaleMigrationState(array $uses): void
+    {
+        if (! RefreshDatabaseState::$migrated) {
+            return;
+        }
+
+        if (
+            (isset($uses[RefreshDatabase::class]) && $this->hasMissingInMemoryDatabaseForRefresh()) // @phpstan-ignore method.notFound
+            || (isset($uses[DatabaseTruncation::class]) && $this->hasMissingInMemoryDatabaseForTruncation()) // @phpstan-ignore method.notFound
+        ) {
+            // A persistent database's migrated flag does not describe an uncached in-memory database.
+            RefreshDatabaseState::$migrated = false;
         }
     }
 
