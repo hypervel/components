@@ -26,7 +26,7 @@ Implemented: framework prerequisites, public selection and wrapper propagation, 
 
 Implementation, live-engine/concurrency and API-integration coverage, canonical documentation, the retained benchmark harness and performance measurements are complete. Measurements support the existing production design; see [benchmark results](../../tests/Benchmarks/QueueOutbox/results.md).
 
-When opening the PR, include a performance section with tables from the benchmark results and their workload, concurrency and pool settings.
+Complete local review-fix verification and commits, then wait for owner direction before pushing or replying to PR comments.
 
 ### Hypervel
 
@@ -181,6 +181,8 @@ The dispatch return value for a staged single job is the finalized payload's job
 Failover and outbox solve different policies, and failover may cross heterogeneous drivers whose wire payload/options are created only in the selected child. Do not invent a multi-destination outbox envelope. Instead, selected outbox behavior degrades to failover's existing after-commit path, then performs ordinary child attempts. Scope a coroutine-local forwarding record to each job-bearing child call, suppressing outbox only for that matching job; exclude raw calls and restore before `QueueFailedOver` listeners. Clear forwarding state during synchronous payload execution so independent jobs, including same-handler string continuations, retain normal selection. The failover connection's explicit/marker/config selection is authoritative; child defaults still apply when used directly.
 
 Driver switching never causes an exception merely because the selected driver is local, failover, or already durable. There are no environment checks; behavior follows runtime capability. Local/failover drivers register against the explicitly selected active transaction when supplied and reject only a false claim of atomic ownership (an explicit owner while transactions exist only on other connections); without an explicit owner they preserve their existing transaction-selection rules. Failover's explicit-owner callback enters the child-attempt loop directly with after-commit already satisfied; matching children must not revalidate the committed owner or defer onto an unrelated transaction. Ordinary all-transactions callbacks retain reentry for transactions opened by earlier callbacks.
+
+Outbox selection alone enters the local after-commit path only when an applicable transaction exists. Without one, preserve immediate sync return values and coroutine delay timer IDs. Existing explicit or configured `afterCommit` behavior remains unchanged.
 
 A selected outbox keeps an SQS FIFO job staged until `deliver_at`, then publishes it without the forbidden per-message `DelaySeconds`; any queue-level delay applies after publication. In `later()` and `bulk()`, select/partition outbox work before applying the existing FIFO checks to direct work. Capture `getQueueableOptions()` without a delay argument at staging; preserve its direct-call validation. No-transaction staging has the same delayed-publication behavior.
 
@@ -355,6 +357,8 @@ Base `Queue::bulk()` must preflight and partition outbox-selected jobs itself, s
 Keep selection and staging in `Concerns\StagesOutboxJobs`. Reuse Redis/database's protected `prepareBatchJobs()` shape as the base batch-preparation hook; SQS delegates to its existing `prepareBatchMessages()` and Beanstalkd supplies its normal payload-hook destination. This preserves each driver's payload hooks without adding a parallel serialization path.
 
 Every implementation preserves order within each partition and groups staged rows by owning database. This prevents a later configuration error from partially staging an otherwise valid group. There is deliberately no ordering or atomicity guarantee between direct and outbox partitions, just as existing cross-connection bulk has none; callers requiring one atomic unit use one outbox owner. Finalize every owner group before its first insert, emit existing per-job queue lifecycle events, and use set-based storage. Each owner group is atomic across its insert chunks; distinct owner databases necessarily commit independently. A `PendingBatch` repository transaction provides one owner and rejects conflicting per-job choices. Preserve current `Bus::bulk()` semantics: it does not suddenly acquire unique/debounce locks or run `PreparesForDispatch`.
+
+For a `DatabaseBatchRepository`, `Batch::add()` validates declared non-null outbox owners after applying defaults and before its transaction or queue call. Compare resolved session identities with the repository's connection, not requested aliases; skip explicitly false `viaOutbox` choices. This covers staged, database and local targets without queue-side state. Resolve the repository owner lazily once per add; leave custom batch repositories unchanged.
 
 ### Raw-batch publication SPI
 

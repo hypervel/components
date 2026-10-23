@@ -138,7 +138,7 @@ $batch->add($moreJobs);
 
 Batch defaults apply to newly added jobs too, without replacing an explicit choice on an individual job. Batch counters and outbox rows participate in the batch repository's transaction; conflicting outbox ownership is rejected. Jobs using only `Batchable`, rather than `Queueable`, can receive batch defaults.
 
-Chains retain their normal behavior. Selecting the outbox for the first job does not automatically select it for later jobs. Each later job is dispatched after its predecessor succeeds and uses its own selection or its queue connection's default.
+Chains retain their normal behavior. Selecting the outbox for the first job does not automatically select it for later jobs. Batch outbox defaults likewise apply only to the first job of each chain. Each later job is dispatched after its predecessor succeeds and uses its own selection or its queue connection's default.
 
 <a name="queued-producers"></a>
 ### Queued Listeners, Mail, Notifications and Broadcasts
