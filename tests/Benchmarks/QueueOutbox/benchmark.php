@@ -42,7 +42,7 @@ function inFreshCoroutine(Closure $callback): mixed
  */
 function main(): void
 {
-    $options = getopt('', ['case:', 'target:', 'database-connection:', 'redis-connection:', 'jobs:', 'batch:', 'concurrency:', 'pool-size:', 'backlog:', 'leased:', 'payload-bytes:', 'warmup:', 'claim-design:', 'explain', 'help']);
+    $options = getopt('', ['case:', 'target:', 'database-connection:', 'redis-connection:', 'jobs:', 'batch:', 'concurrency:', 'pool-size:', 'backlog:', 'leased:', 'payload-bytes:', 'warmup:', 'explain', 'help']);
 
     if (isset($options['help'])) {
         echo "Usage: php tests/Benchmarks/QueueOutbox/benchmark.php [options]\n"
@@ -51,7 +51,6 @@ function main(): void
             . "  --redis-connection=default --jobs=10000 --batch=100 --concurrency=1\n"
             . "  --pool-size=4 --backlog=10000 --leased=N (default: batch * concurrency)\n"
             . "  --payload-bytes=256 --warmup=100\n"
-            . "  --claim-design=availability|reservation (PostgreSQL claims comparison)\n"
             . "  --explain (claims only; executing plans outside timing)\n"
             . "Use a disposable database and an idle machine for measurements. See README.md.\n";
 
@@ -60,21 +59,17 @@ function main(): void
 
     $case = $options['case'] ?? 'stage';
     $target = $options['target'] ?? 'redis';
-    $design = $options['claim-design'] ?? 'availability';
 
     if (! in_array($case, ['direct', 'stage', 'relay', 'claims'], true)
         || ! in_array($target, ['redis', 'database'], true)
-        || ! in_array($design, ['availability', 'reservation'], true)
         || ($target === 'database' && $case !== 'relay')
-        || ($design === 'reservation' && $case !== 'claims')
         || (isset($options['explain']) && $case !== 'claims')) {
-        throw new InvalidArgumentException('Invalid case, target, claim design or explain combination; see --help.');
+        throw new InvalidArgumentException('Invalid case, target or explain combination; see --help.');
     }
 
     $settings = [
         'case' => $case,
         'target' => $target,
-        'claim_design' => $design,
         'jobs' => integerOption($options, 'jobs', 10_000),
         'batch' => integerOption($options, 'batch', 100),
         'concurrency' => integerOption($options, 'concurrency', 1),

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Benchmarks\QueueOutbox\Fixtures;
 use Closure;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxWorker;
@@ -53,12 +52,6 @@ class OutboxWorkload
     {
         $connection = $this->application->make('db')->connection($this->source);
         $schema = $connection->getSchemaBuilder();
-        $reservation = $this->settings['claim_design'] === 'reservation';
-
-        if ($reservation && $connection->getDriverName() !== 'pgsql') {
-            throw new InvalidArgumentException('The reservation comparison is PostgreSQL-only.');
-        }
-
         $tables = [$this->table => 'outbox'];
         if ($this->settings['target'] === 'database') {
             $tables[$this->jobsTable] = 'jobs';
@@ -83,12 +76,7 @@ class OutboxWorkload
             }
         }
 
-        if ($reservation) {
-            $schema->table($this->table, static fn (Blueprint $table) => $table->unsignedBigInteger('reserved_until')->nullable());
-            $this->repository = new ReservationRepository($this->application->make('db'), [$this->source], $this->table, 3600);
-        } else {
-            $this->repository = $this->application->make(DatabaseOutboxRepository::class);
-        }
+        $this->repository = $this->application->make(DatabaseOutboxRepository::class);
 
         // Redis staging never contacts Redis. It also avoids the database-queue atomic fast path.
         $this->application->make('config')->set('queue.connections.benchmark_seed', [
@@ -99,9 +87,6 @@ class OutboxWorkload
         $row = (array) $connection->table($this->table)->useWritePdo()->first();
         unset($row['id']);
         $row['connection'] = 'benchmark';
-        if ($reservation) {
-            $row['reserved_until'] = null;
-        }
         $this->template = $row;
         $connection->table($this->table)->delete();
     }
@@ -118,17 +103,11 @@ class OutboxWorkload
             $leased = $this->settings['leased'];
             $eligible = max($this->settings['backlog'] - 2 * $background - $leased, $this->settings['batch'] * $this->settings['concurrency']);
             $this->distribution = ['eligible' => $eligible, 'delayed' => $background, 'leased' => $leased, 'retrying' => $background];
-            $now = time();
-            $future = $now + 86400;
+            $future = time() + 86400;
             $this->insertRows($eligible);
             $this->insertRows($background, ['available_at' => $future, 'deliver_at' => $future]);
             $this->insertRows($background, ['available_at' => $future, 'attempts' => 5, 'last_error' => 'Benchmark retry backlog']);
-            $lease = ['available_at' => $future, 'attempts' => 1, 'lease_token' => (string) Str::uuid()];
-            if ($this->settings['claim_design'] === 'reservation') {
-                $lease['available_at'] = $now - 60;
-                $lease['reserved_until'] = $future;
-            }
-            $this->insertRows($leased, $lease);
+            $this->insertRows($leased, ['available_at' => $future, 'attempts' => 1, 'lease_token' => (string) Str::uuid()]);
             $this->analyze();
         }
     }
