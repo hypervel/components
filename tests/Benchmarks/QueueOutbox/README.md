@@ -2,6 +2,8 @@
 
 This developer-only harness measures ordinary dispatch, transactional outbox staging, relay delivery, and concurrent SQL claims. It uses the real queue drivers, repository and relay worker. It does not execute application jobs, run in PHPUnit, or impose CI throughput thresholds.
 
+See [results.md](results.md) for recorded measurements and the PostgreSQL claim-design comparison.
+
 Run from the components repository root. Get fresh confirmation that the machine is idle before collecting performance measurements. Tiny invocations may check execution, counts and cleanup while the machine is busy; their timings are not performance evidence.
 
 ```shell
@@ -31,8 +33,8 @@ Use `--target=database` for the database relay case; otherwise the target is Red
 ```shell
 timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=direct --jobs=10000 --batch=100
 timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=stage --database-connection=mysql --jobs=10000 --batch=1000
-timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=relay --database-connection=pgsql --jobs=10000 --batch=100 --concurrency=8 --pool-size=4
-timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=relay --target=database --database-connection=pgsql --jobs=10000 --concurrency=8 --pool-size=4
+timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=relay --database-connection=pgsql --jobs=10000 --batch=100 --concurrency=8 --pool-size=8
+timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php --case=relay --target=database --database-connection=pgsql --jobs=10000 --concurrency=8 --pool-size=8
 ```
 
 Concurrency applies to relay and claims. Direct and staging workloads are sequential producers. Vary pool size and concurrency together to distinguish pool pressure from transport latency. Existing tiny-pool integration tests prove the release boundaries; this harness checks that no connections remain borrowed when a sample finishes, without adding a sampling timer or per-operation pool instrumentation. The reported `cache_store` is `worker-array`: relay restart checks still run, but these timings exclude the external cache round trips a Redis or database cache would add.
@@ -43,26 +45,18 @@ Concurrency applies to relay and claims. Direct and staging workloads are sequen
 
 `--backlog=10000` sizes the mixed backlog; delayed and retrying rows each take a quarter. `--leased` separately controls seeded live leases, defaulting to `batch × concurrency`, not a fraction of the backlog. The remaining rows are eligible, increased when necessary to provide at least one batch per concurrent claimant; the report gives the actual distribution. Seeded leases represent other in-flight work, in addition to the short-lived claims made by this process. Each settled batch is replaced with fresh eligible rows. Warmup churn is retained, so measurement is not limited to a freshly inserted table. Background deadlines are one day away, beyond the bounded run.
 
-Claim p50/p95 includes the repository operation, row materialization and child-coroutine cleanup, not just server execution time. Empty claims caused by competing fallback claimants count as attempts and are reported separately. Cycle throughput and WAL include settlement and refill, including UUID generation and payload encoding. Latency samples add common harness overhead and are retained only for this bounded invocation.
+Claim p50/p95 includes connection checkout, the repository operation, row materialization and child-coroutine cleanup, not just server execution time. Use a pool at least as large as concurrency when comparing claim statements; smaller pools also measure waiting for other clients' settlement and refill. Empty claims caused by competing fallback claimants count as attempts and are reported separately. Cycle throughput and WAL include settlement and refill, including UUID generation and payload encoding. Latency samples add common harness overhead and are retained only for this bounded invocation.
 
 ```shell
 timeout 600 php tests/Benchmarks/QueueOutbox/benchmark.php \
   --case=claims --database-connection=pgsql --jobs=10000 \
-  --backlog=100000 --batch=100 --concurrency=8 --pool-size=4 --explain \
+  --backlog=100000 --batch=100 --concurrency=8 --pool-size=8 --explain \
   > /tmp/outbox-claims.json
 ```
 
 `--explain` refreshes table statistics and captures the actual claim SQL once after churn, outside timing. Executing plans run in transactions that are rolled back. PostgreSQL uses `EXPLAIN (ANALYZE, BUFFERS, WAL, FORMAT JSON)`; MySQL uses `EXPLAIN ANALYZE` for selects; MariaDB uses `ANALYZE FORMAT=JSON`; SQLite uses `EXPLAIN QUERY PLAN`. PostgreSQL's WAL option requires 13+, and MySQL's executing explain requires 8.0.18+. Engines lacking these commands fail with their native error; omit `--explain` there. No optimizer plan is asserted as a correctness requirement.
 
-### PostgreSQL claim-design comparison
-
-`--claim-design=availability` uses the production repository. `--claim-design=reservation` adds a benchmark-only, unindexed `reserved_until` column and replaces only the PostgreSQL claim CTE. It leaves indexed `available_at` unchanged and filters live reservations during selection. Both variants use the real accepted-delete settlement and equivalent logical backlogs. The reservation fixture is not a supported alternative production implementation.
-
-Run both variants in alternating fresh processes. Compare claim latency, buffers and rows filtered alongside write volume: avoiding index changes can reduce writes but require scanning live reservations. Compare the default seeded lease count with a larger `--leased` value representing several other relays; reservation scan cost grows with live leases, not simply with total backlog. No fillfactor, autovacuum or checkpoint tuning is performed. HOT updates still depend on available page space; an unindexed deadline does not guarantee them.
-
 The cluster-wide `pg_current_wal_insert_lsn()` delta includes the entire claim/settle/refill workload and unrelated database activity. It is not isolated index-write cost. The executing PostgreSQL plan supplies statement-local WAL and buffer evidence. Checkpoint state and full-page images can affect comparisons; use repeated samples rather than one ratio. See PostgreSQL's [WAL position functions](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-BACKUP) and [EXPLAIN options](https://www.postgresql.org/docs/current/sql-explain.html).
-
-Once approved measurements settle the comparison, record the findings and remove the temporary reservation fixture and selector. Do not change the production schema based only on WAL bytes or a single small run.
 
 ## Comparisons and interpretation
 
@@ -70,4 +64,4 @@ For direct-path regression checks, copy this directory into an independently ins
 
 Direct publication and durable staging provide different guarantees; their throughput is not an apples-to-apples regression comparison. The report includes wall time, process CPU, heap/GC data and non-secret backend settings. CPU excludes database and Redis processes; heap growth is not an allocation count. Driver/network latency, payload size and database durability settings remain part of real throughput.
 
-For a quick functional check, use `--jobs=8 --batch=2 --warmup=2 --backlog=12`. Check all four cases, both relay targets and the PostgreSQL comparison when those services are available. Keep these checks separate from idle-machine measurements. There are no recorded performance results yet.
+For a quick functional check, use `--jobs=8 --batch=2 --warmup=2 --backlog=12`. Check all four cases, both relay targets and PostgreSQL claims with `--explain` when those services are available. Keep these checks separate from idle-machine measurements.
