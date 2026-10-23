@@ -9,11 +9,14 @@ use DateTimeInterface;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Queue\Outbox\OutboxBatchResult;
+use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Collection;
@@ -23,7 +26,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
-class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue
+class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue, PublishesOutboxMessages
 {
     public const int DEFAULT_RETRY_AFTER = 60;
 
@@ -345,7 +348,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->normalizeQueue($queue);
-        $jobs = array_values($jobs);
+        $jobs = array_values($this->stageOutboxJobs($jobs, $data, $queue));
 
         if ($jobs === []) {
             return null;
@@ -392,17 +395,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return (new Collection($jobs))
-            ->map(function (object|string $job) use ($data, $queue): array {
-                $delay = $this->getJobDelay($job);
-
-                return [
-                    'job' => $job,
-                    'delay' => $delay,
-                    'payload' => $this->createPayload($job, $this->getQueue($queue), $data, $delay),
-                ];
-            })
-            ->all();
+        return parent::prepareBatchJobs($jobs, $data, $this->getQueue($queue));
     }
 
     /**
@@ -422,7 +415,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
 
             foreach ($jobs as $index => $job) {
                 $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
-                $jobs[$index]['payload'] = $this->preparePayloadForBulk(
+                $jobs[$index]['storedPayload'] = $this->preparePayloadForPush(
                     $job['job'],
                     $job['payload'],
                     $queue,
@@ -433,54 +426,116 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
 
             foreach ($jobs as $job) {
                 $arguments[] = $job['delay'] === null ? 'i' : $this->availableAt($job['delay']);
-                $arguments[] = $job['payload'];
+                $arguments[] = $job['storedPayload'];
             }
 
             $connection = $this->getConnection();
             $this->isCluster ??= $connection->isCluster();
             $queueKey = $this->getQueueRedisKey($queue);
-            $stored = $connection->evalWithShaCache(
-                LuaScripts::bulk(),
-                [$queueKey, $queueKey . ':notify', $queueKey . ':delayed'],
-                $arguments,
-            );
-
-            if (! is_int($stored) || $stored !== count($jobs)) {
-                throw new RuntimeException('Redis did not confirm every queued job in the batch.');
-            }
+            $this->pushRawBatch($connection, $queueKey, $arguments);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            foreach ($jobs as $job) {
-                $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception);
-            }
-
-            throw $exception;
+            throw $this->notifyBatchMembers(
+                $jobs,
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+            ) ?? $exception;
         }
 
         foreach ($jobs as $job) {
             $this->acceptDispatchLocks($job['job']);
         }
 
-        foreach ($jobs as $job) {
-            $this->handlePayloadPushedInBulk($job['payload'], $queue);
-            $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']);
+        $exception = $this->notifyBatchMembers(
+            $jobs,
+            fn (array $job) => $this->handlePayloadPushed($job['storedPayload'], $queue),
+            fn (array $job) => $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']),
+        );
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
     /**
-     * Prepare a payload for bulk storage.
+     * Publish stored outbox messages with one confirmed script per destination.
+     *
+     * @param list<OutboxMessage> $messages
      */
-    protected function preparePayloadForBulk(object|string $job, string $payload, ?string $queue): string
+    public function publishOutboxMessages(array $messages): OutboxBatchResult
+    {
+        $accepted = [];
+
+        if ($messages === []) {
+            return new OutboxBatchResult;
+        }
+
+        try {
+            $connection = $this->getConnection();
+            $this->isCluster ??= $connection->isCluster();
+            $groups = [];
+
+            foreach ($messages as $message) {
+                $groups[$this->getQueueRedisKey($message->queue)][] = $message;
+            }
+
+            foreach ($groups as $queueKey => $group) {
+                $prepared = [];
+                $arguments = [];
+                $now = $this->currentTime();
+
+                foreach ($group as $message) {
+                    $payload = $this->preparePayloadForOutboxPublication($message->payload, $message->queue);
+                    $prepared[] = ['payload' => $payload, 'queue' => $message->queue];
+                    $arguments[] = $message->deliverAt !== null && $message->deliverAt > $now ? $message->deliverAt : 'i';
+                    $arguments[] = $payload;
+                }
+
+                $this->pushRawBatch($connection, $queueKey, $arguments);
+
+                foreach ($group as $message) {
+                    $accepted[] = $message->id;
+                }
+
+                $failure = $this->notifyBatchMembers($prepared, fn (array $member) => $this->handlePayloadPushed($member['payload'], $member['queue']));
+
+                if ($failure !== null) {
+                    throw $failure;
+                }
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            return new OutboxBatchResult($accepted, failure: $exception);
+        }
+
+        return new OutboxBatchResult($accepted);
+    }
+
+    /**
+     * Add publication-time metadata without recreating the stored job payload.
+     */
+    protected function preparePayloadForOutboxPublication(string $payload, ?string $queue): string
     {
         return $payload;
     }
 
     /**
-     * Handle a payload that was stored as part of a batch.
+     * Store alternating availability and payload arguments with exact confirmation.
+     *
+     * @param list<int|string> $arguments
      */
-    protected function handlePayloadPushedInBulk(string $payload, ?string $queue): void
+    protected function pushRawBatch(RedisProxy $connection, string $queueKey, array $arguments): void
     {
+        $stored = $connection->evalWithShaCache(
+            LuaScripts::bulk(),
+            [$queueKey, $queueKey . ':notify', $queueKey . ':delayed'],
+            $arguments,
+        );
+
+        if (! is_int($stored) || $stored !== intdiv(count($arguments), 2)) {
+            throw new RuntimeException('Redis did not confirm every queued job in the batch.');
+        }
     }
 
     /**
@@ -721,6 +776,22 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
         $queue = $this->normalizeQueue($queue);
 
         return 'queues:' . $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
+    }
+
+    /**
+     * Capture the logical destination before publication-time forwarding.
+     */
+    protected function resolveOutboxQueue(?string $queue): ?string
+    {
+        return $queue === null || $queue === '' ? $this->default : $queue;
+    }
+
+    /**
+     * Publish delayed Redis jobs immediately into their delayed set.
+     */
+    protected function availableAtForOutbox(?string $queue, ?int $deliverAt): int
+    {
+        return $this->currentTime();
     }
 
     /**

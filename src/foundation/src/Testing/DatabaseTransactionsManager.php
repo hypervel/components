@@ -57,7 +57,7 @@ class DatabaseTransactionsManager extends BaseManager
 
             try {
                 $connection->beginTransaction();
-                $this->wrappingTransactions[] = $this->getCurrentTransactionForConnection($connection->getName() ?? '');
+                $this->wrappingTransactions[] = $this->getCurrentTransactionForConnection($connection->getNameWithReadWriteType() ?? '');
             } finally {
                 if ($dispatcher !== null) {
                     $connection->setEventDispatcher($dispatcher);

@@ -532,6 +532,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(PdoConnection::class));
         $connection->shouldReceive('maxBindings')->once()->andReturn(6);
+        $connection->shouldReceive('transactionLevel')->twice()->andReturn(0);
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function (Closure $callback) use ($first, $second): mixed {
             $this->assertTrue(DispatchLockContext::has($first));
             $this->assertTrue(DispatchLockContext::has($second));
@@ -570,10 +571,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
         $exception = new RuntimeException('Listener failed.');
+        $notified = [];
 
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('transactionLevel')->twice()->andReturn(0);
         $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insert')->once()->andReturnTrue();
+        $dispatcher->listen(JobQueued::class, static function (JobQueued $event) use (&$notified): void {
+            $notified[] = $event->job;
+        });
         $dispatcher->listen(JobQueued::class, static function () use ($exception): never {
             throw $exception;
         });
@@ -587,6 +593,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $this->assertFalse(DispatchLockContext::has($first));
         $this->assertFalse(DispatchLockContext::has($second));
+        $this->assertSame([$first, $second], $notified);
     }
 
     public function testDelayAttributeIsRespectedWhenBulkPushing(): void

@@ -25,6 +25,7 @@ use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Queue\Concerns\StagesOutboxJobs;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
@@ -46,6 +47,7 @@ use const JSON_UNESCAPED_UNICODE;
 
 abstract class Queue
 {
+    use StagesOutboxJobs;
     use InteractsWithTime;
     use ReadsQueueAttributes;
     use ResolvesQueueRoutes;
@@ -106,6 +108,7 @@ abstract class Queue
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->normalizeQueue($queue);
+        $jobs = $this->stageOutboxJobs($jobs, $data, $queue);
 
         foreach ((array) $jobs as $job) {
             $delay = $this->getJobDelay($job);
@@ -118,6 +121,27 @@ abstract class Queue
         }
 
         return null;
+    }
+
+    /**
+     * Prepare payloads and delays for a set-based enqueue operation.
+     *
+     * @return array<int, array{job: object|string, delay: null|DateInterval|DateTimeInterface|int, payload: string}>
+     */
+    protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
+    {
+        $prepared = [];
+
+        foreach ($jobs as $job) {
+            $delay = $this->getJobDelay($job);
+            $prepared[] = [
+                'job' => $job,
+                'delay' => $delay,
+                'payload' => $this->createPayload($job, $queue, $data, $delay),
+            ];
+        }
+
+        return $prepared;
     }
 
     /**
@@ -413,6 +437,20 @@ abstract class Queue
      */
     protected function enqueueUsing(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
+        try {
+            $stageViaOutbox = $this->shouldStageViaOutbox($job);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
+
+            throw $exception;
+        }
+
+        if ($stageViaOutbox) {
+            return $this->enqueueViaOutbox($job, $payload, $queue, $delay);
+        }
+
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
@@ -456,9 +494,17 @@ abstract class Queue
         DatabaseTransactionsManager $transactions,
         array $jobs,
         Closure $enqueue,
+        ?string $connection = null,
     ): void {
+        // Inline work still belongs to its caller, including a failover's next attempt.
+        if (! $transactions->hasApplicableTransaction($connection)) {
+            $enqueue($this);
+
+            return;
+        }
+
         foreach ($jobs as $job) {
-            $this->addJobRollbackCallback($transactions, $job);
+            $this->addJobRollbackCallback($transactions, $job, $connection);
         }
 
         $callback = static function (Queue $owner) use ($jobs, $enqueue): mixed {
@@ -483,11 +529,13 @@ abstract class Queue
             $dispatcher = $this->afterCommitDispatcher;
 
             $transactions->addCallback(
-                static fn () => $dispatcher($callback)
+                static fn () => $dispatcher($callback),
+                $connection,
             );
         } else {
             $transactions->addCallback(
-                fn () => $callback($this)
+                fn () => $callback($this),
+                $connection,
             );
         }
 
@@ -506,7 +554,8 @@ abstract class Queue
         try {
             $payload = $this->finalizePayloadForQueueing($queue, $job, $payload, $delay);
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
-            $jobId = $callback($this, $payload, $queue, $delay);
+            $storedPayload = $this->preparePayloadForPush($job, $payload, $queue);
+            $jobId = $callback($this, $storedPayload, $queue, $delay);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -516,9 +565,70 @@ abstract class Queue
         }
 
         $this->acceptDispatchLocks($job);
-        $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
+        $exception = null;
+
+        try {
+            $this->handlePayloadPushed($storedPayload, $queue);
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
 
         return $jobId;
+    }
+
+    /**
+     * Prepare a finalized payload for storage without changing lifecycle event correlation.
+     */
+    protected function preparePayloadForPush(object|string $job, string $payload, ?string $queue): string
+    {
+        return $payload;
+    }
+
+    /**
+     * Handle a payload after the queue has accepted it.
+     */
+    protected function handlePayloadPushed(string $payload, ?string $queue): void
+    {
+    }
+
+    /**
+     * Notify every batch member and return the first ordinary notification failure.
+     *
+     * @template TMember
+     * @param array<array-key, TMember> $members
+     * @param Closure(TMember): void ...$notifications
+     */
+    protected function notifyBatchMembers(array $members, Closure ...$notifications): ?Throwable
+    {
+        $exception = null;
+
+        foreach ($members as $member) {
+            foreach ($notifications as $notification) {
+                try {
+                    $notification($member);
+                } catch (CanceledException $cancellation) {
+                    throw $cancellation;
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+        }
+
+        return $exception;
     }
 
     /**
@@ -583,25 +693,31 @@ abstract class Queue
     protected function shouldDispatchAfterCommit(object|string $job): bool
     {
         if ($job instanceof ShouldQueueAfterCommit) {
-            return ! (isset($job->afterCommit) && $job->afterCommit === false);
+            $afterCommit = ! (isset($job->afterCommit) && $job->afterCommit === false);
+        } elseif (! $job instanceof Closure && is_object($job) && isset($job->afterCommit)) {
+            $afterCommit = $job->afterCommit;
+        } else {
+            $afterCommit = $this->dispatchAfterCommit;
         }
 
-        if (! $job instanceof Closure && is_object($job) && isset($job->afterCommit)) {
-            return $job->afterCommit;
+        if (! $afterCommit) {
+            return false;
         }
 
-        return $this->dispatchAfterCommit;
+        $forwarded = CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY);
+
+        return ($forwarded['job'] ?? null) !== $job || ! $forwarded['afterCommitHandled'];
     }
 
     /**
      * Register a transaction rollback callback that releases the job's locks.
      */
-    protected function addJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
+    protected function addJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job, ?string $connection = null): void
     {
         $callback = $this->createJobRollbackCallback($job);
 
         if ($callback !== null) {
-            $transactions->addCallbackForRollback($callback);
+            $transactions->addCallbackForRollback($callback, $connection);
         }
     }
 
@@ -758,6 +874,7 @@ abstract class Queue
     public function setConfig(array $config): static
     {
         $this->config = $config;
+        $this->dispatchViaOutbox = $config['outbox'] ?? false;
 
         return $this;
     }

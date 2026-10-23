@@ -174,6 +174,7 @@ class DispatchLockContextTest extends TestCase
         Container::setInstance($container);
 
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(fn (callable $callback) => $callback());

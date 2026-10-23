@@ -12,12 +12,14 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use JsonSerializable;
+use LogicException;
 use Throwable;
 
 class Batch implements Arrayable, JsonSerializable
@@ -57,8 +59,10 @@ class Batch implements Arrayable, JsonSerializable
     public function add(array|object $jobs): ?Batch
     {
         $count = 0;
+        $owner = null;
+        $resolver = null;
 
-        $jobs = Collection::wrap($jobs)->map(function ($job) use (&$count) {
+        $jobs = Collection::wrap($jobs)->map(function ($job) use (&$count, &$owner, &$resolver) {
             $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
 
             if (is_array($job)) {
@@ -76,11 +80,37 @@ class Batch implements Arrayable, JsonSerializable
                     $first->allOnConnection($this->options['connection']);
                 }
 
-                return $first->chain($chain->slice(1)->values()->all());
-            }
-            $job->withBatchId($this->id);
+                $job = $first->chain($chain->slice(1)->values()->all());
+            } else {
+                $job->withBatchId($this->id);
 
-            ++$count;
+                ++$count;
+            }
+
+            if (array_key_exists('viaOutbox', $this->options) || array_key_exists('outboxDatabase', $this->options)) {
+                // Preserve initialized nulls as well as explicit values on each job.
+                $properties = get_object_vars($job);
+
+                foreach (['viaOutbox', 'outboxDatabase'] as $property) {
+                    if (array_key_exists($property, $this->options) && ! array_key_exists($property, $properties)) {
+                        $job->{$property} = $this->options[$property];
+                    }
+                }
+            }
+
+            // The counter transaction supplies the implicit SQL owner; declared owners must not bypass it.
+            if (($database = $job->outboxDatabase ?? null) !== null
+                && ($job->viaOutbox ?? null) !== false
+                && $this->repository instanceof DatabaseBatchRepository) {
+                $owner ??= $this->repository->getConnection()->getNameWithReadWriteType();
+                /** @var ConnectionResolverInterface $resolver */
+                $resolver ??= Container::getInstance()->make('db');
+                $selectedOwner = $resolver->connection($database)->getNameWithReadWriteType();
+
+                if ($selectedOwner !== $owner) {
+                    throw new LogicException("Outbox database [{$selectedOwner}] does not match the batch database [{$owner}]. Use the batch database or omit the explicit outbox owner.");
+                }
+            }
 
             return $job;
         });

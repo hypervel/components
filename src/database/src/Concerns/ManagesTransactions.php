@@ -88,7 +88,7 @@ trait ManagesTransactions
 
             try {
                 $this->transactionsManager?->commit(
-                    $this->getName() ?? '',
+                    $this->getNameWithReadWriteType() ?? '',
                     $levelBeingCommitted,
                     $this->transactions
                 );
@@ -182,7 +182,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->begin(
-                $this->getName() ?? '',
+                $this->getNameWithReadWriteType() ?? '',
                 $this->transactions
             );
 
@@ -259,7 +259,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->commit(
-                $this->getName() ?? '',
+                $this->getNameWithReadWriteType() ?? '',
                 $levelBeingCommitted,
                 $this->transactions
             );
@@ -369,7 +369,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->rollback(
-                $this->getName() ?? '',
+                $this->getNameWithReadWriteType() ?? '',
                 $this->transactions
             );
         } catch (CanceledException $cancellation) {
@@ -447,7 +447,7 @@ trait ManagesTransactions
             return false;
         }
 
-        return $this->transactionsManager?->hasApplicableTransaction($this->getName() ?? '') ?? true;
+        return $this->transactionsManager?->hasApplicableTransaction($this->getNameWithReadWriteType() ?? '') ?? true;
     }
 
     /**
@@ -460,7 +460,7 @@ trait ManagesTransactions
     public function afterCommit(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallback($callback, $this->getName() ?? '');
+            $this->transactionsManager->addCallback($callback, $this->getNameWithReadWriteType() ?? '');
 
             return;
         }
@@ -492,7 +492,7 @@ trait ManagesTransactions
     public function afterRollBack(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallbackForRollback($callback, $this->getName() ?? '');
+            $this->transactionsManager->addCallbackForRollback($callback, $this->getNameWithReadWriteType() ?? '');
 
             return;
         }

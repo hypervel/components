@@ -119,7 +119,7 @@ During implementation, run new or changed test files immediately. After completi
 
 Use checks that match the change. For isolated changes, run `composer lint:fix`, `composer analyse`, and the affected tests. Run a single affected test file with PHPUnit. Use ParaTest when the affected tests span multiple files. Only run `composer fix` when changes could affect code beyond the affected tests; it already runs formatting, analysis, and all test suites, so do not run those checks separately first.
 
-If a check fails, use targeted checks while correcting the issue, then run the failed check and each remaining check. Rerun an earlier check only if the correction could affect it.
+After a failure, fix the cause and rerun only affected tests, formatting or static analysis. Then finish any verification not yet run. Repeat the full test suite only if the fix itself has framework-wide impact.
 
 ## Development Conventions
 

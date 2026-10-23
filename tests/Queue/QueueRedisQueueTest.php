@@ -207,7 +207,11 @@ class QueueRedisQueueTest extends TestCase
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
         $exception = new RuntimeException('Listener failed.');
+        $notified = [];
 
+        $dispatcher->listen(JobQueued::class, static function (JobQueued $event) use (&$notified): void {
+            $notified[] = $event->job;
+        });
         $dispatcher->listen(JobQueued::class, static function () use ($exception): never {
             throw $exception;
         });
@@ -221,6 +225,7 @@ class QueueRedisQueueTest extends TestCase
 
         $this->assertFalse(DispatchLockContext::has($first));
         $this->assertFalse(DispatchLockContext::has($second));
+        $this->assertSame([$first, $second], $notified);
     }
 
     public function testBulkRetainsDispatchOwnershipWhenRedisDoesNotConfirmEveryJob(): void

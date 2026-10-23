@@ -25,6 +25,7 @@
     - [Bulk Dispatching](#bulk-dispatching)
     - [Preparing Jobs Before Dispatch](#preparing-jobs-before-dispatch)
     - [Jobs & Database Transactions](#jobs-and-database-transactions)
+    - [Transactional Outbox](#transactional-outbox)
     - [Job Chaining](#job-chaining)
     - [Customizing The Queue and Connection](#customizing-the-queue-and-connection)
     - [Specifying Max Job Attempts / Timeout Values](#max-job-attempts-and-timeout)
@@ -1511,6 +1512,23 @@ Likewise, if the `after_commit` configuration option is set to `true`, you may i
 ```php
 ProcessPodcast::dispatch($podcast)->beforeCommit();
 ```
+
+<a name="transactional-outbox"></a>
+### Transactional Outbox
+
+Dispatching after commit prevents a worker from processing a job before your database changes are saved. However, your application could still stop after committing the transaction but before sending the job to the queue. To protect against losing the job in this case, you may use Hypervel's [transactional outbox](/docs/{{version}}/queue-outbox):
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::transaction(function () use ($podcast) {
+    $podcast->save();
+
+    ProcessPodcast::dispatch($podcast)->viaOutbox();
+});
+```
+
+Hypervel stores the job as part of the database transaction. A separate relay process then sends it to your existing queue after commit. Before using the outbox, follow its [setup instructions](/docs/{{version}}/queue-outbox#setup), including creating the table and running the relay.
 
 <a name="job-chaining"></a>
 ### Job Chaining

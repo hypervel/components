@@ -251,7 +251,7 @@ class RefreshDatabaseTest extends TestCase
         $eventDispatcher = m::mock(Dispatcher::class);
         $connection = m::mock(PdoConnection::class);
         $connection->expects('getPdo')->andReturn($pdo);
-        $connection->expects('getName')->andReturn('default');
+        $connection->expects('getNameWithReadWriteType')->andReturn('default');
         $connection->expects('setTransactionManager');
         $connection->expects('getEventDispatcher')->twice()->andReturn($eventDispatcher);
         $connection->expects('unsetEventDispatcher')->twice();
@@ -661,7 +661,7 @@ class RefreshDatabaseTest extends TestCase
     protected function getMockedDatabase(): DatabaseManager
     {
         $connection = m::mock(ConnectionInterface::class);
-        $connection->expects('getName')->andReturn('default');
+        $connection->expects('getNameWithReadWriteType')->andReturn('default');
         $eventDispatcher = m::mock(Dispatcher::class);
         $connection->expects('getEventDispatcher')
             ->twice()

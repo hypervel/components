@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
+use Closure;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Throwable;
 use WeakMap;
 
 /**
  * Track dispatch lock ownership until a queue accepts the job.
- *
- * @internal
  *
  * @phpstan-type UniqueMetadata array{
  *     laravel_unique_job_cache_store: null|string,
@@ -23,11 +22,13 @@ use WeakMap;
  *     metadata: null|UniqueMetadata,
  *     unique: null|LockProvenance,
  *     debounce: null|LockProvenance,
+ *     releaseContext: null|Closure(Closure(): void): void,
  *     delegated: bool
  * }
  * @phpstan-type LockSnapshot array{
  *     unique: null|LockProvenance,
- *     debounce: null|LockProvenance
+ *     debounce: null|LockProvenance,
+ *     releaseContext: null|Closure(Closure(): void): void
  * }
  */
 class DispatchLockContext
@@ -40,7 +41,72 @@ class DispatchLockContext
     protected static ?WeakMap $records = null;
 
     /**
+     * The callbacks that capture context before dispatch lock acquisition.
+     *
+     * @var list<Closure(): (null|Closure(Closure(): void): void)>
+     */
+    protected static array $releaseContextCallbacks = [];
+
+    /**
+     * Register a callback that captures the context needed for deferred lock release.
+     *
+     * Boot-only. Callbacks persist for the worker lifetime and affect subsequent dispatches.
+     * Return a wrapper that invokes the release operation once and restores the previous
+     * context in finally, or null when no context is needed. The first wrapper is outermost.
+     * Passing null clears registrations; capture runs before acquiring a lock.
+     *
+     * @param null|callable(): (null|Closure(Closure(): void): void) $callback
+     */
+    public static function captureReleaseContextUsing(?callable $callback): void
+    {
+        if ($callback === null) {
+            static::$releaseContextCallbacks = [];
+
+            return;
+        }
+
+        static::$releaseContextCallbacks[] = $callback(...);
+    }
+
+    /**
+     * Capture and compose the current release context.
+     *
+     * @internal
+     *
+     * @return null|Closure(Closure(): void): void
+     */
+    public static function captureReleaseContext(): ?Closure
+    {
+        $context = null;
+
+        foreach (static::$releaseContextCallbacks as $callback) {
+            if (($wrapper = $callback()) === null) {
+                continue;
+            }
+
+            if ($context === null) {
+                $context = $wrapper;
+
+                continue;
+            }
+
+            $outer = $context;
+            $context = static function (Closure $release) use ($outer, $wrapper): void {
+                $outer(static function () use ($wrapper, $release): void {
+                    $wrapper($release);
+                });
+            };
+        }
+
+        return $context;
+    }
+
+    /**
      * Register an acquired unique lock.
+     *
+     * @internal
+     *
+     * @param null|Closure(Closure(): void): void $releaseContext
      */
     public static function registerUnique(
         object $job,
@@ -48,6 +114,7 @@ class DispatchLockContext
         ?string $cacheStore,
         string $key,
         string $owner,
+        ?Closure $releaseContext = null,
     ): void {
         /** @var WeakMap<object, LockRecord> $records */
         // @phpstan-ignore assign.propertyType (PHPStan rejects an empty WeakMap for this invariant closed-shape value.)
@@ -61,28 +128,37 @@ class DispatchLockContext
             'laravel_unique_job_lock_owner' => $owner,
         ];
         $record['unique'] = compact('cache', 'key', 'owner');
+        $record['releaseContext'] = $releaseContext;
         $records[$job] = $record;
     }
 
     /**
      * Register an acquired debounce lock.
+     *
+     * @internal
+     *
+     * @param null|Closure(Closure(): void): void $releaseContext
      */
     public static function registerDebounce(
         object $job,
         Cache $cache,
         string $key,
         string $owner,
+        ?Closure $releaseContext = null,
     ): void {
         /** @var WeakMap<object, LockRecord> $records */
         // @phpstan-ignore assign.propertyType (PHPStan rejects an empty WeakMap for this invariant closed-shape value.)
         $records = static::$records ??= new WeakMap;
         $record = $records[$job] ?? static::newRecord();
         $record['debounce'] = compact('cache', 'key', 'owner');
+        $record['releaseContext'] = $releaseContext;
         $records[$job] = $record;
     }
 
     /**
      * Peek at hidden unique-job payload metadata.
+     *
+     * @internal
      *
      * @return null|UniqueMetadata
      */
@@ -93,6 +169,8 @@ class DispatchLockContext
 
     /**
      * Determine whether a dispatch owns any locks.
+     *
+     * @internal
      */
     public static function has(object $job): bool
     {
@@ -101,6 +179,8 @@ class DispatchLockContext
 
     /**
      * Delegate a dispatch's lock ownership to a registered callback.
+     *
+     * @internal
      */
     public static function delegate(object $job): bool
     {
@@ -109,6 +189,8 @@ class DispatchLockContext
 
     /**
      * Claim lock ownership in a delegated callback.
+     *
+     * @internal
      */
     public static function claim(object $job): bool
     {
@@ -117,6 +199,8 @@ class DispatchLockContext
 
     /**
      * Mark a dispatch as accepted by a queue.
+     *
+     * @internal
      */
     public static function accept(object $job): void
     {
@@ -129,6 +213,8 @@ class DispatchLockContext
 
     /**
      * Release locks still owned by a dispatch.
+     *
+     * @internal
      */
     public static function release(object $job): void
     {
@@ -149,11 +235,14 @@ class DispatchLockContext
         static::releaseSnapshot([
             'unique' => $record['unique'],
             'debounce' => $record['debounce'],
+            'releaseContext' => $record['releaseContext'],
         ]);
     }
 
     /**
-     * Take a release snapshot for work accepted by an in-memory timer.
+     * Take an independent release snapshot before accepting a dispatch.
+     *
+     * @internal
      *
      * @return null|LockSnapshot
      */
@@ -168,15 +257,36 @@ class DispatchLockContext
         return [
             'unique' => $record['unique'],
             'debounce' => $record['debounce'],
+            'releaseContext' => $record['releaseContext'],
         ];
     }
 
     /**
-     * Release locks from an in-memory timer snapshot.
+     * Release locks from an independent dispatch snapshot.
+     *
+     * @internal
      *
      * @param LockSnapshot $snapshot
      */
     public static function releaseSnapshot(array $snapshot): void
+    {
+        if ($snapshot['releaseContext'] !== null) {
+            $snapshot['releaseContext'](static function () use ($snapshot): void {
+                static::releaseLocks($snapshot);
+            });
+
+            return;
+        }
+
+        static::releaseLocks($snapshot);
+    }
+
+    /**
+     * Release both owned locks even if one cleanup fails.
+     *
+     * @param LockSnapshot $snapshot
+     */
+    protected static function releaseLocks(array $snapshot): void
     {
         $exception = null;
 
@@ -252,6 +362,7 @@ class DispatchLockContext
             'metadata' => null,
             'unique' => null,
             'debounce' => null,
+            'releaseContext' => null,
             'delegated' => false,
         ];
     }
@@ -262,5 +373,6 @@ class DispatchLockContext
     public static function flushState(): void
     {
         static::$records = null;
+        static::$releaseContextCallbacks = [];
     }
 }

@@ -1093,6 +1093,21 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     }
 
     /**
+     * Set the cache store name before sharing the repository.
+     *
+     * Changing a shared repository's name affects cache events
+     * and queued unique-lock cleanup in every coroutine using that repository.
+     *
+     * @internal
+     */
+    public function setName(string $name): static
+    {
+        $this->config['store'] = $name;
+
+        return $this;
+    }
+
+    /**
      * Determine if a cached value exists.
      *
      * @param string|UnitEnum $offset

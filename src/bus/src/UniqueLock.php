@@ -45,6 +45,7 @@ class UniqueLock
     {
         [$uniqueFor, $cache, $key, $supportsOwnership] = $this->resolveLockValues($job);
         $cacheStore = $cache instanceof Repository ? $cache->getName() : null;
+        $releaseContext = DispatchLockContext::captureReleaseContext();
 
         $owner = $this->acquireResolvedLock(
             $job,
@@ -59,7 +60,7 @@ class UniqueLock
             return false;
         }
 
-        DispatchLockContext::registerUnique($job, $cache, $cacheStore, $key, $owner);
+        DispatchLockContext::registerUnique($job, $cache, $cacheStore, $key, $owner, $releaseContext);
 
         return true;
     }

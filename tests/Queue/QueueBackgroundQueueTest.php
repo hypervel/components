@@ -204,6 +204,7 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
@@ -217,6 +218,7 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
@@ -230,6 +232,7 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -247,6 +250,7 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -264,6 +268,7 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -361,6 +366,7 @@ class QueueBackgroundQueueTest extends TestCase
         $afterCommit = null;
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) use (&$afterCommit) {
@@ -450,6 +456,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -472,6 +479,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -494,6 +502,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -519,6 +528,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -544,6 +554,7 @@ class QueueBackgroundQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {

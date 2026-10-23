@@ -25,6 +25,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
@@ -1039,6 +1040,16 @@ class Dispatcher implements DispatcherContract
                 $job->afterCommit = true;
             } else {
                 $job->afterCommit = property_exists($listener, 'afterCommit') ? $listener->afterCommit : null;
+            }
+
+            if (isset($listener->viaOutbox)) {
+                $job->viaOutbox = $listener->viaOutbox;
+            } elseif ($listener instanceof ShouldQueueViaOutbox) {
+                $job->viaOutbox = true;
+            }
+
+            if (isset($listener->outboxDatabase)) {
+                $job->outboxDatabase = $listener->outboxDatabase;
             }
 
             $job->backoff = method_exists($listener, 'backoff') ? $listener->backoff(...$data) : $this->getAttributeValue($listener, Backoff::class, 'backoff');

@@ -125,7 +125,7 @@ class CacheManager implements FactoryContract
 
         $repository = $this->repository(
             new MemoizedStore($driver, $store),
-            ['events' => false]
+            ['store' => $store->getName(), 'events' => false]
         );
 
         return $isSpy ? Mockery::spy($repository) : $repository;
@@ -146,7 +146,14 @@ class CacheManager implements FactoryContract
 
         $config = Arr::add($config, 'store', $name);
 
-        return $this->build($config);
+        $repository = $this->build($config);
+
+        // Custom creators may wrap a store without passing its configuration.
+        if ($repository instanceof Repository && $repository->getName() === null) {
+            $repository->setName($config['store']);
+        }
+
+        return $repository;
     }
 
     /**
