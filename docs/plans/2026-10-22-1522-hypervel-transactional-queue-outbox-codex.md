@@ -26,7 +26,7 @@ Implemented: framework prerequisites, public selection and wrapper propagation, 
 
 Implementation, live-engine/concurrency and API-integration coverage, canonical documentation, the retained benchmark harness and performance measurements are complete. Measurements support the existing production design; see [benchmark results](../../tests/Benchmarks/QueueOutbox/results.md).
 
-Complete local review-fix verification and commits, then wait for owner direction before pushing or replying to PR comments.
+Complete the documentation style review, then resume PR review and CI verification on both remotes before merging.
 
 ### Hypervel
 

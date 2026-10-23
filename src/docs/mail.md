@@ -1240,7 +1240,7 @@ class OrderShipped extends Mailable implements ShouldQueue
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
-For transactional delivery, a mailable using `Queueable` may select the [outbox](/docs/{{version}}/queue-outbox):
+If you would like to store a queued mailable as part of your database transaction, you may call the `viaOutbox` method provided by its `Queueable` trait:
 
 ```php
 Mail::to($request->user())->queue(
@@ -1248,7 +1248,7 @@ Mail::to($request->user())->queue(
 );
 ```
 
-The existing queued-mail wrapper carries this choice to the queue. See the [outbox guide](/docs/{{version}}/queue-outbox#queued-producers) for the required table, relay and delivery guarantees.
+Queue the mailable inside the transaction. Hypervel will store its job in the [transactional outbox](/docs/{{version}}/queue-outbox) and deliver it to your queue after the transaction commits. Before using this feature, follow the [outbox setup instructions](/docs/{{version}}/queue-outbox#setup).
 
 <a name="queued-email-failures"></a>
 #### Queued Email Failures

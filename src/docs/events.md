@@ -521,7 +521,7 @@ class SendShipmentNotification implements ShouldQueueAfterCommit
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
-To store a queued listener's job atomically with the business write, implement `ShouldQueueViaOutbox` on the listener:
+If you would like to store a queued listener's job as part of your database transaction, you may implement the `ShouldQueueViaOutbox` interface on the listener. The [transactional outbox](/docs/{{version}}/queue-outbox) will then deliver the job to your queue after the transaction commits:
 
 ```php
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
@@ -532,7 +532,7 @@ class SendShipmentNotification implements ShouldQueueViaOutbox
 }
 ```
 
-Listener defaults are inspected without constructing the listener; use the marker rather than calling `viaOutbox()` in its constructor. Dispatch the event inside the transaction, without deferring the whole event through `ShouldDispatchAfterCommit`. See the [transactional outbox guide](/docs/{{version}}/queue-outbox#queued-producers) for setup and delivery guarantees.
+Dispatch the event inside the transaction, and do not implement `ShouldDispatchAfterCommit` on the event itself. That interface would postpone the entire event until after commit, preventing the listener's job from being stored in the transaction. Since Hypervel reads listener settings without constructing the listener, use `ShouldQueueViaOutbox` rather than calling `viaOutbox` in its constructor. Before using this feature, follow the [outbox setup instructions](/docs/{{version}}/queue-outbox#setup).
 
 <a name="queued-listener-middleware"></a>
 ### Queued Listener Middleware

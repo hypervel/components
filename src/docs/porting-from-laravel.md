@@ -803,7 +803,7 @@ Framework operations release idle database sessions at the boundaries listed in 
 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
-Extensions inspecting transaction records or registering callbacks directly with `DatabaseTransactionsManager` must use the resolved connection's `getNameWithReadWriteType()`, not its base `getName()`. Base, `::read` and `::write` sessions can own independent transactions. Resolve the connection first: shared in-memory SQLite aliases return one owner and therefore one transaction identity. Ordinary `afterCommit()` and `afterRollBack()` calls already select the correct owner.
+If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
@@ -861,7 +861,7 @@ Hypervel stores job batches in a relational database. Laravel's DynamoDB batch r
 
 With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
 
-Custom Horizon `RedisQueue` subclasses must not rely on `push()` calling their `pushRaw()` override. Use the protected `preparePayloadForPush()` and `handlePayloadPushed()` hooks for normal publication, with post-push work running after storage is accepted. Direct raw publication remains available through `pushRaw()`.
+If you extend Horizon's `RedisQueue`, do not rely on `push()` calling your `pushRaw()` override. Override the protected `preparePayloadForPush()` method to prepare normal pushes, or `handlePayloadPushed()` to run code after Redis accepts the job. Direct calls to `pushRaw()` remain supported.
 
 When a Laravel package offers optional support for an unsupported driver, remove that integration from the Hypervel port unless the package can safely provide it through a separate optional dependency.
 

@@ -321,13 +321,13 @@ Jobs dispatched after a database commit are finalized and timed only when the qu
 
 Terminal queue correlation normally uses the exact final encoded payload without decoding it. If another finalizer rewrites that payload afterward, the package performs one terminal decode to recover Hypervel's job UUID. Payloads from custom drivers or `Queue::createPayloadUsing()` callbacks that do not contain a string UUID are accepted, omit `messaging.message.id`, and use exact-payload correlation only. If a later finalizer rewrites such a payload, its producer span remains started but is never ended or exported, and its state remains until coroutine or process exit. A later finalizer that removes or corrupts an existing UUID likewise leaves unmatched state. A long-running non-coroutine custom process that catches and continues after such failures may retain that state until it exits.
 
-With the [transactional outbox](/docs/{{version}}/queue-outbox), producer telemetry finishes when staging accepts the job. The relay preserves its propagation fields and does not emit a second producer lifecycle. Three enabled-by-default metrics observe delivery at connection-batch boundaries:
+When using the [transactional outbox](/docs/{{version}}/queue-outbox), the producer span ends when the job is stored in the outbox. The relay preserves the job's trace context without creating another producer span. The following metrics are enabled by default and record delivery separately for each queue connection's batch:
 
-- `hypervel.queue.outbox.delivered.messages` counts queue-confirmed messages, including accepted messages whose SQL settlement subsequently fails.
-- `hypervel.queue.outbox.delivery.duration` records publication duration in seconds, with `error.type` on publication or settlement failure. Its failed observation count supplies the number of failed batches without a separate counter.
-- `hypervel.queue.outbox.delivery.latency` records the oldest attempted message's eligible age at publication start, in seconds. It is one observation per connection batch, not a per-message latency distribution, and excludes deferred rows.
+- `hypervel.queue.outbox.delivered.messages` counts messages accepted by the queue, including messages whose outbox records could not be deleted afterwards.
+- `hypervel.queue.outbox.delivery.duration` measures how long sending the batch takes, in seconds. If sending or updating the outbox fails, the observation includes `error.type`. Count the duration observations that include `error.type` to determine the number of failed batches.
+- `hypervel.queue.outbox.delivery.latency` records how long the oldest attempted message has been ready for delivery, in seconds, measured when sending begins. It records one value per connection batch, not one per message. Messages deferred until a future delivery time are excluded.
 
-These metrics use the configured queue connection and outbox database as attributes. Latency does not add exception types as attributes. They perform no backlog queries or payload decoding and add no work to ordinary dispatch. Use `queue:outbox-monitor` for backlog counts and age alerts.
+These metrics include the configured queue connection and outbox database as attributes. Only the duration metric includes exception types. Collecting them does not query pending outbox records or decode job payloads, and does not add work to ordinary dispatches. To monitor pending counts and waiting times, use the [`queue:outbox-monitor` command](/docs/{{version}}/queue-outbox#monitoring-the-outbox).
 
 Queue depth is off by default because it performs backend I/O during metric collection. Enable it with explicit targets:
 
