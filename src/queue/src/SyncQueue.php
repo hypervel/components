@@ -379,7 +379,18 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function shouldDispatchAfterCommit(object|string $job): bool
     {
-        return $this->shouldDispatchViaOutbox($job) || parent::shouldDispatchAfterCommit($job);
+        if (parent::shouldDispatchAfterCommit($job)) {
+            return true;
+        }
+
+        if (! $this->shouldDispatchViaOutbox($job) || ! $this->container->has('db.transactions')) {
+            return false;
+        }
+
+        /** @var DatabaseTransactionsManager $transactions */
+        $transactions = $this->container->make('db.transactions');
+
+        return $transactions->hasApplicableTransaction();
     }
 
     /**

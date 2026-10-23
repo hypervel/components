@@ -14,6 +14,8 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Redis\Factory;
+use Hypervel\Coordinator\Timer;
+use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
@@ -45,6 +47,30 @@ class OutboxFastPathTest extends TestCase
             'driver' => 'database', 'connection' => 'source', 'table' => 'jobs',
             'queue' => 'default', 'after_commit' => true, 'outbox' => true,
         ]);
+    }
+
+    public function testLocalSelectionWithoutATransactionPreservesImmediateResults(): void
+    {
+        $queue = $this->app->make('queue')->connection('sync');
+
+        $this->assertSame(0, $queue->push(new OutboxLocalJob));
+        $this->assertSame(0, $queue->push((new OutboxLocalJob)->viaOutbox()));
+        $this->assertSame(0, $queue->later(0, new OutboxLocalJob));
+        $this->assertSame(0, $queue->later(0, (new OutboxLocalJob)->viaOutbox()));
+        $this->assertSame(4, $this->app->make(OutboxExecutionLog::class)->executions);
+        $this->assertFalse($this->app->resolved(OutboxDispatcher::class));
+    }
+
+    public function testLocalSelectionWithoutATransactionPreservesTimerIds(): void
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->with(60.0, m::type('callable'))->twice()->andReturn(41, 42);
+        $queue = new BackgroundQueue(timer: $timer);
+        $queue->setContainer($this->app)->setConnectionName('local');
+
+        $this->assertSame(41, $queue->later(60, new OutboxLocalJob));
+        $this->assertSame(42, $queue->later(60, (new OutboxLocalJob)->viaOutbox()));
+        $this->assertFalse($this->app->resolved(OutboxDispatcher::class));
     }
 
     #[DataProvider('transactionOutcomes')]
