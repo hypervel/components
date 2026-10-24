@@ -10,11 +10,16 @@ use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use ReflectionProperty;
+use Symfony\Component\Process\Process;
 
 class ConfigureTerminalDimensionsTest extends TestCase
 {
+    // Keep the PTY child outside Swoole's hooked subprocess wait.
+    protected bool $runTestsInCoroutine = false;
+
     #[RunInSeparateProcess]
     public function testPreservesExistingTerminalDimensions(): void
     {
@@ -43,6 +48,43 @@ class ConfigureTerminalDimensionsTest extends TestCase
 
         $this->assertSame('80', getenv('COLUMNS'));
         $this->assertSame('24', getenv('LINES'));
+    }
+
+    #[RunInSeparateProcess]
+    #[DataProvider('partialDimensions')]
+    public function testPreservesEachDimensionIndependently(string $preset, string $missing, string $expectedDefault): void
+    {
+        putenv("{$preset}=120");
+        putenv($missing);
+
+        (new ConfigureTerminalDimensions)->bootstrap(new Application);
+
+        $this->assertSame('120', getenv($preset));
+        $this->assertSame($expectedDefault, getenv($missing));
+    }
+
+    /**
+     * Provide each individually configured terminal dimension.
+     */
+    public static function partialDimensions(): array
+    {
+        return [
+            'width' => ['COLUMNS', 'LINES', '24'],
+            'height' => ['LINES', 'COLUMNS', '80'],
+        ];
+    }
+
+    public function testLeavesRealTerminalDimensionsUnchanged(): void
+    {
+        $process = new Process(
+            [PHP_BINARY, __DIR__ . '/../Fixtures/configure-terminal-dimensions.php'],
+            env: ['COLUMNS' => false, 'LINES' => false],
+            timeout: 10,
+        );
+        $process->setPty(true);
+        $process->mustRun();
+
+        $this->assertSame([true, false, false], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
     public function testKernelsIncludeTerminalDimensionsBootstrapper(): void

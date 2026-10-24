@@ -10,6 +10,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\PostCondition;
 use PHPUnit\Framework\IncompleteTest;
@@ -45,6 +46,10 @@ trait RunTestsInCoroutine
      */
     protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
+        // Workers may not inherit putenv-only dimensions from their parent. Configure
+        // each process before tests enter hooked coroutines, including their own run().
+        ConfigureTerminalDimensions::configure();
+
         if (Coroutine::getCid() !== -1 || ! $this->runsTestsInCoroutine()) {
             return parent::invokeTestMethod($methodName, $testArguments);
         }
