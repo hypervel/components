@@ -42,7 +42,12 @@
 - [OAuth 2](#oauth2)
     - [Authorization Code Grant](#authorization-code-grant)
     - [Client Credentials Grant](#client-credentials-grant)
+    - [Cached Access Tokens](#cached-access-tokens)
     - [Refreshing Access Tokens](#refreshing-access-tokens)
+    - [Connected OAuth Accounts](#connected-oauth-accounts)
+    - [Account Caching](#oauth-account-caching)
+    - [Account Renewal](#oauth-account-renewal)
+    - [Partitioning Accounts](#partitioning-oauth-accounts)
     - [Customizing OAuth Requests](#customizing-oauth-requests)
 - [Concurrent Requests](#concurrent-requests)
     - [Collecting Responses](#collecting-responses)
@@ -731,27 +736,13 @@ class GetPrivateReport extends Request
 
 You may also add the trait to a connector to require authentication for every request in that integration. Saloon throws `MissingAuthenticatorException` before sending an unauthenticated request. You may override `getRequiresAuthMessage(PendingRequest $pendingRequest): string` when the integration needs a more specific message.
 
-Some APIs require you to request a token before calling other endpoints. A connector's `boot` method may send that request and authenticate the pending request with the result:
+For APIs that issue reusable access tokens, use [cached authentication](#cached-access-tokens) instead of requesting a token for every API call. Here, `$oauth` is a client-credentials connector:
 
 ```php
-use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
-use Hypervel\Saloon\Http\PendingRequest;
-
-public function boot(PendingRequest $pendingRequest): void
-{
-    if ($pendingRequest->request() instanceof GetAccessToken) {
-        return;
-    }
-
-    $token = $this->send(new GetAccessToken($this->username, $this->password))
-        ->throw()
-        ->json('token');
-
-    $pendingRequest->authenticate(new TokenAuthenticator($token));
-}
+$request->authenticate($oauth->cachedAccessToken(store: 'redis'));
 ```
 
-The early return stops the token request from requesting a token itself. Don't combine this with `RequiresAuth`, which checks for an authenticator before `boot` runs. When the API's tokens last longer than one request, you may store the token in your application's [cache](/docs/{{version}}/cache) until it expires.
+For user-authorized connections with refresh tokens, use [connected OAuth accounts](#connected-oauth-accounts). Token endpoint requests must not use the authenticator that fetches their own token; use a separate OAuth connector when your API connector supplies authentication by default.
 
 <a name="request-bodies"></a>
 ### Request Bodies
@@ -1633,10 +1624,65 @@ $response = $connector->getAccessToken(
 );
 ```
 
+<a name="cached-access-tokens"></a>
+### Cached Access Tokens
+
+Client credentials connectors provide a `cachedAccessToken` method. It returns an authenticator that fetches a token on first use and reuses it until renewal is due:
+
+```php
+$authenticator = $oauth->cachedAccessToken(
+    scopes: ['reports:read'],
+    store: 'redis',
+);
+
+$response = $api->send((new GetReports)->authenticate($authenticator));
+```
+
+The cache key includes the connector class, token URL, client credentials and requested scopes. Credentials are hashed, never included directly in cache keys. Fresh connector and authenticator instances with the same grant reuse the shared entry. Account and merchant headers stay on each request or connector.
+
+If a request modifier or custom request factory changes the grant, include that difference in the optional `key` argument:
+
+```php
+$authenticator = $oauth->cachedAccessToken(
+    store: 'redis',
+    requestModifier: fn ($request) => $request->withData(['audience' => 'billing']),
+    key: 'billing',
+);
+```
+
+The store defaults to `saloon.cache.store`, then the framework's default cache store. Use Redis to share tokens across workers. The `worker-array` store shares within one worker; the ordinary `array` store is local to a coroutine. Concurrent callers in one worker share the active fetch and its result or failure. Different workers may safely acquire their own client-credentials tokens on a simultaneous cache miss.
+
+Tokens renew up to 30 seconds before expiry, capped at half their remaining lifetime when acquired. This deadline does not move when an entry is read. Tokens without expiry do not renew automatically; supply an expiry when the provider documents one. An already-expired result is rejected.
+
+For APIs with a username/password token endpoint, supply a resolver returning `OAuthAuthenticator`. In this example, `$auth` is a connector for the authentication API, and `LoginRequest` exchanges the credentials for a token and its lifetime:
+
+```php
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Saloon\Http\Auth\CachedTokenAuthenticator;
+use Hypervel\Support\Facades\Date;
+
+$authenticator = new CachedTokenAuthenticator(
+    key: serialize([LoginRequest::class, $auth->resolveBaseUrl(), $username, $password]),
+    resolver: function () use ($auth, $username, $password): AccessTokenAuthenticator {
+        $response = $auth->send(new LoginRequest($username, $password))->throw();
+
+        return new AccessTokenAuthenticator(
+            accessToken: $response->json('token'),
+            expiresAt: Date::now()->addSeconds($response->json('expires_in'))->toDateTimeImmutable(),
+        );
+    },
+    store: 'redis',
+);
+```
+
+Your grant identity must distinguish credentials, environments and any audience or other grant inputs. Saloon hashes it before storage. The cache retains the actual authenticator, including custom authentication behavior. Register custom classes through the cache's `allowSerializableClassesUsing` method during provider boot, and use a serializer that preserves PHP objects. Cached standalone tokens contain usable credentials, so protect access to the cache.
+
+Call `$authenticator->forget()` to clear that instance's token and its shared entry. This does not revoke the provider token or clear copies held by other live instances. Use connected accounts for rotating refresh tokens, which require durable storage and coordinated updates.
+
 <a name="refreshing-access-tokens"></a>
 ### Refreshing Access Tokens
 
-An `AccessTokenAuthenticator` exposes its access token, optional refresh token, expiry, and expiration helpers:
+An `AccessTokenAuthenticator` exposes its access token, optional refresh token, expiry, reported scopes, and expiration helpers:
 
 ```php
 if ($authenticator->hasExpired() && $authenticator->isRefreshable()) {
@@ -1644,7 +1690,7 @@ if ($authenticator->hasExpired() && $authenticator->isRefreshable()) {
 }
 ```
 
-To keep tokens between requests, store the authenticator's `accessToken`, `refreshToken`, and `expiresAt` properties and create a new authenticator from them when you need it. For example, you may store the tokens in [encrypted](/docs/{{version}}/eloquent-mutators#encrypted-casting) model attributes and [cast](/docs/{{version}}/eloquent-mutators#date-casting) the expiry attribute to `immutable_datetime`:
+For automatic persistence and renewal, use [connected OAuth accounts](#connected-oauth-accounts). You may also manage tokens yourself using [encrypted](/docs/{{version}}/eloquent-mutators#encrypted-casting) model attributes and an `immutable_datetime` [cast](/docs/{{version}}/eloquent-mutators#date-casting) for expiry:
 
 ```php
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
@@ -1657,6 +1703,8 @@ $authenticator = new AccessTokenAuthenticator(
 ```
 
 OAuth token expiry values use immutable dates. Saloon rejects negative or unrepresentable expiry durations instead of creating an already-expired token.
+
+`getScopes()` returns the scopes reported by the provider, or `null` when none were reported. Saloon does not infer granted permissions from the requested scopes. A custom authenticator may supply `[]` to represent an explicitly empty set.
 
 Refresh requests use the configured `tokenEndpoint` by default. If your provider uses a separate endpoint, set `refreshEndpoint` on your `OAuthConfig`:
 
@@ -1671,6 +1719,136 @@ return new OAuthConfig(
 ```
 
 For an absolute refresh URL, also set `allowBaseUrlOverride: true`.
+
+<a name="connected-oauth-accounts"></a>
+### Connected OAuth Accounts
+
+Connected accounts store user-authorized credentials and renew them when needed. Generate and run the migration only if your application uses this feature:
+
+```shell
+php artisan make:oauth-accounts-table
+php artisan migrate
+```
+
+The `oauth-accounts:table` alias is also available. The migration creates `oauth_accounts` with a UUID key and a polymorphic owner. Add `HasOAuthAccounts` to the owning model:
+
+```php
+use Hypervel\Saloon\Traits\HasOAuthAccounts;
+
+class User extends Authenticatable
+{
+    use HasOAuthAccounts;
+}
+```
+
+After exchanging an authorization code, save the returned credentials:
+
+```php
+$account = $user->oauthAccounts()->create([
+    'provider' => 'gitlab',
+    'provider_account_id' => $providerUserId,
+    'access_token' => $token->getAccessToken(),
+    'refresh_token' => $token->getRefreshToken(),
+    'expires_at' => $token->getExpiresAt(),
+    'scopes' => $token->getScopes(),
+]);
+
+$request->authenticate($oauth->accountAuthenticator($account));
+```
+
+Access and refresh tokens use encrypted casts and are hidden from model serialization. Client secrets remain in your application configuration. Reconnect by updating the selected account's credential fields, and disconnect locally by deleting the account. Deletion does not revoke the provider grant. The same owner may have several grants for one provider account, so Saloon does not infer which row a reconnect should replace.
+
+To customize the table, connection or token behavior, extend `Hypervel\Saloon\OAuthAccount` and select the model during provider boot, before using accounts:
+
+```php
+use Hypervel\Saloon\OAuthAccounts;
+
+OAuthAccounts::useAccountModel(App\Models\OAuthAccount::class);
+```
+
+Override `newOAuthAuthenticator()` when persisted credentials need custom authentication behavior. The default creates a bearer authenticator. An account authenticator retains the account's storage identity, not a permanent copy of its token.
+
+You may use another OAuth client by supplying a refresh callback. For example, a Socialite provider's refresh result can be adapted without changing Socialite:
+
+```php
+use Hypervel\Saloon\Contracts\OAuthAuthenticator;
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Support\Facades\Date;
+
+$authenticator = $account->authenticator(
+    refreshUsing: function (OAuthAuthenticator $current) use ($provider): OAuthAuthenticator {
+        $token = $provider->refreshToken($current->getRefreshToken());
+
+        return new AccessTokenAuthenticator(
+            accessToken: $token->token,
+            refreshToken: $token->refreshToken,
+            expiresAt: $token->expiresIn === null
+                ? null
+                : Date::now()->addSeconds($token->expiresIn)->toDateTimeImmutable(),
+            scopes: $token->approvedScopes ?: null,
+        );
+    },
+);
+```
+
+Socialite's empty approved-scopes list does not distinguish an omitted field. Mapping it to `null` retains the account's stored scopes; adapters that know the provider explicitly cleared them may return `[]`. Initial Socialite user results expose the raw token response when exact field presence matters.
+
+<a name="oauth-account-caching"></a>
+### Account Caching
+
+Credential caching is disabled by default. Enable it in `config/saloon.php` to avoid database reads on ordinary authenticated calls:
+
+```php
+'oauth_accounts' => [
+    'cache' => [
+        'enabled' => true,
+        'store' => 'redis',
+        'ttl' => 300,
+        'prefix' => 'saloon:oauth-accounts:',
+    ],
+    'lock_store' => null,
+],
+```
+
+The cache stores encrypted model attributes. Normal saves and deletes invalidate the entry after commit; reads inside an application transaction bypass shared caching. Custom account models retain their global scopes and query builders.
+
+The renewal lock store defaults to the account cache store, then the framework default. It is required even when credential caching is disabled. Use Redis or a database store for deployments spanning hosts. File and Swoole stores are supported when their sharing scope covers every worker using the accounts. Worker-local, stack and failover stores are not supported for durable account credentials or renewal locks.
+
+Quiet saves, bulk updates and raw queries have the usual Eloquent responsibilities. After such changes, call `$account->clearCredentialCache()`. Credential changes must also replace `credential_revision`, recompute `refresh_at` and clear obsolete refresh claims. Prefer normal model updates so these steps happen automatically.
+
+The default response-cache key includes the bearer token, so renewed tokens no longer match old response entries. If you choose stable response-cache keys or scopes, preserve account and permission isolation yourself.
+
+<a name="oauth-account-renewal"></a>
+### Account Renewal
+
+Saloon records a fixed early-renewal deadline when credentials are saved. A token without a refresh token remains usable until its actual expiry, then throws `Hypervel\Saloon\Exceptions\OAuthAccountReconnectRequiredException`. Catch this exception to prompt the user to reconnect. Tokens without expiry do not renew automatically.
+
+Renewal rereads the account, records ownership of the attempt, then calls the provider without holding an idle database connection. The replacement is stored before it is applied to a request. A concurrent reconnect, deletion or replacement attempt cannot be overwritten by a late result. Inside a transaction on the account connection, Saloon uses an unexpired token when no attempt holds a refresh claim, deferring early renewal. Otherwise, it rejects renewal before waiting or contacting the provider.
+
+If the returned access token has already expired, Saloon stores the replacement credentials and throws an `UnexpectedValueException` instead of using it. This preserves a rotated refresh token for a later attempt without immediately calling the provider again.
+
+Transient connection failures, selected HTTP errors and temporary OAuth errors receive up to three attempts, with jittered delays capped at 250 and 500 milliseconds. Each attempt rereads current credentials. Longer `Retry-After` delays are returned to the caller for later scheduling. The connector convenience disables nested HTTP retries; custom refresh callbacks must also make one provider attempt per invocation.
+
+An `invalid_grant` response is not retried. Saloon first checks for replacement credentials, then preserves the provider exception if the grant is still rejected. Your application decides how to reconnect or disable the account. `invalid_client` indicates client configuration needs attention; it does not require every user to reconnect. Transient exhaustion preserves the stored grant for a later attempt. Provider responses remain available through their normal exceptions.
+
+The renewal lock lasts 120 seconds, with up to 120 seconds waiting to acquire it. A recorded attempt becomes recoverable after 300 seconds. Keep custom refresh callbacks and timeouts within those bounds; the default HTTP timeouts are 10 seconds connecting and 30 seconds total. Cancellation stops that caller and clears its owned claim where possible. Waiting callers may continue independently.
+
+These measures cannot guarantee exactly one provider request after a crash or ambiguous network failure. A delayed request may overlap recovery, and providers that detect reuse of rotated refresh tokens may revoke the grant. Such accounts need reconnection. Saloon does not run detached refresh tasks or silently retry failed local persistence.
+
+<a name="partitioning-oauth-accounts"></a>
+### Partitioning Accounts
+
+Applications that divide accounts by tenant or another ownership boundary may register a partition resolver during provider boot:
+
+```php
+use Hypervel\Saloon\OAuthAccounts;
+
+OAuthAccounts::resolvePartitionUsing('tenant_id', fn () => $tenancy->currentKey());
+```
+
+Add the partition column and suitable indexes to your published migration. The callback should capture a worker-safe context service and resolve the current key when called. Missing context fails explicitly. New accounts receive that partition and cannot move to another partition. Normal saves and deletes are rejected outside the account's partition. Retained authenticators are checked against it on every use, including warm cache reads and after provider calls.
+
+Your model or integration still owns application-wide query scoping; Saloon does not install a global Eloquent scope. Platform-owned accounts use an explicit platform partition. Cached client-credentials tokens use grant identity instead, allowing identical platform credentials to share a token. Keep merchant-specific headers on the request or connector.
 
 <a name="customizing-oauth-requests"></a>
 ### Customizing OAuth Requests
@@ -1704,15 +1882,15 @@ $authenticator = $connector->getAccessToken(
 
 For providers that require a different request body or token response format, override the protected `resolveAccessTokenRequest`, `resolveRefreshTokenRequest`, `resolveUserRequest`, `createOAuthAuthenticatorFromResponse`, or `createOAuthAuthenticator` method on the connector. These methods let you adapt the provider protocol without replacing the OAuth flow. A PKCE verifier is added to the request your `resolveAccessTokenRequest` method returns.
 
-For example, you may return your own authenticator class. Authorization code connectors receive the access token, refresh token, and expiry, while client credentials connectors receive the access token and expiry:
+For example, you may return your own authenticator class. Authorization code connectors receive the access token, refresh token, expiry and scopes; client credentials connectors receive the access token, expiry and scopes:
 
 ```php
 use DateTimeImmutable;
 use Hypervel\Saloon\Contracts\OAuthAuthenticator;
 
-protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null): OAuthAuthenticator
+protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null, ?array $scopes = null): OAuthAuthenticator
 {
-    return new SpotifyAuthenticator($accessToken, $refreshToken, $expiresAt);
+    return new SpotifyAuthenticator($accessToken, $refreshToken, $expiresAt, $scopes);
 }
 ```
 

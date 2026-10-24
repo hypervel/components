@@ -14,6 +14,8 @@ class AccessTokenAuthenticator implements OAuthAuthenticator
 {
     /**
      * Create an access token authenticator.
+     *
+     * @param null|list<string> $scopes
      */
     public function __construct(
         #[SensitiveParameter]
@@ -21,6 +23,7 @@ class AccessTokenAuthenticator implements OAuthAuthenticator
         #[SensitiveParameter]
         public readonly ?string $refreshToken = null,
         public readonly ?DateTimeImmutable $expiresAt = null,
+        public readonly ?array $scopes = null,
     ) {
     }
 
@@ -70,6 +73,16 @@ class AccessTokenAuthenticator implements OAuthAuthenticator
     public function getExpiresAt(): ?DateTimeImmutable
     {
         return $this->expiresAt;
+    }
+
+    /**
+     * Get the reported scopes.
+     *
+     * @return null|list<string>
+     */
+    public function getScopes(): ?array
+    {
+        return $this->scopes;
     }
 
     /**

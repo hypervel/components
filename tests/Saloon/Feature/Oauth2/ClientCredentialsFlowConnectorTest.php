@@ -125,6 +125,24 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         $this->assertSame(['yee' => 'haw'], $mockClient->lastPendingRequest()->queryParameters());
     }
 
+    public function testAnArrayCallableCanModifyTheTokenRequest(): void
+    {
+        $mockClient = Saloon::fake([MockResponse::make(['access_token' => 'access'])]);
+        $modifier = new class {
+            /**
+             * Add an application header to the token request.
+             */
+            public function modify(Request $request): void
+            {
+                $request->withHeader('X-OAuth-Client', 'application');
+            }
+        };
+
+        (new ClientCredentialsConnector)->getAccessToken(requestModifier: [$modifier, 'modify']);
+
+        $this->assertSame('application', $mockClient->lastPendingRequest()->headers()['X-OAuth-Client']);
+    }
+
     public function testYouCanSendScopesWithTheTokenRequest(): void
     {
         $mockClient = new MockClient([
@@ -302,14 +320,31 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         $this->assertNull($authenticator->getRefreshToken());
     }
 
+    #[DataProvider('scopeConnectors')]
+    public function testReportedScopesArePreservedWithoutInferringRequestedPermissions(ClientCredentialsBasicAuthConnector|ClientCredentialsConnector $connector): void
+    {
+        foreach ([null, '', '   ', 'read write', '0'] as $scope) {
+            Saloon::fake([MockResponse::make(['access_token' => 'access', 'scope' => $scope])]);
+
+            $authenticator = $connector->getAccessToken(['requested']);
+
+            $this->assertSame(match ($scope) {
+                null, '', '   ' => null,
+                '0' => ['0'],
+                default => ['read', 'write'],
+            }, $authenticator->getScopes());
+        }
+    }
+
     public function testACustomAuthenticatorReceivesTheExpiry(): void
     {
         Date::setTestNow('2026-01-01T00:00:00+00:00');
-        Saloon::fake([MockResponse::make(['access_token' => 'access', 'expires_in' => 3600])]);
+        Saloon::fake([MockResponse::make(['access_token' => 'access', 'expires_in' => 3600, 'scope' => 'read'])]);
 
         $authenticator = (new CustomAuthenticatorClientCredentialsConnector)->getAccessToken();
 
         $this->assertInstanceOf(CustomOAuthAuthenticator::class, $authenticator);
+        $this->assertSame(['read'], $authenticator->getScopes());
         $this->assertEquals(new DateTimeImmutable('2026-01-01T01:00:00+00:00'), $authenticator->getExpiresAt());
     }
 
@@ -325,6 +360,7 @@ class ClientCredentialsFlowConnectorTest extends TestCase
             ['access_token' => 'token', 'expires_in' => '1.5'],
             ['access_token' => 'token', 'expires_in' => 1.0E+30],
             ['access_token' => 'token', 'expires_in' => PHP_INT_MAX],
+            ['access_token' => 'token', 'scope' => ['read']],
         ] as $body) {
             Saloon::fake([MockResponse::make($body)]);
 
@@ -371,10 +407,10 @@ class ClientCredentialsFlowConnectorTest extends TestCase
 class CustomAuthenticatorClientCredentialsConnector extends ClientCredentialsConnector
 {
     /**
-     * Create the OAuth authenticator with upstream's client-credentials signature.
+     * Create the custom OAuth authenticator.
      */
-    protected function createOAuthAuthenticator(string $accessToken, ?DateTimeImmutable $expiresAt = null): OAuthAuthenticator
+    protected function createOAuthAuthenticator(string $accessToken, ?DateTimeImmutable $expiresAt = null, ?array $scopes = null): OAuthAuthenticator
     {
-        return new CustomOAuthAuthenticator($accessToken, 'Howdy!', null, $expiresAt);
+        return new CustomOAuthAuthenticator($accessToken, 'Howdy!', null, $expiresAt, $scopes);
     }
 }
