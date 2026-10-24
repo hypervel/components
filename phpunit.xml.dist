@@ -24,7 +24,8 @@
     </extensions>
     <php>
         <ini name="error_reporting" value="-1"/>
-        <ini name="display_errors" value="on"/>
+        <!-- Keep isolated-child startup errors on stderr so PHPUnit reports their cause. -->
+        <ini name="display_errors" value="stderr"/>
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
         <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
