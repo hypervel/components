@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application;
+use ReflectionProperty;
+use Symfony\Component\Console\Terminal;
 
 /**
  * Prevent Symfony Terminal from repeatedly spawning `stty` when headless.
@@ -17,13 +19,6 @@ use Hypervel\Contracts\Foundation\Application;
 class ConfigureTerminalDimensions
 {
     /**
-     * The environment variables populated with framework defaults.
-     *
-     * @var array<string, true>
-     */
-    protected static array $configuredVariables = [];
-
-    /**
      * Configure deterministic dimensions for a headless terminal.
      */
     public function bootstrap(Application $app): void
@@ -32,10 +27,7 @@ class ConfigureTerminalDimensions
     }
 
     /**
-     * Configure deterministic dimensions without requiring an application.
-     *
-     * Defaults are written to the process environment and apply to every
-     * subsequent terminal lookup in the worker.
+     * Configure headless fallback dimensions without modifying the environment.
      */
     public static function configure(): void
     {
@@ -43,27 +35,14 @@ class ConfigureTerminalDimensions
             return;
         }
 
-        if (getenv('COLUMNS') === false) {
-            putenv('COLUMNS=80');
-            static::$configuredVariables['COLUMNS'] = true;
-        }
+        // Symfony has no dimension setter. Fill its cache so defaults cannot mask
+        // later environment loads; getWidth()/getHeight() still prefer explicit values.
+        foreach (['width' => 80, 'height' => 24] as $name => $default) {
+            $property = new ReflectionProperty(Terminal::class, $name);
 
-        if (getenv('LINES') === false) {
-            putenv('LINES=24');
-            static::$configuredVariables['LINES'] = true;
+            if ($property->getValue() === null) {
+                $property->setValue(null, $default);
+            }
         }
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        // Remove only defaults we supplied; explicit shell and XML dimensions must survive.
-        foreach (array_keys(static::$configuredVariables) as $name) {
-            putenv($name);
-        }
-
-        static::$configuredVariables = [];
     }
 }

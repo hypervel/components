@@ -19,7 +19,6 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Events\Dispatcher;
-use Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\Client\PendingRequest;
@@ -56,7 +55,6 @@ use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Override;
 use PDO;
-use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
@@ -328,41 +326,6 @@ class AfterEachTestSubscriberTest extends TestCase
         } finally {
             KeyGenerateCommand::flushState();
         }
-    }
-
-    #[RunInSeparateProcess]
-    public function testFrameworkCleanupRemovesOnlyTerminalDefaults(): void
-    {
-        $subscriber = new class extends AfterEachTestSubscriber {
-            /**
-             * Flush framework state for the test.
-             */
-            public function flushFrameworkStateForTest(): void
-            {
-                $this->flushFrameworkState();
-            }
-        };
-
-        // Forget defaults the test runner supplied before this test body.
-        ConfigureTerminalDimensions::flushState();
-
-        putenv('COLUMNS=200');
-        putenv('LINES');
-        unset($_ENV['COLUMNS'], $_ENV['LINES'], $_SERVER['COLUMNS'], $_SERVER['LINES']);
-
-        ConfigureTerminalDimensions::configure();
-
-        $this->assertSame('24', getenv('LINES'));
-
-        $subscriber->flushFrameworkStateForTest();
-
-        $this->assertFalse(getenv('LINES'));
-        $this->assertSame('200', getenv('COLUMNS'));
-
-        putenv('LINES=40');
-        $subscriber->flushFrameworkStateForTest();
-
-        $this->assertSame('40', getenv('LINES'));
     }
 
     public function testFrameworkCleanupFlushesNestedSetMetadata(): void

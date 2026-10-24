@@ -46,8 +46,8 @@ trait RunTestsInCoroutine
      */
     protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
-        // Workers may not inherit putenv-only dimensions from their parent. Configure
-        // each process before tests enter hooked coroutines, including their own run().
+        // Initialize each test process before it enters hooked coroutines,
+        // including tests that start their own run().
         ConfigureTerminalDimensions::configure();
 
         if (Coroutine::getCid() !== -1 || ! $this->runsTestsInCoroutine()) {

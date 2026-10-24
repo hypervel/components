@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Testing;
 use Hypervel\Testing\UnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use ReflectionProperty;
 use Swoole\Coroutine;
+use Symfony\Component\Console\Terminal;
 
 #[RunTestsInSeparateProcesses]
 class TerminalDimensionsTest extends UnitTestCase
@@ -24,6 +26,8 @@ class TerminalDimensionsTest extends UnitTestCase
         putenv('COLUMNS');
         putenv('LINES');
         unset($_ENV['COLUMNS'], $_ENV['LINES'], $_SERVER['COLUMNS'], $_SERVER['LINES']);
+        (new ReflectionProperty(Terminal::class, 'width'))->setValue(null, null);
+        (new ReflectionProperty(Terminal::class, 'height'))->setValue(null, null);
     }
 
     #[DataProvider('coroutineModes')]
@@ -32,7 +36,8 @@ class TerminalDimensionsTest extends UnitTestCase
         $this->assertFalse(stream_isatty(STDOUT));
         $this->assertSame($runTestsInCoroutine, Coroutine::getCid() !== -1);
 
-        $this->assertSame(['80', '24'], [getenv('COLUMNS'), getenv('LINES')]);
+        $this->assertSame([false, false], [getenv('COLUMNS'), getenv('LINES')]);
+        $this->assertSame([80, 24], [(new Terminal)->getWidth(), (new Terminal)->getHeight()]);
     }
 
     /**
