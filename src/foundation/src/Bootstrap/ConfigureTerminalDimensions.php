@@ -17,6 +17,13 @@ use Hypervel\Contracts\Foundation\Application;
 class ConfigureTerminalDimensions
 {
     /**
+     * The environment variables populated with framework defaults.
+     *
+     * @var array<string, true>
+     */
+    protected static array $configuredVariables = [];
+
+    /**
      * Configure deterministic dimensions for a headless terminal.
      */
     public function bootstrap(Application $app): void
@@ -38,10 +45,25 @@ class ConfigureTerminalDimensions
 
         if (getenv('COLUMNS') === false) {
             putenv('COLUMNS=80');
+            static::$configuredVariables['COLUMNS'] = true;
         }
 
         if (getenv('LINES') === false) {
             putenv('LINES=24');
+            static::$configuredVariables['LINES'] = true;
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        // Remove only defaults we supplied; explicit shell and XML dimensions must survive.
+        foreach (array_keys(static::$configuredVariables) as $name) {
+            putenv($name);
+        }
+
+        static::$configuredVariables = [];
     }
 }
