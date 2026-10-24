@@ -124,16 +124,6 @@ class ConfigureTerminalDimensionsTest extends TestCase
         $this->assertSame([true, false, false, null, null], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
-    public function testKernelsIncludeTerminalDimensionsBootstrapper(): void
-    {
-        foreach ([HttpKernel::class, ConsoleKernel::class] as $kernel) {
-            $this->assertContains(
-                ConfigureTerminalDimensions::class,
-                $this->getBootstrappers($kernel),
-            );
-        }
-    }
-
     public function testTerminalDimensionsAreConfiguredBeforeProvidersAreRegistered(): void
     {
         foreach ([HttpKernel::class, ConsoleKernel::class] as $kernel) {
