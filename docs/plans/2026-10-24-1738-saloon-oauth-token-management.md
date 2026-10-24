@@ -9,7 +9,7 @@ Add two opt-in capabilities to `hypervel/saloon`:
 
 Keep manual grant methods, immutable connectors, existing authenticators, request modifiers and application-owned provider credentials. Applications choose their cache stores and publish the account migration only when using durable accounts. No new package, store-driver abstraction, provider registry, scheduler or UI is needed.
 
-Status: implemented, verified and reviewed; ready for a framework PR. The only approved existing API departure is scope metadata on `OAuthAuthenticator`, `AccessTokenAuthenticator` and the corresponding grant factories. No Socialite API change is required.
+Status: in PR review; complete the remaining CI/bot review cycle before merge. The only approved existing API departure is scope metadata on `OAuthAuthenticator`, `AccessTokenAuthenticator` and the corresponding grant factories. No Socialite API change is required.
 
 ## Existing boundaries and evidence
 
@@ -138,11 +138,11 @@ Add `make:oauth-accounts-table`, alias `oauth-accounts:table`, using `MigrationG
 | `owner_type`, `owner_id` | Morph owner, using framework morph-key conventions |
 | `provider`, nullable `provider_account_id` | Provider reference and optional external account identifier |
 | `access_token`, nullable `refresh_token` | Text columns, encrypted casts and hidden serialization |
-| nullable `expires_at` | UTC `dateTime`, immutable cast |
-| nullable `refresh_at` | UTC `dateTime`, immutable cast; fixed early-renewal time calculated when credentials are installed |
+| nullable `expires_at` | `dateTime`, immutable cast using the application's date conventions |
+| nullable `refresh_at` | `dateTime`, immutable cast; fixed early-renewal time calculated when credentials are installed |
 | nullable `scopes` | `text()`, array cast; opaque list read back whole, preserving omission versus empty set |
 | `credential_revision` | Fresh UUID whenever credentials change |
-| nullable `refresh_claim`, `refresh_started_at` | UUID ownership of one renewal attempt and UTC `timestamp()` recording its start |
+| nullable `refresh_claim`, `refresh_started_at` | UUID ownership of one renewal attempt and `timestamp()` recording its start |
 | timestamps | Ordinary created/updated timestamps |
 
 Index owner lookup and provider/external-account lookup. Do not impose uniqueness on owner + provider + external account: distinct client registrations or permission grants may legitimately share those values. Reconnect replaces a selected account row's credentials; it is not inferred from that tuple.
@@ -160,7 +160,7 @@ Add `saloon.oauth_accounts.cache` with `enabled` (false), `store` (null = framew
 - Cache enabled: use `ModelCacheCoordinator` and `ModelCacheStoreValidator`; cache a relations-unset model, using normal encrypted casts and model serialization. Register the configured model with the cache serialization policy.
 - Warm cache hits require no database query and no per-request write. No `last_used_at` update or worker-lifetime private token slot for durable accounts.
 - Cache disabled: read the authoritative row; renewal still uses the shared lock store.
-- Key identity encodes model class, captured resolved connection **name**, table name, account ID and partition, hashed with SHA-256. Capture the selected connection name even when the model normally follows the default. Do not inspect physical database configuration; connection names separate ordinary multiple-connection/table uses, while the partition separates scoped databases behind one connection. Reuse the identity for reads, writes, invalidation and locks; cache-fill and renewal locks are distinct.
+- Key identity encodes model class, captured resolved connection **name**, table name, account ID and partition, hashed with SHA-256. Capture the selected connection even when the model follows the default. Write aliases retain their requested connection for transactions but normalize to the base name in the hash. Do not inspect physical database configuration. Reuse the identity for reads, writes, invalidation and locks; cache-fill and renewal locks are distinct.
 - Stores must span the deployment using those accounts. Redis/database suit multiple hosts; file/Swoole scope must match the deployment. Reject worker-local/stack/failover stores for durable credential caching; never hide a cache outage by serving stale credentials.
 - Use writer reads for renewal and recovery. Never publish uncommitted credentials. Cache writes and invalidations follow `afterCommitOrNow`; normal application transactions bypass shared fills through the existing coordinator.
 
@@ -173,18 +173,18 @@ Renewal uses a short cache lock for waiting and a committed row claim for coordi
 When installing credentials, compute `refresh_at` once using the same expiry calculation as cached acquisition: `expires_at - min(30 seconds, remaining lifetime / 2)`. Recompute on successful renewal or a replacement access token/expiry, never on cache reads or unrelated metadata saves. Persisting this deadline avoids both resetting it on reads and immediately re-renewing short-lived tokens.
 
 - Before `refresh_at`, apply usable credentials without renewal. A current claim still takes precedence over the old token.
-- At/after `refresh_at`, renew if a refresh token exists. Without one, use the access token until its actual expiry, then throw `OAuthAccountReconnectRequiredException` before taking a claim.
+- At/after `refresh_at`, renew if a refresh token exists. Inside a caller transaction, defer early renewal while the token remains unexpired and has no claim. Without a refresh token, use the access token until its actual expiry, then throw `OAuthAccountReconnectRequiredException` before taking a claim.
 - No expiry means no automatic renewal and a null renewal time.
 
 ### One attempt
 
-1. Resolve/check the current partition, then enter worker-local acquisition coordination. Existing same-worker waiters share the entire bounded attempt chain and its final result/error.
-2. Acquire the account's cache lock, then reread the writer. If another attempt installed usable credentials, use them. Missing/deleted accounts fail; never recreate them. A present claim blocks use of the old token because some providers invalidate it immediately on refresh.
-3. Reject renewal while the account connection has an applicable caller transaction. This avoids remote rotation followed by rollback, uncommitted account reads, and caller/child row-lock deadlocks. Do not escape the caller into a detached coroutine.
+1. Resolve/check the current partition and read credentials. Inside an applicable caller transaction, an unexpired token without a claim remains usable, including during the early-renewal window. Otherwise reject renewal before waiting or contacting the provider. Do not escape the caller into a detached coroutine.
+2. Enter worker-local acquisition coordination. Existing same-worker waiters share the entire bounded attempt chain and its final result/error.
+3. Acquire the account's cache lock, then reread the writer. If another attempt installed usable credentials, use them. Missing/deleted accounts fail; never recreate them. A present claim blocks use of the old token because some providers invalidate it immediately on refresh.
 4. Validate locally before claiming. Atomically set a fresh `refresh_claim` UUID and `refresh_started_at`, conditioned on account, partition, credential revision and a null or abandoned claim. A claim is abandoned after 300 seconds. This is a recovery interval, not proof that the old provider operation has ended.
 5. Commit the claim and invalidate its cache before provider I/O. Proceed only when one row changed; an uncertain claim write does not authorize a provider request. Release idle database connections.
 6. Invoke one provider refresh attempt. The Saloon convenience applies the caller's modifier, then disables transport retries for this request. Custom callbacks must also perform one provider attempt.
-7. On success, reject an already-expired result, prepare encrypted credentials through the model's casts, retain omitted refresh token/scopes, calculate `refresh_at`, and conditionally store credentials + a fresh revision + cleared claim. Match account, partition, read credential revision **and claim UUID**. Commit and invalidate before exposing the result through the model's token factory. On a lost comparison, reread the account; never return the losing result or overwrite a reconnect. Do not repeat provider refresh merely because persistence or cache invalidation failed.
+7. On success, prepare encrypted credentials through the model's casts, retain omitted refresh token/scopes, calculate `refresh_at`, and conditionally store credentials + a fresh revision + cleared claim. Match account, partition, read credential revision **and claim UUID**. Commit and invalidate before exposing the result through the model's token factory. Reject an expired access token after persistence so its rotated refresh token remains available for a later attempt; do not retry immediately. On a lost comparison, reread the account; never return the losing result or overwrite a reconnect. Do not repeat provider refresh merely because persistence or cache invalidation failed.
 8. On failure/cancellation, conditionally clear only this attempt's claim and invalidate. Do not clear a successor's claim. A process crash or failed cleanup leaves a reclaimable claim. Propagate cancellation unchanged; never start its next retry. Preserve the primary failure if cleanup also fails, reporting the cleanup failure without credentials.
 9. Release the cache lock in `finally`. No transaction or pooled connection is held while waiting or during HTTP.
 
@@ -207,7 +207,7 @@ Tests must exercise late completion after claim replacement and cancellation, no
 
 Expose boot-only `OAuthAccounts::resolvePartitionUsing(string $column, Closure $resolver)`, beside `useAccountModel()` and its `accountModel()` getter. Follow Permission's SQL-column validation and registration-before-use guard. Seal configuration on first account operation, not a harmless model-class getter, so application boot can override a default model before use. A configured resolver returns the current nonempty string or integer partition; missing context fails explicitly. An unconfigured ordinary application has no partition column requirement.
 
-- Creating an account fills the partition column from the resolver and rejects a conflicting supplied value.
+- Creating an account fills the partition column from the resolver and rejects a conflicting supplied value. Existing accounts cannot change partition; normal saves and deletes validate the current partition before writing.
 - Capture the **persisted** partition when constructing its authenticator. Validate it against the current resolver on every apply, including cache hits, and after yielding before using credentials or publishing changes.
 - Saloon's account reads, claims, conditional writes and invalidations always include that partition. A UUID alone is not authorization.
 - Do not add an application-wide Eloquent global scope in Saloon. Applications/integrations own query policy and schema columns. A model scope alone cannot protect warmed cache entries or retained authenticators.

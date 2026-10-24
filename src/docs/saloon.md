@@ -1823,7 +1823,9 @@ The default response-cache key includes the bearer token, so renewed tokens no l
 
 Saloon records a fixed early-renewal deadline when credentials are saved. A token without a refresh token remains usable until its actual expiry, then throws `Hypervel\Saloon\Exceptions\OAuthAccountReconnectRequiredException`. Catch this exception to prompt the user to reconnect. Tokens without expiry do not renew automatically.
 
-Renewal rereads the account, records ownership of the attempt, then calls the provider without holding an idle database connection. The replacement is stored before it is applied to a request. A concurrent reconnect, deletion or replacement attempt cannot be overwritten by a late result. Renewal is rejected inside a transaction on the account connection, before contacting the provider.
+Renewal rereads the account, records ownership of the attempt, then calls the provider without holding an idle database connection. The replacement is stored before it is applied to a request. A concurrent reconnect, deletion or replacement attempt cannot be overwritten by a late result. Inside a transaction on the account connection, Saloon uses an unexpired token when no attempt holds a refresh claim, deferring early renewal. Otherwise, it rejects renewal before waiting or contacting the provider.
+
+If the returned access token has already expired, Saloon stores the replacement credentials and throws an `UnexpectedValueException` instead of using it. This preserves a rotated refresh token for a later attempt without immediately calling the provider again.
 
 Transient connection failures, selected HTTP errors and temporary OAuth errors receive up to three attempts, with jittered delays capped at 250 and 500 milliseconds. Each attempt rereads current credentials. Longer `Retry-After` delays are returned to the caller for later scheduling. The connector convenience disables nested HTTP retries; custom refresh callbacks must also make one provider attempt per invocation.
 
@@ -1844,7 +1846,7 @@ use Hypervel\Saloon\OAuthAccounts;
 OAuthAccounts::resolvePartitionUsing('tenant_id', fn () => $tenancy->currentKey());
 ```
 
-Add the partition column and suitable indexes to your published migration. The callback should capture a worker-safe context service and resolve the current key when called. Missing context fails explicitly. New accounts receive that partition, and retained authenticators are checked against it on every use, including warm cache reads and after provider calls.
+Add the partition column and suitable indexes to your published migration. The callback should capture a worker-safe context service and resolve the current key when called. Missing context fails explicitly. New accounts receive that partition and cannot move to another partition. Normal saves and deletes are rejected outside the account's partition. Retained authenticators are checked against it on every use, including warm cache reads and after provider calls.
 
 Your model or integration still owns application-wide query scoping; Saloon does not install a global Eloquent scope. Platform-owned accounts use an explicit platform partition. Cached client-credentials tokens use grant identity instead, allowing identical platform credentials to share a token. Keep merchant-specific headers on the request or connector.
 
