@@ -60,11 +60,7 @@ class OAuthAccount extends Model
         static::saving(function (self $account): void {
             $accounts = Container::getInstance()->make(OAuthAccounts::class);
 
-            if (! $account->exists) {
-                $accounts->prepareAccount($account);
-            } else {
-                $accounts->identity($account);
-            }
+            $accounts->prepareAccount($account);
 
             if (! $account->exists || $account->isDirty(['access_token', 'refresh_token', 'expires_at', 'scopes'])) {
                 $account->credential_revision = (string) Str::uuid();
@@ -73,12 +69,14 @@ class OAuthAccount extends Model
             }
 
             if (! $account->exists || $account->isDirty(['access_token', 'expires_at'])) {
-                $refreshAt = TokenExpiry::refreshAt($account->expires_at);
-                $account->refresh_at = $refreshAt === null ? null : CarbonImmutable::createFromTimestampUTC($refreshAt);
+                $account->setAttribute('refresh_at', TokenExpiry::refreshAt($account->expires_at));
             }
         });
 
         static::saved(static fn (self $account) => $account->clearCredentialCache());
+        static::deleting(static function (self $account): void {
+            Container::getInstance()->make(OAuthAccounts::class)->identity($account);
+        });
         static::deleted(static fn (self $account) => $account->clearCredentialCache());
     }
 

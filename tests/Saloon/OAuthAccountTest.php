@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\OAuthAccountTest;
 
+use DateTimeImmutable;
 use GuzzleHttp\Exception\ResponseTransferException;
 use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Request as PsrRequest;
@@ -207,9 +208,59 @@ class OAuthAccountTest extends TestCase
 
         $account->update(['access_token' => 'second']);
         $this->assertSame('second', $accounts->find($identity)->access_token);
+        $deleting = false;
+        OAuthAccount::deleting(static function () use (&$deleting): void {
+            $deleting = true;
+        });
         $account->delete();
+        $this->assertTrue($deleting);
         $this->expectException(ModelNotFoundException::class);
         $accounts->find($identity);
+    }
+
+    public function testWriteAliasesShareCredentialInvalidation(): void
+    {
+        $account = Owner::create()->oauthAccounts()->create(['provider' => 'example', 'access_token' => 'old']);
+        $accounts = $this->app->make(OAuthAccounts::class);
+        $identity = $accounts->identity($account);
+        $authenticator = $account->authenticator(fn (): never => $this->fail('Non-expiring credentials must not refresh.'));
+        $this->assertSame('Bearer old', $this->authorization($authenticator));
+
+        $write = $account->fresh()->setConnection('oauth::write');
+        $writeIdentity = $accounts->identity($write);
+        $this->assertSame($identity->key, $writeIdentity->key);
+        $this->assertSame('oauth::write', $writeIdentity->connection);
+        $write->update(['access_token' => 'new']);
+        $this->assertSame('Bearer new', $this->authorization($authenticator));
+
+        $write->delete();
+        $this->expectException(ModelNotFoundException::class);
+        $this->authorization($authenticator);
+    }
+
+    public function testNonUtcDatesPreserveExpiryAndRenewalInstants(): void
+    {
+        $timezone = date_default_timezone_get();
+        date_default_timezone_set('America/New_York');
+
+        try {
+            Date::setTestNow('2026-01-01 00:00:00');
+            $account = Owner::create()->oauthAccounts()->create([
+                'provider' => 'example', 'access_token' => 'old', 'refresh_token' => 'refresh',
+                'expires_at' => Date::now()->addHour(),
+            ]);
+            $this->assertSame(Date::now()->addHour()->getTimestamp() - 30, $account->fresh()->refresh_at->getTimestamp());
+            Date::setTestNow('2026-01-01 00:59:30');
+            $expiry = new DateTimeImmutable('2026-01-01 07:00:00 UTC');
+            $authenticator = $account->authenticator(fn (): OAuthAuthenticator => new AccessTokenAuthenticator('renewed', expiresAt: $expiry));
+
+            $this->assertSame('Bearer renewed', $this->authorization($authenticator));
+            $persisted = $account->fresh();
+            $this->assertSame($expiry->getTimestamp(), $persisted->expires_at->getTimestamp());
+            $this->assertSame($expiry->getTimestamp() - 30, $persisted->refresh_at->getTimestamp());
+        } finally {
+            date_default_timezone_set($timezone);
+        }
     }
 
     #[DefineEnvironment('disableCredentialCache')]
@@ -406,6 +457,51 @@ class OAuthAccountTest extends TestCase
         $account->save();
     }
 
+    public function testSavingCannotMoveAnAccountToAnotherPartition(): void
+    {
+        Schema::table('oauth_accounts', fn (Blueprint $table) => $table->string('partition_id')->nullable());
+        OAuthAccounts::resolvePartitionUsing('partition_id', static fn (): string => 'first');
+        $account = Owner::create()->oauthAccounts()->create(['provider' => 'example', 'access_token' => 'secret']);
+        $account->partition_id = 'second';
+
+        try {
+            $account->save();
+            $this->fail('An existing account must retain its partition.');
+        } catch (LogicException $exception) {
+            $this->assertSame('An OAuth account cannot move to another partition.', $exception->getMessage());
+        }
+
+        $this->assertSame('first', $account->fresh()->partition_id);
+    }
+
+    #[TestWith(['save'])]
+    #[TestWith(['delete'])]
+    public function testMutationsRejectAnotherPartitionBeforeChangingTheRow(string $operation): void
+    {
+        Schema::table('oauth_accounts', fn (Blueprint $table) => $table->string('partition_id')->nullable());
+        $partition = 'first';
+        OAuthAccounts::resolvePartitionUsing('partition_id', static function () use (&$partition): string {
+            return $partition;
+        });
+        $account = Owner::create()->oauthAccounts()->create(['provider' => 'example', 'access_token' => 'secret']);
+        $authenticator = $account->authenticator(fn (): never => $this->fail('Non-expiring credentials must not refresh.'));
+        $this->assertSame('Bearer secret', $this->authorization($authenticator));
+        $account->access_token = 'changed';
+        $partition = 'second';
+
+        try {
+            $account->{$operation}();
+            $this->fail('An account mutation must reject another partition.');
+        } catch (LogicException $exception) {
+            $this->assertSame('The OAuth account belongs to another partition.', $exception->getMessage());
+        } finally {
+            $partition = 'first';
+        }
+
+        $this->assertSame('secret', $account->fresh()->access_token);
+        $this->assertSame('Bearer secret', $this->authorization($authenticator));
+    }
+
     public function testMissingPartitionContextRejectsCreation(): void
     {
         OAuthAccounts::resolvePartitionUsing('partition_id', static fn (): null => null);
@@ -444,20 +540,69 @@ class OAuthAccountTest extends TestCase
         $this->assertNotSame($account->credential_revision, $persisted->credential_revision);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTransactionsDeferEarlyRenewalUntilActualExpiry(bool $expired): void
+    {
+        $account = $this->refreshableAccount();
+        $authenticator = $account->authenticator(fn (): never => $this->fail('A caller transaction must not invoke the provider.'));
+
+        if ($expired) {
+            Date::setTestNow('2026-01-01 00:00:10');
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage('inside a database transaction');
+        }
+
+        DB::transaction(function () use ($authenticator): void {
+            $this->assertSame('Bearer old', $this->authorization($authenticator));
+        });
+    }
+
     public function testRenewalRejectsCallerTransactionsWithoutReleasingThem(): void
     {
         $account = $this->refreshableAccount();
-        $authenticator = $account->authenticator(fn (): never => $this->fail('A caller transaction must prevent provider I/O.'));
-        DB::beginTransaction();
+        $entered = new Channel(1);
+        $release = new Channel(1);
+        $result = new Channel(1);
+        $authenticator = $account->authenticator(function () use ($entered, $release): OAuthAuthenticator {
+            $entered->push(true);
+            $release->pop(5);
+
+            return new AccessTokenAuthenticator('renewed');
+        });
+        DB::releaseIdleConnections();
+        $owner = go(function () use ($authenticator, $result): void {
+            try {
+                $result->push($this->authorization($authenticator));
+            } catch (Throwable $exception) {
+                $result->push($exception);
+            }
+        });
 
         try {
-            $this->expectException(LogicException::class);
-            $this->expectExceptionMessage('inside a database transaction');
-            $this->authorization($authenticator);
+            $this->assertTrue($entered->pop(2));
+            DB::beginTransaction();
+            try {
+                $this->authorization($authenticator);
+                $this->fail('A transactional caller must not wait for another renewal.');
+            } catch (LogicException $exception) {
+                $this->assertStringContainsString('inside a database transaction', $exception->getMessage());
+                $this->assertSame(1, DB::transactionLevel());
+                $this->assertSame(0, $this->app->make(PoolManager::class)->pool('oauth')->getIdleCount());
+            } finally {
+                DB::rollBack();
+                DB::releaseIdleConnections();
+                $release->push(true);
+            }
+            $this->assertSame('Bearer renewed', $result->pop(2));
+            DB::transaction(function () use ($authenticator): void {
+                $this->assertSame('Bearer renewed', $this->authorization($authenticator));
+            });
         } finally {
-            $this->assertSame(1, DB::transactionLevel());
-            $this->assertSame(0, $this->app->make(PoolManager::class)->pool('oauth')->getIdleCount());
-            DB::rollBack();
+            $release->close();
+            EngineCoroutine::join([$owner], 2);
+            $entered->close();
+            $result->close();
         }
     }
 
@@ -509,13 +654,15 @@ class OAuthAccountTest extends TestCase
         ];
     }
 
-    public function testLateProviderSuccessCannotOverwriteAReconnect(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLateProviderSuccessCannotOverwriteAReconnect(bool $expired): void
     {
         $account = $this->refreshableAccount();
-        $authenticator = $account->authenticator(function () use ($account): OAuthAuthenticator {
+        $authenticator = $account->authenticator(function () use ($account, $expired): OAuthAuthenticator {
             $account->fresh()->update(['access_token' => 'reconnected', 'refresh_token' => 'new-grant', 'expires_at' => null]);
 
-            return new AccessTokenAuthenticator('loser', 'loser-refresh', Date::now()->addHour()->toDateTimeImmutable());
+            return new AccessTokenAuthenticator('loser', 'loser-refresh', Date::now()->addSeconds($expired ? 0 : 3600)->toDateTimeImmutable());
         });
 
         $this->assertSame('Bearer reconnected', $this->authorization($authenticator));
@@ -559,6 +706,25 @@ class OAuthAccountTest extends TestCase
         $this->assertSame('replacement', $account->fresh()->refresh_token);
     }
 
+    public function testConcurrentDeletionPreservesTheProviderRejection(): void
+    {
+        $account = $this->refreshableAccount();
+        $failure = new RequestException(new Response(new PsrResponse(400, [], '{"error":"invalid_grant"}')));
+        $authenticator = $account->authenticator(function () use ($account, $failure): never {
+            $account->fresh()->delete();
+            throw $failure;
+        });
+
+        try {
+            $this->authorization($authenticator);
+            $this->fail('The provider rejection must reach the caller.');
+        } catch (RequestException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertNull($account->fresh());
+    }
+
     public function testLateSuccessCannotOverwriteAReplacedClaimWithTheSameRevision(): void
     {
         $account = $this->refreshableAccount();
@@ -584,24 +750,35 @@ class OAuthAccountTest extends TestCase
         $this->assertSame($successor, $account->fresh()->refresh_claim);
     }
 
-    public function testExpiredProviderResultIsNotStoredOrRetried(): void
+    public function testExpiredProviderResultRetainsRotatedCredentialsForALaterAttempt(): void
     {
         $account = $this->refreshableAccount();
         $calls = 0;
-        $authenticator = $account->authenticator(function () use (&$calls): OAuthAuthenticator {
+        $authenticator = $account->authenticator(function (OAuthAuthenticator $current) use (&$calls): OAuthAuthenticator {
             ++$calls;
 
-            return new AccessTokenAuthenticator('expired', expiresAt: Date::now()->toDateTimeImmutable());
+            if ($calls === 1) {
+                return new AccessTokenAuthenticator('expired', 'rotated', Date::now()->toDateTimeImmutable());
+            }
+
+            $this->assertSame('rotated', $current->getRefreshToken());
+
+            return new AccessTokenAuthenticator('usable');
         });
-        $this->expectException(UnexpectedValueException::class);
 
         try {
             $this->authorization($authenticator);
-        } finally {
-            $this->assertSame(1, $calls);
-            $this->assertSame('old', $account->fresh()->access_token);
-            $this->assertNull($account->fresh()->refresh_claim);
+            $this->fail('An expired token must not be used.');
+        } catch (UnexpectedValueException $exception) {
+            $this->assertSame('The refreshed OAuth token has already expired.', $exception->getMessage());
         }
+
+        $this->assertSame(1, $calls);
+        $this->assertSame('expired', $account->fresh()->access_token);
+        $this->assertSame('rotated', $account->fresh()->refresh_token);
+        $this->assertNull($account->fresh()->refresh_claim);
+        $this->assertSame('Bearer usable', $this->authorization($authenticator));
+        $this->assertSame(2, $calls);
     }
 
     public function testUnrefreshableTokenWorksUntilItsActualExpiry(): void

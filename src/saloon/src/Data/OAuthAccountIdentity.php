@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Data;
 
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Saloon\OAuthAccount;
 
@@ -24,7 +25,7 @@ final readonly class OAuthAccountIdentity
         public ?string $partitionColumn,
         public ?string $partition,
     ) {
-        $this->key = hash('sha256', serialize([$model, $connection, $table, (string) $id, $partitionColumn, $partition]));
+        $this->key = hash('sha256', serialize([$model, ConnectionName::withoutWriteType($connection), $table, (string) $id, $partitionColumn, $partition]));
     }
 
     /**

@@ -26,7 +26,6 @@ use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Http\Auth\TokenAcquisition;
 use Hypervel\Saloon\Http\Auth\TokenExpiry;
 use Hypervel\Saloon\Http\RetryAfter;
-use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -150,10 +149,20 @@ class OAuthAccounts
     }
 
     /**
-     * Fill the partition of a new account without accepting another context's value.
+     * Validate an existing account's partition or fill it for a new account.
      */
     public function prepareAccount(OAuthAccount $account): void
     {
+        if ($account->exists) {
+            $this->identity($account);
+
+            if (static::$partitionColumn !== null && $account->isDirty(static::$partitionColumn)) {
+                throw new LogicException('An OAuth account cannot move to another partition.');
+            }
+
+            return;
+        }
+
         $partition = $this->partition();
 
         if (static::$partitionColumn === null) {
@@ -262,8 +271,18 @@ class OAuthAccounts
      */
     public function token(OAuthAccountIdentity $identity, Closure $refreshUsing): OAuthAuthenticator
     {
-        if (($token = $this->usableToken($this->find($identity))) !== null) {
+        $account = $this->find($identity);
+
+        if (($token = $this->usableToken($account)) !== null) {
             return $token;
+        }
+
+        if ($identity->newModel()->hasApplicableTransaction()) {
+            if ($account->refresh_claim === null && ($token = $account->newOAuthAuthenticator())->hasNotExpired()) {
+                return $token;
+            }
+
+            throw new LogicException('OAuth account renewal cannot run inside a database transaction.');
         }
 
         $cache = $this->renewalCache();
@@ -334,10 +353,6 @@ class OAuthAccounts
             return $token;
         }
 
-        if ($account->hasApplicableTransaction()) {
-            throw new LogicException('OAuth account renewal cannot run inside a database transaction.');
-        }
-
         $abandonedBefore = Date::now()->subSeconds(300);
 
         if ($account->refresh_claim !== null && ($account->refresh_started_at === null || $account->refresh_started_at > $abandonedBefore)) {
@@ -373,17 +388,13 @@ class OAuthAccounts
 
             $this->ensurePartition($identity);
 
-            if ($renewed->hasExpired()) {
-                throw new UnexpectedValueException('The refreshed OAuth token has already expired.');
-            }
-
             $refreshAt = TokenExpiry::refreshAt($renewed->getExpiresAt());
             $replacement = clone $account;
             $replacement->forceFill([
                 'access_token' => $renewed->getAccessToken(),
                 'refresh_token' => $renewed->getRefreshToken() ?? $account->refresh_token,
-                'expires_at' => $renewed->getExpiresAt(),
-                'refresh_at' => $refreshAt === null ? null : CarbonImmutable::createFromTimestampUTC($refreshAt),
+                'expires_at' => $renewed->getExpiresAt()?->getTimestamp(),
+                'refresh_at' => $refreshAt,
                 'scopes' => $renewed->getScopes() ?? $account->scopes,
                 'credential_revision' => (string) Str::uuid(),
                 'refresh_claim' => null,
@@ -395,7 +406,16 @@ class OAuthAccounts
             $this->invalidate($identity);
             $this->ensurePartition($identity);
 
-            return $written === 1 ? $replacement->newOAuthAuthenticator() : $this->replacementToken($identity);
+            if ($written !== 1) {
+                return $this->replacementToken($identity);
+            }
+
+            // Persist rotated refresh credentials even if the returned access token is no longer usable.
+            if ($renewed->hasExpired()) {
+                throw new UnexpectedValueException('The refreshed OAuth token has already expired.');
+            }
+
+            return $replacement->newOAuthAuthenticator();
         } catch (Throwable $exception) {
             try {
                 // Release only this captured claim, even if the callback changed the current partition.
@@ -414,10 +434,10 @@ class OAuthAccounts
 
             if ($oauthError === 'invalid_grant') {
                 $this->ensurePartition($identity);
-                $latest = $identity->query()->useWritePdo()->firstOrFail();
+                $latest = $identity->query()->useWritePdo()->first();
                 $this->ensurePartition($identity);
 
-                if ($latest->credential_revision !== $revision) {
+                if ($latest !== null && $latest->credential_revision !== $revision) {
                     return $this->usableToken($latest)
                         ?? throw new RuntimeException('The replacement OAuth credentials are awaiting renewal. Try again later.');
                 }
