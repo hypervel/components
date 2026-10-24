@@ -9,7 +9,7 @@ Add two opt-in capabilities to `hypervel/saloon`:
 
 Keep manual grant methods, immutable connectors, existing authenticators, request modifiers and application-owned provider credentials. Applications choose their cache stores and publish the account migration only when using durable accounts. No new package, store-driver abstraction, provider registry, scheduler or UI is needed.
 
-Status: ready for implementation; implementation has not started. Implement in the `components-saloon` worktree. The only approved existing API departure is scope metadata on `OAuthAuthenticator`, `AccessTokenAuthenticator` and the corresponding grant factories. No Socialite API change is required.
+Status: implemented, verified and reviewed; ready for a framework PR. The only approved existing API departure is scope metadata on `OAuthAuthenticator`, `AccessTokenAuthenticator` and the corresponding grant factories. No Socialite API change is required.
 
 ## Existing boundaries and evidence
 
@@ -173,7 +173,7 @@ Renewal uses a short cache lock for waiting and a committed row claim for coordi
 When installing credentials, compute `refresh_at` once using the same expiry calculation as cached acquisition: `expires_at - min(30 seconds, remaining lifetime / 2)`. Recompute on successful renewal or a replacement access token/expiry, never on cache reads or unrelated metadata saves. Persisting this deadline avoids both resetting it on reads and immediately re-renewing short-lived tokens.
 
 - Before `refresh_at`, apply usable credentials without renewal. A current claim still takes precedence over the old token.
-- At/after `refresh_at`, renew if a refresh token exists. Without one, use the access token until its actual expiry, then fail explicitly as needing reconnection before taking a claim.
+- At/after `refresh_at`, renew if a refresh token exists. Without one, use the access token until its actual expiry, then throw `OAuthAccountReconnectRequiredException` before taking a claim.
 - No expiry means no automatic renewal and a null renewal time.
 
 ### One attempt
@@ -229,7 +229,7 @@ Update `src/docs/saloon.md` in its existing Laravel-docs style:
 
 ## 7. Implementation and verification
 
-Implement metadata and cached acquisition, then account persistence/cache/partitioning, then renewal/recovery and documentation as coherent slices. One final code-review boundary covers the complete feature. No source implementation is authorized by this planning task itself.
+Implement metadata and cached acquisition, then account persistence/cache/partitioning, then renewal/recovery and documentation as coherent slices. One final code-review boundary covers the complete feature.
 
 Before adding tests, inspect existing coverage and extend it where practical. The focused matrix is:
 

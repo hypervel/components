@@ -586,6 +586,8 @@ Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, p
 
 Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
 
+Custom OAuth authenticators must implement `getScopes(): ?array`. Overrides of either grant's `createOAuthAuthenticator()` factory append `?array $scopes = null` and pass it to the authenticator. Return `null` for unreported scopes and `[]` for an explicitly empty set. See [customizing OAuth requests](/docs/{{version}}/saloon#customizing-oauth-requests).
+
 <a name="broadcasting"></a>
 ### Broadcasting
 
