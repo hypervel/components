@@ -1180,7 +1180,7 @@ The command supports the following options:
 | Option | Description |
 | --- | --- |
 | `--without-tty` | Disable TTY output. |
-| `--configuration=` | Read PHPUnit configuration from the given XML file. |
+| `-c`, `--configuration=` | Read PHPUnit configuration from the given XML file or directory. |
 | `--coverage` | Collect code coverage. |
 | `--min=` | Fail when coverage is below the given percentage. |
 | `--parallel` | Run tests in parallel through ParaTest. |

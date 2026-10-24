@@ -234,13 +234,24 @@ abstract class TestCommandBase extends Command
     public function phpUnitConfigurationFile(): string
     {
         $configuration = $this->option('configuration');
-        $configurationFile = str_replace('./', '', is_string($configuration) && $configuration !== '' ? $configuration : 'phpunit.xml');
+        $configurationFiles = ['phpunit.xml', 'phpunit.dist.xml', 'phpunit.xml.dist'];
+        $directory = $this->basePath();
+        $fallback = './';
 
-        $file = (new Collection([
-            $this->basePath($configurationFile),
-            $this->basePath("{$configurationFile}.dist"),
-        ]))->filter(static fn (string $path): bool => is_file($path))
-            ->first() ?? './';
+        if (is_string($configuration) && $configuration !== '') {
+            $fallback = str_starts_with($configuration, DIRECTORY_SEPARATOR) ? $configuration : $this->basePath($configuration);
+
+            if (is_dir($fallback)) {
+                $directory = $fallback;
+            } else {
+                $configurationFiles = [$fallback, "{$fallback}.dist"];
+            }
+        }
+
+        $file = (new Collection($configurationFiles))
+            ->map(fn (string $path): string => str_starts_with($path, DIRECTORY_SEPARATOR) ? $path : join_paths($directory, $path))
+            ->filter(static fn (string $path): bool => is_file($path))
+            ->first() ?? $fallback;
 
         return $this->option('profile') ? $this->profileConfigurationFile($file) : $file;
     }
@@ -291,9 +302,18 @@ abstract class TestCommandBase extends Command
         $inputDefinition = new InputDefinition;
         Options::setInputDefinition($inputDefinition);
         $input = new ArgvInput(['paratest', ...$arguments], $inputDefinition);
-        $paraTestOptions = Options::fromConsoleInput($input, $this->basePath());
 
-        if (! $paraTestOptions->configuration->hasCoverageCacheDirectory()) {
+        // Options::fromConsoleInput() replaces PHPUnit's active configuration,
+        // which can break later isolated tests. Only inspect the cache setting here.
+        $hasCacheDirectory = $input->getOption('cache-directory') !== null;
+
+        if (! $hasCacheDirectory && is_file($file)) {
+            $document = new DOMDocument;
+            $document->load($file);
+            $hasCacheDirectory = $document->documentElement?->hasAttribute('cacheDirectory') ?? false;
+        }
+
+        if (! $hasCacheDirectory) {
             $arguments[] = '--cache-directory';
             $arguments[] = sys_get_temp_dir() . DIRECTORY_SEPARATOR . '__hypervel_test_cache_directory';
         }
@@ -312,6 +332,14 @@ abstract class TestCommandBase extends Command
      */
     protected function filterForwardedArguments(array $arguments, array $exact = [], array $prefixes = [], array $valueOptions = []): array
     {
+        // A forwarded configuration shortcut would override the profiled XML file.
+        $configurationShortcut = $this->getDefinition()->getOption('configuration')->getShortcut();
+        $configurationShortcut = $configurationShortcut === null ? null : "-{$configurationShortcut}";
+
+        if ($configurationShortcut !== null && in_array('--configuration', $valueOptions, true)) {
+            $valueOptions[] = $configurationShortcut;
+        }
+
         $filtered = [];
         $skipNextArgument = false;
 
@@ -329,7 +357,8 @@ abstract class TestCommandBase extends Command
                     continue 2;
                 }
 
-                if (Str::startsWith($argument, "{$option}=")) {
+                if (Str::startsWith($argument, "{$option}=")
+                    || ($option === $configurationShortcut && Str::startsWith($argument, $option))) {
                     continue 2;
                 }
             }
@@ -513,7 +542,7 @@ abstract class TestCommandBase extends Command
             return $this->temporaryConfigurationFile;
         }
 
-        if ($file === './') {
+        if (! is_file($file)) {
             return $file;
         }
 

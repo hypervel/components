@@ -21,10 +21,13 @@ class TestCommand extends TestCommandBase
 {
     /**
      * The name and signature of the console command.
+     *
+     * Orchestra's unused --custom-argument flag is omitted so -c selects the
+     * same configuration for profiling, cache settings, and the PHPUnit child.
      */
     protected ?string $signature = 'package:test
         {--without-tty : Disable output to TTY}
-        {--configuration= : Read configuration from XML file}
+        {--c|configuration= : Read configuration from XML file}
         {--coverage : Indicates whether coverage information should be collected}
         {--min= : Indicates the minimum threshold enforcement for coverage}
         {--p|parallel : Indicates if the tests should run in parallel}
@@ -33,7 +36,6 @@ class TestCommand extends TestCommandBase
         {--drop-databases : Indicates if the test databases should be dropped}
         {--without-databases : Indicates if database configuration should be performed}
         {--without-cache : Do not isolate cache and rate limiter prefixes}
-        {--c|--custom-argument : Add custom env variables}
     ';
 
     /**

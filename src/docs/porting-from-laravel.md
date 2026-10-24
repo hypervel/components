@@ -912,6 +912,8 @@ abstract class TestCase extends BaseTestCase
 
 Add Hypervel's PHPUnit extension to the package's `phpunit.xml` file. Orchestra Testbench resets framework state from its test case, while Hypervel resets it from this extension. See [Test State Cleanup](/docs/{{version}}/testing#test-state-cleanup).
 
+Remove the unused `--custom-argument` flag from package test scripts. Hypervel's `package:test` command uses `-c` as a shortcut for `--configuration`, matching PHPUnit. See [Running Package Tests](/docs/{{version}}/testbench#running-package-tests).
+
 For package testing details, see the [Testbench documentation](/docs/{{version}}/testbench).
 
 <a name="testing-coroutine-isolation"></a>

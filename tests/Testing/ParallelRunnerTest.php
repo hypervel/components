@@ -14,12 +14,12 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelRunner;
 use ParaTest\Options;
 use ParaTest\RunnerInterface;
+use ParaTest\WrapperRunner\ShardDistribution;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\TextUI\Configuration\Registry as ConfigurationRegistry;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
-use Symfony\Component\Console\Input\ArgvInput;
-use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Throwable;
 
@@ -102,7 +102,9 @@ class ParallelRunnerTest extends TestCase
 
         ParallelRunner::resolveApplicationUsing(fn () => new Application($this->app->basePath()));
 
+        $configuration = ConfigurationRegistry::get();
         $runner = new ParallelRunner($this->optionsWithProcesses(2), new BufferedOutput);
+        $this->assertSame($configuration, ConfigurationRegistry::get());
         $method = new ReflectionMethod(ParallelRunner::class, 'forEachProcess');
 
         $method->invoke($runner, function () use (&$tokens): void {
@@ -417,17 +419,26 @@ class ParallelRunnerTest extends TestCase
      */
     protected function optionsWithProcesses(int $processes): Options
     {
-        $inputDefinition = new InputDefinition;
-        Options::setInputDefinition($inputDefinition);
-
-        return Options::fromConsoleInput(
-            new ArgvInput([
-                'paratest',
-                '--configuration=' . dirname(__DIR__, 2) . '/phpunit.xml.dist',
-                '--runner=' . ParallelRunner::class,
-                '--processes=' . $processes,
-            ], $inputDefinition),
-            dirname(__DIR__, 2),
+        // Options::fromConsoleInput() replaces PHPUnit's active configuration and
+        // can break later isolated tests. Reuse the active configuration for this fixture.
+        // Named arguments expose changes to ParaTest's internal constructor during upgrades.
+        return new Options(
+            configuration: ConfigurationRegistry::get(),
+            phpunit: dirname(__DIR__, 2) . '/vendor/phpunit/phpunit/phpunit',
+            cwd: dirname(__DIR__, 2),
+            maxBatchSize: 0,
+            noTestTokens: false,
+            passthruPhp: null,
+            phpunitOptions: [],
+            processes: $processes,
+            runner: ParallelRunner::class,
+            tmpDir: sys_get_temp_dir(),
+            verbose: false,
+            functional: false,
+            currentShard: 0,
+            totalShards: 0,
+            shardDistribution: ShardDistribution::Sequential,
+            shardDistributionSeed: 0,
         );
     }
 
