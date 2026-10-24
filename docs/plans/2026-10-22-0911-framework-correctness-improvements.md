@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Independently useful database, queue, validation, and decimal-casting improvements. Keep this plan independent of private applications and packages; describe framework requirements without their names, paths, or domain details. Preserve Laravel signatures and protected extension points, except for explicitly approved behavior changes.
+Independently useful database, queue, validation, decimal-casting and JSON-decoding improvements. Keep this plan independent of private applications and packages; describe framework requirements without their names, paths, or domain details. Preserve Laravel signatures and protected extension points, except for explicitly approved behavior changes.
 
 The database capability, query-builder, queue middleware, validation, decimal-casting and pooled in-memory database restoration changes are implemented and verified; merging remains. Record further framework changes here when they warrant planning, without duplicating consumer-specific implementation plans.
 
@@ -13,6 +13,12 @@ The database capability, query-builder, queue middleware, validation, decimal-ca
 - **Queue middleware:** add `RateLimited::releasePadding(int $seconds): static`, nonnegative, with a default of three seconds preserving current behavior. `releaseAfter()` retains fixed-delay precedence. Include the property in the serialization whitelist. Callers can opt into `releasePadding(0)` without additional I/O or lookup for existing jobs.
 - **Validation defect:** guard both numeric field operands of `gt/gte/lt/lte` with their respective attribute names. Guard `multiple_of` input through `validateMultipleOf()` in compiled and delegated execution, preserving the calculation hook's signature. Exponent rejection and numeric parse errors fail validation rather than escaping as math exceptions. Comparison-message formatting preserves the `getSize()` hook and displays the original trimmed value if its exponent is rejected, without expanding it or throwing again. Preserve the attribute-aware override callback; developer-supplied rule literals remain trusted. Components already require Brick Math 1.0; no further version migration is needed.
 - **Decimal casts:** prevent scientific-notation expansion beyond ±1000 in request and Eloquent decimal casts, throwing their existing math exception. Share exponent extraction through internal `Number::exponent()` and the default `Number::MAX_EXPONENT` with validation, without limiting ordinary decimal-string length or changing rational parsing. Include `int` in Eloquent's decimal-cast input type so integer values retain their precision instead of passing through float conversion. Test both casts, exponent boundaries, unchanged explicit decimals/fractions and large integer precision with bounded inputs.
+
+### Exact JSON numbers
+
+- Add `Json::decodeNumbersAsStrings(string $json, bool $assoc = true, int $depth = self::MAXIMUM_NESTING_DEPTH): mixed` for exact numeric API inputs. Return every numeric token as its original string, including integers, trailing zeros and exponent notation; preserve ordinary strings, booleans, null and native array/object shapes.
+- Validate the original document through `Json::validate()` before quoting numeric tokens: quoting alone can turn malformed input into valid JSON. Use a linear walk that skips existing strings and escaped bytes, then delegate to `Json::decode()`. Retain native errors and the existing public depth convention. No new parser framework, number wrapper, flags parameter or changes to ordinary decoding.
+- Cover exact values, escaped strings, associative/object results, malformed numbers and object keys, invalid UTF-8 and depth limits in the existing JSON tests.
 
 ### Pooled in-memory database restoration
 
