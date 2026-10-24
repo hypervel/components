@@ -1028,6 +1028,16 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
     }
 
     /**
+     * Invalidate shared cached database values for the current partition.
+     */
+    public function flushSharedCache(): void
+    {
+        if ($this->driver instanceof DatabaseDriver) {
+            $this->driver->flushSharedCache();
+        }
+    }
+
+    /**
      * Get the underlying feature driver.
      */
     public function getDriver(): Driver
