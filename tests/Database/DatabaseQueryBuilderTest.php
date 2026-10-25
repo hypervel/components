@@ -38,6 +38,7 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
@@ -1518,6 +1519,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "users" where "id" between ? and ?', $builder->toSql());
         $this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
 
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereBetween('id', LazyCollection::make([1, 2]));
+        $this->assertSame('select * from "users" where "id" between ? and ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
+
         $subqueryBuilder = $this->getBuilder();
         $subqueryBuilder->select('id')->from('posts')->where('status', 'published')->orderByDesc('created_at')->limit(1);
         $builder = $this->getBuilder();
@@ -2395,6 +2401,11 @@ class DatabaseQueryBuilderTest extends TestCase
             $query->from('videos')->select('count(*)')->whereColumn('posts.id', '=', 'videos.post_id');
         }, 'videos_count')->having('videos_count', '>', 1);
         $builder->count();
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->havingBetween('id', LazyCollection::make([1, 2]));
+        $this->assertSame('select * from "users" having "id" between ? and ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
     }
 
     public function testSubSelectWhereIns(): void
