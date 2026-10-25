@@ -17,6 +17,7 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\PdoConnection;
@@ -1528,6 +1529,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
+    public function testWhereNotWithArrayConditions(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereNot(['foo' => 1, 'bar' => 2]);
+        $this->assertSame('select * from "table" where not (("foo" = ? and "bar" = ?))', $query->toSql());
+        $this->assertEquals([1, 2], $query->getBindings());
+
+        $query = $model->newQuery()->whereNot([['foo', 1], ['bar', '<', 2]]);
+        $this->assertSame('select * from "table" where not (("foo" = ? and "bar" < ?))', $query->toSql());
+        $this->assertEquals([1, 2], $query->getBindings());
+
+        $query = $model->newQuery()->where('baz', 3)->orWhereNot(['foo' => 1, 'bar' => 2]);
+        $this->assertSame('select * from "table" where "baz" = ? or not (("foo" = ? or "bar" = ?))', $query->toSql());
+        $this->assertEquals([3, 1, 2], $query->getBindings());
+    }
+
     public function testOrWhereNot(): void
     {
         $nestedQuery = m::mock(Builder::class);
@@ -2450,6 +2469,40 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
+    public function testWhereMorphedToWithCustomOwnerKey(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        $relatedModel = new ModelCloseRelatedStub;
+        $relatedModel->id = 1;
+        $relatedModel->uuid = 'related-uuid';
+
+        $builder = $model->whereMorphedTo('morphWithOwnerKey', $relatedModel);
+
+        $this->assertSame('select * from "model_parent_stubs" where (("model_parent_stubs"."morph_type" = ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertEquals([$relatedModel->getMorphClass(), 'related-uuid'], $builder->getBindings());
+    }
+
+    public function testWhereMorphedToCollectionWithCustomOwnerKey(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        $firstRelatedModel = new ModelCloseRelatedStub;
+        $firstRelatedModel->id = 1;
+        $firstRelatedModel->uuid = 'first-uuid';
+
+        $secondRelatedModel = new ModelCloseRelatedStub;
+        $secondRelatedModel->id = 2;
+        $secondRelatedModel->uuid = 'second-uuid';
+
+        $builder = $model->whereMorphedTo('morphWithOwnerKey', new Collection([$firstRelatedModel, $secondRelatedModel]));
+
+        $this->assertSame('select * from "model_parent_stubs" where (("model_parent_stubs"."morph_type" = ? and "model_parent_stubs"."morph_id" in (?, ?)))', $builder->toSql());
+        $this->assertEquals([$firstRelatedModel->getMorphClass(), 'first-uuid', 'second-uuid'], $builder->getBindings());
+    }
+
     public function testWhereMorphedToCollection(): void
     {
         $model = new ModelParentStub;
@@ -2519,6 +2572,21 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
+    }
+
+    public function testWhereNotMorphedToWithCustomOwnerKey(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        $relatedModel = new ModelCloseRelatedStub;
+        $relatedModel->id = 1;
+        $relatedModel->uuid = 'related-uuid';
+
+        $builder = $model->whereNotMorphedTo('morphWithOwnerKey', $relatedModel);
+
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertEquals([$relatedModel->getMorphClass(), 'related-uuid'], $builder->getBindings());
     }
 
     public function testWhereNotMorphedToCollection(): void
@@ -4164,6 +4232,14 @@ class ModelParentStub extends Model
     public function morph()
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Get the morph model related through a custom owner key.
+     */
+    public function morphWithOwnerKey(): MorphTo
+    {
+        return $this->morphTo('morph', null, null, 'uuid');
     }
 }
 

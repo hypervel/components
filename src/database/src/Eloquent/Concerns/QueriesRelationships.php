@@ -562,18 +562,18 @@ trait QueriesRelationships
     public function whereMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
         if (is_string($relation)) {
+            /** @var MorphTo<*, *> $relation */
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
         if (is_null($model)) {
-            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
+            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
         }
 
         if (is_string($model)) {
             $model = $this->getMorphTypeForQuery($model);
 
-            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             return $this->where($relation->qualifyColumn($relation->getMorphType()), $model, null, $boolean);
         }
 
@@ -586,10 +586,10 @@ trait QueriesRelationships
         return $this->where(function ($query) use ($relation, $models) {
             $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
                 $query->orWhere(function ($query) use ($relation, $models) {
-                    // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
                     $query->where($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        // @phpstan-ignore method.notFound (getForeignKeyName exists on MorphTo, not base Relation)
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
+                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map(
+                            fn ($model) => $model->getAttribute($relation->getOwnerKeyName() ?? $model->getKeyName())
+                        ));
                 });
             });
         }, null, null, $boolean);
@@ -607,11 +607,12 @@ trait QueriesRelationships
     public function whereNotMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
         if (is_string($relation)) {
+            /** @var MorphTo<*, *> $relation */
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
         if (is_null($model)) {
-            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
+            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNotNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
         }
 
@@ -619,7 +620,6 @@ trait QueriesRelationships
             $model = $this->getMorphTypeForQuery($model);
 
             return $this->whereNot(fn ($query) => $query->whereNullSafeEquals(
-                // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
                 $relation->qualifyColumn($relation->getMorphType()),
                 $model
             ), null, null, $boolean);
@@ -634,10 +634,10 @@ trait QueriesRelationships
         return $this->whereNot(function ($query) use ($relation, $models) {
             $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
                 $query->orWhere(function ($query) use ($relation, $models) {
-                    // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
                     $query->whereNullSafeEquals($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        // @phpstan-ignore method.notFound (getForeignKeyName exists on MorphTo, not base Relation)
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
+                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map(
+                            fn ($model) => $model->getAttribute($relation->getOwnerKeyName() ?? $model->getKeyName())
+                        ));
                 });
             });
         }, null, null, $boolean);
