@@ -17,6 +17,7 @@ use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\StreamInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
 use UnitEnum;
@@ -170,12 +171,13 @@ class ClientRequestWatcher extends Watcher
                     'size' => ($part['contents']->getSize() / 1000) . 'KB',
                     'headers' => $part['headers'] ?? [],
                 ];
-            } elseif (is_resource($part['contents'])) {
-                $filesize = @filesize(stream_get_meta_data($part['contents'])['uri']);
+            } elseif ($part['contents'] instanceof StreamInterface) {
+                // The HTTP client wraps attached resources in streams so retries can resend them.
+                $size = $part['contents']->getSize();
 
                 $value = [
                     'name' => $part['filename'] ?? null,
-                    'size' => $filesize ? ($filesize / 1000) . 'KB' : null,
+                    'size' => $size ? ($size / 1000) . 'KB' : null,
                     'headers' => $part['headers'] ?? [],
                 ];
             } elseif (json_encode($part['contents']) === false) {

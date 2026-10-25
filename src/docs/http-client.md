@@ -1052,7 +1052,7 @@ $response = Http::connection('github')
     ->get('/user');
 ```
 
-Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
+Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Options with named keys, such as `headers`, are merged key by key. Nested lists, such as a header's values, and other list options, such as `auth` credentials, replace the lower layer's list as a whole. Top-level payload lists, such as multipart parts or a JSON list, combine the entries from every layer. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
 
 ```php
 // Uses the registered GitHub preset...
