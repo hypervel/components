@@ -37,7 +37,6 @@ trait InteractsWithQueue
     {
         if ($this->job) {
             $this->job->delete();
-            return;
         }
     }
 
@@ -64,7 +63,6 @@ trait InteractsWithQueue
 
         if ($this->job) {
             $this->job->release($delay);
-            return;
         }
     }
 
