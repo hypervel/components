@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use DateInterval;
+use DateTimeImmutable;
+use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class FakeJobTest extends TestCase
 {
@@ -37,5 +41,28 @@ class FakeJobTest extends TestCase
         $job = (new ClassInvoker($queue))->resolveJob('{}', null);
 
         $this->assertSame('sync', (new ClassInvoker($job))->queue);
+    }
+
+    #[DataProvider('releaseDelays')]
+    public function testReleaseRecordsTheGivenDelay(DateInterval|DateTimeInterface|int $delay): void
+    {
+        $job = new FakeJob;
+
+        $job->release($delay);
+
+        $this->assertTrue($job->isReleased());
+        $this->assertSame($delay, $job->releaseDelay);
+    }
+
+    /**
+     * Provide release delays of each supported type.
+     */
+    public static function releaseDelays(): array
+    {
+        return [
+            'seconds' => [30],
+            'date' => [new DateTimeImmutable('2026-01-01 00:00:00')],
+            'interval' => [new DateInterval('PT1M')],
+        ];
     }
 }
