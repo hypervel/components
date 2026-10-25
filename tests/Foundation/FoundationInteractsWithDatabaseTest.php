@@ -188,6 +188,23 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseCount(new ProductStub, 1);
     }
 
+    public function testAssertDatabaseCountSupportsArraysOfTablesAndCounts(): void
+    {
+        $products = m::mock(Builder::class);
+        $products->expects('count')->andReturn(2);
+
+        $orders = m::mock(Builder::class);
+        $orders->expects('count')->andReturn(5);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($products);
+        $this->connection->shouldReceive('table')->with('orders')->andReturn($orders);
+
+        $this->assertDatabaseCount([
+            ProductStub::class => 2,
+            OrderStub::class => 5,
+        ]);
+    }
+
     public function testAssertDatabaseEmpty(): void
     {
         $this->mockCountBuilder(false);

@@ -45,8 +45,8 @@ class CustomResponseOAuth2Connector extends Connector
     /**
      * Create the OAuth authenticator.
      */
-    protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null): OAuthAuthenticator
+    protected function createOAuthAuthenticator(string $accessToken, ?string $refreshToken = null, ?DateTimeImmutable $expiresAt = null, ?array $scopes = null): OAuthAuthenticator
     {
-        return new CustomOAuthAuthenticator($accessToken, $this->greeting, $refreshToken, $expiresAt);
+        return new CustomOAuthAuthenticator($accessToken, $this->greeting, $refreshToken, $expiresAt, $scopes);
     }
 }

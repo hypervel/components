@@ -46,6 +46,12 @@ enum EventTestTimezoneUnitEnum
     case EST;
 }
 
+enum ScheduledEventTestEnvironment: string
+{
+    case Local = 'local';
+    case Production = 'production';
+}
+
 class EventTest extends TestCase
 {
     protected ?Container $container = null;
@@ -934,6 +940,22 @@ class EventTest extends TestCase
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertTrue($event->unlessBetween('10:00', '8:00')->filtersPass($app));
+    }
+
+    public function testEnvironmentsWithEnums(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+
+        $event->environments(ScheduledEventTestEnvironment::Production);
+        $this->assertSame(['production'], $event->environments);
+        $this->assertTrue($event->runsInEnvironment('production'));
+        $this->assertFalse($event->runsInEnvironment('local'));
+
+        $event->environments([ScheduledEventTestEnvironment::Local, 'staging']);
+        $this->assertSame(['local', 'staging'], $event->environments);
+
+        $event->environments(ScheduledEventTestEnvironment::Local, ScheduledEventTestEnvironment::Production);
+        $this->assertSame(['local', 'production'], $event->environments);
     }
 }
 

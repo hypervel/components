@@ -84,6 +84,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
             $table->string('first_name');
             $table->string('last_name');
             $table->string('name')->virtualAs("first_name || ' ' || last_name");
+            $table->integer('votes')->default(0);
         });
 
         $this->schema('default')->create('generated_totals', function (Blueprint $table): void {
@@ -312,6 +313,58 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('Jess Otwell', $user->name);
         $this->assertSame('Jess Otwell', GeneratedUser::$updatedName);
         $this->assertSame('Jess Otwell', GeneratedUser::find(10)->name);
+    }
+
+    public function testConfiguredAttributesAreRefreshedAfterIncrementAndDecrement(): void
+    {
+        $user = GeneratedUser::create([
+            'first_name' => 'Taylor',
+            'last_name' => 'Otwell',
+            'votes' => 1,
+        ]);
+
+        $user->increment('votes', 1);
+
+        $this->assertSame(2, $user->votes);
+        $this->assertFalse($user->isDirty());
+        $this->assertSame([], $user->getDirty());
+
+        $user->save();
+
+        $user->decrement('votes', 1);
+
+        $this->assertSame(1, $user->votes);
+        $this->assertFalse($user->isDirty());
+        $this->assertSame([], $user->getDirty());
+
+        $user->save();
+
+        $user->incrementEach(['votes' => 2]);
+
+        $this->assertSame(3, $user->votes);
+        $this->assertFalse($user->isDirty());
+        $this->assertSame([], $user->getDirty());
+
+        $user->save();
+
+        $user->decrementEach(['votes' => 1]);
+
+        $this->assertSame(2, $user->votes);
+        $this->assertFalse($user->isDirty());
+        $this->assertSame([], $user->getDirty());
+
+        $user->save();
+
+        $user->increment('votes', 1, ['first_name' => 'Abigail']);
+
+        $this->assertSame(3, $user->votes);
+        $this->assertSame('Abigail', $user->first_name);
+        $this->assertSame('Abigail Otwell', $user->name);
+        $this->assertFalse($user->isDirty('name'));
+        // Increments record the extra values they store as original values.
+        $this->assertFalse($user->isDirty('first_name'));
+
+        $user->save();
     }
 
     public function testRefreshedAttributesAreNotWrittenBackAfterIncrements(): void

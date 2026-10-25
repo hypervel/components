@@ -308,6 +308,15 @@ Assert that a table in the database contains the given number of records:
 $this->assertDatabaseCount('users', 5);
 ```
 
+You may also pass an array of tables or models and their expected counts:
+
+```php
+$this->assertDatabaseCount([
+    'users' => 5,
+    Post::class => 10,
+]);
+```
+
 <a name="assert-database-empty"></a>
 #### assertDatabaseEmpty
 

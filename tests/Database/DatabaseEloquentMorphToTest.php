@@ -406,6 +406,23 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame($result, $parent->getRelation('relation'));
     }
 
+    public function testCreateModelByTypeThrowsWhenTypeNotInMorphMapAndRequireMorphMapIsOn(): void
+    {
+        $this->expectException(ClassMorphViolationException::class);
+
+        Relation::requireMorphMap();
+
+        $parent = new ModelStub;
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new RelatedStub);
+
+        $relation = MorphTo::noConstraints(
+            fn () => new MorphTo($builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation')
+        );
+
+        $relation->createModelByType('poisoned');
+    }
+
     /**
      * Create a morph relation with the existing parent key constrained.
      */

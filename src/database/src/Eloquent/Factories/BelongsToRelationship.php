@@ -44,7 +44,7 @@ class BelongsToRelationship
 
         return $relationship instanceof MorphTo ? [
             $relationship->getMorphType() => $this->factory instanceof Factory ? $this->factory->newModel()->getMorphClass() : $this->factory->getMorphClass(),
-            $relationship->getForeignKeyName() => $this->resolver($relationship->getOwnerKeyName()),
+            $relationship->getForeignKeyName() => $this->resolver($relationship->getDeclaredOwnerKeyName()),
         ] : [
             $relationship->getForeignKeyName() => $this->resolver($relationship->getOwnerKeyName()),
         ];

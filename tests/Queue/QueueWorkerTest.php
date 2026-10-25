@@ -21,7 +21,6 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
-use Hypervel\Contracts\Queue\Job as QueueJobContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
@@ -108,7 +107,9 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopping::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) {
+            return $event instanceof JobProcessed && is_float($event->duration);
+        }))->once();
     }
 
     public function testJobLifecycleEventsAreNotDispatchedWithoutListeners(): void
@@ -1397,6 +1398,28 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
+    public function testJobAttemptedEventIsDispatched(): void
+    {
+        $e = new RuntimeException;
+
+        $job = new WorkerFakeJob(function () use ($e) {
+            throw $e;
+        });
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions());
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobAttempted::class))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($job, $e) {
+            return $event instanceof JobAttempted
+                && $event->connectionName === 'default'
+                && $event->job === $job
+                && $event->exception === $e
+                && ! $event->successful()
+                && is_float($event->duration);
+        }))->once();
+    }
+
     public function testJobIsFailedIfExceptionHandlerSaysItShouldntRetry(): void
     {
         $exception = new RuntimeException;
@@ -2118,6 +2141,44 @@ class QueueWorkerTest extends TestCase
         ))->once();
     }
 
+    public function testInterruptibleJobIsNotifiedWhenTheJobTimesOut(): void
+    {
+        $interruptible = new WorkerInterruptibleJob;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $this->timeOutJob($worker, $this->workerJobWithRunningCommand($interruptible));
+
+        $this->assertSame([SIGALRM], $interruptible->signals);
+    }
+
+    public function testTimeoutIsStillHandledWhenNotifyingTheJobFails(): void
+    {
+        $exception = new Exception('Failed to interrupt.');
+        $interruptible = new class($exception) implements Interruptible {
+            /**
+             * Create a new interruptible job instance.
+             */
+            public function __construct(
+                protected Exception $exception,
+            ) {
+            }
+
+            /**
+             * Handle the job being interrupted by the given signal.
+             */
+            public function interrupted(int $signal): void
+            {
+                throw $this->exception;
+            }
+        };
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $this->timeOutJob($worker, $this->workerJobWithRunningCommand($interruptible));
+
+        $this->exceptionHandler->shouldHaveReceived('report')->with($exception)->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->once();
+    }
+
     public function testJobInterruptedEventIsSkippedWithoutListenersButTheJobIsStillNotified(): void
     {
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
@@ -2286,6 +2347,19 @@ class QueueWorkerTest extends TestCase
         }
 
         return $options;
+    }
+
+    /**
+     * Register the job as running and handle it as timed out.
+     */
+    private function timeOutJob(InsomniacWorker $worker, Job $job): void
+    {
+        $options = $this->workerOptions();
+        $worker->currentTime = 100;
+        $jobId = $worker->registerCoroutineJobForTest($job, $options);
+        $worker->currentTime = $worker->runningJobExpiryForTest($jobId);
+
+        $worker->terminateTimeoutJobsForTest($options);
     }
 
     private function workerJobWithRunningCommand(object $command): WorkerFakeJob
@@ -2850,7 +2924,7 @@ class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
     }
 }
 
-class WorkerFakeJob implements QueueJobContract
+class WorkerFakeJob implements Job
 {
     public $id = '';
 
@@ -3034,7 +3108,7 @@ class WorkerFakeJob implements QueueJobContract
     }
 }
 
-class WorkerContractOnlyJob implements QueueJobContract
+class WorkerContractOnlyJob implements Job
 {
     public function uuid(): ?string
     {

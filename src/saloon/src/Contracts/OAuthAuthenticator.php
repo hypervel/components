@@ -24,6 +24,13 @@ interface OAuthAuthenticator extends Authenticator
     public function getExpiresAt(): ?DateTimeImmutable;
 
     /**
+     * Get the reported scopes, or null when the provider did not report them.
+     *
+     * @return null|list<string>
+     */
+    public function getScopes(): ?array;
+
+    /**
      * Determine if the authenticator has expired.
      */
     public function hasExpired(): bool;

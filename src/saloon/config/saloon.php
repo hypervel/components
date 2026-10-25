@@ -45,6 +45,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Connected OAuth Accounts
+    |--------------------------------------------------------------------------
+    |
+    | Credential caching avoids database reads for ordinary authenticated calls.
+    | Use a shared store that spans the workers using these accounts. A null
+    | lock store uses the account cache store, or the framework default.
+    | Omitted settings use the defaults below.
+    |
+    */
+
+    'oauth_accounts' => [
+        'cache' => [
+            'enabled' => false,
+            'store' => null,
+            'ttl' => 300,
+            'prefix' => 'saloon:oauth-accounts:',
+        ],
+        'lock_store' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Fixtures
     |--------------------------------------------------------------------------
     |

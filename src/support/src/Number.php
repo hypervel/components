@@ -66,7 +66,7 @@ class Number
             $formatter->setAttribute(NumberFormatter::FRACTION_DIGITS, $precision);
         }
 
-        return $formatter->format($number);
+        return $formatter->format(static::withoutNegativeZero($number, $formatter->format(...)));
     }
 
     /**
@@ -100,7 +100,7 @@ class Number
      */
     public static function parseInt(string $string, ?string $locale = null): int|false
     {
-        return self::parse($string, NumberFormatter::TYPE_INT32, $locale);
+        return self::parse($string, NumberFormatter::TYPE_INT64, $locale);
     }
 
     /**
@@ -172,7 +172,7 @@ class Number
             $formatter->setAttribute(NumberFormatter::FRACTION_DIGITS, $precision);
         }
 
-        return $formatter->format($number / 100);
+        return $formatter->format(static::withoutNegativeZero($number / 100, $formatter->format(...)));
     }
 
     /**
@@ -188,7 +188,12 @@ class Number
             $formatter->setAttribute(NumberFormatter::FRACTION_DIGITS, $precision);
         }
 
-        return $formatter->formatCurrency($number, ! empty($in) ? $in : static::defaultCurrency());
+        $currency = ! empty($in) ? $in : static::defaultCurrency();
+
+        return $formatter->formatCurrency(
+            static::withoutNegativeZero($number, fn ($number) => $formatter->formatCurrency($number, $currency)),
+            $currency,
+        );
     }
 
     /**
@@ -454,6 +459,20 @@ class Number
 
             throw new RuntimeException('The "intl" PHP extension is required to use the [' . $method . '] method.');
         }
+    }
+
+    /**
+     * Replace a negative number that would be formatted as zero with zero, avoiding a "-0" result.
+     *
+     * @param callable(float|int): (false|string) $format
+     */
+    protected static function withoutNegativeZero(float|int $number, callable $format): float|int
+    {
+        if ((float) $number === 0.0) {
+            return 0;
+        }
+
+        return $number < 0 && $format(abs($number)) === $format(0) ? 0 : $number;
     }
 
     /**

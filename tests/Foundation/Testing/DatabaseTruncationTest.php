@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
@@ -27,6 +29,7 @@ use RuntimeException;
 class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
+    use InteractsWithConsole;
 
     private ?Container $app;
 
@@ -417,6 +420,38 @@ class DatabaseTruncationTest extends TestCase
         );
 
         $testCase->truncate();
+    }
+
+    public function testMigratesWhenRetainedStateHasNoSelectedInMemoryPdo(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->expects('getPdo')->andReturn($pdo);
+        $database = m::mock(DatabaseManager::class);
+        $database->expects('connection')->with(null)->andReturn($connection);
+        $kernel = m::mock(KernelContract::class);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
+        $this->app->instance(KernelContract::class, $kernel);
+        $this->app->instance('db', $database);
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'testing',
+                'connections' => ['testing' => ['driver' => 'sqlite', 'database' => ':memory:']],
+            ],
+        ]));
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = [];
+        $this->withoutMockingConsoleOutput();
+
+        $this->truncateDatabaseTables();
+
+        $this->assertTrue(RefreshDatabaseState::$migrated);
+        $this->assertSame(['testing' => $pdo], RefreshDatabaseState::$inMemoryConnections);
     }
 
     public function testAdoptsAMissingInMemoryPdoBeforeTheTruncationHook(): void

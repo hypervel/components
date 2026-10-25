@@ -37,7 +37,8 @@ trait InteractsWithMigrations
      */
     protected function setUpInteractsWithMigrations(): void
     {
-        if ($this->usesInMemoryDatabaseForMigrationState()) {
+        if ($this->usesInMemoryDatabaseForMigrationState()
+            && ! static::resolvePhpUnitAttributesForMethod(static::class)->has(ResetRefreshDatabaseState::class)) {
             // A later setup hook may skip or fail before after-application callbacks run.
             static::usesTestingFeature(new ResetRefreshDatabaseState);
         }
@@ -105,7 +106,6 @@ trait InteractsWithMigrations
             return;
         }
 
-        /** @var array<string, mixed>|string $paths */
         $this->runMigrationProcessor($app, $this->resolvePackageMigrationsOptions($paths));
     }
 
@@ -143,14 +143,14 @@ trait InteractsWithMigrations
      *
      * @internal
      *
-     * @param array<string, mixed>|string $paths
+     * @param array<int|string, mixed>|string $paths
      * @return array<string, mixed>
      *
      * @throws InvalidArgumentException
      */
     protected function resolvePackageMigrationsOptions(array|string $paths = []): array
     {
-        $options = is_array($paths) ? $paths : ['--path' => $paths];
+        $options = is_string($paths) || Arr::isList($paths) ? ['--path' => $paths] : $paths;
 
         if (isset($options['--realpath']) && ! is_bool($options['--realpath'])) {
             throw new InvalidArgumentException('Expect --realpath to be a boolean.');

@@ -169,6 +169,27 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
+    public function testDurationIsPassedToJobEvents(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $dispatched = [];
+        $events->listen([JobProcessed::class, JobAttempted::class], function ($event) use (&$dispatched) {
+            $dispatched[$event::class] = $event;
+        });
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
+
+        $this->assertIsFloat($dispatched[JobProcessed::class]->duration);
+        $this->assertIsFloat($dispatched[JobAttempted::class]->duration);
+        $this->assertTrue($dispatched[JobAttempted::class]->successful());
+    }
+
     public function testProcessingAndAttemptedEventsSurroundSuccessfulSyncJob(): void
     {
         SyncQueueEventOrder::reset();

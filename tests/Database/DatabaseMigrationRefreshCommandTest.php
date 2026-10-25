@@ -20,6 +20,7 @@ use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use UnitEnum;
 
 class DatabaseMigrationRefreshCommandTest extends TestCase
 {
@@ -222,7 +223,7 @@ class ApplicationDatabaseRefreshStub extends Application
     /**
      * Get the application environment.
      */
-    public function environment(array|string ...$environments): bool|string
+    public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         return 'development';
     }

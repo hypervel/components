@@ -136,23 +136,37 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function mode(string|array|null $key = null): ?array
     {
-        if ($this->isEmpty()) {
+        $collection = (isset($key) ? $this->pluck($key) : $this)
+            ->reject(fn ($item) => is_null($item));
+
+        if ($collection->isEmpty()) {
             return null;
         }
 
-        $collection = isset($key) ? $this->pluck($key) : $this;
-
         $counts = $this->newInstance();
 
-        // @phpstan-ignore offsetAssign.valueType (PHPStan infers empty collection as Collection<*NEVER*, *NEVER*>)
-        $collection->each(fn ($value) => $counts[$value] = isset($counts[$value]) ? $counts[$value] + 1 : 1);
+        $floats = [];
+
+        $collection->each(function ($value) use ($counts, &$floats) {
+            if (is_float($value)) {
+                // A string cast rounds to the precision setting, so key floats by their exact value.
+                // Adding zero turns -0.0, which equals 0.0, into 0.0.
+                $floats[$key = sprintf('%.17h', $value + 0.0)] = $value;
+            } else {
+                $key = $value;
+            }
+
+            // @phpstan-ignore offsetAssign.valueType (PHPStan infers empty collection as Collection<*NEVER*, *NEVER*>)
+            $counts[$key] = isset($counts[$key]) ? $counts[$key] + 1 : 1;
+        });
 
         $sorted = $counts->sort();
 
         $highestValue = $sorted->last();
 
+        // Whole-number float keys such as "2" become integer keys, so look up every key.
         return $sorted->filter(fn ($value) => $value == $highestValue)
-            ->sort()->keys()->all();
+            ->sort()->keys()->map(fn ($key) => $floats[$key] ?? $key)->all();
     }
 
     /**
@@ -1227,16 +1241,16 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
         }
 
-        if ($this->isEmpty()) {
-            return null;
-        }
-
         if ($count === 0) {
             return $this->newInstance();
         }
 
         if ($count === 1) {
             return array_shift($this->items);
+        }
+
+        if ($this->isEmpty()) {
+            return $this->newInstance();
         }
 
         $results = [];

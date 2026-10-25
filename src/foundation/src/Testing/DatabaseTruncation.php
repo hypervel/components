@@ -69,7 +69,7 @@ trait DatabaseTruncation
         $this->beforeTruncatingDatabase();
 
         // Migrate and seed the database on first run...
-        if (! RefreshDatabaseState::$migrated) {
+        if (! RefreshDatabaseState::$migrated || $this->hasMissingInMemoryDatabaseForTruncation()) {
             $this->artisan('migrate:fresh', $this->migrateFreshUsing());
 
             $this->app->make(Kernel::class)->setArtisan(null);

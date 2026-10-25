@@ -520,6 +520,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSaloonState(): void
     {
+        $this->callIfExists(\Hypervel\Saloon\OAuthAccounts::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\Connector::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class, 'flushState');

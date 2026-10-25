@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Attributes\SetUp;
 use Hypervel\Foundation\Testing\Attributes\TearDown;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use ReflectionMethod;
 
 class BootTraitsTest extends TestCase
@@ -57,6 +64,62 @@ class BootTraitsTest extends TestCase
 
         $this->assertTrue($testCase->tearDown);
         $this->assertTrue($testCase->attributeTearDown);
+    }
+
+    public function testMissingTruncatedDatabaseInvalidatesStateBeforeEagerRefresh(): void
+    {
+        $app = new Application;
+        $app->instance('config', new Repository([
+            'database' => [
+                'default' => 'persistent',
+                'connections' => [
+                    'persistent' => ['driver' => 'sqlite', 'database' => '/unused/database.sqlite'],
+                    'secondary' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $testCase = m::mock(TestCaseWithComposedDatabaseResets::class, ['foo'])
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $testCase->expects('refreshDatabase')->ordered()->andReturnUsing(function (): void {
+            $this->assertFalse(RefreshDatabaseState::$migrated);
+            RefreshDatabaseState::$migrated = true;
+        });
+        $testCase->expects('truncateDatabaseTables')->ordered()->andReturnUsing(function (): void {
+            $this->assertTrue(RefreshDatabaseState::$migrated);
+        });
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = [];
+
+        try {
+            $testCase->prepare($app);
+        } finally {
+            RefreshDatabaseState::$migrated = false;
+            RefreshDatabaseState::$inMemoryConnections = [];
+        }
+    }
+}
+
+class TestCaseWithComposedDatabaseResets extends FoundationTestCase
+{
+    use RefreshDatabase;
+    use DatabaseTruncation;
+
+    protected array $connectionsToTruncate = ['secondary'];
+
+    /**
+     * Run Foundation's database setup without booting a Testbench application.
+     */
+    public function prepare(ApplicationContract $app): void
+    {
+        $this->app = $app;
+        $this->setUpDatabaseTraits(class_uses_recursive(static::class));
+    }
+
+    /**
+     * Provide the test method required by PHPUnit's lifecycle.
+     */
+    public function foo(): void
+    {
     }
 }
 
