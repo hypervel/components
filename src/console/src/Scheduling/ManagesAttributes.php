@@ -6,6 +6,9 @@ namespace Hypervel\Console\Scheduling;
 
 use DateTimeZone;
 use Hypervel\Support\Reflector;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait ManagesAttributes
 {
@@ -89,9 +92,12 @@ trait ManagesAttributes
     /**
      * Limit the environments the command should run in.
      */
-    public function environments(mixed $environments): static
+    public function environments(UnitEnum|array|string $environments): static
     {
-        $this->environments = is_array($environments) ? $environments : func_get_args();
+        $this->environments = array_map(
+            enum_value(...),
+            is_array($environments) ? $environments : func_get_args()
+        );
 
         return $this;
     }

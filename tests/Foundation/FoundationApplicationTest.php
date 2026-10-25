@@ -307,6 +307,21 @@ class FoundationApplicationTest extends TestCase
         $this->assertFalse($app->environment(['qux', 'bar']));
     }
 
+    public function testEnvironmentWithEnums(): void
+    {
+        $app = new Application;
+        $app->instance('env', 'staging');
+
+        $this->assertTrue($app->environment(ApplicationTestEnvironment::Staging));
+        $this->assertTrue($app->environment(ApplicationTestEnvironment::Local, ApplicationTestEnvironment::Staging));
+        $this->assertTrue($app->environment([ApplicationTestEnvironment::Local, ApplicationTestEnvironment::Staging]));
+        $this->assertTrue($app->environment(['local', ApplicationTestEnvironment::Staging]));
+        $this->assertTrue($app->environment(ApplicationTestUnitEnvironment::staging));
+
+        $this->assertFalse($app->environment(ApplicationTestEnvironment::Local));
+        $this->assertFalse($app->environment([ApplicationTestEnvironment::Local, 'production']));
+    }
+
     public function testEnvironmentHelpers(): void
     {
         $local = new Application;
@@ -1160,4 +1175,15 @@ class ConcreteTerminator
     {
         return self::$counter++;
     }
+}
+
+enum ApplicationTestEnvironment: string
+{
+    case Local = 'local';
+    case Staging = 'staging';
+}
+
+enum ApplicationTestUnitEnvironment
+{
+    case staging;
 }
