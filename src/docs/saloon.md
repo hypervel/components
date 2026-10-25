@@ -1615,6 +1615,8 @@ $authenticator = $connector->getAccessToken(['reports:read']);
 
 The given scopes are added to the configuration's `defaultScopes` and separated by spaces unless you pass a `scopeSeparator`. Client credentials connectors need no `redirectUri`. Use `ClientCredentialsBasicAuthGrant` when the provider requires the client credentials in an HTTP Basic authentication header.
 
+`ClientCredentialsBasicAuthGrant` form-encodes the client ID and secret before adding them to the header, as the OAuth 2 specification requires. If your provider expects unencoded credentials, you may [customize the token request](#customizing-oauth-requests).
+
 OAuth token grant methods return an OAuth authenticator by default. Pass `returnResponse: true` when you need the original Saloon response instead:
 
 ```php

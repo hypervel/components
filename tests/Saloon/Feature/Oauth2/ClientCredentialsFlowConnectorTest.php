@@ -24,6 +24,7 @@ use Hypervel\Tests\Saloon\Fixtures\Connectors\CustomRequestClientCredentialsConn
 use Hypervel\Tests\Saloon\Fixtures\Connectors\NoConfigClientCredentialsConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\OAuth\CustomClientCredentialsAccessTokenRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use UnexpectedValueException;
 
 // Connectors take no mock client, so sends are faked through Saloon::fake(), and changed configuration is passed to
@@ -61,7 +62,6 @@ class ClientCredentialsFlowConnectorTest extends TestCase
             'grant_type' => 'client_credentials',
             'client_id' => 'client-id',
             'client_secret' => 'client-secret',
-            'scope' => '',
         ], $mockClient->lastPendingRequest()->body());
     }
 
@@ -224,17 +224,14 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         $this->assertSame('clients 0', $mockClient->lastPendingRequest()->body()['scope']);
     }
 
-    /**
-     * Get connectors with the default and Basic authentication token requests.
-     *
-     * @return array<string, array{ClientCredentialsBasicAuthConnector|ClientCredentialsConnector}>
-     */
-    public static function scopeConnectors(): array
+    #[DataProvider('scopeConnectors')]
+    public function testScopeIsOmittedWhenAllScopesAreEmpty(ClientCredentialsBasicAuthConnector|ClientCredentialsConnector $connector): void
     {
-        return [
-            'default request' => [new ClientCredentialsConnector],
-            'basic auth request' => [new ClientCredentialsBasicAuthConnector],
-        ];
+        $mockClient = Saloon::fake([MockResponse::make(['access_token' => 'access'])]);
+
+        $connector->getAccessToken(['', null]);
+
+        $this->assertArrayNotHasKey('scope', $mockClient->lastPendingRequest()->body());
     }
 
     public function testIfYouAttemptToUseTheClientCredentialsFlowWithoutAClientIdItWillThrowAnException(): void
@@ -281,13 +278,15 @@ class ClientCredentialsFlowConnectorTest extends TestCase
         $this->assertInstanceOf(CustomClientCredentialsAccessTokenRequest::class, $accessTokenResponse->request());
     }
 
-    public function testTheClientCredentialsGrantCanUseBasicAuth(): void
+    #[TestWith(['client-id', 'client-secret', 'client-id:client-secret'])]
+    #[TestWith(['id:a+b c%20', 's:e+c ret%20', 'id%3Aa%2Bb+c%2520:s%3Ae%2Bc+ret%2520'])]
+    public function testTheClientCredentialsGrantCanUseBasicAuth(string $clientId, string $clientSecret, string $encodedCredentials): void
     {
         $mockClient = new MockClient([
             MockResponse::make(['access_token' => 'access', 'expires_in' => 3600], 200),
         ]);
 
-        $connector = new ClientCredentialsBasicAuthConnector;
+        $connector = new ClientCredentialsBasicAuthConnector(['clientId' => $clientId, 'clientSecret' => $clientSecret]);
         Saloon::fake($mockClient);
 
         $authenticator = $connector->getAccessToken();
@@ -302,11 +301,10 @@ class ClientCredentialsFlowConnectorTest extends TestCase
 
         $this->assertSame([
             'grant_type' => 'client_credentials',
-            'scope' => '',
         ], $mockClient->lastPendingRequest()->body());
 
         $this->assertSame(
-            'Basic ' . base64_encode('client-id:client-secret'),
+            'Basic ' . base64_encode($encodedCredentials),
             $mockClient->lastPendingRequest()->headers()['Authorization'],
         );
     }
@@ -334,6 +332,19 @@ class ClientCredentialsFlowConnectorTest extends TestCase
                 default => ['read', 'write'],
             }, $authenticator->getScopes());
         }
+    }
+
+    /**
+     * Get connectors with the default and Basic authentication token requests.
+     *
+     * @return array<string, array{ClientCredentialsBasicAuthConnector|ClientCredentialsConnector}>
+     */
+    public static function scopeConnectors(): array
+    {
+        return [
+            'default request' => [new ClientCredentialsConnector(['defaultScopes' => ['', null]])],
+            'basic auth request' => [new ClientCredentialsBasicAuthConnector(['defaultScopes' => ['', null]])],
+        ];
     }
 
     public function testACustomAuthenticatorReceivesTheExpiry(): void

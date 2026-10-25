@@ -13,6 +13,15 @@ class ClientCredentialsBasicAuthConnector extends Connector
     use ClientCredentialsBasicAuthGrant;
 
     /**
+     * Create the connector, replacing any of its OAuth configuration arguments.
+     *
+     * @param array<string, mixed> $config
+     */
+    public function __construct(protected array $config = [])
+    {
+    }
+
+    /**
      * Define the base URL.
      */
     public function resolveBaseUrl(): string
@@ -25,6 +34,10 @@ class ClientCredentialsBasicAuthConnector extends Connector
      */
     protected function defaultOauthConfig(): OAuthConfig
     {
-        return new OAuthConfig(clientId: 'client-id', clientSecret: 'client-secret');
+        return new OAuthConfig(...[
+            'clientId' => 'client-id',
+            'clientSecret' => 'client-secret',
+            ...$this->config,
+        ]);
     }
 }
