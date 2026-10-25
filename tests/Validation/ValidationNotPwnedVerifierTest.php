@@ -90,7 +90,8 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
             return HttpFactory::response($differentSuffix . ':5', 200);
         }]);
-        $verifier = new NotPwnedVerifier($http);
+        // Use a timeout that differs from the HTTP client's 30-second default.
+        $verifier = new NotPwnedVerifier($http, 5);
 
         $this->assertTrue($verifier->verify([
             'value' => $password,
@@ -99,7 +100,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $http->assertSent(fn (Request $request): bool => $request->url() === 'https://api.pwnedpasswords.com/range/' . $hashPrefix
             && $request->hasHeader('Add-Padding', 'true'));
-        $this->assertSame(30, $timeout);
+        $this->assertSame(5, $timeout);
     }
 
     public function testDnsDown(): void

@@ -585,7 +585,7 @@ class DatabaseConnectionTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->beginTransaction();
-        $events->assertDispatched(TransactionBeginning::class);
+        $events->assertDispatchedOnce(TransactionBeginning::class);
     }
 
     public function testCommittedFiresEventsIfSet(): void
@@ -595,7 +595,7 @@ class DatabaseConnectionTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->commit();
-        $events->assertDispatched(TransactionCommitted::class);
+        $events->assertDispatchedOnce(TransactionCommitted::class);
     }
 
     public function testCommittingFiresEventsIfSet(): void
@@ -606,8 +606,8 @@ class DatabaseConnectionTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->commit();
-        $events->assertDispatched(TransactionCommitting::class);
-        $events->assertDispatched(TransactionCommitted::class);
+        $events->assertDispatchedOnce(TransactionCommitting::class);
+        $events->assertDispatchedOnce(TransactionCommitted::class);
     }
 
     public function testRollBackedFiresEventsIfSet(): void
@@ -618,7 +618,7 @@ class DatabaseConnectionTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->rollBack();
-        $events->assertDispatched(TransactionRolledBack::class);
+        $events->assertDispatchedOnce(TransactionRolledBack::class);
     }
 
     public function testBeganTransactionSkipsDispatchWhenNoListenersAreRegistered(): void
@@ -1537,7 +1537,7 @@ class DatabaseConnectionTest extends TestCase
         $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->logQuery('foo', [], null);
-        $events->assertDispatched(QueryExecuted::class);
+        $events->assertDispatchedOnce(QueryExecuted::class);
     }
 
     public function testLogQuerySkipsDispatchWhenNoListenersAreRegistered(): void

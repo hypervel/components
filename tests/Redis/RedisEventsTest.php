@@ -90,6 +90,7 @@ class RedisEventsTest extends TestCase
             // Expected
         }
 
+        $events->assertDispatchedOnce(CommandFailed::class);
         $events->assertDispatched(CommandFailed::class, function (CommandFailed $event): bool {
             return $event->connectionName === 'default';
         });

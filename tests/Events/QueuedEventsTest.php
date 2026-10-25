@@ -53,6 +53,7 @@ class QueuedEventsTest extends TestCase
         $d->listen('some.event', TestDispatcherQueuedHandler::class . '@someMethod');
         $d->dispatch('some.event', ['foo', 'bar']);
 
+        $fakeQueue->assertPushedOnce(CallQueuedListener::class);
         $fakeQueue->assertPushedOn(null, CallQueuedListener::class);
     }
 

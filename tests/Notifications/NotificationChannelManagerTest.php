@@ -297,7 +297,7 @@ class NotificationChannelManagerTest extends TestCase
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestQueuedNotification);
 
-        $bus->assertDispatched(SendQueuedNotifications::class);
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
     }
 
     public function testSendQueuedNotificationsCanBeOverrideViaContainer(): void
@@ -312,7 +312,7 @@ class NotificationChannelManagerTest extends TestCase
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestQueuedNotification);
 
-        $bus->assertDispatched(TestSendQueuedNotifications::class);
+        $bus->assertDispatchedOnce(TestSendQueuedNotifications::class);
     }
 
     public function testQueuedNotificationForwardsMessageGroupFromMethodToQueueJob(): void

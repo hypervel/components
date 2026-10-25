@@ -108,6 +108,7 @@ class BusDispatcherTest extends TestCase
 
         $dispatcher->dispatch(new BusDispatcherQueueable);
 
+        $queue->assertPushedOnce(BusDispatcherQueueable::class);
         $queue->assertPushedOn('high-priority', BusDispatcherQueueable::class);
     }
 
@@ -130,6 +131,7 @@ class BusDispatcherTest extends TestCase
         $dispatcher->dispatch((new BusDispatcherQueueable)->onQueue('reports'));
 
         $this->assertSame('cloud', $usedConnection);
+        $queue->assertPushedOnce(BusDispatcherQueueable::class);
         $queue->assertPushedOn('reports', BusDispatcherQueueable::class);
     }
 

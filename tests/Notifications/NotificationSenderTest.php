@@ -232,7 +232,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, new DummyQueuedNotificationWithStringVia);
 
-        $bus->assertDispatched(SendQueuedNotifications::class);
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
     }
 
     public function testItCanSendQueuedNotificationsWithAnArrayVia(): void
@@ -297,6 +297,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, new DummyNotificationWithMiddleware);
 
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
         $bus->assertDispatched(SendQueuedNotifications::class, function (SendQueuedNotifications $job): bool {
             return ($job->middleware[0] ?? null) instanceof TestNotificationMiddleware;
         });
@@ -382,6 +383,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, new DummyQueuedNotificationWithStringVia);
 
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
         $bus->assertDispatched(SendQueuedNotifications::class, function (SendQueuedNotifications $job): bool {
             return $job->queue === 'notification-queue' && $job->channels === ['mail'] && $job->connection === 'notification-connection';
         });
@@ -566,9 +568,9 @@ class NotificationSenderTest extends TestCase
         $sender->sendNow($notifiable, new DummyNotificationWithViaMutation);
 
         $this->assertSame('default', $driver->sent[0][1]->channelData);
-        $events->assertDispatched(NotificationSending::class);
-        $events->assertDispatched(NotificationDelivered::class);
-        $events->assertDispatched(NotificationSent::class);
+        $events->assertDispatchedOnce(NotificationSending::class);
+        $events->assertDispatchedOnce(NotificationDelivered::class);
+        $events->assertDispatchedOnce(NotificationSent::class);
     }
 
     public function testItQueueOverridesQueueAttribute(): void
@@ -598,6 +600,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, $notification);
 
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
         $bus->assertDispatched(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->queue === 'manual-queue');
     }
 
@@ -626,6 +629,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, $notification);
 
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
         $bus->assertDispatched(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->queue === 'attribute-queue');
     }
 
@@ -662,6 +666,7 @@ class NotificationSenderTest extends TestCase
 
         $sender->send($notifiable, $notification);
 
+        $bus->assertDispatchedOnce(SendQueuedNotifications::class);
         $bus->assertDispatched(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->queue === 'constructor-override-queue');
     }
 
