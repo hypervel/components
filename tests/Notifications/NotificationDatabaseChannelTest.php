@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Messages\DatabaseMessage;
 use Hypervel\Notifications\Notification;
@@ -18,7 +19,7 @@ class NotificationDatabaseChannelTest extends TestCase
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = m::mock(AnonymousNotifiable::class);
 
         $notifiable->expects('routeNotificationFor->create')->with([
             'id' => '1',
@@ -35,7 +36,7 @@ class NotificationDatabaseChannelTest extends TestCase
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = m::mock(AnonymousNotifiable::class);
 
         $notifiable->expects('routeNotificationFor->create')->with([
             'id' => '1',
@@ -55,7 +56,7 @@ class NotificationDatabaseChannelTest extends TestCase
 
         $notification = new NotificationDatabaseChannelCustomizeTypeTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = m::mock(AnonymousNotifiable::class);
 
         $notifiable->expects('routeNotificationFor->create')->with([
             'id' => '1',

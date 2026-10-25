@@ -10,7 +10,6 @@ use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
@@ -26,9 +25,11 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
@@ -40,6 +41,8 @@ use WeakReference;
 
 class DatabaseEloquentBuilderTest extends TestCase
 {
+    use InteractsWithInMemoryConnection;
+
     public function testFindMethod(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
@@ -354,12 +357,13 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testFirstMethod(): void
     {
-        $builder = m::mock(Builder::class . '[get,take]', [$this->getMockQueryBuilder()]);
-        $builder->expects('limit')->with(1)->andReturnSelf();
-        $builder->expects('get')->with(['*'])->andReturn(new Collection(['bar']));
+        $connection = $this->newConnection();
+        $builder = $this->newBuilder($connection);
 
         $result = $builder->first();
-        $this->assertSame('bar', $result);
+
+        $this->assertSame('taylor', $result->name);
+        $this->assertSame('select * from "table" limit 1', $connection->getQueryLog()[0]['query']);
     }
 
     public function testQualifyColumn(): void
@@ -477,89 +481,58 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testChunkWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3, 4]);
 
-        $chunk1 = new Collection(['foo1', 'foo2']);
-        $chunk2 = new Collection(['foo3', 'foo4']);
-        $chunk3 = new Collection([]);
-
-        $builder->expects('getOffset')->andReturn(null);
-        $builder->expects('getLimit')->andReturn(null);
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('offset')->with(2)->andReturnSelf();
-        $builder->expects('offset')->with(4)->andReturnSelf();
-        $builder->expects('limit')->times(3)->with(2)->andReturnSelf();
-        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
-
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->expects('doSomething')->with($chunk1);
-        $callbackAssertor->expects('doSomething')->with($chunk2);
-        $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk3);
-
-        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): void {
-            $callbackAssertor->doSomething($results);
+        $chunks = [];
+        $builder->orderBy('id')->chunk(2, function (Collection $results) use (&$chunks): void {
+            $chunks[] = $results->pluck('id')->all();
         });
+
+        $this->assertSame([[1, 2], [3, 4]], $chunks);
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+            'select * from "table" order by "id" asc limit 2 offset 2',
+            'select * from "table" order by "id" asc limit 2 offset 4',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testChunkWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3]);
 
-        $chunk1 = new Collection(['foo1', 'foo2']);
-        $chunk2 = new Collection(['foo3']);
-        $builder->expects('getOffset')->andReturn(null);
-        $builder->expects('getLimit')->andReturn(null);
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('offset')->with(2)->andReturnSelf();
-        $builder->expects('limit')->times(2)->with(2)->andReturnSelf();
-        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
-
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->expects('doSomething')->with($chunk1);
-        $callbackAssertor->expects('doSomething')->with($chunk2);
-
-        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): void {
-            $callbackAssertor->doSomething($results);
+        $chunks = [];
+        $builder->orderBy('id')->chunk(2, function (Collection $results) use (&$chunks): void {
+            $chunks[] = $results->pluck('id')->all();
         });
+
+        $this->assertSame([[1, 2], [3]], $chunks);
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+            'select * from "table" order by "id" asc limit 2 offset 2',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testChunkCanBeStoppedByReturningFalse(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3]);
 
-        $chunk1 = new Collection(['foo1', 'foo2']);
-        $chunk2 = new Collection(['foo3']);
-
-        $builder->expects('getOffset')->andReturn(null);
-        $builder->expects('getLimit')->andReturn(null);
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('limit')->with(2)->andReturnSelf();
-        $builder->expects('get')->andReturn($chunk1);
-
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->expects('doSomething')->with($chunk1);
-        $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk2);
-
-        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): bool {
-            $callbackAssertor->doSomething($results);
+        $chunks = [];
+        $builder->orderBy('id')->chunk(2, function (Collection $results) use (&$chunks): bool {
+            $chunks[] = $results->pluck('id')->all();
 
             return false;
         });
+
+        $this->assertSame([[1, 2]], $chunks);
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testChunkWithCountZero(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
-
-        $builder->shouldReceive('getOffset')->never();
-        $builder->shouldReceive('getLimit')->never();
-        $builder->shouldReceive('offset')->never();
-        $builder->shouldReceive('limit')->never();
-        $builder->shouldReceive('get')->never();
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3]);
+        $builder->orderBy('id');
 
         foreach ([0, -1] as $count) {
             try {
@@ -571,64 +544,41 @@ class DatabaseEloquentBuilderTest extends TestCase
                 $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
             }
         }
+
+        $this->assertSame([], $connection->getQueryLog());
     }
 
     public function testChunkPaginatesUsingIdWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10, 11], 'someIdField');
 
-        $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
-        $chunk2 = new Collection([(object) ['someIdField' => 10], (object) ['someIdField' => 11]]);
-        $chunk3 = new Collection([]);
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('forPageAfterId')->with(2, 0, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 11, 'someIdField')->andReturnSelf();
-        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
-
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->expects('doSomething')->with($chunk1);
-        $callbackAssertor->expects('doSomething')->with($chunk2);
-        $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk3);
-
-        $builder->chunkById(2, function (Collection $results) use ($callbackAssertor): void {
-            $callbackAssertor->doSomething($results);
+        $chunks = [];
+        $builder->chunkById(2, function (Collection $results) use (&$chunks): void {
+            $chunks[] = $results->pluck('someIdField')->all();
         }, 'someIdField');
+
+        $this->assertSame([[1, 2], [10, 11]], $chunks);
+        $this->assertSame([[], [2], [11]], $this->pagedBindings($connection));
+        $this->assertSame(['select * from "table" where "someIdField" is not null order by "someIdField" asc limit 2', 'select * from "table" where "someIdField" > ? order by "someIdField" asc limit 2', 'select * from "table" where "someIdField" > ? order by "someIdField" asc limit 2'], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testChunkPaginatesUsingIdWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10], 'someIdField');
 
-        $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
-        $chunk2 = new Collection([(object) ['someIdField' => 10]]);
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('forPageAfterId')->with(2, 0, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
-
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->expects('doSomething')->with($chunk1);
-        $callbackAssertor->expects('doSomething')->with($chunk2);
-
-        $builder->chunkById(2, function (Collection $results) use ($callbackAssertor): void {
-            $callbackAssertor->doSomething($results);
+        $chunks = [];
+        $builder->chunkById(2, function (Collection $results) use (&$chunks): void {
+            $chunks[] = $results->pluck('someIdField')->all();
         }, 'someIdField');
+
+        $this->assertSame([[1, 2], [10]], $chunks);
+        $this->assertSame([[], [2]], $this->pagedBindings($connection));
+        $this->assertSame(['select * from "table" where "someIdField" is not null order by "someIdField" asc limit 2', 'select * from "table" where "someIdField" > ? order by "someIdField" asc limit 2'], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testChunkPaginatesUsingIdWithCountZero(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
-
-        $builder->shouldReceive('getOffset')->never();
-        $builder->shouldReceive('getLimit')->never();
-        $builder->shouldReceive('forPageAfterId')->never();
-        $builder->shouldReceive('get')->never();
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10], 'someIdField');
 
         foreach ([0, -1] as $count) {
             try {
@@ -640,6 +590,8 @@ class DatabaseEloquentBuilderTest extends TestCase
                 $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
             }
         }
+
+        $this->assertSame([], $connection->getQueryLog());
     }
 
     public function testChunkDoesNotMutateTheOriginalBuilder(): void
@@ -674,60 +626,35 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testLazyWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3, 4]);
 
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('offset')->with(2)->andReturnSelf();
-        $builder->expects('offset')->with(4)->andReturnSelf();
-        $builder->expects('limit')->times(3)->with(2)->andReturnSelf();
-        $builder->expects('get')->times(3)->andReturn(
-            new Collection(['foo1', 'foo2']),
-            new Collection(['foo3', 'foo4']),
-            new Collection([])
-        );
-
-        $this->assertEquals(
-            ['foo1', 'foo2', 'foo3', 'foo4'],
-            $builder->lazy(2)->all()
-        );
+        $this->assertSame([1, 2, 3, 4], $builder->orderBy('id')->lazy(2)->map(fn (Stub $model): int => $model->id)->all());
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+            'select * from "table" order by "id" asc limit 2 offset 2',
+            'select * from "table" order by "id" asc limit 2 offset 4',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testLazyWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3]);
 
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('offset')->with(2)->andReturnSelf();
-        $builder->expects('limit')->twice()->with(2)->andReturnSelf();
-        $builder->expects('get')->times(2)->andReturn(
-            new Collection(['foo1', 'foo2']),
-            new Collection(['foo3'])
-        );
-
-        $this->assertEquals(
-            ['foo1', 'foo2', 'foo3'],
-            $builder->lazy(2)->all()
-        );
+        $this->assertSame([1, 2, 3], $builder->orderBy('id')->lazy(2)->map(fn (Stub $model): int => $model->id)->all());
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+            'select * from "table" order by "id" asc limit 2 offset 2',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testLazyIsLazy(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 3, 4]);
 
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('offset')->with(0)->andReturnSelf();
-        $builder->expects('limit')->with(2)->andReturnSelf();
-        $builder->expects('get')->andReturn(new Collection(['foo1', 'foo2']));
-
-        $this->assertEquals(['foo1', 'foo2'], $builder->lazy(2)->take(2)->all());
+        $this->assertSame([1, 2], $builder->orderBy('id')->lazy(2)->take(2)->map(fn (Stub $model): int => $model->id)->all());
+        $this->assertSame([
+            'select * from "table" order by "id" asc limit 2 offset 0',
+        ], array_column($connection->getQueryLog(), 'query'));
     }
 
     public function testLazyDoesNotMutateTheOriginalBuilder(): void
@@ -757,71 +684,26 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testLazyByIdWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10, 11], 'someIdField');
 
-        $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
-        $chunk2 = new Collection([(object) ['someIdField' => 10], (object) ['someIdField' => 11]]);
-        $chunk3 = new Collection([]);
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('forPageAfterId')->with(2, 0, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 11, 'someIdField')->andReturnSelf();
-        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
-
-        $this->assertEquals(
-            [
-                (object) ['someIdField' => 1],
-                (object) ['someIdField' => 2],
-                (object) ['someIdField' => 10],
-                (object) ['someIdField' => 11],
-            ],
-            $builder->lazyById(2, 'someIdField')->all()
-        );
+        $this->assertSame([1, 2, 10, 11], $builder->lazyById(2, 'someIdField')->map(fn (Stub $model): int => $model->someIdField)->all());
+        $this->assertSame([[], [2], [11]], $this->pagedBindings($connection));
     }
 
     public function testLazyByIdWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10], 'someIdField');
 
-        $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
-        $chunk2 = new Collection([(object) ['someIdField' => 10]]);
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('forPageAfterId')->with(2, 0, 'someIdField')->andReturnSelf();
-        $builder->expects('forPageAfterId')->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
-
-        $this->assertEquals(
-            [
-                (object) ['someIdField' => 1],
-                (object) ['someIdField' => 2],
-                (object) ['someIdField' => 10],
-            ],
-            $builder->lazyById(2, 'someIdField')->all()
-        );
+        $this->assertSame([1, 2, 10], $builder->lazyById(2, 'someIdField')->map(fn (Stub $model): int => $model->someIdField)->all());
+        $this->assertSame([[], [2]], $this->pagedBindings($connection));
     }
 
     public function testLazyByIdIsLazy(): void
     {
-        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
-        $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+        [$connection, $builder] = $this->newPagedBuilder([1, 2, 10, 11], 'someIdField');
 
-        $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
-        $builder->expects('getOffset')->andReturnNull();
-        $builder->expects('getLimit')->andReturnNull();
-        $builder->expects('forPageAfterId')->with(2, 0, 'someIdField')->andReturnSelf();
-        $builder->expects('get')->andReturn($chunk1);
-
-        $this->assertEquals(
-            [
-                (object) ['someIdField' => 1],
-                (object) ['someIdField' => 2],
-            ],
-            $builder->lazyById(2, 'someIdField')->take(2)->all()
-        );
+        $this->assertSame([1, 2], $builder->lazyById(2, 'someIdField')->take(2)->map(fn (Stub $model): int => $model->someIdField)->all());
+        $this->assertSame([[]], $this->pagedBindings($connection));
     }
 
     public function testPluckReturnsTheMutatedAttributesOfAModel(): void
@@ -948,9 +830,9 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         unset($_SERVER['__test.builder']);
         $builder = new Builder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
+            new PdoConnection(new PDO('sqlite::memory:')),
             m::mock(Grammar::class),
-            m::mock(Processor::class)
+            new Processor
         ));
         $builder->macro('fooBar', function ($builder) {
             $_SERVER['__test.builder'] = $builder;
@@ -991,17 +873,13 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testGetModelsProperlyHydratesModels(): void
     {
-        $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
-        $records[] = ['name' => 'taylor', 'age' => 26];
-        $records[] = ['name' => 'dayle', 'age' => 28];
-        $builder->getQuery()->expects('get')->with(['foo'])->andReturn(new BaseCollection($records));
-        $model = m::mock(Model::class . '[getTable,hydrate]');
-        $model->expects('getTable')->andReturn('foo_table');
-        $builder->setModel($model);
-        $model->expects('hydrate')->with($records)->andReturn(new Collection(['hydrated']));
-        $models = $builder->getModels(['foo']);
+        $builder = $this->newBuilder($this->newConnection());
 
-        $this->assertEquals(['hydrated'], $models);
+        $models = $builder->getModels(['name', 'age']);
+
+        $this->assertContainsOnlyInstancesOf(Stub::class, $models);
+        $this->assertSame(['taylor', 'dayle'], array_map(fn (Stub $model): string => $model->name, $models));
+        $this->assertSame(28, $models[1]->age);
     }
 
     public function testEagerLoadRelationsLoadTopLevelRelationships(): void
@@ -1020,7 +898,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testEagerLoadRelationsCanBeFlushed(): void
     {
-        $builder = m::mock(Builder::class . '[eagerLoadRelation]', [$this->getMockQueryBuilder()]);
+        $builder = new Builder($this->getMockQueryBuilder());
 
         $builder->setEagerLoads(['foo']);
 
@@ -1248,39 +1126,6 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->expects('raw')->with('bar')->andReturn($expression);
 
         $this->assertSame($expression, $builder->raw('bar'));
-    }
-
-    public function testQueryScopes(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('from');
-        $builder->getQuery()->expects('where')->with('foo', 'bar');
-        $builder->setModel($model = new ScopeStub);
-        $result = $builder->approved();
-
-        $this->assertEquals($builder, $result);
-    }
-
-    public function testQueryDynamicScopes(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('from');
-        $builder->getQuery()->expects('where')->with('bar', 'foo');
-        $builder->setModel($model = new DynamicScopeStub);
-        $result = $builder->dynamic('bar', 'foo');
-
-        $this->assertEquals($builder, $result);
-    }
-
-    public function testQueryDynamicScopesNamed(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('from');
-        $builder->getQuery()->expects('where')->with('foo', 'foo');
-        $builder->setModel($model = new DynamicScopeStub);
-        $result = $builder->dynamic(bar: 'foo');
-
-        $this->assertEquals($builder, $result);
     }
 
     public function testApplyScopeCallbackReceivesAndReturnsSameBuilder(): void
@@ -1610,6 +1455,15 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(11, $result->id);
     }
 
+    public function testRealQueryDynamicScopesWithNamedArguments(): void
+    {
+        $model = new DynamicScopeStub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()->dynamic(bar: 'baz');
+        $this->assertSame('select * from "table" where ("foo" = ?)', $query->toSql());
+        $this->assertEquals(['baz'], $query->getBindings());
+    }
+
     public function testRealQueryHigherOrderOrWhereScopes(): void
     {
         $model = new HigherOrderWhereScopeStub;
@@ -1656,22 +1510,6 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->orWhereNot->two()->orWhereNot->three();
         $this->assertSame('select * from "table" where ("one" = ?) or not (("two" = ?)) or not (("three" = ?))', $query->toSql());
-    }
-
-    public function testSimpleWhere(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->getQuery()->expects('where')->with('foo', '=', 'bar');
-        $result = $builder->where('foo', '=', 'bar');
-        $this->assertEquals($result, $builder);
-    }
-
-    public function testPostgresOperatorsWhere(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->getQuery()->expects('where')->with('foo', '@>', 'bar');
-        $result = $builder->where('foo', '@>', 'bar');
-        $this->assertEquals($result, $builder);
     }
 
     public function testWhereBelongsTo(): void
@@ -3444,7 +3282,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new Stub;
         $this->mockConnectionForModel($model, '');
@@ -3460,7 +3298,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->expects('getTablePrefix')->times(2)->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new Stub;
         $this->mockConnectionForModel($model, '');
@@ -3476,7 +3314,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new Stub;
         $this->mockConnectionForModel($model, '');
@@ -3492,7 +3330,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->expects('getTablePrefix')->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new StubWithoutTimestamp;
         $this->mockConnectionForModel($model, '');
@@ -3510,7 +3348,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new Stub;
         $this->mockConnectionForModel($model, '');
@@ -3528,7 +3366,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $model = new Stub;
         $this->mockConnectionForModel($model, '');
@@ -3798,21 +3636,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testWithCastsMethod(): void
-    {
-        $builder = new Builder($this->getMockQueryBuilder());
-        $model = $this->getMockModel();
-        $builder->setModel($model);
-
-        $model->expects('mergeCasts')->with(['foo' => 'bar']);
-        $builder->withCasts(['foo' => 'bar']);
-    }
-
     public function testClone(): void
     {
         $connection = m::mock(Connection::class);
         $connection->expects('getTablePrefix')->times(2)->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
         $builder->select('*')->from('users');
         $clone = $builder->clone()->where('email', 'foo');
@@ -3883,7 +3711,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->expects('getTablePrefix')->times(2)->andReturn('');
-        $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = (new Builder($query))->setModel(new Stub);
         $builder->select('*')->from('users');
 
@@ -4107,6 +3935,58 @@ class DatabaseEloquentBuilderTest extends TestCase
         return $model;
     }
 
+    /**
+     * Create an in-memory table holding the given ids and a builder that queries it.
+     *
+     * @return array{SQLiteConnection, Builder}
+     */
+    protected function newPagedBuilder(array $ids, string $column = 'id'): array
+    {
+        $connection = $this->useInMemoryConnection();
+        $pdo = $connection->getPdo();
+        $pdo->exec('create table "table" ("' . $column . '" integer primary key)');
+
+        foreach ($ids as $id) {
+            $pdo->exec('insert into "table" values (' . $id . ')');
+        }
+
+        $connection->enableQueryLog();
+
+        return [$connection, $this->newBuilder($connection)];
+    }
+
+    /**
+     * Get the bindings of each logged query.
+     */
+    protected function pagedBindings(SQLiteConnection $connection): array
+    {
+        return array_column($connection->getQueryLog(), 'bindings');
+    }
+
+    /**
+     * Create an in-memory connection with two seeded rows.
+     */
+    protected function newConnection(): SQLiteConnection
+    {
+        $connection = $this->useInMemoryConnection();
+        $pdo = $connection->getPdo();
+        $pdo->exec('create table "table" ("id" integer primary key, "name" text, "age" integer)');
+        $pdo->exec("insert into \"table\" values (1, 'taylor', 26)");
+        $pdo->exec("insert into \"table\" values (2, 'dayle', 28)");
+
+        $connection->enableQueryLog();
+
+        return $connection;
+    }
+
+    /**
+     * Create a builder for the stub model on the given connection.
+     */
+    protected function newBuilder(SQLiteConnection $connection): Builder
+    {
+        return (new Builder($connection->query()))->setModel(new Stub);
+    }
+
     protected function getMockQueryBuilder()
     {
         $query = m::mock(BaseBuilder::class);
@@ -4132,22 +4012,6 @@ class FreshQueryModel extends Stub
     protected array $with = ['related'];
 }
 
-class ScopeStub extends Model
-{
-    public function scopeApproved($query)
-    {
-        $query->where('foo', 'bar');
-    }
-}
-
-class DynamicScopeStub extends Model
-{
-    public function scopeDynamic($query, $foo = 'foo', $bar = 'bar')
-    {
-        $query->where($foo, $bar);
-    }
-}
-
 class HigherOrderWhereScopeStub extends Model
 {
     protected ?string $table = 'table';
@@ -4165,6 +4029,16 @@ class HigherOrderWhereScopeStub extends Model
     public function scopeThree($query)
     {
         $query->where('three', 'baz');
+    }
+}
+
+class DynamicScopeStub extends Model
+{
+    protected ?string $table = 'table';
+
+    public function scopeDynamic($query, $foo = 'foo', $bar = 'bar')
+    {
+        $query->where($foo, $bar);
     }
 }
 

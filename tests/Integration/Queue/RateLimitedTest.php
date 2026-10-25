@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Integration\Queue\RateLimitedTest;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
@@ -16,7 +16,6 @@ use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 
 class RateLimitedTest extends TestCase
 {
@@ -222,16 +221,13 @@ class RateLimitedTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
         ]);
+
+        $this->assertTrue($job->isDeleted());
 
         $this->assertTrue($class::$handled);
     }
@@ -246,16 +242,13 @@ class RateLimitedTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('release');
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
         ]);
+
+        $this->assertTrue($job->isReleased());
 
         $this->assertFalse($class::$handled);
     }
@@ -270,16 +263,14 @@ class RateLimitedTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('release')->withArgs([$releaseAfter]);
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
         ]);
+
+        $this->assertTrue($job->isReleased());
+        $this->assertSame($releaseAfter, $job->releaseDelay);
 
         $this->assertFalse($class::$handled);
     }
@@ -294,16 +285,13 @@ class RateLimitedTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
         ]);
+
+        $this->assertTrue($job->isDeleted());
 
         $this->assertFalse($class::$handled);
     }

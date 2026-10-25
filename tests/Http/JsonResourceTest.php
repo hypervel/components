@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\MissingValue;
 use Hypervel\Tests\TestCase;
@@ -34,13 +36,9 @@ class JsonResourceTest extends TestCase
 
     public function testJsonResourceToJsonSucceedsWithPriorErrors(): void
     {
-        $model = new class extends Model {
-        };
+        Container::getInstance()->instance('request', Request::create('/'));
 
-        $resource = m::mock(JsonResource::class, ['resource' => $model])
-            ->makePartial()
-            ->expects('jsonSerialize')->andReturn(['foo' => 'bar'])
-            ->getMock();
+        $resource = new JsonResource(['foo' => 'bar']);
 
         // Simulate a JSON error
         json_decode('{');
@@ -51,10 +49,7 @@ class JsonResourceTest extends TestCase
 
     public function testJsonResourceToPrettyPrint(): void
     {
-        $model = new class extends Model {
-        };
-
-        $resource = m::mock(JsonResource::class, ['resource' => $model])
+        $resource = m::mock(JsonResource::class)
             ->makePartial()
             ->expects('jsonSerialize')->times(3)->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
             ->getMock();

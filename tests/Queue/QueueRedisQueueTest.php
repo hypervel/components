@@ -796,7 +796,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis, 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer(m::spy(Container::class)->makePartial());
+        $queue->setContainer(new Container);
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);

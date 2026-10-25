@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Hashing\Hasher;
@@ -486,12 +487,8 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, [], ['name' => 'required']);
-        $container = m::mock(ContainerContract::class);
-        $v->setContainer($container);
-        $v->addReplacer('required', 'Foo@bar');
-        $foo = m::mock(stdClass::class);
-        $container->expects('make')->with('Foo')->andReturn($foo);
-        $foo->expects('bar')->andReturn('replaced!');
+        $v->setContainer(new Container);
+        $v->addReplacer('required', ClassBasedValidatorStub::class . '@replace');
         $v->passes();
         $v->messages()->setFormat(':message');
         $this->assertSame('replaced!', $v->messages()->first('name'));
@@ -1514,9 +1511,10 @@ class ValidationValidatorTest extends TestCase
     public function testValidateCurrentPassword(): void
     {
         // Fails when user is not logged in.
-        $auth = m::mock(Guard::class);
-        $auth->expects('guard')->andReturn($auth);
-        $auth->expects('guest')->andReturn(true);
+        $guard = m::mock(Guard::class);
+        $guard->expects('guest')->andReturn(true);
+        $auth = m::mock(AuthFactory::class);
+        $auth->expects('guard')->andReturn($guard);
 
         $hasher = m::mock(Hasher::class);
 
@@ -1537,10 +1535,11 @@ class ValidationValidatorTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $user->expects('getAuthPassword');
 
-        $auth = m::mock(Guard::class);
-        $auth->expects('guard')->andReturn($auth);
-        $auth->expects('guest')->andReturn(false);
-        $auth->expects('user')->andReturn($user);
+        $guard = m::mock(Guard::class);
+        $guard->expects('guest')->andReturn(false);
+        $guard->expects('user')->andReturn($user);
+        $auth = m::mock(AuthFactory::class);
+        $auth->expects('guard')->andReturn($guard);
 
         $hasher = m::mock(Hasher::class);
         $hasher->expects('check')->andReturn(false);
@@ -1562,10 +1561,11 @@ class ValidationValidatorTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $user->expects('getAuthPassword');
 
-        $auth = m::mock(Guard::class);
-        $auth->expects('guard')->andReturn($auth);
-        $auth->expects('guest')->andReturn(false);
-        $auth->expects('user')->andReturn($user);
+        $guard = m::mock(Guard::class);
+        $guard->expects('guest')->andReturn(false);
+        $guard->expects('user')->andReturn($user);
+        $auth = m::mock(AuthFactory::class);
+        $auth->expects('guard')->andReturn($guard);
 
         $hasher = m::mock(Hasher::class);
         $hasher->expects('check')->andReturn(true);
@@ -1586,10 +1586,11 @@ class ValidationValidatorTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $user->expects('getAuthPassword');
 
-        $auth = m::mock(Guard::class);
-        $auth->expects('guard')->with('custom')->andReturn($auth);
-        $auth->expects('guest')->andReturn(false);
-        $auth->expects('user')->andReturn($user);
+        $guard = m::mock(Guard::class);
+        $guard->expects('guest')->andReturn(false);
+        $guard->expects('user')->andReturn($user);
+        $auth = m::mock(AuthFactory::class);
+        $auth->expects('guard')->with('custom')->andReturn($guard);
 
         $hasher = m::mock(Hasher::class);
         $hasher->expects('check')->andReturn(true);
@@ -5335,11 +5336,8 @@ class ValidationValidatorTest extends TestCase
 
     public function testValidateEmailWithCustomClassCheck(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->expects('make')->with(NoRFCWarningsValidation::class)->andReturn(new NoRFCWarningsValidation);
-
         $v = new Validator($this->getArrayTranslator(), ['x' => 'foo@bar '], ['x' => 'email:' . NoRFCWarningsValidation::class]);
-        $v->setContainer($container);
+        $v->setContainer(new Container);
 
         $this->assertFalse($v->passes());
     }
@@ -7784,12 +7782,8 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $container = m::mock(ContainerContract::class);
-        $v->setContainer($container);
-        $v->addExtension('foo', 'Foo@bar');
-        $foo = m::mock(stdClass::class);
-        $container->expects('make')->with('Foo')->andReturn($foo);
-        $foo->expects('bar')->andReturn(false);
+        $v->setContainer(new Container);
+        $v->addExtension('foo', ClassBasedValidatorStub::class . '@bar');
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('foo!', $v->messages()->first('name'));
@@ -7800,12 +7794,8 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $container = m::mock(ContainerContract::class);
-        $v->setContainer($container);
-        $v->addExtension('foo', 'Foo');
-        $foo = m::mock(stdClass::class);
-        $container->expects('make')->with('Foo')->andReturn($foo);
-        $foo->expects('validate')->andReturn(false);
+        $v->setContainer(new Container);
+        $v->addExtension('foo', ConventionalValidatorStub::class);
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('foo!', $v->messages()->first('name'));
@@ -11323,6 +11313,36 @@ class ValidationValidatorTest extends TestCase
         Container::setInstance($container);
 
         return $container;
+    }
+}
+
+class ClassBasedValidatorStub
+{
+    /**
+     * Replace the validation message.
+     */
+    public function replace(): string
+    {
+        return 'replaced!';
+    }
+
+    /**
+     * Validate the attribute.
+     */
+    public function bar(): bool
+    {
+        return false;
+    }
+}
+
+class ConventionalValidatorStub
+{
+    /**
+     * Validate the attribute.
+     */
+    public function validate(): bool
+    {
+        return false;
     }
 }
 

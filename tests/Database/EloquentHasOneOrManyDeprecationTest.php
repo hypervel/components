@@ -9,9 +9,12 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use PDO;
 
 class EloquentHasOneOrManyDeprecationTest extends TestCase
 {
@@ -29,10 +32,6 @@ class EloquentHasOneOrManyDeprecationTest extends TestCase
         $model1->id = 1;
         $model2 = new HasOneOrManyDeprecationModelStub;
         $model2->id = null;
-
-        $relation->getRelated()->expects('newCollection')->andReturnUsing(function (array $array): Collection {
-            return new Collection($array);
-        });
 
         $models = $relation->match([$model1, $model2], new Collection([$result1, $result2]), 'foo');
 
@@ -74,37 +73,40 @@ class EloquentHasOneOrManyDeprecationTest extends TestCase
     }
 
     /**
-     * Create a has-many relation with mocked query constraints.
+     * Create a has-many relation.
      */
     protected function getHasManyRelation(): HasMany
     {
-        $queryBuilder = m::mock(QueryBuilder::class);
-        $builder = m::mock(Builder::class, [$queryBuilder]);
-        $builder->expects('whereNotNull')->with('table.foreign_key');
-        $builder->expects('where')->with('table.foreign_key', '=', 1);
-        $related = m::mock(Model::class);
-        $builder->expects('getModel')->andReturn($related);
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('id')->andReturn(1);
-
-        return new HasMany($builder, $parent, 'table.foreign_key', 'id');
+        return new HasMany($this->newBuilder(), $this->newParent(), 'table.foreign_key', 'id');
     }
 
     /**
-     * Create a has-one relation with mocked query constraints.
+     * Create a has-one relation.
      */
     protected function getHasOneRelation(): HasOne
     {
-        $queryBuilder = m::mock(QueryBuilder::class);
-        $builder = m::mock(Builder::class, [$queryBuilder]);
-        $builder->expects('whereNotNull')->with('table.foreign_key');
-        $builder->expects('where')->with('table.foreign_key', '=', 1);
-        $related = m::mock(Model::class);
-        $builder->expects('getModel')->andReturn($related);
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('id')->andReturn(1);
+        return new HasOne($this->newBuilder(), $this->newParent(), 'table.foreign_key', 'id');
+    }
 
-        return new HasOne($builder, $parent, 'table.foreign_key', 'id');
+    /**
+     * Create an Eloquent builder for the related stub model.
+     */
+    protected function newBuilder(): Builder
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+
+        return (new Builder(new QueryBuilder($connection, new Grammar($connection), new Processor)))->setModel(new HasOneOrManyDeprecationModelStub);
+    }
+
+    /**
+     * Create the parent model.
+     */
+    protected function newParent(): Model
+    {
+        $parent = new HasOneOrManyDeprecationModelStub;
+        $parent->id = 1;
+
+        return $parent;
     }
 }
 

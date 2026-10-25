@@ -37,7 +37,6 @@ trait InteractsWithQueue
     {
         if ($this->job) {
             $this->job->delete();
-            return;
         }
     }
 
@@ -64,7 +63,6 @@ trait InteractsWithQueue
 
         if ($this->job) {
             $this->job->release($delay);
-            return;
         }
     }
 
@@ -195,10 +193,13 @@ trait InteractsWithQueue
         );
 
         if (! is_null($delay)) {
+            // A fake job released directly can hold a date or interval instead of seconds.
+            $actual = $this->secondsUntil($this->job->releaseDelay); // @phpstan-ignore property.notFound (FakeJob test-double property)
+
             PHPUnit::assertSame(
                 $delay,
-                $this->job->releaseDelay, // @phpstan-ignore property.notFound (FakeJob test-double property)
-                "Expected job to be released with delay of [{$delay}] seconds, but was released with delay of [{$this->job->releaseDelay}] seconds." // @phpstan-ignore property.notFound
+                $actual,
+                "Expected job to be released with delay of [{$delay}] seconds, but was released with delay of [{$actual}] seconds."
             );
         }
 

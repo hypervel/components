@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Generator;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Factory as HttpFactory;
-use Hypervel\Http\Client\Response;
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\NotPwnedVerifier;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ValidationNotPwnedVerifierTest extends TestCase
@@ -19,13 +21,16 @@ class ValidationNotPwnedVerifierTest extends TestCase
     #[DataProvider('dataProviderEmptyValues')]
     public function testEmptyValues(string|bool|int $password): void
     {
-        $httpFactory = m::mock(HttpFactory::class);
-        $verifier = new NotPwnedVerifier($httpFactory);
+        $http = new HttpFactory;
+        $http->fake();
+        $verifier = new NotPwnedVerifier($http);
 
         $this->assertFalse($verifier->verify([
             'value' => $password,
             'threshold' => 0,
         ]));
+
+        $http->assertNothingSent();
     }
 
     /**
@@ -40,63 +45,30 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
     public function testApiResponseGoesWrong(): void
     {
-        $httpFactory = m::mock(HttpFactory::class);
-        $response = m::mock(Response::class);
-
-        $httpFactory
-            ->expects('withHeaders')
-            ->with(['Add-Padding' => 'true'])
-            ->andReturn($httpFactory);
-
-        $httpFactory
-            ->expects('timeout')
-            ->with(30)
-            ->andReturn($httpFactory);
-
-        $httpFactory->expects('get')
-            ->andReturn($response);
-
-        $response->expects('successful')
-            ->andReturn(true);
-
-        $response->expects('body')
-            ->andReturn('');
-
-        $verifier = new NotPwnedVerifier($httpFactory);
+        $http = new HttpFactory;
+        $http->fake(['api.pwnedpasswords.com/*' => HttpFactory::response('', 200)]);
+        $verifier = new NotPwnedVerifier($http);
 
         $this->assertTrue($verifier->verify([
             'value' => 123123123,
             'threshold' => 0,
         ]));
+
+        $http->assertSentCount(1);
     }
 
     public function testApiGoesDown(): void
     {
-        $httpFactory = m::mock(HttpFactory::class);
-        $response = m::mock(Response::class);
-
-        $httpFactory
-            ->expects('withHeaders')
-            ->with(['Add-Padding' => 'true'])
-            ->andReturn($httpFactory);
-
-        $httpFactory
-            ->expects('timeout')
-            ->with(30)
-            ->andReturn($httpFactory);
-
-        $httpFactory->expects('get')
-            ->andReturn($response);
-
-        $response->expects('successful')
-            ->andReturn(false);
-
-        $verifier = new NotPwnedVerifier($httpFactory);
+        $http = new HttpFactory;
+        $http->fake(['api.pwnedpasswords.com/*' => HttpFactory::response('', 500)]);
+        $verifier = new NotPwnedVerifier($http);
 
         $this->assertTrue($verifier->verify([
             'value' => 123123123,
             'threshold' => 0,
         ]));
+
+        $http->assertSentCount(1);
     }
 
     public function testMagicHashDoesNotCauseFalsePositive(): void
@@ -110,67 +82,43 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $differentSuffix = '00000000000000000000000000000000000';
 
-        $httpFactory = m::mock(HttpFactory::class);
-        $response = m::mock(Response::class);
+        $timeout = null;
+        $http = new HttpFactory;
+        // Capture the request options, since recorded requests do not expose the timeout.
+        $http->fake(['api.pwnedpasswords.com/*' => function (Request $request, array $options) use ($differentSuffix, &$timeout): PromiseInterface {
+            $timeout = $options['timeout'];
 
-        $httpFactory
-            ->expects('withHeaders')
-            ->with(['Add-Padding' => 'true'])
-            ->andReturn($httpFactory);
-
-        $httpFactory
-            ->expects('timeout')
-            ->with(30)
-            ->andReturn($httpFactory);
-
-        $httpFactory->expects('get')
-            ->with('https://api.pwnedpasswords.com/range/' . $hashPrefix)
-            ->andReturn($response);
-
-        $response->expects('successful')
-            ->andReturn(true);
-
-        $response->expects('body')
-            ->andReturn($differentSuffix . ':5');
-
-        $verifier = new NotPwnedVerifier($httpFactory);
+            return HttpFactory::response($differentSuffix . ':5', 200);
+        }]);
+        // Use a timeout that differs from the HTTP client's 30-second default.
+        $verifier = new NotPwnedVerifier($http, 5);
 
         $this->assertTrue($verifier->verify([
             'value' => $password,
             'threshold' => 0,
         ]));
+
+        $http->assertSent(fn (Request $request): bool => $request->url() === 'https://api.pwnedpasswords.com/range/' . $hashPrefix
+            && $request->hasHeader('Add-Padding', 'true'));
+        $this->assertSame(5, $timeout);
     }
 
     public function testDnsDown(): void
     {
-        $exception = new ConnectionException;
-
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->expects('report')->with($exception, []);
+        $exceptionHandler = new ExceptionHandlerFake(new Handler($this->app));
         $this->app->singleton(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });
 
-        $httpFactory = m::mock(HttpFactory::class);
+        $http = new HttpFactory;
+        $http->fake(HttpFactory::failedConnection());
+        $verifier = new NotPwnedVerifier($http);
 
-        $httpFactory
-            ->expects('withHeaders')
-            ->with(['Add-Padding' => 'true'])
-            ->andReturn($httpFactory);
-
-        $httpFactory
-            ->expects('timeout')
-            ->with(30)
-            ->andReturn($httpFactory);
-
-        $httpFactory
-            ->expects('get')
-            ->andThrow($exception);
-
-        $verifier = new NotPwnedVerifier($httpFactory);
         $this->assertTrue($verifier->verify([
             'value' => 123123123,
             'threshold' => 0,
         ]));
+
+        $exceptionHandler->assertReported(ConnectionException::class);
     }
 }

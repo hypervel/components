@@ -375,7 +375,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $job = new stdClass;
         $job->invalid = "\xc3\x28";
 
-        $queue = m::mock(Queue::class)->makePartial();
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -389,7 +389,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $queue = m::mock(Queue::class)->makePartial();
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -903,8 +903,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testBuildDatabaseRecordWithPayloadAtTheEnd(): void
     {
-        $queue = m::mock(DatabaseQueue::class);
-        $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
+        $class = new ReflectionClass(DatabaseQueue::class);
+        $record = $class->getMethod('buildDatabaseRecord')->invoke($queue, 'queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
     }
@@ -1058,7 +1059,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1073,7 +1074,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1090,7 +1091,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1107,7 +1108,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);

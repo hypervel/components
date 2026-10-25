@@ -31,6 +31,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Events\ConnectionFailed as ConnectionFailedEvent;
@@ -52,6 +53,7 @@ use Hypervel\Support\Json;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
@@ -4379,11 +4381,7 @@ class HttpClientTest extends TestCase
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4393,15 +4391,13 @@ class HttpClientTest extends TestCase
         $factory->post('https://example.com');
         $factory->patch('https://example.com');
         $factory->delete('https://example.com');
+        $events->assertDispatchedTimes(RequestSending::class, 5);
+        $events->assertDispatchedTimes(ResponseReceived::class, 5);
     }
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSentAsync(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4411,16 +4407,14 @@ class HttpClientTest extends TestCase
         $factory->async()->post('https://example.com')->wait();
         $factory->async()->patch('https://example.com')->wait();
         $factory->async()->delete('https://example.com')->wait();
+        $events->assertDispatchedTimes(RequestSending::class, 5);
+        $events->assertDispatchedTimes(ResponseReceived::class, 5);
     }
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredForEveryRetry(): void
     {
         Sleep::fake();
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(2)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(2)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake([
@@ -4432,6 +4426,8 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->failed());
 
         $factory->assertSentCount(2);
+        $events->assertDispatchedTimes(RequestSending::class, 2);
+        $events->assertDispatchedTimes(ResponseReceived::class, 2);
     }
 
     public function testTheTransferStatsAreCalledSafelyWhenFakingTheRequest(): void
@@ -4466,11 +4462,7 @@ class HttpClientTest extends TestCase
 
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake(['example.com' => $factory::response('foo', 200)]);
@@ -4479,6 +4471,21 @@ class HttpClientTest extends TestCase
         $clonedClient = clone $client;
 
         $clonedClient->get('https://example.com');
+        $events->assertDispatchedTimes(RequestSending::class, 1);
+        $events->assertDispatchedTimes(ResponseReceived::class, 1);
+    }
+
+    public function testRequestEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(false);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $factory = new Factory($events);
+        $factory->fake();
+
+        $factory->get('https://example.com');
     }
 
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void

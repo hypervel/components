@@ -14,7 +14,6 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PDO;
 
 class DatabaseEloquentRelationTest extends TestCase
@@ -39,152 +38,81 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testTouchMethodUpdatesRelatedTimestamps(): void
     {
-        $builder = m::mock(Builder::class);
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('id')->andReturn(1);
-        $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $builder->expects('getModel')->andReturn($related);
-        $builder->expects('whereNotNull');
-        $builder->expects('where');
-        $builder->expects('withoutGlobalScopes')->andReturn($builder);
-        $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
-        $related->expects('getUpdatedAtColumn')->andReturn('updated_at');
-        $now = CarbonImmutable::now()->toDateTimeString();
-        $related->expects('freshTimestampString')->andReturn($now);
-        $builder->expects('update')->with(['updated_at' => $now])->andReturn(1);
+        $connection = $this->newConnection();
+        $relation = $this->newHasOne($connection, new NoTouchingModelStub, new NoTouchingModelStub);
 
         $relation->touch();
+
+        $this->assertSame('2023-01-01 00:00:00', $this->updatedAt($connection, 'table'));
     }
 
     public function testCanDisableParentTouchingForAllModels(): void
     {
-        $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $related->shouldReceive('getUpdatedAtColumn')->never();
-        $related->shouldReceive('freshTimestampString')->never();
+        $connection = $this->newConnection();
+        $related = new NoTouchingModelStub;
 
         $this->assertFalse($related::isIgnoringTouch());
 
-        Model::withoutTouching(function () use ($related): void {
+        Model::withoutTouching(function () use ($connection, $related): void {
             $this->assertTrue($related::isIgnoringTouch());
 
-            $builder = m::mock(Builder::class);
-            $parent = m::mock(Model::class);
-
-            $parent->expects('getAttribute')->with('id')->andReturn(1);
-            $builder->expects('getModel')->andReturn($related);
-            $builder->expects('whereNotNull');
-            $builder->expects('where');
-            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
-            $builder->shouldReceive('update')->never();
-
-            $relation->touch();
+            $this->newHasOne($connection, $related, new NoTouchingModelStub)->touch();
         });
 
+        $this->assertNull($this->updatedAt($connection, 'table'));
         $this->assertFalse($related::isIgnoringTouch());
     }
 
     public function testCanDisableTouchingForSpecificModel(): void
     {
-        $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $related->shouldReceive('getUpdatedAtColumn')->never();
-        $related->shouldReceive('freshTimestampString')->never();
-
-        $anotherRelated = m::mock(NoTouchingAnotherModelStub::class)->makePartial();
+        $connection = $this->newConnection();
+        $related = new NoTouchingModelStub;
+        $anotherRelated = new NoTouchingAnotherModelStub;
 
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($anotherRelated::isIgnoringTouch());
 
-        NoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated): void {
+        NoTouchingModelStub::withoutTouching(function () use ($connection, $related, $anotherRelated): void {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertFalse($anotherRelated::isIgnoringTouch());
 
-            $builder = m::mock(Builder::class);
-            $parent = m::mock(Model::class);
-
-            $parent->expects('getAttribute')->with('id')->andReturn(1);
-            $builder->expects('getModel')->andReturn($related);
-            $builder->expects('whereNotNull');
-            $builder->expects('where');
-            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
-            $builder->shouldReceive('update')->never();
-
-            $relation->touch();
-
-            $anotherBuilder = m::mock(Builder::class);
-            $anotherParent = m::mock(Model::class);
-
-            $anotherParent->expects('getAttribute')->with('id')->andReturn(2);
-            $anotherBuilder->expects('getModel')->andReturn($anotherRelated);
-            $anotherBuilder->expects('whereNotNull');
-            $anotherBuilder->expects('where');
-            $anotherBuilder->expects('withoutGlobalScopes')->andReturnSelf();
-            $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
-            $now = CarbonImmutable::now()->toDateTimeString();
-            $anotherRelated->expects('freshTimestampString')->andReturn($now);
-            $anotherBuilder->expects('update')->with(['updated_at' => $now])->andReturn(1);
-
-            $anotherRelation->touch();
+            $this->newHasOne($connection, $related, new NoTouchingModelStub)->touch();
+            $this->newHasOne($connection, $anotherRelated, new NoTouchingAnotherModelStub)->touch();
         });
 
+        $this->assertNull($this->updatedAt($connection, 'table'));
+        $this->assertSame('2023-01-01 00:00:00', $this->updatedAt($connection, 'another_table'));
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($anotherRelated::isIgnoringTouch());
     }
 
     public function testParentModelIsNotTouchedWhenChildModelIsIgnored(): void
     {
-        $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $related->shouldReceive('getUpdatedAtColumn')->never();
-        $related->shouldReceive('freshTimestampString')->never();
-
-        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
-        $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
-        $relatedChild->shouldReceive('freshTimestampString')->never();
+        $connection = $this->newConnection();
+        $related = new NoTouchingModelStub;
+        $relatedChild = new NoTouchingChildModelStub;
 
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
-        NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild): void {
+        NoTouchingModelStub::withoutTouching(function () use ($connection, $related, $relatedChild): void {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertTrue($relatedChild::isIgnoringTouch());
 
-            $builder = m::mock(Builder::class);
-            $parent = m::mock(Model::class);
-
-            $parent->expects('getAttribute')->with('id')->andReturn(1);
-            $builder->expects('getModel')->andReturn($related);
-            $builder->expects('whereNotNull');
-            $builder->expects('where');
-            $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
-            $builder->shouldReceive('update')->never();
-
-            $relation->touch();
-
-            $anotherBuilder = m::mock(Builder::class);
-            $anotherParent = m::mock(Model::class);
-
-            $anotherParent->expects('getAttribute')->with('id')->andReturn(2);
-            $anotherBuilder->expects('getModel')->andReturn($relatedChild);
-            $anotherBuilder->expects('whereNotNull');
-            $anotherBuilder->expects('where');
-            $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
-            $anotherBuilder->shouldReceive('update')->never();
-
-            $anotherRelation->touch();
+            $this->newHasOne($connection, $related, new NoTouchingModelStub)->touch();
+            $this->newHasOne($connection, $relatedChild, new NoTouchingChildModelStub)->touch();
         });
 
+        $this->assertNull($this->updatedAt($connection, 'table'));
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }
 
     public function testIgnoredModelsStateIsResetWhenThereAreExceptions(): void
     {
-        $related = m::mock(NoTouchingModelStub::class)->makePartial();
-        $related->shouldReceive('getUpdatedAtColumn')->never();
-        $related->shouldReceive('freshTimestampString')->never();
+        $related = new NoTouchingModelStub;
 
-        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
-        $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
-        $relatedChild->shouldReceive('freshTimestampString')->never();
+        $relatedChild = new NoTouchingChildModelStub;
 
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
@@ -318,7 +246,7 @@ class DatabaseEloquentRelationTest extends TestCase
         });
 
         $model = new ResetModelStub;
-        $builder = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel($model);
+        $builder = (new Builder($this->newConnection()->query()))->setModel($model);
         $relation = new RelationStub($builder, $model);
 
         $result = $relation->foo();
@@ -331,6 +259,40 @@ class DatabaseEloquentRelationTest extends TestCase
 
         $this->assertTrue($model->isRelation('parent'));
         $this->assertFalse($model->isRelation('field'));
+    }
+
+    /**
+     * Create an in-memory connection with one row in each touch target table.
+     */
+    protected function newConnection(): SQLiteConnection
+    {
+        CarbonImmutable::setTestNow('2023-01-01 00:00:00');
+
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('create table "table" ("id" integer primary key, "foreign_key" integer, "updated_at" text)');
+        $pdo->exec('create table "another_table" ("id" integer primary key, "foreign_key" integer, "updated_at" text)');
+        $pdo->exec('insert into "table" ("id", "foreign_key") values (1, 1)');
+        $pdo->exec('insert into "another_table" ("id", "foreign_key") values (1, 2)');
+
+        return new SQLiteConnection($pdo);
+    }
+
+    /**
+     * Create a has one relationship querying the given connection.
+     */
+    protected function newHasOne(SQLiteConnection $connection, Model $related, Model $parent): HasOne
+    {
+        $builder = (new Builder($connection->query()))->setModel($related);
+
+        return new HasOne($builder, $parent, 'foreign_key', 'id');
+    }
+
+    /**
+     * Get the stored updated_at value of the given table.
+     */
+    protected function updatedAt(SQLiteConnection $connection, string $table): ?string
+    {
+        return $connection->scalar('select "updated_at" from "' . $table . '"');
     }
 }
 
@@ -376,6 +338,8 @@ class NoTouchingModelStub extends Model
 {
     protected ?string $table = 'table';
 
+    protected ?string $dateFormat = 'Y-m-d H:i:s';
+
     protected array $attributes = [
         'id' => 1,
     ];
@@ -388,6 +352,8 @@ class NoTouchingChildModelStub extends NoTouchingModelStub
 class NoTouchingAnotherModelStub extends Model
 {
     protected ?string $table = 'another_table';
+
+    protected ?string $dateFormat = 'Y-m-d H:i:s';
 
     protected array $attributes = [
         'id' => 2,

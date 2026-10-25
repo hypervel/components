@@ -12,9 +12,11 @@ use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\Concerns\SupportsInverseRelations;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
 
@@ -281,24 +283,31 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
     public function testOnlyHydratesInverseRelationOnModels(): void
     {
-        $relation = m::mock(HasInverseRelationStub::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $relation->expects('getParent')->andReturn(new HasInverseRelationParentStub);
-        $relation->expects('applyInverseRelationToModel')->times(6);
+        $builder = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel(new HasInverseRelationRelatedStub);
+        $parent = new HasInverseRelationParentStub;
+        $relation = (new HasInverseRelationStub($builder, $parent))->inverse('test');
+
+        $models = array_map(fn (): HasInverseRelationRelatedStub => new HasInverseRelationRelatedStub, range(1, 6));
         $relation->exposeApplyInverseRelationToCollection([
-            new HasInverseRelationRelatedStub,
+            $models[0],
             12345,
-            new HasInverseRelationRelatedStub,
-            new HasInverseRelationRelatedStub,
+            $models[1],
+            $models[2],
             Model::class,
-            new HasInverseRelationRelatedStub,
+            $models[3],
             true,
             [],
-            new HasInverseRelationRelatedStub,
+            $models[4],
             'foo',
             new class {
             },
-            new HasInverseRelationRelatedStub,
+            $models[5],
         ]);
+
+        foreach ($models as $model) {
+            $this->assertTrue($model->relationLoaded('test'));
+            $this->assertSame($parent, $model->test);
+        }
     }
 }
 

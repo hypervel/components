@@ -7,12 +7,13 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
@@ -268,7 +269,7 @@ class DatabaseTruncationTest extends TestCase
 
         $this->cacheInMemoryDatabases();
 
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = m::mock(DispatcherContract::class);
         $restoredDefault = m::mock(PdoConnection::class);
         $restoredNamed = m::mock(PdoConnection::class);
         $restoredDefault->expects('setPdo')->with($defaultPdo)->andReturnSelf();
@@ -282,7 +283,7 @@ class DatabaseTruncationTest extends TestCase
         $restoredDatabase->shouldNotReceive('connection')->with('file');
 
         $this->app->instance('db', $restoredDatabase);
-        $this->app->instance(Dispatcher::class, $dispatcher);
+        $this->app->instance(DispatcherContract::class, $dispatcher);
 
         $this->restoreInMemoryDatabases();
 
@@ -547,7 +548,7 @@ class DatabaseTruncationTest extends TestCase
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new Dispatcher;
         $connection->expects('getEventDispatcher')->andReturn($dispatcher);
         $connection->expects('unsetEventDispatcher');
         $connection->expects('setEventDispatcher')->with($dispatcher);

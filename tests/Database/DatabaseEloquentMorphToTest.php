@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -19,6 +20,7 @@ use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDO;
 
 class DatabaseEloquentMorphToTest extends TestCase
 {
@@ -207,34 +209,29 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodSetsForeignKeyAndTypeOnModel(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
+        $relation = $this->getRelationWithRealQuery();
+        $associate = new RelatedStub;
+        $associate->id = 1;
 
-        $relation = $this->getRelationAssociate($parent);
+        $parent = $relation->associate($associate);
 
-        $associate = m::mock(Model::class);
-        $associate->expects('getAttribute')->with('id')->andReturn(1);
-        $associate->expects('getMorphClass')->andReturn('Model');
-
-        $parent->expects('setAttribute')->with('foreign_key', 1);
-        $parent->expects('setAttribute')->with('morph_type', 'Model');
-        $parent->expects('setRelation')->with('relation', $associate);
-
-        $relation->associate($associate);
+        $this->assertSame(1, $parent->getAttribute('foreign_key'));
+        $this->assertSame(RelatedStub::class, $parent->getAttribute('morph_type'));
+        $this->assertSame($associate, $parent->getRelation('relation'));
     }
 
     public function testAssociateMethodIgnoresNullValue(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
+        $relation = $this->getRelationWithRealQuery();
+        $relation->getParent()->setAttribute('foreign_key', 5);
+        $relation->getParent()->setAttribute('morph_type', 'type_1');
+        $relation->getParent()->setRelation('relation', new RelatedStub);
 
-        $relation = $this->getRelationAssociate($parent);
+        $parent = $relation->associate(null);
 
-        $parent->expects('setAttribute')->with('foreign_key', null);
-        $parent->expects('setAttribute')->with('morph_type', null);
-        $parent->expects('setRelation')->with('relation', null);
-
-        $relation->associate(null);
+        $this->assertNull($parent->getAttribute('foreign_key'));
+        $this->assertNull($parent->getAttribute('morph_type'));
+        $this->assertNull($parent->getRelation('relation'));
     }
 
     public function testAssociateMethodUsesConfiguredOwnerKeyWithZeroValue(): void
@@ -360,16 +357,16 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testDissociateMethodDeletesUnsetsKeyAndTypeOnModel(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
+        $relation = $this->getRelationWithRealQuery();
+        $relation->getParent()->setAttribute('foreign_key', 5);
+        $relation->getParent()->setAttribute('morph_type', 'type_1');
 
-        $relation = $this->getRelation($parent);
+        $parent = $relation->dissociate();
 
-        $parent->expects('setAttribute')->with('foreign_key', null);
-        $parent->expects('setAttribute')->with('morph_type', null);
-        $parent->expects('setRelation')->with('relation', null);
-
-        $relation->dissociate();
+        $this->assertNull($parent->getAttribute('foreign_key'));
+        $this->assertNull($parent->getAttribute('morph_type'));
+        $this->assertTrue($parent->relationLoaded('relation'));
+        $this->assertNull($parent->getRelation('relation'));
     }
 
     public function testMatchToMorphParentsNormalizesKeyWhenOwnerKeyIsNullAndResultKeyIsObject(): void
@@ -385,7 +382,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         };
 
         $builder = m::mock(Builder::class);
-        $related = m::mock(Model::class);
+        $related = new RelatedStub;
         $builder->expects('getModel')->andReturn($related);
 
         $parent = new ModelStub;
@@ -412,29 +409,18 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         Relation::requireMorphMap();
 
-        $parent = new ModelStub;
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new RelatedStub);
-
-        $relation = MorphTo::noConstraints(
-            fn () => new MorphTo($builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation')
-        );
-
-        $relation->createModelByType('poisoned');
+        $this->getRelationWithRealQuery()->createModelByType('poisoned');
     }
 
     /**
-     * Create a morph relation with the existing parent key constrained.
+     * Get a morph to relationship backed by a real query builder.
      */
-    protected function getRelationAssociate(Model $parent): MorphTo
+    protected function getRelationWithRealQuery(): MorphTo
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with('relation.id', '=', 'foreign.value');
-        $related = m::mock(Model::class);
-        $related->expects('qualifyColumn')->andReturnUsing(fn (string $column): string => "relation.{$column}");
-        $builder->expects('getModel')->andReturn($related);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $builder = (new Builder(new QueryBuilder($connection, new Grammar($connection), new Processor)))->setModel(new RelatedStub);
 
-        return new MorphTo($builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation');
+        return new MorphTo($builder, new ModelStub, 'foreign_key', 'id', 'morph_type', 'relation');
     }
 
     public function getRelation($parent = null, $builder = null)

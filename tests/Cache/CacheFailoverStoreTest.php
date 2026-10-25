@@ -20,6 +20,7 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -48,7 +49,7 @@ class CacheFailoverStoreTest extends TestCase
         $cache->expects('store')->with('store-a')->andReturn(new Repository($storeA));
         $cache->expects('store')->with('store-b')->andReturn(new Repository($storeB));
 
-        $failover = new FailoverStore($cache, m::mock(Dispatcher::class), ['store-a', 'store-b']);
+        $failover = new FailoverStore($cache, new EventDispatcher, ['store-a', 'store-b']);
 
         $result = $failover->flushLocks();
 
@@ -641,7 +642,7 @@ class CacheFailoverStoreTest extends TestCase
 
         return new FailoverStore(
             $cache,
-            $events ?? m::mock(Dispatcher::class),
+            $events ?? new EventDispatcher,
             $storeNames ?? array_keys($stores),
             $failoverStoreName,
         );

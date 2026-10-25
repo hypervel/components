@@ -30,13 +30,16 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -1153,8 +1156,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testTaggableRepositoriesSupportTags(): void
     {
-        $taggable = m::mock(TaggableStore::class);
-        $taggable->expects('supportsTags')->andReturnTrue();
+        $taggable = new ArrayStore;
         $taggableRepo = new Repository($taggable);
 
         $this->assertTrue($taggableRepo->supportsTags());
@@ -1171,7 +1173,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testNonTaggableRepositoryDoesNotSupportTags(): void
     {
-        $nonTaggable = m::mock(FileStore::class);
+        $nonTaggable = new FileStore(new Filesystem, sys_get_temp_dir());
         $nonTaggableRepo = new Repository($nonTaggable);
 
         $this->assertFalse($nonTaggableRepo->supportsTags());
@@ -1888,9 +1890,8 @@ class CacheRepositoryTest extends TestCase
      */
     protected function getRepository(): Repository
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $dispatcher->shouldReceive('dispatch')->with(m::any())->andReturnNull();
+        // A plain dispatcher reports no listeners, so the repository would skip building events.
+        $dispatcher = new EventFake(new EventDispatcher(new Container));
         $repository = new Repository(m::mock(Store::class));
 
         $repository->setEventDispatcher($dispatcher);
