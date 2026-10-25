@@ -222,6 +222,100 @@ class HttpConnectionTest extends TestCase
         $this->assertSame('yes', $factory->invocations[1]['request']->getHeaderLine('X-Global'));
     }
 
+    public function testLaterOptionLayersReplaceListsWhole(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->globalOptions([
+            'headers' => ['X-Tags' => ['global-a', 'global-b'], 'X-Global' => 'yes'],
+            'auth' => ['user', 'secret', 'digest'],
+            'allow_redirects' => ['max' => 3, 'protocols' => ['http', 'https']],
+            'proxy' => ['http' => 'http://proxy.test', 'no' => ['example.test']],
+            'curl' => [CURLOPT_TCP_KEEPALIVE => 1],
+        ]);
+
+        $options = $factory
+            ->withHeaders(['X-Tags' => ['local']])
+            ->withBasicAuth('other', 'pass')
+            ->withOptions(['allow_redirects' => ['protocols' => ['https']]])
+            ->withOptions(['proxy' => ['no' => []]])
+            ->withOptions(['curl' => []])
+            ->getOptions();
+
+        $this->assertSame(['X-Tags' => ['local'], 'X-Global' => 'yes'], $options['headers']);
+        $this->assertSame(['other', 'pass'], $options['auth']);
+        $this->assertSame(['max' => 3, 'protocols' => ['https']], $options['allow_redirects']);
+        $this->assertSame(['http' => 'http://proxy.test', 'no' => []], $options['proxy']);
+        $this->assertSame([CURLOPT_TCP_KEEPALIVE => 1], $options['curl']);
+
+        $options = $factory
+            ->withOptions(['auth' => ['first', 'secret', 'digest']])
+            ->withOptions(['auth' => ['second', 'secret']])
+            ->getOptions();
+
+        $this->assertSame(['second', 'secret'], $options['auth']);
+
+        $this->assertSame([], $factory->withOptions(['auth' => []])->getOptions()['auth']);
+    }
+
+    public function testMergeableListsAccumulateAcrossOptionLayers(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api');
+
+        $factory->connection('api')
+            ->withOptions(['multipart' => [['name' => 'meta', 'contents' => 'meta-contents']]])
+            ->attach('file', 'file-contents', 'file.txt')
+            ->post('https://example.com/upload');
+
+        $factory->connection('api')
+            ->withOptions(['json' => [1, 2]])
+            ->post('https://example.com/list', [3]);
+
+        $body = (string) $factory->invocations[0]['request']->getBody();
+
+        $this->assertSame(1, substr_count($body, 'name="meta"'));
+        $this->assertSame(1, substr_count($body, 'name="file"'));
+        $this->assertStringContainsString('meta-contents', $body);
+        $this->assertStringContainsString('file-contents', $body);
+        $this->assertSame('[1,2,3]', (string) $factory->invocations[1]['request']->getBody());
+    }
+
+    public function testMergingOptionLayersLeavesReferencedCallerDataUnchanged(): void
+    {
+        $name = 'default';
+
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->globalOptions(['json' => ['user' => ['name' => &$name]]]);
+        $factory->registerConnection('api');
+
+        $factory->connection('api')->post('https://example.com/first', ['user' => ['name' => 'request-one']]);
+        $factory->connection('api')->post('https://example.com/second', ['user' => ['other' => 'request-two']]);
+
+        $this->assertSame('default', $name);
+        $this->assertSame('{"user":{"name":"request-one"}}', (string) $factory->invocations[0]['request']->getBody());
+        $this->assertSame('{"user":{"name":"default","other":"request-two"}}', (string) $factory->invocations[1]['request']->getBody());
+    }
+
+    public function testOmittedPayloadsKeepAndExplicitNullsClearPayloadsFromEarlierLayers(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api');
+
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->post('https://example.com');
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->delete('https://example.com');
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->send('POST', 'https://example.com');
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->send('POST', 'https://example.com', ['json' => null]);
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->get('https://example.com');
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->head('https://example.com');
+
+        $this->assertSame('{"a":1}', (string) $factory->invocations[0]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[1]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[2]['request']->getBody());
+        $this->assertSame('', (string) $factory->invocations[3]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[4]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[5]['request']->getBody());
+    }
+
     public function testSetConnectionConfigRegistersEvenAnEmptyPreset(): void
     {
         $factory = new RecordingHttpConnectionFactory;

@@ -38,7 +38,7 @@ namespace Hypervel\Support\Facades;
  * @method static string databasePath(string $path = '')
  * @method static string detectEnvironment(\Closure $callback)
  * @method static \Hypervel\Foundation\Application dontMergeFrameworkConfiguration()
- * @method static string|bool environment(array|string ...$environments)
+ * @method static string|bool environment(\UnitEnum|array|string ...$environments)
  * @method static string environmentFile()
  * @method static string environmentFilePath()
  * @method static string|null environmentPath()

@@ -26,6 +26,23 @@ use TypeError;
 
 class TranslationTranslatorTest extends TestCase
 {
+    public function testSetLocaleRejectsPathTraversal(): void
+    {
+        $t = new Translator($this->getLoader(), 'en');
+
+        foreach (['../secret', '..\secret', '..', "en\0"] as $locale) {
+            try {
+                $t->setLocale($locale);
+
+                $this->fail("Locale [{$locale}] should have been rejected.");
+            } catch (InvalidArgumentException $e) {
+                $this->assertSame('Invalid characters present in locale.', $e->getMessage());
+            }
+        }
+
+        $this->assertSame('en', $t->getLocale());
+    }
+
     public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();

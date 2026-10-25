@@ -182,12 +182,13 @@ trait RunTestsInCoroutine
                     }
                 }
 
+                // Cancel the native alarm while protected so it cannot fire during cleanup.
+                pcntl_alarm(0);
                 pcntl_signal_dispatch();
 
                 throw new TimeoutException('The coroutine test exceeded its time limit.');
             } catch (TimeoutException $exception) {
                 $timeoutException = $exception;
-                pcntl_alarm(0);
 
                 foreach (Coroutine::list() as $coroutine) {
                     if ($coroutine !== $current) {

@@ -28,6 +28,7 @@
 - [Partitioning](#partitioning)
     - [Registering a Partition](#registering-a-partition)
     - [Partitioned Schema](#partitioned-schema)
+- [Guarding Database Writes](#guarding-database-writes)
 - [Shared Cache](#shared-cache)
 - [Testing](#testing)
 - [Adding Custom Pennant Drivers](#adding-custom-pennant-drivers)
@@ -972,7 +973,7 @@ Partitioning keeps the feature values of separate tenants, workspaces, or teams 
 <a name="registering-a-partition"></a>
 ### Registering a Partition
 
-You may register a partition using the `Feature` facade's `resolvePartitionUsing` method. Pennant must know about the partition before any store is used, so register it in the `register` method of one of your application's service providers. Registering it after a store has been resolved throws an exception:
+You may register a partition using the `Feature` facade's `resolvePartitionUsing` method. Pennant must know about the partition before any store is used, so register it once in the `register` method of one of your application's service providers. Registering it again or after a store has been resolved throws an exception:
 
 ```php
 use Hypervel\Pennant\Feature;
@@ -1025,6 +1026,25 @@ Schema::create('features', function (Blueprint $table) {
 
 Use a column type that matches your partition values, such as `foreignUuid` for UUIDs.
 
+<a name="guarding-database-writes"></a>
+## Guarding Database Writes
+
+You may use `Feature::guardWritesUsing()` to prevent changes to read-only storage. Register the callback once during provider registration, before any store is resolved. It receives the store name and its current `FeaturePartition`, or `null` for an unpartitioned store:
+
+```php
+use Hypervel\Pennant\Feature;
+use Hypervel\Pennant\FeaturePartition;
+use RuntimeException;
+
+Feature::guardWritesUsing(function (string $store, ?FeaturePartition $partition): void {
+    if ($partition !== null && workspace()->isReadOnly()) {
+        throw new RuntimeException('This workspace is read-only.');
+    }
+});
+```
+
+Throw an exception to refuse the write. The callback runs before database mutations, including before resolving a known feature whose value has not been stored yet. Reading existing values, checking unknown features, and using the `array` driver do not invoke it. Custom drivers are responsible for their own write guards.
+
 <a name="shared-cache"></a>
 ## Shared Cache
 
@@ -1046,7 +1066,9 @@ The `ttl` defaults to one hour and must be a positive integer.
 
 The database remains the source of truth. Only values stored in the database are cached: values returned by [`before` methods](#intercepting-feature-checks) and the `false` result of unknown features are never cached. When a cached value expires or is evicted, Pennant reads it from the database again rather than resolving it again, so the cache never changes a feature's stored value.
 
-Updating values through any `database` store invalidates the cached values of every store that reads the same table on the same connection, even when the store making the change has no cache of its own. Invalidation happens after the surrounding database transaction commits. Changes made to the table without Pennant, such as manual queries, aren't seen until the cached values expire. While a transaction is open, Pennant reads from the database and doesn't use the shared cache, so it never caches values that might be rolled back.
+Updating values through any `database` store invalidates the cached values of every store that reads the same table on the same connection, even when the store making the change has no cache of its own. Invalidation happens after the surrounding database transaction commits. While a transaction is open, Pennant reads from the database and doesn't use the shared cache, so it never caches values that might be rolled back.
+
+After changing the table without Pennant, call `Feature::store('database')->flushSharedCache()` to invalidate the current partition's shared cached values after the transaction commits. Otherwise, readers may keep seeing old values until they expire. This method leaves stored rows and the current coroutine's memoized values intact; also call `flushCache()` if the current coroutine needs to reread values it has already checked. Calling `flushSharedCache()` on a non-database store has no effect.
 
 A store whose `connection` is `null` shares invalidation with stores on every connection, since it may use any connection selected with `DB::usingConnection()`. A connection's `::write` side shares cached values with the connection itself. If several connection names point to the same database, use the same name for all of your Pennant stores, since Pennant can't tell that they share data.
 

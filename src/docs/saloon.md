@@ -1615,6 +1615,8 @@ $authenticator = $connector->getAccessToken(['reports:read']);
 
 The given scopes are added to the configuration's `defaultScopes` and separated by spaces unless you pass a `scopeSeparator`. Client credentials connectors need no `redirectUri`. Use `ClientCredentialsBasicAuthGrant` when the provider requires the client credentials in an HTTP Basic authentication header.
 
+`ClientCredentialsBasicAuthGrant` form-encodes the client ID and secret before adding them to the header, as the OAuth 2 specification requires. If your provider expects unencoded credentials, you may [customize the token request](#customizing-oauth-requests).
+
 OAuth token grant methods return an OAuth authenticator by default. Pass `returnResponse: true` when you need the original Saloon response instead:
 
 ```php
@@ -2215,9 +2217,9 @@ protected string $perPageName = 'pageSize';
 
 `PagedPaginator` defaults to `page` and `per_page`, and sends a page size only when a per-page limit is set. To send one by default, declare `protected ?int $perPageLimit = 100;` on your paginator. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
 
-During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
+During sequential pagination, Saloon throws a `PaginationException` when it detects a loop. Page and offset paginators compare response bodies and stop after five consecutive identical pages. Link and cursor paginators also compare the next URL or cursor, so empty pages can continue when the API supplies an advancing continuation. They stop as soon as a page and its continuation repeat one of the previous four pages, since the next request would repeat an earlier one. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
 
-The check compares each page's body after all response middleware has run. If your API adds a value that changes on every request, such as a request ID, override `getBodyChecksum` to compare only the page contents:
+The check runs after response middleware and item mapping. If your API adds a value that changes on every request, such as a request ID, override `getBodyChecksum` to compare only the page contents. Link and cursor paginators still include continuation information when using this override:
 
 ```php
 protected function getBodyChecksum(Response $response): string

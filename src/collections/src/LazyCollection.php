@@ -26,6 +26,7 @@ use stdClass;
 use Stringable as BaseStringable;
 use Traversable;
 use UnitEnum;
+use ValueError;
 
 /**
  * @template TKey of array-key
@@ -917,9 +918,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
             foreach ($this as $key) {
                 if (! $values->valid()) {
-                    trigger_error($errorMessage, E_USER_WARNING);
-
-                    break;
+                    throw new ValueError($errorMessage);
                 }
 
                 yield $key => $values->current();
@@ -928,7 +927,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             }
 
             if ($values->valid()) {
-                trigger_error($errorMessage, E_USER_WARNING);
+                throw new ValueError($errorMessage);
             }
         });
     }

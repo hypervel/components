@@ -40,8 +40,10 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
+use UnitEnum;
 
 use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Support\enum_value;
 
 class Application extends Container implements ApplicationContract, CachesConfiguration, CachesRoutes
 {
@@ -786,12 +788,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Get or check the current application environment.
      */
-    public function environment(array|string ...$environments): bool|string
+    public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         if ($environments !== []) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
-            return Str::is($patterns, $this->make('env'));
+            return Str::is(array_map(enum_value(...), $patterns), $this->make('env'));
         }
 
         return $this->make('env');

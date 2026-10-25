@@ -1413,6 +1413,50 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testRequestDataIncludesThePayloadFromWithOptions(): void
+    {
+        $requests = [];
+
+        $this->factory->fake(function (Request $request) use (&$requests): PromiseInterface {
+            $requests[] = $request;
+
+            return Factory::response();
+        });
+
+        $this->factory->asMultipart()
+            ->withOptions(['multipart' => [['name' => 'file', 'filename' => 'file.txt', 'contents' => 'attachment-contents']]])
+            ->post('http://foo.com/upload');
+
+        $this->factory->withOptions(['json' => ['a' => 1]])->post('http://foo.com/json', ['b' => 2]);
+
+        $this->assertTrue($requests[0]->hasFile('file', 'attachment-contents', 'file.txt'));
+        $this->assertSame(['a' => 1, 'b' => 2], $requests[1]->data());
+        $this->assertSame('{"a":1,"b":2}', $requests[1]->body());
+    }
+
+    public function testRequestDataDescribesRawBodyOptionsRatherThanTheQuery(): void
+    {
+        $requests = [];
+
+        $this->factory->fake(function (Request $request) use (&$requests): PromiseInterface {
+            $requests[] = $request;
+
+            return Factory::response();
+        });
+
+        $this->factory->withOptions(['query' => ['page' => 1]])
+            ->send('POST', 'http://foo.com/form', ['form_params' => ['name' => 'Taylor', 'active' => true]]);
+
+        $this->factory->withOptions(['query' => ['page' => 1]])
+            ->send('POST', 'http://foo.com/upload', ['multipart' => [['name' => 'file', 'contents' => 'file-contents', 'filename' => 'file.txt']]]);
+
+        $this->factory->withOptions(['json' => []])->get('http://foo.com/get?page=1');
+
+        $this->assertSame(['name' => 'Taylor', 'active' => true], $requests[0]->data());
+        $this->assertTrue($requests[1]->hasFile('file', 'file-contents', 'file.txt'));
+        $this->assertSame([], $requests[2]->data());
+    }
+
     public function testCanSendJsonDataWithStringable(): void
     {
         $this->factory->fake();
@@ -1971,6 +2015,36 @@ class HttpClientTest extends TestCase
         $this->assertTrue($request->hasFile('file', '0', '0'));
         $this->assertTrue($request->hasFile('without-filename', '0'));
         $this->assertFalse($request->hasFile('without-filename', '0', '0'));
+    }
+
+    public function testHasFileInspectsAttachedStreamsWithoutConsumingTheRequestBody(): void
+    {
+        $inspections = [];
+        $body = null;
+
+        $this->factory->fake(function (Request $request) use (&$inspections, &$body): PromiseInterface {
+            $inspections = [
+                $request->hasFile('seekable'),
+                $request->hasFile('unseekable'),
+                $request->hasFile('missing', 'seekable-contents'),
+                $request->hasFile('unseekable', null, 'other.txt'),
+                $request->hasFile('seekable', 'other-contents'),
+                $request->hasFile('seekable', 'seekable-contents', 'seekable.txt'),
+            ];
+
+            $body = $request->toPsrRequest()->getBody()->getContents();
+
+            return Factory::response();
+        });
+
+        $this->factory
+            ->attach('seekable', Utils::streamFor('seekable-contents'), 'seekable.txt')
+            ->attach('unseekable', new NoSeekStream(Utils::streamFor('unseekable-contents')), 'unseekable.txt')
+            ->post('http://foo.com/file');
+
+        $this->assertSame([true, true, false, false, false, true], $inspections);
+        $this->assertStringContainsString('seekable-contents', $body);
+        $this->assertStringContainsString('unseekable-contents', $body);
     }
 
     public function testAttachHeaderValuesAreSerialized(): void
@@ -4830,6 +4904,168 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testRetriedMultipartRequestsResendAttachedStreamContents(): void
+    {
+        $bodies = [];
+
+        $this->factory->fake(function (Request $request) use (&$bodies) {
+            $bodies[] = $request->toPsrRequest()->getBody()->getContents();
+
+            return count($bodies) < 3
+                ? ($this->factory::failedConnection())($request)
+                : $this->factory::response(['ok' => true]);
+        });
+
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, 'attached-file-contents');
+        rewind($stream);
+
+        $response = $this->factory
+            ->retry(3, 0)
+            ->attach('file', $stream, 'file.txt')
+            ->post('http://foo.com/upload');
+
+        $this->assertTrue($response->successful());
+        $this->assertCount(3, $bodies);
+
+        foreach ($bodies as $body) {
+            $this->assertStringContainsString('attached-file-contents', $body);
+        }
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->hasFile('file', 'attached-file-contents', 'file.txt');
+        });
+    }
+
+    public function testAsyncRetriedMultipartRequestsResendAttachedStreamContents(): void
+    {
+        $bodies = [];
+
+        $this->factory->fake(function (Request $request) use (&$bodies) {
+            $bodies[] = $request->toPsrRequest()->getBody()->getContents();
+
+            return count($bodies) < 3
+                ? ($this->factory::failedConnection())($request)
+                : $this->factory::response(['ok' => true]);
+        });
+
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, 'attached-file-contents');
+        rewind($stream);
+
+        $response = $this->factory
+            ->async()
+            ->retry(3, 0)
+            ->attach('file', $stream, 'file.txt')
+            ->post('http://foo.com/upload')
+            ->wait();
+
+        $this->assertTrue($response->successful());
+        $this->assertCount(3, $bodies);
+
+        foreach ($bodies as $body) {
+            $this->assertStringContainsString('attached-file-contents', $body);
+        }
+    }
+
+    public function testExhaustedRetriesWithAttachedStreamThrowConnectionException(): void
+    {
+        $bodies = [];
+
+        $this->factory->fake(function (Request $request) use (&$bodies) {
+            $bodies[] = $request->toPsrRequest()->getBody()->getContents();
+
+            return ($this->factory::failedConnection())($request);
+        });
+
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, 'attached-file-contents');
+        rewind($stream);
+
+        $exception = null;
+
+        try {
+            $this->factory
+                ->retry(3, 0)
+                ->attach('file', $stream, 'file.txt')
+                ->post('http://foo.com/upload');
+        } catch (Exception $e) {
+            $exception = $e;
+        }
+
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertCount(3, $bodies);
+
+        foreach ($bodies as $body) {
+            $this->assertStringContainsString('attached-file-contents', $body);
+        }
+    }
+
+    /**
+     * @param Closure(Factory, array): PendingRequest $withParts
+     */
+    #[DataProvider('multipartOptionLayers')]
+    public function testRetriedMultipartRequestsResendStreamContentsFromOptionLayers(Closure $withParts, bool $async): void
+    {
+        $bodies = [];
+
+        $this->factory->fake(function (Request $request) use (&$bodies) {
+            $bodies[] = $request->toPsrRequest()->getBody()->getContents();
+
+            return count($bodies) < 2
+                ? ($this->factory::failedConnection())($request)
+                : $this->factory::response(['ok' => true]);
+        });
+
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, 'attached-file-contents');
+        rewind($stream);
+
+        $pendingRequest = $withParts(
+            $this->factory,
+            [['name' => 'file', 'contents' => $stream, 'filename' => 'file.txt']],
+        );
+
+        $response = $pendingRequest->async($async)->retry(2, 0)->asMultipart()->post('http://foo.com/upload');
+
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertTrue($response->successful());
+        $this->assertCount(2, $bodies);
+
+        foreach ($bodies as $body) {
+            $this->assertStringContainsString('attached-file-contents', $body);
+        }
+    }
+
+    /**
+     * Get the option layers that can supply multipart parts, sent synchronously and asynchronously.
+     *
+     * @return iterable<string, array{Closure(Factory, array): PendingRequest, bool}>
+     */
+    public static function multipartOptionLayers(): iterable
+    {
+        $layers = [
+            'global options' => fn (Factory $factory, array $parts): PendingRequest => $factory
+                ->globalOptions(fn (): array => ['multipart' => $parts])
+                ->createPendingRequest(),
+            'registered connection preset' => fn (Factory $factory, array $parts): PendingRequest => $factory
+                ->registerConnection('uploads', ['multipart' => $parts])
+                ->connection('uploads'),
+            'per-call connection options' => fn (Factory $factory, array $parts): PendingRequest => $factory
+                ->registerConnection('uploads')
+                ->connection('uploads', ['multipart' => $parts]),
+            'fluent options' => fn (Factory $factory, array $parts): PendingRequest => $factory->withOptions(['multipart' => $parts]),
+        ];
+
+        foreach ($layers as $name => $withParts) {
+            yield "{$name}, sync" => [$withParts, false];
+            yield "{$name}, async" => [$withParts, true];
+        }
+    }
+
     public function testExceptionThrownInRetryCallbackWithoutRetrying(): void
     {
         $this->factory->fake([
@@ -5472,6 +5708,38 @@ class HttpClientTest extends TestCase
         $pendingRequest->get('https://example.test/second');
 
         $this->assertSame([0, 0], $observedPriorSends);
+    }
+
+    public function testReusedPendingRequestReleasesEarlierUploadStreams(): void
+    {
+        $pendingRequest = $this->factory->setHandler(fn (): PromiseInterface => Create::promiseFor(new Psr7Response(200)));
+
+        $first = fopen('php://temp', 'r+');
+        $pendingRequest->attach('file', $first, 'first.txt')->post('https://example.test/upload');
+
+        $second = fopen('php://temp', 'r+');
+        $pendingRequest->attach('file', $second, 'second.txt')->post('https://example.test/upload');
+
+        $this->assertFalse(is_resource($first));
+        $this->assertTrue(is_resource($second));
+
+        $pendingRequest->asJson()->post('https://example.test/json', ['ok' => true]);
+
+        $this->assertFalse(is_resource($second));
+    }
+
+    public function testWrappingAttachedResourcesLeavesReferencedCallerPartsUnchanged(): void
+    {
+        $this->factory->fake();
+
+        $resource = fopen('php://temp', 'r+');
+        fwrite($resource, 'attachment-contents');
+        $parts = [['name' => 'file', 'contents' => &$resource, 'filename' => 'file.txt']];
+
+        $this->factory->asMultipart()->post('http://foo.com/upload', $parts);
+
+        $this->assertTrue(is_resource($resource));
+        $this->factory->assertSent(fn (Request $request): bool => $request->hasFile('file', 'attachment-contents', 'file.txt'));
     }
 
     public function testGlobalRequestMiddlewareBodyReplacementInvalidatesLogicalRequestData(): void

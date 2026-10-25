@@ -134,13 +134,16 @@ class DatabaseLock extends Lock implements RefreshableLock
      */
     public function release(): bool
     {
+        $connection = $this->connection();
+
         try {
-            return $this->connection()->table($this->table)
+            return $connection->table($this->table)
                 ->where('key', $this->name)
                 ->where('owner', $this->owner)
                 ->delete() > 0;
         } catch (Throwable $e) {
-            if ($this->causedByConcurrencyError($e)) {
+            // Inside a transaction the error may have aborted the transaction, so the caller must see it.
+            if ($this->causedByConcurrencyError($e) && $connection->transactionLevel() === 0) {
                 return true;
             }
 
@@ -165,12 +168,15 @@ class DatabaseLock extends Lock implements RefreshableLock
      */
     public function pruneExpiredLocks(): void
     {
+        $connection = $this->connection();
+
         try {
-            $this->connection()->table($this->table)
+            $connection->table($this->table)
                 ->where('expiration', '<=', $this->currentTime())
                 ->delete();
         } catch (Throwable $e) {
-            if (! $this->causedByConcurrencyError($e)) {
+            // Inside a transaction the error may have aborted the transaction, so the caller must see it.
+            if (! $this->causedByConcurrencyError($e) || $connection->transactionLevel() > 0) {
                 throw $e;
             }
         }

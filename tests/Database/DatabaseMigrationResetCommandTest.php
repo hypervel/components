@@ -13,6 +13,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use UnitEnum;
 
 class DatabaseMigrationResetCommandTest extends TestCase
 {
@@ -102,7 +103,7 @@ class ApplicationDatabaseResetStub extends Application
     /**
      * Get the application environment.
      */
-    public function environment(array|string ...$environments): bool|string
+    public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         return 'development';
     }

@@ -67,6 +67,13 @@ class FeatureManager
     protected ?Closure $partitionResolver = null;
 
     /**
+     * The callback that guards database writes.
+     *
+     * @var null|(Closure(string, ?FeaturePartition): void)
+     */
+    protected ?Closure $writeGuard = null;
+
+    /**
      * Create a new Pennant manager instance.
      */
     public function __construct(Container $container)
@@ -165,6 +172,8 @@ class FeatureManager
      */
     public function createDatabaseDriver(array $config, string $name): DatabaseDriver
     {
+        $writeGuard = $this->writeGuard;
+
         return new DatabaseDriver(
             $this->container->make('db'),
             $this->databaseConnection($config),
@@ -172,6 +181,7 @@ class FeatureManager
             $this->partitionResolver($name, $config),
             $this->storedValueCache($config, $name),
             [],
+            $writeGuard === null ? null : static fn (?FeaturePartition $partition) => $writeGuard($name, $partition),
         );
     }
 
@@ -353,7 +363,7 @@ class FeatureManager
      * @param Closure(string): (null|int|string) $resolver
      *
      * @throws InvalidArgumentException when the column is not a simple SQL identifier
-     * @throws RuntimeException when a store has already been resolved
+     * @throws RuntimeException when a store has already been resolved or partitioning is already configured
      */
     public function resolvePartitionUsing(string $column, Closure $resolver): void
     {
@@ -366,8 +376,35 @@ class FeatureManager
             throw new RuntimeException('Register the Pennant partition resolver before resolving any Pennant store.');
         }
 
+        if ($this->partitionResolver !== null) {
+            throw new RuntimeException('The Pennant partition resolver has already been registered.');
+        }
+
         $this->partitionColumn = $column;
         $this->partitionResolver = $resolver;
+    }
+
+    /**
+     * Guard database writes, including the first resolution of a stored value.
+     *
+     * Boot-only. Register once, before any store is resolved. The callback persists
+     * on database stores for the worker lifetime and affects every subsequent write.
+     *
+     * @param Closure(string, ?FeaturePartition): void $guard
+     *
+     * @throws RuntimeException when a store has already been resolved or a guard is already registered
+     */
+    public function guardWritesUsing(Closure $guard): void
+    {
+        if ($this->stores !== []) {
+            throw new RuntimeException('Register the Pennant write guard before resolving any Pennant store.');
+        }
+
+        if ($this->writeGuard !== null) {
+            throw new RuntimeException('The Pennant write guard has already been registered.');
+        }
+
+        $this->writeGuard = $guard;
     }
 
     /**

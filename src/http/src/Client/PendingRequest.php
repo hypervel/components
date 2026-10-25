@@ -18,6 +18,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Utils as Psr7Utils;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
 use GuzzleHttp\Utils;
@@ -36,7 +37,6 @@ use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
 use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Client\RequestException as HttpRequestException;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -119,6 +119,13 @@ class PendingRequest implements Transient
      * The pending files for the request.
      */
     protected array $pendingFiles = [];
+
+    /**
+     * The streams wrapping attached multipart resources, keyed by resource ID.
+     *
+     * @var array<int, StreamInterface>
+     */
+    protected array $multipartStreams = [];
 
     /**
      * The request cookies.
@@ -244,7 +251,7 @@ class PendingRequest implements Transient
     protected ?array $connectionConfig = null;
 
     /**
-     * The Guzzle request options that are mergeable via array_merge_recursive.
+     * The Guzzle request options whose entries accumulate across option layers.
      */
     protected array $mergeableOptions = [
         'form_params',
@@ -1163,7 +1170,8 @@ class PendingRequest implements Transient
                     $this->pendingFiles
                 );
             }
-        } else {
+        } elseif ($this->bodyFormat === 'body') {
+            // Other formats have no pending body; planting null would erase a payload from an earlier option layer.
             $options[$this->bodyFormat] = $this->pendingBody;
         }
 
@@ -1196,6 +1204,51 @@ class PendingRequest implements Transient
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Wrap the multipart stream resources in PSR-7 streams so they are not closed between retry attempts.
+     */
+    protected function wrapMultipartStreams(array $multipart): array
+    {
+        $streams = [];
+
+        $multipart = array_map(function ($part) use (&$streams) {
+            if (is_array($part) && isset($part['contents']) && is_resource($part['contents'])) {
+                $id = get_resource_id($part['contents']);
+
+                // Every attempt merges the option layers again, so reuse one stream per resource;
+                // a discarded stream would close the resource. A fresh part never writes through
+                // a reference in the caller's data.
+                $streams[$id] = $this->multipartStreams[$id] ?? Psr7Utils::streamFor($part['contents']);
+                $part = [...$part, 'contents' => $streams[$id]];
+            }
+
+            return $part;
+        }, $multipart);
+
+        // Keep only the current parts' streams, so a reused request releases earlier uploads.
+        $this->multipartStreams = $streams;
+
+        return $multipart;
+    }
+
+    /**
+     * Rewind the seekable multipart streams so each attempt contains the full part contents.
+     */
+    protected function rewindMultipartStreams(array $options): void
+    {
+        if (! is_array($options['multipart'] ?? null)) {
+            return;
+        }
+
+        foreach ($options['multipart'] as $part) {
+            $contents = is_array($part) ? ($part['contents'] ?? null) : null;
+
+            if ($contents instanceof StreamInterface && $contents->isSeekable()) {
+                $contents->rewind();
+            }
+        }
     }
 
     /**
@@ -1358,16 +1411,31 @@ class PendingRequest implements Transient
             $this->transferStats = $transferStats;
         };
 
-        $requestOptions = [
+        $mergedOptions = $this->mergeOptions([
             'on_stats' => $onStats,
             self::PRIOR_SENDS_OPTION => $this->sendCount,
-        ];
+        ], $options);
 
-        if ($this->bodyFormat !== 'body' && ! array_key_exists('body', $options)) {
-            $requestOptions[self::DATA_OPTION] = $this->parseRequestData($method, $url, $options);
+        // Parts can come from any option layer, and every attempt must send them from the start.
+        // Guzzle's transports rewind the whole body anyway, so this also matches fakes to them.
+        if (is_array($mergedOptions['multipart'] ?? null)) {
+            $mergedOptions['multipart'] = $this->wrapMultipartStreams($mergedOptions['multipart']);
+
+            $this->rewindMultipartStreams($mergedOptions);
+        } else {
+            $this->multipartStreams = [];
         }
 
-        $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions($requestOptions, $options));
+        // The logical data describes the payload from every layer, before it is normalized for Guzzle.
+        $data = $this->bodyFormat !== 'body' && ! array_key_exists('body', $mergedOptions)
+            ? $this->parseRequestData($method, $url, $mergedOptions)
+            : null;
+
+        $mergedOptions = $this->normalizeRequestOptions($mergedOptions);
+
+        if ($data !== null) {
+            $mergedOptions[self::DATA_OPTION] = $data;
+        }
 
         // Guzzle adds the multipart Content-Type, with the body's boundary, only when none is set. A content type
         // without a boundary, such as one from asJson() or a connection default, cannot describe the body.
@@ -1392,17 +1460,24 @@ class PendingRequest implements Transient
             return [];
         }
 
-        $data = $options[$this->bodyFormat] ?? $options['query'] ?? [];
+        // Describe the body Guzzle sends, even when raw options bypass the body format. Guzzle prepares
+        // form_params, multipart and then json, and the last one wins.
+        $format = match (true) {
+            isset($options['json']) => 'json',
+            isset($options['multipart']) => 'multipart',
+            isset($options['form_params']) => 'form_params',
+            default => null,
+        };
 
-        if ($this->bodyFormat === 'multipart' && isset($options['multipart'])) {
-            return is_array($data) ? $this->normalizeMultipartOption($data) : [];
+        if ($format === 'multipart') {
+            return is_array($options['multipart']) ? $this->normalizeMultipartOption($options['multipart']) : [];
         }
 
-        $data = $this->normalizeStructuredDataValue($data);
+        $data = $this->normalizeStructuredDataValue($format === null ? $options['query'] ?? [] : $options[$format]);
 
         $urlString = (new Stringable($url));
 
-        if (empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
+        if ($format === null && empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
             $data = (string) $urlString->after('?');
         }
 
@@ -1438,8 +1513,8 @@ class PendingRequest implements Transient
             }
 
             if ($key === 'form_params') {
-                // parseHttpOptions() plants null for a configured body format with no payload;
-                // a value that becomes null during normalization is caller-supplied and invalid.
+                // An explicit null clears form data from earlier option layers; a value that
+                // only becomes null during normalization is invalid.
                 if ($value === null) {
                     continue;
                 }
@@ -1466,11 +1541,6 @@ class PendingRequest implements Transient
 
                 $this->ensureValidRequestBody($options[$key]);
 
-                continue;
-            }
-
-            // parseRequestData() has already normalized the logical request data into fresh arrays.
-            if ($key === self::DATA_OPTION) {
                 continue;
             }
 
@@ -2573,12 +2643,53 @@ class PendingRequest implements Transient
         $merged = [];
 
         foreach ($layers as $layer) {
-            // Apply Laravel's merge rules to each layer: distinct mergeable entries
-            // accumulate, while later same-key values replace instead of nesting.
-            $merged = array_replace_recursive(
-                array_merge_recursive($merged, Arr::only($layer, $this->mergeableOptions)),
-                $layer,
-            );
+            foreach ($layer as $key => $value) {
+                $current = $merged[$key] ?? null;
+
+                $merged[$key] = is_array($current) && is_array($value)
+                    ? $this->mergeOptionValue($current, $value, in_array($key, $this->mergeableOptions, true))
+                    : $value;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Merge an option value from a later layer over the current value.
+     *
+     * Maps merge by key, with later values winning. Lists such as header values, auth
+     * credentials and redirect protocols are replaced whole, since merging them by index
+     * would mix entries from both layers. The lists of a mergeable option, such as
+     * multipart parts, accumulate instead.
+     */
+    protected function mergeOptionValue(mixed $current, mixed $value, bool $mergeable = false): mixed
+    {
+        if (! is_array($current) || ! is_array($value)) {
+            return $value;
+        }
+
+        // An empty array adds no keys to a map such as curl, and an empty payload default, such as post()
+        // without data, keeps the earlier payload. An empty list still clears an earlier list such as auth.
+        if ($value === [] && ($mergeable || ! array_is_list($current))) {
+            return $current;
+        }
+
+        if (array_is_list($current) || array_is_list($value)) {
+            return $mergeable && array_is_list($current) && array_is_list($value)
+                ? [...$current, ...$value]
+                : $value;
+        }
+
+        $merged = [];
+
+        // A fresh array never writes through references in the caller's data.
+        foreach ($current as $key => $item) {
+            $merged[$key] = $item;
+        }
+
+        foreach ($value as $key => $item) {
+            $merged[$key] = $this->mergeOptionValue($merged[$key] ?? null, $item);
         }
 
         return $merged;

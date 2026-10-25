@@ -414,7 +414,7 @@ trait HasRelationships
             static::getActualClassNameForMorph($target)
         );
 
-        return $this->newMorphTo(
+        $relation = $this->newMorphTo(
             $instance->newQuery(),
             $this,
             $id,
@@ -422,6 +422,9 @@ trait HasRelationships
             $type,
             $name
         );
+
+        // The loaded type's key serves this relation, but other target types may use a different one.
+        return $ownerKey === null ? $relation->withInferredOwnerKey() : $relation;
     }
 
     /**
@@ -441,10 +444,22 @@ trait HasRelationships
 
     /**
      * Retrieve the actual class name for a given morph class.
+     *
+     * @throws ClassMorphViolationException
      */
     public static function getActualClassNameForMorph(string|int $class): string
     {
-        return Arr::get(Relation::morphMap() ?: [], $class, (string) $class);
+        $morphMap = Relation::morphMap() ?: [];
+
+        if (array_key_exists($class, $morphMap)) {
+            return $morphMap[$class];
+        }
+
+        if (Relation::requiresMorphMap()) {
+            throw new ClassMorphViolationException((string) $class);
+        }
+
+        return (string) $class;
     }
 
     /**

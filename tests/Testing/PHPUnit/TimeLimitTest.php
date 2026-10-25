@@ -64,6 +64,17 @@ class TimeLimitTest extends TestCase
         ];
     }
 
+    public function testNativeAlarmAtCancellationIsReportedAsTimeout(): void
+    {
+        $process = $this->runFixture('testAlarmAtCancellationIsReportedAsTimeout', 1, 'TimeLimitAlarmFixture.php');
+        $output = $process->getOutput() . $process->getErrorOutput();
+
+        $this->assertFalse($process->isSuccessful());
+        $this->assertStringContainsString('TimeLimitAlarmFixture::testAlarmAtCancellationIsReportedAsTimeout', $output);
+        $this->assertStringContainsString('This test was aborted after 1 second', $output);
+        $this->assertContains('alarm delivered', $this->fixtureEvents());
+    }
+
     #[DataProvider('failedTests')]
     public function testFailuresKeepTheirCauseWhenChildrenReachTheTimeLimit(string $method, array $messages): void
     {
@@ -134,7 +145,7 @@ class TimeLimitTest extends TestCase
     /**
      * Run a fixture with its own PHPUnit time limit.
      */
-    protected function runFixture(string $method, int $limit): Process
+    protected function runFixture(string $method, int $limit, string $fixture = 'TimeLimitFixture.php'): Process
     {
         // Leave headroom for the native timeout report, but do not wait for the fixture's 30-second sleep.
         $process = new Process(
@@ -144,7 +155,7 @@ class TimeLimitTest extends TestCase
                 '--no-progress',
                 '--default-time-limit=' . $limit,
                 '--filter=' . $method,
-                'tests/Testing/PHPUnit/Fixtures/TimeLimitFixture.php',
+                'tests/Testing/PHPUnit/Fixtures/' . $fixture,
             ],
             cwd: dirname(__DIR__, 3),
             env: ['TIME_LIMIT_FIXTURE_LOG' => $this->tempDirectory . '/events.log'],

@@ -305,8 +305,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine if a queue is paused.
      */
-    public function isPaused(string $queue, ?string $connection = null): bool
+    public function isPaused(UnitEnum|string $queue, UnitEnum|string|null $connection = null): bool
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
         $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.

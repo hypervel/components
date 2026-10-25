@@ -103,10 +103,18 @@ trait InteractsWithDatabase
     /**
      * Assert the count of table entries.
      *
-     * @param class-string<Model>|Model|string $table
+     * @param class-string<Model>|iterable<class-string<Model>|string, int>|Model|string $table
      */
-    protected function assertDatabaseCount(Model|string $table, int $count, UnitEnum|string|null $connection = null): static
+    protected function assertDatabaseCount(iterable|Model|string $table, ?int $count = null, UnitEnum|string|null $connection = null): static
     {
+        if (is_iterable($table)) {
+            foreach ($table as $name => $expected) {
+                $this->assertDatabaseCount($name, $expected, $connection);
+            }
+
+            return $this;
+        }
+
         $this->assertThat(
             $this->getTable($table),
             new CountInDatabase($this->getConnection($connection, $table), $count)
