@@ -11,6 +11,7 @@ use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Failed\NullFailedJobProvider;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Collection;
@@ -136,7 +137,7 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDisplaysInfoWhenThereAreNoJobsToRetry(): void
     {
-        $failer = m::mock(FailedJobProviderInterface::class);
+        $failer = new NullFailedJobProvider;
 
         $output = $this->runRetryCommand(['id' => []], $failer, []);
 

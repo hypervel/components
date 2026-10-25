@@ -7,9 +7,10 @@ namespace Hypervel\Tests\Foundation\Configuration;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
-use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Cookie\Middleware\EncryptCookies;
+use Hypervel\Encryption\Encrypter;
+use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
@@ -191,7 +192,7 @@ class MiddlewareTest extends TestCase
 
     public function testTrustHosts(): void
     {
-        $app = m::mock(Application::class);
+        $app = new FoundationApplication;
         $configuration = new Middleware;
         $middleware = new class($app) extends TrustHosts {
             protected function allSubdomainsOfApplicationUrl(): ?string
@@ -233,7 +234,7 @@ class MiddlewareTest extends TestCase
     public function testEncryptCookies(): void
     {
         $configuration = new Middleware;
-        $encrypter = m::mock(Encrypter::class);
+        $encrypter = new Encrypter(str_repeat('a', 16));
         $middleware = new EncryptCookies($encrypter);
 
         $this->assertFalse($middleware->isDisabled('aaa'));
@@ -297,7 +298,7 @@ class MiddlewareTest extends TestCase
     {
         $configuration = new Middleware;
 
-        $app = m::mock(Application::class);
+        $app = new FoundationApplication;
         $middleware = new PreventRequestsDuringMaintenance($app);
 
         $reflection = new ReflectionClass($middleware);
@@ -320,8 +321,8 @@ class MiddlewareTest extends TestCase
     {
         $configuration = new Middleware;
         $middleware = new PreventRequestForgery(
-            m::mock(Application::class),
-            m::mock(Encrypter::class)
+            new FoundationApplication,
+            new Encrypter(str_repeat('a', 16))
         );
 
         $this->assertSame([], $middleware->getExcludedPaths());

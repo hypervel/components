@@ -91,7 +91,11 @@ class FailoverQueueTest extends TestCase
     public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
         $queue = m::mock(QueueManager::class);
-        $events = m::mock(DispatcherContract::class);
+        $events = new EventDispatcher;
+        $failedOver = [];
+        $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use (&$failedOver): void {
+            $failedOver[] = $event;
+        });
         $failover = new FailoverQueue($queue, $events, [
             $connection,
             'sync',
@@ -103,11 +107,6 @@ class FailoverQueueTest extends TestCase
         $sync = m::mock(SyncQueue::class);
         $queue->expects('connection')->with('sync')->andReturn($sync);
 
-        $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch')->with(m::on(
-            fn (QueueFailedOver $event): bool => $event->connectionName === $expectedName,
-        ));
-
         $redis->expects('push')->andReturnUsing(
             fn (): never => throw new Exception('error')
         );
@@ -115,6 +114,11 @@ class FailoverQueueTest extends TestCase
         $sync->expects('push');
 
         $failover->push('some-job');
+
+        $this->assertCount(1, $failedOver);
+        $this->assertSame($expectedName, $failedOver[0]->connectionName);
+        $this->assertSame('some-job', $failedOver[0]->command);
+        $this->assertSame('error', $failedOver[0]->exception->getMessage());
     }
 
     /**

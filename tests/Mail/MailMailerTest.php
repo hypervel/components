@@ -9,6 +9,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -17,6 +18,7 @@ use Hypervel\Mail\Message;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
@@ -28,7 +30,7 @@ class MailMailerTest extends TestCase
 {
     public function testMailerSendSendsMessageWithProperViewContent(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -41,7 +43,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerCallbackCanInspectAndReplaceRenderedContent(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $renderedContent = null;
 
@@ -59,7 +61,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithCcAndBccRecipients(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -148,14 +150,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContent(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->expects('render')
-            ->andReturn('rendered.view');
-        $viewInterface->expects('render')
-            ->andReturn('rendered.plain');
-
-        $view = m::mock(ViewFactory::class);
-        $view->expects('make')->times(2)->andReturn($viewInterface);
+        $view = $this->viewFactory('rendered.view', 'rendered.plain');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -184,14 +179,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->expects('render')
-            ->andReturn('rendered.view');
-        $viewInterface->expects('render')
-            ->andReturn('rendered.plain');
-
-        $view = m::mock(ViewFactory::class);
-        $view->expects('make')->times(2)->andReturn($viewInterface);
+        $view = $this->viewFactory('rendered.view', 'rendered.plain');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -220,7 +208,7 @@ class MailMailerTest extends TestCase
 
     public function testToAllowsEmailAndName(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail);
@@ -233,10 +221,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerRejectsAddressesContainingLineBreaks(): void
     {
-        $renderedView = m::mock(ViewContract::class);
-        $renderedView->expects('render')->andReturn('rendered.view');
-        $view = m::mock(ViewFactory::class);
-        $view->expects('make')->andReturn($renderedView);
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $this->expectExceptionObject(new InvalidArgumentException('Email addresses may not contain line break characters.'));
@@ -248,10 +233,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerRejectsSymfonyAddressesContainingLineBreaks(): void
     {
-        $renderedView = m::mock(ViewContract::class);
-        $renderedView->expects('render')->andReturn('rendered.view');
-        $view = m::mock(ViewFactory::class);
-        $view->expects('make')->andReturn($renderedView);
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $this->expectExceptionObject(new MimeInvalidArgumentException('Email address contains control characters.'));
@@ -263,7 +245,7 @@ class MailMailerTest extends TestCase
 
     public function testGlobalFromIsRespectedOnAllMessages(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysFrom('hello@hypervel.org');
 
@@ -277,7 +259,7 @@ class MailMailerTest extends TestCase
 
     public function testGlobalReplyToIsRespectedOnAllMessages(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReplyTo('taylor@hypervel.org', 'Taylor Otwell');
 
@@ -291,7 +273,7 @@ class MailMailerTest extends TestCase
 
     public function testGlobalToIsRespectedOnAllMessages(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysTo('taylor@hypervel.org', 'Taylor Otwell');
 
@@ -319,7 +301,7 @@ class MailMailerTest extends TestCase
 
     public function testGlobalReturnPathIsRespectedOnAllMessages(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReturnPath('taylorotwell@gmail.com');
@@ -333,24 +315,23 @@ class MailMailerTest extends TestCase
 
     public function testEventsAreDispatched(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
 
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(MessageSending::class)->andReturn(true);
-        $events->expects('until')->with(m::type(MessageSending::class));
-        $events->expects('hasListeners')->with(MessageSent::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(MessageSent::class));
+        $events = new EventFake(new EventDispatcher);
 
         $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
         $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
+
+        $events->assertDispatchedOnce(MessageSending::class);
+        $events->assertDispatchedOnce(MessageSent::class);
     }
 
     public function testEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
-        $view = $this->mockView();
+        $view = $this->viewFactory('rendered.view');
 
         $events = m::mock(Dispatcher::class);
         $events->expects('hasListeners')->with(MessageSending::class)->andReturn(false);
@@ -398,18 +379,19 @@ class MailMailerTest extends TestCase
     }
 
     /**
-     * Create a view factory expecting one rendered view.
+     * Create a view factory that renders the given contents in order.
      */
-    protected function mockView(): ViewFactory
+    protected function viewFactory(string ...$rendered): ViewFactory
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->expects('render')
-            ->andReturn('rendered.view');
+        $factory = m::mock(ViewFactory::class);
 
-        $view = m::mock(ViewFactory::class);
-        $view->expects('make')->andReturn($viewInterface);
+        foreach ($rendered as $contents) {
+            $view = m::mock(ViewContract::class);
+            $view->expects('render')->andReturn($contents);
+            $factory->expects('make')->andReturn($view);
+        }
 
-        return $view;
+        return $factory;
     }
 }
 

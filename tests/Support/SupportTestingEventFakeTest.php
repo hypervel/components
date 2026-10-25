@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -46,12 +47,8 @@ class SupportTestingEventFakeTest extends TestCase
 
     public function testAssertListening(): void
     {
-        $listener = ListenerStub::class;
-
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('getListeners')->andReturn([function ($event, $payload) use ($listener) {
-            return $listener(...array_values($payload));
-        }]);
+        $dispatcher = new EventDispatcher;
+        $dispatcher->listen(EventStub::class, ListenerStub::class);
 
         $fake = new EventFake($dispatcher);
 
@@ -133,8 +130,11 @@ class SupportTestingEventFakeTest extends TestCase
 
     public function testAssertDispatchedWithIgnore(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('dispatch');
+        $dispatcher = new EventDispatcher;
+        $passedThrough = [];
+        $dispatcher->listen('*', function (string $event, array $payload) use (&$passedThrough): void {
+            $passedThrough[] = $event;
+        });
 
         $fake = new EventFake($dispatcher, [
             'Foo',
@@ -150,6 +150,7 @@ class SupportTestingEventFakeTest extends TestCase
         $fake->assertDispatched('Foo');
         $fake->assertDispatched('Bar');
         $fake->assertNotDispatched('Baz');
+        $this->assertSame(['Baz'], $passedThrough);
     }
 
     public function testAssertNothingDispatched(): void

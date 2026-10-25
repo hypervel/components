@@ -21,6 +21,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\CallQueuedClosure;
@@ -28,6 +29,8 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\EventFake;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -251,7 +254,7 @@ class BusBatchTest extends TestCase
 
     public function testProcessedJobsCanBeCalculated(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
 
         $batch = $this->createTestBatch($queue);
 
@@ -303,49 +306,38 @@ class BusBatchTest extends TestCase
 
     public function testBatchFinishedEventIsDispatched(): void
     {
-        $events = m::mock(EventDispatcher::class);
+        $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);
 
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
         $batch = $this->createTestBatch($queue);
 
         $job = new class {
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
-        $queue->expects('connection')
-            ->with('test-connection')
-            ->andReturn($connection);
-
-        $connection->expects('bulk');
-
         $batch = $batch->add([$job]);
 
-        $events->expects('hasListeners')->with(BatchStarted::class)->andReturnTrue();
+        $batch->recordSuccessfulJob('test-id');
 
-        $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
-            return $event instanceof BatchStarted && $event->batch === $batch;
-        }));
-
-        $events->expects('hasListeners')->with(BatchFinished::class)->andReturnTrue();
-
-        $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
-            return $event instanceof BatchFinished
-                && $event->batch->id === $batch->id
+        $events->assertDispatchedOnce(BatchStarted::class);
+        $events->assertDispatched(BatchStarted::class, function (BatchStarted $event) use ($batch): bool {
+            return $event->batch === $batch;
+        });
+        $events->assertDispatchedOnce(BatchFinished::class);
+        $events->assertDispatched(BatchFinished::class, function (BatchFinished $event) use ($batch): bool {
+            return $event->batch->id === $batch->id
                 && $event->batch->finished()
                 && $event->batch->pendingJobs === 0;
-        }));
-
-        $batch->recordSuccessfulJob('test-id');
+        });
     }
 
     public function testBatchStartedEventIsDispatched(): void
     {
-        $events = m::mock(EventDispatcher::class);
+        $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);
 
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
         $batch = $this->createTestBatch($queue);
 
         $job = new class {
@@ -356,37 +348,24 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
-        $queue->expects('connection')
-            ->with('test-connection')
-            ->andReturn($connection);
-
-        $connection->expects('bulk');
-
         $batch = $batch->add([$job, $secondJob]);
-
-        $events->expects('hasListeners')->with(BatchStarted::class)->andReturnTrue();
-
-        $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
-            return $event instanceof BatchStarted && $event->batch === $batch;
-        }));
-
-        $events->expects('hasListeners')->with(BatchFinished::class)->andReturnTrue();
-
-        $events->expects('dispatch')->with(m::on(function (object $event): bool {
-            return $event instanceof BatchFinished;
-        }));
 
         $batch->recordSuccessfulJob('test-id-1');
         $batch->recordSuccessfulJob('test-id-2');
+
+        $events->assertDispatchedOnce(BatchStarted::class);
+        $events->assertDispatched(BatchStarted::class, function (BatchStarted $event) use ($batch): bool {
+            return $event->batch === $batch;
+        });
+        $events->assertDispatchedOnce(BatchFinished::class);
     }
 
     public function testBatchStartedEventIsDispatchedWhenFirstJobFails(): void
     {
-        $events = m::mock(EventDispatcher::class);
+        $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);
 
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
         $job = new class {
@@ -397,23 +376,15 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = m::mock(QueueContract::class);
-        $queue->expects('connection')
-            ->with('test-connection')
-            ->andReturn($connection);
-
-        $connection->expects('bulk');
-
         $batch = $batch->add([$job, $secondJob]);
-
-        $events->expects('hasListeners')->with(BatchStarted::class)->andReturnTrue();
-
-        $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
-            return $event instanceof BatchStarted && $event->batch === $batch;
-        }));
 
         $batch->recordFailedJob('test-id-1', new RuntimeException('Something went wrong.'));
         $batch->recordFailedJob('test-id-2', new RuntimeException('Something else went wrong.'));
+
+        $events->assertDispatchedOnce(BatchStarted::class);
+        $events->assertDispatched(BatchStarted::class, function (BatchStarted $event) use ($batch): bool {
+            return $event->batch === $batch;
+        });
     }
 
     public function testFailedJobsCanBeRecordedWhileNotAllowingFailures(): void
@@ -579,7 +550,7 @@ class BusBatchTest extends TestCase
 
     public function testBatchCanBeCancelled(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
 
         $batch = $this->createTestBatch($queue);
 
@@ -592,28 +563,27 @@ class BusBatchTest extends TestCase
 
     public function testBatchCancelledEventIsDispatched(): void
     {
-        $events = m::mock(EventDispatcher::class);
+        $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);
 
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
         $batch = $this->createTestBatch($queue);
 
         $exception = new RuntimeException('Something went wrong.');
 
-        $events->expects('hasListeners')->with(BatchCanceled::class)->andReturnTrue();
-        $events->expects('dispatch')->with(m::on(function (object $event) use ($batch, $exception): bool {
-            return $event instanceof BatchCanceled
-                && $event->batch->id === $batch->id
+        $batch->cancel($exception);
+
+        $events->assertDispatchedOnce(BatchCanceled::class);
+        $events->assertDispatched(BatchCanceled::class, function (BatchCanceled $event) use ($batch, $exception): bool {
+            return $event->batch->id === $batch->id
                 && $event->batch->cancelled()
                 && $event->exception === $exception;
-        }));
-
-        $batch->cancel($exception);
+        });
     }
 
     public function testBatchCanBeDeleted(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
 
         $batch = $this->createTestBatch($queue);
 
@@ -655,7 +625,7 @@ class BusBatchTest extends TestCase
 
     public function testBatchStateCanBeInspected(): void
     {
-        $queue = m::mock(Factory::class);
+        $queue = new QueueFake($this->app);
 
         $batch = $this->createTestBatch($queue);
 

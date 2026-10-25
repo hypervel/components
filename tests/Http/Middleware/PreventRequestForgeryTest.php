@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Middleware;
 
-use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\Session\Session;
+use Hypervel\Encryption\Encrypter;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Exceptions\OriginMismatchException;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Session\ArraySessionHandler;
+use Hypervel\Session\Store;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -208,8 +209,8 @@ class PreventRequestForgeryTest extends TestCase
             $server
         );
 
-        $session = m::mock(Session::class);
-        $session->shouldReceive('token')->andReturn('test-token');
+        $session = new Store('test', new ArraySessionHandler(10));
+        $session->put('_token', 'test-token');
         $request->setHypervelSession($session);
 
         return $request;
@@ -238,7 +239,7 @@ class PreventRequestForgeryTest extends TestCase
     {
         return new PreventRequestForgeryTestStub(
             m::mock(Application::class),
-            m::mock(Encrypter::class)
+            new Encrypter(str_repeat('a', 16))
         );
     }
 }

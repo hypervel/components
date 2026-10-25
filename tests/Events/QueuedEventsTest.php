@@ -17,7 +17,6 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
-use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -29,6 +28,7 @@ use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Support\CarbonImmutable;
@@ -43,18 +43,17 @@ class QueuedEventsTest extends TestCase
     public function testQueuedEventHandlersAreQueued(): void
     {
         $d = new Dispatcher;
-        $factory = m::mock(QueueFactory::class);
-        $queue = m::mock(Queue::class);
 
-        $factory->expects('connection')->with(null)->andReturn($queue);
-        $queue->expects('pushOn')->with(null, m::type(CallQueuedListener::class));
+        $fakeQueue = new QueueFake(new Container);
 
-        $d->setQueueResolver(function () use ($factory) {
-            return $factory;
+        $d->setQueueResolver(function () use ($fakeQueue): QueueFake {
+            return $fakeQueue;
         });
 
         $d->listen('some.event', TestDispatcherQueuedHandler::class . '@someMethod');
         $d->dispatch('some.event', ['foo', 'bar']);
+
+        $fakeQueue->assertPushedOn(null, CallQueuedListener::class);
     }
 
     public function testQueuedEnumEventsRemainSerializable(): void
@@ -703,14 +702,12 @@ class QueuedEventsTest extends TestCase
             ->andReturn($lock);
         $lock->expects('forceRelease');
 
-        $job = m::mock(Job::class);
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $handler = new CallQueuedHandler(new BusDispatcher($container), $container);
         $handler->call($job, ['command' => serialize($listener)]);
+
+        $this->assertTrue($job->isDeleted());
     }
 
     public function testUniqueUntilProcessingLockIsReleasedBeforeHandling(): void
@@ -733,16 +730,12 @@ class QueuedEventsTest extends TestCase
 
         $this->assertTrue($cache->lock($expectedKey, 10)->get());
 
-        $job = m::mock(Job::class);
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('attempts')->andReturn(1);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $handler = new CallQueuedHandler(new BusDispatcher($container), $container);
         $handler->call($job, ['command' => serialize($listener)]);
 
+        $this->assertTrue($job->isDeleted());
         $this->assertTrue(TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling);
 
         // A replacement dispatch's lock must survive the first listener's cleanup.

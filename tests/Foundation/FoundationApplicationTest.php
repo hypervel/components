@@ -21,6 +21,7 @@ use Hypervel\Foundation\PackageManifest;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JsonException;
@@ -54,14 +55,12 @@ class FoundationApplicationTest extends TestCase
 
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent(): void
     {
+        $events = new EventFake(new EventDispatcher);
         $translator = m::mock(TranslatorContract::class);
-        $translator->expects('getLocale')->andReturn('bar')->globally()->ordered();
-        $translator->expects('setLocale')->with('foo')->globally()->ordered();
-        $events = m::mock(DispatcherContract::class);
-        $events->expects('hasListeners')->with(LocaleUpdated::class)->andReturn(true)->globally()->ordered();
-        $events->expects('dispatch')->with(m::on(function (LocaleUpdated $event): bool {
-            return $event->locale === 'foo' && $event->previousLocale === 'bar';
-        }))->globally()->ordered();
+        $translator->expects('getLocale')->andReturn('bar')->ordered();
+        $translator->expects('setLocale')->with('foo')->ordered()->andReturnUsing(function () use ($events): void {
+            $events->assertNothingDispatched();
+        });
         $config = new Repository(['app' => ['locale' => 'en']]);
 
         $app = new Application;
@@ -73,6 +72,11 @@ class FoundationApplicationTest extends TestCase
 
         // REMOVED: Effective current locale is request-local and does not mutate worker-shared config.
         $this->assertSame('en', $config->string('app.locale'));
+
+        $events->assertDispatchedOnce(LocaleUpdated::class);
+        $events->assertDispatched(LocaleUpdated::class, function (LocaleUpdated $event): bool {
+            return $event->locale === 'foo' && $event->previousLocale === 'bar';
+        });
     }
 
     public function testSetLocaleDoesNotDispatchWhenLocaleEventHasNoListeners(): void
@@ -155,14 +159,11 @@ class FoundationApplicationTest extends TestCase
 
     public function testServiceProvidersAreCorrectlyRegistered(): void
     {
-        $provider = m::mock(ApplicationBasicServiceProviderStub::class);
-        $class = get_class($provider);
-        $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->expects('register');
         $app = new Application;
+        $provider = new ApplicationBasicServiceProviderStub($app);
         $app->register($provider);
 
-        $this->assertArrayHasKey($class, $app->getLoadedProviders());
+        $this->assertArrayHasKey(get_class($provider), $app->getLoadedProviders());
     }
 
     public function testClassesAreBoundWhenServiceProviderIsRegistered(): void
@@ -207,26 +208,20 @@ class FoundationApplicationTest extends TestCase
 
     public function testServiceProvidersAreCorrectlyRegisteredWhenRegisterMethodIsNotFilled(): void
     {
-        $provider = m::mock(ServiceProvider::class);
-        $class = get_class($provider);
-        $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->expects('register');
         $app = new Application;
+        $provider = new class($app) extends ServiceProvider {};
         $app->register($provider);
 
-        $this->assertArrayHasKey($class, $app->getLoadedProviders());
+        $this->assertArrayHasKey(get_class($provider), $app->getLoadedProviders());
     }
 
     public function testServiceProvidersCouldBeLoaded(): void
     {
-        $provider = m::mock(ServiceProvider::class);
-        $class = get_class($provider);
-        $provider->shouldReceive('isEnabled')->andReturn(true);
-        $provider->expects('register');
         $app = new Application;
+        $provider = new class($app) extends ServiceProvider {};
         $app->register($provider);
 
-        $this->assertTrue($app->providerIsLoaded($class));
+        $this->assertTrue($app->providerIsLoaded(get_class($provider)));
         $this->assertFalse($app->providerIsLoaded(ApplicationBasicServiceProviderStub::class));
     }
 

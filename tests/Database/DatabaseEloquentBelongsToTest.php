@@ -8,9 +8,14 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\PdoConnection;
+use Hypervel\Database\Query\Builder as BaseBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class DatabaseEloquentBelongsToTest extends TestCase
 {
@@ -64,26 +69,27 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
     public function testEagerConstraintsAreProperlyAdded(): void
     {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('whereIntegerInRaw')->with('relation.id', ['foreign.value', 'foreign.value.two']);
-        $models = [new ModelStub, new ModelStub, new AnotherModelStub];
+        $relation = $this->getRelationWithRealQuery();
+        $models = [$this->newModelWithKey(1), $this->newModelWithKey(2), $this->newModelWithKey(1)];
         $relation->addEagerConstraints($models);
+
+        $this->assertSame('select * from "relation" where "relation"."id" = ? and "relation"."id" in (1, 2)', $relation->toSql());
     }
 
     public function testIdsInEagerConstraintsCanBeZero(): void
     {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('whereIntegerInRaw')->with('relation.id', [0, 'foreign.value']);
-        $models = [new ModelStub, new ModelStubWithZeroId];
-        $relation->addEagerConstraints($models);
+        $relation = $this->getRelationWithRealQuery();
+        $relation->addEagerConstraints([$this->newModelWithKey(1), new ModelStubWithZeroId]);
+
+        $this->assertSame('select * from "relation" where "relation"."id" = ? and "relation"."id" in (0, 1)', $relation->toSql());
     }
 
     public function testIdsInEagerConstraintsCanBeBackedEnum(): void
     {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('whereIntegerInRaw')->with('relation.id', [5, 'foreign.value']);
-        $models = [new ModelStub, new ModelStubWithBackedEnumCast];
-        $relation->addEagerConstraints($models);
+        $relation = $this->getRelationWithRealQuery();
+        $relation->addEagerConstraints([$this->newModelWithKey(1), new ModelStubWithBackedEnumCast]);
+
+        $this->assertSame('select * from "relation" where "relation"."id" = ? and "relation"."id" in (1, 5)', $relation->toSql());
     }
 
     public function testRelationIsProperlyInitialized(): void
@@ -219,66 +225,80 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
     public function testAssociateMethodSetsForeignKeyOnModel(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
-        $relation = $this->getRelation($parent);
-        $associate = m::mock(Model::class);
-        $associate->expects('getAttribute')->with('id')->andReturn(1);
-        $parent->expects('setAttribute')->with('foreign_key', 1);
-        $parent->expects('setRelation')->with('relation', $associate);
+        $relation = $this->getRelationWithRealQuery();
+        $associate = new EloquentBelongsToRelatedStub;
+        $associate->id = 1;
 
-        $relation->associate($associate);
+        $child = $relation->associate($associate);
+
+        $this->assertSame(1, $child->getAttribute('foreign_key'));
+        $this->assertSame($associate, $child->getRelation('relation'));
     }
 
     public function testDissociateMethodUnsetsForeignKeyOnModel(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
-        $relation = $this->getRelation($parent);
-        $parent->expects('setAttribute')->with('foreign_key', null);
+        $relation = $this->getRelationWithRealQuery();
+        $relation->getChild()->setAttribute('foreign_key', 5);
 
+        $child = $relation->dissociate();
+
+        $this->assertNull($child->getAttribute('foreign_key'));
         // Always set relation when we received Model
-        $parent->expects('setRelation')->with('relation', null);
-
-        $relation->dissociate();
+        $this->assertTrue($child->relationLoaded('relation'));
+        $this->assertNull($child->getRelation('relation'));
     }
 
     public function testAssociateMethodSetsForeignKeyOnModelById(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
-        $relation = $this->getRelation($parent);
-        $parent->expects('setAttribute')->with('foreign_key', 1);
+        $relation = $this->getRelationWithRealQuery();
+        $relation->getChild()->setRelation('relation', new EloquentBelongsToRelatedStub);
 
+        $child = $relation->associate(1);
+
+        $this->assertSame(1, $child->getAttribute('foreign_key'));
         // Always unset relation when we received id, regardless of dirtiness
-        $parent->shouldReceive('isDirty')->never();
-        $parent->expects('unsetRelation')->with($relation->getRelationName());
-
-        $relation->associate(1);
+        $this->assertFalse($child->relationLoaded('relation'));
     }
 
     public function testDefaultEagerConstraintsWhenIncrementing(): void
     {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('whereIntegerInRaw')->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub, new MissingModelStub];
-        $relation->addEagerConstraints($models);
+        $relation = $this->getRelationWithRealQuery();
+        $relation->addEagerConstraints([new MissingModelStub, new MissingModelStub]);
+
+        $this->assertSame('select * from "relation" where "relation"."id" = ? and 0 = 1', $relation->toSql());
     }
 
     public function testDefaultEagerConstraintsWhenIncrementingAndNonIntKeyType(): void
     {
-        $relation = $this->getRelation(null, 'string');
-        $relation->getQuery()->expects('whereIn')->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub, new MissingModelStub];
-        $relation->addEagerConstraints($models);
+        $relation = $this->getRelationWithRealQuery('string');
+        $relation->addEagerConstraints([$this->newModelWithKey('abc'), $this->newModelWithKey('1abc')]);
+
+        $this->assertSame('select * from "relation" where "relation"."id" = ? and "relation"."id" in (?, ?)', $relation->toSql());
+        $this->assertSame(['foreign.value', '1abc', 'abc'], $relation->getBindings());
     }
 
-    public function testDefaultEagerConstraintsWhenNotIncrementing(): void
+    /**
+     * Create a child model with the given foreign key.
+     */
+    protected function newModelWithKey(int|string $key): ModelStub
     {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('whereIntegerInRaw')->with('relation.id', m::mustBe([]));
-        $models = [new MissingModelStub, new MissingModelStub];
-        $relation->addEagerConstraints($models);
+        $model = new ModelStub;
+        $model->foreign_key = $key;
+
+        return $model;
+    }
+
+    /**
+     * Get a belongs to relationship backed by a real query builder.
+     */
+    protected function getRelationWithRealQuery(string $keyType = 'int'): BelongsTo
+    {
+        $related = new EloquentBelongsToRelatedStub;
+        $related->setKeyType($keyType);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $builder = (new Builder(new BaseBuilder($connection, new Grammar($connection), new Processor)))->setModel($related);
+
+        return new BelongsTo($builder, new ModelStub, 'foreign_key', 'id', 'relation');
     }
 
     /**
@@ -322,14 +342,14 @@ class DatabaseEloquentBelongsToTest extends TestCase
     }
 }
 
+class EloquentBelongsToRelatedStub extends Model
+{
+    protected ?string $table = 'relation';
+}
+
 class ModelStub extends Model
 {
     public mixed $foreign_key = 'foreign.value';
-}
-
-class AnotherModelStub extends Model
-{
-    public string $foreign_key = 'foreign.value.two';
 }
 
 class ModelStubWithZeroId extends Model

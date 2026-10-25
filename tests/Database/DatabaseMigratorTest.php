@@ -8,17 +8,21 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
+use UnitEnum;
 
 class DatabaseMigratorTest extends TestCase
 {
@@ -31,9 +35,8 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql-direct'],
             'pgsql-direct' => ['driver' => 'pgsql'],
         ]);
-        $resolver = m::mock(Resolver::class);
-        $connection = m::mock(Connection::class);
-        $resolver->expects('connection')->with('pgsql::write')->andReturn($connection);
+        $resolver = new DatabaseMigratorTestResolver;
+        $resolver->connections['pgsql::write'] = $connection = new PdoConnection(new PDO('sqlite::memory:'));
 
         $this->assertSame($connection, $this->migrator($resolver)->resolveConnection('pgsql::write'));
     }
@@ -41,17 +44,16 @@ class DatabaseMigratorTest extends TestCase
     public function testResolveConnectionPassesThroughWhenDirectConnectionIsNotConfigured(): void
     {
         $this->bindConfig(['sqlite' => ['driver' => 'sqlite']]);
-        $resolver = m::mock(Resolver::class);
-        $connection = m::mock(Connection::class);
-        $resolver->expects('connection')->with('sqlite')->andReturn($connection);
+        $resolver = new DatabaseMigratorTestResolver;
+        $resolver->connections['sqlite'] = $connection = new PdoConnection(new PDO('sqlite::memory:'));
 
         $this->assertSame($connection, $this->migrator($resolver)->resolveConnection('sqlite'));
     }
 
     public function testCustomConnectionResolverCallbackKeepsPriority(): void
     {
-        $resolver = m::mock(Resolver::class);
-        $connection = m::mock(Connection::class);
+        $resolver = new DatabaseMigratorTestResolver;
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
 
         Migrator::resolveConnectionsUsing(function (Resolver $resolver, ?string $name) use ($connection): Connection {
             $this->assertSame('pgsql', $name);
@@ -65,16 +67,17 @@ class DatabaseMigratorTest extends TestCase
     public function testSetConnectionNullPreservesDefaultConnectionBehaviorWithoutDirectConnection(): void
     {
         $this->bindConfig(['sqlite' => ['driver' => 'sqlite']], 'sqlite');
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->expects('setSource')->with('sqlite');
-        $resolver->shouldNotReceive('setDefaultConnection');
+        $resolver = new DatabaseMigratorTestResolver;
+        $repository = new DatabaseMigratorTestRepository;
 
         $migrator = $this->migrator($resolver, $repository);
         $migrator->setConnection(null);
 
         $this->assertSame('sqlite', $migrator->getConnection());
+        $this->assertSame('sqlite', $repository->source);
         $this->assertSame('sqlite', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
+        // Only the coroutine default changes; the worker-shared resolver default is left alone.
+        $this->assertSame('pgsql', $resolver->getDefaultConnection());
     }
 
     public function testRunMethodPreservesWriteConnectionName(): void
@@ -771,7 +774,7 @@ class DatabaseMigratorTest extends TestCase
      */
     protected function migrator(Resolver $resolver, ?MigrationRepositoryInterface $repository = null): DatabaseMigratorTestMigrator
     {
-        return new DatabaseMigratorTestMigrator($repository ?? m::mock(MigrationRepositoryInterface::class), $resolver, new Filesystem);
+        return new DatabaseMigratorTestMigrator($repository ?? new DatabaseMigratorTestRepository, $resolver, new Filesystem);
     }
 
     /**
@@ -797,5 +800,133 @@ class DatabaseMigratorTestMigrator extends Migrator
     public function runMethodPublic(Connection $connection, object $migration, string $method): void
     {
         $this->runMethod($connection, $migration, $method);
+    }
+}
+
+class DatabaseMigratorTestResolver implements Resolver
+{
+    public ?string $default = 'pgsql';
+
+    public array $connections = [];
+
+    /**
+     * Get a database connection instance.
+     */
+    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    {
+        return $this->connections[$name ?? $this->default];
+    }
+
+    /**
+     * Get the default connection name.
+     */
+    public function getDefaultConnection(): ?string
+    {
+        return $this->default;
+    }
+
+    /**
+     * Set the default connection name.
+     */
+    public function setDefaultConnection(?string $name): void
+    {
+        $this->default = $name;
+    }
+}
+
+class DatabaseMigratorTestRepository implements MigrationRepositoryInterface
+{
+    public ?string $source = null;
+
+    /**
+     * Get the completed migrations.
+     */
+    public function getRan(): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the list of migrations.
+     */
+    public function getMigrations(int $steps): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the list of the migrations by batch.
+     */
+    public function getMigrationsByBatch(int $batch): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the last migration batch.
+     */
+    public function getLast(): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the completed migrations with their batch numbers.
+     */
+    public function getMigrationBatches(): array
+    {
+        return [];
+    }
+
+    /**
+     * Log that a migration was run.
+     */
+    public function log(string $file, int $batch): void
+    {
+    }
+
+    /**
+     * Remove a migration from the log.
+     */
+    public function delete(object $migration): void
+    {
+    }
+
+    /**
+     * Get the next migration batch number.
+     */
+    public function getNextBatchNumber(): int
+    {
+        return 1;
+    }
+
+    /**
+     * Create the migration repository data store.
+     */
+    public function createRepository(): void
+    {
+    }
+
+    /**
+     * Determine if the migration repository exists.
+     */
+    public function repositoryExists(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Delete the migration repository data store.
+     */
+    public function deleteRepository(): void
+    {
+    }
+
+    /**
+     * Set the information source to gather data.
+     */
+    public function setSource(?string $name): void
+    {
+        $this->source = $name;
     }
 }
