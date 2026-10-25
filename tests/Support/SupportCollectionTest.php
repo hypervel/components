@@ -42,6 +42,7 @@ use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use TypeError;
 use UnexpectedValueException;
+use ValueError;
 use WeakMap;
 
 class SupportCollectionTest extends TestCase
@@ -479,6 +480,12 @@ class SupportCollectionTest extends TestCase
         $this->assertSame('f', $foo?->text);
         $this->assertSame('x', $bar?->text);
         $this->assertNull($items->shift());
+    }
+
+    public function testShiftManyReturnsEmptyCollectionOnEmptyCollection(): void
+    {
+        $this->assertEquals(new Collection, (new Collection)->shift(0));
+        $this->assertEquals(new Collection, (new Collection)->shift(2));
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -2266,6 +2273,19 @@ class SupportCollectionTest extends TestCase
         $data = $data->sortBy([['sort', 'asc']]);
 
         $this->assertEquals([1 => ['sort' => 1], 0 => ['sort' => 2]], $data->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testSortByManyWithNumericFlagComparesFractionalValues(string $collection): void
+    {
+        $data = new $collection([['price' => 1.5], ['price' => '10.5'], ['price' => 1.2], ['price' => '10.2'], ['price' => 1.9]]);
+
+        $this->assertSame([1.2, 1.5, 1.9, '10.2', '10.5'], $data->sortBy([['price', 'asc']], SORT_NUMERIC)->pluck('price')->values()->all());
+        $this->assertSame(['10.5', '10.2', 1.9, 1.5, 1.2], $data->sortBy([['price', 'desc']], SORT_NUMERIC)->pluck('price')->values()->all());
+        $this->assertSame(
+            $data->sortBy('price', SORT_NUMERIC)->pluck('price')->values()->all(),
+            $data->sortBy([['price', 'asc']], SORT_NUMERIC)->pluck('price')->values()->all(),
+        );
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -5216,6 +5236,22 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testCombineWithFewerValuesThanKeysThrows(string $collection): void
+    {
+        $this->expectException(ValueError::class);
+
+        (new $collection([1, 2]))->combine([3])->all();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testCombineWithMoreValuesThanKeysThrows(string $collection): void
+    {
+        $this->expectException(ValueError::class);
+
+        (new $collection([1]))->combine([2, 3])->all();
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testConcatWithArray($collection): void
     {
         $expected = [
@@ -5515,6 +5551,51 @@ class SupportCollectionTest extends TestCase
     {
         $data = new $collection([1, 2, 2, 1]);
         $this->assertEquals([1, 2], $data->mode());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testModeOnCollectionWithNull(string $collection): void
+    {
+        $data = new $collection([
+            (object) ['foo' => 5],
+            (object) ['foo' => null],
+            (object) ['foo' => null],
+        ]);
+        $this->assertEquals([5], $data->mode('foo'));
+
+        $data = new $collection([null, 3]);
+        $this->assertEquals([3], $data->mode());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testModeOnCollectionWithOnlyNullsReturnsNull(string $collection): void
+    {
+        $data = new $collection([null, null]);
+        $this->assertNull($data->mode());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testModeOnCollectionWithFloats(string $collection): void
+    {
+        $data = new $collection([1.5, 1.5, 2.5]);
+        $this->assertSame([1.5], $data->mode());
+
+        $data = new $collection([
+            (object) ['foo' => 0.5],
+            (object) ['foo' => 0.7],
+            (object) ['foo' => 0.7],
+        ]);
+        $this->assertSame([0.7], $data->mode('foo'));
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testModeOnCollectionWithWholeNumberFloats(string $collection): void
+    {
+        $data = new $collection([2.0, 2.0, 3.5]);
+        $this->assertSame([2.0], $data->mode());
+
+        $data = new $collection([1, 1, 2]);
+        $this->assertSame([1], $data->mode());
     }
 
     #[DataProvider('collectionClassProvider')]
