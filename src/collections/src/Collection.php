@@ -149,7 +149,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $collection->each(function ($value) use ($counts, &$floats) {
             if (is_float($value)) {
-                $floats[$key = (string) $value] = $value;
+                // A string cast rounds to the precision setting, so key floats by their exact value.
+                // Adding zero turns -0.0, which equals 0.0, into 0.0.
+                $floats[$key = sprintf('%.17h', $value + 0.0)] = $value;
             } else {
                 $key = $value;
             }

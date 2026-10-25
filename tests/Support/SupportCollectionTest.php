@@ -5589,13 +5589,33 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
-    public function testModeOnCollectionWithWholeNumberFloats(string $collection): void
+    public function testModeCountsFloatsByTheirExactValue(string $collection): void
     {
         $data = new $collection([2.0, 2.0, 3.5]);
         $this->assertSame([2.0], $data->mode());
 
         $data = new $collection([1, 1, 2]);
         $this->assertSame([1], $data->mode());
+
+        $data = new $collection([0.1 + 0.2, 0.3, 0.3]);
+        $this->assertSame([0.3], $data->mode());
+
+        $data = new $collection([0.1 + 0.2, 0.1 + 0.2, 0.3]);
+        $this->assertSame([0.1 + 0.2], $data->mode());
+
+        $data = new $collection([round(-0.4), 0.0, 1.5]);
+        $this->assertSame([0.0], $data->mode());
+
+        $precision = ini_get('precision');
+
+        try {
+            ini_set('precision', '3');
+
+            $data = new $collection([1.234, 1.2349, 9.9, 9.9]);
+            $this->assertSame([9.9], $data->mode());
+        } finally {
+            ini_set('precision', $precision);
+        }
     }
 
     #[DataProvider('collectionClassProvider')]
