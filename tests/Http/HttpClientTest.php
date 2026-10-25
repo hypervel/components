@@ -1413,7 +1413,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testRequestDataIncludesThePayloadFromEveryOptionLayer(): void
+    public function testRequestDataIncludesThePayloadFromWithOptions(): void
     {
         $requests = [];
 
@@ -1432,6 +1432,29 @@ class HttpClientTest extends TestCase
         $this->assertTrue($requests[0]->hasFile('file', 'attachment-contents', 'file.txt'));
         $this->assertSame(['a' => 1, 'b' => 2], $requests[1]->data());
         $this->assertSame('{"a":1,"b":2}', $requests[1]->body());
+    }
+
+    public function testRequestDataDescribesRawBodyOptionsRatherThanTheQuery(): void
+    {
+        $requests = [];
+
+        $this->factory->fake(function (Request $request) use (&$requests): PromiseInterface {
+            $requests[] = $request;
+
+            return Factory::response();
+        });
+
+        $this->factory->withOptions(['query' => ['page' => 1]])
+            ->send('POST', 'http://foo.com/form', ['form_params' => ['name' => 'Taylor', 'active' => true]]);
+
+        $this->factory->withOptions(['query' => ['page' => 1]])
+            ->send('POST', 'http://foo.com/upload', ['multipart' => [['name' => 'file', 'contents' => 'file-contents', 'filename' => 'file.txt']]]);
+
+        $this->factory->withOptions(['json' => []])->get('http://foo.com/get?page=1');
+
+        $this->assertSame(['name' => 'Taylor', 'active' => true], $requests[0]->data());
+        $this->assertTrue($requests[1]->hasFile('file', 'file-contents', 'file.txt'));
+        $this->assertSame([], $requests[2]->data());
     }
 
     public function testCanSendJsonDataWithStringable(): void

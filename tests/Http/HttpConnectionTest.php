@@ -230,6 +230,7 @@ class HttpConnectionTest extends TestCase
             'auth' => ['user', 'secret', 'digest'],
             'allow_redirects' => ['max' => 3, 'protocols' => ['http', 'https']],
             'proxy' => ['http' => 'http://proxy.test', 'no' => ['example.test']],
+            'curl' => [CURLOPT_TCP_KEEPALIVE => 1],
         ]);
 
         $options = $factory
@@ -237,12 +238,14 @@ class HttpConnectionTest extends TestCase
             ->withBasicAuth('other', 'pass')
             ->withOptions(['allow_redirects' => ['protocols' => ['https']]])
             ->withOptions(['proxy' => ['no' => []]])
+            ->withOptions(['curl' => []])
             ->getOptions();
 
         $this->assertSame(['X-Tags' => ['local'], 'X-Global' => 'yes'], $options['headers']);
         $this->assertSame(['other', 'pass'], $options['auth']);
         $this->assertSame(['max' => 3, 'protocols' => ['https']], $options['allow_redirects']);
         $this->assertSame(['http' => 'http://proxy.test', 'no' => []], $options['proxy']);
+        $this->assertSame([CURLOPT_TCP_KEEPALIVE => 1], $options['curl']);
 
         $options = $factory
             ->withOptions(['auth' => ['first', 'secret', 'digest']])
@@ -250,6 +253,8 @@ class HttpConnectionTest extends TestCase
             ->getOptions();
 
         $this->assertSame(['second', 'secret'], $options['auth']);
+
+        $this->assertSame([], $factory->withOptions(['auth' => []])->getOptions()['auth']);
     }
 
     public function testMergeableListsAccumulateAcrossOptionLayers(): void
@@ -300,11 +305,15 @@ class HttpConnectionTest extends TestCase
         $factory->connection('api')->withOptions(['json' => ['a' => 1]])->delete('https://example.com');
         $factory->connection('api')->withOptions(['json' => ['a' => 1]])->send('POST', 'https://example.com');
         $factory->connection('api')->withOptions(['json' => ['a' => 1]])->send('POST', 'https://example.com', ['json' => null]);
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->get('https://example.com');
+        $factory->connection('api')->withOptions(['json' => ['a' => 1]])->head('https://example.com');
 
         $this->assertSame('{"a":1}', (string) $factory->invocations[0]['request']->getBody());
         $this->assertSame('{"a":1}', (string) $factory->invocations[1]['request']->getBody());
         $this->assertSame('{"a":1}', (string) $factory->invocations[2]['request']->getBody());
         $this->assertSame('', (string) $factory->invocations[3]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[4]['request']->getBody());
+        $this->assertSame('{"a":1}', (string) $factory->invocations[5]['request']->getBody());
     }
 
     public function testSetConnectionConfigRegistersEvenAnEmptyPreset(): void

@@ -1460,17 +1460,24 @@ class PendingRequest implements Transient
             return [];
         }
 
-        $data = $options[$this->bodyFormat] ?? $options['query'] ?? [];
+        // Describe the body Guzzle sends, even when raw options bypass the body format. Guzzle prepares
+        // form_params, multipart and then json, and the last one wins.
+        $format = match (true) {
+            isset($options['json']) => 'json',
+            isset($options['multipart']) => 'multipart',
+            isset($options['form_params']) => 'form_params',
+            default => null,
+        };
 
-        if ($this->bodyFormat === 'multipart' && isset($options['multipart'])) {
-            return is_array($data) ? $this->normalizeMultipartOption($data) : [];
+        if ($format === 'multipart') {
+            return is_array($options['multipart']) ? $this->normalizeMultipartOption($options['multipart']) : [];
         }
 
-        $data = $this->normalizeStructuredDataValue($data);
+        $data = $this->normalizeStructuredDataValue($format === null ? $options['query'] ?? [] : $options[$format]);
 
         $urlString = (new Stringable($url));
 
-        if (empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
+        if ($format === null && empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
             $data = (string) $urlString->after('?');
         }
 
@@ -2662,8 +2669,9 @@ class PendingRequest implements Transient
             return $value;
         }
 
-        // An empty payload default, such as post() without data, keeps the earlier payload.
-        if ($mergeable && $value === []) {
+        // An empty array adds no keys to a map such as curl, and an empty payload default, such as post()
+        // without data, keeps the earlier payload. An empty list still clears an earlier list such as auth.
+        if ($value === [] && ($mergeable || ! array_is_list($current))) {
             return $current;
         }
 
