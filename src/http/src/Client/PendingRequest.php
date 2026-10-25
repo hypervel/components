@@ -2637,11 +2637,11 @@ class PendingRequest implements Transient
 
         foreach ($layers as $layer) {
             foreach ($layer as $key => $value) {
-                $merged[$key] = $this->mergeOptionValue(
-                    $merged[$key] ?? null,
-                    $value,
-                    in_array($key, $this->mergeableOptions, true),
-                );
+                $current = $merged[$key] ?? null;
+
+                $merged[$key] = is_array($current) && is_array($value)
+                    ? $this->mergeOptionValue($current, $value, in_array($key, $this->mergeableOptions, true))
+                    : $value;
             }
         }
 
