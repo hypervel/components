@@ -1062,6 +1062,8 @@ Http::connection('github')->get('/user');
 Http::connection('github', [])->get('https://example.com');
 ```
 
+Requests sent without data, including `get($url)`, `head($url)` and `delete($url)`, still inherit a configured body. Set a payload option to `null` to remove it; for example, `withOptions(['json' => null])` removes the configured JSON payload.
+
 `setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
 
 Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies, including requests made without `connection()`.
