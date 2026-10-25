@@ -188,6 +188,11 @@ class OutboxWorker
      */
     protected function restartTimestamp(): ?int
     {
+        // Queue::withoutInterruptionPolling() keeps every worker, including this relay, off the cache.
+        if (! Worker::$restartable) {
+            return null;
+        }
+
         return (new Waiter(-1))->wait(function (): ?int {
             $timestamp = $this->cache->store()->get(Worker::RESTART_SIGNAL_CACHE_KEY);
 

@@ -188,6 +188,17 @@ class OutboxWorkerTest extends TestCase
         $this->assertFalse($borrowed);
     }
 
+    public function testRestartSignalIsNotReadWithoutInterruptionPolling(): void
+    {
+        Worker::$restartable = false;
+        $worker = $this->worker();
+        $this->cache->shouldNotReceive('get');
+        $this->relay->expects('claim')->andReturn([$this->message(1)]);
+        $this->relay->expects('deliver')->andReturn(true);
+
+        $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(maxJobs: 1, memory: 1024)));
+    }
+
     public function testEscapingTaskFailureStopsAdmissionAndPropagates(): void
     {
         $worker = $this->worker();
