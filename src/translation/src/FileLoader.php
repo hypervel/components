@@ -46,8 +46,15 @@ class FileLoader implements Loader
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
         // Mirrors Translator::ensureValidLocale(); keep both predicates identical.
-        if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
+        if (Str::contains($locale, ['/', '\\', '..', "\0"]) || $locale === '.') {
             throw new InvalidArgumentException('Invalid characters present in locale.');
+        }
+
+        // An empty locale has no locale directory, and groups come from translation keys,
+        // so either one being unusable means there are no lines. Groups may name
+        // subdirectories but must stay inside the locale directory.
+        if ($locale === '' || ($group !== '*' && ($group === '' || Str::contains($group, ['..', '\\', "\0"])))) {
+            return [];
         }
 
         if ($group === '*' && $namespace === '*') {
