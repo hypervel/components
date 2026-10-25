@@ -80,6 +80,11 @@ abstract class Paginator implements Countable, Iterator
     protected bool $detectInfiniteLoop = true;
 
     /**
+     * Whether page checksums include the provider's continuation, so a repeated checksum repeats an earlier request.
+     */
+    protected bool $checksumIncludesContinuation = false;
+
+    /**
      * Whether the paginator is currently preparing pooled pages.
      */
     protected bool $pooling = false;
@@ -134,8 +139,19 @@ abstract class Paginator implements Countable, Iterator
         // Checked here instead of in request middleware, where the callback would keep the paginator alive through
         // its own request and every response.
         if ($this->detectInfiniteLoop && ! $this->pooling) {
+            $checksum = $this->getPageChecksum($response);
+            $earlierChecksums = $this->lastFiveBodyChecksums;
+
             // Retrying a failed load replaces its checksum instead of adding another page.
-            $this->lastFiveBodyChecksums[$this->currentPage] = $this->getPageChecksum($response);
+            unset($earlierChecksums[$this->currentPage]);
+
+            if ($this->checksumIncludesContinuation && in_array($checksum, $earlierChecksums, true)) {
+                throw new PaginationException(
+                    'Potential infinite loop detected! A page repeated an earlier page and its continuation. You can use the $detectInfiniteLoop property on your paginator to disable this check.',
+                );
+            }
+
+            $this->lastFiveBodyChecksums[$this->currentPage] = $checksum;
 
             if (count($this->lastFiveBodyChecksums) >= 5) {
                 if (count(array_unique($this->lastFiveBodyChecksums)) === 1) {

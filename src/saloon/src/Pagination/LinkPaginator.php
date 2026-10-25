@@ -19,6 +19,11 @@ use Psr\Http\Message\UriInterface;
 abstract class LinkPaginator extends PagedPaginator
 {
     /**
+     * Whether page checksums include the provider's continuation, so a repeated checksum repeats an earlier request.
+     */
+    protected bool $checksumIncludesContinuation = true;
+
+    /**
      * The next page's resolved URI.
      */
     protected ?UriInterface $nextUri = null;

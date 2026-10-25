@@ -1057,7 +1057,33 @@ class PaginatorTest extends TestCase
         }
 
         $this->assertInstanceOf(PaginationException::class, $caught);
-        $this->assertSame(5, $requested);
+        $this->assertSame(2, $requested);
+    }
+
+    #[DataProvider('continuationPaginators')]
+    public function testAlternatingContinuationsWithRepeatedContentsDetectLoops(string $class): void
+    {
+        $manager = $this->manager();
+        $requested = 0;
+        $manager->fake([PagedRequestStub::class => static function () use (&$requested): MockResponse {
+            $next = ++$requested % 2 === 1 ? 2 : 3;
+
+            return MockResponse::make(['data' => [], 'request_id' => $requested], headers: [
+                'Link' => "<?page={$next}>; rel=next",
+                'X-Next-Cursor' => (string) $next,
+            ]);
+        }]);
+        $paginator = (new $class(new PaginationConnectorStub($manager), new PagedRequestStub))->maxPages(6);
+        $caught = null;
+
+        try {
+            iterator_to_array($paginator);
+        } catch (PaginationException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(PaginationException::class, $caught);
+        $this->assertSame(3, $requested);
     }
 
     /**
@@ -1090,8 +1116,8 @@ class PaginatorTest extends TestCase
      */
     public static function cursorChecksumValues(): iterable
     {
-        yield 'scalar kinds' => [[0, false, 0.0, '0', 0]];
-        yield 'nonterminal null' => [[null, null, null, null]];
+        yield 'scalar kinds' => [[0, false, 0.0, '0']];
+        yield 'nonterminal null' => [[null]];
     }
 
     public function testLoopDetectionChecksTheResponseReturnedByRequestMiddleware(): void

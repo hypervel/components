@@ -26,6 +26,11 @@ abstract class CursorPaginator extends Paginator
     protected string $perPageName = 'per_page';
 
     /**
+     * Whether page checksums include the provider's continuation, so a repeated checksum repeats an earlier request.
+     */
+    protected bool $checksumIncludesContinuation = true;
+
+    /**
      * Apply cursor pagination to the request.
      *
      * @param Request<mixed> $request
