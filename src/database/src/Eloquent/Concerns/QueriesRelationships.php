@@ -295,7 +295,7 @@ trait QueriesRelationships
             return $this->model->belongsTo(
                 $type,
                 $relation->getForeignKeyName(),
-                $relation->getOwnerKeyName()
+                $relation->getDeclaredOwnerKeyName()
             );
         });
 
@@ -566,15 +566,20 @@ trait QueriesRelationships
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
+        // The morph columns belong to the declaring model. A relation built for a loaded morph type queries
+        // the target's table instead, so qualifying through the relation would name the wrong table.
+        $morphType = $relation->getParent()->qualifyColumn($relation->getMorphType());
+        $foreignKey = $relation->getQualifiedForeignKeyName();
+
         if (is_null($model)) {
             // @phpstan-ignore return.type (mixin returns $this at runtime)
-            return $this->whereNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
+            return $this->whereNull($morphType, $boolean);
         }
 
         if (is_string($model)) {
             $model = $this->getMorphTypeForQuery($model);
 
-            return $this->where($relation->qualifyColumn($relation->getMorphType()), $model, null, $boolean);
+            return $this->where($morphType, $model, null, $boolean);
         }
 
         $models = BaseCollection::wrap($model);
@@ -583,12 +588,12 @@ trait QueriesRelationships
             throw new InvalidArgumentException('Collection given to whereMorphedTo method may not be empty.');
         }
 
-        return $this->where(function ($query) use ($relation, $models) {
-            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
-                $query->orWhere(function ($query) use ($relation, $models) {
-                    $query->where($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map(
-                            fn ($model) => $model->getAttribute($relation->getOwnerKeyName() ?? $model->getKeyName())
+        return $this->where(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation, $morphType, $foreignKey) {
+                $query->orWhere(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+                    $query->where($morphType, $models->first()->getMorphClass())
+                        ->whereIn($foreignKey, $models->map(
+                            fn ($model) => $model->getAttribute($relation->getDeclaredOwnerKeyName() ?? $model->getKeyName())
                         ));
                 });
             });
@@ -611,16 +616,20 @@ trait QueriesRelationships
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
+        // Qualify through the declaring model, as whereMorphedTo() does.
+        $morphType = $relation->getParent()->qualifyColumn($relation->getMorphType());
+        $foreignKey = $relation->getQualifiedForeignKeyName();
+
         if (is_null($model)) {
             // @phpstan-ignore return.type (mixin returns $this at runtime)
-            return $this->whereNotNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
+            return $this->whereNotNull($morphType, $boolean);
         }
 
         if (is_string($model)) {
             $model = $this->getMorphTypeForQuery($model);
 
             return $this->whereNot(fn ($query) => $query->whereNullSafeEquals(
-                $relation->qualifyColumn($relation->getMorphType()),
+                $morphType,
                 $model
             ), null, null, $boolean);
         }
@@ -631,12 +640,12 @@ trait QueriesRelationships
             throw new InvalidArgumentException('Collection given to whereNotMorphedTo method may not be empty.');
         }
 
-        return $this->whereNot(function ($query) use ($relation, $models) {
-            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
-                $query->orWhere(function ($query) use ($relation, $models) {
-                    $query->whereNullSafeEquals($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map(
-                            fn ($model) => $model->getAttribute($relation->getOwnerKeyName() ?? $model->getKeyName())
+        return $this->whereNot(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation, $morphType, $foreignKey) {
+                $query->orWhere(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+                    $query->whereNullSafeEquals($morphType, $models->first()->getMorphClass())
+                        ->whereIn($foreignKey, $models->map(
+                            fn ($model) => $model->getAttribute($relation->getDeclaredOwnerKeyName() ?? $model->getKeyName())
                         ));
                 });
             });

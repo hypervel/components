@@ -34,6 +34,11 @@ class MorphTo extends BelongsTo
     protected ?string $ownerKey;
 
     /**
+     * Indicates if the owner key was taken from the loaded target's type instead of being declared.
+     */
+    protected bool $ownerKeyInferred = false;
+
+    /**
      * The models whose relations are being eager loaded.
      *
      * @var EloquentCollection<int, TDeclaringModel>
@@ -146,7 +151,7 @@ class MorphTo extends BelongsTo
     {
         $instance = $this->createModelByType($type);
 
-        $ownerKey = $this->ownerKey ?? $instance->getKeyName();
+        $ownerKey = $this->getDeclaredOwnerKeyName() ?? $instance->getKeyName();
 
         $query = $this->replayMacros($instance->newQuery())
             ->mergeConstraintsFrom($this->getQuery())
@@ -211,8 +216,10 @@ class MorphTo extends BelongsTo
      */
     protected function matchToMorphParents(int|string $type, EloquentCollection $results): void
     {
+        $declaredOwnerKey = $this->getDeclaredOwnerKeyName();
+
         foreach ($results as $result) {
-            $ownerKey = $this->getDictionaryKey(! is_null($this->ownerKey) ? $result->{$this->ownerKey} : $result->getKey());
+            $ownerKey = $this->getDictionaryKey(! is_null($declaredOwnerKey) ? $result->{$declaredOwnerKey} : $result->getKey());
 
             if ($ownerKey !== null && isset($this->dictionary[$type][$ownerKey])) {
                 foreach ($this->dictionary[$type][$ownerKey] as $model) {
@@ -241,7 +248,7 @@ class MorphTo extends BelongsTo
         $morphClass = null;
 
         if ($model instanceof Model) {
-            $foreignKeyValue = $model->{$this->ownerKey ?? $model->getKeyName()};
+            $foreignKeyValue = $model->{$this->getDeclaredOwnerKeyName() ?? $model->getKeyName()};
             $morphClass = $model->getMorphClass();
         }
 
@@ -295,6 +302,28 @@ class MorphTo extends BelongsTo
     public function getDictionary(): array
     {
         return $this->dictionary;
+    }
+
+    /**
+     * Get the declared owner key, or null when each target uses its own primary key.
+     */
+    public function getDeclaredOwnerKeyName(): ?string
+    {
+        return $this->ownerKeyInferred ? null : $this->ownerKey;
+    }
+
+    /**
+     * Indicate that the owner key was taken from the loaded target's type.
+     *
+     * Other target types may use a different primary key, so they keep using their own.
+     *
+     * @return $this
+     */
+    public function withInferredOwnerKey(): static
+    {
+        $this->ownerKeyInferred = true;
+
+        return $this;
     }
 
     /**

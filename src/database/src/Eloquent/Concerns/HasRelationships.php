@@ -414,7 +414,7 @@ trait HasRelationships
             static::getActualClassNameForMorph($target)
         );
 
-        return $this->newMorphTo(
+        $relation = $this->newMorphTo(
             $instance->newQuery(),
             $this,
             $id,
@@ -422,6 +422,9 @@ trait HasRelationships
             $type,
             $name
         );
+
+        // The loaded type's key serves this relation, but other target types may use a different one.
+        return $ownerKey === null ? $relation->withInferredOwnerKey() : $relation;
     }
 
     /**
