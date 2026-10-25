@@ -3030,7 +3030,7 @@ class ImportProducts implements ShouldQueue, Interruptible
 }
 ```
 
-The `interrupted` method is only invoked when the worker receives a process signal while the job is currently running. In Hypervel, a worker may run several jobs concurrently, so every currently running job that implements `Interruptible` will be notified. Keep this method lightweight, such as setting a flag or quickly saving progress, since the worker calls it synchronously while handling the signal. It is not a replacement for [timeouts](#worker-timeouts) or the job's [`failed` method](#cleaning-up-after-failed-jobs).
+The `interrupted` method is invoked when the worker receives a process signal while the job is currently running. In Hypervel, a worker may run several jobs concurrently, so every currently running job that implements `Interruptible` will be notified. The worker also calls the method with `SIGALRM` when the job exceeds its [timeout](#timeout), just before the timeout is handled. Keep this method lightweight, such as setting a flag or quickly saving progress, since the worker calls it synchronously while handling the signal. It is not a replacement for [timeouts](#worker-timeouts) or the job's [`failed` method](#cleaning-up-after-failed-jobs).
 
 <a name="job-expirations-and-timeouts"></a>
 ### Job Expirations and Timeouts
@@ -3118,7 +3118,7 @@ Queue::getPausedQueues(['emails', 'notifications']);
 Queue::resume('emails');
 ```
 
-The `pause`, `pauseFor`, and `resume` methods also accept enums for queue and connection names.
+The `pause`, `pauseFor`, `resume`, and `isPaused` methods also accept enums for queue and connection names.
 
 Queue workers report paused and resumed queues in their console output.
 
@@ -3442,6 +3442,14 @@ The `queue:flush` command removes all failed job records from your queue, no mat
 
 ```shell
 php artisan queue:flush --hours=48
+```
+
+The `--queue` option limits the command to jobs that failed on the given queue. You may combine it with the `--hours` option:
+
+```shell
+php artisan queue:flush --queue=emails
+
+php artisan queue:flush --queue=emails --hours=48
 ```
 
 To prevent `queue:flush` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method:
@@ -4065,10 +4073,13 @@ class AppServiceProvider extends ServiceProvider
             // $event->connectionName
             // $event->job
             // $event->job->payload()
+            // $event->duration
         });
     }
 }
 ```
+
+The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run.
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 

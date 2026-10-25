@@ -122,6 +122,16 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertEmpty($this->provider->all());
     }
 
+    public function testRemovingAllFailedJobsForAQueue(): void
+    {
+        $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException);
+        $this->provider->log('connection-2', 'queue-2', json_encode(['uuid' => 'uuid-2']), new RuntimeException);
+
+        $this->provider->flush(queue: 'queue-1');
+
+        $this->assertSame(['uuid-2'], $this->provider->ids());
+    }
+
     public function testPruningFailedJobs(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromDate(2024, 4, 28));

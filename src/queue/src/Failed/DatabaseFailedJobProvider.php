@@ -73,12 +73,14 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
     }
 
     /**
-     * Flush all of the failed jobs from storage.
+     * Flush the failed jobs from storage.
      */
-    public function flush(?int $hours = null): void
+    public function flush(?int $hours = null, ?string $queue = null): void
     {
         $this->getTable()->when($hours, function ($query, $hours) {
             $query->where('failed_at', '<=', Date::now()->subHours($hours));
+        })->when(! is_null($queue), function ($query) use ($queue) {
+            $query->where('queue', $queue);
         })->delete();
     }
 

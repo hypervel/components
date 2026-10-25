@@ -240,9 +240,15 @@ class SyncQueue extends Queue implements QueueContract
         try {
             $this->raiseBeforeJobEvent($queueJob);
 
-            $queueJob->fire();
+            $startedAt = hrtime(true);
 
-            $this->raiseAfterJobEvent($queueJob);
+            try {
+                $queueJob->fire();
+            } finally {
+                $duration = round((hrtime(true) - $startedAt) / 1e6, 2);
+            }
+
+            $this->raiseAfterJobEvent($queueJob, $duration);
         } catch (CanceledException $exception) {
             $canceled = true;
 
@@ -259,7 +265,7 @@ class SyncQueue extends Queue implements QueueContract
             }
         } finally {
             if (! $canceled) {
-                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
+                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null, $duration ?? null);
             }
         }
 
@@ -294,14 +300,14 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Raise the after queue job event.
      */
-    protected function raiseAfterJobEvent(JobContract $job): void
+    protected function raiseAfterJobEvent(JobContract $job, ?float $duration = null): void
     {
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobProcessed::class)) {
-                $events->dispatch(new JobProcessed($this->connectionName, $job));
+                $events->dispatch(new JobProcessed($this->connectionName, $job, $duration));
             }
         }
     }
@@ -309,14 +315,14 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Raise the job attempted event.
      */
-    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null): void
+    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null, ?float $duration = null): void
     {
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobAttempted::class)) {
-                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred));
+                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration));
             }
         }
     }
