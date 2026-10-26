@@ -227,6 +227,18 @@ class FilesystemAdapterTest extends TestCase
         $this->assertSame('attachment; filename=HelloWorld.txt; filename*=utf-8\'\'Hello%25World.txt', $response->headers->get('Content-Disposition'));
     }
 
+    public function testDownloadFilenameWithoutAsciiEquivalent(): void
+    {
+        $this->setRequestContext();
+
+        $this->filesystem->write('file.txt', 'Hello World');
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $response = $files->download('file.txt', '請求書');
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertSame('attachment; filename=___; filename*=utf-8\'\'%E8%AB%8B%E6%B1%82%E6%9B%B8', $response->headers->get('Content-Disposition'));
+    }
+
     public function testExists(): void
     {
         $this->filesystem->write('file.txt', 'Hello World');
