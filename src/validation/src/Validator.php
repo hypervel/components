@@ -52,18 +52,10 @@ class Validator implements ValidatorContract
 
     /**
      * Attributes that should be excluded from the validated data.
+     *
+     * @var array<string, string>
      */
     protected array $excludeAttributes = [];
-
-    /**
-     * Active exclusions for exact-base compiled execution.
-     *
-     * Subclasses keep Laravel's protected list because their passes() methods
-     * may reset that list directly.
-     *
-     * @var array<string, true>
-     */
-    private array $activeExclusions = [];
 
     /**
      * The message bag instance.
@@ -434,7 +426,6 @@ class Validator implements ValidatorContract
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
         $this->distinctValueCounts = [];
-        $this->activeExclusions = [];
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];
 
@@ -982,28 +973,17 @@ class Validator implements ValidatorContract
      */
     protected function shouldBeExcluded(string $attribute): bool
     {
-        if (static::class === self::class) {
-            return isset($this->activeExclusions[$attribute])
-                || ($this->activeExclusions !== []
-                    && $this->hasAttributeAncestorInSet($attribute, $this->activeExclusions));
-        }
-
-        // Keep the subclass fallback as a loop to avoid an extra callback per exclusion.
-        foreach ($this->excludeAttributes as $excludeAttribute) {
-            if ($attribute === $excludeAttribute
-                || Str::startsWith($attribute, $excludeAttribute . '.')
-            ) {
-                return true;
-            }
-        }
-
-        return false;
+        // Unlike Laravel's explode() loop, this skips the ancestor walk when nothing
+        // is excluded and avoids splitting every attribute into a segment array.
+        return isset($this->excludeAttributes[$attribute])
+            || ($this->excludeAttributes !== []
+                && $this->hasAttributeAncestorInSet($attribute, $this->excludeAttributes));
     }
 
     /**
      * Determine if any strict ancestor of an attribute belongs to a set.
      *
-     * @param array<string, true> $attributes
+     * @param array<string, string|true> $attributes
      */
     private function hasAttributeAncestorInSet(string $attribute, array $attributes): bool
     {
@@ -1092,6 +1072,8 @@ class Validator implements ValidatorContract
 
         $missingValue = new stdClass;
 
+        $parentKeys = $this->excludeUnvalidatedArrayKeys ? $this->parentRuleKeys() : [];
+
         foreach ($this->getRules() as $key => $rules) {
             $key = (string) $key;
 
@@ -1101,7 +1083,7 @@ class Validator implements ValidatorContract
                 $this->excludeUnvalidatedArrayKeys
                 && (in_array('array', $rules) || in_array('list', $rules))
                 && $value !== null
-                && ! empty(preg_grep('/^' . preg_quote($key, '/') . '\.+/', array_keys($this->getRules())))
+                && isset($parentKeys[$key])
             ) {
                 continue;
             }
@@ -1112,6 +1094,28 @@ class Validator implements ValidatorContract
         }
 
         return $this->replacePlaceholders($results);
+    }
+
+    /**
+     * Get the rule keys that have nested rules beneath them.
+     *
+     * @return array<string, true>
+     */
+    protected function parentRuleKeys(): array
+    {
+        $parentKeys = [];
+
+        foreach (array_keys($this->getRules()) as $key) {
+            $key = (string) $key;
+
+            while (str_contains($key, '.')) {
+                $key = Str::beforeLast($key, '.');
+
+                $parentKeys[$key] = true;
+            }
+        }
+
+        return $parentKeys;
     }
 
     /**
@@ -1464,15 +1468,7 @@ class Validator implements ValidatorContract
      */
     protected function excludeAttribute(string $attribute): void
     {
-        if (static::class === self::class) {
-            $this->activeExclusions[$attribute] = true;
-
-            return;
-        }
-
-        $this->excludeAttributes[] = $attribute;
-
-        $this->excludeAttributes = array_unique($this->excludeAttributes);
+        $this->excludeAttributes[$attribute] = $attribute;
     }
 
     /**
