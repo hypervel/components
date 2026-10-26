@@ -396,28 +396,42 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ];
     }
 
-    public function testValidAssignmentCanReplaceDecryptableMalformedJson(): void
+    #[DataProvider('encryptedJsonAttributes')]
+    public function testValidAssignmentCanReplaceDecryptableMalformedJson(string $attribute): void
     {
         $encrypter = new RealEncrypter(str_repeat('a', 16));
         Crypt::swap($encrypter);
         Model::encryptUsing($encrypter);
 
         $original = $encrypter->encrypt('{invalid', false);
-        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $id = EncryptedCast::query()->insertGetId([$attribute => $original]);
         $subject = EncryptedCast::query()->findOrFail($id);
 
-        $subject->secret_json = ['valid' => true];
+        $subject->{$attribute} = ['valid' => true];
 
-        $this->assertTrue($subject->isDirty('secret_json'));
+        $this->assertTrue($subject->isDirty($attribute));
         $this->assertTrue($subject->save());
-        $this->assertSame(['valid' => true], $subject->fresh()->secret_json);
+
+        $value = $subject->fresh()->{$attribute};
+
+        if ($attribute === 'secret_json') {
+            $this->assertSame(['valid' => true], $value);
+        } elseif ($attribute === 'secret_object') {
+            $this->assertInstanceOf(stdClass::class, $value);
+            $this->assertSame(['valid' => true], (array) $value);
+        } else {
+            $this->assertInstanceOf(Collection::class, $value);
+            $this->assertSame(['valid' => true], $value->all());
+        }
+
         $this->assertNotSame(
             $original,
-            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
+            EncryptedCast::query()->whereKey($id)->toBase()->value($attribute),
         );
     }
 
-    public function testUndecryptableOriginalCannotBeOverwrittenThroughDirtyChecking(): void
+    #[DataProvider('encryptedJsonAttributes')]
+    public function testUndecryptableOriginalCannotBeOverwrittenThroughDirtyChecking(string $attribute): void
     {
         $encrypter = new RealEncrypter(str_repeat('a', 16));
         $wrongEncrypter = new RealEncrypter(str_repeat('b', 16));
@@ -425,18 +439,30 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         Model::encryptUsing($encrypter);
 
         $original = $wrongEncrypter->encrypt('{"recoverable":true}', false);
-        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $id = EncryptedCast::query()->insertGetId([$attribute => $original]);
         $subject = EncryptedCast::query()->findOrFail($id);
-        $subject->secret_json = ['replacement' => true];
+        $subject->{$attribute} = ['replacement' => true];
 
         $this->assertThrows(
-            fn () => $subject->isDirty('secret_json'),
+            fn () => $subject->isDirty($attribute),
             DecryptException::class,
         );
         $this->assertSame(
             $original,
-            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
+            EncryptedCast::query()->whereKey($id)->toBase()->value($attribute),
         );
+    }
+
+    /**
+     * Provide encrypted attributes that contain JSON.
+     */
+    public static function encryptedJsonAttributes(): array
+    {
+        return [
+            'array' => ['secret_json'],
+            'object' => ['secret_object'],
+            'collection' => ['secret_collection'],
+        ];
     }
 
     public function testCustomEncrypterCanBeSpecified(): void

@@ -2316,6 +2316,17 @@ trait HasAttributes
         if ($this->isEncryptedCastable($key) && ! empty(static::currentEncrypter()->getPreviousKeys())) {
             return false;
         }
+        if ($original !== null && $this->hasCast($key, ['encrypted:object', 'encrypted:collection'])) {
+            $current = $this->fromJson($this->fromEncryptedString($attribute));
+
+            try {
+                $original = $this->fromJson($this->fromEncryptedString($original));
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
+        }
         if ($this->hasCast($key, static::$primitiveCastTypes)) {
             $current = $this->castAttribute($key, $attribute);
 
