@@ -62,6 +62,8 @@ class FakeJob extends Job
      */
     public function release(DateInterval|DateTimeInterface|int $delay = 0): void
     {
+        $this->runBeforeReleasingCallbacks();
+
         $this->released = true;
         $this->releaseDelay = $delay;
     }
@@ -87,6 +89,8 @@ class FakeJob extends Job
      */
     public function fail(?Throwable $e = null): void
     {
+        $this->runBeforeFailingCallbacks();
+
         $this->failed = true;
         $this->failedWith = $e;
     }

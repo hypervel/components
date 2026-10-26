@@ -202,11 +202,11 @@ class WorkCommand extends Command
         });
 
         $events->listen(WorkerQueuePaused::class, static function (WorkerQueuePaused $event): void {
-            static::currentCommand()?->writeQueueStatus($event->queue, 'paused');
+            static::currentCommand()?->writeQueueStatus($event->connectionName, $event->queue, 'paused');
         });
 
         $events->listen(WorkerQueueResumed::class, static function (WorkerQueueResumed $event): void {
-            static::currentCommand()?->writeQueueStatus($event->queue, 'resumed');
+            static::currentCommand()?->writeQueueStatus($event->connectionName, $event->queue, 'resumed');
         });
 
         $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
@@ -238,7 +238,7 @@ class WorkCommand extends Command
     /**
      * Write the status output for a paused or resumed queue.
      */
-    protected function writeQueueStatus(string $queue, string $status): void
+    protected function writeQueueStatus(string $connection, string $queue, string $status): void
     {
         if ($this->output->isQuiet() || $this->output->isSilent()) {
             return;
@@ -247,6 +247,7 @@ class WorkCommand extends Command
         if ($this->outputUsingJson()) {
             $this->output->writeln(json_encode([
                 'level' => 'warning',
+                'connection' => $connection,
                 'queue' => $queue,
                 'status' => $status,
                 'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
@@ -277,6 +278,8 @@ class WorkCommand extends Command
         if ($this->outputUsingJson()) {
             $this->output->writeln(json_encode([
                 'level' => $event->status === 0 ? 'info' : 'warning',
+                'connection' => $event->connectionName,
+                'queue' => $event->queue,
                 'status' => 'stopped',
                 'reason' => $event->reason->value,
                 'exit_code' => $event->status,

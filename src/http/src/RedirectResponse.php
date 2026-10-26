@@ -7,6 +7,7 @@ namespace Hypervel\Http;
 use BadMethodCallException;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Hypervel\Contracts\Support\MessageProvider;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -17,7 +18,7 @@ use Hypervel\Support\ViewErrorBag;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse as BaseRedirectResponse;
 
-class RedirectResponse extends BaseRedirectResponse
+class RedirectResponse extends BaseRedirectResponse implements Responsable
 {
     use ForwardsCalls, ResponseTrait, Macroable {
         Macroable::__call as macroCall;
@@ -204,6 +205,17 @@ class RedirectResponse extends BaseRedirectResponse
     {
         $this->session = $session;
 
+        return $this;
+    }
+
+    /**
+     * Create an HTTP response that represents the object.
+     *
+     * @param Request $request
+     * @return $this
+     */
+    public function toResponse(mixed $request): static
+    {
         return $this;
     }
 

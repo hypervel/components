@@ -124,6 +124,16 @@ class FileFailedJobProviderTest extends TestCase
         ], $failedJobs);
     }
 
+    public function testCanRetrieveFailedJobIdsForAnExactQueueName(): void
+    {
+        [$zero] = $this->logFailedJob('connection', '0');
+        [$doubleZero] = $this->logFailedJob('connection', '00');
+
+        $this->assertSame([$zero], $this->provider->ids('0'));
+        $this->assertSame([$doubleZero], $this->provider->ids('00'));
+        $this->assertSame([$doubleZero, $zero], $this->provider->ids());
+    }
+
     public function testCanFindFailedJobs(): void
     {
         [$uuid, $exception] = $this->logFailedJob();

@@ -8,6 +8,7 @@ Documentation: https://hypervel.org/docs/queues
 ## Differences From Laravel
 
 - Laravel's DynamoDB failed-job provider is not provided. Use database or file storage for failed jobs.
+- Custom job implementations must support `JobLifecycleCallbacks` to use `CountCrashesAsExceptions`, so cleanup completes before a concurrent retry starts. The base `Jobs\Job` already implements it; the `Job` contract is unchanged. See [counting worker crashes](https://hypervel.org/docs/queues#counting-worker-crashes).
 - With `Worker::$killOnTimeout = false`, job code receives Swoole's `CanceledException`, not `TimeoutExceededException`. Use `finally` for cleanup; the worker reports the timeout as `TimeoutExceededException` and applies the normal retry and failure settings.
 - The protected `enqueueUsing()` callback receives the queue that owns the operation as its first argument. This lets deferred work borrow a fresh pooled queue connection after a database transaction commits instead of retaining a connection for the lifetime of the transaction.
 - Positive per-message delays on SQS FIFO queues throw `LogicException`. Laravel silently omits the delay and sends the job immediately.

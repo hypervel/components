@@ -223,6 +223,8 @@ Route::get('/dashboard', function () {
 });
 ```
 
+Redirect responses implement `Hypervel\Contracts\Support\Responsable`, so you may return them from routes or controller methods that declare this return type.
+
 Sometimes you may wish to redirect the user to their previous location, such as when a submitted form is invalid. You may do so by using the global `back` helper function. Since this feature utilizes the [session](/docs/{{version}}/session), make sure the route calling the `back` function is using the `web` middleware group:
 
 ```php

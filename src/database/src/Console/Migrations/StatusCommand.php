@@ -100,16 +100,20 @@ class StatusCommand extends BaseCommand
      */
     protected function getStatusFor(array $ran, array $batches): Collection
     {
+        $hasPending = false;
+
         return (new Collection($this->getAllMigrationFiles()))
-            ->map(function ($migration) use ($ran, $batches) {
+            ->map(function (string $migration) use ($ran, $batches, &$hasPending): array {
                 $migrationName = $this->migrator->getMigrationName($migration);
 
-                $status = in_array($migrationName, $ran)
-                    ? '<fg=green;options=bold>Ran</>'
-                    : '<fg=yellow;options=bold>Pending</>';
+                if (in_array($migrationName, $ran, true)) {
+                    $status = '[' . $batches[$migrationName] . '] <fg=green;options=bold>Ran</>';
+                } elseif (! $hasPending && $this->migrator->shouldSkip($migration)) {
+                    $status = '<fg=gray;options=bold>Skipped</>';
+                } else {
+                    $hasPending = true;
 
-                if (in_array($migrationName, $ran)) {
-                    $status = '[' . $batches[$migrationName] . '] ' . $status;
+                    $status = '<fg=yellow;options=bold>Pending</>';
                 }
 
                 return [$migrationName, $status];

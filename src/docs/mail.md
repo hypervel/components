@@ -1253,6 +1253,8 @@ Queue the mailable inside the transaction. Hypervel will store its job in the [t
 <a name="queued-email-failures"></a>
 #### Queued Email Failures
 
+You may add the `Hypervel\Queue\Attributes\DeleteWhenMissingModels` attribute to a mailable to discard it when a serialized model no longer exists. To mark a mailable as failed when it times out, add the `Hypervel\Queue\Attributes\FailOnTimeout` attribute. You may also enable these behaviors by setting the mailable's public `$deleteWhenMissingModels` or `$failOnTimeout` property to `true`.
+
 When a queued email fails, the `failed` method on the queued mailable class will be invoked if it has been defined. The `Throwable` instance that caused the queued email to fail will be passed to the `failed` method:
 
 ```php

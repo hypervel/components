@@ -29,6 +29,7 @@ use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
@@ -1058,6 +1059,7 @@ class Dispatcher implements DispatcherContract
             $job->shouldBeEncrypted = $listener instanceof ShouldBeEncrypted;
             $job->timeout = $this->getAttributeValue($listener, Timeout::class, 'timeout');
             $job->failOnTimeout = $this->getAttributeValue($listener, FailOnTimeout::class, 'failOnTimeout') ?? false;
+            $job->countCrashesAsExceptions = $this->getAttributeValue($listener, CountCrashesAsExceptions::class, 'countCrashesAsExceptions') ?? false;
             $job->deleteWhenMissingModels = $this->getAttributeValue($listener, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
             $job->tries = method_exists($listener, 'tries') ? $listener->tries(...$data) : $this->getAttributeValue($listener, Tries::class, 'tries');
             $job->messageGroup = method_exists($listener, 'messageGroup') ? $listener->messageGroup(...$data) : ($listener->messageGroup ?? null);
