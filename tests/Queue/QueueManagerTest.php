@@ -21,6 +21,7 @@ use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\NullQueue;
+use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SyncQueue;
@@ -28,6 +29,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use RuntimeException;
 
 class QueueManagerTest extends TestCase
@@ -150,6 +152,21 @@ class QueueManagerTest extends TestCase
         $this->assertFalse($manager->connected(QueueConnectionName::Sync));
         $manager->connection(QueueConnectionName::Sync);
         $this->assertTrue($manager->connected(QueueConnectionName::Sync));
+    }
+
+    public function testCreatePayloadUsingDoesNotResolveTheDefaultConnection(): void
+    {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.default', 'missing');
+
+        $manager = new QueueManager($container);
+        $manager->createPayloadUsing(static fn (?string $connection, ?string $queue, ?array $payload): array => ['foo' => 'bar']);
+
+        $this->assertFalse($manager->connected('missing'));
+
+        $callbacks = (new ReflectionProperty(BaseQueue::class, 'createPayloadCallbacks'))->getValue();
+
+        $this->assertSame(['foo' => 'bar'], $callbacks[array_key_last($callbacks)](null, null, null));
     }
 
     public function testSetDefaultDriverAcceptsBackedEnum(): void
@@ -492,18 +509,6 @@ class QueueManagerTest extends TestCase
         $this->assertSame($manager, $manager->setApplication($newContainer));
         $this->assertTrue($manager->connected('sync'));
         $this->assertSame($queue, $manager->connection('sync'));
-    }
-
-    public function testPayloadCallbacksCanBeRegisteredWithoutResolvingTheDefaultConnection(): void
-    {
-        $container = $this->getContainer();
-        $container->make('config')->set('queue.default', 'missing');
-
-        $manager = new QueueManager($container);
-
-        $manager->createPayloadUsing(static fn (string $connection, ?string $queue, array $payload): array => []);
-
-        $this->assertFalse($manager->connected('missing'));
     }
 
     /**
