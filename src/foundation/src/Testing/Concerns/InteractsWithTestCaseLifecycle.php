@@ -40,6 +40,11 @@ trait InteractsWithTestCaseLifecycle
     protected array $afterApplicationCreatedCallbacks = [];
 
     /**
+     * The callbacks that should be run after the application is refreshed.
+     */
+    protected array $afterApplicationRefreshedCallbacks = [];
+
+    /**
      * The callbacks that should be run before the application is destroyed.
      */
     protected array $beforeApplicationDestroyedCallbacks = [];
@@ -53,6 +58,11 @@ trait InteractsWithTestCaseLifecycle
      * Indicates if we have made it through the base setUp function.
      */
     protected bool $setUpHasRun = false;
+
+    /**
+     * Indicates if the application refreshed callbacks have started running.
+     */
+    protected bool $afterApplicationRefreshedCallbacksStarted = false;
 
     /**
      * Set up the test environment.
@@ -74,6 +84,12 @@ trait InteractsWithTestCaseLifecycle
         DatabaseConnectionResolver::resetCachedConnections();
 
         $this->runInCoroutine(function () {
+            $this->afterApplicationRefreshedCallbacksStarted = true;
+
+            foreach ($this->afterApplicationRefreshedCallbacks as $callback) {
+                $callback();
+            }
+
             $this->setUpTraits();
 
             // Preserve transaction manager context for the test coroutine.
@@ -151,6 +167,8 @@ trait InteractsWithTestCaseLifecycle
         $this->beforeApplicationDestroyedCallbacks = [];
         $this->callbackException = null;
         $this->setUpHasRun = false;
+        // Refreshed callbacks are kept so a reloaded application runs them again.
+        $this->afterApplicationRefreshedCallbacksStarted = false;
 
         try {
             $this->flushState();
@@ -284,6 +302,20 @@ trait InteractsWithTestCaseLifecycle
      */
     public static function tearDownAfterClassUsingTestCase(): void
     {
+    }
+
+    /**
+     * Register a callback to be run after the application is refreshed.
+     *
+     * The callbacks run before the test case's traits are set up, and again for each reloaded application.
+     */
+    public function afterApplicationRefreshed(callable $callback): void
+    {
+        $this->afterApplicationRefreshedCallbacks[] = $callback;
+
+        if ($this->afterApplicationRefreshedCallbacksStarted) {
+            $callback();
+        }
     }
 
     /**
