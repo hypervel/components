@@ -18,6 +18,13 @@ use Symfony\Component\HttpFoundation\Cookie;
 
 class HttpRedirectResponseTest extends TestCase
 {
+    public function testToResponseReturnsTheSameInstance(): void
+    {
+        $response = new RedirectResponse('foo.bar');
+
+        $this->assertSame($response, $response->toResponse(Request::create('/')));
+    }
+
     public function testHeaderOnRedirect(): void
     {
         $response = new RedirectResponse('foo.bar');
