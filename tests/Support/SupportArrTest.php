@@ -13,7 +13,9 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\Json;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
+use Hypervel\Tests\Support\Concerns\CountsEnumerations;
 use Hypervel\Tests\Support\Fixtures\TestArrayableObject;
 use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestEnum;
@@ -32,6 +34,8 @@ use WeakMap;
 
 class SupportArrTest extends TestCase
 {
+    use CountsEnumerations;
+
     public function testAccessible(): void
     {
         $this->assertTrue(Arr::accessible([]));
@@ -464,15 +468,11 @@ class SupportArrTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testFirstPreservesDuplicateIteratorKeysAndStopsAtTheFirstMatch(): void
+    public function testFirstIsLazy(): void
     {
-        $values = static function (): iterable {
-            yield 'duplicate' => 1;
-            yield 'other' => 2;
-            yield 'duplicate' => 3;
-        };
-
-        $this->assertSame(1, Arr::first($values(), static fn (int $value): bool => $value === 1));
+        $this->assertEnumerates(2, function (LazyCollection $collection): void {
+            Arr::first($collection, fn (int $value): bool => $value === 2);
+        });
 
         $shortCircuit = static function (): iterable {
             yield 'first' => 1;
@@ -481,6 +481,24 @@ class SupportArrTest extends TestCase
         };
 
         $this->assertSame(1, Arr::first($shortCircuit(), static fn (int $value): bool => $value === 1));
+    }
+
+    public function testFirstWorksWithYieldFrom(): void
+    {
+        $products = (function (): iterable {
+            yield from ['Laptop', 'Monitor'];
+            yield from ['Keyboard', 'Mouse'];
+        })();
+
+        $this->assertSame('Laptop', Arr::first($products, fn (string $product): bool => $product === 'Laptop'));
+
+        $values = static function (): iterable {
+            yield 'duplicate' => 1;
+            yield 'other' => 2;
+            yield 'duplicate' => 3;
+        };
+
+        $this->assertSame(1, Arr::first($values(), static fn (int $value): bool => $value === 1));
     }
 
     public function testJoin(): void
