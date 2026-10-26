@@ -79,6 +79,28 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
+    public function testMailableLocaleCanBeCleared(): void
+    {
+        $mailable = (new TestMail)->locale('ar')->locale(null);
+
+        Mail::to('test@mail.com')->send($mailable);
+
+        $this->assertStringContainsString(
+            'name',
+            $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->toString()
+        );
+    }
+
+    public function testPendingMailLocaleCanBeCleared(): void
+    {
+        Mail::to('test@mail.com')->locale('ar')->locale(null)->send(new TestMail);
+
+        $this->assertStringContainsString(
+            'name',
+            $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->toString()
+        );
+    }
+
     public function testMailIsSentWithLocaleUpdatedListenersCalled(): void
     {
         CarbonImmutable::setTestNow('2018-04-01');
