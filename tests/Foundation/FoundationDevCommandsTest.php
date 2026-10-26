@@ -12,11 +12,14 @@ use Hypervel\Foundation\DevCommandColor;
 use Hypervel\Foundation\DevCommandMode;
 use Hypervel\Foundation\DevCommands;
 use Hypervel\Support\Facades\File;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
 class FoundationDevCommandsTest extends TestCase
 {
+    protected ?string $temporaryBasePath = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,6 +31,37 @@ class FoundationDevCommandsTest extends TestCase
         $app->setRunningInConsole(true);
 
         File::swap(new Filesystem);
+    }
+
+    /**
+     * Clean up the test environment.
+     */
+    protected function tearDown(): void
+    {
+        if ($this->temporaryBasePath !== null) {
+            (new Filesystem)->deleteDirectory($this->temporaryBasePath);
+
+            $this->temporaryBasePath = null;
+        }
+
+        parent::tearDown();
+    }
+
+    /**
+     * Point the application at an isolated base path so package.json is never touched in the repository.
+     */
+    protected function useTemporaryBasePath(bool $withPackageJson): void
+    {
+        $this->temporaryBasePath = ParallelTesting::tempDir('FoundationDevCommandsTest');
+
+        (new Filesystem)->deleteDirectory($this->temporaryBasePath);
+        mkdir($this->temporaryBasePath, 0777, true);
+
+        if ($withPackageJson) {
+            touch($this->temporaryBasePath . '/package.json');
+        }
+
+        Application::getInstance()->setBasePath($this->temporaryBasePath);
     }
 
     public function testRegisterAddsCommand(): void
@@ -388,7 +422,7 @@ class FoundationDevCommandsTest extends TestCase
 
     public function testRegisterDefaultsRegistersExpectedCommands(): void
     {
-        File::shouldReceive('exists')->with(base_path('package.json'))->once()->andReturnTrue();
+        $this->useTemporaryBasePath(withPackageJson: true);
 
         DevCommands::registerDefaults();
 
@@ -411,7 +445,7 @@ class FoundationDevCommandsTest extends TestCase
 
     public function testRegisterDefaultsExcludesViteWithoutPackageJson(): void
     {
-        File::shouldReceive('exists')->with(base_path('package.json'))->once()->andReturnFalse();
+        $this->useTemporaryBasePath(withPackageJson: false);
 
         DevCommands::registerDefaults();
 

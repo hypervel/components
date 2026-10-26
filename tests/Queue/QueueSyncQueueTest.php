@@ -152,12 +152,11 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcher::class);
-        $events->expects('hasListeners')->with(JobProcessing::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobFailed::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobAttempted::class)->andReturnTrue();
-        $events->expects('dispatch')->times(4);
+        $events = new EventsDispatcher($container);
+        $dispatched = [];
+        $events->listen('Hypervel\Queue\Events\*', function (string $event) use (&$dispatched): void {
+            $dispatched[] = $event;
+        });
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
@@ -167,6 +166,13 @@ class QueueSyncQueueTest extends TestCase
         } catch (Exception) {
             $this->assertTrue($_SERVER['__sync.failed']);
         }
+
+        $this->assertSame([
+            JobProcessing::class,
+            JobExceptionOccurred::class,
+            JobFailed::class,
+            JobAttempted::class,
+        ], $dispatched);
     }
 
     public function testDurationIsPassedToJobEvents(): void

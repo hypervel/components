@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\FoundationInteractsWithDatabaseTest;
 
+use Hypervel\Database\Capsule\Manager;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
 use Hypervel\Foundation\Testing\TestCase as TestingTestCase;
 use Hypervel\Support\Arr;
@@ -29,7 +31,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         'name' => 'Hypervel',
     ];
 
-    protected Connection&MockInterface $connection;
+    protected Connection $connection;
 
     protected function setUp(): void
     {
@@ -85,35 +87,29 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
     public function testSeeInDatabaseFindsNotMatchingResults(): void
     {
-        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode([['title' => 'Forge']], JSON_PRETTY_PRINT)));
+        $row = ['title' => 'Spark', 'name' => 'Forge'];
 
-        $builder = $this->mockCountBuilder(false);
+        $this->useInMemoryConnection()->table($this->table)->insert($row);
 
-        $builder->shouldReceive('limit')->andReturnSelf();
-        $builder->shouldReceive('get')->andReturn(collect([['title' => 'Forge']]));
+        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode([$row], JSON_PRETTY_PRINT)));
 
         $this->assertDatabaseHas($this->table, $this->data);
     }
 
     public function testSeeInDatabaseFindsManyNotMatchingResults(): void
     {
-        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode(['data', 'data', 'data'], JSON_PRETTY_PRINT) . ' and 2 others.'));
+        $row = ['title' => 'Spark', 'name' => 'Forge'];
 
-        $builder = $this->mockCountBuilder(false, countResult: [5, 5]);
+        $this->useInMemoryConnection()->table($this->table)->insert(array_fill(0, 5, $row));
 
-        $builder->shouldReceive('limit')->andReturnSelf();
-        $builder->shouldReceive('get')->andReturn(
-            collect(array_fill(0, 3, 'data'))
-        );
+        $this->expectExceptionObject(new ExpectationFailedException('Found similar results: ' . json_encode(array_fill(0, 3, $row), JSON_PRETTY_PRINT) . ' and 2 others.'));
 
         $this->assertDatabaseHas($this->table, $this->data);
     }
@@ -165,10 +161,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectException(ExpectationFailedException::class);
 
-        $builder = $this->mockCountBuilder(true);
-
-        $builder->shouldReceive('limit')->andReturnSelf();
-        $builder->shouldReceive('get')->andReturn(collect([$this->data]));
+        $this->useInMemoryConnection()->table($this->table)->insert($this->data);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
@@ -190,14 +183,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseCountSupportsArraysOfTablesAndCounts(): void
     {
-        $products = m::mock(Builder::class);
-        $products->expects('count')->andReturn(2);
-
-        $orders = m::mock(Builder::class);
-        $orders->expects('count')->andReturn(5);
-
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($products);
-        $this->connection->shouldReceive('table')->with('orders')->andReturn($orders);
+        $connection = $this->useInMemoryConnection();
+        $connection->table('products')->insert([
+            ['title' => 'Spark', 'name' => 'Hypervel'],
+            ['title' => 'Forge', 'name' => 'Hypervel'],
+        ]);
+        $connection->table('orders')->insert(array_fill(0, 5, ['title' => 'Order']));
 
         $this->assertDatabaseCount([
             ProductStub::class => 2,
@@ -333,48 +324,34 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectException(ExpectationFailedException::class);
 
-        $builder = $this->mockCountBuilder(true);
-
-        $builder->shouldReceive('get')->andReturn(collect([$this->data]));
+        $this->useInMemoryConnection()->table($this->table)->insert($this->data);
 
         $this->assertDatabaseMissing($this->table, $this->data);
     }
 
     public function testAssertModelMissingPassesWhenDoesNotFindModelResults(): void
     {
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection();
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
-
-        $this->assertModelMissing(new ProductStub($this->data));
+        $this->assertModelMissing(new ProductStub(['id' => 1]));
     }
 
     public function testAssertModelMissingFailsWhenFindsModelResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection()->table($this->table)->insert(['id' => 1, 'title' => 'Spark', 'name' => 'Hypervel']);
 
-        $builder = $this->mockCountBuilder(true);
-
-        $builder->shouldReceive('get')->andReturn(collect([$this->data]));
-
-        $this->assertModelMissing(new ProductStub($this->data));
+        $this->assertModelMissing(new ProductStub(['id' => 1]));
     }
 
     public function testAssertModelExistsFailsWhenDoesNotFindModelResults(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection();
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
-
-        $this->assertModelExists(new ProductStub($this->data));
+        $this->assertModelExists(new ProductStub(['id' => 1]));
     }
 
     public function testAssertSoftDeletedInDatabaseFindsResults(): void
@@ -396,9 +373,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertSoftDeleted($this->table, $this->data);
     }
@@ -407,13 +382,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection();
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
-
-        $this->assertSoftDeleted(new ProductStub($this->data));
+        $this->assertSoftDeleted(new ProductStub(['id' => 1]));
     }
 
     public function testAssertSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults(): void
@@ -421,11 +392,8 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
-        $this->data = ['id' => 1, 'name' => 'Tailwind'];
 
-        $builder = $this->mockCountBuilder(false, 'trashed_at');
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertSoftDeleted($model, ['name' => 'Tailwind']);
     }
@@ -435,11 +403,8 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
-        $this->data = ['id' => 1];
 
-        $builder = $this->mockCountBuilder(false, 'trashed_at');
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
@@ -463,9 +428,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('Failed asserting that any existing row'));
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect(), collect(1));
+        $this->useInMemoryConnection();
 
         $this->assertNotSoftDeleted(ProductStub::class, $this->data);
     }
@@ -474,9 +437,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertNotSoftDeleted($this->table, $this->data);
     }
@@ -485,13 +446,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection();
 
-        $builder = $this->mockCountBuilder(false);
-
-        $builder->shouldReceive('get')->andReturn(collect());
-
-        $this->assertNotSoftDeleted(new ProductStub($this->data));
+        $this->assertNotSoftDeleted(new ProductStub(['id' => 1]));
     }
 
     public function testAssertNotSoftDeletedInDatabaseDoesNotFindModelWithCustomColumnResults(): void
@@ -499,11 +456,8 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
-        $this->data = ['id' => 1, 'name' => 'Tailwind'];
 
-        $builder = $this->mockCountBuilder(false, 'trashed_at');
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertNotSoftDeleted($model, ['name' => 'Tailwind']);
     }
@@ -513,24 +467,17 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->expectExceptionObject(new ExpectationFailedException('The table is empty.'));
 
         $model = new CustomProductStub(['id' => 1, 'name' => 'Hypervel']);
-        $this->data = ['id' => 1];
 
-        $builder = $this->mockCountBuilder(false, 'trashed_at');
-
-        $builder->shouldReceive('get')->andReturn(collect());
+        $this->useInMemoryConnection();
 
         $this->assertNotSoftDeleted(CustomProductStub::class, ['id' => $model->id]);
     }
 
     public function testAssertExistsPassesWhenFindsResults(): void
     {
-        $this->data = ['id' => 1];
+        $this->useInMemoryConnection()->table($this->table)->insert(['id' => 1, 'title' => 'Spark', 'name' => 'Hypervel']);
 
-        $builder = $this->mockCountBuilder(true);
-
-        $builder->shouldReceive('get')->andReturn(collect($this->data));
-
-        $this->assertModelExists(new ProductStub($this->data));
+        $this->assertModelExists(new ProductStub(['id' => 1]));
     }
 
     public function testGetTableNameFromModel(): void
@@ -680,8 +627,36 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     /**
      * Get the mocked database connection.
      */
-    protected function getConnection(): Connection&MockInterface
+    protected function getConnection(): Connection
     {
+        return $this->connection;
+    }
+
+    /**
+     * Use an in-memory SQLite connection for the database assertions.
+     */
+    protected function useInMemoryConnection(): Connection
+    {
+        $capsule = new Manager;
+        $capsule->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
+
+        $this->connection = $capsule->getConnection();
+
+        $this->connection->getSchemaBuilder()->create('products', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->string('title')->nullable();
+            $table->string('name')->nullable();
+            $table->timestamp('deleted_at')->nullable();
+            $table->timestamp('trashed_at')->nullable();
+        });
+
+        $this->connection->getSchemaBuilder()->create('orders', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->string('title')->nullable();
+            $table->string('name')->nullable();
+            $table->timestamp('deleted_at')->nullable();
+        });
+
         return $this->connection;
     }
 }

@@ -25,10 +25,9 @@ class DatabaseSQLiteBuilderTest extends TestCase
 {
     public function testCreateDatabase(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
 
-        $builder = new SQLiteBuilder($connection);
+        $builder = $connection->getSchemaBuilder();
 
         File::expects('put')
             ->with('my_temporary_database_a', '')
@@ -45,10 +44,9 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
 
-        $builder = new SQLiteBuilder($connection);
+        $builder = $connection->getSchemaBuilder();
 
         File::expects('exists')
             ->andReturn(true);

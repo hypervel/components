@@ -23,7 +23,6 @@ use Hypervel\Tests\Events\Fixtures\StringDispatchedInterfaceEvent;
 use Hypervel\Tests\Events\Fixtures\UnlistenedEvent;
 use Hypervel\Tests\Events\Fixtures\UnlistenedStringEvent;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use ReflectionClass;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -1507,23 +1506,23 @@ class EventsDispatcherTest extends TestCase
 
     public function testEventDispatchesUsingNamedArguments(): void
     {
-        $events = m::mock(Dispatcher::class);
+        $events = new Dispatcher;
         Container::getInstance()->instance('events', $events);
 
-        $events->expects('dispatch')
-            ->with(m::on(function (mixed $event): bool {
-                $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $event);
-                $this->assertSame('first-value', $event->first);
-                $this->assertSame('second-value', $event->second);
+        $captured = null;
+        $events->listen(DispatchableNamedArgumentsEvent::class, function (DispatchableNamedArgumentsEvent $event) use (&$captured): string {
+            $captured = $event;
 
-                return true;
-            }))
-            ->andReturn(['dispatched']);
+            return 'dispatched';
+        });
 
         $this->assertSame(
             ['dispatched'],
             DispatchableNamedArgumentsEvent::dispatch(second: 'second-value', first: 'first-value')
         );
+        $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $captured);
+        $this->assertSame('first-value', $captured->first);
+        $this->assertSame('second-value', $captured->second);
     }
 
     public function testClosureListenerRejectsAnUntypedFirstParameterInsteadOfUsingALaterType(): void

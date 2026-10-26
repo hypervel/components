@@ -8,8 +8,6 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Console\CacheCommandMutex;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory;
-use Hypervel\Contracts\Cache\Lock;
-use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Testbench\TestCase;
@@ -65,32 +63,28 @@ class CacheCommandMutexTest extends TestCase
         $this->cacheRepository->expects('add')->andReturn(false);
         $this->mutex->useStore('test');
 
-        $this->mutex->create($this->command);
+        $actual = $this->mutex->create($this->command);
+
+        $this->assertFalse($actual);
     }
 
     public function testCanCreateMutexWithLockProvider(): void
     {
-        $lock = $this->mockUsingLockProvider();
-        $this->acquireLockExpectations($lock, true);
+        $this->cacheFactory->expects('store')->with(null)->andReturn($this->cacheRepository);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
 
         $actual = $this->mutex->create($this->command);
 
         $this->assertTrue($actual);
     }
 
-    public function testCanCreateMutexWithCustomLockProviderConnection(): void
-    {
-        $this->mockUsingCacheStore('test');
-        $this->cacheRepository->expects('add')->andReturn(false);
-        $this->mutex->useStore('test');
-
-        $this->mutex->create($this->command);
-    }
-
     public function testCannotCreateMutexIfAlreadyExistWithLockProvider(): void
     {
-        $lock = $this->mockUsingLockProvider();
-        $this->acquireLockExpectations($lock, false);
+        $store = new ArrayStore;
+        $this->cacheFactory->expects('store')->twice()->with(null)->andReturn($this->cacheRepository);
+        $this->cacheRepository->expects('getStore')->twice()->andReturn($store);
+
+        $this->mutex->create($this->command);
         $actual = $this->mutex->create($this->command);
 
         $this->assertFalse($actual);
@@ -121,14 +115,13 @@ class CacheCommandMutexTest extends TestCase
 
     public function testCanCreateMutexWithCustomConnectionWithLockProvider(): void
     {
-        $lock = m::mock(Store::class, LockProvider::class);
         $this->cacheFactory->expects('store')->with('test')->andReturn($this->cacheRepository);
-        $this->cacheRepository->expects('getStore')->andReturn($lock);
-
-        $this->acquireLockExpectations($lock, true);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
         $this->mutex->useStore('test');
 
-        $this->mutex->create($this->command);
+        $actual = $this->mutex->create($this->command);
+
+        $this->assertTrue($actual);
     }
 
     /**
@@ -138,32 +131,6 @@ class CacheCommandMutexTest extends TestCase
     {
         $this->cacheFactory->expects('store')->with($store)->andReturn($this->cacheRepository);
         $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-    }
-
-    /**
-     * Expect a cache store with native locks.
-     */
-    private function mockUsingLockProvider(): MockInterface
-    {
-        $lock = m::mock(Store::class, LockProvider::class);
-        $this->cacheFactory->expects('store')->andReturn($this->cacheRepository);
-        $this->cacheRepository->expects('getStore')->andReturn($lock);
-
-        return $lock;
-    }
-
-    /**
-     * Expect creation and acquisition of a cache lock.
-     */
-    private function acquireLockExpectations(MockInterface $lock, bool $acquiresSuccessfully): void
-    {
-        $lockInstance = m::mock(Lock::class);
-        $lockInstance->expects('get')
-            ->andReturns($acquiresSuccessfully);
-
-        $lock->expects('lock')
-            ->with(m::type('string'), m::type('int'))
-            ->andReturns($lockInstance);
     }
 
     public function testCommandMutexNameWithoutIsolatedMutexNameMethod(): void

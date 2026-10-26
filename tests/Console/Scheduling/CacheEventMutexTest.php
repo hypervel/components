@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\StorageStore;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Cache\Store;
+use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
+use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class CacheEventMutexTest extends TestCase
 {
@@ -19,9 +19,7 @@ class CacheEventMutexTest extends TestCase
 
     protected ?Event $event = null;
 
-    protected ?CacheFactory $cacheFactory = null;
-
-    protected ?Repository $cacheRepository = null;
+    protected ?FakeCacheFactory $cacheFactory = null;
 
     /**
      * Set up the test environment.
@@ -30,73 +28,80 @@ class CacheEventMutexTest extends TestCase
     {
         parent::setUp();
 
-        $this->cacheFactory = m::mock(CacheFactory::class);
-        $this->cacheRepository = m::mock(Repository::class);
-        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository)->byDefault();
-        $this->cacheMutex = new CacheEventMutex($this->cacheFactory);
+        $this->cacheMutex = new CacheEventMutex($this->cacheFactory = new FakeCacheFactory);
         $this->event = new Event($this->cacheMutex, 'command');
+    }
+
+    /**
+     * Create a repository whose store does not provide locks.
+     */
+    protected function storageRepository(): Repository
+    {
+        return new Repository(new StorageStore(new ArrayFilesystem, 'cache'));
     }
 
     public function testPreventOverlap(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->expects('add');
+        $this->cacheFactory->repository = $this->storageRepository();
 
-        $this->cacheMutex->create($this->event);
+        $this->assertTrue($this->cacheMutex->create($this->event));
     }
 
     public function testCustomConnection(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheFactory->expects('store')->with('test')->andReturn($this->cacheRepository);
-        $this->cacheRepository->expects('add');
+        $this->cacheFactory->repository = $this->storageRepository();
         $this->cacheMutex->useStore('test');
 
-        $this->cacheMutex->create($this->event);
+        $this->assertTrue($this->cacheMutex->create($this->event));
+        $this->assertSame('test', $this->cacheFactory->name);
     }
 
     public function testPreventOverlapFails(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->expects('add')->andReturn(false);
+        $repository = $this->storageRepository();
+        $repository->add($this->event->mutexName(), true, 60);
+        $this->cacheFactory->repository = $repository;
 
         $this->assertFalse($this->cacheMutex->create($this->event));
     }
 
     public function testOverlapsForNonRunningTask(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->expects('has')->andReturn(false);
+        $this->cacheFactory->repository = $this->storageRepository();
 
         $this->assertFalse($this->cacheMutex->exists($this->event));
     }
 
     public function testOverlapsForRunningTask(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->expects('has')->andReturn(true);
+        $repository = $this->storageRepository();
+        $repository->add($this->event->mutexName(), true, 60);
+        $this->cacheFactory->repository = $repository;
 
         $this->assertTrue($this->cacheMutex->exists($this->event));
     }
 
     public function testResetOverlap(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->expects('forget');
+        $repository = $this->storageRepository();
+        $repository->add($this->event->mutexName(), true, 60);
+        $this->cacheFactory->repository = $repository;
 
         $this->cacheMutex->forget($this->event);
+
+        $this->assertFalse($repository->has($this->event->mutexName()));
     }
 
     public function testPreventOverlapWithLockProvider(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
+        $this->cacheFactory->repository = new Repository(new ArrayStore);
 
         $this->assertTrue($this->cacheMutex->create($this->event));
     }
 
     public function testPreventOverlapFailsWithLockProvider(): void
     {
-        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
+        $this->cacheFactory->repository = new Repository(new ArrayStore);
 
         // first create the lock, so we can test that the next call fails.
         $this->cacheMutex->create($this->event);
@@ -106,14 +111,14 @@ class CacheEventMutexTest extends TestCase
 
     public function testOverlapsForNonRunningTaskWithLockProvider(): void
     {
-        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
+        $this->cacheFactory->repository = new Repository(new ArrayStore);
 
         $this->assertFalse($this->cacheMutex->exists($this->event));
     }
 
     public function testOverlapsForRunningTaskWithLockProvider(): void
     {
-        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
+        $this->cacheFactory->repository = new Repository(new ArrayStore);
 
         $this->cacheMutex->create($this->event);
 
@@ -122,7 +127,7 @@ class CacheEventMutexTest extends TestCase
 
     public function testResetOverlapWithLockProvider(): void
     {
-        $this->cacheRepository->expects('getStore')->times(3)->andReturn(new ArrayStore);
+        $this->cacheFactory->repository = new Repository(new ArrayStore);
 
         $this->cacheMutex->create($this->event);
 

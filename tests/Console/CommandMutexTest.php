@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console;
 
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\StorageStore;
+use Hypervel\Console\CacheCommandMutex;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandMutex;
 use Hypervel\Console\Events\AfterExecute;
@@ -12,7 +15,10 @@ use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
+use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
 use Mockery as m;
+use Mockery\MockInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -24,7 +30,7 @@ class CommandMutexTest extends TestCase
 {
     protected Command $command;
 
-    protected CommandMutex&m\MockInterface $commandMutex;
+    protected CommandMutex $commandMutex;
 
     /**
      * Set up an isolatable command and its mutex.
@@ -46,16 +52,15 @@ class CommandMutexTest extends TestCase
         };
         $this->command->setHypervel($this->app);
 
-        $this->commandMutex = m::mock(CommandMutex::class);
+        $this->commandMutex = new CacheCommandMutex(new FakeCacheFactory(
+            new Repository(new StorageStore(new ArrayFilesystem, 'cache'))
+        ));
 
         $this->app->instance(CommandMutex::class, $this->commandMutex);
     }
 
     public function testCanRunIsolatedCommandIfNotBlocked(): void
     {
-        $this->commandMutex->expects('create')->andReturn(true);
-        $this->commandMutex->expects('forget')->andReturn(true);
-
         $this->runCommand();
 
         $this->assertEquals(1, $this->command->ran);
@@ -63,7 +68,7 @@ class CommandMutexTest extends TestCase
 
     public function testCannotRunIsolatedCommandIfBlocked(): void
     {
-        $this->commandMutex->expects('create')->andReturn(false);
+        $this->commandMutex->create($this->command);
 
         $this->runCommand();
 
@@ -72,9 +77,7 @@ class CommandMutexTest extends TestCase
 
     public function testBlockedIsolatedCommandNormalizesItsConfiguredExitCode(): void
     {
-        $this->commandMutex->shouldReceive('create')
-            ->andReturn(false)
-            ->once();
+        $this->commandMutex->create($this->command);
 
         $exitCode = $this->command->run(
             new ArrayInput(['--isolated' => 300]),
@@ -87,13 +90,6 @@ class CommandMutexTest extends TestCase
 
     public function testCanRunCommandAgainAfterOtherCommandFinished(): void
     {
-        $this->commandMutex->expects('create')
-            ->andReturn(true)
-            ->times(2);
-        $this->commandMutex->expects('forget')
-            ->andReturn(true)
-            ->times(2);
-
         $this->runCommand();
         $this->runCommand();
 
@@ -102,9 +98,10 @@ class CommandMutexTest extends TestCase
 
     public function testCanRunCommandAgainNonAutomated(): void
     {
+        $this->commandMutex->create($this->command);
+
         $this->runCommand(false);
 
-        $this->commandMutex->shouldNotHaveReceived('create');
         $this->assertEquals(1, $this->command->ran);
     }
 
@@ -160,8 +157,9 @@ class CommandMutexTest extends TestCase
             );
         }
 
-        $this->commandMutex->shouldReceive('create')->once()->with($command)->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->with($command)->andReturnTrue();
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->with($command)->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->with($command)->andReturnTrue();
 
         $command->run(
             new ArrayInput(['--isolated' => true]),
@@ -176,8 +174,9 @@ class CommandMutexTest extends TestCase
 
     public function testAfterExecuteFailureStillReleasesMutex(): void
     {
-        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
 
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
@@ -200,8 +199,9 @@ class CommandMutexTest extends TestCase
         };
         $command->setHypervel($this->app);
 
-        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->andThrow(new RuntimeException('mutex release failed'));
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->andThrow(new RuntimeException('mutex release failed'));
 
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
@@ -227,8 +227,9 @@ class CommandMutexTest extends TestCase
         $command->setHypervel($this->app);
         $cancellation = new CanceledException('canceled');
 
-        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
             fn () => throw $cancellation,
@@ -253,8 +254,9 @@ class CommandMutexTest extends TestCase
         $command->setHypervel($this->app);
         $cancellation = new CanceledException('canceled');
 
-        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->andThrow($cancellation);
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->andThrow($cancellation);
 
         try {
             $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
@@ -281,8 +283,9 @@ class CommandMutexTest extends TestCase
         $command->setHypervel($this->app);
         $observed = null;
 
-        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $this->commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $commandMutex = $this->mockCommandMutex();
+        $commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
             function (AfterExecute $event) use (&$observed): void {
@@ -298,6 +301,18 @@ class CommandMutexTest extends TestCase
         }
 
         $this->assertSame($cancellation, $observed);
+    }
+
+    /**
+     * Replace the bound command mutex with a mock.
+     */
+    protected function mockCommandMutex(): CommandMutex&MockInterface
+    {
+        $commandMutex = m::mock(CommandMutex::class);
+
+        $this->app->instance(CommandMutex::class, $commandMutex);
+
+        return $commandMutex;
     }
 
     /**

@@ -11,6 +11,7 @@ use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Foundation\Testing\Fixtures\ConsoleKernelSpy;
 use Mockery as m;
 use RuntimeException;
 use Throwable;
@@ -44,20 +45,18 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testDatabaseIsRefreshedOnInteraction(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = new ConsoleKernelSpy;
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->expects('call')->with('migrate:fresh', [
-            '--drop-views' => false,
-            '--drop-types' => false,
-            '--seed' => false,
-        ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
 
         $database = $this->app->make('db');
 
         $database->select('select 1');
         $database->select('select 1');
 
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
         $this->assertSame(1, $this->refreshCount);
         $this->assertSame(1, $this->transactionCount);
         $this->assertSame(1, $this->afterRefreshCount);
@@ -80,17 +79,15 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testNonDefaultConnectionTriggersRefresh(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = new ConsoleKernelSpy;
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->expects('call')->with('migrate:fresh', [
-            '--drop-views' => false,
-            '--drop-types' => false,
-            '--seed' => false,
-        ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
 
         $this->app->make('db')->connection('testing2')->select('select 1');
 
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
         $this->assertSame(1, $this->refreshCount);
         $this->assertSame(1, $this->transactionCount);
         $this->assertSame(1, $this->afterRefreshCount);
@@ -98,14 +95,8 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testRuntimeCoroutineOptOutRegistersLazyHooksImmediately(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = new ConsoleKernelSpy;
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->expects('call')->with('migrate:fresh', [
-            '--drop-views' => false,
-            '--drop-types' => false,
-            '--seed' => false,
-        ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
 
         $this->app->make('config')->set('database.connections.optout', [
             'driver' => 'sqlite',
@@ -117,6 +108,10 @@ class LazilyRefreshDatabaseTest extends TestCase
         $this->refreshDatabase();
         $this->app->make('db')->connection('optout')->select('select 1');
 
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
         $this->assertSame(1, $this->refreshCount);
         $this->assertSame(1, $this->afterRefreshCount);
         $this->assertTrue(RefreshDatabaseState::$lazilyRefreshed);
@@ -141,14 +136,8 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testLazyTeardownRunsOnlyAfterSuccessfulRefresh(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = new ConsoleKernelSpy;
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->expects('call')->with('migrate:fresh', [
-            '--drop-views' => false,
-            '--drop-types' => false,
-            '--seed' => false,
-        ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
 
         $this->tearDownLazilyRefreshDatabaseInCoroutine();
 
@@ -157,6 +146,10 @@ class LazilyRefreshDatabaseTest extends TestCase
         $this->app->make('db')->select('select 1');
         $this->tearDownLazilyRefreshDatabaseInCoroutine();
 
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
         $this->assertSame(1, $this->rollbackCount);
 
         RefreshDatabaseState::$lazilyRefreshed = false;

@@ -45,7 +45,7 @@ class FrameTest extends TestCase
     #[DataProvider('unixFileDataProvider')]
     public function testItNormalizesFilePathOnUnix(array $frameData, string $basePath, string $expected): void
     {
-        $exception = m::mock(FlattenException::class);
+        $exception = new FlattenException;
         $classMap = [];
         $frame = new Frame($exception, $classMap, $frameData, $basePath);
 
@@ -82,7 +82,7 @@ class FrameTest extends TestCase
     #[DataProvider('unixIsFromVendorDataProvider')]
     public function testItDeterminesIfFrameIsFromVendorOnUnix(array $frameData, string $basePath, bool $expected): void
     {
-        $exception = m::mock(FlattenException::class);
+        $exception = new FlattenException;
         $classMap = [];
         $frame = new Frame($exception, $classMap, $frameData, $basePath);
 

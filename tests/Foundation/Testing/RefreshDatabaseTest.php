@@ -17,6 +17,7 @@ use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Foundation\Testing\Fixtures\ConsoleKernelSpy;
 use LogicException;
 use Mockery as m;
 use PDO;
@@ -74,14 +75,7 @@ class RefreshDatabaseTest extends TestCase
 
     public function testRefreshTestDatabaseDefault(): void
     {
-        $kernel = m::mock(KernelContract::class);
-        $kernel->expects('call')
-            ->with('migrate:fresh', [
-                '--drop-views' => false,
-                '--drop-types' => false,
-                '--seed' => false,
-            ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
+        $kernel = new ConsoleKernelSpy;
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -96,20 +90,18 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
+
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
     public function testRefreshTestDatabaseWithDropViewsOption(): void
     {
         $this->dropViews = true;
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->expects('call')
-            ->with('migrate:fresh', [
-                '--drop-views' => true,
-                '--drop-types' => false,
-                '--seed' => false,
-            ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
+        $kernel = new ConsoleKernelSpy;
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -123,20 +115,18 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
+
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => true, '--drop-types' => false, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
     public function testRefreshTestDatabaseWithDropTypesOption(): void
     {
         $this->dropTypes = true;
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->expects('call')
-            ->with('migrate:fresh', [
-                '--drop-views' => false,
-                '--drop-types' => true,
-                '--seed' => false,
-            ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
+        $kernel = new ConsoleKernelSpy;
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -150,20 +140,18 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
+
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => true, '--seed' => false]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
     public function testRefreshTestDatabaseWithSeedOption(): void
     {
         $this->seed = true;
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->expects('call')
-            ->with('migrate:fresh', [
-                '--drop-views' => false,
-                '--drop-types' => false,
-                '--seed' => true,
-            ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
+        $kernel = new ConsoleKernelSpy;
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -177,20 +165,18 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
+
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seed' => true]],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
     public function testRefreshTestDatabaseWithSeederOption(): void
     {
         $this->seeder = 'seeder';
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->expects('call')
-            ->with('migrate:fresh', [
-                '--drop-views' => false,
-                '--drop-types' => false,
-                '--seeder' => 'seeder',
-            ])->andReturn(0);
-        $kernel->expects('setArtisan')->with(null);
+        $kernel = new ConsoleKernelSpy;
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -204,6 +190,11 @@ class RefreshDatabaseTest extends TestCase
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
         $this->refreshTestDatabase();
+
+        $this->assertSame([
+            ['migrate:fresh', ['--drop-views' => false, '--drop-types' => false, '--seeder' => 'seeder']],
+        ], $kernel->calls);
+        $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
     public function testRefreshTestDatabaseRestoresMockConsoleOutputAfterMigrationFailure(): void
