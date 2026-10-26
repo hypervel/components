@@ -277,24 +277,24 @@ class PaginatorTest extends TestCase
         $this->assertSame(2, $paginator->currentPage());
     }
 
-    public function testCurrentPageResolverAndUrlsUseTheConfiguredPageName(): void
+    public function testCurrentPageIsResolvedUsingPageName(): void
     {
         $resolvedPageName = null;
         Paginator::currentPageResolver(function (string $pageName) use (&$resolvedPageName): int {
             $resolvedPageName = $pageName;
 
-            return 2;
+            return ['page' => 3, 'comments' => 2][$pageName];
         });
 
         $paginator = new Paginator(
             ['first', 'second'],
             1,
-            options: ['pageName' => 'users'],
+            options: ['pageName' => 'comments'],
         );
 
-        $this->assertSame('users', $resolvedPageName);
+        $this->assertSame('comments', $resolvedPageName);
         $this->assertSame(2, $paginator->currentPage());
-        $this->assertSame('/?users=2', $paginator->url($paginator->currentPage()));
+        $this->assertSame('/?comments=2', $paginator->url($paginator->currentPage()));
     }
 
     public function testPaginatorJsonThrowsForInvalidUtf8(): void
