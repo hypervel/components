@@ -192,10 +192,8 @@ trait InteractsWithTestCaseLifecycle
 
     /**
      * Boot the testing helper traits.
-     *
-     * @return array
      */
-    protected function setUpTraits()
+    protected function setUpTraits(): array
     {
         $uses = $this->traitsUsedByTest ??= class_uses_recursive(static::class);
 
@@ -321,7 +319,7 @@ trait InteractsWithTestCaseLifecycle
     /**
      * Register a callback to be run after the application is created.
      */
-    public function afterApplicationCreated(callable $callback)
+    public function afterApplicationCreated(callable $callback): void
     {
         $this->afterApplicationCreatedCallbacks[] = $callback;
 
@@ -333,7 +331,7 @@ trait InteractsWithTestCaseLifecycle
     /**
      * Register a callback to be run before the application is destroyed.
      */
-    protected function beforeApplicationDestroyed(callable $callback)
+    protected function beforeApplicationDestroyed(callable $callback): void
     {
         $this->beforeApplicationDestroyedCallbacks[] = $callback;
     }
@@ -341,7 +339,7 @@ trait InteractsWithTestCaseLifecycle
     /**
      * Execute the application's pre-destruction callbacks.
      */
-    protected function callBeforeApplicationDestroyedCallbacks()
+    protected function callBeforeApplicationDestroyedCallbacks(): void
     {
         foreach ($this->beforeApplicationDestroyedCallbacks as $callback) {
             try {
