@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Facades\Crypt;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class EloquentModelEncryptedDirtyTest extends DatabaseTestCase
 {
@@ -75,6 +77,22 @@ class EloquentModelEncryptedDirtyTest extends DatabaseTestCase
 
         $this->assertTrue($model->isDirty('secret_object'));
         $this->assertTrue($model->isDirty('secret_collection'));
+    }
+
+    #[TestWith(['{"nested":[]}', '{"nested":{}}', true])]
+    #[TestWith(['[]', '{}', true])]
+    #[TestWith(['{"value":1}', '{"value":"1"}', true])]
+    #[TestWith(['{"nested": {"value": 1}}', '{"nested":{"value":1}}', false])]
+    public function testEncryptedObjectDirtyCheckingPreservesJsonTypes(string $original, string $current, bool $dirty): void
+    {
+        config(['app.key' => str_repeat('a', 32)]);
+        Model::$encrypter = null;
+
+        $model = new EncryptedDirtyAttributeCast;
+        $model->setRawAttributes(['secret_object' => Crypt::encryptString($original)], sync: true);
+        $model->secret_object = json_decode($current, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame($dirty, $model->isDirty('secret_object'));
     }
 
     public function testDirtyAttributeBehaviorWithPreviousKeys(): void
