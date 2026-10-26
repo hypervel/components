@@ -64,7 +64,7 @@ class ListFailedCommand extends Command
         $queue = $this->option('queue');
 
         return (new Collection($failed))
-            ->when($queue !== null, fn (Collection $jobs): Collection => $jobs->where('queue', $queue))
+            ->when($queue !== null, fn (Collection $jobs): Collection => $jobs->whereStrict('queue', $queue))
             ->map(fn ($failed) => $this->parseFailedJob((array) $failed))
             ->filter()
             ->all();

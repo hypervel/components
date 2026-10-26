@@ -78,15 +78,15 @@ class ListFailedCommandTest extends TestCase
 
         $output = $this->runCommandWithFailedJobs([
             (object) [
-                'id' => 'default-job-id',
+                'id' => 'other-job-id',
                 'connection' => 'redis',
-                'queue' => 'default',
+                'queue' => '00',
                 'payload' => $payload,
                 'exception' => 'Exception stack trace',
                 'failed_at' => '2026-05-18 12:00:00',
             ],
             (object) [
-                'id' => 'emails-job-id',
+                'id' => 'matching-job-id',
                 'connection' => 'redis',
                 'queue' => $queue,
                 'payload' => $payload,
@@ -98,7 +98,7 @@ class ListFailedCommandTest extends TestCase
         $this->assertJson($output);
         $this->assertJsonStringEqualsJsonString(json_encode([
             [
-                'id' => 'emails-job-id',
+                'id' => 'matching-job-id',
                 'connection' => 'redis',
                 'queue' => $queue,
                 'class' => 'Hypervel\Tests\Queue\ExampleJob',
