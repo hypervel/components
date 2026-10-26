@@ -714,6 +714,28 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testUrlsWithBracesAreNotExpandedWithoutUrlParameters(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('https://api.test/posts?where={"status":"open"}');
+        $this->factory->get('https://api.test/files/{draft}.txt');
+        $this->factory->get('https://example.test/search?q={foo}');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://api.test/posts?where=%7B%22status%22:%22open%22%7D'
+                && $request['where'] === '{"status":"open"}';
+        });
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://api.test/files/%7Bdraft%7D.txt';
+        });
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->url() === 'https://example.test/search?q=%7Bfoo%7D'
+        );
+    }
+
     public function testUrlsWithTemplateExpressionsAreStillExpanded(): void
     {
         $this->factory->fake();
@@ -6957,17 +6979,6 @@ class HttpClientTest extends TestCase
 
         $this->factory->assertSent(
             fn (Request $request): bool => $request->url() === 'https://hypervel.org/v1/blog/release'
-        );
-    }
-
-    public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void
-    {
-        $this->factory->fake();
-
-        $this->factory->get('https://example.test/search?q={foo}');
-
-        $this->factory->assertSent(
-            fn (Request $request) => $request->url() === 'https://example.test/search?q=%7Bfoo%7D'
         );
     }
 
