@@ -26,6 +26,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
@@ -49,7 +50,6 @@ use Hypervel\Support\Traits\ReflectsClosures;
 use LogicException;
 use ReflectionClass;
 use ReflectionException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -505,14 +505,18 @@ class Dispatcher implements DispatcherContract
     {
         try {
             $result = $this->invokeListeners($event, $payload, $halt);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::isCancellation($exception)) {
+                throw $exception;
+            }
+
             try {
                 $this->invokeObservers($event, $payload);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
+            } catch (Throwable $observerException) {
+                if (Coroutine::isCancellation($observerException)) {
+                    throw $observerException;
+                }
+
                 // An observer failure must not replace the active listener failure.
             }
 
@@ -539,9 +543,11 @@ class Dispatcher implements DispatcherContract
         foreach ($this->getObservers($event) as $observer) {
             try {
                 $observer($event, $payload);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::isCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $firstException ??= $exception;
             }
         }
