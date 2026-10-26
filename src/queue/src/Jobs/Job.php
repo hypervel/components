@@ -298,13 +298,14 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
      */
     public function fail(?Throwable $e = null): void
     {
-        $this->markAsFailed();
-
         if ($this->isDeleted()) {
+            $this->markAsFailed();
+
             return;
         }
 
         $this->runBeforeFailingCallbacks();
+        $this->markAsFailed();
 
         try {
             $commandName = $this->payload()['data']['commandName'] ?? false;

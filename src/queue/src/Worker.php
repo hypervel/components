@@ -1195,8 +1195,8 @@ class Worker
      */
     protected function markJobAsFailedIfAlreadyExceedsMaxExceptions(string $connectionName, JobContract $job): void
     {
-        // A before-job listener may already have failed the job and published a retry.
-        if ($job->isDeleted() || ! $this->shouldCountCrashesAsExceptions($job)) {
+        // A before-job listener may already have failed or released the job and published a retry.
+        if (! $this->shouldCountCrashesAsExceptions($job) || $job->isDeletedOrReleased()) {
             return;
         }
 

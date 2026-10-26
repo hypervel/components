@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Coroutine\Locker;
+use RuntimeException;
 
 /**
  * Coordinate cleanup for one attempt across its job coroutine and timeout monitor.
@@ -37,7 +38,10 @@ class JobProcessingMarker
             }
 
             try {
-                $this->cache->forget($this->key);
+                if (! $this->cache->forget($this->key) && $this->cache->has($this->key)) {
+                    throw new RuntimeException("Unable to clear the job processing marker [{$this->key}].");
+                }
+
                 $this->cleared = true;
             } finally {
                 Locker::unlock($this->lockKey);

@@ -1640,6 +1640,7 @@ class QueueWorkerTest extends TestCase
     #[TestWith(['exception'])]
     #[TestWith(['fail'])]
     #[TestWith(['fail-before-fire'])]
+    #[TestWith(['release-before-fire'])]
     public function testHandoffsDoNotCountFalseCrashesOrClearTheNextAttemptsMarker(string $handoff): void
     {
         $this->events = new EventsDispatcher($this->container);
@@ -1669,6 +1670,10 @@ class QueueWorkerTest extends TestCase
         };
 
         $first = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job) use ($handoff, $failure): void {
+            if ($handoff === 'release-before-fire') {
+                return;
+            }
+
             if ($handoff === 'fail-before-fire') {
                 throw new RuntimeException('The failed job must not run.');
             }
@@ -1689,10 +1694,14 @@ class QueueWorkerTest extends TestCase
                 $startNext();
             }
         });
-        if ($handoff === 'fail-before-fire') {
-            $this->events->listen(JobProcessing::class, static function (JobProcessing $event) use ($first, $failure): void {
+        if (in_array($handoff, ['fail-before-fire', 'release-before-fire'], true)) {
+            $this->events->listen(JobProcessing::class, static function (JobProcessing $event) use ($first, $failure, $handoff): void {
                 if ($event->job === $first) {
-                    $event->job->fail($failure);
+                    if ($handoff === 'fail-before-fire') {
+                        $event->job->fail($failure);
+                    } else {
+                        $event->job->release();
+                    }
                 }
             });
         }
@@ -1717,6 +1726,43 @@ class QueueWorkerTest extends TestCase
         }
 
         $this->assertSame([], $failures);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testFailedMarkerCleanupDoesNotPreventTheWorkersReleaseRetry(): void
+    {
+        $this->events = new EventsDispatcher($this->container);
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $cache = new Repository(new WorkerArrayStore);
+        $cache->setEventDispatcher($this->events);
+        $worker = $this->getWorker()->setCache($cache);
+        $failure = new RuntimeException('Marker deletion failed.');
+        $forgetCalls = 0;
+        $failedEvents = [];
+
+        $this->events->listen(ForgettingKey::class, static function (ForgettingKey $event) use (&$forgetCalls, $failure): void {
+            if ($event->key === 'job-processing:uuid' && ++$forgetCalls === 1) {
+                throw $failure;
+            }
+        });
+        $this->events->listen(JobFailed::class, static function (JobFailed $event) use (&$failedEvents): void {
+            $failedEvents[] = $event;
+        });
+        $job = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job): void {
+            $job->fail(new RuntimeException('Fail this job.'));
+        });
+
+        try {
+            $worker->process('default', $job, new WorkerOptions(maxTries: 0));
+            $this->fail('The cleanup exception must propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertFalse($job->hasFailed());
+        $this->assertTrue($job->isReleased());
+        $this->assertSame([], $failedEvents);
+        $this->assertSame(2, $forgetCalls);
         $this->assertNull($cache->get('job-processing:uuid'));
     }
 
