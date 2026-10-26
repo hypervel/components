@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
@@ -18,7 +19,6 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -249,17 +249,19 @@ class SyncQueue extends Queue implements QueueContract
             }
 
             $this->raiseAfterJobEvent($queueJob, $duration);
-        } catch (CanceledException $exception) {
-            $canceled = true;
-
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::isCancellation($e)) {
+                $canceled = true;
+
+                throw $e;
+            }
+
             $exceptionOccurred = $e;
 
             try {
                 $this->handleException($queueJob, $e);
-            } catch (CanceledException $exception) {
-                $canceled = true;
+            } catch (Throwable $exception) {
+                $canceled = Coroutine::isCancellation($exception);
 
                 throw $exception;
             }
