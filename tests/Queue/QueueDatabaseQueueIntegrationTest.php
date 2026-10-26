@@ -4,16 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Queue\Factory;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\Queue;
+use Hypervel\Queue\Worker;
+use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
+use Throwable;
 
 class QueueDatabaseQueueIntegrationTest extends TestCase
 {
@@ -107,6 +116,55 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
 
         $this->assertEquals(1, $database_record->attempts, 'Job attempts not updated in the database!');
         $this->assertEquals(1, $poppedJob->attempts(), 'The "attempts" attribute of the Job object was not updated by pop!');
+    }
+
+    public function testReleasedAttemptIsNotFailedAlongsideItsQueuedRetry(): void
+    {
+        $handler = new DatabaseQueueReleasedAttemptHandler;
+        $this->app->instance(DatabaseQueueReleasedAttemptHandler::class, $handler);
+        $failures = [];
+        $events = $this->app->make(Dispatcher::class);
+        $events->listen(JobFailed::class, static function (JobFailed $event) use (&$failures): void {
+            $failures[] = $event;
+        });
+        $worker = new Worker(
+            $this->app->make(Factory::class),
+            $events,
+            $this->app->make(ExceptionHandler::class),
+            static fn (): bool => false,
+        );
+        $this->queue->pushRaw(json_encode([
+            'uuid' => (string) Str::uuid(),
+            'job' => DatabaseQueueReleasedAttemptHandler::class . '@fire',
+            'data' => [],
+            'maxTries' => 1,
+        ], JSON_THROW_ON_ERROR));
+        $first = $this->queue->pop();
+
+        try {
+            $worker->process('default', $first, new WorkerOptions(maxTries: 1));
+            $this->fail('Expected the error thrown after release.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($handler->exception, $exception);
+        }
+
+        $this->assertSame([], $handler->failures);
+        $this->assertSame([], $failures);
+        $this->assertSame(1, $this->queue->size());
+        $retry = $this->queue->pop();
+        $this->assertNotSame($first->getJobId(), $retry->getJobId());
+        $this->assertSame(2, $retry->attempts());
+
+        try {
+            $worker->process('default', $retry, new WorkerOptions(maxTries: 1));
+            $this->fail('Expected the retry to exhaust its attempt limit.');
+        } catch (MaxAttemptsExceededException $exception) {
+            $this->assertSame([$exception], $handler->failures);
+            $this->assertCount(1, $failures);
+            $this->assertSame($exception, $failures[0]->exception);
+        }
+
+        $this->assertSame(0, $this->queue->size());
     }
 
     /**
@@ -277,5 +335,39 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
 
         $this->assertIsArray($jobQueuedEvent->payload());
         $this->assertSame((string) $uuid, $jobQueuedEvent->payload()['uuid']);
+    }
+}
+
+class DatabaseQueueReleasedAttemptHandler
+{
+    public RuntimeException $exception;
+
+    /** @var list<Throwable> */
+    public array $failures = [];
+
+    /**
+     * Prepare an identifiable error for the released attempt.
+     */
+    public function __construct()
+    {
+        $this->exception = new RuntimeException('The handler threw after releasing its reservation.');
+    }
+
+    /**
+     * Publish a retry before an outer handler observes the error.
+     */
+    public function fire(Job $job, array $data): never
+    {
+        $job->release();
+
+        throw $this->exception;
+    }
+
+    /**
+     * Record actual failure callbacks independently of failure events.
+     */
+    public function failed(array $data, Throwable $exception, string $uuid, Job $job): void
+    {
+        $this->failures[] = $exception;
     }
 }
