@@ -15,12 +15,14 @@ use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\Channel as BroadcastChannel;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -206,6 +208,39 @@ class BroadcastBatchingTest extends TestCase
     public static function cancellationModes(): array
     {
         return ['throw' => [true], 'return false' => [false]];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIndependentSenderCancellationIsAChildFailure(bool $cleanupThrows): void
+    {
+        config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
+        $cleanupException = new RuntimeException('Sender cleanup failed.');
+        Event::listen(AnonymousEvent::class, static function () use ($cleanupThrows, $cleanupException): void {
+            try {
+                EngineCoroutine::cancelById(Coroutine::id(), throwException: true);
+            } finally {
+                if ($cleanupThrows) {
+                    Coroutine::sleep(0.001);
+                    throw $cleanupException;
+                }
+            }
+        });
+        $response = new StreamableAgentResponse('invocation', static fn (): array => [new TextDelta('text', 'message', 'Hello', 1)]);
+
+        try {
+            $response->broadcast(new BroadcastChannel('conversation'));
+            $this->fail('The sender cancellation must reach the caller.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertFalse(Coroutine::isCancellation($exception));
+
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $exception->getPrevious());
+                $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            }
+        }
     }
 
     public function testSenderFailureReachesTheCallerAndDisposesTheProducer(): void

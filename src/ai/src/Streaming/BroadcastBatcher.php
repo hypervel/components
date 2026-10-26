@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\StreamEvent;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
@@ -52,10 +53,10 @@ class BroadcastBatcher
             try {
                 $work = fn () => $this->drain($send);
                 $runner === null ? $work() : $runner($work);
-            } catch (CanceledException $exception) {
-                $this->failure = new ChildCancellationException('The broadcast sender was canceled while its owner remained active.', previous: $exception);
             } catch (Throwable $exception) {
-                $this->failure = $exception;
+                $this->failure = Coroutine::isCancellation($exception)
+                    ? new ChildCancellationException('The broadcast sender was canceled while its owner remained active.', previous: $exception)
+                    : $exception;
             } finally {
                 // Wake a producer blocked on a full channel if the sender fails.
                 $this->channel->close();
