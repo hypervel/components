@@ -23,7 +23,7 @@ class AsHtmlString implements Castable
             /**
              * Cast the stored value to an HTML string.
              */
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?HtmlString
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?HtmlString
             {
                 return isset($value) ? new HtmlString($value) : null;
             }
@@ -31,7 +31,7 @@ class AsHtmlString implements Castable
             /**
              * Prepare the HTML string for storage.
              */
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?string
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?string
             {
                 return isset($value) ? (string) $value : null;
             }
