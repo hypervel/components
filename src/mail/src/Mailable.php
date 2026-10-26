@@ -40,6 +40,7 @@ use ReflectionProperty;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
 
 class Mailable implements MailableContract, Renderable
 {
@@ -559,7 +560,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function priority(int $level = 3): static
     {
-        $this->callbacks[] = function ($message) use ($level) {
+        $this->callbacks[] = static function (Email $message) use ($level): void {
             $message->priority($level);
         };
 
@@ -1496,7 +1497,7 @@ class Mailable implements MailableContract, Renderable
 
         $headers = $this->headers();
 
-        $this->withSymfonyMessage(function ($message) use ($headers) {
+        $this->withSymfonyMessage(static function (Email $message) use ($headers): void {
             if ($headers->messageId) {
                 $message->getHeaders()->addIdHeader('Message-Id', $headers->messageId);
             }
