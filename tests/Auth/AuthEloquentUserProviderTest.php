@@ -131,7 +131,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testCredentialValidation(): void
     {
-        $hasher = new BcryptHasher;
+        $hasher = new BcryptHasher(['rounds' => 4]);
         $provider = new EloquentUserProvider($hasher, 'foo');
         $user = new GenericUser(['password' => $hasher->make('plain')]);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
@@ -141,7 +141,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testCredentialValidationFailed(): void
     {
-        $hasher = new BcryptHasher;
+        $hasher = new BcryptHasher(['rounds' => 4]);
         $provider = new EloquentUserProvider($hasher, 'foo');
         $user = new GenericUser(['password' => $hasher->make('plain')]);
         $result = $provider->validateCredentials($user, ['password' => 'wrong']);
