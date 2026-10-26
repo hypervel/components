@@ -26,6 +26,40 @@ class ViewComponentTest extends TestCase
         $this->assertSame('taylor', $variables['hello']('taylor'));
     }
 
+    public function testDeferredMethodValuesCanBeEscaped(): void
+    {
+        $component = new class extends Component {
+            /**
+             * Get the view that represents the component.
+             */
+            public function render(): string
+            {
+                return 'test';
+            }
+
+            /**
+             * Get the vote count.
+             */
+            public function votes(): int
+            {
+                return 42;
+            }
+
+            /**
+             * Get the optional label.
+             */
+            public function label(): ?string
+            {
+                return null;
+            }
+        };
+
+        $variables = $component->data();
+
+        $this->assertSame('42', e($variables['votes']));
+        $this->assertSame('', e($variables['label']));
+    }
+
     public function testIgnoredMethodsAreNotExposedToViewData(): void
     {
         $component = new class extends Component {

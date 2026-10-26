@@ -66,7 +66,7 @@ class EncodedHtmlString extends HtmlString
         $factory = CoroutineContext::get(self::ENCODER_CONTEXT_KEY) ?? static::$encodeUsingFactory;
 
         return ($factory ?? function ($value, $doubleEncode) {
-            return static::convert($value, doubleEncode: $doubleEncode);
+            return static::convert((string) ($value ?? ''), doubleEncode: $doubleEncode);
         })($value, $this->doubleEncode);
     }
 
