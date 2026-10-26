@@ -6,9 +6,9 @@ namespace Hypervel\Queue\Middleware;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -108,9 +108,14 @@ class ThrottlesExceptions
             $next($job);
 
             $limiter->clear($policy);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            $queueJob = $job->job ?? null;
+
+            if (Coroutine::isCancellation($throwable)
+                || $queueJob?->hasFailed() || $queueJob?->isDeletedOrReleased()) {
+                throw $throwable;
+            }
+
             if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable, $limiter)) {
                 throw $throwable;
             }
