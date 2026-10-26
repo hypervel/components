@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use ErrorException;
-use Exception;
 use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\QueryException;
@@ -44,7 +43,7 @@ class DatabaseConnectionLostTest extends TestCase
     {
         $detector = new LostConnectionDetector;
 
-        $this->assertFalse($detector->causedByLostConnection(new Exception('Unexpected EOF while parsing application data')));
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Unexpected EOF while parsing application data')));
     }
 
     public function testQueryContextCannotForgeALostConnection(): void
