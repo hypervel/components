@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
@@ -18,14 +19,42 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
 
 class CoroutineTest extends TestCase
 {
+    #[DataProvider('cancellationExceptions')]
+    public function testCancellationClassificationRespectsChildBoundaries(Throwable $exception, bool $expected): void
+    {
+        $this->assertSame($expected, Coroutine::isCancellation($exception));
+    }
+
+    /**
+     * Distinguish operation cancellation from an independently canceled child.
+     */
+    public static function cancellationExceptions(): array
+    {
+        $cancellation = new CanceledException;
+        $cleanup = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        $child = new ChildCancellationException('The child stopped.', previous: $cleanup);
+
+        return [
+            'direct cancellation' => [$cancellation, true],
+            'cleanup replaced cancellation' => [$cleanup, true],
+            'nested cleanup' => [new RuntimeException(previous: $cleanup), true],
+            'independent child' => [$child, false],
+            'wrapped independent child' => [new RuntimeException(previous: $child), false],
+            'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
+            'ordinary error' => [new RuntimeException, false],
+        ];
+    }
+
     public function testCreateAndForkReturnPositiveCoroutineIds(): void
     {
         $this->assertGreaterThan(0, Coroutine::create(static fn (): null => null));

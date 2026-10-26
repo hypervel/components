@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
@@ -250,6 +251,24 @@ class Coroutine
     public static function list(): iterable
     {
         return Co::list();
+    }
+
+    /**
+     * Identify cancellation of this operation, including errors raised during cleanup.
+     */
+    public static function isCancellation(Throwable $exception): bool
+    {
+        do {
+            if ($exception instanceof ChildCancellationException) {
+                return false;
+            }
+
+            if ($exception instanceof CanceledException) {
+                return true;
+            }
+        } while (($exception = $exception->getPrevious()) !== null);
+
+        return false;
     }
 
     /**

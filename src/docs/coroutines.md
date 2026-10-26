@@ -358,19 +358,23 @@ Hypervel uses `Swoole\Coroutine\CanceledException` as a terminal control-flow si
 Most application code does not need special cancellation handling. If low-level application or package code catches `Throwable` to report, retry, wrap, or replace an operation failure, it should let cancellation escape first:
 
 ```php
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 try {
     $result = performOperation();
-} catch (CanceledException $exception) {
-    throw $exception;
 } catch (Throwable $exception) {
+    if (Coroutine::isCancellation($exception)) {
+        throw $exception;
+    }
+
     report($exception);
 
     return null;
 }
 ```
+
+`Coroutine::isCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. It returns `false` for `ChildCancellationException`: that exception means an independently canceled child failed while its owner remained active, so the owner can handle it as an ordinary failure. Rethrowing preserves any cleanup error for the caller to report.
 
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
@@ -544,7 +548,7 @@ Copied values follow the same rules as [`go` and `Coroutine::fork`](#copying-cor
 
 If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
 
-If the child is canceled independently while its waiting parent remains active, `wait` throws `Hypervel\Coroutine\Exceptions\ChildCancellationException`. The native cancellation is available as the previous exception.
+If the child is canceled independently while its waiting parent remains active, `wait` throws `Hypervel\Coroutine\Exceptions\ChildCancellationException`. Its previous exception is the native cancellation, or the cleanup error if the child's cleanup threw while unwinding cancellation.
 
 If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Coroutine\CanceledException` inside it. Hypervel then gives the child up to 10 seconds to finish and run its deferred callbacks before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException` in the waiting coroutine.
 
