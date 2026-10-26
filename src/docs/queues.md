@@ -1957,6 +1957,9 @@ In this example, the job is released for ten seconds if the application is unabl
 
 `MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
 
+<a name="counting-worker-crashes"></a>
+#### Counting Worker Crashes
+
 By default, an attempt that ends because the worker process crashed or was killed, such as when it runs out of memory, does not count towards the job's maximum number of exceptions. If you would like these attempts to count as an exception, you may add the `CountCrashesAsExceptions` attribute to your job class:
 
 ```php
@@ -1973,7 +1976,17 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-When this attribute is present, the worker stores a marker in your application's cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception.
+When this attribute is present, the worker stores a marker in the cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception. By default, workers use your default cache store, which must be shared by your workers and keep its data when they restart. Markers expire after 24 hours; an expired or removed marker cannot identify an interrupted attempt.
+
+You may also use this attribute on queued listeners, mailables, and notifications, or set their public `$countCrashesAsExceptions` property to `true`. A maximum exception count must be configured for crash counting to take effect.
+
+When a worker processes jobs concurrently, a crash or a [timeout that stops the worker](#worker-timeouts) (the default) can interrupt several jobs. Each interrupted attempt with this setting counts towards its own exception limit; an already-counted timeout is not counted again.
+
+The worker clears the marker before releasing a job or recording it as failed, so immediate retries are not mistaken for crashes. A worker death between clearing the marker and completing that handoff cannot be detected by the marker.
+
+Custom queue drivers whose job objects extend `Hypervel\Queue\Jobs\Job` inherit the required cleanup callbacks. Their `release()` method must call `parent::release()` before making the job available again, and any `fail()` override must preserve the parent's callback ordering before recording or publishing a failure.
+
+If your job objects implement `Hypervel\Contracts\Queue\Job` directly, they must also implement `Hypervel\Contracts\Queue\JobLifecycleCallbacks` to support crash counting. Run the registered `beforeReleasing` callbacks before making a job available again, and the `beforeFailing` callbacks before publishing a failure. If a callback throws, let the exception propagate without completing the release or failure. A job requesting crash counting without this capability fails before execution; jobs that do not request it are unaffected.
 
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
@@ -2819,6 +2832,8 @@ The command also reports worker stop reasons, such as reaching the memory limit.
 php artisan queue:work --json
 ```
 
+The JSON output includes connection and queue names when queues pause or resume and when workers stop.
+
 Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment). In addition, remember that any static state created or modified by your application will not be automatically reset between jobs. Request or job specific state should be stored in `CoroutineContext` instead of static properties or mutable singletons.
 
 Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker when you want to reload your updated code or reset the application state; however, this command is significantly less efficient than the `queue:work` command:
@@ -3395,6 +3410,12 @@ To return the failed jobs as JSON, pass the `--json` option:
 
 ```shell
 php artisan queue:failed --json
+```
+
+To list failed jobs for a specific queue, use the `--queue` option:
+
+```shell
+php artisan queue:failed --queue=emails
 ```
 
 The `queue:failed` command will list the job ID, connection, queue, failure time, and other information about the job. The job ID may be used to retry the failed job. For instance, to retry a failed job that has an ID of `ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece`, issue the following command:

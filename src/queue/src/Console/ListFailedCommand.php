@@ -18,6 +18,7 @@ class ListFailedCommand extends Command
      * The console command signature.
      */
     protected ?string $signature = 'queue:failed
+                            {--queue= : Only list the failed jobs for the specified queue}
                             {--json : Output the failed jobs as JSON}';
 
     /**
@@ -60,8 +61,10 @@ class ListFailedCommand extends Command
     protected function getFailedJobs(): array
     {
         $failed = $this->hypervel->make(FailedJobProviderInterface::class)->all();
+        $queue = $this->option('queue');
 
         return (new Collection($failed))
+            ->when($queue !== null, fn (Collection $jobs): Collection => $jobs->where('queue', $queue))
             ->map(fn ($failed) => $this->parseFailedJob((array) $failed))
             ->filter()
             ->all();

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use ArrayObject;
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use ErrorException;
 use Exception;
+use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
@@ -21,6 +23,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\JobLifecycleCallbacks;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
@@ -37,6 +40,7 @@ use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobInterrupted;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -55,6 +59,7 @@ use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\TimeoutExceededException;
@@ -65,6 +70,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -206,13 +212,17 @@ class QueueWorkerTest extends TestCase
     public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(bool $killOnTimeout): void
     {
         Worker::$killOnTimeout = $killOnTimeout;
+        Worker::$pausable = false;
         $gate = $this->armCurrentCoroutineCancellation();
         $job = new WorkerFakeJob(static function () use ($gate): never {
             $gate->push(true);
 
             throw new RuntimeException('Cancellation was not delivered.');
         });
+        $job->payload = ['countCrashesAsExceptions' => true];
+        $job->maxExceptions = 2;
         $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
 
         try {
             $worker->runNextJob('default', 'queue', new WorkerOptions);
@@ -229,6 +239,7 @@ class QueueWorkerTest extends TestCase
         $this->events->assertNotDispatched(JobExceptionOccurred::class);
         $this->events->assertNotDispatched(JobProcessed::class);
         $this->events->assertNotDispatched(JobAttempted::class);
+        $this->assertTrue($cache->get('job-processing:' . $job->uuid));
     }
 
     public function testCancellationDuringFailureObservationStopsReleaseAndCompletion(): void
@@ -598,6 +609,7 @@ class QueueWorkerTest extends TestCase
         }])->makePartial();
         $expired->shouldReceive('timeout')->andReturn(5);
         $expired->maxExceptions = 2;
+        $expired->payload = ['countCrashesAsExceptions' => true];
         $expired->backoff = 7;
         $other = m::mock(WorkerFakeJob::class, [static fn (): mixed => $otherGate->pop()])->makePartial();
         $other->shouldReceive('timeout')->andReturn(0);
@@ -634,6 +646,7 @@ class QueueWorkerTest extends TestCase
             $this->assertSame(7, $expired->releaseAfter);
             $this->assertFalse($expired->failed);
             $this->assertSame(1, $cache->get('job-exceptions:' . $expired->uuid));
+            $this->assertNull($cache->get('job-processing:' . $expired->uuid));
             $this->assertFalse($worker->shouldQuit);
             $this->assertFalse($worker->hasTimeoutJobsForTest());
             $this->assertCount(1, $worker->runningJobsForTest());
@@ -1547,6 +1560,295 @@ class QueueWorkerTest extends TestCase
         $this->exceptionHandler->assertReported(MaxAttemptsExceededException::class);
         $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
         $this->events->assertNotDispatched(JobProcessed::class);
+    }
+
+    public function testCrashesAreNotCountedUnlessTheJobCountsCrashesAsExceptions(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $job = new WorkerFakeJob;
+        $job->uuid = 'uuid';
+        $job->maxExceptions = 1;
+
+        $cache->put('job-processing:uuid', true);
+        $worker->process('default', $job, $this->workerOptions());
+
+        $this->assertTrue($job->fired);
+        $this->assertFalse($job->hasFailed());
+        $this->assertNull($cache->get('job-exceptions:uuid'));
+    }
+
+    public function testJobIsFailedIfTheWorkerDiedWhileProcessingItAndItHasExceededMaxExceptions(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $first = new WorkerFakeJob;
+        $second = new WorkerFakeJob;
+        $first->uuid = $second->uuid = 'uuid';
+        $first->maxExceptions = $second->maxExceptions = 2;
+        $first->payload = $second->payload = ['countCrashesAsExceptions' => true];
+
+        // Simulate the worker dying during the previous attempt by leaving its marker behind...
+        $cache->put('job-processing:uuid', true);
+        $worker->process('default', $first, $this->workerOptions());
+
+        $this->assertTrue($first->fired);
+        $this->assertFalse($first->hasFailed());
+        $this->assertSame(1, $cache->get('job-exceptions:uuid'));
+
+        $cache->put('job-processing:uuid', true);
+
+        try {
+            $worker->process('default', $second, $this->workerOptions());
+        } catch (MaxAttemptsExceededException) {
+        }
+
+        $this->assertFalse($second->fired);
+        $this->assertInstanceOf(MaxAttemptsExceededException::class, $second->failedWith);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testAttemptsThatFinishDoNotLeaveTheirMarkerBehind(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $released = new WorkerFakeJob(static fn (WorkerFakeJob $job) => $job->release());
+        $thrown = new WorkerFakeJob(static fn () => throw new RuntimeException);
+        $released->uuid = $thrown->uuid = 'uuid';
+        $released->maxExceptions = $thrown->maxExceptions = 2;
+        $released->payload = $thrown->payload = ['countCrashesAsExceptions' => true];
+
+        $worker->process('default', $released, $this->workerOptions());
+
+        $this->assertNull($cache->get('job-exceptions:uuid'));
+        $this->assertNull($cache->get('job-processing:uuid'));
+
+        try {
+            $worker->process('default', $thrown, $this->workerOptions());
+        } catch (RuntimeException) {
+        }
+
+        $this->assertFalse($thrown->hasFailed());
+        $this->assertSame(1, $cache->get('job-exceptions:uuid'));
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    #[TestWith(['release'])]
+    #[TestWith(['exception'])]
+    #[TestWith(['fail'])]
+    #[TestWith(['fail-before-fire'])]
+    public function testHandoffsDoNotCountFalseCrashesOrClearTheNextAttemptsMarker(string $handoff): void
+    {
+        $this->events = new EventsDispatcher($this->container);
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $cache = new Repository(new WorkerArrayStore);
+        $worker = $this->getWorker()->setCache($cache);
+        $started = new Channel(1);
+        $finish = new Channel(1);
+        $nextCoroutine = null;
+        $failures = [];
+        $failure = new RuntimeException('Retry this attempt.');
+
+        $next = new WorkerLifecycleJob($this->container, static function () use ($started, $finish): void {
+            $started->push(true);
+            if (! $finish->pop(5)) {
+                throw new RuntimeException('The next attempt was not allowed to finish.');
+            }
+        });
+        $startNext = static function () use ($worker, $next, &$nextCoroutine, &$failures): void {
+            $nextCoroutine = Coroutine::create(static function () use ($worker, $next, &$failures): void {
+                try {
+                    $worker->process('default', $next, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+        };
+
+        $first = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job) use ($handoff, $failure): void {
+            if ($handoff === 'fail-before-fire') {
+                throw new RuntimeException('The failed job must not run.');
+            }
+
+            if ($handoff === 'exception') {
+                throw $failure;
+            }
+
+            if ($handoff === 'fail') {
+                $job->fail($failure);
+            } else {
+                $job->release();
+            }
+        });
+        $first->onReleased = $startNext;
+        $this->events->listen(JobFailed::class, static function (JobFailed $event) use ($first, $startNext): void {
+            if ($event->job === $first) {
+                $startNext();
+            }
+        });
+        if ($handoff === 'fail-before-fire') {
+            $this->events->listen(JobProcessing::class, static function (JobProcessing $event) use ($first, $failure): void {
+                if ($event->job === $first) {
+                    $event->job->fail($failure);
+                }
+            });
+        }
+
+        try {
+            try {
+                $worker->process('default', $first, new WorkerOptions);
+                $this->assertNotSame('exception', $handoff);
+            } catch (RuntimeException $exception) {
+                $this->assertSame('exception', $handoff);
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertTrue($started->pop(5));
+            $this->assertSame($handoff === 'exception' ? 1 : null, $cache->get('job-exceptions:uuid'));
+            $this->assertTrue($cache->get('job-processing:uuid'));
+        } finally {
+            $finish->push(true, 1);
+            if ($nextCoroutine !== null) {
+                Coroutine::join([$nextCoroutine], 5);
+            }
+        }
+
+        $this->assertSame([], $failures);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReleaseWaitsForTimeoutMarkerCleanupAndRetriesFailedCleanup(bool $cleanupThrows): void
+    {
+        Worker::$killOnTimeout = true;
+        $timer = new QueueWorkerTimer;
+        $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
+        $worker->currentTime = 100;
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+        $cache->setEventDispatcher($cacheEvents = new EventsDispatcher($this->container));
+        $forgetEntered = new Channel(1);
+        $allowForget = new Channel(1);
+        $releaseGate = new Channel(1);
+        $releaseStarted = new Channel(1);
+        $nextStarted = new Channel(1);
+        $nextFinish = new Channel(1);
+        $forgetCalls = 0;
+        $handedOff = false;
+        $monitorException = null;
+        $failures = [];
+        $coroutines = [];
+        $failure = new RuntimeException('Marker deletion failed.');
+
+        $cacheEvents->listen(ForgettingKey::class, static function (ForgettingKey $event) use (&$forgetCalls, $forgetEntered, $allowForget, $cleanupThrows, $failure): void {
+            if ($event->key !== 'job-processing:uuid' || ++$forgetCalls !== 1) {
+                return;
+            }
+
+            $forgetEntered->push(true);
+            if (! $allowForget->pop(5)) {
+                throw new RuntimeException('Marker deletion was not allowed to finish.');
+            }
+            if ($cleanupThrows) {
+                throw $failure;
+            }
+        });
+
+        $next = new WorkerLifecycleJob($this->container, static function () use ($nextStarted, $nextFinish): void {
+            $nextStarted->push(true);
+            if (! $nextFinish->pop(5)) {
+                throw new RuntimeException('The next attempt was not allowed to finish.');
+            }
+        });
+        $first = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job) use ($releaseGate, $releaseStarted): void {
+            if (! $releaseGate->pop(5)) {
+                throw new RuntimeException('The first attempt was not allowed to release.');
+            }
+            $releaseStarted->push(true);
+            $job->release();
+        }, timeout: 5);
+        $first->onReleased = static function () use (&$handedOff, &$coroutines, &$failures, $worker, $next): void {
+            $handedOff = true;
+            $coroutines[] = Coroutine::create(static function () use ($worker, $next, &$failures): void {
+                try {
+                    $worker->process('default', $next, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+        };
+        $worker->startMonitorForTest(new WorkerOptions(maxTries: 0));
+
+        try {
+            $coroutines[] = Coroutine::create(static function () use ($worker, $first, &$failures): void {
+                try {
+                    $worker->process('default', $first, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+            $worker->currentTime = 105;
+            $coroutines[] = Coroutine::create(static function () use ($timer, &$monitorException): void {
+                try {
+                    $timer->fire(1);
+                } catch (Throwable $exception) {
+                    $monitorException = $exception;
+                }
+            });
+
+            $this->assertTrue($forgetEntered->pop(5));
+            $releaseGate->push(true);
+            $this->assertTrue($releaseStarted->pop(5));
+            $this->assertFalse($handedOff);
+            $allowForget->push(true);
+            $this->assertTrue($nextStarted->pop(5));
+            Coroutine::join(array_slice($coroutines, 0, 2), 5);
+
+            $this->assertTrue($handedOff);
+            $this->assertSame($cleanupThrows ? 2 : 1, $forgetCalls);
+            if ($cleanupThrows) {
+                $this->assertSame($failure, $monitorException);
+            } else {
+                $this->assertInstanceOf(WorkerKilledException::class, $monitorException);
+            }
+            $this->assertSame(1, $cache->get('job-exceptions:uuid'));
+            $this->assertTrue($cache->get('job-processing:uuid'));
+        } finally {
+            $releaseGate->push(true, 0.01);
+            $allowForget->push(true, 0.01);
+            $nextFinish->push(true, 0.01);
+            Coroutine::join($coroutines, 5);
+        }
+
+        $this->assertSame([], $failures);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testCrashCountingRejectsJobsWithoutLifecycleCallbacksBeforeExecution(): void
+    {
+        $job = m::mock(WorkerContractOnlyJob::class)->makePartial();
+        $job->shouldReceive('payload')->andReturn(['countCrashesAsExceptions' => true]);
+        $job->shouldReceive('uuid')->andReturn('unsupported');
+        $job->shouldReceive('maxExceptions')->andReturn(2);
+        $job->expects('fail')->with(m::on(static fn (Throwable $exception): bool => $exception instanceof LogicException
+            && str_contains($exception->getMessage(), JobLifecycleCallbacks::class)));
+        $job->shouldReceive('hasFailed')->andReturnTrue();
+        $job->shouldNotReceive('fire');
+        $job->shouldNotReceive('release');
+
+        $worker = $this->getWorker()->setCache($cache = new Repository(new WorkerArrayStore));
+
+        try {
+            $worker->process('default', $job, $this->workerOptions());
+            $this->fail('An unsupported job must fail before execution.');
+        } catch (LogicException $exception) {
+            $this->assertStringContainsString(JobLifecycleCallbacks::class, $exception->getMessage());
+        }
+
+        $this->assertNull($cache->get('job-processing:unsupported'));
     }
 
     public function testJobIsFailedIfItHasAlreadyExpired(): void
@@ -2959,8 +3261,57 @@ class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
     }
 }
 
-class WorkerFakeJob implements Job
+class WorkerLifecycleJob extends SyncJob
 {
+    public ?Closure $onReleased = null;
+
+    /**
+     * Create a job using the real lifecycle callback implementation.
+     */
+    public function __construct(ContainerContract $container, protected Closure $callback, int $timeout = 0)
+    {
+        parent::__construct($container, json_encode([
+            'uuid' => 'uuid',
+            'job' => self::class . '@handle',
+            'data' => [],
+            'maxExceptions' => 3,
+            'countCrashesAsExceptions' => true,
+            'timeout' => $timeout,
+        ], JSON_THROW_ON_ERROR), 'default', 'queue');
+    }
+
+    /**
+     * Run the attempt body.
+     */
+    public function fire(): void
+    {
+        ($this->callback)($this);
+    }
+
+    /**
+     * Simulate a backend handoff after the production release callbacks.
+     */
+    public function release(int $delay = 0): void
+    {
+        parent::release($delay);
+
+        $this->onReleased?->__invoke();
+    }
+
+    /**
+     * Finish the test handler's failure without resolving an application handler.
+     */
+    protected function failed(?Throwable $e): void
+    {
+    }
+}
+
+class WorkerFakeJob implements Job, JobLifecycleCallbacks
+{
+    protected array $beforeReleasingCallbacks = [];
+
+    protected array $beforeFailingCallbacks = [];
+
     public $id = '';
 
     public $fired = false;
@@ -2997,6 +3348,8 @@ class WorkerFakeJob implements Job
 
     public $rawBody = '';
 
+    public array $payload = [];
+
     public mixed $resolvedJob = null;
 
     public function __construct($callback = null)
@@ -3018,7 +3371,7 @@ class WorkerFakeJob implements Job
 
     public function payload(): array
     {
-        return [];
+        return $this->payload;
     }
 
     public function maxTries(): ?int
@@ -3063,9 +3416,33 @@ class WorkerFakeJob implements Job
 
     public function release($delay = 0): void
     {
+        foreach ($this->beforeReleasingCallbacks as $callback) {
+            $callback();
+        }
+
         $this->released = true;
 
         $this->releaseAfter = $delay;
+    }
+
+    /**
+     * Register a callback before release.
+     */
+    public function beforeReleasing(Closure $callback): static
+    {
+        $this->beforeReleasingCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Register a callback before failure.
+     */
+    public function beforeFailing(Closure $callback): static
+    {
+        $this->beforeFailingCallbacks[] = $callback;
+
+        return $this;
     }
 
     public function isReleased(): bool
@@ -3090,6 +3467,10 @@ class WorkerFakeJob implements Job
 
     public function fail($e = null): void
     {
+        foreach ($this->beforeFailingCallbacks as $callback) {
+            $callback();
+        }
+
         $this->markAsFailed();
 
         $this->delete();

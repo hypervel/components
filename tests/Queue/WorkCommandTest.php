@@ -114,6 +114,7 @@ class WorkCommandTest extends TestCase
         if ($json) {
             $this->assertSame([
                 'level' => 'warning',
+                'connection' => 'sync',
                 'queue' => $queue,
                 'status' => 'paused',
                 'timestamp' => '2023-01-18T10:10:11.000000+00:00',
@@ -131,6 +132,7 @@ class WorkCommandTest extends TestCase
         if ($json) {
             $this->assertSame([
                 'level' => 'warning',
+                'connection' => 'sync',
                 'queue' => $queue,
                 'status' => 'resumed',
                 'timestamp' => '2023-01-18T10:10:11.000000+00:00',
@@ -199,6 +201,8 @@ class WorkCommandTest extends TestCase
         $this->assertSame('', $firstOutput->fetch());
         $this->assertSame([
             'level' => 'warning',
+            'connection' => null,
+            'queue' => null,
             'status' => 'stopped',
             'reason' => 'memory',
             'exit_code' => 12,
@@ -217,6 +221,8 @@ class WorkCommandTest extends TestCase
 
         $this->assertSame([
             'level' => 'info',
+            'connection' => null,
+            'queue' => null,
             'status' => 'stopped',
             'reason' => 'empty',
             'exit_code' => 0,

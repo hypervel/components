@@ -9,6 +9,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -93,6 +94,13 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $this->assertTrue($job->failOnTimeout);
     }
 
+    public function testNotificationRespectsCountCrashesAsExceptions(): void
+    {
+        $this->assertTrue((new SendQueuedNotifications(new NotifiableUser, new CountCrashesAttributeNotification))->countCrashesAsExceptions);
+        $this->assertTrue((new SendQueuedNotifications(new NotifiableUser, new CountCrashesPropertyNotification))->countCrashesAsExceptions);
+        $this->assertFalse((new SendQueuedNotifications(new NotifiableUser, new TestNotification))->countCrashesAsExceptions);
+    }
+
     public function testNotificationAcceptsImmutableRetryUntilMethod(): void
     {
         $retryUntil = CarbonImmutable::parse('2026-07-23 12:34:56');
@@ -112,6 +120,16 @@ class TestNotification extends Notification
 #[FailOnTimeout]
 class FailOnTimeoutNotification extends Notification
 {
+}
+
+#[CountCrashesAsExceptions]
+class CountCrashesAttributeNotification extends Notification
+{
+}
+
+class CountCrashesPropertyNotification extends Notification
+{
+    public bool $countCrashesAsExceptions = true;
 }
 
 class TestNotificationWithRetryUntil extends Notification

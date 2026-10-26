@@ -10,6 +10,7 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -62,6 +63,48 @@ class ListFailedCommandTest extends TestCase
     public static function outputDecoration(): array
     {
         return [[false], [true]];
+    }
+
+    #[TestWith(['emails'])]
+    #[TestWith(['0'])]
+    public function testItFiltersFailedJobsByQueue(string $queue): void
+    {
+        $payload = json_encode([
+            'job' => 'Hypervel\Queue\CallQueuedHandler@call',
+            'data' => [
+                'command' => 'O:31:"Hypervel\Tests\Queue\ExampleJob":0:{}',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $output = $this->runCommandWithFailedJobs([
+            (object) [
+                'id' => 'default-job-id',
+                'connection' => 'redis',
+                'queue' => 'default',
+                'payload' => $payload,
+                'exception' => 'Exception stack trace',
+                'failed_at' => '2026-05-18 12:00:00',
+            ],
+            (object) [
+                'id' => 'emails-job-id',
+                'connection' => 'redis',
+                'queue' => $queue,
+                'payload' => $payload,
+                'exception' => 'Exception stack trace',
+                'failed_at' => '2026-05-18 12:05:00',
+            ],
+        ], ['--json' => true, '--queue' => $queue]);
+
+        $this->assertJson($output);
+        $this->assertJsonStringEqualsJsonString(json_encode([
+            [
+                'id' => 'emails-job-id',
+                'connection' => 'redis',
+                'queue' => $queue,
+                'class' => 'Hypervel\Tests\Queue\ExampleJob',
+                'failed_at' => '2026-05-18 12:05:00',
+            ],
+        ], JSON_THROW_ON_ERROR), $output);
     }
 
     /**

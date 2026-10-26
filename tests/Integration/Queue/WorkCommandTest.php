@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
 use Mockery as m;
@@ -379,13 +380,37 @@ class WorkCommandTest extends QueueTestCase
         Queue::push(new FirstJob);
         Queue::push(new SecondJob);
 
+        $connection = $this->app->make('config')->string('queue.default');
+
         $this->artisan('queue:work', [
             '--daemon' => true,
             '--stop-when-empty' => true,
             '--memory' => 1,
+            '--queue' => 'high,default',
             '--json' => true,
-        ])->expectsOutputToContain('"status":"stopped","reason":"memory","exit_code":12')
+        ])->expectsOutputToContain('"connection":"' . $connection . '","queue":"high,default","status":"stopped","reason":"memory","exit_code":12')
             ->assertExitCode(12);
+    }
+
+    #[WithConfig('cache.default', 'worker-array')]
+    public function testPausedQueueStatusIsWrittenAsJson(): void
+    {
+        $connection = $this->app->make('config')->string('queue.default');
+
+        Queue::pause('high', $connection);
+
+        Queue::push(new FirstJob);
+
+        $this->artisan('queue:work', [
+            '--daemon' => true,
+            '--stop-when-empty' => true,
+            '--memory' => 1024,
+            '--queue' => 'high,default',
+            '--json' => true,
+        ])->expectsOutputToContain('"connection":"' . $connection . '","queue":"high","status":"paused"')
+            ->assertExitCode(0);
+
+        $this->assertTrue(FirstJob::$ran);
     }
 
     public function testFailedJobMessageIsWrittenAsJson(): void

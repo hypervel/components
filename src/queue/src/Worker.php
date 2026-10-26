@@ -12,6 +12,7 @@ use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\JobLifecycleCallbacks;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\WaitConcurrent;
@@ -43,6 +44,7 @@ use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
+use LogicException;
 use PDOException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -572,7 +574,7 @@ class Worker
                 unset($this->runningJobs[$jobId]);
 
                 try {
-                    $this->handleTimeoutJob($job['job'], $options);
+                    $this->handleTimeoutJob($job['job'], $options, $job['processing_marker']);
                 } finally {
                     // A completed body may still own a coroutine running deferred cleanup.
                     if (! static::$killOnTimeout && isset($this->timeoutJobIds[$jobId])) {
@@ -595,7 +597,7 @@ class Worker
     /**
      * Handle a job that exceeded its timeout.
      */
-    protected function handleTimeoutJob(JobContract $job, WorkerOptions $options): void
+    protected function handleTimeoutJob(JobContract $job, WorkerOptions $options, ?JobProcessingMarker $processingMarker = null): void
     {
         try {
             $this->notifyJobOfSignal($job, SIGALRM);
@@ -617,6 +619,8 @@ class Worker
                 $job,
                 $e
             );
+
+            $processingMarker?->clear();
         }
 
         $this->markJobAsFailedIfItShouldFailOnTimeout(
@@ -916,6 +920,7 @@ class Worker
         $runningJobId = null;
         $invalidPayloadException = null;
         $canceled = false;
+        $processingMarker = null;
 
         try {
             try {
@@ -926,6 +931,8 @@ class Worker
 
                 return;
             }
+
+            $processingMarker = $this->prepareJobProcessingMarker($job);
 
             // First we will raise the before job event and determine if the job has already run
             // over its maximum attempt limits, which could primarily happen when this job is
@@ -938,13 +945,15 @@ class Worker
                 (int) $options->maxTries
             );
 
+            $this->markJobAsFailedIfAlreadyExceedsMaxExceptions($connectionName, $job);
+
             if ($job->isDeleted()) {
                 $this->raiseAfterJobEvent($connectionName, $job);
                 return;
             }
 
             // Next we will register this job to running jobs for timeout monitoring.
-            $runningJobId = $this->registerCoroutineJob($job, $options);
+            $runningJobId = $this->registerCoroutineJob($job, $options, $processingMarker);
 
             // Here we will fire off the job and let it process. We will catch any exceptions, so
             // they can be reported to the developer's logs, etc. Once the job is finished the
@@ -1002,6 +1011,8 @@ class Worker
             }
 
             if (! $canceled) {
+                $processingMarker?->clear();
+
                 if ($this->events->hasListeners(JobAttempted::class)) {
                     $this->events->dispatch(new JobAttempted(
                         $connectionName,
@@ -1019,6 +1030,45 @@ class Worker
     }
 
     /**
+     * Prepare cleanup shared by the job's handoffs and its timeout monitor.
+     */
+    protected function prepareJobProcessingMarker(JobContract $job): ?JobProcessingMarker
+    {
+        if (! $this->shouldCountCrashesAsExceptions($job)) {
+            return null;
+        }
+
+        if (! $job instanceof JobLifecycleCallbacks) {
+            $this->failJob($job, $exception = new LogicException(sprintf(
+                'Queue job [%s] must implement [%s] to count crashes as exceptions.',
+                $job::class,
+                JobLifecycleCallbacks::class,
+            )));
+
+            throw $exception;
+        }
+
+        $marker = new JobProcessingMarker($this->cache, 'job-processing:' . $job->uuid());
+        $job->beforeReleasing($marker->clear(...));
+        $job->beforeFailing($marker->clear(...));
+
+        return $marker;
+    }
+
+    /**
+     * Determine whether the job counts interrupted attempts as exceptions.
+     *
+     * @phpstan-assert-if-true CacheContract $this->cache
+     */
+    protected function shouldCountCrashesAsExceptions(JobContract $job): bool
+    {
+        return $this->cache !== null
+            && ($job->payload()['countCrashesAsExceptions'] ?? false)
+            && $job->uuid() !== null
+            && $job->maxExceptions() !== null;
+    }
+
+    /**
      * Fail a job whose payload cannot be consumed.
      */
     protected function handleInvalidPayload(string $connectionName, JobContract $job, InvalidPayloadException $e): void
@@ -1030,10 +1080,11 @@ class Worker
     /**
      * Register a coroutine job to running jobs.
      */
-    protected function registerCoroutineJob(JobContract $job, WorkerOptions $options): string
+    protected function registerCoroutineJob(JobContract $job, WorkerOptions $options, ?JobProcessingMarker $processingMarker = null): string
     {
         $this->runningJobs[$jobId = Str::uuid()->toString()] = [
             'job' => $job,
+            'processing_marker' => $processingMarker,
             'coroutine_id' => Coroutine::id(),
             'expires_at' => ($timeout = $this->timeoutForJob($job, $options)) > 0
                 ? $this->currentTime() + $timeout
@@ -1133,6 +1184,36 @@ class Worker
         $this->failJob($job, $e = $this->maxAttemptsExceededException($job));
 
         throw $e;
+    }
+
+    /**
+     * Mark the given job as failed if it has exceeded the maximum allowed exceptions.
+     *
+     * This will likely be because the worker previously died while processing the job.
+     *
+     * @throws Throwable
+     */
+    protected function markJobAsFailedIfAlreadyExceedsMaxExceptions(string $connectionName, JobContract $job): void
+    {
+        // A before-job listener may already have failed the job and published a retry.
+        if ($job->isDeleted() || ! $this->shouldCountCrashesAsExceptions($job)) {
+            return;
+        }
+
+        // If the previous attempt's marker is still present, that attempt never finished...
+        if ($this->cache->add('job-processing:' . $job->uuid(), true, CarbonImmutable::now()->addDay())) {
+            return;
+        }
+
+        $this->markJobAsFailedIfWillExceedMaxExceptions(
+            $connectionName,
+            $job,
+            $exception = $this->maxAttemptsExceededException($job)
+        );
+
+        if ($job->hasFailed()) {
+            throw $exception;
+        }
     }
 
     /**

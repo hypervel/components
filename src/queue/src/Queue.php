@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
@@ -239,6 +240,7 @@ abstract class Queue
             'maxTries' => $this->getJobTries($job),
             'maxExceptions' => $this->getAttributeValue($job, MaxExceptions::class, 'maxExceptions'),
             'failOnTimeout' => $this->getAttributeValue($job, FailOnTimeout::class, 'failOnTimeout') ?? false,
+            'countCrashesAsExceptions' => $this->getAttributeValue($job, CountCrashesAsExceptions::class, 'countCrashesAsExceptions') ?? false,
             'backoff' => $this->getJobBackoff($job),
             'timeout' => $this->getAttributeValue($job, Timeout::class, 'timeout'),
             'retryUntil' => $this->getJobExpiration($job),
