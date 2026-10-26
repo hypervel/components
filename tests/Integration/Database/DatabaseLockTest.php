@@ -247,6 +247,7 @@ class DatabaseLockTest extends DatabaseTestCase
         );
 
         $connection->shouldReceive('getDriverName')->andReturn('mysql');
+        $connection->allows('transactionLevel')->andReturn(0);
         $connection->expects('table')->times(2)->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
@@ -258,6 +259,35 @@ class DatabaseLockTest extends DatabaseTestCase
             $this->expectException(QueryException::class);
             $this->assertFalse($lock->acquire());
         }
+    }
+
+    public function testAcquireThrowsConcurrencyExceptionInsideTransaction(): void
+    {
+        // REMOVED: upstream's case where a deadlock outside a transaction falls back to a takeover. Insert failures other
+        // than an existing lock always propagate; see CacheDatabaseLockTest::testInsertFailureOtherThanAnExistingLockPropagatesWithoutTakingOver().
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(Connection::class);
+        $insertBuilder = m::mock(Builder::class);
+
+        $insertBuilder->expects('insert')->andThrow(
+            new QueryException(
+                'mysql',
+                'insert into cache_locks (key, owner, expiration) values (?, ?, ?)',
+                [],
+                new PDOException('Deadlock found when trying to get lock', 1213)
+            )
+        );
+
+        $connection->shouldReceive('getDriverName')->andReturn('mysql');
+        $connection->allows('transactionLevel')->andReturn(1);
+        $connection->expects('table')->with('cache_locks')->andReturn($insertBuilder);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+
+        $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, lottery: null);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessageIsOrContains('Deadlock found when trying to get lock');
+        $lock->acquire();
     }
 
     #[TestWith(['Serialization failure: 1213 Deadlock', 40001, true])]
@@ -281,6 +311,7 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
+        $connection->allows('transactionLevel')->andReturn(0);
         $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
@@ -293,5 +324,62 @@ class DatabaseLockTest extends DatabaseTestCase
             $this->expectExceptionMessageIsOrContains($message);
             $lock->release();
         }
+    }
+
+    public function testPruneThrowsConcurrencyExceptionInsideTransaction(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(Connection::class);
+        $deleteBuilder = m::mock(Builder::class);
+
+        $deleteBuilder->expects('where')->with('expiration', '<=', m::any())->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
+            new QueryException(
+                'mysql',
+                'delete from cache_locks where expiration <= ?',
+                [],
+                new PDOException('Deadlock found when trying to get lock', 1213)
+            )
+        );
+
+        $connection->allows('transactionLevel')->andReturn(1);
+        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+
+        $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessageIsOrContains('Deadlock found when trying to get lock');
+        $lock->pruneExpiredLocks();
+    }
+
+    public function testReleaseThrowsConcurrencyExceptionInsideTransaction(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(Connection::class);
+        $deleteBuilder = m::mock(Builder::class);
+
+        $owner = 'owner-123';
+
+        $deleteBuilder->expects('where')->with('key', 'foo')->andReturnSelf();
+        $deleteBuilder->expects('where')->with('owner', $owner)->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
+            new QueryException(
+                'mysql',
+                'delete from cache_locks where key = ? and owner = ?',
+                ['foo', $owner],
+                new PDOException('Serialization failure: 1213 Deadlock', 40001)
+            )
+        );
+
+        $connection->allows('transactionLevel')->andReturn(1);
+        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+
+        $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessageIsOrContains('Serialization failure: 1213 Deadlock');
+        $lock->release();
     }
 }

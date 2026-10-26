@@ -23,6 +23,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Events\QueuedClosure;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\QueueFailedOver;
@@ -86,23 +87,25 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
-    public function testPushFailsOverOnException(): void
+    #[DataProvider('failedConnectionNames')]
+    public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
         $queue = m::mock(QueueManager::class);
-        $events = m::mock(DispatcherContract::class);
+        $events = new EventDispatcher;
+        $failedOver = [];
+        $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use (&$failedOver): void {
+            $failedOver[] = $event;
+        });
         $failover = new FailoverQueue($queue, $events, [
-            'redis',
+            $connection,
             'sync',
         ]);
 
         $redis = m::mock(RedisQueue::class);
-        $queue->expects('connection')->with('redis')->andReturn($redis);
+        $queue->expects('connection')->with($connection)->andReturn($redis);
 
         $sync = m::mock(SyncQueue::class);
         $queue->expects('connection')->with('sync')->andReturn($sync);
-
-        $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch');
 
         $redis->expects('push')->andReturnUsing(
             fn (): never => throw new Exception('error')
@@ -111,6 +114,44 @@ class FailoverQueueTest extends TestCase
         $sync->expects('push');
 
         $failover->push('some-job');
+
+        $this->assertCount(1, $failedOver);
+        $this->assertSame($expectedName, $failedOver[0]->connectionName);
+        $this->assertSame('some-job', $failedOver[0]->command);
+        $this->assertSame('error', $failedOver[0]->exception->getMessage());
+    }
+
+    /**
+     * Provide supported failover connection names.
+     */
+    public static function failedConnectionNames(): array
+    {
+        return [
+            'named connection' => ['redis', 'redis'],
+            'enum connection' => [IntegerQueueName::Zero, '0'],
+            'default connection' => [null, null],
+        ];
+    }
+
+    public function testReplacementQueueReportsItsOwnFirstFailure(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $primary = m::mock(Queue::class);
+        $secondary = m::mock(Queue::class);
+        $primary->allows('push')->andThrow(new RuntimeException('Primary unavailable.'));
+        $secondary->allows('push')->andReturn('job-id');
+        $manager->allows('connection')->with('primary')->andReturn($primary);
+        $manager->allows('connection')->with('secondary')->andReturn($secondary);
+        $events->allows('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->twice()->with(m::type(QueueFailedOver::class));
+
+        $queue = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $queue->push('job'));
+        unset($queue);
+
+        $replacement = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+        $this->assertSame('job-id', $replacement->push('job'));
     }
 
     public function testCancellationDoesNotFailOverOrEmitAnEvent(): void
@@ -276,6 +317,58 @@ class FailoverQueueTest extends TestCase
         $transactions->commit('later', 1, 0);
 
         $this->assertSame(['job'], $connection->pushedJobs);
+    }
+
+    public function testInlineAfterCommitChildRetainsLockOwnershipForFallback(): void
+    {
+        $container = Container::getInstance();
+        $container->instance('db.transactions', new DatabaseTransactionsManager);
+        $events = new EventDispatcher($container);
+        $container->instance(DispatcherContract::class, $events);
+        $container->instance('events', $events);
+        $failure = new RuntimeException('Scheduling failed before acceptance.');
+        $first = new class($failure) extends SyncQueue {
+            /**
+             * Configure an after-commit child whose execution cannot start.
+             */
+            public function __construct(private RuntimeException $failure)
+            {
+                parent::__construct(true);
+            }
+
+            /**
+             * Fail before the queue can accept the dispatch.
+             */
+            protected function executePayload(string $payload, ?string $queue = null): int
+            {
+                throw $this->failure;
+            }
+        };
+        $first->setContainer($container)->setConnectionName('first');
+        $second = m::mock(Queue::class);
+        $job = new FailoverQueueUniqueDebouncedJob;
+        $lock = new UniqueLock(new CacheRepository(new ArrayStore));
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $second->expects('push')->with($job)->andReturnUsing(function ($job) use ($lock): string {
+            $this->assertTrue(DispatchLockContext::has($job));
+            $this->assertFalse($lock->acquire($job));
+            DispatchLockContext::accept($job);
+
+            return 'accepted';
+        });
+        $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use ($failure): void {
+            $this->assertSame($failure, $event->exception);
+        });
+        $failover = new FailoverQueue(
+            new FailoverQueueFakeManager(['first' => $first, 'second' => $second]),
+            $events,
+            ['first', 'second'],
+        );
+        $failover->setContainer($container);
+
+        $this->assertSame('accepted', $failover->push($job));
+        $this->assertFalse(DispatchLockContext::has($job));
+        $this->assertFalse($lock->acquire($job));
     }
 
     public function testNestedCommitWaitsForTheRootTransaction(): void

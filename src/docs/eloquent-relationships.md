@@ -1536,6 +1536,8 @@ Relation::enforceMorphMap([
 
 You may call the `enforceMorphMap` method in the `boot` method of your `App\Providers\AppServiceProvider` class or create a separate service provider if you wish.
 
+Once the morph map is enforced, Hypervel throws a `Hypervel\Database\ClassMorphViolationException` when a model without an alias is used as a polymorphic type, or when a relationship is loaded from a stored type that is not in the map.
+
 You may determine the morph alias of a given model at runtime using the model's `getMorphClass` method. Conversely, you may determine the fully-qualified class name associated with a morph alias using the `Relation::getMorphedModel` method:
 
 ```php

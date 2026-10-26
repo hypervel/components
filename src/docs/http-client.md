@@ -1052,7 +1052,7 @@ $response = Http::connection('github')
     ->get('/user');
 ```
 
-Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
+Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Options with named keys, such as `headers`, are merged key by key. Nested lists, such as a header's values, and other list options, such as `auth` credentials, replace the lower layer's list as a whole. Top-level payload lists, such as multipart parts or a JSON list, combine the entries from every layer. An empty array leaves an option with named keys, such as `curl`, unchanged, but replaces a list, so `'auth' => []` removes earlier credentials. Passing an empty per-call array intentionally clears the registered request preset. The connection's handler settings remain unchanged:
 
 ```php
 // Uses the registered GitHub preset...
@@ -1061,6 +1061,8 @@ Http::connection('github')->get('/user');
 // Replaces the preset with an empty option layer for this request...
 Http::connection('github', [])->get('https://example.com');
 ```
+
+Requests sent without data, including `get($url)`, `head($url)` and `delete($url)`, still inherit a configured body. Set a payload option to `null` to remove it; for example, `withOptions(['json' => null])` removes the configured JSON payload.
 
 `setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
 

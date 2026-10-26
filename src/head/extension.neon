@@ -1,0 +1,5 @@
+services:
+    -
+        class: Hypervel\Head\PHPStan\WithHeadExtension
+        tags:
+            - phpstan.broker.methodsClassReflectionExtension

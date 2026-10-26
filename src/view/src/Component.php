@@ -267,6 +267,8 @@ abstract class Component
 
     /**
      * Create an invokable, toStringable variable for the given component method.
+     *
+     * @return InvokableComponentVariable<mixed>
      */
     protected function createInvokableVariable(string $method): InvokableComponentVariable
     {

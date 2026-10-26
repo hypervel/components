@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Doctor\Diagnostic;
+use Hypervel\Doctor\Results\DiagnosticResult;
+use Hypervel\Doctor\Results\Message;
+
+class {{ class }} extends Diagnostic
+{
+    /**
+     * Get the diagnostic's named message definitions.
+     *
+     * @return array<string, string|Message>
+     */
+    protected function messages(): array
+    {
+        return [
+            'passed' => 'The check passed.',
+            'failed' => Message::make(
+                summary: 'The check failed.',
+                remediation: 'Describe how to resolve the failure.',
+            ),
+        ];
+    }
+
+    /**
+     * Run the diagnostic.
+     */
+    public function check(): DiagnosticResult
+    {
+        return $this->pass('passed');
+    }
+}

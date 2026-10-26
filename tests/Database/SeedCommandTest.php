@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandMutex;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Console\Seeds\SeedCommand;
 use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Events\NullDispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Testing\Assert;
@@ -225,7 +225,7 @@ class SeedCommandTest extends TestCase
             UserWithoutModelEventsSeeder::class => $seeder,
         ]);
 
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new Dispatcher;
         Model::setEventDispatcher($dispatcher);
 
         $command = new SeedCommand($resolver);

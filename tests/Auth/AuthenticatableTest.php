@@ -16,6 +16,15 @@ class AuthenticatableTest extends TestCase
         $this->assertSame('sample_token', $user->getRememberToken());
     }
 
+    public function testRememberTokenCanBeCleared(): void
+    {
+        $user = new User;
+        $user->setRememberToken('sample_token');
+        $user->setRememberToken(null);
+
+        $this->assertNull($user->getAttribute($user->getRememberTokenName()));
+    }
+
     // REMOVED: testItReturnsStringAsRememberTokenWhenItWasSetToTrue
     // Tests implicit bool-to-string coercion which is a TypeError under strict_types.
 

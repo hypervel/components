@@ -333,7 +333,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         $this->flushAiState();
         $this->flushDataState();
+        $this->flushDoctorState();
         $this->flushFortifyState();
+        $this->flushHeadState();
         $this->flushHorizonState();
         $this->flushImageState();
         $this->flushInertiaState();
@@ -376,11 +378,29 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     }
 
     /**
+     * Flush Doctor state.
+     */
+    protected function flushDoctorState(): void
+    {
+        $this->callIfExists(\Hypervel\Doctor\DiagnosticSource::class, 'flushState');
+    }
+
+    /**
      * Flush Fortify state.
      */
     protected function flushFortifyState(): void
     {
         $this->callIfExists(\Hypervel\Fortify\Fortify::class, 'flushState');
+    }
+
+    /**
+     * Flush Head state.
+     */
+    protected function flushHeadState(): void
+    {
+        $this->callIfExists(\Hypervel\Head\Tags\Canonical::class, 'flushState');
+        $this->callIfExists(\Hypervel\Head\Schema\SchemaObject::class, 'flushState');
+        $this->callIfExists(\Hypervel\Head\HeadManager::class, 'flushMacros');
     }
 
     /**
@@ -500,6 +520,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSaloonState(): void
     {
+        $this->callIfExists(\Hypervel\Saloon\OAuthAccounts::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\Connector::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest::class, 'flushState');
         $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class, 'flushState');

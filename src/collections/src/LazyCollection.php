@@ -26,6 +26,7 @@ use stdClass;
 use Stringable as BaseStringable;
 use Traversable;
 use UnitEnum;
+use ValueError;
 
 /**
  * @template TKey of array-key
@@ -739,6 +740,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * Get the values of a given key.
      *
      * @param null|array<array-key, string>|Closure|int|string $value
+     * @param null|array<array-key, string>|Closure|int|string $key
      * @return static<array-key, mixed>
      */
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): static
@@ -917,9 +919,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
             foreach ($this as $key) {
                 if (! $values->valid()) {
-                    trigger_error($errorMessage, E_USER_WARNING);
-
-                    break;
+                    throw new ValueError($errorMessage);
                 }
 
                 yield $key => $values->current();
@@ -928,7 +928,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             }
 
             if ($values->valid()) {
-                trigger_error($errorMessage, E_USER_WARNING);
+                throw new ValueError($errorMessage);
             }
         });
     }
@@ -1910,6 +1910,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
+     *
+     * @param null|array<array-key, string>|Closure|int|string $value
+     * @param null|array<array-key, string>|Closure|int|string $key
+     * @return array{null|array<array-key, string>|Closure|int, null|array<array-key, string>|Closure|int}
      */
     protected function explodePluckParameters(Closure|string|int|array|null $value, Closure|string|int|array|null $key): array
     {

@@ -11,10 +11,15 @@ use Hypervel\Foundation\Console\RouteListCommand;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class RouteListCommandTest extends TestCase
 {
     protected Application $consoleApp;
+
+    protected Router $router;
 
     /**
      * Set up the test environment.
@@ -29,7 +34,7 @@ class RouteListCommandTest extends TestCase
             'testing',
         );
 
-        $router = new Router(new Dispatcher($hypervel));
+        $router = $this->router = new Router(new Dispatcher($hypervel));
 
         $kernel = new class($hypervel, $router) extends Kernel {
             protected array $middlewareGroups = [
@@ -66,6 +71,27 @@ class RouteListCommandTest extends TestCase
         $command->setHypervel($hypervel);
 
         $this->consoleApp->addCommands([$command]);
+    }
+
+    #[DataProvider('outputDecoration')]
+    public function testJsonOutputPreservesLiteralRouteNames(bool $decorated): void
+    {
+        $name = '<info>Route\name</info> \<error>literal</error>';
+        $this->router->get('/literal-name', fn (): string => 'ok')->name($name);
+        $output = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, $decorated);
+
+        $this->consoleApp->call('route:list', ['--json' => true, '--path' => 'literal-name'], $output);
+
+        $routes = json_decode($output->fetch(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($name, $routes[0]['name']);
+    }
+
+    /**
+     * Provide terminal and redirected output modes.
+     */
+    public static function outputDecoration(): array
+    {
+        return [[false], [true]];
     }
 
     public function testNoMiddlewareIfNotVerbose(): void

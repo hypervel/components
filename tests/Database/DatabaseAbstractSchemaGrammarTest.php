@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
@@ -15,7 +17,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
     public function testCreateDatabase(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $grammar = new class($connection) extends Grammar {
         };
 
@@ -24,7 +26,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $grammar = new class($connection) extends Grammar {
         };
 

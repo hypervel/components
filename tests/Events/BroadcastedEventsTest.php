@@ -16,9 +16,25 @@ use Mockery as m;
 
 class BroadcastedEventsTest extends TestCase
 {
+    /**
+     * Create a dispatcher that exposes the protected broadcast check.
+     */
+    protected function exposedDispatcher(): Dispatcher
+    {
+        return new class extends Dispatcher {
+            /**
+             * Determine if the payload has a broadcastable event.
+             */
+            public function shouldBroadcast(array $payload): bool
+            {
+                return parent::shouldBroadcast($payload);
+            }
+        };
+    }
+
     public function testShouldBroadcastSuccess(): void
     {
-        $d = m::mock(Dispatcher::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $d = $this->exposedDispatcher();
 
         $event = new BroadcastEvent;
 
@@ -56,7 +72,7 @@ class BroadcastedEventsTest extends TestCase
 
     public function testShouldBroadcastFail(): void
     {
-        $d = m::mock(Dispatcher::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $d = $this->exposedDispatcher();
 
         $event = new BroadcastFalseCondition;
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
+use Hypervel\Session\SessionManager;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 
@@ -71,6 +72,9 @@ class SessionConfigTest extends TestCase
             $this->assertSame(10, $config['block_wait_seconds']);
             $this->assertNull($config['secure']);
             $this->assertSame('json', $config['serialization']);
+
+            $database = require dirname(__DIR__, 2) . '/src/foundation/config/database.php';
+            $this->assertArrayHasKey(SessionManager::DEFAULT_REDIS_CONNECTION, $database['redis']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();

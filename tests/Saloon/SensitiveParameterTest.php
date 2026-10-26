@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon;
 
+use Hypervel\Saloon\Http\Auth\CachedTokenAuthenticator;
 use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 use Hypervel\Saloon\Traits\OAuth2\AuthorizationCodeGrant;
 use Hypervel\Saloon\Traits\OAuth2\ClientCredentialsGrant;
@@ -42,6 +43,7 @@ class SensitiveParameterTest extends TestCase
     public static function sensitiveParameters(): array
     {
         return [
+            [CachedTokenAuthenticator::class, '__construct', 'key'],
             [CookieAuthenticator::class, '__construct', 'value'],
             [ParsesOAuthTokenResponses::class, 'parseOAuthTokenResponse', 'response'],
             [AuthorizationCodeGrant::class, 'createOAuthAuthenticatorFromResponse', 'response'],

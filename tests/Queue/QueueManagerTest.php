@@ -7,20 +7,30 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Encryption\Encrypter;
+use Hypervel\Events\Dispatcher;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Connectors\NullConnector;
+use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\NullQueue;
+use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
+use RuntimeException;
 
 class QueueManagerTest extends TestCase
 {
@@ -66,17 +76,14 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
-        $queue->expects('setConfig')->andReturnSelf();
-        $queue->expects('setContainer')->with($container)->andReturnSelf();
-        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
-        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
-            return $connector;
-        });
+        $manager->addConnector('sync', fn (): ConnectorInterface => new SyncConnector);
 
-        $this->assertSame($queue, $manager->connection('sync'));
+        $queue = $manager->connection('sync');
+
+        $this->assertInstanceOf(SyncQueue::class, $queue);
+        $this->assertSame('sync', $queue->getConnectionName());
+        $this->assertSame($container, $queue->getContainer());
+        $this->assertSame(['driver' => 'sync'], $queue->getConfig());
     }
 
     public function testOtherConnectionCanBeResolved(): void
@@ -87,17 +94,14 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->expects('setConnectionName')->with('foo')->andReturnSelf();
-        $queue->expects('setConfig')->andReturnSelf();
-        $connector->expects('connect')->with(['driver' => 'bar'])->andReturn($queue);
-        $manager->addConnector('bar', function () use ($connector): ConnectorInterface {
-            return $connector;
-        });
-        $queue->expects('setContainer')->with($container)->andReturnSelf();
+        $manager->addConnector('bar', fn (): ConnectorInterface => new SyncConnector);
 
-        $this->assertSame($queue, $manager->connection('foo'));
+        $queue = $manager->connection('foo');
+
+        $this->assertInstanceOf(SyncQueue::class, $queue);
+        $this->assertSame('foo', $queue->getConnectionName());
+        $this->assertSame($container, $queue->getContainer());
+        $this->assertSame(['driver' => 'bar'], $queue->getConfig());
     }
 
     public function testNullConnectionCanBeResolved(): void
@@ -107,17 +111,14 @@ class QueueManagerTest extends TestCase
         $config->set('queue.default', 'null');
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->expects('setConnectionName')->with('null')->andReturnSelf();
-        $queue->expects('setConfig')->andReturnSelf();
-        $connector->expects('connect')->with(['driver' => 'null'])->andReturn($queue);
-        $manager->addConnector('null', function () use ($connector): ConnectorInterface {
-            return $connector;
-        });
-        $queue->expects('setContainer')->with($container)->andReturnSelf();
+        $manager->addConnector('null', fn (): ConnectorInterface => new SyncConnector);
 
-        $this->assertSame($queue, $manager->connection('null'));
+        $queue = $manager->connection('null');
+
+        $this->assertInstanceOf(SyncQueue::class, $queue);
+        $this->assertSame('null', $queue->getConnectionName());
+        $this->assertSame($container, $queue->getContainer());
+        $this->assertSame(['driver' => 'null'], $queue->getConfig());
     }
 
     public function testEnumConnectionCanBeResolved(): void
@@ -128,17 +129,14 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
-        $queue->expects('setConfig')->andReturnSelf();
-        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
-        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
-            return $connector;
-        });
-        $queue->expects('setContainer')->with($container)->andReturnSelf();
+        $manager->addConnector('sync', fn (): ConnectorInterface => new SyncConnector);
 
-        $this->assertSame($queue, $manager->connection(QueueConnectionName::Sync));
+        $queue = $manager->connection(QueueConnectionName::Sync);
+
+        $this->assertInstanceOf(SyncQueue::class, $queue);
+        $this->assertSame('sync', $queue->getConnectionName());
+        $this->assertSame($container, $queue->getContainer());
+        $this->assertSame(['driver' => 'sync'], $queue->getConfig());
     }
 
     public function testEnumConnectionCanBeChecked(): void
@@ -149,19 +147,26 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
-        $queue->expects('setConfig')->andReturnSelf();
-        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
-        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
-            return $connector;
-        });
-        $queue->expects('setContainer')->with($container)->andReturnSelf();
+        $manager->addConnector('sync', fn (): ConnectorInterface => new SyncConnector);
 
         $this->assertFalse($manager->connected(QueueConnectionName::Sync));
         $manager->connection(QueueConnectionName::Sync);
         $this->assertTrue($manager->connected(QueueConnectionName::Sync));
+    }
+
+    public function testCreatePayloadUsingDoesNotResolveTheDefaultConnection(): void
+    {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.default', 'missing');
+
+        $manager = new QueueManager($container);
+        $manager->createPayloadUsing(static fn (?string $connection, ?string $queue, ?array $payload): array => ['foo' => 'bar']);
+
+        $this->assertFalse($manager->connected('missing'));
+
+        $callbacks = (new ReflectionProperty(BaseQueue::class, 'createPayloadCallbacks'))->getValue();
+
+        $this->assertSame(['foo' => 'bar'], $callbacks[array_key_last($callbacks)](null, null, null));
     }
 
     public function testSetDefaultDriverAcceptsBackedEnum(): void
@@ -172,6 +177,83 @@ class QueueManagerTest extends TestCase
         $manager->setDefaultDriver(QueueConnectionName::Sync);
 
         $this->assertSame('sync', $container->make('config')->get('queue.default'));
+    }
+
+    #[DataProvider('circularConnections')]
+    public function testRejectsCircularFailoverDefinitions(array $connections, string $cycle): void
+    {
+        $manager = $this->getFailoverManager($connections);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('Circular queue connection definition detected: ' . $cycle . '.');
+
+        $manager->connection('main');
+    }
+
+    /**
+     * Provide circular failover configurations.
+     */
+    public static function circularConnections(): array
+    {
+        return [
+            'self' => [[
+                'main' => ['driver' => 'failover', 'connections' => ['main']],
+            ], 'main -> main'],
+            'indirect' => [[
+                'main' => ['driver' => 'failover', 'connections' => ['first']],
+                'first' => ['driver' => 'failover', 'connections' => ['second']],
+                'second' => ['driver' => 'failover', 'connections' => ['first']],
+            ], 'first -> second -> first'],
+        ];
+    }
+
+    public function testNestedFailoverConnectionsCanShareAChild(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['first', 'second']],
+            'first' => ['driver' => 'failover', 'connections' => ['leaf']],
+            'second' => ['driver' => 'failover', 'connections' => ['leaf']],
+            'leaf' => ['driver' => 'null'],
+        ]);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+        $this->assertSame(0, $manager->connection('second')->size());
+    }
+
+    public function testCustomConnectorCanReplaceFailover(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['main']],
+        ]);
+        $manager->extend('failover', fn (): NullConnector => new NullConnector);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+    }
+
+    public function testMissingBackupConnectionRemainsDeferred(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['healthy', 'missing']],
+            'healthy' => ['driver' => 'null'],
+        ]);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+    }
+
+    public function testBackupConnectorFactoryFailureRemainsDeferred(): void
+    {
+        $manager = $this->getFailoverManager([
+            'main' => ['driver' => 'failover', 'connections' => ['healthy', 'backup']],
+            'healthy' => ['driver' => 'null'],
+            'backup' => ['driver' => 'custom', 'connections' => ['remote']],
+        ]);
+        $failure = new RuntimeException('Backup dependency unavailable');
+        $manager->extend('custom', fn () => throw $failure);
+
+        $this->assertSame(0, $manager->connection('main')->size());
+
+        $this->expectExceptionObject($failure);
+        $manager->connection('backup');
     }
 
     public function testAddPoolableConnector(): void
@@ -429,16 +511,18 @@ class QueueManagerTest extends TestCase
         $this->assertSame($queue, $manager->connection('sync'));
     }
 
-    public function testPayloadCallbacksCanBeRegisteredWithoutResolvingTheDefaultConnection(): void
+    /**
+     * Create a manager with real failover and null connectors.
+     */
+    protected function getFailoverManager(array $connections): QueueManager
     {
         $container = $this->getContainer();
-        $container->make('config')->set('queue.default', 'missing');
-
+        $container->make('config')->set('queue.connections', $connections);
         $manager = new QueueManager($container);
+        $manager->addConnector('failover', fn (): FailoverConnector => new FailoverConnector($manager, new Dispatcher($container)));
+        $manager->addConnector('null', fn (): NullConnector => new NullConnector);
 
-        $manager->createPayloadUsing(static fn (string $connection, ?string $queue, array $payload): array => []);
-
-        $this->assertFalse($manager->connected('missing'));
+        return $manager;
     }
 
     protected function getContainer(): Container
@@ -446,7 +530,7 @@ class QueueManagerTest extends TestCase
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository([]));
-        $container->instance(Encrypter::class, m::mock(Encrypter::class));
+        $container->instance(EncrypterContract::class, new Encrypter(str_repeat('a', 16)));
         $container->singleton(PoolFactory::class, PoolManager::class);
 
         Container::setInstance($container);

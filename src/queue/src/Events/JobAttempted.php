@@ -11,11 +11,15 @@ class JobAttempted
 {
     /**
      * Create a new event instance.
+     *
+     * @param null|Throwable $exception the exception, if one occurred while processing the job
+     * @param null|float $duration the number of milliseconds the job took to process
      */
     public function __construct(
         public string $connectionName,
         public Job $job,
         public ?Throwable $exception = null,
+        public ?float $duration = null,
     ) {
     }
 

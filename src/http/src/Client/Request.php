@@ -13,6 +13,8 @@ use InvalidArgumentException;
 use JsonException;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\StreamInterface;
+use Stringable;
 
 class Request implements ArrayAccess
 {
@@ -128,9 +130,28 @@ class Request implements ArrayAccess
         }
 
         return (new Collection($this->data))->contains(function ($file) use ($name, $value, $filename) {
-            return ($file['name'] ?? null) === $name
-                && ($value === null || ($file['contents'] ?? null) === $value)
-                && ($filename === null || ($file['filename'] ?? null) === $filename);
+            if (($file['name'] ?? null) !== $name
+                || ($filename !== null && ($file['filename'] ?? null) !== $filename)) {
+                return false;
+            }
+
+            $contents = $file['contents'] ?? null;
+
+            if ($value === null || ! $contents instanceof Stringable) {
+                return $value === null || $contents === $value;
+            }
+
+            // Attached streams compare by their contents. Reading moves the cursor
+            // the request body reads from, so restore it when the stream allows.
+            if ($contents instanceof StreamInterface && $contents->isSeekable()) {
+                $position = $contents->tell();
+                $matches = (string) $contents === $value;
+                $contents->seek($position);
+
+                return $matches;
+            }
+
+            return (string) $contents === $value;
         });
     }
 

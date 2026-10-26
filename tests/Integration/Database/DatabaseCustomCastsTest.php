@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
+use Hypervel\Database\Eloquent\Casts\AsHtmlString;
 use Hypervel\Database\Eloquent\Casts\AsStringable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
@@ -86,6 +87,22 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
             ],
             $model->array_object_json->toArray()
         );
+    }
+
+    public function testAsHtmlStringIsSerializedAsString(): void
+    {
+        $model = new class extends Model {
+            protected array $casts = ['body' => AsHtmlString::class];
+        };
+
+        $model->body = '<b>Taylor</b>';
+
+        $this->assertSame(['body' => '<b>Taylor</b>'], $model->toArray());
+        $this->assertSame('{"body":"<b>Taylor<\/b>"}', $model->toJson());
+
+        $model->body = null;
+
+        $this->assertSame(['body' => null], $model->toArray());
     }
 
     public function testCustomCastingUsingCreate(): void

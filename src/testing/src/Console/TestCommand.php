@@ -14,7 +14,7 @@ class TestCommand extends TestCommandBase
      */
     protected ?string $signature = 'test
         {--without-tty : Disable output to TTY}
-        {--configuration= : Read configuration from XML file}
+        {--c|configuration= : Read configuration from XML file}
         {--coverage : Indicates whether coverage information should be collected}
         {--min= : Indicates the minimum threshold enforcement for coverage}
         {--p|parallel : Indicates if the tests should run in parallel}

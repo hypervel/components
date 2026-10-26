@@ -102,28 +102,28 @@ class WorkCommandTest extends TestCase
     }
 
     #[DataProvider('queueStatusOutputProvider')]
-    public function testQueueStatusOutputUsesTheCurrentCommand(bool $json): void
+    public function testQueueStatusOutputUsesTheCurrentCommand(bool $json, bool $decorated, string $queue): void
     {
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
-        $arguments = ['--once' => true, '--sleep' => 0, '--json' => $json];
+        $arguments = ['--once' => true, '--sleep' => 0, '--json' => $json, '--queue' => $queue];
 
-        Queue::pause('default', 'sync');
-        $firstOutput = new BufferedOutput;
+        Queue::pause($queue, 'sync');
+        $firstOutput = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, $decorated);
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $firstOutput));
 
         if ($json) {
             $this->assertSame([
                 'level' => 'warning',
-                'queue' => 'default',
+                'queue' => $queue,
                 'status' => 'paused',
                 'timestamp' => '2023-01-18T10:10:11.000000+00:00',
             ], json_decode($firstOutput->fetch(), true, 512, JSON_THROW_ON_ERROR));
         } else {
-            $this->assertSame("  2023-01-18 10:10:11 Queue default PAUSED\n", $firstOutput->fetch());
+            $this->assertSame("  2023-01-18 10:10:11 Queue {$queue} PAUSED\n", $firstOutput->fetch());
         }
 
-        Queue::resume('default', 'sync');
-        $secondOutput = new BufferedOutput;
+        Queue::resume($queue, 'sync');
+        $secondOutput = new BufferedOutput(OutputInterface::VERBOSITY_NORMAL, $decorated);
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $secondOutput));
 
         $this->assertSame('', $firstOutput->fetch());
@@ -131,12 +131,12 @@ class WorkCommandTest extends TestCase
         if ($json) {
             $this->assertSame([
                 'level' => 'warning',
-                'queue' => 'default',
+                'queue' => $queue,
                 'status' => 'resumed',
                 'timestamp' => '2023-01-18T10:10:11.000000+00:00',
             ], json_decode($secondOutput->fetch(), true, 512, JSON_THROW_ON_ERROR));
         } else {
-            $this->assertSame("  2023-01-18 10:10:11 Queue default RESUMED\n", $secondOutput->fetch());
+            $this->assertSame("  2023-01-18 10:10:11 Queue {$queue} RESUMED\n", $secondOutput->fetch());
         }
     }
 
@@ -146,8 +146,10 @@ class WorkCommandTest extends TestCase
     public static function queueStatusOutputProvider(): array
     {
         return [
-            'CLI' => [false],
-            'JSON' => [true],
+            'CLI' => [false, false, 'default'],
+            'JSON' => [true, false, 'default'],
+            'JSON literal text' => [true, false, '<info>Queue\name</info> \<error>literal</error>'],
+            'JSON decorated literal text' => [true, true, '<info>Queue\name</info> \<error>literal</error>'],
         ];
     }
 

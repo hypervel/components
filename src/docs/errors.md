@@ -322,6 +322,24 @@ use Symfony\Component\HttpFoundation\Response;
 })
 ```
 
+If a package or application needs to inspect the prepared response without replacing your `respond` callback, register a `beforeResponding` callback during boot:
+
+```php
+use Hypervel\Foundation\Configuration\Exceptions;
+use Hypervel\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response;
+
+->withExceptions(function (Exceptions $exceptions): void {
+    $exceptions->beforeResponding(function (Response $response): void {
+        Log::debug('Exception response prepared.', [
+            'status' => $response->getStatusCode(),
+        ]);
+    });
+})
+```
+
+These callbacks run in registration order, just before your `respond` callback. They receive the response, exception, and request; their return values are ignored. Callbacks are shared by every request in the worker, so read request-specific values inside the callback. Packages may register one from a service provider's `boot` method using the `Hypervel\Support\Facades\Exceptions::beforeResponding()` facade method.
+
 <a name="renderable-exceptions"></a>
 ### Reportable and Renderable Exceptions
 

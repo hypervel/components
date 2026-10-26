@@ -17,11 +17,14 @@ use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Schema\MySqlSchemaState;
 use Hypervel\Database\Schema\SchemaState;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
@@ -50,7 +53,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventsDispatcher;
         $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
@@ -66,25 +69,25 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventFake(new EventsDispatcher);
         $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
         $migrator->expects('hasRunAnyMigrations')->andReturn(false);
-        $connection = m::mock(Connection::class);
+        $connection = m::mock(MySqlConnection::class);
         $migrator->expects('resolveConnection')->andReturn($connection);
         $connection->expects('getName')->andReturn('mysql');
         $migrator->expects('deleteRepository');
-        $schemaState = m::mock(SchemaState::class);
+        $schemaState = m::mock(MySqlSchemaState::class);
         $connection->expects('getSchemaState')->andReturn($schemaState);
         $schemaState->expects('handleOutputUsing')->andReturnSelf();
         $schemaState->expects('load')->with(__DIR__ . '/Fixtures/schema.sql');
-        $dispatcher->expects('hasListeners')->with(SchemaLoaded::class)->andReturnTrue();
-        $dispatcher->expects('dispatch')->with(m::type(SchemaLoaded::class));
         $migrator->expects('setOutput')->andReturn($migrator);
         $migrator->expects('run')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
 
         $this->runCommand($command, ['--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
+
+        $dispatcher->assertDispatchedOnce(SchemaLoaded::class);
     }
 
     public function testStoredSchemaDoesNotDispatchWithoutListeners(): void
@@ -117,7 +120,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventsDispatcher;
         $params = [$migrator, $dispatcher];
         $command = $this->getMockBuilder(MigrateCommand::class)->onlyMethods(['callSilent'])->setConstructorArgs($params)->getMock();
         $command->setHypervel($app);
@@ -135,7 +138,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventsDispatcher;
         $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
@@ -151,7 +154,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventsDispatcher;
         $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator, 'foo');
@@ -167,7 +170,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $migrator = m::mock(Migrator::class);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new EventsDispatcher;
         $command = new MigrateCommand($migrator, $dispatcher);
         $command->setHypervel($app);
         $this->expectMigrationPreflight($migrator);
@@ -607,7 +610,6 @@ class ApplicationDatabaseMigrationStub extends Application
     {
         $mutex = m::mock(CommandMutex::class);
         $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
         $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Broadcasting;
 use Exception;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
@@ -52,6 +53,27 @@ class BroadcastEventTest extends TestCase
         $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         $event = new TestBroadcastEventWithManualData;
+
+        (new BroadcastEvent($event))->handle($manager);
+    }
+
+    public function testUninitializedPublicPropertiesAreOmittedFromThePayload(): void
+    {
+        $event = new class extends TestBroadcastEvent {
+            use Queueable;
+
+            public string $uninitialized;
+
+            public ?string $optional = null;
+        };
+
+        $payload = get_object_vars($event);
+        $payload['collection'] = ['foo' => 'bar'];
+
+        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster->expects('broadcast')->with(['test-channel'], $event::class, $payload);
+        $manager = m::mock(BroadcastingFactory::class);
+        $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -197,21 +219,22 @@ class BroadcastEventTest extends TestCase
     public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent(): void
     {
         $event = new class {
+            public ?Throwable $failedWith = null;
+
             /**
              * Handle a job failure.
              */
             public function failed(?Throwable $e = null): void
             {
-                $e->validateCall();
+                $this->failedWith = $e;
             }
         };
 
         $job = new BroadcastEvent($event);
 
-        $exception = m::mock(Exception::class);
-        $exception->expects('validateCall');
+        $job->failed($exception = new Exception);
 
-        $job->failed($exception);
+        $this->assertSame($exception, $event->failedWith);
     }
 
     public function testArrayBackoffIsReadFromTheUnderlyingEvent(): void

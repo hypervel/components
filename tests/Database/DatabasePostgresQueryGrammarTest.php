@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use PDO;
 
 class DatabasePostgresQueryGrammarTest extends TestCase
 {
@@ -54,7 +57,7 @@ class DatabasePostgresQueryGrammarTest extends TestCase
         PostgresGrammar::customOperators(['@@@', '@>', '']);
         PostgresGrammar::customOperators(['@@>', 1]);
 
-        $connection = m::mock(Connection::class);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $grammar = new PostgresGrammar($connection);
 
         $operators = $grammar->getOperators();
@@ -73,7 +76,7 @@ class DatabasePostgresQueryGrammarTest extends TestCase
         $connection->expects('getTablePrefix')->times(3)->andReturn('');
 
         $postgres = new PostgresGrammar($connection);
-        $builder = m::mock(Builder::class);
+        $builder = new Builder($connection, $postgres, new Processor);
         $builder->from = 'users';
 
         $this->assertEquals([

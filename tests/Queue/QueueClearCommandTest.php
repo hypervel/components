@@ -9,79 +9,74 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\ClearCommand;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use UnitEnum;
 
 class QueueClearCommandTest extends TestCase
 {
     public function testClearingDefaultQueue(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('default')->andReturn(2);
+        $queue = new FakeClearableQueue(['default' => 2]);
 
         $output = $this->runClearCommand($queue);
 
         $this->assertStringContainsString('Cleared 2 jobs from the [default] queue', $output);
+        $this->assertSame(['default'], $queue->cleared);
     }
 
     public function testClearingMultipleQueues(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('high')->andReturn(3);
-        $queue->expects('clear')->with('low')->andReturn(0);
-        $queue->expects('clear')->with('emails')->andReturn(1);
+        $queue = new FakeClearableQueue(['high' => 3, 'low' => 0, 'emails' => 1]);
 
         $output = $this->runClearCommand($queue, ['--queue' => 'high,low,emails']);
 
         $this->assertStringContainsString('Cleared 4 jobs from the [high, low, emails] queues', $output);
+        $this->assertSame(['high', 'low', 'emails'], $queue->cleared);
     }
 
     public function testClearingMultipleQueuesWithWhitespace(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('high')->andReturn(3);
-        $queue->expects('clear')->with('low')->andReturn(0);
+        $queue = new FakeClearableQueue(['high' => 3, 'low' => 0]);
 
         $output = $this->runClearCommand($queue, ['--queue' => 'high, low']);
 
         $this->assertStringContainsString('Cleared 3 jobs from the [high, low] queues', $output);
+        $this->assertSame(['high', 'low'], $queue->cleared);
     }
 
     public function testClearingMultipleQueuesWithEmptyValues(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('high')->andReturn(3);
-        $queue->expects('clear')->with('low')->andReturn(0);
+        $queue = new FakeClearableQueue(['high' => 3, 'low' => 0]);
 
         $output = $this->runClearCommand($queue, ['--queue' => 'high,,low']);
 
         $this->assertStringContainsString('Cleared 3 jobs from the [high, low] queues', $output);
+        $this->assertSame(['high', 'low'], $queue->cleared);
     }
 
     public function testClearingMultipleQueuesWithDuplicates(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('high')->andReturn(3);
-        $queue->expects('clear')->with('low')->andReturn(0);
+        $queue = new FakeClearableQueue(['high' => 3, 'low' => 0]);
 
         $output = $this->runClearCommand($queue, ['--queue' => 'high,low,high']);
 
         $this->assertStringContainsString('Cleared 3 jobs from the [high, low] queues', $output);
+        $this->assertSame(['high', 'low'], $queue->cleared);
     }
 
     public function testClearingDistinctNumericQueueNames(): void
     {
-        $queue = m::mock(Queue::class, ClearableQueue::class);
-        $queue->expects('clear')->with('0')->andReturn(1);
-        $queue->expects('clear')->with('01')->andReturn(2);
-        $queue->expects('clear')->with('1')->andReturn(3);
+        $queue = new FakeClearableQueue(['0' => 1, '01' => 2, '1' => 3]);
 
         $output = $this->runClearCommand($queue, ['--queue' => '0,01,1,0,01,1']);
 
         $this->assertStringContainsString('Cleared 6 jobs from the [0, 01, 1] queues', $output);
+        $this->assertSame(['0', '01', '1'], $queue->cleared);
     }
 
     public function testProhibitedCommandCannotBeForced(): void
@@ -127,5 +122,29 @@ class QueueClearCommandTest extends TestCase
         $this->assertSame(ClearCommand::SUCCESS, $command->run(new ArrayInput($arguments), $output));
 
         return $output->fetch();
+    }
+}
+
+class FakeClearableQueue extends NullQueue implements ClearableQueue
+{
+    public array $cleared = [];
+
+    /**
+     * Create a new fake clearable queue.
+     *
+     * @param array<string, int> $counts
+     */
+    public function __construct(protected array $counts)
+    {
+    }
+
+    /**
+     * Delete all of the jobs from the queue.
+     */
+    public function clear(UnitEnum|string|null $queue): int
+    {
+        $this->cleared[] = $queue;
+
+        return $this->counts[$queue] ?? 0;
     }
 }

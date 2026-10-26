@@ -16,9 +16,11 @@ class GetClientCredentialsTokenBasicAuthRequest extends GetClientCredentialsToke
      */
     protected function defaultBody(): array
     {
+        $scopes = $this->oauthConfig->scopes($this->scopes);
+
         return [
             'grant_type' => 'client_credentials',
-            'scope' => implode($this->scopeSeparator, $this->oauthConfig->scopes($this->scopes)),
+            ...($scopes === [] ? [] : ['scope' => implode($this->scopeSeparator, $scopes)]),
         ];
     }
 
@@ -27,9 +29,10 @@ class GetClientCredentialsTokenBasicAuthRequest extends GetClientCredentialsToke
      */
     protected function defaultAuth(): ?Authenticator
     {
+        // RFC 6749 §2.3.1 requires form encoding each credential before HTTP Basic encoding.
         return new BasicAuthenticator(
-            $this->oauthConfig->clientId,
-            $this->oauthConfig->clientSecret,
+            urlencode($this->oauthConfig->clientId),
+            urlencode($this->oauthConfig->clientSecret),
         );
     }
 }

@@ -49,9 +49,9 @@ class NullFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
     }
 
     /**
-     * Flush all of the failed jobs from storage.
+     * Flush the failed jobs from storage.
      */
-    public function flush(?int $hours = null): void
+    public function flush(?int $hours = null, ?string $queue = null): void
     {
     }
 

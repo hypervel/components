@@ -10,6 +10,7 @@ use Hypervel\Support\ServiceProvider;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use UnitEnum;
 
 interface Application extends Container
 {
@@ -105,7 +106,7 @@ interface Application extends Container
     /**
      * Get or check the current application environment.
      */
-    public function environment(array|string ...$environments): bool|string;
+    public function environment(UnitEnum|array|string ...$environments): bool|string;
 
     /**
      * Determine if the application is in the local environment.

@@ -6,12 +6,15 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
@@ -27,6 +30,7 @@ use RuntimeException;
 class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
+    use InteractsWithConsole;
 
     private ?Container $app;
 
@@ -265,7 +269,7 @@ class DatabaseTruncationTest extends TestCase
 
         $this->cacheInMemoryDatabases();
 
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = m::mock(DispatcherContract::class);
         $restoredDefault = m::mock(PdoConnection::class);
         $restoredNamed = m::mock(PdoConnection::class);
         $restoredDefault->expects('setPdo')->with($defaultPdo)->andReturnSelf();
@@ -279,7 +283,7 @@ class DatabaseTruncationTest extends TestCase
         $restoredDatabase->shouldNotReceive('connection')->with('file');
 
         $this->app->instance('db', $restoredDatabase);
-        $this->app->instance(Dispatcher::class, $dispatcher);
+        $this->app->instance(DispatcherContract::class, $dispatcher);
 
         $this->restoreInMemoryDatabases();
 
@@ -419,6 +423,38 @@ class DatabaseTruncationTest extends TestCase
         $testCase->truncate();
     }
 
+    public function testMigratesWhenRetainedStateHasNoSelectedInMemoryPdo(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->expects('getPdo')->andReturn($pdo);
+        $database = m::mock(DatabaseManager::class);
+        $database->expects('connection')->with(null)->andReturn($connection);
+        $kernel = m::mock(KernelContract::class);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
+        $this->app->instance(KernelContract::class, $kernel);
+        $this->app->instance('db', $database);
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'testing',
+                'connections' => ['testing' => ['driver' => 'sqlite', 'database' => ':memory:']],
+            ],
+        ]));
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = [];
+        $this->withoutMockingConsoleOutput();
+
+        $this->truncateDatabaseTables();
+
+        $this->assertTrue(RefreshDatabaseState::$migrated);
+        $this->assertSame(['testing' => $pdo], RefreshDatabaseState::$inMemoryConnections);
+    }
+
     public function testAdoptsAMissingInMemoryPdoBeforeTheTruncationHook(): void
     {
         $pdo = m::mock(PDO::class);
@@ -512,7 +548,7 @@ class DatabaseTruncationTest extends TestCase
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher = new Dispatcher;
         $connection->expects('getEventDispatcher')->andReturn($dispatcher);
         $connection->expects('unsetEventDispatcher');
         $connection->expects('setEventDispatcher')->with($dispatcher);

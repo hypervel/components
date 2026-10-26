@@ -120,13 +120,13 @@ class KeyGenerateCommand extends Command
     }
 
     /**
-     * Get a regex pattern that will match env APP_KEY with any random key.
+     * Get a regex pattern matching the current APP_KEY assignment, excluding ignored trailing whitespace or comments.
      */
     protected function keyReplacementPattern(): string
     {
         $escaped = preg_quote($this->hypervel->make('config')->get('app.key') ?? '', '/');
 
-        return "/^APP_KEY=([\"']?){$escaped}\\1(?=\\r?$)/m";
+        return "/^(?:[ \\t]*export[ \\t]+)?\\KAPP_KEY=([\"']?){$escaped}\\1(?=[ \\t]*(?:#.*)?\\r?$)/m";
     }
 
     /**

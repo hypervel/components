@@ -20,6 +20,7 @@ When working on Hypervel, start from this frame:
 
 - **Development monorepo:** Applications install individual subtree-split packages, never `hypervel/components`. Root `composer.json` and `package.json` metadata is development-only. Determine installed-application behavior from the relevant package manifests and the application's dependencies and discovery settings.
 - Hypervel is Laravel-shaped at the API level.
+- **Database connections are driver-neutral.** `ConnectionInterface` and `Connection` support custom drivers registered through `DB::extend()`, including non-PDO transports.
 - Hypervel is not request-per-process PHP — workers are long-lived, and PHP state does not disappear after each request.
 - Singletons, static properties, manager registries, callbacks, config, and cached metadata can persist for the worker lifetime.
 - Per-request state must live in coroutine-scoped storage (CoroutineContext), not process-global state.
@@ -112,13 +113,17 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 ### Verification
 
-**Run verification commands sequentially** — Never overlap test, lint, formatting, or static-analysis commands. Wait for each to finish before starting another. A tool’s built-in parallelism, such as ParaTest workers, is fine.
+**Run verification commands sequentially** — Never overlap formatting, static analysis or tests. Wait for each command to finish before starting another. A tool’s built-in parallelism, such as ParaTest workers, is fine.
 
-During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
+**During implementation**, run each new or changed test file immediately with `./vendor/bin/phpunit --no-progress path/to/TestClass.php`.
 
-Use checks that match the change. For isolated changes, run `composer lint:fix`, `composer analyse`, and the affected tests. Run a single affected test file with PHPUnit. Use ParaTest when the affected tests span multiple files. Only run `composer fix` when changes could affect code beyond the affected tests; it already runs formatting, analysis, and all test suites, so do not run those checks separately first.
+Do not routinely run formatting or PHPStan during edits. Run targeted PHPStan earlier only when investigating a typing issue or when its feedback is needed to guide implementation.
 
-If a check fails, use targeted checks while correcting the issue, then run the failed check and each remaining check. Rerun an earlier check only if the correction could affect it.
+**At the end of a coherent implementation slice**, run `composer lint:fix`, `composer analyse`, and the affected tests, in that order. Use PHPUnit for one test file or `composer test:parallel -- --processes=4 tests/PackageName` for multiple files. Use `--filter` when needed to narrow the selection.
+
+Run the full test suite only when the change has framework-wide impact. In that case, use `composer fix`, which includes formatting, analysis and all test suites; do not run those checks separately first. For focused changes, include separate Testbench or dogfood checks when the changed behavior affects those workflows.
+
+After a failure or review correction, fix the cause, repeat only checks affected by the correction, and finish any outstanding verification. Do not restart the entire sequence merely because another review round occurred.
 
 ## Development Conventions
 
@@ -929,7 +934,7 @@ Update upstream test imports to point at the new Fixtures namespace.
 
 Tests for these features should be **removed** (not commented out) without asking — they will never be supported:
 
-- **Databases:** SQL Server, MongoDB, DynamoDB — Hypervel only supports MySQL, MariaDB, PostgreSQL, and SQLite
+- **Built-in database drivers:** SQL Server, MongoDB, DynamoDB are not provided. Hypervel ships MySQL, MariaDB, PostgreSQL, and SQLite drivers.
 - **Cache drivers:** Memcached, APC / APCu, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
 - **Container access:** ArrayAccess and dynamic service properties

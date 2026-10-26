@@ -50,7 +50,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The locale of the message.
      */
-    public string $locale = '';
+    public ?string $locale = null;
 
     /**
      * The person the message is from.
@@ -85,22 +85,22 @@ class Mailable implements MailableContract, Renderable
     /**
      * The Markdown template for the message (if applicable).
      */
-    public string $markdown;
+    public ?string $markdown = null;
 
     /**
      * The HTML to use for the message.
      */
-    protected string $html;
+    protected ?string $html = null;
 
     /**
      * The view to use for the message.
      */
-    public string $view;
+    public ?string $view = null;
 
     /**
      * The plain text view to use for the message.
      */
-    public string $textView;
+    public ?string $textView = null;
 
     /**
      * The view data for the message.
@@ -543,7 +543,7 @@ class Mailable implements MailableContract, Renderable
      *
      * @return $this
      */
-    public function locale(string $locale): static
+    public function locale(?string $locale): static
     {
         $this->locale = $locale;
 

@@ -434,6 +434,9 @@ class ConfigurationNormalizer
                     'messaging.client.consumed.messages' => true,
                     'messaging.process.duration' => true,
                     'hypervel.queue.jobs' => false,
+                    'hypervel.queue.outbox.delivered.messages' => true,
+                    'hypervel.queue.outbox.delivery.duration' => true,
+                    'hypervel.queue.outbox.delivery.latency' => true,
                 ],
             ],
             SchedulerInstrumentation::class => [

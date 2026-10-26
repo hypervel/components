@@ -116,6 +116,34 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
+    #[TestWith(['when', true, 'in:"allowed"'])]
+    #[TestWith(['when', false, 'in:"fallback"'])]
+    #[TestWith(['unless', true, 'in:"fallback"'])]
+    #[TestWith(['unless', false, 'in:"allowed"'])]
+    public function testConditionalRulesAcceptStringableRules(string $method, bool $condition, string $expected): void
+    {
+        $rule = Rule::{$method}($condition, Rule::in(['allowed']), Rule::in(['fallback']));
+
+        $rules = ValidationRuleParser::filterConditionalRules([
+            'direct' => $rule,
+            'nested' => [$rule],
+        ]);
+
+        $this->assertSame($expected, (string) $rules['direct'][0]);
+        $this->assertSame($expected, (string) $rules['nested'][0]);
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testConditionalRuleCallbacksReturnRuleLists(bool $condition): void
+    {
+        $rule = Rule::when($condition, fn () => 'required|min:2', fn () => 'nullable|max:10');
+
+        $this->assertSame([
+            'name' => $condition ? ['required', 'min:2'] : ['nullable', 'max:10'],
+        ], ValidationRuleParser::filterConditionalRules(['name' => $rule]));
+    }
+
     /**
      * Determine if the conditional test rules apply.
      */

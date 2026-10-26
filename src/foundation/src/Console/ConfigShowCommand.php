@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Arr;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'config:show')]
 class ConfigShowCommand extends Command
@@ -15,7 +16,8 @@ class ConfigShowCommand extends Command
     /**
      * The console command signature.
      */
-    protected ?string $signature = 'config:show {config : The configuration file or key to show}';
+    protected ?string $signature = 'config:show {config : The configuration file or key to show}
+                {--json : Output the configuration as JSON}';
 
     /**
      * The console command description.
@@ -40,6 +42,15 @@ class ConfigShowCommand extends Command
 
         if (! $this->config->has($config)) {
             $this->fail("Configuration file or key <comment>{$config}</comment> does not exist.");
+        }
+
+        if ($this->option('json')) {
+            $this->output->writeln(
+                json_encode($this->config->get($config), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+                OutputInterface::OUTPUT_RAW,
+            );
+
+            return self::SUCCESS;
         }
 
         $this->newLine();

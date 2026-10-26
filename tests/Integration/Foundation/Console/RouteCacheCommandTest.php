@@ -270,6 +270,28 @@ class RouteCacheCommandTest extends TestCase
         $this->assertSame('beta', $route->uri());
     }
 
+    public function testRouteCacheForwardsExplicitEnvironmentToItsBuildProcess(): void
+    {
+        $this->defineTestbenchRoutes(
+            <<<'PHP'
+            Route::get('/' . app()->environment(), fn () => 'ok')->name('environment.route');
+            PHP
+        );
+
+        $originalArguments = $_SERVER['argv'];
+        $_SERVER['argv'] = ['artisan', 'route:cache', '--env=doctor'];
+
+        try {
+            $this->artisan('route:cache')->assertSuccessful();
+
+            require $this->app->getCachedRoutesPath();
+
+            $this->assertSame('doctor', $this->app->make('router')->getRoutes()->getByName('environment.route')?->uri());
+        } finally {
+            $_SERVER['argv'] = $originalArguments;
+        }
+    }
+
     public function testRouteCacheSubprocessUsesTheParentsResolvedCachePath(): void
     {
         $previousCachePath = $_SERVER['APP_ROUTES_CACHE'] ?? null;

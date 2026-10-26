@@ -27,7 +27,7 @@ class DefineCacheRoutesTest extends TestCase
             return;
         }
 
-        $this->tearDown();
+        $this->tearDownTheTestbenchEnvironment();
 
         throw new RuntimeException('Application reload failed.');
     }

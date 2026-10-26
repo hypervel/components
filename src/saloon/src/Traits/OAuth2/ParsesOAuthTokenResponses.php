@@ -35,6 +35,26 @@ trait ParsesOAuthTokenResponses
     }
 
     /**
+     * Resolve the scopes reported by the provider.
+     *
+     * @return null|list<string>
+     */
+    protected function resolveOAuthScopes(mixed $scopes): ?array
+    {
+        if ($scopes === null || $scopes === '') {
+            return null;
+        }
+
+        if (! is_string($scopes)) {
+            throw new UnexpectedValueException('The OAuth token response contains invalid scopes.');
+        }
+
+        $resolved = array_values(array_filter(explode(' ', $scopes), static fn (string $scope): bool => $scope !== ''));
+
+        return $resolved === [] ? null : $resolved;
+    }
+
+    /**
      * Resolve an OAuth token expiry.
      */
     protected function resolveOAuthExpiry(mixed $expiresIn): ?CarbonImmutable

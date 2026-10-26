@@ -9,8 +9,6 @@ use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
-use Hypervel\Console\Events\ArtisanStarting;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Testbench\TestCase;
@@ -242,8 +240,7 @@ class ConsoleApplicationTest extends TestCase
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
-        $command = m::mock(SymfonyCommand::class);
-        $command->shouldNotReceive('setHypervel');
+        $command = new SymfonyCommand('foo');
         $artisan->expects($this->once())->method('addToParent')->with($command)->willReturn($command);
 
         $result = $artisan->add($command);
@@ -385,12 +382,7 @@ class ConsoleApplicationTest extends TestCase
 
     public function testCallFullyStringCommandLine(): void
     {
-        $app = $this->createApp(
-            m::mock(Application::class, [
-                'version' => '1.0',
-                'runningInConsole' => false,
-            ]),
-        );
+        $app = $this->createApp($this->app);
 
         $codeOfCallingArrayInput = $app->call('help', [
             '--raw' => true,
@@ -584,9 +576,7 @@ class ConsoleApplicationTest extends TestCase
     private function getMockConsole(array $methods): ConsoleApplication
     {
         $app = m::mock(Application::class, ['version' => '1.0']);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = new EventsDispatcher;
 
         return $this->getMockBuilder(ConsoleApplication::class)
             ->onlyMethods($methods)

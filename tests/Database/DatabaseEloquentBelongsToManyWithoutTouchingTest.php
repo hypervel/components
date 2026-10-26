@@ -7,42 +7,51 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
-use Hypervel\Database\Query\Builder as QueryBuilder;
-use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\SQLiteConnection;
+use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 {
+    use InteractsWithInMemoryConnection;
+
+    /**
+     * Create an in-memory connection with a user attached to an article.
+     */
+    protected function newConnection(): SQLiteConnection
+    {
+        $connection = $this->useInMemoryConnection();
+        $pdo = $connection->getPdo();
+        $pdo->exec('create table "users" ("id" integer primary key)');
+        $pdo->exec('create table "articles" ("id" integer primary key, "title" text, "updated_at" text)');
+        $pdo->exec('create table "article_user" ("user_id" integer, "article_id" integer)');
+        $pdo->exec('insert into "users" values (1)');
+        $pdo->exec("insert into \"articles\" values (1, 'title', null)");
+        $pdo->exec('insert into "article_user" values (1, 1)');
+
+        return $connection;
+    }
+
     public function testItWillNotTouchRelatedModelsWhenUpdatingChild(): void
     {
-        /** @var BelongsToManyWithoutTouchingArticle $related */
-        $related = m::mock(BelongsToManyWithoutTouchingArticle::class)->makePartial();
-        $related->shouldReceive('getUpdatedAtColumn')->never();
-        $related->shouldReceive('freshTimestampString')->never();
+        $connection = $this->newConnection();
+        $user = new BelongsToManyWithoutTouchingUser(['id' => 1]);
+        $builder = (new Builder($connection->query()))->setModel(new BelongsToManyWithoutTouchingArticle);
+        $relation = new BelongsToMany($builder, $user, 'article_user', 'user_id', 'article_id', 'id', 'id');
 
-        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertFalse(BelongsToManyWithoutTouchingArticle::isIgnoringTouch());
 
-        Model::withoutTouching(function () use ($related): void {
-            $this->assertTrue($related::isIgnoringTouch());
-
-            $builder = m::mock(Builder::class);
-            $builder->expects('join');
-            $parent = m::mock(BelongsToManyWithoutTouchingUser::class);
-
-            $parent->expects('getAttribute')->with('id')->andReturn(1);
-            $builder->expects('getModel')->andReturn($related);
-            $builder->expects('where');
-            $builder->expects('getQuery')->times(2)->andReturn(
-                m::mock(QueryBuilder::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
-            );
-            $relation = new BelongsToMany($builder, $parent, 'article_users', 'user_id', 'article_id', 'id', 'id');
-            $builder->shouldReceive('update')->never();
+        Model::withoutTouching(function () use ($relation): void {
+            $this->assertTrue(BelongsToManyWithoutTouchingArticle::isIgnoringTouch());
 
             $relation->touch();
         });
 
-        $this->assertFalse($related::isIgnoringTouch());
+        $this->assertNull($connection->scalar('select "updated_at" from "articles"'));
+
+        $relation->touch();
+
+        $this->assertNotNull($connection->scalar('select "updated_at" from "articles"'));
     }
 }
 
@@ -64,6 +73,8 @@ class BelongsToManyWithoutTouchingUser extends Model
 class BelongsToManyWithoutTouchingArticle extends Model
 {
     protected ?string $table = 'articles';
+
+    protected ?string $dateFormat = 'Y-m-d H:i:s';
 
     protected array $fillable = ['id', 'title'];
 

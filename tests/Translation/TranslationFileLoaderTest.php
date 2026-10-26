@@ -29,6 +29,36 @@ class TranslationFileLoaderTest extends TestCase
         $this->assertEquals(['foo' => 'bar', 'baz' => 'backagesplash'], $loader->load('en', 'messages'));
     }
 
+    public function testLoadMethodIgnoresLocalesAndGroupsContainingPathTraversal(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldNotReceive('exists');
+        $files->shouldNotReceive('getRequire');
+        $loader = new FileLoader($files, __DIR__);
+        $loader->addNamespace('namespace', __DIR__ . '/namespace');
+
+        // Hypervel rejects unsafe nonempty locales with an exception; see testInvalidLocalesAreRejectedBeforeFilesystemAccess().
+        $this->assertEquals([], $loader->load('', 'messages'));
+        $this->assertEquals([], $loader->load('', 'messages', 'namespace'));
+        $this->assertEquals([], $loader->load('', '*', '*'));
+        $this->assertEquals([], $loader->load('en', '../../secret/config'));
+        $this->assertEquals([], $loader->load('en', '..\secret\config'));
+        $this->assertEquals([], $loader->load('en', ''));
+        $this->assertEquals([], $loader->load('en', "messages\0"));
+        $this->assertEquals([], $loader->load('en', '../secret', 'namespace'));
+    }
+
+    public function testLoadMethodAllowsGroupsInSubdirectories(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $loader = new FileLoader($files, __DIR__);
+
+        $files->expects('exists')->with(__DIR__ . '/en/admin/messages.php')->andReturn(true);
+        $files->expects('getRequire')->with(__DIR__ . '/en/admin/messages.php')->andReturn(['foo' => 'bar']);
+
+        $this->assertEquals(['foo' => 'bar'], $loader->load('en', 'admin/messages'));
+    }
+
     public function testLoadMethodHandlesMissingAddedPath(): void
     {
         $files = m::mock(Filesystem::class);
@@ -168,17 +198,19 @@ class TranslationFileLoaderTest extends TestCase
     }
 
     #[DataProvider('invalidLocaleProvider')]
-    public function testInvalidLocalesAreRejectedBeforeFilesystemAccess(string $locale): void
+    public function testInvalidLocalesAreRejectedBeforeFilesystemAccess(string $locale, string $group = 'messages', ?string $namespace = null): void
     {
         $files = m::mock(Filesystem::class);
         $files->shouldReceive('exists')->never();
         $files->shouldReceive('get')->never();
         $files->shouldReceive('getRequire')->never();
+        $loader = new FileLoader($files, __DIR__);
+        $loader->addNamespace('namespace', __DIR__ . '/namespace');
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Invalid characters present in locale.');
 
-        (new FileLoader($files, __DIR__))->load($locale, 'messages');
+        $loader->load($locale, $group, $namespace);
     }
 
     /**
@@ -191,6 +223,12 @@ class TranslationFileLoaderTest extends TestCase
             'backslash' => ['en\US'],
             'current directory' => ['.'],
             'parent directory' => ['..'],
+            'parent directory prefix' => ['../secret', 'config'],
+            'backslash parent directory prefix' => ['..\secret', 'config'],
+            'parent directory with nested group' => ['..', 'secret/config'],
+            'null byte' => ["en\0"],
+            'namespaced group' => ['../secret', 'config', 'namespace'],
+            'json translations' => ['../secret', '*', '*'],
         ];
     }
 

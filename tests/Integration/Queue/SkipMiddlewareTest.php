@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Integration\Queue\SkipMiddlewareTest;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\Skip;
 use Hypervel\Testbench\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 
 class SkipMiddlewareTest extends TestCase
 {
@@ -96,16 +95,13 @@ class SkipMiddlewareTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($class),
         ]);
+
+        $this->assertTrue($job->isDeleted());
 
         $this->assertEquals($expectedHandledValue, $class::$handled);
     }

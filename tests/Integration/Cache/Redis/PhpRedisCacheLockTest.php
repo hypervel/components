@@ -47,6 +47,24 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
+    public function testRedisLockCanBeRefreshedWithPhpSerialization(): void
+    {
+        $this->configureLockConnection([
+            'serializer' => Redis::SERIALIZER_PHP,
+        ]);
+
+        $this->assertLockCanBeRefreshedWithExplicitTtl();
+    }
+
+    public function testRedisLockCanBeRefreshedWithJsonSerialization(): void
+    {
+        $this->configureLockConnection([
+            'serializer' => Redis::SERIALIZER_JSON,
+        ]);
+
+        $this->assertLockCanBeRefreshedWithExplicitTtl();
+    }
+
     public function testRedisLockCanBeAcquiredAndReleasedWithIgbinarySerialization(): void
     {
         if (! defined('Redis::SERIALIZER_IGBINARY')) {
@@ -182,5 +200,22 @@ class PhpRedisCacheLockTest extends TestCase
         $lock = $store->lock('foo', 10);
         $this->assertTrue($lock->get());
         $lock->forceRelease();
+    }
+
+    /**
+     * Assert that refreshing a lock with an explicit TTL extends its expiry.
+     */
+    protected function assertLockCanBeRefreshedWithExplicitTtl(): void
+    {
+        /** @var RedisStore $store */
+        $store = Cache::store('redis');
+
+        $store->lock('foo')->forceRelease();
+        $lock = $store->lock('foo', 10);
+        $this->assertTrue($lock->get());
+        $this->assertTrue($lock->refresh(30));
+        $this->assertGreaterThan(10, $store->lockConnection()->ttl($store->getPrefix() . 'foo'));
+        $lock->release();
+        $this->assertNull($store->lockConnection()->get($store->getPrefix() . 'foo'));
     }
 }

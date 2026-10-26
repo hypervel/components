@@ -185,6 +185,7 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
@@ -198,6 +199,7 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
@@ -211,6 +213,7 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -228,6 +231,7 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -245,6 +249,7 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
@@ -343,6 +348,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -365,6 +371,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -387,6 +394,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -412,6 +420,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {
@@ -437,6 +446,7 @@ class QueueDeferredQueueTest extends TestCase
 
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
         $transactionManager->shouldReceive('addCallback')
             ->once()
             ->andReturnUsing(function ($callback) {

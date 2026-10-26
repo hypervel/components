@@ -14,6 +14,7 @@ use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueRoutes;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -23,44 +24,33 @@ class BusDispatcherTest extends TestCase
     public function testCommandsThatShouldQueueIsQueued(): void
     {
         $container = new Container;
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getQueue')->andReturn(null);
-        $queueRoutes->expects('getConnection')->andReturn(null);
-        $container->instance('queue.routes', $queueRoutes);
+        $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
-        $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = m::mock(Queue::class);
-            $mock->expects('push');
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
-            return $mock;
-        });
+        $dispatcher->dispatch(new BusDispatcherQueueable);
 
-        $dispatcher->dispatch(m::mock(ShouldQueue::class));
+        $queue->assertPushedOnce(BusDispatcherQueueable::class);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomHandler(): void
     {
         $container = new Container;
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getConnection')->andReturn(null);
-        $container->instance('queue.routes', $queueRoutes);
+        $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
-        $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = m::mock(Queue::class);
-            $mock->expects('push');
-
-            return $mock;
-        });
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
         $dispatcher->dispatch(new BusDispatcherTestCustomQueueCommand);
+
+        $queue->assertPushedOnce(BusDispatcherTestCustomQueueCommand::class);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay(): void
     {
         $container = new Container;
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getConnection')->andReturn(null);
-        $container->instance('queue.routes', $queueRoutes);
+        $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function (): Queue {
             $mock = m::mock(Queue::class);
@@ -109,19 +99,17 @@ class BusDispatcherTest extends TestCase
     public function testCommandsAreDispatchedWithQueueRoute(): void
     {
         Container::setInstance($container = new Container);
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getQueue')->andReturn('high-priority');
-        $queueRoutes->expects('getConnection')->andReturn(null);
+        $queueRoutes = new QueueRoutes;
+        $queueRoutes->set(BusDispatcherQueueable::class, 'high-priority');
         $container->instance('queue.routes', $queueRoutes);
 
-        $mock = m::mock(Queue::class);
-        $mock->expects('push')->with(BusDispatcherQueueable::class, '', 'high-priority');
-
-        $dispatcher = new Dispatcher($container, function () use ($mock): Queue {
-            return $mock;
-        });
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
         $dispatcher->dispatch(new BusDispatcherQueueable);
+
+        $queue->assertPushedOnce(BusDispatcherQueueable::class);
+        $queue->assertPushedOn('high-priority', BusDispatcherQueueable::class);
     }
 
     public function testCommandsAreForwardedToConnectionByQueueName(): void
@@ -131,20 +119,20 @@ class BusDispatcherTest extends TestCase
         $queueRoutes->forward('reports', 'processing', 'cloud');
         $container->instance('queue.routes', $queueRoutes);
 
-        $mock = m::mock(Queue::class);
-        $mock->expects('push')->with(m::type(BusDispatcherQueueable::class), '', 'reports');
-
+        $queue = new QueueFake($container);
         $usedConnection = false;
 
-        $dispatcher = new Dispatcher($container, function (?string $connection) use ($mock, &$usedConnection): Queue {
+        $dispatcher = new Dispatcher($container, function (?string $connection) use ($queue, &$usedConnection): Queue {
             $usedConnection = $connection;
 
-            return $mock;
+            return $queue;
         });
 
         $dispatcher->dispatch((new BusDispatcherQueueable)->onQueue('reports'));
 
         $this->assertSame('cloud', $usedConnection);
+        $queue->assertPushedOnce(BusDispatcherQueueable::class);
+        $queue->assertPushedOn('reports', BusDispatcherQueueable::class);
     }
 
     public function testExplicitConnectionWinsOverForwardedQueue(): void
@@ -173,28 +161,26 @@ class BusDispatcherTest extends TestCase
     public function testDispatchNowShouldNeverQueue(): void
     {
         $container = new Container;
-        $mock = m::mock(Queue::class);
-        $mock->shouldReceive('push')->never();
-        $dispatcher = new Dispatcher($container, function () use ($mock): Queue {
-            return $mock;
-        });
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
         $dispatcher->dispatch(new BusDispatcherBasicCommand);
+
+        $queue->assertNothingPushed();
     }
 
     public function testDispatcherCanDispatchStandAloneHandler(): void
     {
         $container = new Container;
-        $mock = m::mock(Queue::class);
-        $dispatcher = new Dispatcher($container, function () use ($mock): Queue {
-            return $mock;
-        });
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
         $dispatcher->map([StandAloneCommand::class => StandAloneHandler::class]);
 
         $response = $dispatcher->dispatch(new StandAloneCommand);
 
         $this->assertInstanceOf(StandAloneCommand::class, $response);
+        $queue->assertNothingPushed();
     }
 
     public function testDisabledDispatchAfterResponseUsesExplicitHandler(): void
@@ -226,29 +212,22 @@ class BusDispatcherTest extends TestCase
                 ],
             ]);
         });
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getQueue')->andReturn(null);
-        $container->instance('queue.routes', $queueRoutes);
+        $container->instance('queue.routes', new QueueRoutes);
 
-        $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = m::mock(Queue::class);
-            $mock->expects('push');
-
-            return $mock;
-        });
+        $queue = new QueueFake($container);
+        $dispatcher = new Dispatcher($container, fn (): Queue => $queue);
 
         $job = (new ShouldNotBeDispatched)->onConnection('null');
 
         $dispatcher->dispatch($job);
+
+        $queue->assertPushedOnce(ShouldNotBeDispatched::class);
     }
 
     public function testDispatchBulk(): void
     {
         $container = new Container;
-        $queueRoutes = m::mock(QueueRoutes::class);
-        $queueRoutes->expects('getQueue')->times(2)->andReturn(null);
-        $queueRoutes->expects('getConnection')->times(3)->andReturn(null);
-        $container->instance('queue.routes', $queueRoutes);
+        $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
 
         $defaultQueue = m::mock(Queue::class);

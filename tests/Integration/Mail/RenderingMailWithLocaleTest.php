@@ -33,6 +33,20 @@ class RenderingMailWithLocaleTest extends TestCase
         $this->assertStringContainsString('name', $mail->render());
     }
 
+    public function testMailableViewsCanBeCleared(): void
+    {
+        $mail = (new Mailable)->markdown('missing')->view('missing')->text('view');
+        $mail->markdown = null;
+        $mail->view = null;
+
+        $this->assertStringContainsString('name', $mail->render());
+
+        $mail->textView = null;
+        $mail->view('view');
+
+        $this->assertStringContainsString('name', $mail->render());
+    }
+
     public function testMailableRendersInSelectedLocale(): void
     {
         $mail = (new RenderedTestMail)->locale('es');

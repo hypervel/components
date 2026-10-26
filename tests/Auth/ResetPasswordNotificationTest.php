@@ -8,8 +8,10 @@ use Hypervel\Auth\Notifications\ResetPassword;
 use Hypervel\Auth\Passwords\PasswordBroker;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Mail\Mailable;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use stdClass;
 
 #[WithConfig('auth.passwords.admins', [
     'driver' => 'database',
@@ -19,6 +21,14 @@ use Hypervel\Testbench\TestCase;
 ])]
 class ResetPasswordNotificationTest extends TestCase
 {
+    public function testMailCallbackCanReturnAMailable(): void
+    {
+        $mail = new Mailable;
+        ResetPassword::toMailUsing(fn (): Mailable => $mail);
+
+        $this->assertSame($mail, (new ResetPassword('token'))->toMail(new stdClass));
+    }
+
     public function testExpiryIsCapturedFromSendingBrokerContext(): void
     {
         CoroutineContext::set(PasswordBroker::SENDING_BROKER_CONTEXT_KEY, 'admins');

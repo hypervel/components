@@ -53,6 +53,14 @@ class GenericUserTest extends TestCase
         $this->assertSame('new', $user->getRememberToken());
     }
 
+    public function testRememberTokenCanBeCleared(): void
+    {
+        $user = new GenericUser(['id' => 1, 'remember_token' => 'old']);
+        $user->setRememberToken(null);
+
+        $this->assertNull($user->getRememberToken());
+    }
+
     public function testGetRememberTokenNameReturnsColumnName(): void
     {
         $user = new GenericUser(['id' => 1]);

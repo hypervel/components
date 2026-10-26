@@ -35,6 +35,10 @@ class RedisTagRepository implements TagRepository
      */
     public function monitored(array $tags): array
     {
+        if ($tags === []) {
+            return [];
+        }
+
         return array_intersect($tags, $this->monitoring());
     }
 

@@ -39,7 +39,7 @@ class Builder
     /**
      * The Blueprint resolver callback.
      *
-     * @var Closure(Connection, string, null|Closure): Blueprint
+     * @var null|(Closure(Connection, string, null|Closure): Blueprint)
      */
     protected ?Closure $resolver = null;
 

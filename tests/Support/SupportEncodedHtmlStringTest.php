@@ -6,16 +6,17 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Tests\TestCase;
+use Hypervel\View\InvokableComponentVariable;
 
 use function Hypervel\Coroutine\parallel;
 
 class SupportEncodedHtmlStringTest extends TestCase
 {
-    protected function tearDown(): void
+    public function testNumericAndDeferredValuesCanBeEncoded(): void
     {
-        EncodedHtmlString::flushState();
-
-        parent::tearDown();
+        $this->assertSame('42', (new EncodedHtmlString(42))->toHtml());
+        $this->assertSame('1.5', (new EncodedHtmlString(1.5))->toHtml());
+        $this->assertSame('42', (new EncodedHtmlString(new InvokableComponentVariable(fn () => 42)))->toHtml());
     }
 
     public function testScopedEncodingOverridesBootEncoderAndRestoresNestedState(): void

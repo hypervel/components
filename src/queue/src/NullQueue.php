@@ -158,6 +158,14 @@ class NullQueue extends Queue implements QueueContract
     }
 
     /**
+     * Keep inherited bulk dispatch a no-op even when jobs select the outbox.
+     */
+    protected function shouldStageViaOutbox(object|string $job): bool
+    {
+        return false;
+    }
+
+    /**
      * Pop the next job off of the queue.
      */
     public function pop(UnitEnum|string|null $queue = null): ?Job

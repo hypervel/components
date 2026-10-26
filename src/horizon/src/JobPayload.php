@@ -95,7 +95,10 @@ class JobPayload implements ArrayAccess
      */
     public function prepare(mixed $job): static
     {
-        return $this->prepareForQueueing($job)->markAsPushed();
+        return $this->set([
+            ...$this->queueingMetadata($job),
+            'pushedAt' => str_replace(',', '.', (string) microtime(true)),
+        ]);
     }
 
     /**
@@ -103,17 +106,27 @@ class JobPayload implements ArrayAccess
      */
     public function prepareForQueueing(mixed $job): static
     {
+        $metadata = $this->queueingMetadata($job);
+
+        return $metadata === [] ? $this : $this->set($metadata);
+    }
+
+    /**
+     * Determine classification metadata without replacing it on raw retries.
+     */
+    protected function queueingMetadata(mixed $job): array
+    {
         if ($job === null && isset($this->decoded['type'])) {
-            return $this;
+            return [];
         }
 
         $tags = $this->determineTags($job);
 
-        return $this->set([
+        return [
             'type' => $this->determineType($job),
             'tags' => $tags,
             'silenced' => $this->shouldBeSilenced($job, $tags),
-        ]);
+        ];
     }
 
     /**

@@ -392,9 +392,11 @@ class QueuePauseResumeTest extends TestCase
     {
         $this->manager->pause($queue, $connection);
         $this->assertTrue($this->manager->isPaused($queueName, $connectionName));
+        $this->assertTrue($this->manager->isPaused($queue, $connection));
 
         $this->manager->resume($queue, $connection);
         $this->assertFalse($this->manager->isPaused($queueName, $connectionName));
+        $this->assertFalse($this->manager->isPaused($queue, $connection));
 
         $this->manager->pauseFor($queue, 30, $connection);
         $this->assertTrue($this->manager->isPaused($queueName, $connectionName));
@@ -410,6 +412,15 @@ class QueuePauseResumeTest extends TestCase
             'integer zero' => [PauseQueueIntegerIdentifier::Zero, PauseQueueIntegerIdentifier::Zero, '0', '0'],
             'unit' => [PauseQueueUnitIdentifier::Emails, PauseQueueUnitIdentifier::Redis, 'Emails', 'Redis'],
         ];
+    }
+
+    public function testEnumsAreAcceptedWhenCheckingIfAQueueIsPaused(): void
+    {
+        $this->assertFalse($this->manager->isPaused(PauseQueueName::Emails, PauseQueueConnection::Redis));
+
+        $this->manager->pause('emails', 'redis');
+
+        $this->assertTrue($this->manager->isPaused(PauseQueueName::Emails, PauseQueueConnection::Redis));
     }
 }
 

@@ -55,6 +55,13 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
     protected ?StoredValueCache $cache;
 
     /**
+     * The callback that guards database writes.
+     *
+     * @var null|(Closure(?FeaturePartition): void)
+     */
+    protected ?Closure $writeGuard;
+
+    /**
      * The feature state resolvers.
      *
      * @var array<string, (callable(mixed): mixed)>
@@ -98,6 +105,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
      *
      * @param null|(Closure(): FeaturePartition) $partitionResolver
      * @param array<string, (callable(mixed $scope): mixed)> $featureStateResolvers
+     * @param null|(Closure(?FeaturePartition): void) $writeGuard
      */
     public function __construct(
         DatabaseManager $db,
@@ -106,6 +114,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
         ?Closure $partitionResolver,
         ?StoredValueCache $cache,
         array $featureStateResolvers,
+        ?Closure $writeGuard = null,
     ) {
         $this->db = $db;
         $this->connection = $connection;
@@ -113,6 +122,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
         $this->partitionResolver = $partitionResolver;
         $this->cache = $cache;
         $this->featureStateResolvers = $featureStateResolvers;
+        $this->writeGuard = $writeGuard;
 
         $this->unknownFeatureValue = new stdClass;
     }
@@ -378,6 +388,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
     public function set(string $feature, mixed $scope, mixed $value): void
     {
         $partition = $this->partition();
+        $this->writeGuard?->__invoke($partition);
         $scope = Feature::serializeScope($scope);
         $now = CarbonImmutable::now();
 
@@ -402,6 +413,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
         }
 
         $partition = $this->partition();
+        $this->writeGuard?->__invoke($partition);
         $now = CarbonImmutable::now();
         $rows = [];
         $scopes = [];
@@ -441,6 +453,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
     public function setForAllScopes(string $feature, mixed $value): void
     {
         $partition = $this->partition();
+        $this->writeGuard?->__invoke($partition);
 
         $this->newPartitionQuery($partition)
             ->where('name', $feature)
@@ -467,6 +480,11 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
      */
     protected function insertMany(?FeaturePartition $partition, array $pairs): array
     {
+        // Unknown features do not write. Guard known values before their resolvers or events run.
+        if ($this->writeGuard !== null && array_intersect_key($pairs, $this->featureStateResolvers) !== []) {
+            ($this->writeGuard)($partition);
+        }
+
         $values = [];
         $stored = [];
 
@@ -609,6 +627,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
     public function delete(string $feature, mixed $scope): void
     {
         $partition = $this->partition();
+        $this->writeGuard?->__invoke($partition);
         $scope = Feature::serializeScope($scope);
 
         $this->newPartitionQuery($partition)
@@ -630,6 +649,7 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
         }
 
         $partition = $this->partition();
+        $this->writeGuard?->__invoke($partition);
 
         if ($features === null) {
             $this->newPartitionQuery($partition)->delete();
@@ -640,6 +660,14 @@ class DatabaseDriver implements CanListStoredFeatures, CanSetManyFeaturesForScop
         }
 
         $this->invalidate($partition);
+    }
+
+    /**
+     * Invalidate the current partition's shared cached values after the transaction commits.
+     */
+    public function flushSharedCache(): void
+    {
+        $this->invalidate($this->partition());
     }
 
     /**

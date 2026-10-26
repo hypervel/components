@@ -44,17 +44,37 @@ class AboutCommandTest extends TestCase
         }
     }
 
+    #[WithEnv('APP_URL', 'http://localhost')]
     public function testItCanDisplayAboutCommandAsJson(): void
     {
         $process = remote('about --json', ['APP_ENV' => 'local', 'APP_DEBUG' => 'true'])->mustRun();
 
         tap(json_decode($process->getOutput(), true), function (array $output): void {
             Assert::assertArraySubset([
+                'application_name' => 'Testbench',
                 'php_version' => PHP_VERSION,
                 'swoole_version' => swoole_version(),
                 'environment' => 'local',
                 'debug_mode' => true,
+                'url' => 'localhost',
+                'maintenance_mode' => false,
             ], $output['environment']);
+
+            Assert::assertArraySubset([
+                'config' => false,
+                'events' => false,
+                'routes' => false,
+            ], $output['cache']);
+
+            Assert::assertArraySubset([
+                'broadcasting' => 'log',
+                'cache' => 'database',
+                'database' => 'testing',
+                'logs' => ['single'],
+                'mail' => 'log',
+                'queue' => 'sync',
+                'session' => 'cookie',
+            ], $output['drivers']);
         });
     }
 

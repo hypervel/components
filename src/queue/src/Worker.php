@@ -597,6 +597,12 @@ class Worker
      */
     protected function handleTimeoutJob(JobContract $job, WorkerOptions $options): void
     {
+        try {
+            $this->notifyJobOfSignal($job, SIGALRM);
+        } catch (Throwable $exception) {
+            $this->exceptions->report($exception);
+        }
+
         $this->markJobAsFailedIfWillExceedMaxAttempts(
             $job->getConnectionName(),
             $job,
@@ -943,7 +949,13 @@ class Worker
             // Here we will fire off the job and let it process. We will catch any exceptions, so
             // they can be reported to the developer's logs, etc. Once the job is finished the
             // proper events will be fired to let any listeners know this job has completed.
-            $job->fire();
+            $startedAt = $this->currentTime();
+
+            try {
+                $job->fire();
+            } finally {
+                $duration = round(($this->currentTime() - $startedAt) * 1000, 2);
+            }
 
             // The monitor has already handled this timeout; do not report normal completion.
             if (isset($this->timeoutJobIds[$runningJobId])) {
@@ -952,7 +964,7 @@ class Worker
                 return;
             }
 
-            $this->raiseAfterJobEvent($connectionName, $job);
+            $this->raiseAfterJobEvent($connectionName, $job, $duration);
 
             if ($job->isReleased() && ! $job->isDeleted() && $this->events->hasListeners(JobReleased::class)) {
                 $this->events->dispatch(new JobReleased(
@@ -994,7 +1006,8 @@ class Worker
                     $this->events->dispatch(new JobAttempted(
                         $connectionName,
                         $job,
-                        $exceptionOccurred ?? null
+                        $exceptionOccurred ?? null,
+                        $duration ?? null
                     ));
                 }
 
@@ -1254,12 +1267,13 @@ class Worker
     /**
      * Raise the after queue job event.
      */
-    protected function raiseAfterJobEvent(string $connectionName, JobContract $job): void
+    protected function raiseAfterJobEvent(string $connectionName, JobContract $job, ?float $duration = null): void
     {
         if ($this->events->hasListeners(JobProcessed::class)) {
             $this->events->dispatch(new JobProcessed(
                 $connectionName,
-                $job
+                $job,
+                $duration
             ));
         }
     }
@@ -1377,33 +1391,38 @@ class Worker
     protected function notifyJobsOfSignal(int $signal): void
     {
         foreach ($this->runningJobs as $runningJob) {
-            /** @var JobContract $job */
-            $job = $runningJob['job'];
+            $this->notifyJobOfSignal($runningJob['job'], $signal);
+        }
+    }
 
-            $getResolvedJob = [$job, 'getResolvedJob'];
+    /**
+     * Pass the signal to the given job.
+     */
+    protected function notifyJobOfSignal(JobContract $job, int $signal): void
+    {
+        $getResolvedJob = [$job, 'getResolvedJob'];
 
-            if (! is_callable($getResolvedJob)) {
-                continue;
-            }
+        if (! is_callable($getResolvedJob)) {
+            return;
+        }
 
-            $handler = $getResolvedJob();
+        $handler = $getResolvedJob();
 
-            if (! $handler instanceof CallQueuedHandler) {
-                continue;
-            }
+        if (! $handler instanceof CallQueuedHandler) {
+            return;
+        }
 
-            $command = $handler->getRunningCommand();
+        $command = $handler->getRunningCommand();
 
-            if ($command instanceof Interruptible) {
-                $command->interrupted($signal);
+        if ($command instanceof Interruptible) {
+            $command->interrupted($signal);
 
-                if ($this->events->hasListeners(JobInterrupted::class)) {
-                    $this->events->dispatch(new JobInterrupted(
-                        $job->getConnectionName(),
-                        $job,
-                        $signal,
-                    ));
-                }
+            if ($this->events->hasListeners(JobInterrupted::class)) {
+                $this->events->dispatch(new JobInterrupted(
+                    $job->getConnectionName(),
+                    $job,
+                    $signal,
+                ));
             }
         }
     }

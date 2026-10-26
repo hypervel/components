@@ -267,6 +267,7 @@ class CommanderTest extends TestCase
                 '0001_01_01_000006_testbench_create_jobs_table',
                 '0001_01_01_000007_testbench_create_failed_jobs_table',
                 '0001_01_01_000008_testbench_create_rate_limits_table',
+                '0001_01_01_000009_testbench_create_job_outbox_table',
                 '2013_07_26_182750_create_testbench_users_table',
             ], DB::connection('sqlite')->table('migrations')->pluck('migration')->all());
         });

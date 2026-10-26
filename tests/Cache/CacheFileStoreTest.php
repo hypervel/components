@@ -9,7 +9,6 @@ use Exception;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
-use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\CarbonImmutable;
@@ -54,9 +53,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testNullIsReturnedIfFileDoesntExist(): void
     {
-        $files = $this->mockFilesystem();
-        $files->expects($this->once())->method('get')->willThrowException(new FileNotFoundException);
-        $store = new FileStore($files, __DIR__);
+        $store = new FileStore($this->filesystem, $this->tempDir);
         $value = $store->get('foo');
         $this->assertNull($value);
     }
@@ -165,21 +162,22 @@ class CacheFileStoreTest extends TestCase
 
     public function testExpiredItemsReturnNullAndGetDeleted(): void
     {
-        $files = $this->mockFilesystem();
-        $contents = '0000000000';
-        $files->expects($this->once())->method('get')->willReturn($contents);
-        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['forget'])->setConstructorArgs([$files, __DIR__])->getMock();
-        $store->expects($this->once())->method('forget');
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $path = $store->path('foo');
+        $this->filesystem->makeDirectory(dirname($path), 0777, true, true);
+        file_put_contents($path, '0000000000');
+
         $value = $store->get('foo');
+
         $this->assertNull($value);
+        $this->assertFileDoesNotExist($path);
     }
 
     public function testValidItemReturnsContents(): void
     {
-        $files = $this->mockFilesystem();
-        $contents = '9999999999' . serialize('Hello World');
-        $files->expects($this->once())->method('get')->willReturn($contents);
-        $store = new FileStore($files, __DIR__);
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $store->put('foo', 'Hello World', 10);
+
         $this->assertSame('Hello World', $store->get('foo'));
     }
 
@@ -284,10 +282,12 @@ class CacheFileStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
 
-        $files = $this->mockFilesystem();
-        $files->expects($this->once())->method('get')->willReturn('0990464403' . serialize('Hello World'));
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $path = $store->path('foo');
+        $this->filesystem->makeDirectory(dirname($path), 0777, true, true);
+        file_put_contents($path, '0990464403' . serialize('Hello World'));
 
-        $this->assertSame('Hello World', (new FileStore($files, __DIR__))->get('foo'));
+        $this->assertSame('Hello World', $store->get('foo'));
     }
 
     public function testFractionalSecondWritesPreserveTheRequestedValueAndLockLifetime(): void
@@ -544,6 +544,9 @@ class CacheFileStoreTest extends TestCase
         $this->assertTrue($store->forever('counter', 1));
         $this->assertSame(2, $store->increment('counter'));
         $this->assertStringStartsWith('9999999999', file_get_contents($store->path('counter')));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYears(100));
+
         $this->assertSame(2, $store->get('counter'));
     }
 
@@ -739,7 +742,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testHasSeparateLockStoreReturnsTrueWhenLockDirectoryDiffers(): void
     {
-        $store = new FileStore(new Filesystem, __DIR__);
+        $store = new FileStore(new Filesystem, $this->tempDir);
         $store->setLockDirectory('/locks');
 
         $this->assertTrue($store->hasSeparateLockStore());
@@ -747,15 +750,15 @@ class CacheFileStoreTest extends TestCase
 
     public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsSame(): void
     {
-        $store = new FileStore(new Filesystem, __DIR__);
-        $store->setLockDirectory(__DIR__);
+        $store = new FileStore(new Filesystem, $this->tempDir);
+        $store->setLockDirectory($this->tempDir);
 
         $this->assertFalse($store->hasSeparateLockStore());
     }
 
     public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsNull(): void
     {
-        $store = new FileStore(new Filesystem, __DIR__);
+        $store = new FileStore(new Filesystem, $this->tempDir);
         $store->setLockDirectory(null);
 
         $this->assertFalse($store->hasSeparateLockStore());
@@ -763,7 +766,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testSupportsFlushingLocksRequiresSeparateLockDirectory(): void
     {
-        $store = new FileStore(new Filesystem, __DIR__);
+        $store = new FileStore(new Filesystem, $this->tempDir);
 
         $this->assertFalse($store->supportsFlushingLocks());
 
@@ -774,8 +777,8 @@ class CacheFileStoreTest extends TestCase
 
     public function testFlushLocksThrowsExceptionWhenLockDirectoryIsSame(): void
     {
-        $store = new FileStore(new Filesystem, __DIR__);
-        $store->setLockDirectory(__DIR__);
+        $store = new FileStore(new Filesystem, $this->tempDir);
+        $store->setLockDirectory($this->tempDir);
 
         $this->expectException(RuntimeException::class);
 

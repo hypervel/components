@@ -13,6 +13,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'queue:monitor')]
 class MonitorCommand extends Command
@@ -51,7 +52,7 @@ class MonitorCommand extends Command
         if ($this->option('json')) {
             $this->output->writeln($queues->map(fn (array $queue): array => array_merge($queue, [
                 'status' => str_contains($queue['status'], 'ALERT') ? 'ALERT' : 'OK',
-            ]))->toJson());
+            ]))->toJson(), OutputInterface::OUTPUT_RAW);
         } else {
             $this->displaySizes($queues);
         }

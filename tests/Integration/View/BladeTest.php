@@ -237,6 +237,23 @@ class BladeTest extends TestCase
 </div>', trim($content));
     }
 
+    public function testDynamicComponentSlotAttributesAreNotCompiledAsBlade(): void
+    {
+        $payload = '{{ 7191 * 2 }}';
+
+        $static = Blade::render('<x-input-with-slot>
+    <x-slot:input :data-x="$payload">Test</x-slot:input>
+</x-input-with-slot>', ['payload' => $payload]);
+
+        $dynamic = Blade::render('<x-dynamic-component component="input-with-slot">
+    <x-slot:input :data-x="$payload">Test</x-slot:input>
+</x-dynamic-component>', ['payload' => $payload]);
+
+        $this->assertStringContainsString('data-x="{{ 7191 * 2 }}"', $static);
+        $this->assertStringNotContainsString('14382', $dynamic);
+        $this->assertSame(trim($static), trim($dynamic));
+    }
+
     public function testNoNamePassedToSlotUsesDefaultName(): void
     {
         $content = Blade::render('<x-link href="#"><x-slot>default slot</x-slot></x-link>');

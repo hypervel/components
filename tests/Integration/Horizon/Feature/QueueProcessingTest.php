@@ -15,7 +15,6 @@ use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
 use Hypervel\Horizon\Events\RedisEvent;
 use Hypervel\Horizon\RedisQueue;
-use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Redis\Exceptions\LuaScriptException;
@@ -229,28 +228,6 @@ class QueueProcessingTest extends IntegrationTestCase
         $this->assertSame(0, $pushed);
     }
 
-    public function testPayloadPreparationFailureStillConsumesThePreviousJob(): void
-    {
-        $queue = new RedisQueueWithExposedLastPushed(
-            app('redis'),
-            'default',
-            'default',
-        );
-        $queue->setContainer($this->app)->setConnectionName('redis');
-        $queue->rememberLastPushed(new BasicJob);
-
-        try {
-            $queue->pushRaw('{invalid');
-            $this->fail('Expected the invalid payload to be rejected.');
-        } catch (InvalidPayloadException) {
-        }
-
-        $queue->pushRaw('{"id":"raw-after-failure","displayName":"Raw Job"}');
-
-        $payload = json_decode(Redis::connection('horizon')->hget('raw-after-failure', 'payload'), true);
-        $this->assertSame([], $payload['tags']);
-    }
-
     public function testPendingJobsAreStoredWithTheirTags(): void
     {
         $id = Queue::push(new BasicJob);
@@ -340,17 +317,6 @@ class QueueProcessingTest extends IntegrationTestCase
     private function getQueueRedisKey(RedisQueue $queue, ?string $name = null): string
     {
         return (new ReflectionMethod($queue, 'getQueueRedisKey'))->invoke($queue, $name);
-    }
-}
-
-class RedisQueueWithExposedLastPushed extends RedisQueue
-{
-    /**
-     * Set the job used to prepare the next payload.
-     */
-    public function rememberLastPushed(object|string $job): void
-    {
-        $this->setLastPushed($job);
     }
 }
 

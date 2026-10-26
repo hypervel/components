@@ -14,7 +14,9 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -153,10 +155,7 @@ class BusPendingBatchTest extends TestCase
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnTrue();
-        $eventDispatcher->expects('dispatch')->with(m::type(BatchDispatched::class));
-
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -189,6 +188,8 @@ class BusPendingBatchTest extends TestCase
         $container->instance(BatchRepository::class, $repository);
 
         $pendingBatch->dispatch();
+
+        $eventDispatcher->assertDispatchedOnce(BatchDispatched::class);
     }
 
     public function testBatchDispatchedEventIsSkippedWithoutListeners(): void
@@ -273,9 +274,7 @@ class BusPendingBatchTest extends TestCase
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnTrue();
-        $eventDispatcher->expects('dispatch')->with(m::type(BatchDispatched::class));
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -295,14 +294,15 @@ class BusPendingBatchTest extends TestCase
         $result = $pendingBatch->dispatchIf(true);
 
         $this->assertInstanceOf(Batch::class, $result);
+
+        $eventDispatcher->assertDispatchedOnce(BatchDispatched::class);
     }
 
     public function testBatchIsNotDispatchedWhenDispatchifIsFalse(): void
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldNotReceive('dispatch');
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -317,15 +317,15 @@ class BusPendingBatchTest extends TestCase
         $result = $pendingBatch->dispatchIf(false);
 
         $this->assertNull($result);
+
+        $eventDispatcher->assertNothingDispatched();
     }
 
     public function testBatchIsDispatchedWhenDispatchunlessIsFalse(): void
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnTrue();
-        $eventDispatcher->expects('dispatch')->with(m::type(BatchDispatched::class));
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -345,14 +345,15 @@ class BusPendingBatchTest extends TestCase
         $result = $pendingBatch->dispatchUnless(false);
 
         $this->assertInstanceOf(Batch::class, $result);
+
+        $eventDispatcher->assertDispatchedOnce(BatchDispatched::class);
     }
 
     public function testBatchIsNotDispatchedWhenDispatchunlessIsTrue(): void
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldNotReceive('dispatch');
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -367,16 +368,15 @@ class BusPendingBatchTest extends TestCase
         $result = $pendingBatch->dispatchUnless(true);
 
         $this->assertNull($result);
+
+        $eventDispatcher->assertNothingDispatched();
     }
 
     public function testBatchBeforeEventIsCalled(): void
     {
         $container = new Container;
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->expects('hasListeners')->with(BatchDispatched::class)->andReturnTrue();
-        $eventDispatcher->expects('dispatch')->with(m::type(BatchDispatched::class));
-
+        $eventDispatcher = new EventFake(new EventsDispatcher);
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -402,6 +402,8 @@ class BusPendingBatchTest extends TestCase
         $pendingBatch->dispatch();
 
         $this->assertTrue($beforeCalled);
+
+        $eventDispatcher->assertDispatchedOnce(BatchDispatched::class);
     }
 
     public function testItThrowsExceptionIfBatchedJobIsNotBatchable(): void

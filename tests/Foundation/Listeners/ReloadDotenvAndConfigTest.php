@@ -77,6 +77,43 @@ class ReloadDotenvAndConfigTest extends TestCase
         $this->assertNull(Env::get('APP_NAME'));
     }
 
+    public function testWorkerReloadUsesCurrentCacheFileInsteadOfPreviousBootstrapState(): void
+    {
+        $root = ParallelTesting::tempDir('ReloadDotenvAndConfigTest-cache');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($root);
+        $filesystem->ensureDirectoryExists($root . '/config');
+        $filesystem->ensureDirectoryExists($root . '/bootstrap/cache');
+
+        try {
+            $filesystem->put($root . '/.env', "DOCTOR_WORKER_VALUE=from-file\n");
+            $filesystem->put($root . '/config/worker.php', "<?php return ['value' => env('DOCTOR_WORKER_VALUE', 'missing')];\n");
+            $app = new Application($root);
+            (new LoadConfiguration)->bootstrap($app);
+            $this->assertFalse($app->configurationIsCached());
+
+            $cached = $app->make(Repository::class)->all();
+            $cached['worker']['value'] = 'cached';
+            $filesystem->put($app->getCachedConfigPath(), '<?php return ' . var_export($cached, true) . ';');
+
+            $listener = $app->make(ReloadDotenvAndConfig::class);
+            $listener->handle(m::mock(BeforeWorkerStart::class));
+
+            $this->assertNull(Env::get('DOCTOR_WORKER_VALUE'));
+            $this->assertSame('cached', $app->make(Repository::class)->get('worker.value'));
+            $this->assertTrue($app->configurationIsCached());
+
+            $filesystem->delete($app->getCachedConfigPath());
+            $listener->handle(m::mock(BeforeWorkerStart::class));
+
+            $this->assertSame('from-file', Env::get('DOCTOR_WORKER_VALUE'));
+            $this->assertSame('from-file', $app->make(Repository::class)->get('worker.value'));
+            $this->assertFalse($app->configurationIsCached());
+        } finally {
+            $filesystem->deleteDirectory($root);
+        }
+    }
+
     public function testReloadPreservesRepositoryIdentityAndMutationsMadeBeforeListenerResolution(): void
     {
         $app = $this->createApp();

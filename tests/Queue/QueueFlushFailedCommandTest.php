@@ -32,10 +32,10 @@ class QueueFlushFailedCommandTest extends TestCase
     }
 
     #[DataProvider('retentionOptions')]
-    public function testFlushesFailedJobs(array $options, ?int $hours, string $message): void
+    public function testFlushesFailedJobs(array $options, ?int $hours, ?string $queue, string $message): void
     {
         $provider = m::mock(FailedJobProviderInterface::class);
-        $provider->expects('flush')->with($hours);
+        $provider->expects('flush')->with($hours, $queue);
         $app = new Application;
         $app->instance(FailedJobProviderInterface::class, $provider);
         $command = new FlushFailedCommand;
@@ -52,8 +52,11 @@ class QueueFlushFailedCommandTest extends TestCase
     public static function retentionOptions(): array
     {
         return [
-            [[], null, 'All failed jobs deleted successfully.'],
-            [['--hours' => '48'], 48, 'All jobs that failed more than 48 hours ago have been deleted successfully.'],
+            [[], null, null, 'All failed jobs deleted successfully.'],
+            [['--hours' => '48'], 48, null, 'All jobs that failed more than 48 hours ago have been deleted successfully.'],
+            [['--queue' => 'emails'], null, 'emails', 'All failed jobs on the [emails] queue have been deleted successfully.'],
+            [['--queue' => '0'], null, '0', 'All failed jobs on the [0] queue have been deleted successfully.'],
+            [['--hours' => '48', '--queue' => 'emails'], 48, 'emails', 'All jobs on the [emails] queue that failed more than 48 hours ago have been deleted successfully.'],
         ];
     }
 }

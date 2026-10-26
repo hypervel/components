@@ -9,6 +9,8 @@ use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
@@ -166,7 +168,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyPopsJobOffOfSqs(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerContract::class));
+        $queue->setContainer(new Container);
         $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->expects('receiveMessage')->with(['QueueUrl' => $this->queueUrl, 'MessageSystemAttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveMessageResponseModel);
@@ -177,7 +179,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyHandlesEmptyMessage(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerContract::class));
+        $queue->setContainer(new Container);
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->expects('receiveMessage')->with(['QueueUrl' => $this->queueUrl, 'MessageSystemAttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveEmptyMessageResponseModel);
         $result = $queue->pop($this->queueName);
@@ -1341,14 +1343,11 @@ class QueueSqsQueueTest extends TestCase
 
     public function testClearFlushesOverflowStoreWhenFlushOnClearEnabled(): void
     {
-        $store = m::mock(CacheStore::class);
-        $store->expects('flush')->andReturnTrue();
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->expects('getStore')->andReturn($store);
+        $store = new Repository(new ArrayStore);
+        $store->put('foo', 'bar');
 
         $cache = m::mock(CacheFactory::class);
-        $cache->expects('store')->with('database')->andReturn($repository);
+        $cache->expects('store')->with('database')->andReturn($store);
 
         $container = m::mock(ContainerContract::class);
         $container->expects('make')->with('cache')->andReturn($cache);
@@ -1371,6 +1370,8 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
 
         $this->assertSame(5, $queue->clear($this->queueName));
+
+        $this->assertNull($store->get('foo'));
     }
 
     public function testClearFailsWhenTheOverflowStoreCannotBeFlushed(): void
@@ -1462,14 +1463,11 @@ class QueueSqsQueueTest extends TestCase
 
     public function testClearForwardsConfiguredStoreNameToFactory(): void
     {
-        $store = m::mock(CacheStore::class);
-        $store->expects('flush')->andReturnTrue();
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->expects('getStore')->andReturn($store);
+        $store = new Repository(new ArrayStore);
+        $store->put('foo', 'bar');
 
         $cache = m::mock(CacheFactory::class);
-        $cache->expects('store')->with('redis')->andReturn($repository);
+        $cache->expects('store')->with('redis')->andReturn($store);
 
         $container = m::mock(ContainerContract::class);
         $container->expects('make')->with('cache')->andReturn($cache);
@@ -1492,6 +1490,8 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
 
         $this->assertSame(5, $queue->clear($this->queueName));
+
+        $this->assertNull($store->get('foo'));
     }
 
     public function testBulkRejectsDelayAttributeOnFifoBeforePayloadCreation(): void

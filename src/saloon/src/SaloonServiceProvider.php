@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon;
 
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
+use DateTimeImmutable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
@@ -18,8 +20,12 @@ use Hypervel\Saloon\Console\Commands\MakeConnector;
 use Hypervel\Saloon\Console\Commands\MakePlugin;
 use Hypervel\Saloon\Console\Commands\MakeRequest;
 use Hypervel\Saloon\Console\Commands\MakeResponse;
+use Hypervel\Saloon\Console\Commands\OAuthAccountsTableCommand;
+use Hypervel\Saloon\Data\CachedToken;
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
 use Hypervel\Saloon\Http\RequestOptionValidator;
 use Hypervel\Saloon\Http\Sender;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ServiceProvider;
 
 class SaloonServiceProvider extends ServiceProvider
@@ -54,8 +60,15 @@ class SaloonServiceProvider extends ServiceProvider
      */
     public function boot(HttpFactory $httpFactory, ConfigRepository $config, CacheManager $cache): void
     {
-        // Cached responses are stored as CachedResponse objects, which serializing stores must be allowed to restore.
-        $cache->allowSerializableClassesUsing(static fn (): array => [CachedResponse::class]);
+        $cache->allowSerializableClassesUsing(static fn (): array => [
+            CachedResponse::class,
+            CachedToken::class,
+            AccessTokenAuthenticator::class,
+            DateTimeImmutable::class,
+            BaseCarbonImmutable::class,
+            CarbonImmutable::class,
+            OAuthAccounts::accountModel(),
+        ]);
 
         $connection = $config->string('saloon.connection.name');
         $options = $config->array('saloon.connection.options');
@@ -89,6 +102,7 @@ class SaloonServiceProvider extends ServiceProvider
             MakePlugin::class,
             MakeRequest::class,
             MakeResponse::class,
+            OAuthAccountsTableCommand::class,
         ]);
 
         $this->publishes([

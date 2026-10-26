@@ -43,7 +43,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static bool preventingStrayRequests()
  * @method static \GuzzleHttp\Psr7\Response psr7Response(null|array|resource|\Psr\Http\Message\StreamInterface|string $body = null, int $status = 200, array $headers = [])
  * @method static \Hypervel\Http\Client\Factory record()
- * @method static \Hypervel\Support\Collection recorded(callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection recorded(null|callable $callback = null)
  * @method static void recordRequestResponsePair(\Hypervel\Http\Client\Request $request, \Hypervel\Http\Client\Response|null $response)
  * @method static \Hypervel\Http\Client\Factory registerConnection(string $name, array $config = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface response(null|array|resource|\Psr\Http\Message\StreamInterface|string $body = null, int $status = 200, array $headers = [])

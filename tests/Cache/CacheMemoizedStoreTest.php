@@ -13,12 +13,15 @@ use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\SessionStore;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Session\ArraySessionHandler;
+use Hypervel\Session\Store as Session;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -410,7 +413,7 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testFlushLocksThrowsWhenUnderlyingStoreDoesNotSupportIt(): void
     {
-        $store = m::mock(Store::class);
+        $store = new SessionStore(new Session('test', new ArraySessionHandler(10)));
 
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessageIs(sprintf(

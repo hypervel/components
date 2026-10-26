@@ -155,6 +155,13 @@ class Handler implements ExceptionHandlerContract
     protected $finalizeResponseCallback;
 
     /**
+     * The callbacks invoked before final response customization.
+     *
+     * @var array<int, Closure(SymfonyResponse, Throwable, Request): mixed>
+     */
+    protected array $beforeRespondingCallbacks = [];
+
+    /**
      * The registered exception mappings.
      *
      * @var array<string, Closure>
@@ -847,9 +854,28 @@ class Handler implements ExceptionHandlerContract
             }
         }
 
+        foreach ($this->beforeRespondingCallbacks as $callback) {
+            $callback($response, $e, $request);
+        }
+
         return $this->finalizeResponseCallback
             ? call_user_func($this->finalizeResponseCallback, $response, $e, $request)
             : $response;
+    }
+
+    /**
+     * Register a callback before final exception response customization.
+     *
+     * Boot-only. The callback is shared by every request in the worker.
+     * Callback return values are ignored.
+     *
+     * @param callable(SymfonyResponse, Throwable, Request): mixed $callback
+     */
+    public function beforeResponding(callable $callback): static
+    {
+        $this->beforeRespondingCallbacks[] = Closure::fromCallable($callback);
+
+        return $this;
     }
 
     /**
@@ -997,8 +1023,10 @@ class Handler implements ExceptionHandlerContract
         $redirect = redirect($exception->redirectTo ?? url()->previous());
 
         if (CoroutineContext::get(Store::CONTEXT_KEY)) {
+            $errorBag = $request->input('_error_bag');
+
             $redirect->withInput(Arr::except($request->input(), $this->dontFlash))
-                ->withErrors($exception->errors(), $request->input('_error_bag', $exception->errorBag));
+                ->withErrors($exception->errors(), is_string($errorBag) ? $errorBag : $exception->errorBag);
         }
 
         return $redirect;

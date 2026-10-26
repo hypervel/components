@@ -21,12 +21,15 @@ use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
+use Pheanstalk\Exception\TubeNotFoundException;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\ServerStats;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use Pheanstalk\Values\TubeStats;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Symfony\Component\Uid\Uuid;
 
 class QueueBeanstalkdQueueTest extends TestCase
@@ -72,6 +75,35 @@ class QueueBeanstalkdQueueTest extends TestCase
             ));
 
         $this->assertSame(12, $this->queue->size('stack'));
+    }
+
+    #[DataProvider('tubeCountMethods')]
+    public function testAnAbsentTubeHasNoJobs(string $method): void
+    {
+        $this->setQueue('default', 60);
+        $this->queue->getPheanstalk()->shouldReceive('statsTube')
+            ->once()->andThrow(new TubeNotFoundException(new TubeName('unused')));
+
+        $this->assertSame(0, $this->queue->{$method}('unused'));
+    }
+
+    /**
+     * Provide queue size methods backed by tube statistics.
+     */
+    public static function tubeCountMethods(): array
+    {
+        return [['size'], ['pendingSize'], ['delayedSize'], ['reservedSize']];
+    }
+
+    public function testTubeStatisticsDoNotHideConnectionFailures(): void
+    {
+        $this->setQueue('default', 60);
+        $failure = new RuntimeException('Beanstalkd connection failed.');
+        $this->queue->getPheanstalk()->shouldReceive('statsTube')->once()->andThrow($failure);
+
+        $this->expectExceptionObject($failure);
+
+        $this->queue->size();
     }
 
     public function testTotalSizesUseOneServerStatsRequestPerCount(): void

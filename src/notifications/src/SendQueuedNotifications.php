@@ -9,6 +9,7 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\Attributes\Backoff;
@@ -93,6 +94,16 @@ class SendQueuedNotifications implements ShouldQueue
             $this->afterCommit = true;
         } else {
             $this->afterCommit = property_exists($notification, 'afterCommit') ? $notification->afterCommit : null;
+        }
+
+        if (isset($notification->viaOutbox)) {
+            $this->viaOutbox = $notification->viaOutbox;
+        } elseif ($notification instanceof ShouldQueueViaOutbox) {
+            $this->viaOutbox = true;
+        }
+
+        if (isset($notification->outboxDatabase)) {
+            $this->outboxDatabase = $notification->outboxDatabase;
         }
 
         $this->shouldBeEncrypted = $notification instanceof ShouldBeEncrypted;

@@ -24,17 +24,14 @@
     </extensions>
     <php>
         <ini name="error_reporting" value="-1"/>
-        <ini name="display_errors" value="on"/>
+        <!-- Keep isolated-child startup errors on stderr so PHPUnit reports their cause. -->
+        <ini name="display_errors" value="stderr"/>
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
         <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
         <!--
-            Pin terminal dimensions so Symfony Console never shells out to `stty`
-            to detect them. Each test runs console output inside a Swoole coroutine
-            with SWOOLE_HOOK_ALL, which hooks proc_open/proc_close; under ParaTest's
-            concurrent worker processes that hooked subprocess wait can deadlock in
-            the reactor (SIGCHLD/child-reaping race), hanging an arbitrary test.
-            A headless test runner has no real terminal anyway.
+            Fix terminal dimensions so console-output assertions do not depend
+            on the developer's terminal size.
         -->
         <env name="COLUMNS" value="80" force="true"/>
         <env name="LINES" value="24" force="true"/>

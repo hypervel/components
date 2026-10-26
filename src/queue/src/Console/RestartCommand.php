@@ -37,10 +37,18 @@ class RestartCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
+        if (! Worker::$restartable) {
+            $this->components->error('Queue restarting is currently disabled.');
+
+            return self::FAILURE;
+        }
+
         $this->cache->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
 
         $this->components->info('Broadcasting queue restart signal.');
+
+        return self::SUCCESS;
     }
 }

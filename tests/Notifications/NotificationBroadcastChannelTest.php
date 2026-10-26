@@ -14,6 +14,7 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
+use stdClass;
 
 class NotificationBroadcastChannelTest extends TestCase
 {
@@ -21,7 +22,7 @@ class NotificationBroadcastChannelTest extends TestCase
     {
         $notification = new NotificationBroadcastChannelTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = new stdClass;
 
         $events = m::mock(Dispatcher::class);
         $events->expects('dispatch')->with(m::type(BroadcastNotificationCreated::class));
@@ -97,7 +98,7 @@ class NotificationBroadcastChannelTest extends TestCase
     {
         $notification = new CustomEventNameTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = new stdClass;
 
         $event = new BroadcastNotificationCreated(
             $notifiable,
@@ -114,7 +115,7 @@ class NotificationBroadcastChannelTest extends TestCase
     {
         $notification = new CustomEventNameTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = new stdClass;
 
         $event = new BroadcastNotificationCreated(
             $notifiable,
@@ -131,7 +132,7 @@ class NotificationBroadcastChannelTest extends TestCase
     {
         $notification = new TestNotificationBroadCastedNow;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = new stdClass;
 
         $events = m::mock(Dispatcher::class);
         $events->expects('dispatch')->with(m::on(function (BroadcastNotificationCreated $event): bool {
@@ -145,7 +146,7 @@ class NotificationBroadcastChannelTest extends TestCase
     {
         $notification = new CustomBroadcastWithTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock();
+        $notifiable = new stdClass;
 
         $event = new BroadcastNotificationCreated(
             $notifiable,

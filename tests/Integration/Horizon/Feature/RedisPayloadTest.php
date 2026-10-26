@@ -65,6 +65,59 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertIsNumeric($payload->decoded['pushedAt']);
     }
 
+    public function testCombinedPreparationEncodesCustomizedMetadataOnce(): void
+    {
+        $payload = new class('{"id":"1"}') extends JobPayload {
+            public int $writes = 0;
+
+            /**
+             * Count payload encoding operations.
+             */
+            public function set(array $values): static
+            {
+                ++$this->writes;
+
+                return parent::set($values);
+            }
+
+            /**
+             * Customize the payload type.
+             */
+            protected function determineType(mixed $job): string
+            {
+                return 'custom';
+            }
+
+            /**
+             * Customize the payload tags.
+             */
+            protected function determineTags(mixed $job): array
+            {
+                return ['custom-tag'];
+            }
+
+            /**
+             * Determine silencing from the customized tags.
+             */
+            protected function shouldBeSilenced(mixed $job, array $tags): bool
+            {
+                return $tags === ['custom-tag'];
+            }
+        };
+
+        $payload->prepare(new StdClass);
+
+        $this->assertSame(1, $payload->writes);
+        $this->assertSame('custom', $payload->decoded['type']);
+        $this->assertSame(['custom-tag'], $payload->decoded['tags']);
+        $this->assertTrue($payload->decoded['silenced']);
+        $this->assertIsNumeric($payload->decoded['pushedAt']);
+        $this->assertSame($payload->decoded, json_decode($payload->value, true));
+
+        $this->assertSame($payload, $payload->prepareForQueueing(null));
+        $this->assertSame(1, $payload->writes);
+    }
+
     public function testPreparingClassifiedPayloadWithoutOriginalJobPreservesMetadata(): void
     {
         $payload = new JobPayload(json_encode([

@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Integration\Queue;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\Release;
 use Hypervel\Testbench\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 
 class ReleaseMiddlewareTest extends TestCase
 {
@@ -87,17 +86,14 @@ class ReleaseMiddlewareTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
-        $job->shouldReceive('release')->never();
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($class),
         ]);
+
+        $this->assertTrue($job->isDeleted());
+        $this->assertFalse($job->isReleased());
 
         $this->assertTrue($class::$handled);
     }
@@ -110,17 +106,15 @@ class ReleaseMiddlewareTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
-        $job->expects('release')->with($releaseAfter);
-        $job->shouldReceive('delete')->never();
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($class),
         ]);
+
+        $this->assertTrue($job->isReleased());
+        $this->assertSame($releaseAfter, $job->releaseDelay);
+        $this->assertFalse($job->isDeleted());
 
         $this->assertFalse($class::$handled);
     }

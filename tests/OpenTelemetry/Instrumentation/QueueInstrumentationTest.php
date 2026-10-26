@@ -26,6 +26,8 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\Events\OutboxBatchDelivered;
+use Hypervel\Queue\Events\OutboxBatchDeliveryFailed;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SyncQueue;
@@ -155,6 +157,8 @@ class QueueInstrumentationTest extends TestCase
         $this->assertFalse($this->events->hasListeners(JobQueueingFailed::class));
         $this->assertFalse($this->events->hasListeners(JobProcessing::class));
         $this->assertFalse($this->events->hasListeners(JobAttempted::class));
+        $this->assertFalse($this->events->hasListeners(OutboxBatchDelivered::class));
+        $this->assertFalse($this->events->hasListeners(OutboxBatchDeliveryFailed::class));
         $this->assertSame(0, QueueInstrumentationPayloadQueue::payloadCallbackCount());
         $this->assertSame(0, $this->clock->calls);
     }
@@ -980,6 +984,41 @@ class QueueInstrumentationTest extends TestCase
         ]));
 
         $this->assertSame(0, QueueInstrumentationPayloadQueue::payloadCallbackCount());
+    }
+
+    public function testOutboxMetricsCountAcceptanceAndSettlementFailuresWithoutASecondProducerLifecycle(): void
+    {
+        $this->instrumentation()->register($this->options([
+            'traces' => false,
+            'propagation' => false,
+            'metrics' => [
+                'hypervel.queue.outbox.delivered.messages' => true,
+                'hypervel.queue.outbox.delivery.duration' => true,
+                'hypervel.queue.outbox.delivery.latency' => true,
+            ],
+        ]));
+        $this->assertFalse($this->events->hasListeners(JobPayloadFinalizing::class));
+        $this->assertFalse($this->events->hasListeners(JobQueued::class));
+        $this->events->dispatch(new OutboxBatchDelivered('primary', 'redis', 3, 0.25, 10));
+        $this->events->dispatch(new OutboxBatchDeliveryFailed('primary', 'redis', 2, 1, 0.5, 20, new RuntimeException('Partial acceptance.')));
+        $this->events->dispatch(new OutboxBatchDeliveryFailed('primary', 'redis', 1, 0, 0.75, 30, new RuntimeException('Settlement failed.')));
+        $this->metricReader->collect();
+
+        $delivered = $this->sumPoint('hypervel.queue.outbox.delivered.messages');
+        $this->assertSame(6, $delivered->value);
+        $this->assertSame('primary', $delivered->attributes->get('hypervel.queue.outbox.database'));
+        $this->assertSame('redis', $delivered->attributes->get('hypervel.queue.connection'));
+        $duration = $this->metric('hypervel.queue.outbox.delivery.duration')->data->dataPoints;
+        $latency = $this->metric('hypervel.queue.outbox.delivery.latency')->data->dataPoints;
+        $failedBatches = array_filter($duration, static fn (HistogramDataPoint $point): bool => $point->attributes->get(ErrorAttributes::ERROR_TYPE) === RuntimeException::class);
+        $this->assertSame(2, array_sum(array_column($failedBatches, 'count')));
+        $this->assertSame(3, array_sum(array_column($duration, 'count')));
+        $this->assertSame(1.5, array_sum(array_column($duration, 'sum')));
+        $this->assertCount(1, $latency);
+        $this->assertEquals(60, array_sum(array_column($latency, 'sum')));
+        $this->assertCount(3, $this->metricExporter->collect());
+        $this->assertSame([], $this->spanExporter->getSpans());
+        $this->assertSame(0, $this->clock->calls);
     }
 
     public function testDepthCollectionRunsOnlyInEventWorkerZeroAndIsolatesBackendFailures(): void

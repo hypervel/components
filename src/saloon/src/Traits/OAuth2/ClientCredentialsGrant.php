@@ -8,10 +8,12 @@ use DateTimeImmutable;
 use Hypervel\Saloon\Contracts\OAuthAuthenticator;
 use Hypervel\Saloon\Data\OAuthConfig;
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Saloon\Http\Auth\CachedTokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\OAuth2\GetClientCredentialsTokenRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
+use Hypervel\Saloon\Http\UrlResolver;
 use SensitiveParameter;
 
 /**
@@ -22,6 +24,35 @@ trait ClientCredentialsGrant
 {
     use HasOAuthConfig;
     use ParsesOAuthTokenResponses;
+
+    /**
+     * Cache client-credentials tokens for this grant.
+     *
+     * @param list<?string> $scopes
+     * @param null|callable(Request): void $requestModifier
+     */
+    public function cachedAccessToken(
+        array $scopes = [],
+        string $scopeSeparator = ' ',
+        ?string $store = null,
+        ?callable $requestModifier = null,
+        string $key = '',
+    ): CachedTokenAuthenticator {
+        $config = $this->oauthConfig();
+        $config->validate(withRedirectUrl: false);
+        $endpoint = UrlResolver::resolve(
+            $this->resolveBaseUrl(),
+            $config->tokenEndpoint,
+            $config->allowBaseUrlOverride || $this->allowsBaseUrlOverride(),
+        );
+
+        return new CachedTokenAuthenticator(
+            serialize([static::class, (string) $endpoint, $config->clientId, $config->clientSecret,
+                implode($scopeSeparator, $config->scopes($scopes)), $key]),
+            fn (): OAuthAuthenticator => $this->getAccessToken($scopes, $scopeSeparator, requestModifier: $requestModifier),
+            $store,
+        );
+    }
 
     /**
      * Request a client-credentials access token.
@@ -40,7 +71,9 @@ trait ClientCredentialsGrant
         $config = $this->oauthConfig();
         $config->validate(withRedirectUrl: false);
         $request = $config->modify($this->resolveAccessTokenRequest($config, $scopes, $scopeSeparator));
-        $requestModifier?->__invoke($request);
+        if ($requestModifier !== null) {
+            $requestModifier($request);
+        }
         $response = $this->send($request);
 
         if ($returnResponse) {
@@ -57,20 +90,23 @@ trait ClientCredentialsGrant
      */
     protected function createOAuthAuthenticatorFromResponse(#[SensitiveParameter] Response $response): OAuthAuthenticator
     {
-        [$accessToken, $expiresAt] = $this->parseOAuthTokenResponse($response);
+        [$accessToken, $expiresAt, $data] = $this->parseOAuthTokenResponse($response);
 
-        return $this->createOAuthAuthenticator($accessToken, $expiresAt);
+        return $this->createOAuthAuthenticator($accessToken, $expiresAt, $this->resolveOAuthScopes($data['scope'] ?? null));
     }
 
     /**
      * Create an OAuth authenticator.
+     *
+     * @param null|list<string> $scopes
      */
     protected function createOAuthAuthenticator(
         #[SensitiveParameter]
         string $accessToken,
         ?DateTimeImmutable $expiresAt = null,
+        ?array $scopes = null,
     ): OAuthAuthenticator {
-        return new AccessTokenAuthenticator($accessToken, null, $expiresAt);
+        return new AccessTokenAuthenticator($accessToken, null, $expiresAt, $scopes);
     }
 
     /**

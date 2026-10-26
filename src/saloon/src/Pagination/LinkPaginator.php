@@ -19,6 +19,11 @@ use Psr\Http\Message\UriInterface;
 abstract class LinkPaginator extends PagedPaginator
 {
     /**
+     * Whether page checksums include the provider's continuation, so a repeated checksum repeats an earlier request.
+     */
+    protected bool $checksumIncludesContinuation = true;
+
+    /**
      * The next page's resolved URI.
      */
     protected ?UriInterface $nextUri = null;
@@ -53,6 +58,19 @@ abstract class LinkPaginator extends PagedPaginator
         $this->lastPage = $lastPage;
 
         return $response;
+    }
+
+    /**
+     * Compare page contents together with the provider's continuation URL.
+     *
+     * @param Response<mixed> $response
+     */
+    protected function getPageChecksum(Response $response): string
+    {
+        $links = $this->getLinks($response, $response->toPsrRequest()->getUri());
+        $next = $links['next'] ?? null;
+
+        return hash('xxh128', serialize([$this->getBodyChecksum($response), $next === null ? null : (string) $next]));
     }
 
     /**

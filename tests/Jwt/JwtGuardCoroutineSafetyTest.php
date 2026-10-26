@@ -198,7 +198,10 @@ class JwtGuardCoroutineUser implements Authenticatable
         return null;
     }
 
-    public function setRememberToken(string $value): void
+    /**
+     * Set the remember token.
+     */
+    public function setRememberToken(?string $value): void
     {
     }
 

@@ -21,7 +21,15 @@ class RequiresHashFieldExpirationTest extends TestCase
 
     public function testSkipsWhenPhpredisBelowMinimum(): void
     {
-        $subject = new RequiresHashFieldExpirationTestSubject;
+        $subject = new class extends RequiresHashFieldExpirationTestSubject {
+            /**
+             * Reject server access when the client is already unsupported.
+             */
+            protected function detectedServerInfo(): array
+            {
+                throw new RuntimeException('The server must not be queried with an unsupported client.');
+            }
+        };
         $subject->stubPhpredisVersion = '6.2.0';
 
         $this->expectException(RuntimeException::class);
@@ -93,6 +101,17 @@ class RequiresHashFieldExpirationTest extends TestCase
         $subject->runCheck();
 
         $this->assertSame(1, $subject->serverInfoCalls, 'Support check must be memoized after first run');
+    }
+
+    public function testSkipsWhenServerVersionCannotBeDetermined(): void
+    {
+        $subject = new RequiresHashFieldExpirationTestSubject;
+        $subject->stubServerInfo = [];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Could not determine Redis/Valkey version');
+
+        $subject->runCheck();
     }
 }
 

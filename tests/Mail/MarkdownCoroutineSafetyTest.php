@@ -472,7 +472,7 @@ class ThemeProbeMarkdown extends Markdown
 
 class ThemeProbeMailable extends Mailable
 {
-    public string $markdown = 'message';
+    public ?string $markdown = 'message';
 
     public function __construct(string $theme)
     {

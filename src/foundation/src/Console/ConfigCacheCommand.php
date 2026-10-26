@@ -11,6 +11,7 @@ use LogicException;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -118,13 +119,19 @@ class ConfigCacheCommand extends Command
                 throw new LogicException("The alternate cache path [{$buildPath}] already exists.");
             }
 
+            $arguments = [
+                PHP_BINARY,
+                $this->hypervel->basePath('artisan'),
+                'config:cache',
+                '--dump-to=' . $dumpPath,
+            ];
+
+            if (($input = new ArgvInput)->hasParameterOption('--env')) {
+                $arguments[] = '--env=' . $input->getParameterOption('--env');
+            }
+
             $process = new Process(
-                [
-                    PHP_BINARY,
-                    $this->hypervel->basePath('artisan'),
-                    'config:cache',
-                    '--dump-to=' . $dumpPath,
-                ],
+                $arguments,
                 $this->hypervel->basePath(),
                 [
                     'APP_CONFIG_CACHE' => $buildPath,

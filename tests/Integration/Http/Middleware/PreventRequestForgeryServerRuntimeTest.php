@@ -33,8 +33,6 @@ class PreventRequestForgeryServerRuntimeTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        putenv('APP_RUNNING_IN_CONSOLE=false');
-        $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
         $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
         $app->setRunningInConsole(false);
@@ -42,10 +40,7 @@ class PreventRequestForgeryServerRuntimeTest extends TestCase
 
     protected function tearDown(): void
     {
-        PreventRequestForgery::flushState();
-
-        putenv('APP_RUNNING_IN_CONSOLE');
-        unset($_ENV['APP_RUNNING_IN_CONSOLE'], $_SERVER['APP_RUNNING_IN_CONSOLE']);
+        unset($_SERVER['APP_RUNNING_IN_CONSOLE']);
 
         parent::tearDown();
     }

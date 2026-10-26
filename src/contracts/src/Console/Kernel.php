@@ -12,6 +12,7 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 interface Kernel
 {
@@ -65,6 +66,7 @@ interface Kernel
      * Run an Artisan console command by name.
      *
      * @throws CommandNotFoundException
+     * @throws Throwable when application bootstrap or command execution fails
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 

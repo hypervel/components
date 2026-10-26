@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Pennant;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Pennant\Drivers\DatabaseDriver;
 use Hypervel\Pennant\Feature;
@@ -32,6 +33,9 @@ class TransactionTest extends TestCase
             'driver' => 'database',
             'cache' => ['store' => 'array'],
         ]);
+        $config->set('database.connections.independent', ['driver' => 'sqlite', 'database' => ':memory:']);
+        $config->set('pennant.stores.independent', ['driver' => 'database', 'connection' => 'independent']);
+        $config->set('pennant.stores.independent-writer', ['driver' => 'database', 'connection' => 'independent::write']);
     }
 
     protected function setUpInCoroutine(): void
@@ -104,6 +108,41 @@ class TransactionTest extends TestCase
 
         $this->assertSame('inside', Feature::for('taylor')->value('foo'));
         $this->assertSame(0, $queries->count);
+    }
+
+    public function testRoleRollbackForgetsOnlyValuesTrackedByThatSession(): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $this->app->instance('db.resolver', new SimpleConnectionResolver($this->app->make('db')));
+        $base = DB::connection('independent');
+        $writer = DB::connection('independent::write');
+        $this->assertNotSame($base, $writer);
+
+        $this->app->instance(TransactionFeatureWithBeforeHook::class, $feature = new TransactionFeatureWithBeforeHook);
+        $feature->value = 'inside';
+
+        try {
+            $base->beginTransaction();
+            $writer->beginTransaction();
+
+            foreach (['independent', 'independent-writer'] as $store) {
+                Feature::store($store)->define(TransactionFeatureWithBeforeHook::class);
+                $this->assertSame('inside', Feature::store($store)->for('taylor')->value(TransactionFeatureWithBeforeHook::class));
+            }
+
+            $writer->rollBack();
+            $feature->value = 'after';
+
+            $this->assertSame('after', Feature::store('independent-writer')->for('taylor')->value(TransactionFeatureWithBeforeHook::class));
+            $this->assertSame('inside', Feature::store('independent')->for('taylor')->value(TransactionFeatureWithBeforeHook::class));
+
+            $base->rollBack();
+            $this->assertSame('after', Feature::store('independent')->for('taylor')->value(TransactionFeatureWithBeforeHook::class));
+        } finally {
+            $base->rollBack(0);
+            $writer->rollBack(0);
+            $this->app->instance('db.resolver', $resolver);
+        }
     }
 
     public function testFlushingAStoreKeepsOtherStoresValuesTrackedForRollback(): void

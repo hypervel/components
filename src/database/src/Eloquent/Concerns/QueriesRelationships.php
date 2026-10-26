@@ -295,7 +295,7 @@ trait QueriesRelationships
             return $this->model->belongsTo(
                 $type,
                 $relation->getForeignKeyName(),
-                $relation->getOwnerKeyName()
+                $relation->getDeclaredOwnerKeyName()
             );
         });
 
@@ -562,19 +562,24 @@ trait QueriesRelationships
     public function whereMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
         if (is_string($relation)) {
+            /** @var MorphTo<*, *> $relation */
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
+        // The morph columns belong to the declaring model. A relation built for a loaded morph type queries
+        // the target's table instead, so qualifying through the relation would name the wrong table.
+        $morphType = $relation->getParent()->qualifyColumn($relation->getMorphType());
+        $foreignKey = $relation->getQualifiedForeignKeyName();
+
         if (is_null($model)) {
-            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
-            return $this->whereNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
+            // @phpstan-ignore return.type (mixin returns $this at runtime)
+            return $this->whereNull($morphType, $boolean);
         }
 
         if (is_string($model)) {
             $model = $this->getMorphTypeForQuery($model);
 
-            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-            return $this->where($relation->qualifyColumn($relation->getMorphType()), $model, null, $boolean);
+            return $this->where($morphType, $model, null, $boolean);
         }
 
         $models = BaseCollection::wrap($model);
@@ -583,13 +588,13 @@ trait QueriesRelationships
             throw new InvalidArgumentException('Collection given to whereMorphedTo method may not be empty.');
         }
 
-        return $this->where(function ($query) use ($relation, $models) {
-            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
-                $query->orWhere(function ($query) use ($relation, $models) {
-                    // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-                    $query->where($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        // @phpstan-ignore method.notFound (getForeignKeyName exists on MorphTo, not base Relation)
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
+        return $this->where(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation, $morphType, $foreignKey) {
+                $query->orWhere(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+                    $query->where($morphType, $models->first()->getMorphClass())
+                        ->whereIn($foreignKey, $models->map(
+                            fn ($model) => $model->getAttribute($relation->getDeclaredOwnerKeyName() ?? $model->getKeyName())
+                        ));
                 });
             });
         }, null, null, $boolean);
@@ -607,20 +612,24 @@ trait QueriesRelationships
     public function whereNotMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
         if (is_string($relation)) {
+            /** @var MorphTo<*, *> $relation */
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
+        // Qualify through the declaring model, as whereMorphedTo() does.
+        $morphType = $relation->getParent()->qualifyColumn($relation->getMorphType());
+        $foreignKey = $relation->getQualifiedForeignKeyName();
+
         if (is_null($model)) {
-            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
-            return $this->whereNotNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
+            // @phpstan-ignore return.type (mixin returns $this at runtime)
+            return $this->whereNotNull($morphType, $boolean);
         }
 
         if (is_string($model)) {
             $model = $this->getMorphTypeForQuery($model);
 
             return $this->whereNot(fn ($query) => $query->whereNullSafeEquals(
-                // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-                $relation->qualifyColumn($relation->getMorphType()),
+                $morphType,
                 $model
             ), null, null, $boolean);
         }
@@ -631,13 +640,13 @@ trait QueriesRelationships
             throw new InvalidArgumentException('Collection given to whereNotMorphedTo method may not be empty.');
         }
 
-        return $this->whereNot(function ($query) use ($relation, $models) {
-            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
-                $query->orWhere(function ($query) use ($relation, $models) {
-                    // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-                    $query->whereNullSafeEquals($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
-                        // @phpstan-ignore method.notFound (getForeignKeyName exists on MorphTo, not base Relation)
-                        ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
+        return $this->whereNot(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+            $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation, $morphType, $foreignKey) {
+                $query->orWhere(function ($query) use ($relation, $models, $morphType, $foreignKey) {
+                    $query->whereNullSafeEquals($morphType, $models->first()->getMorphClass())
+                        ->whereIn($foreignKey, $models->map(
+                            fn ($model) => $model->getAttribute($relation->getDeclaredOwnerKeyName() ?? $model->getKeyName())
+                        ));
                 });
             });
         }, null, null, $boolean);
@@ -690,7 +699,7 @@ trait QueriesRelationships
     /**
      * Add a "belongs to" relationship where clause to the query.
      *
-     * @param EloquentCollection<int, Model>|Model $related
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -734,6 +743,8 @@ trait QueriesRelationships
 
     /**
      * Add a "BelongsTo" relationship with an "or where" clause to the query.
+     *
+     * @param EloquentCollection<int, covariant Model>|Model $related
      */
     public function orWhereBelongsTo(mixed $related, ?string $relationshipName = null): static
     {
@@ -743,7 +754,7 @@ trait QueriesRelationships
     /**
      * Add a "belongs to many" relationship where clause to the query.
      *
-     * @param EloquentCollection<int, Model>|Model $related
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -783,6 +794,8 @@ trait QueriesRelationships
 
     /**
      * Add a "belongs to many" relationship with an "or where" clause to the query.
+     *
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws RuntimeException
      */

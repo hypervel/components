@@ -103,12 +103,19 @@ class NestedTransactionRetryTest extends TestCase
         DB::table('retry_records')->insert([['id' => 0, 'value' => 0], ['id' => 1, 'value' => 0]]);
         $ready = new Channel(2);
         $release = new Channel(2);
+        $finished = new Channel(2);
         $outerAttempts = $innerAttempts = [0, 0];
         $committed = [];
-        $work = static function (int $worker) use ($ready, $release, &$outerAttempts, &$innerAttempts, &$committed): array {
+        $work = static function (int $worker) use ($ready, $release, $finished, &$outerAttempts, &$innerAttempts, &$committed): array {
             $connection = DB::connection();
-            $connection->transaction(static function (Connection $connection) use ($worker, $ready, $release, &$outerAttempts, &$innerAttempts, &$committed): void {
+            $connection->transaction(static function (Connection $connection) use ($worker, $ready, $release, $finished, &$outerAttempts, &$innerAttempts, &$committed): void {
                 $attempt = ++$outerAttempts[$worker];
+
+                // Let the surviving transaction commit before retrying, so the test causes exactly one deadlock.
+                if ($attempt > 1 && $finished->pop(5) !== true) {
+                    throw new RuntimeException('The competing transaction did not finish before the retry.');
+                }
+
                 $connection->table('retry_attempts')->insert(['worker' => $worker, 'attempt' => $attempt]);
                 $connection->afterCommit(static function () use ($worker, $attempt, &$committed): void {
                     $committed[$worker][] = $attempt;
@@ -145,6 +152,8 @@ class NestedTransactionRetryTest extends TestCase
                     }
                 }, 3);
             }, 3);
+
+            $finished->push(true);
 
             return [$connection->transactionLevel(), $connection->isReusable()];
         };

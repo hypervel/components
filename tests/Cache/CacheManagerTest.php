@@ -38,6 +38,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use ReflectionProperty;
 use RuntimeException;
@@ -145,6 +146,24 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
     }
 
+    public function testCustomRepositoriesReceiveTheirConfiguredNameWithoutReplacingAnExplicitName(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => ['stores' => [
+                'custom' => ['driver' => 'custom'],
+                'alias' => ['driver' => 'named'],
+            ]],
+        ]));
+        $manager->extend('custom', fn (): Repository => $manager->repository(new WorkerArrayStore));
+        $named = new Repository(new WorkerArrayStore, ['store' => 'original']);
+        $manager->extend('named', static fn (): Repository => $named);
+
+        $this->assertSame('custom', $manager->store('custom')->getName());
+        $this->assertSame($named, $manager->store('alias'));
+        $this->assertSame('original', $named->getName());
+        $this->assertNull($manager->repository(new WorkerArrayStore)->getName());
+    }
+
     public function testFailoverDriverPassesItsConfiguredNameToFailoverEvents(): void
     {
         $app = $this->getApp([
@@ -181,6 +200,106 @@ class CacheManagerTest extends TestCase
         $this->assertSame('resilient', $captured->failoverStoreName);
         $this->assertSame('primary', $captured->storeName);
         $this->assertSame($failure, $captured->exception);
+    }
+
+    #[DataProvider('circularStores')]
+    public function testRejectsCircularStoreDefinitions(array $stores, string $cycle): void
+    {
+        $manager = new CacheManager($this->getApp(['cache' => ['stores' => $stores]]));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('Circular cache store definition detected: ' . $cycle . '.');
+
+        $manager->store('main');
+    }
+
+    /**
+     * Provide recursive built-in store definitions.
+     */
+    public static function circularStores(): array
+    {
+        return [
+            'self stack' => [[
+                'main' => ['driver' => 'stack', 'stores' => ['main']],
+            ], 'main -> main'],
+            'self failover' => [[
+                'main' => ['driver' => 'failover', 'stores' => ['main']],
+            ], 'main -> main'],
+            'nested mixed cycle' => [[
+                'main' => ['driver' => 'stack', 'stores' => ['first']],
+                'first' => ['driver' => 'failover', 'stores' => ['second']],
+                'second' => ['driver' => 'stack', 'stores' => ['first' => ['ttl' => 60]]],
+            ], 'first -> second -> first'],
+        ];
+    }
+
+    #[DataProvider('acyclicStores')]
+    public function testNestedAndSharedStoresRemainUsable(array $stores): void
+    {
+        $app = $this->getApp(['cache' => ['stores' => $stores]]);
+        $app->instance(Dispatcher::class, new Event);
+        $manager = new CacheManager($app);
+        $repository = $manager->store('main');
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame('value', $repository->get('key'));
+    }
+
+    /**
+     * Provide valid nested and shared store definitions.
+     */
+    public static function acyclicStores(): array
+    {
+        return [
+            'nested' => [[
+                'main' => ['driver' => 'failover', 'stores' => ['nested']],
+                'nested' => ['driver' => 'stack', 'stores' => ['leaf' => ['ttl' => 60]]],
+                'leaf' => ['driver' => 'array'],
+            ]],
+            'shared child' => [[
+                'main' => ['driver' => 'stack', 'stores' => ['first', 'second']],
+                'first' => ['driver' => 'failover', 'stores' => ['leaf']],
+                'second' => ['driver' => 'failover', 'stores' => ['leaf']],
+                'leaf' => ['driver' => 'array'],
+            ]],
+        ];
+    }
+
+    public function testOnDemandWrapperNameCanMatchItsChild(): void
+    {
+        $manager = new CacheManager($this->getApp(['cache' => ['stores' => [
+            'array' => ['driver' => 'array'],
+        ]]]));
+        $repository = $manager->build(['driver' => 'stack', 'name' => 'array', 'stores' => ['array']]);
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame('value', $repository->get('key'));
+    }
+
+    public function testWrapperValidationRespectsCustomCreators(): void
+    {
+        $manager = new CacheManager($this->getApp(['cache' => ['stores' => [
+            'main' => ['driver' => 'stack', 'stores' => ['custom']],
+            'custom' => ['driver' => 'failover', 'stores' => ['custom']],
+        ]]]));
+        $manager->extend('failover', fn (): Repository => new Repository(new ArrayStore));
+        $repository = $manager->store('main');
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame('value', $repository->get('key'));
+    }
+
+    public function testMissingFailoverBackupRemainsDeferred(): void
+    {
+        $app = $this->getApp(['cache' => ['stores' => [
+            'main' => ['driver' => 'failover', 'stores' => ['healthy', 'missing']],
+            'healthy' => ['driver' => 'array'],
+        ]]]);
+        $app->instance(Dispatcher::class, new Event);
+        $repository = (new CacheManager($app))->store('main');
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame('value', $repository->get('key'));
     }
 
     public function testManagerBuiltSerializingStoresShareOnePolicy(): void
@@ -641,6 +760,31 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(MemoizedStore::class, $secondMemoizedStore);
         $this->assertNotSame($firstRepository, $secondRepository);
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
+    }
+
+    public function testMemoizedRepositoriesPreserveStoreIdentityAndSuppressDuplicateEvents(): void
+    {
+        $app = $this->getApp(['cache' => ['stores' => ['named' => ['driver' => 'worker-array']]]]);
+        $events = new Event($app);
+        $app->instance(Dispatcher::class, $events);
+        $manager = new CacheManager($app);
+        $eventsSeen = [];
+        $events->listen('Hypervel\Cache\Events\*', static function (string $event, array $payload) use (&$eventsSeen): void {
+            $eventsSeen[] = $payload[0]->storeName;
+        });
+        $memo = $manager->memo('named');
+
+        $this->assertSame('named', $memo->getName());
+        $this->assertSame('named', $memo->tags('orders')->getName());
+        $this->assertNull($memo->getEventDispatcher());
+        $memo->put('key', 'value', 60);
+        $memo->get('key');
+        $afterFirstRead = count($eventsSeen);
+        $memo->get('key');
+
+        $this->assertNotEmpty($eventsSeen);
+        $this->assertSame(['named'], array_values(array_unique($eventsSeen)));
+        $this->assertCount($afterFirstRead, $eventsSeen);
     }
 
     // REMOVED: CacheApcStoreTest, CacheDynamoDbStoreTest, CacheMemcachedConnectorTest,

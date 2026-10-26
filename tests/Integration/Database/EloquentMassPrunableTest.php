@@ -57,9 +57,8 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         $count = (new MassPrunableTestModel)->pruneAll();
 
         $this->assertEquals(1500, $count);
+        Event::assertDispatchedTimes(ModelsPruned::class, 2);
         $this->assertEquals(3500, MassPrunableTestModel::count());
-
-        Event::assertDispatched(ModelsPruned::class, 2);
     }
 
     public function testPassiveObserverDoesNotCausePrunedEventToDispatch(): void
@@ -92,10 +91,9 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         $count = (new MassPrunableSoftDeleteTestModel)->pruneAll();
 
         $this->assertEquals(3000, $count);
+        Event::assertDispatchedTimes(ModelsPruned::class, 3);
         $this->assertEquals(0, MassPrunableSoftDeleteTestModel::count());
         $this->assertEquals(2000, MassPrunableSoftDeleteTestModel::withTrashed()->count());
-
-        Event::assertDispatched(ModelsPruned::class, 3);
     }
 
     public function testPrunesActiveAndSoftDeletedRecords(): void

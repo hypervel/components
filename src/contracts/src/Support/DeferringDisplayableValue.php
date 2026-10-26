@@ -9,5 +9,5 @@ interface DeferringDisplayableValue
     /**
      * Resolve the displayable value that the class is deferring.
      */
-    public function resolveDisplayableValue(): Htmlable|string;
+    public function resolveDisplayableValue(): mixed;
 }

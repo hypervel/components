@@ -26,7 +26,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static array getPausedQueues(array $queues, string|null $connection = null)
  * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static bool isPaused(string $queue, string|null $connection = null)
+ * @method static bool isPaused(\UnitEnum|string $queue, \UnitEnum|string|null $connection = null)
  * @method static void looping(mixed $callback)
  * @method static void pause(\UnitEnum|string $queue, \UnitEnum|string|null $connection = null)
  * @method static void pauseAll()

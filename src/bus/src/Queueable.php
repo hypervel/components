@@ -20,6 +20,8 @@ use function Hypervel\Support\enum_value;
 
 trait Queueable
 {
+    use InteractsWithQueueOutbox;
+
     /**
      * The name of the connection the job should be sent to.
      */

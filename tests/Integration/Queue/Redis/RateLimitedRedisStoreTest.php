@@ -10,6 +10,7 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
@@ -193,16 +194,13 @@ class RateLimitedRedisStoreTest extends TestCase
         $testJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($testJob),
         ]);
+
+        $this->assertTrue($job->isDeleted());
 
         $this->assertTrue($testJob::$handled);
     }
@@ -215,16 +213,13 @@ class RateLimitedRedisStoreTest extends TestCase
         $testJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('release');
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($testJob),
         ]);
+
+        $this->assertTrue($job->isReleased());
 
         $this->assertFalse($testJob::$handled);
     }
@@ -259,16 +254,13 @@ class RateLimitedRedisStoreTest extends TestCase
         $testJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
-
-        $job->expects('hasFailed')->andReturn(false);
-        $job->expects('isReleased')->times(2)->andReturn(false);
-        $job->expects('isDeletedOrReleased')->andReturn(false);
-        $job->expects('delete');
+        $job = new FakeJob;
 
         $instance->call($job, [
             'command' => serialize($testJob),
         ]);
+
+        $this->assertTrue($job->isDeleted());
 
         $this->assertFalse($testJob::$handled);
     }

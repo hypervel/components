@@ -21,14 +21,17 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
+use WeakReference;
+
+use function Hypervel\Support\enum_value;
 
 class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 {
     /**
      * Context key prefix for the queues which failed on the last action.
      *
-     * Scoped per instance via spl_object_id() so multiple failover queues
-     * in the same coroutine don't share failure history.
+     * Entries pair a weak owner with its failure list. A dead or different owner
+     * means no history, since released object IDs may be reused within a coroutine.
      *
      * Stored in coroutine Context instead of an instance property because this
      * queue is cached in QueueManager::$connections. Instance state would leak
@@ -226,6 +229,22 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     }
 
     /**
+     * Preserve failover attempts instead of capturing an undecided destination.
+     */
+    protected function shouldStageViaOutbox(object|string $job): bool
+    {
+        return false;
+    }
+
+    /**
+     * Degrade selected outbox delivery to an after-commit failover attempt.
+     */
+    protected function shouldDispatchAfterCommit(object|string $job): bool
+    {
+        return $this->shouldDispatchViaOutbox($job) || parent::shouldDispatchAfterCommit($job);
+    }
+
+    /**
      * Attempt the given method on all connections.
      *
      * @throws Throwable
@@ -245,15 +264,38 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             }
         }
 
+        return $this->attemptOnConnections($method, $arguments, $job);
+    }
+
+    /**
+     * Forward an operation to the first available child connection.
+     */
+    protected function attemptOnConnections(
+        string $method,
+        array $arguments,
+        object|string|null $job,
+        bool $afterCommitHandled = false,
+    ): mixed {
         $contextKey = self::FAILING_QUEUES_CONTEXT_PREFIX . spl_object_id($this);
-        $failingQueues = CoroutineContext::get($contextKey, []);
+        $state = CoroutineContext::get($contextKey);
+        $failingQueues = $state !== null && $state[0]->get() === $this ? $state[1] : [];
 
         [$lastException, $failedQueues] = [null, []];
+        $forwarded = CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY);
+
+        if ($job !== null && ($forwarded['job'] ?? null) !== $job) {
+            $forwarded = ['job' => $job, 'afterCommitHandled' => $afterCommitHandled];
+        }
 
         try {
             foreach ($this->connections as $connection) {
                 try {
-                    return $this->manager->connection($connection)->{$method}(...$arguments);
+                    return $job === null
+                        ? $this->manager->connection($connection)->{$method}(...$arguments)
+                        : $this->withOutboxForwarding(
+                            $forwarded,
+                            fn () => $this->manager->connection($connection)->{$method}(...$arguments),
+                        );
                 } catch (CanceledException $exception) {
                     throw $exception;
                 } catch (Throwable $e) {
@@ -265,12 +307,16 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                         && ! in_array($connection, $failingQueues, true)
                         && $this->events->hasListeners(QueueFailedOver::class)
                     ) {
-                        $this->events->dispatch(new QueueFailedOver($connection, $job, $e));
+                        $this->events->dispatch(new QueueFailedOver(
+                            $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection,
+                            $job,
+                            $e,
+                        ));
                     }
                 }
             }
         } finally {
-            CoroutineContext::set($contextKey, $failedQueues);
+            CoroutineContext::set($contextKey, [WeakReference::create($this), $failedQueues]);
         }
 
         throw $lastException ?? new RuntimeException('All failover queue connections failed.');
@@ -295,6 +341,10 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             return false;
         }
 
+        if (($selectedConnection = $this->resolveOutboxCommitConnection($transactions, $job)) !== null) {
+            $connections = [$selectedConnection];
+        }
+
         $context = ContextRepository::hasInstance() ? ContextRepository::getInstance()->replicate() : null;
         $pendingConnections = array_fill_keys($connections, true);
         $settled = false;
@@ -317,7 +367,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 
         foreach ($connections as $connection) {
             $transactions->addCallback(
-                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job, $context): void {
+                function () use (&$pendingConnections, &$settled, $connection, $method, $arguments, $job, $context, $selectedConnection): void {
                     if ($settled) {
                         return;
                     }
@@ -336,7 +386,9 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 
                     // Child payload hooks run after commit but must see the dispatch-time log context.
                     try {
-                        $this->withLogContext($context, fn () => $this->attemptOnAllConnections($method, $arguments, $job));
+                        $this->withLogContext($context, fn () => $selectedConnection !== null
+                            ? $this->attemptOnConnections($method, $arguments, $job, true)
+                            : $this->attemptOnAllConnections($method, $arguments, $job));
                     } finally {
                         if (is_object($job)) {
                             DispatchLockContext::release($job);

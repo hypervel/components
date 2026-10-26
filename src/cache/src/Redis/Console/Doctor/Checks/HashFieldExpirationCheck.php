@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisRequirements;
 use Throwable;
 
 /**
@@ -82,7 +83,9 @@ final class HashFieldExpirationCheck implements EnvironmentCheckInterface
         }
 
         if (! $this->available) {
-            return 'Any tagging mode requires Redis 8.0+ or Valkey 9.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.';
+            return 'Any tagging mode requires Redis ' . RedisRequirements::HASH_FIELD_EXPIRATION_REDIS_VERSION
+                . '+ or Valkey ' . RedisRequirements::HASH_FIELD_EXPIRATION_VALKEY_VERSION
+                . '+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.';
         }
 
         return null;

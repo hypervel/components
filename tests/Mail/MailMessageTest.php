@@ -79,6 +79,16 @@ class MailMessageTest extends TestCase
         $this->assertEquals(new Address('another@example.test'), $this->message->getSymfonyMessage()->getTo()[0]);
     }
 
+    public function testToMethodAcceptsNamedAddressesBeforeUnnamedAddresses(): void
+    {
+        $this->message->to(['taylor@example.test' => 'Taylor', 'foo@example.test']);
+
+        $this->assertEquals([
+            new Address('taylor@example.test', 'Taylor'),
+            new Address('foo@example.test'),
+        ], $this->message->getSymfonyMessage()->getTo());
+    }
+
     public function testToMethodWithOverride(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->to('foo@bar.baz', 'Foo', true));

@@ -34,7 +34,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes days(mixed $days)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes daysOfMonth(array<int>|int ...$days)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes description(string $description)
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes environments(mixed $environments)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes environments(\UnitEnum|array|string $environments)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes evenInMaintenanceMode()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes evenWhenPaused()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFifteenMinutes()

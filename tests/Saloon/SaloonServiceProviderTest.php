@@ -8,6 +8,7 @@ use GuzzleHttp\TransportSharing;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Saloon\Facades\Saloon;
+use Hypervel\Saloon\OAuthAccounts;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Saloon\SaloonServiceProvider;
 use Hypervel\Support\ServiceProvider;
@@ -38,6 +39,8 @@ class SaloonServiceProviderTest extends TestCase
             'timeout' => 30,
             'transport_sharing' => TransportSharing::HANDLER_PREFER,
         ], $this->app->make(Factory::class)->getConnectionConfig('saloon'));
+        $this->assertSame(OAuthAccounts::DEFAULT_CACHE_TTL, config('saloon.oauth_accounts.cache.ttl'));
+        $this->assertSame(OAuthAccounts::DEFAULT_CACHE_PREFIX, config('saloon.oauth_accounts.cache.prefix'));
     }
 
     public function testOmittedFixtureSettingsUsePackageDefaults(): void

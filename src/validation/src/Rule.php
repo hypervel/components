@@ -36,6 +36,7 @@ use Hypervel\Validation\Rules\RequiredUnless;
 use Hypervel\Validation\Rules\StringRule;
 use Hypervel\Validation\Rules\Unique;
 use InvalidArgumentException;
+use Stringable;
 use UnitEnum;
 
 class Rule
@@ -63,8 +64,8 @@ class Rule
      */
     public static function when(
         bool|callable $condition,
-        array|Closure|RuleContract|string|ValidationRule $rules,
-        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|Stringable|ValidationRule $rules,
+        array|Closure|RuleContract|string|Stringable|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $rules, $defaultRules);
     }
@@ -74,8 +75,8 @@ class Rule
      */
     public static function unless(
         bool|callable $condition,
-        array|Closure|RuleContract|string|ValidationRule $rules,
-        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|Stringable|ValidationRule $rules,
+        array|Closure|RuleContract|string|Stringable|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $defaultRules, $rules);
     }

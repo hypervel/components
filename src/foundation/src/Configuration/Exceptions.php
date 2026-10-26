@@ -8,9 +8,11 @@ use Closure;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Exceptions\ReportableHandler;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use Psr\Log\LogLevel;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class Exceptions
@@ -79,6 +81,21 @@ class Exceptions
     public function respond(callable $using): static
     {
         $this->handler->respondUsing($using);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback before final exception response customization.
+     *
+     * Boot-only. The callback is shared by every request in the worker.
+     * Callback return values are ignored.
+     *
+     * @param callable(Response, Throwable, Request): mixed $callback
+     */
+    public function beforeResponding(callable $callback): static
+    {
+        $this->handler->beforeResponding($callback);
 
         return $this;
     }

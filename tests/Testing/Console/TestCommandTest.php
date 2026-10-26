@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testing\Console;
 
 use FilesystemIterator;
 use Hypervel\Support\Env;
+use Hypervel\Testbench\Foundation\Console\TestCommand as PackageTestCommand;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Console\TestCommand;
 use Hypervel\Testing\Coverage;
@@ -13,10 +14,15 @@ use Hypervel\Testing\ParallelRunner;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\Profile\ProfileExtension;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\TextUI\Configuration\Registry as ConfigurationRegistry;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use ReflectionMethod;
 use RuntimeException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Tester\CommandTester;
 use Throwable;
 
@@ -39,7 +45,7 @@ class TestCommandTest extends TestCase
 
         parent::setUp();
 
-        foreach (['phpunit.xml', 'custom-phpunit.xml'] as $file) {
+        foreach (['phpunit.xml', 'phpunit.dist.xml', 'phpunit.xml.dist', 'custom-phpunit.xml'] as $file) {
             $path = $this->app->basePath($file);
             $this->originalConfigurationFiles[$path] = [
                 is_file($path),
@@ -97,9 +103,10 @@ class TestCommandTest extends TestCase
     }
 
     #[Test]
-    public function itInjectsTheProfileExtensionIntoATemporaryConfigurationFile(): void
+    #[DataProvider('profileConfigurationFiles')]
+    public function itInjectsTheProfileExtensionIntoATemporaryConfigurationFile(string $file): void
     {
-        $this->writePhpunitConfiguration();
+        $this->writePhpunitConfiguration(file: $file);
 
         $command = new TestCommandHarness(['profile' => true]);
         $command->setHypervel($this->app);
@@ -109,8 +116,8 @@ class TestCommandTest extends TestCase
         $configurationArgument = $this->firstConfigurationArgument($arguments);
         $configurationFile = substr($configurationArgument, strlen('--configuration='));
 
-        $this->assertNotSame($this->app->basePath('phpunit.xml'), $configurationFile);
-        $this->assertSame(dirname($this->app->basePath('phpunit.xml')), dirname($configurationFile));
+        $this->assertNotSame($this->app->basePath($file), $configurationFile);
+        $this->assertSame(dirname($this->app->basePath($file)), dirname($configurationFile));
         $this->assertFileExists($configurationFile);
         $this->assertStringContainsString(ProfileExtension::class, (string) file_get_contents($configurationFile));
 
@@ -124,6 +131,14 @@ class TestCommandTest extends TestCase
 
         $this->assertNotSame($configurationFile, $nextConfigurationFile);
         $this->assertFileExists($nextConfigurationFile);
+    }
+
+    /**
+     * Provide configuration filenames for profiling.
+     */
+    public static function profileConfigurationFiles(): array
+    {
+        return [['phpunit.xml'], ['phpunit.dist.xml']];
     }
 
     #[Test]
@@ -374,9 +389,171 @@ XML);
         $command = new TestCommandHarness(['configuration' => 'custom-phpunit.xml'], commonArguments: []);
         $command->setHypervel($this->app);
 
+        $configuration = ConfigurationRegistry::get();
         $arguments = $command->paratestArgumentsPublic(['--configuration=custom-phpunit.xml']);
 
+        $this->assertSame($configuration, ConfigurationRegistry::get());
         $this->assertContains('--cache-directory', $arguments);
+    }
+
+    #[Test]
+    #[DataProvider('configurationOptionForms')]
+    public function itUsesTheSelectedConfigurationForProfilingAndParallelCache(string $commandClass, string $form): void
+    {
+        $configurationFile = $this->app->basePath('custom-phpunit.xml');
+        file_put_contents($configurationFile, '<phpunit cacheDirectory=".custom-cache"/>');
+        $configurationOptions = match ($form) {
+            'short' => ['-c', $configurationFile],
+            'attached' => ["-c{$configurationFile}"],
+            'long' => ['--configuration', $configurationFile],
+        };
+        $options = ['--profile', ...$configurationOptions];
+
+        $command = new $commandClass;
+        $command->setHypervel($this->app);
+        (new ConsoleApplication)->addCommand($command);
+        $command->mergeApplicationDefinition();
+        $command->setInput(new ArgvInput(['artisan', $command->getName(), ...$options], $command->getDefinition()));
+
+        $profileConfiguration = $command->phpUnitConfigurationFile();
+        $this->assertNotSame($configurationFile, $profileConfiguration);
+        $this->assertStringContainsString(ProfileExtension::class, (string) file_get_contents($profileConfiguration));
+
+        foreach (['phpunitArguments', 'paratestArguments'] as $method) {
+            $arguments = (new ReflectionMethod($command, $method))->invoke($command, $options);
+
+            $this->assertSame(
+                ["--configuration={$profileConfiguration}"],
+                array_values(array_filter($arguments, static fn (string $argument): bool => str_starts_with($argument, '--configuration'))),
+            );
+
+            foreach ($configurationOptions as $option) {
+                $this->assertNotContains($option, $arguments);
+            }
+
+            if ($method === 'paratestArguments') {
+                $this->assertNotContains('--cache-directory', $arguments);
+            }
+        }
+    }
+
+    /**
+     * Provide configuration option forms for both test commands.
+     */
+    public static function configurationOptionForms(): array
+    {
+        return [
+            'application short' => [TestCommand::class, 'short'],
+            'application attached' => [TestCommand::class, 'attached'],
+            'application long' => [TestCommand::class, 'long'],
+            'package short' => [PackageTestCommand::class, 'short'],
+            'package attached' => [PackageTestCommand::class, 'attached'],
+            'package long' => [PackageTestCommand::class, 'long'],
+        ];
+    }
+
+    #[Test]
+    public function itResolvesExplicitConfigurationPathsWithoutRewritingThem(): void
+    {
+        $this->writePhpunitConfiguration(file: 'custom-phpunit.xml');
+        $configurationFile = $this->app->basePath('custom-phpunit.xml');
+
+        foreach ([
+            './custom-phpunit.xml',
+            '../' . basename($this->app->basePath()) . '/custom-phpunit.xml',
+            $configurationFile,
+        ] as $path) {
+            $command = new TestCommandHarness(['configuration' => $path]);
+            $command->setHypervel($this->app);
+
+            $this->assertSame($configurationFile, realpath($command->phpUnitConfigurationFilePublic()));
+        }
+    }
+
+    #[Test]
+    public function itPreservesMissingExplicitConfigurationsForPhpunitToReject(): void
+    {
+        $this->writePhpunitConfiguration();
+        $configurationFile = $this->app->basePath('missing-phpunit.xml');
+
+        foreach ([false, true] as $profile) {
+            $command = new TestCommandHarness(['configuration' => $configurationFile, 'profile' => $profile]);
+            $command->setHypervel($this->app);
+
+            $this->assertContains("--configuration={$configurationFile}", $command->paratestArgumentsPublic([]));
+        }
+    }
+
+    #[Test]
+    public function itFindsConfigurationWithinAnExplicitDirectory(): void
+    {
+        $directory = ParallelTesting::tempDir('TestCommandConfigurationDirectory');
+        $this->removeDirectory($directory);
+        mkdir($directory, 0700, true);
+
+        try {
+            file_put_contents($directory . '/phpunit.dist.xml', '<phpunit cacheDirectory=".phpunit.cache"/>');
+            file_put_contents($directory . '/phpunit.xml.dist', '<phpunit/>');
+
+            $command = new TestCommandHarness(['configuration' => $directory]);
+            $command->setHypervel($this->app);
+
+            $this->assertSame($directory . '/phpunit.dist.xml', $command->phpUnitConfigurationFilePublic());
+            $this->assertNotContains('--cache-directory', $command->paratestArgumentsPublic([]));
+        } finally {
+            $this->removeDirectory($directory);
+        }
+    }
+
+    #[Test]
+    public function itFindsDefaultConfigurationsInPhpunitOrderAndPreservesTheirCacheDirectory(): void
+    {
+        $files = ['phpunit.xml', 'phpunit.dist.xml', 'phpunit.xml.dist'];
+
+        foreach ($files as $file) {
+            file_put_contents($this->app->basePath($file), '<phpunit cacheDirectory=".phpunit.cache"/>');
+        }
+
+        $command = new TestCommandHarness(commonArguments: []);
+        $command->setHypervel($this->app);
+
+        foreach ($files as $file) {
+            $this->assertSame($this->app->basePath($file), $command->phpUnitConfigurationFilePublic());
+            $this->assertNotContains('--cache-directory', $command->paratestArgumentsPublic([]));
+            unlink($this->app->basePath($file));
+        }
+
+        $this->assertSame('./', $command->phpUnitConfigurationFilePublic());
+        $this->assertContains('--cache-directory', $command->paratestArgumentsPublic([]));
+    }
+
+    #[Test]
+    #[DataProvider('cacheDirectoryArguments')]
+    public function itPreservesAnExplicitParatestCacheDirectory(array $options): void
+    {
+        $this->writePhpunitConfiguration();
+
+        $command = new TestCommandHarness(commonArguments: []);
+        $command->setHypervel($this->app);
+
+        $arguments = $command->paratestArgumentsPublic($options);
+
+        foreach ($options as $option) {
+            $this->assertContains($option, $arguments);
+        }
+
+        $this->assertNotContains(sys_get_temp_dir() . DIRECTORY_SEPARATOR . '__hypervel_test_cache_directory', $arguments);
+    }
+
+    /**
+     * Provide supported cache-directory option forms.
+     */
+    public static function cacheDirectoryArguments(): array
+    {
+        return [
+            'equals' => ['options' => ['--cache-directory=.phpunit.cache']],
+            'separate value' => ['options' => ['--cache-directory', '.phpunit.cache']],
+        ];
     }
 
     #[Test]

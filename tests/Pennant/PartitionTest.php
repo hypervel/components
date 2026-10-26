@@ -10,6 +10,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Pennant\Exceptions\FeaturePartitionNotResolved;
 use Hypervel\Pennant\Feature;
+use Hypervel\Pennant\FeaturePartition;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -27,6 +28,11 @@ class PartitionTest extends TestCase
      * @var list<string>
      */
     protected array $resolvedStores = [];
+
+    /**
+     * @var list<array{string, ?FeaturePartition}>
+     */
+    protected array $guardedWrites = [];
 
     protected function defineEnvironment(Application $app): void
     {
@@ -65,6 +71,10 @@ class PartitionTest extends TestCase
             return $this->team;
         });
 
+        Feature::guardWritesUsing(function (string $store, ?FeaturePartition $partition): void {
+            $this->guardedWrites[] = [$store, $partition];
+        });
+
         Feature::define('foo', fn () => "team-{$this->team}");
         Feature::define('bar', fn () => "team-{$this->team}");
     }
@@ -86,6 +96,10 @@ class PartitionTest extends TestCase
             [2, 'foo', 'taylor', '"team-2"'],
         ], $this->rows());
         $this->assertSame(['database'], array_values(array_unique($this->resolvedStores)));
+        $this->assertEquals([
+            ['database', new FeaturePartition('team_id', 1)],
+            ['database', new FeaturePartition('team_id', 2)],
+        ], $this->guardedWrites);
     }
 
     public function testGroupedReadsStayInThePartition(): void

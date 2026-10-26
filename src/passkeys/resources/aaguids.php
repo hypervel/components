@@ -43,6 +43,7 @@ return [
     'd3452668-01fd-4c12-926c-83a4204853aa' => 'Microsoft Password Manager',
     '6d212b28-a2c1-4638-b375-5932070f62e9' => 'initial',
     'd49b2120-b865-4191-8cea-be84a52b0485' => 'Heimlane Vault',
+    '93fea28e-9b08-41d0-b663-20c36b008e70' => 'Share Credentials',
     'e8b7f4a2-c3d5-e6f7-890a-b1c2d3e4f567' => 'Sherlocked',
     'd9be9d39-e6a6-4c28-a581-32b044d986e4' => 'Sticky Password Manager',
     '70617373-7761-6c6c-6669-646f32303236' => 'Passwall',
@@ -67,4 +68,6 @@ return [
     'f1d0badc-0def-4f1d-8bad-c0def1d0badc' => 'fidont',
     'c4ed941c-86d3-4532-a6a9-bc42b80d5c38' => 'Authn8',
     '441f5bad-a8ec-4572-8094-ee73a1c7cec7' => 'Fobb Security',
+    '16a5a15d-7244-4563-856d-a5167d8b9783' => 'Pleasant Password Server',
+    '7c596f1a-3e42-4b8d-9a0f-5d2ce1b84493' => 'Cyclop Passkey',
 ];

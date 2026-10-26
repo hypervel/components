@@ -8,6 +8,7 @@ use Hypervel\Console\GeneratorCommand;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Str;
@@ -285,7 +286,7 @@ class ModelInspector
     /**
      * Get the class used for JSON response transforming.
      *
-     * @return null|class-string
+     * @return null|class-string<JsonResource>
      */
     protected function getResource(Model $model): ?string
     {

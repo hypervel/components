@@ -1953,6 +1953,8 @@ import AppHead from './AppHead'
 
 ### Server-Side Head Elements
 
+To manage titles, social metadata, canonical URLs, and structured data from PHP, use [Head](/docs/{{version}}/head#inertia). It renders the initial Blade document and shares metadata with Inertia for subsequent navigation, including defaults resolved from the current request.
+
 You may wish to include default head elements like `<title>` or `<meta>` tags in your root Blade template. This creates two challenges: preventing duplicates when [SSR](#server-side-rendering) is active, and ensuring the client-side `<Head>` component may replace them during navigation.
 
 <a name="title-and-meta-ssr-fallback"></a>

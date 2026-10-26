@@ -87,7 +87,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * All of the converted files for the request.
      *
-     * @var null|array<int, UploadedFile|UploadedFile[]>
+     * @var null|array<string, UploadedFile|UploadedFile[]>
      */
     protected ?array $convertedFiles = null;
 

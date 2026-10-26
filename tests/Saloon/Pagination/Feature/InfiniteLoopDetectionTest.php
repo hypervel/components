@@ -38,7 +38,7 @@ class InfiniteLoopDetectionTest extends PaginationTestCase
         try {
             iterator_to_array($paginator);
         } catch (PaginationException $exception) {
-            $this->assertSame('Potential infinite loop detected! The last 5 pages have had exactly the same body. You can use the $detectInfiniteLoop property on your paginator to disable this check.', $exception->getMessage());
+            $this->assertSame('Potential infinite loop detected! The last 5 pages were identical. You can use the $detectInfiniteLoop property on your paginator to disable this check.', $exception->getMessage());
 
             $mockClient->assertSentCount(5);
 
@@ -75,7 +75,7 @@ class InfiniteLoopDetectionTest extends PaginationTestCase
         try {
             iterator_to_array($paginator);
         } catch (PaginationException $exception) {
-            $this->assertSame('Potential infinite loop detected! The last 5 pages have had exactly the same body. You can use the $detectInfiniteLoop property on your paginator to disable this check.', $exception->getMessage());
+            $this->assertSame('Potential infinite loop detected! The last 5 pages were identical. You can use the $detectInfiniteLoop property on your paginator to disable this check.', $exception->getMessage());
 
             $mockClient->assertSentCount(7);
 

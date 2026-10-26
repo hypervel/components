@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -195,14 +196,12 @@ SQL],
      */
     protected function getBuilder(): Builder
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getDatabaseName')->andReturn('database');
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), 'database');
 
         return new Builder(
             $connection,
             new MySqlGrammar($connection),
-            m::mock(Processor::class)
+            new Processor
         );
     }
 }

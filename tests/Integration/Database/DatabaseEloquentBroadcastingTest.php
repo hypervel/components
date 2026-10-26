@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Closure;
 use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
@@ -13,10 +14,13 @@ use Hypervel\Database\Eloquent\BroadcastsEvents;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
-use Mockery as m;
+use LogicException;
+use PHPUnit\Framework\ExpectationFailedException;
+use UnitEnum;
 
 class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
 {
@@ -202,16 +206,86 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
      */
     private function assertHandldedBroadcastableEvent(BroadcastableModelEventOccurred $event, Closure $closure): bool
     {
-        $broadcaster = m::mock(Broadcaster::class);
-        $broadcaster->expects('broadcast')
-            ->withArgs(function (array $channels, string $eventName, array $payload) use ($closure): bool {
-                return $closure($channels, $eventName, $payload);
-            });
+        $broadcaster = new class($closure) implements Broadcaster {
+            public int $broadcasts = 0;
 
-        $manager = m::mock(BroadcastingFactory::class);
-        $manager->expects('connection')->with(null)->andReturn($broadcaster);
+            /**
+             * Create a broadcaster that checks each broadcast with the given callback.
+             */
+            public function __construct(protected Closure $closure)
+            {
+            }
+
+            /**
+             * Authenticate the incoming request for a given channel.
+             */
+            public function auth(Request $request): mixed
+            {
+                return null;
+            }
+
+            /**
+             * Return the valid authentication response.
+             */
+            public function validAuthenticationResponse(Request $request, mixed $result): mixed
+            {
+                return null;
+            }
+
+            /**
+             * Broadcast the given event.
+             */
+            public function broadcast(array $channels, string $event, array $payload = []): void
+            {
+                ++$this->broadcasts;
+
+                if (! ($this->closure)($channels, $event, $payload)) {
+                    throw new ExpectationFailedException('Broadcast arguments did not match.');
+                }
+            }
+        };
+
+        $manager = new class($broadcaster) implements BroadcastingFactory {
+            public array $requested = [];
+
+            /**
+             * Create a broadcasting factory that returns the given broadcaster.
+             */
+            public function __construct(protected Broadcaster $broadcaster)
+            {
+            }
+
+            /**
+             * Get a broadcaster implementation by name.
+             */
+            public function connection(UnitEnum|string|null $name = null): Broadcaster
+            {
+                $this->requested[] = $name;
+
+                return $this->broadcaster;
+            }
+
+            /**
+             * Begin broadcasting an event.
+             */
+            public function event(mixed $event = null): PendingBroadcast
+            {
+                throw new LogicException('Events cannot be broadcast.');
+            }
+
+            /**
+             * Queue the given event for broadcast.
+             */
+            public function queue(mixed $event): void
+            {
+                throw new LogicException('Events cannot be queued.');
+            }
+        };
 
         (new BroadcastEvent($event))->handle($manager);
+
+        $this->assertSame(1, $broadcaster->broadcasts);
+        $this->assertSame([null], $manager->requested);
 
         return true;
     }

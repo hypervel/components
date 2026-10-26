@@ -10,6 +10,7 @@ use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\HashFieldExpirationCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\PhpRedisCheck;
+use Hypervel\Cache\Redis\Console\Doctor\Checks\RedisVersionCheck;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -77,6 +78,38 @@ class DoctorCommandTest extends TestCase
         return [
             'all mode' => ['all', '6.1.0'],
             'any mode' => ['any', '6.3.0'],
+        ];
+    }
+
+    #[DataProvider('serverRequirements')]
+    public function testRedisVersionCheckUsesFeatureRequirement(string $taggingMode, array $info, bool $supported): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->allows('info')->with('server')->andReturn($info);
+
+        $check = new RedisVersionCheck($connection, $taggingMode);
+
+        $this->assertSame($supported, $check->run()->passed());
+
+        if ($supported || $info === []) {
+            $this->assertNull($check->getFixInstructions());
+        } else {
+            $this->assertStringContainsString('Upgrade to', $check->getFixInstructions());
+        }
+    }
+
+    /**
+     * Provide ordinary and hash-field-expiration server requirements.
+     */
+    public static function serverRequirements(): array
+    {
+        return [
+            'ordinary Redis' => ['all', ['redis_version' => '7.0.0'], true],
+            'old Redis for any mode' => ['any', ['redis_version' => '7.0.0'], false],
+            'supported Redis' => ['any', ['redis_version' => '8.0.0'], true],
+            'Valkey precedence' => ['any', ['valkey_version' => '9.0.0', 'redis_version' => '7.2.0'], true],
+            'old Valkey' => ['any', ['valkey_version' => '8.0.0', 'redis_version' => '8.0.0'], false],
+            'unknown server' => ['any', [], false],
         ];
     }
 
@@ -153,7 +186,7 @@ class DoctorCommandTest extends TestCase
             ],
         ], $result->assertions);
         $this->assertSame(
-            'Any tagging mode requires Redis 8.0+ or Valkey 9.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.',
+            'Any tagging mode requires Redis 8.0.0+ or Valkey 9.0.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.',
             $check->getFixInstructions()
         );
     }
@@ -185,7 +218,7 @@ class DoctorCommandTest extends TestCase
             ],
         ], $result->assertions);
         $this->assertSame(
-            'Any tagging mode requires Redis 8.0+ or Valkey 9.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.',
+            'Any tagging mode requires Redis 8.0.0+ or Valkey 9.0.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.',
             $check->getFixInstructions()
         );
     }

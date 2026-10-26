@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application;
+use ReflectionProperty;
+use Symfony\Component\Console\Terminal;
 
 /**
  * Prevent Symfony Terminal from repeatedly spawning `stty` when headless.
  *
- * Its fallback dimensions are not cached, so every lookup otherwise enters
- * Swoole's hooked subprocess-wait path.
+ * Symfony does not cache failed dimension probes, so each lookup otherwise
+ * enters Swoole's hooked subprocess wait, which can hang even after stty exits.
+ *
+ * @see https://github.com/swoole/swoole-src/issues/6328
  */
 class ConfigureTerminalDimensions
 {
@@ -19,16 +23,26 @@ class ConfigureTerminalDimensions
      */
     public function bootstrap(Application $app): void
     {
+        static::configure();
+    }
+
+    /**
+     * Configure headless fallback dimensions without modifying the environment.
+     */
+    public static function configure(): void
+    {
         if (defined('STDOUT') && stream_isatty(STDOUT)) {
             return;
         }
 
-        if (getenv('COLUMNS') === false) {
-            putenv('COLUMNS=80');
-        }
+        // Symfony has no dimension setter. Fill its cache so defaults cannot mask
+        // later environment loads; getWidth()/getHeight() still prefer explicit values.
+        foreach (['width' => 80, 'height' => 24] as $name => $default) {
+            $property = new ReflectionProperty(Terminal::class, $name);
 
-        if (getenv('LINES') === false) {
-            putenv('LINES=24');
+            if ($property->getValue() === null) {
+                $property->setValue(null, $default);
+            }
         }
     }
 }

@@ -20,7 +20,6 @@ use Hypervel\Routing\Middleware\SubstituteBindings;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\Auth\Fixtures\AbilitiesEnum;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -365,7 +364,7 @@ class AuthorizeMiddlewareTest extends TestCase
 
     public function testModelInstanceAsParameter(): void
     {
-        $instance = m::mock(Model::class);
+        $instance = new class extends Model {};
 
         $this->gate()->define('success', function (stdClass $user, Model $model) use ($instance): bool {
             $this->assertSame($model, $instance);
@@ -373,7 +372,7 @@ class AuthorizeMiddlewareTest extends TestCase
             return true;
         });
 
-        $request = m::mock(Request::class);
+        $request = new Request;
 
         $next = function (): Response {
             return new Response;

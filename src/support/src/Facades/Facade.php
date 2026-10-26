@@ -23,6 +23,7 @@ use Mockery\HigherOrderMessage;
 use Mockery\LegacyMockInterface;
 use Mockery\MockInterface;
 use RuntimeException;
+use Throwable;
 
 abstract class Facade
 {
@@ -352,6 +353,7 @@ abstract class Facade
      * Handle dynamic, static calls to the object.
      *
      * @throws RuntimeException
+     * @throws Throwable when the resolved service throws
      */
     public static function __callStatic(string $method, array $args): mixed
     {

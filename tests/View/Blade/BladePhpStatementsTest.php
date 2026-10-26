@@ -158,10 +158,6 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
         $expected = '<span class="<?php echo \Hypervel\Support\Arr::toCssClasses([\'k\' => @empty($v), \'t\' => @empty($v1)]); ?>"></span>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
 
-        $string = "<span @class(['k' => @empty(\$v), 't' => @empty(\$v1)])></span>";
-        $expected = '<span class="<?php echo \Hypervel\Support\Arr::toCssClasses([\'k\' => @empty($v), \'t\' => @empty($v1)]); ?>"></span>';
-        $this->assertEquals($expected, $this->compiler->compileString($string));
-
         $string = "<span @class(['k' => @empty(\$v), 't' => @empty(\$v1), 'r' => @empty(\$v2)])></span>";
         $expected = '<span class="<?php echo \Hypervel\Support\Arr::toCssClasses([\'k\' => @empty($v), \'t\' => @empty($v1), \'r\' => @empty($v2)]); ?>"></span>';
         $this->assertEquals($expected, $this->compiler->compileString($string));

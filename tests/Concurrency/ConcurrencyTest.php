@@ -694,18 +694,35 @@ PHP);
     }
 
     #[UsesVendor]
-    public function testContextIsPropagatedToConcurrentProcesses(): void
+    #[DataProvider('parentConsoleModes')]
+    public function testContextIsPropagatedToConcurrentProcesses(bool $runningInConsole): void
     {
-        Context::add('task', 'concurrency');
-        Context::addHidden('token', 'secret');
+        $this->withEnvironmentValue('APP_RUNNING_IN_CONSOLE', null, function () use ($runningInConsole): void {
+            $_SERVER['APP_RUNNING_IN_CONSOLE'] = $runningInConsole ? 'true' : 'false';
+            $this->app->setRunningInConsole($runningInConsole);
 
-        [$task, $token] = ConcurrencyFacade::driver('process')->run([
-            static fn (): mixed => Context::get('task'),
-            static fn (): mixed => Context::getHidden('token'),
-        ]);
+            Context::add('task', 'concurrency');
+            Context::addHidden('token', 'secret');
 
-        $this->assertSame('concurrency', $task);
-        $this->assertSame('secret', $token);
+            [$task, $token] = ConcurrencyFacade::driver('process')->run([
+                static fn (): mixed => Context::get('task'),
+                static fn (): mixed => Context::getHidden('token'),
+            ]);
+
+            $this->assertSame('concurrency', $task);
+            $this->assertSame('secret', $token);
+        });
+    }
+
+    /**
+     * Provide parent application modes for process context propagation.
+     */
+    public static function parentConsoleModes(): array
+    {
+        return [
+            'console' => [true],
+            'HTTP server' => [false],
+        ];
     }
 
     public function testContextIsPropagatedToDeferredConcurrentProcesses(): void

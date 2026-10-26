@@ -9,13 +9,14 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Integration\Console\Fixtures\ArrayFilesystem;
 use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class EnvironmentDecryptCommandTest extends TestCase
 {
-    protected Filesystem $filesystem;
+    protected ArrayFilesystem $filesystem;
 
     /**
      * Set up the test environment.
@@ -24,38 +25,47 @@ class EnvironmentDecryptCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->filesystem = File::spy();
-        $this->filesystem->shouldReceive('replace');
-        $this->filesystem->shouldReceive('chmod')->andReturn('0640');
+        $this->filesystem = new ArrayFilesystem;
+
+        File::swap($this->filesystem);
     }
 
     public function testItFailsWithInvalidCipherFails(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
+        $this->filesystem->files[base_path('.env.encrypted')] = 'encrypted';
 
         $this->artisan('env:decrypt', ['--cipher' => 'invalid', '--key' => 'abcdefghijklmnop'])
             ->expectsOutputToContain('Unsupported cipher')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItFailsUsingCipherWithInvalidKey(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
+        $this->filesystem->files[base_path('.env.encrypted')] = 'encrypted';
 
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-cbc', '--key' => 'invalid'])
             ->expectsOutputToContain('incorrect key length')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItPreservesCancellationWhileReadingTheEncryptedEnvironment(): void
     {
         $cancellation = new CanceledException('canceled');
-
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andThrow($cancellation);
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->expects('exists')
+            ->with(base_path('.env.encrypted'))
+            ->andReturn(true);
+        $filesystem->expects('exists')
+            ->with(base_path('.env'))
+            ->andReturn(false);
+        $filesystem->expects('get')
+            ->with(base_path('.env.encrypted'))
+            ->andThrow($cancellation);
+        File::swap($filesystem);
 
         try {
             $this->artisan('env:decrypt', ['--key' => 'abcdefghijklmnopabcdefghijklmnop'])->execute();
@@ -67,54 +77,50 @@ class EnvironmentDecryptCommandTest extends TestCase
 
     public function testItFailsWhenEnvironmentFileExists(): void
     {
-        $this->filesystem->expects('exists')->times(2)->andReturn(true);
+        $this->filesystem->files[base_path('.env.encrypted')] = 'encrypted';
+        $this->filesystem->files[base_path('.env')] = 'existing';
 
         $this->artisan('env:decrypt', ['--key' => 'secret-key'])
             ->expectsOutputToContain('Environment file already exists.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItFailsWhenEncryptionFileCannotBeFound(): void
     {
-        $this->filesystem->expects('exists')->andReturn(false);
-
         $this->artisan('env:decrypt', ['--key' => 'secret-key'])
             ->expectsOutputToContain('Encrypted environment file not found.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItGeneratesTheEnvironmentFileWithGeneratedKey(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter($key = Encrypter::generateKey('AES-256-CBC'), 'AES-256-CBC'))
-                ->encrypt('APP_NAME=Hypervel')
-        );
+        $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter($key = Encrypter::generateKey('AES-256-CBC'), 'AES-256-CBC'))
+            ->encrypt('APP_NAME=Hypervel');
+        $this->filesystem->files[base_path('.env')] = 'existing';
 
         $this->artisan('env:decrypt', ['--force' => true, '--key' => 'base64:' . base64_encode($key)])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME=Hypervel', 0640);
+        $this->assertSame('APP_NAME=Hypervel', $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0644, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItGeneratesTheEnvironmentFileWithUserProvidedKey(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
+            ->encrypt('APP_NAME="Hypervel Two"');
 
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-gcm', '--key' => 'abcdefghijklmnop'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItGeneratesTheEnvironmentFileWithKeyFromEnvironment(): void
@@ -124,19 +130,15 @@ class EnvironmentDecryptCommandTest extends TestCase
         $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] = 'ponmlkjihgfedcbaponmlkjihgfedcba';
 
         try {
-            $this->filesystem->expects('exists')->andReturn(true);
-            $this->filesystem->expects('exists')->andReturn(false);
-            $this->filesystem->expects('get')->andReturn(
-                (new Encrypter('ponmlkjihgfedcbaponmlkjihgfedcba', 'AES-256-CBC'))
-                    ->encrypt('APP_NAME="Hypervel Three"')
-            );
+            $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter('ponmlkjihgfedcbaponmlkjihgfedcba', 'AES-256-CBC'))
+                ->encrypt('APP_NAME="Hypervel Three"');
 
             $this->artisan('env:decrypt')
                 ->expectsOutputToContain('Environment successfully decrypted.')
                 ->assertExitCode(0);
 
-            $this->filesystem->shouldHaveReceived('replace')
-                ->with(base_path('.env'), 'APP_NAME="Hypervel Three"', 0600);
+            $this->assertSame('APP_NAME="Hypervel Three"', $this->filesystem->files[base_path('.env')]);
+            $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
         } finally {
             if ($hadEncryptionKey) {
                 $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] = $previousEncryptionKey;
@@ -148,19 +150,16 @@ class EnvironmentDecryptCommandTest extends TestCase
 
     public function testItGeneratesTheEnvironmentFileWhenForcing(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
+            ->encrypt('APP_NAME="Hypervel Two"');
+        $this->filesystem->files[base_path('.env')] = 'existing';
 
         $this->artisan('env:decrypt', ['--force' => true, '--key' => 'abcdefghijklmnop', '--cipher' => 'aes-128-gcm'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0640);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0644, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItDecryptsMultiLineEnvironmentCorrectly(): void
@@ -183,88 +182,69 @@ class EnvironmentDecryptCommandTest extends TestCase
         DB_PASSWORD=
         Text;
 
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
-                ->encrypt($contents)
-        );
+        $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
+            ->encrypt($contents);
+        $this->filesystem->files[base_path('.env')] = 'existing';
 
         $this->artisan('env:decrypt', ['--force' => true, '--key' => 'abcdefghijklmnop', '--cipher' => 'aes-128-gcm'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), $contents, 0640);
+        $this->assertSame($contents, $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0644, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItWritesTheEnvironmentFileCustomFilename(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.production.encrypted')] = (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
+            ->encrypt('APP_NAME="Hypervel Two"');
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--filename' => '.env'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItWritesTheEnvironmentFileCustomPath(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.production.encrypted')] = (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
+            ->encrypt('APP_NAME="Hypervel Two"');
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--path' => '/tmp'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env.production', 'APP_NAME="Hypervel Two"', 0600);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files['/tmp' . DIRECTORY_SEPARATOR . '.env.production']);
+        $this->assertSame(0600, $this->filesystem->modes['/tmp' . DIRECTORY_SEPARATOR . '.env.production']);
     }
 
     public function testItWritesTheEnvironmentFileCustomPathAndFilename(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.production.encrypted')] = (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
+            ->encrypt('APP_NAME="Hypervel Two"');
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--filename' => '.env', '--path' => '/tmp'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Hypervel Two"', 0600);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files['/tmp' . DIRECTORY_SEPARATOR . '.env']);
+        $this->assertSame(0600, $this->filesystem->modes['/tmp' . DIRECTORY_SEPARATOR . '.env']);
     }
 
     public function testItDecryptsNamedEnvironmentFilesBesideAnEnvironmentFileInASubdirectory(): void
     {
         $this->app->loadEnvironmentFrom('secrets/.env');
-        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production.encrypted'))->andReturn(true);
-        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production'))->andReturn(false);
-        $this->filesystem->expects('get')->with(base_path('secrets/.env.production.encrypted'))->andReturn(
-            (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                ->encrypt('APP_NAME=Hypervel')
-        );
+        $this->filesystem->files[base_path('secrets/.env.production.encrypted')] = (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
+            ->encrypt('APP_NAME=Hypervel');
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop'])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('secrets/.env.production'), 'APP_NAME=Hypervel', 0600);
+        $this->assertSame('APP_NAME=Hypervel', $this->filesystem->files[base_path('secrets/.env.production')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('secrets/.env.production')]);
     }
 
     public function testItCannotOverwriteEncryptedFiles(): void
@@ -273,27 +253,27 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->expectsOutputToContain('Invalid filename.')
             ->assertExitCode(1);
 
+        $this->assertSame([], $this->filesystem->writes);
+
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnop', '--filename' => '.env.staging.encrypted'])
             ->expectsOutputToContain('Invalid filename.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItGeneratesTheEnvironmentFileWithInteractivelyUserProvidedKey(): void
     {
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn(
-            (new Encrypter($key = 'abcdefghijklmnop', 'aes-128-gcm'))
-                ->encrypt('APP_NAME="Hypervel Two"')
-        );
+        $this->filesystem->files[base_path('.env.encrypted')] = (new Encrypter($key = 'abcdefghijklmnop', 'aes-128-gcm'))
+            ->encrypt('APP_NAME="Hypervel Two"');
 
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-gcm'])
             ->expectsQuestion('What is the decryption key?', $key)
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
+        $this->assertSame('APP_NAME="Hypervel Two"', $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItAutoDetectsAndDecryptsReadableFormat(): void
@@ -305,16 +285,14 @@ class EnvironmentDecryptCommandTest extends TestCase
         $encryptedContent = 'APP_NAME=' . $encrypter->encryptString('Hypervel') . "\n"
                            . 'APP_ENV=' . $encrypter->encryptString('local');
 
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn($encryptedContent);
+        $this->filesystem->files[base_path('.env.encrypted')] = $encryptedContent;
 
         $this->artisan('env:decrypt', ['--key' => $key])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), "APP_NAME=Hypervel\nAPP_ENV=local\n", 0600);
+        $this->assertSame("APP_NAME=Hypervel\nAPP_ENV=local\n", $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItStillDecryptsBlobFormat(): void
@@ -326,16 +304,14 @@ class EnvironmentDecryptCommandTest extends TestCase
         $originalContent = "APP_NAME=Hypervel\nAPP_ENV=local";
         $encryptedContent = $encrypter->encrypt($originalContent);
 
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn($encryptedContent);
+        $this->filesystem->files[base_path('.env.encrypted')] = $encryptedContent;
 
         $this->artisan('env:decrypt', ['--key' => $key])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), $originalContent, 0600);
+        $this->assertSame($originalContent, $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItDecryptsBlobFormatWithNewlineInContent(): void
@@ -351,16 +327,14 @@ class EnvironmentDecryptCommandTest extends TestCase
         $midpoint = (int) (strlen($encryptedContent) / 2);
         $encryptedContentWithNewline = substr($encryptedContent, 0, $midpoint) . "\n" . substr($encryptedContent, $midpoint);
 
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn($encryptedContentWithNewline);
+        $this->filesystem->files[base_path('.env.encrypted')] = $encryptedContentWithNewline;
 
         $this->artisan('env:decrypt', ['--key' => $key])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), $originalContent, 0600);
+        $this->assertSame($originalContent, $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testItDecryptsReadableFormatWithBase64Values(): void
@@ -372,16 +346,14 @@ class EnvironmentDecryptCommandTest extends TestCase
         $encryptedContent = 'APP_KEY=' . $encrypter->encryptString('base64:Ge+W23u+VZI2tbrp5QCGWrsUuxgcD65i7jtTRR2ZqfY=') . "\n"
                            . 'APP_ENV=' . $encrypter->encryptString('local');
 
-        $this->filesystem->expects('exists')->andReturn(true);
-        $this->filesystem->expects('exists')->andReturn(false);
-        $this->filesystem->expects('get')->andReturn($encryptedContent);
+        $this->filesystem->files[base_path('.env.encrypted')] = $encryptedContent;
 
         $this->artisan('env:decrypt', ['--key' => $key])
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), "APP_KEY=base64:Ge+W23u+VZI2tbrp5QCGWrsUuxgcD65i7jtTRR2ZqfY=\nAPP_ENV=local\n", 0600);
+        $this->assertSame("APP_KEY=base64:Ge+W23u+VZI2tbrp5QCGWrsUuxgcD65i7jtTRR2ZqfY=\nAPP_ENV=local\n", $this->filesystem->files[base_path('.env')]);
+        $this->assertSame(0600, $this->filesystem->modes[base_path('.env')]);
     }
 
     public function testNewEnvironmentFileUsesPrivatePermissions(): void

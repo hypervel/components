@@ -17,12 +17,14 @@ class FlushFailedCommand extends Command
     /**
      * The console command name.
      */
-    protected ?string $signature = 'queue:flush {--hours= : The number of hours to retain failed job data}';
+    protected ?string $signature = 'queue:flush
+                            {--hours= : The number of hours to retain failed job data}
+                            {--queue= : Flush all of the failed jobs for the specified queue}';
 
     /**
      * The console command description.
      */
-    protected string $description = 'Flush all of the failed queue jobs';
+    protected string $description = 'Flush the failed queue jobs';
 
     /**
      * Execute the console command.
@@ -34,17 +36,21 @@ class FlushFailedCommand extends Command
         }
 
         $hours = $this->option('hours');
+        $queue = $this->option('queue');
 
         $this->hypervel->make(FailedJobProviderInterface::class)
-            ->flush($hours ? (int) $hours : null);
+            ->flush($hours ? (int) $hours : null, $queue);
 
-        if ($this->option('hours')) {
-            $this->components->info("All jobs that failed more than {$this->option('hours')} hours ago have been deleted successfully.");
-
-            return self::SUCCESS;
+        // A queue named "0" is valid, so check the queue option against null.
+        if ($hours && $queue !== null) {
+            $this->components->info("All jobs on the [{$queue}] queue that failed more than {$hours} hours ago have been deleted successfully.");
+        } elseif ($hours) {
+            $this->components->info("All jobs that failed more than {$hours} hours ago have been deleted successfully.");
+        } elseif ($queue !== null) {
+            $this->components->info("All failed jobs on the [{$queue}] queue have been deleted successfully.");
+        } else {
+            $this->components->info('All failed jobs deleted successfully.');
         }
-
-        $this->components->info('All failed jobs deleted successfully.');
 
         return self::SUCCESS;
     }

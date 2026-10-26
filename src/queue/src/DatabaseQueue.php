@@ -6,8 +6,10 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -21,13 +23,15 @@ use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
+use Hypervel\Queue\Outbox\OutboxBatchResult;
+use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
-class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
+class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, PublishesOutboxMessages
 {
     use DetectsConcurrencyErrors;
     use DetectsLostConnections;
@@ -279,8 +283,11 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            static function (DatabaseQueue $owner, string $payload, ?string $queue) {
-                return $owner->pushToDatabase($queue, $payload);
+            static function (DatabaseQueue $owner, string $payload, ?string $queue) use ($job) {
+                $id = $owner->pushToDatabase($queue, $payload);
+                $owner->addStoredJobRollbackCallback($job);
+
+                return $id;
             }
         );
     }
@@ -310,8 +317,11 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
                 string $payload,
                 ?string $queue,
                 DateInterval|DateTimeInterface|int $delay
-            ) {
-                return $owner->pushToDatabase($queue, $payload, $delay);
+            ) use ($job) {
+                $id = $owner->pushToDatabase($queue, $payload, $delay);
+                $owner->addStoredJobRollbackCallback($job);
+
+                return $id;
             }
         );
     }
@@ -326,7 +336,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->normalizeQueue($queue);
-        $jobs = array_values($jobs);
+        $jobs = array_values($this->stageOutboxJobs($jobs, $data, $queue));
 
         if ($jobs === []) {
             return null;
@@ -372,17 +382,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return (new Collection($jobs))
-            ->map(function (object|string $job) use ($data, $queue): array {
-                $delay = $this->getJobDelay($job);
-
-                return [
-                    'job' => $job,
-                    'delay' => $delay,
-                    'payload' => $this->createPayload($job, $this->getQueue($queue), $data, $delay),
-                ];
-            })
-            ->all();
+        return parent::prepareBatchJobs($jobs, $data, $this->getQueue($queue));
     }
 
     /**
@@ -402,15 +402,13 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 
             // Every payload must be final before any batch member begins its
             // existing JobQueueing lifecycle or the database write.
-            foreach ($jobs as $job) {
+            foreach ($jobs as $index => $job) {
                 $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
+                $jobs[$index]['storedPayload'] = $this->preparePayloadForPush($job['job'], $job['payload'], $queue);
             }
 
             $now = $this->availableAt();
             $connection = $this->getDatabase();
-            $maxBindings = $connection instanceof PdoConnection
-                ? $connection->maxBindings()
-                : PdoConnection::DEFAULT_MAX_BINDINGS;
 
             $this->insertDatabaseRows(
                 $connection,
@@ -418,31 +416,97 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
                 (new Collection($jobs))
                     ->map(fn (array $job): array => $this->buildDatabaseRecord(
                         $this->getQueue($queue),
-                        $job['payload'],
+                        $job['storedPayload'],
                         $job['delay'] !== null ? $this->availableAt($job['delay']) : $now,
                     ))->all(),
-                $maxBindings,
             );
+
+            foreach ($jobs as $job) {
+                $this->addStoredJobRollbackCallback($job['job'], $connection);
+            }
+
             $result = true;
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            foreach ($jobs as $job) {
-                $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception);
-            }
-
-            throw $exception;
+            throw $this->notifyBatchMembers(
+                $jobs,
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+            ) ?? $exception;
         }
 
         foreach ($jobs as $job) {
             $this->acceptDispatchLocks($job['job']);
         }
 
-        foreach ($jobs as $job) {
-            $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']);
+        $exception = $this->notifyBatchMembers(
+            $jobs,
+            fn (array $job) => $this->handlePayloadPushed($job['storedPayload'], $queue),
+            fn (array $job) => $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']),
+        );
+
+        if ($exception !== null) {
+            throw $exception;
         }
 
         return $result;
+    }
+
+    /**
+     * Release accepted dispatch locks if their stored job is rolled back.
+     */
+    protected function addStoredJobRollbackCallback(object|string $job, ?ConnectionInterface $connection = null): void
+    {
+        $snapshot = is_object($job) ? DispatchLockContext::snapshot($job) : null;
+
+        if ($snapshot === null) {
+            return;
+        }
+
+        $connection ??= $this->getDatabase();
+
+        if ($connection->transactionLevel() > 0) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
+            $transactions->addCallbackForRollback(
+                static fn () => DispatchLockContext::releaseSnapshot($snapshot),
+                $connection->getNameWithReadWriteType() ?? '',
+            );
+        }
+    }
+
+    /**
+     * Publish a raw outbox batch atomically across its logical queues.
+     *
+     * @param list<OutboxMessage> $messages
+     */
+    public function publishOutboxMessages(array $messages): OutboxBatchResult
+    {
+        if ($messages === []) {
+            return new OutboxBatchResult;
+        }
+
+        try {
+            $connection = $this->getDatabase();
+            $now = $this->currentTime();
+            $rows = [];
+
+            foreach ($messages as $message) {
+                $rows[] = $this->buildDatabaseRecord(
+                    $this->getQueue($message->queue),
+                    $message->payload,
+                    max($now, $message->deliverAt ?? $now),
+                );
+            }
+
+            $this->insertDatabaseRows($connection, $this->table, $rows);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            return new OutboxBatchResult(failure: $exception);
+        }
+
+        return new OutboxBatchResult(array_column($messages, 'id'));
     }
 
     /**
@@ -689,6 +753,59 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         $queue = $this->normalizeQueue($queue);
 
         return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
+    }
+
+    /**
+     * Avoid a second durable table when the jobs insert already belongs to its owner.
+     */
+    protected function shouldStageViaOutbox(object|string $job): bool
+    {
+        if (! $this->shouldDispatchViaOutbox($job) || ! $this->container->bound('db.transactions')) {
+            return false;
+        }
+
+        /** @var DatabaseTransactionsManager $transactions */
+        $transactions = $this->container->make('db.transactions');
+        $active = [];
+
+        foreach ($transactions->callbackApplicableTransactions() as $transaction) {
+            $active[$transaction->connection] = true;
+        }
+
+        if ($active === []) {
+            return false;
+        }
+
+        $target = $this->getDatabase()->getNameWithReadWriteType() ?? '';
+        $explicit = $job->outboxDatabase ?? null;
+
+        return ! (isset($active[$target]) && ($explicit === null
+            ? count($active) === 1
+            : $this->resolver->connection($explicit)->getNameWithReadWriteType() === $target));
+    }
+
+    /**
+     * Keep an already-atomic outbox-selected insert inside its transaction.
+     */
+    protected function shouldDispatchAfterCommit(object|string $job): bool
+    {
+        return ! $this->shouldDispatchViaOutbox($job) && parent::shouldDispatchAfterCommit($job);
+    }
+
+    /**
+     * Capture the logical destination before publication-time forwarding.
+     */
+    protected function resolveOutboxQueue(?string $queue): ?string
+    {
+        return $queue === null || $queue === '' ? $this->default : $queue;
+    }
+
+    /**
+     * Publish delayed database jobs immediately with their future availability.
+     */
+    protected function availableAtForOutbox(?string $queue, ?int $deliverAt): int
+    {
+        return $this->currentTime();
     }
 
     /**

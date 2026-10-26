@@ -1003,7 +1003,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         $this->transactions = 0;
 
-        $this->transactionsManager?->rollback($this->getName() ?? '', 0);
+        $this->transactionsManager?->rollback($this->getNameWithReadWriteType() ?? '', 0);
     }
 
     /**

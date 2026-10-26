@@ -11,6 +11,8 @@ use Hypervel\Support\Testing\Fakes\BatchFake;
 
 trait Batchable
 {
+    use InteractsWithQueueOutbox;
+
     /**
      * The batch ID (if applicable).
      */

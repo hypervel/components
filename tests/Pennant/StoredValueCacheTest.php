@@ -118,6 +118,20 @@ class StoredValueCacheTest extends TestCase
         $this->assertSame(['everyone', 'everyone'], Feature::for(['taylor', 'otwell'])->load('foo')['foo']);
     }
 
+    public function testSharedCacheCanBeFlushedAfterRawChangesWithoutDeletingStoredValues(): void
+    {
+        Feature::for('taylor')->value('foo');
+        DB::table('features')->where('name', 'foo')->update(['value' => '"changed"']);
+        Feature::store('database')->flushSharedCache();
+
+        // The current request retains its memoized snapshot until explicitly flushed.
+        $this->assertSame('resolved', Feature::for('taylor')->value('foo'));
+        Feature::flushCache();
+
+        $this->assertSame('changed', Feature::for('taylor')->value('foo'));
+        $this->assertDatabaseCount('features', 1);
+    }
+
     public function testUnknownFeatureValuesAreNotCached(): void
     {
         $this->assertFalse(Feature::for('taylor')->value('unknown'));

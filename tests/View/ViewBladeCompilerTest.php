@@ -87,7 +87,7 @@ class ViewBladeCompilerTest extends TestCase
 
     public function testIsExpiredReturnsTrueWhenUseCacheIsFalse(): void
     {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__, shouldCache: false);
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__, shouldCache: false);
         $this->assertTrue($compiler->isExpired('foo'));
     }
 
@@ -256,7 +256,7 @@ class ViewBladeCompilerTest extends TestCase
 
     public function testCompileSetAndGetThePath(): void
     {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
         $compiler->setPath('foo');
         $this->assertSame('foo', $compiler->getPath());
     }
@@ -570,7 +570,7 @@ class ViewBladeCompilerTest extends TestCase
 
     public function testShouldStartFromStrictTypesDeclaration(): void
     {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
         $strictTypeDecl = "<?php\ndeclare(strict_types = 1);";
         $this->assertSame(substr(
             $compiler->compileString("<?php\ndeclare(strict_types = 1);\nHello World"),

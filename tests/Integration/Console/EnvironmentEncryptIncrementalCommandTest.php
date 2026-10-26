@@ -5,39 +5,33 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Console;
 
 use Hypervel\Encryption\Encrypter;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use Hypervel\Tests\Integration\Console\Fixtures\ArrayFilesystem;
 use PHPUnit\Framework\Attributes\DataProvider;
-use RuntimeException;
 
 class EnvironmentEncryptIncrementalCommandTest extends TestCase
 {
     protected string $key = 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP';
 
-    /**
-     * Mock the source and encrypted environment files.
-     */
-    protected function mockFiles(?string $originalContent, ?string $encryptedContent, string $env = '.env'): void
-    {
-        File::swap(m::mock(Filesystem::class));
+    protected ArrayFilesystem $filesystem;
 
-        File::shouldReceive('exists')
-            ->with(base_path($env))
-            ->andReturn($originalContent !== null);
-        File::shouldReceive('exists')
-            ->with(base_path($env . '.encrypted'))
-            ->andReturn($encryptedContent !== null);
-        File::shouldReceive('get')
-            ->with(base_path($env))
-            ->andReturn($originalContent);
-        File::shouldReceive('get')
-            ->with(base_path($env . '.encrypted'))
-            ->andReturn($encryptedContent);
-        File::shouldReceive('chmod')
-            ->with(base_path($env . '.encrypted'))
-            ->andReturn('0640');
+    /**
+     * Seed the source and encrypted environment files.
+     */
+    protected function seedFiles(?string $originalContent, ?string $encryptedContent, string $env = '.env'): void
+    {
+        $this->filesystem = new ArrayFilesystem;
+
+        if ($originalContent !== null) {
+            $this->filesystem->files[base_path($env)] = $originalContent;
+        }
+
+        if ($encryptedContent !== null) {
+            $this->filesystem->files[base_path($env . '.encrypted')] = $encryptedContent;
+        }
+
+        File::swap($this->filesystem);
     }
 
     public function testItChangesOnlyTheEditedValue(): void
@@ -60,15 +54,12 @@ APP_ENV={$app}
 
 ENV;
 
-        $this->mockFiles($originalContent, $encryptedContent);
-
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
+        $this->seedFiles($originalContent, $encryptedContent);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $lines = explode("\n", $encryptedOutput);
         $this->assertSame("DB_HOST={$host}", $lines[0]);
@@ -77,6 +68,7 @@ ENV;
         $payload = substr($lines[1], strlen('DB_PASSWORD='));
         $this->assertNotSame($password, $payload);
         $this->assertSame('2', $encrypter->decryptString($payload));
+        $this->assertSame([], $this->filesystem->deletes);
     }
 
     public function testItDoesNotWriteWhenRawValuesAreUnchanged(): void
@@ -112,12 +104,13 @@ EMPTY={$empty}
 
 ENV;
 
-        $this->mockFiles($originalContent, $encryptedContent);
-        File::shouldReceive('replace')->never();
-        File::expects('delete')->with(base_path('.env'))->andReturnTrue();
+        $this->seedFiles($originalContent, $encryptedContent);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key, '--prune' => true])
             ->assertExitCode(0);
+
+        $this->assertSame([], $this->filesystem->writes);
+        $this->assertSame([base_path('.env')], $this->filesystem->deletes);
     }
 
     public function testItPreservesOccurrencesWhileAddingDeletingAndReordering(): void
@@ -140,14 +133,11 @@ DUP={$second}
 
 ENV;
 
-        $this->mockFiles($originalContent, $encryptedContent);
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
-
+        $this->seedFiles($originalContent, $encryptedContent);
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $lines = explode("\n", $encryptedOutput);
         $this->assertCount(4, $lines);
@@ -163,29 +153,23 @@ ENV;
         $first = $encrypter->encryptString('1');
         $second = $encrypter->encryptString('2');
 
-        $this->mockFiles("DUP=2\n", "DUP={$first}\nDUP={$second}\n");
-
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
+        $this->seedFiles("DUP=2\n", "DUP={$first}\nDUP={$second}\n");
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $this->assertSame("DUP={$second}\n", $encryptedOutput);
     }
 
     public function testItCreatesAMissingTargetForTheSelectedEnvironment(): void
     {
-        $this->mockFiles("DB_PASSWORD=1\n", null, '.env.production');
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.production.encrypted'), m::capture($encryptedOutput), null);
-
+        $this->seedFiles("DB_PASSWORD=1\n", null, '.env.production');
         $this->artisan('env:encrypt', ['--readable' => true, '--env' => 'production', '--key' => 'base64:' . base64_encode($this->key)])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.production.encrypted')];
 
         $encrypter = new Encrypter($this->key, 'AES-256-CBC');
         $this->assertSame('1', $encrypter->decryptString(substr(rtrim($encryptedOutput), strlen('DB_PASSWORD='))));
@@ -195,14 +179,11 @@ ENV;
     {
         $encrypter = new Encrypter($this->key, 'AES-256-CBC');
         $old = $encrypter->encryptString('1');
-        $this->mockFiles('DB_PASSWORD="1"', 'DB_PASSWORD=' . $old . "\n");
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
-
+        $this->seedFiles('DB_PASSWORD="1"', 'DB_PASSWORD=' . $old . "\n");
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $this->assertSame('"1"', $encrypter->decryptString(substr(rtrim($encryptedOutput), strlen('DB_PASSWORD='))));
     }
@@ -210,12 +191,11 @@ ENV;
     public function testItCanDeleteAllEntries(): void
     {
         $encrypter = new Encrypter($this->key, 'AES-256-CBC');
-        $this->mockFiles('', 'DB_PASSWORD=' . $encrypter->encryptString('1') . "\n");
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), '', 0640);
-
+        $this->seedFiles('', 'DB_PASSWORD=' . $encrypter->encryptString('1') . "\n");
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $this->assertSame('', $this->filesystem->files[base_path('.env.encrypted')]);
     }
 
     #[DataProvider('invalidBaselines')]
@@ -229,12 +209,13 @@ ENV;
             'malformed' => '<<<<<<< HEAD',
             'corrupt-deleted-entry' => 'REMOVED=invalid',
         };
-        $this->mockFiles("DB_PASSWORD=1\n", $encryptedContent);
-        File::shouldReceive('replace')->never();
-        File::shouldReceive('delete')->never();
+        $this->seedFiles("DB_PASSWORD=1\n", $encryptedContent);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key, '--prune' => true])
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
+        $this->assertSame([], $this->filesystem->deletes);
     }
 
     /**
@@ -269,17 +250,13 @@ SECOND={$second}
 
 ENV;
 
-        $this->mockFiles($originalContent, $encryptedContent);
-
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
+        $this->seedFiles($originalContent, $encryptedContent);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--force' => true, '--cipher' => $cipher, '--key' => $key])
             ->assertExitCode(0);
 
-        File::shouldNotHaveReceived('get', [base_path('.env.encrypted')]);
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
+        $this->assertNotContains(base_path('.env.encrypted'), $this->filesystem->reads);
 
         $lines = explode("\n", $encryptedOutput);
         $encrypter = new Encrypter($key, $cipher);
@@ -312,58 +289,60 @@ ENV;
             'malformed' => '<<<<<<< HEAD',
             'corrupt-deleted-entry' => 'REMOVED=invalid',
         };
-        $this->mockFiles('DB_PASSWORD=1', $baseline);
-        $encryptedOutput = null;
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
-
+        $this->seedFiles('DB_PASSWORD=1', $baseline);
         $this->artisan('env:encrypt', ['--readable' => true, '--force' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $this->assertSame('1', $encrypter->decryptString(substr(rtrim($encryptedOutput), strlen('DB_PASSWORD='))));
     }
 
     public function testItRejectsAMissingSource(): void
     {
-        $this->mockFiles(null, 'existing');
-        File::shouldReceive('replace')->never();
+        $this->seedFiles(null, 'existing');
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->expectsOutputToContain('Environment file not found.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItRequiresTheExistingKeyInsteadOfGeneratingOne(): void
     {
-        $this->mockFiles('DB_PASSWORD=1', 'existing');
-        File::shouldReceive('replace')->never();
+        $this->seedFiles('DB_PASSWORD=1', 'existing');
 
         $this->artisan('env:encrypt', ['--readable' => true, '--no-interaction' => true])
             ->expectsOutputToContain('The existing encryption key is required')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItAsksForTheExistingKeyWhenUpdatingInteractively(): void
     {
         $encrypter = new Encrypter($this->key, 'AES-256-CBC');
-        $this->mockFiles('DB_PASSWORD=1', 'DB_PASSWORD=' . $encrypter->encryptString('1') . "\n");
-        File::shouldReceive('replace')->never();
+        $this->seedFiles('DB_PASSWORD=1', 'DB_PASSWORD=' . $encrypter->encryptString('1') . "\n");
 
         $this->artisan('env:encrypt', ['--readable' => true])
             ->expectsQuestion('What is the encryption key?', $this->key)
             ->assertExitCode(0);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     #[DataProvider('writeModes')]
     public function testItDoesNotPruneAfterAFailedWrite(bool $readable, bool $force): void
     {
-        $this->mockFiles('DB_PASSWORD=1', null);
-        File::expects('replace')->andThrow(new RuntimeException('publication failed'));
-        File::shouldReceive('delete')->never();
+        $this->seedFiles('DB_PASSWORD=1', null);
+        $this->filesystem->failWrites = true;
 
         $this->artisan('env:encrypt', ['--readable' => $readable, '--force' => $force, '--key' => $this->key, '--prune' => true])
-            ->expectsOutputToContain('publication failed')
+            ->expectsOutputToContain('Unable to write the complete replacement contents for')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->deletes);
     }
 
     /**
@@ -392,11 +371,12 @@ SECOND=2
 
 ENV;
 
-        $this->mockFiles($originalContent, $encryptedContent);
-        File::shouldReceive('replace')->never();
+        $this->seedFiles($originalContent, $encryptedContent);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     /**
@@ -431,14 +411,11 @@ SECOND={$second}
 
 ENV;
 
-        $this->mockFiles($originalContent, str_replace("\n", "\r\n", $encryptedContent));
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
-
+        $this->seedFiles($originalContent, str_replace("\n", "\r\n", $encryptedContent));
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $lines = explode("\n", $encryptedOutput);
         $this->assertCount(3, $lines);
@@ -455,13 +432,14 @@ REMOVED=invalid
 
 ENV;
 
-        $this->mockFiles('FIRST=1', str_replace("\n", "\r\n", $encryptedContent));
-        File::shouldReceive('replace')->never();
-        File::shouldReceive('delete')->never();
+        $this->seedFiles('FIRST=1', str_replace("\n", "\r\n", $encryptedContent));
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key, '--prune' => true])
             ->expectsOutputToContain('Unable to decrypt the encrypted environment entry on line 3.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
+        $this->assertSame([], $this->filesystem->deletes);
     }
 
     public function testItWritesAReorderedBaselineEvenWhenEveryValueIsUnchanged(): void
@@ -481,14 +459,11 @@ SECOND={$second}
 
 ENV;
 
-        $this->mockFiles($originalContent, str_replace("\n", "\r\n", $encryptedContent));
-        $encryptedOutput = null;
-
-        File::expects('replace')
-            ->with(base_path('.env.encrypted'), m::capture($encryptedOutput), 0640);
-
+        $this->seedFiles($originalContent, str_replace("\n", "\r\n", $encryptedContent));
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $this->key])
             ->assertExitCode(0);
+
+        $encryptedOutput = $this->filesystem->files[base_path('.env.encrypted')];
 
         $expected = <<<ENV
 SECOND={$second}
@@ -501,32 +476,35 @@ ENV;
 
     public function testItRejectsAnEmptyInteractiveKeyWithoutOfferingGeneration(): void
     {
-        $this->mockFiles('FIRST=1', 'existing');
-        File::shouldReceive('replace')->never();
+        $this->seedFiles('FIRST=1', 'existing');
 
         $this->artisan('env:encrypt', ['--readable' => true])
             ->expectsQuestion('What is the encryption key?', '')
             ->expectsOutputToContain('The existing encryption key is required to update the encrypted environment file.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItRejectsAnExplicitEmptyKeyNoninteractively(): void
     {
-        $this->mockFiles('FIRST=1', 'existing');
-        File::shouldReceive('replace')->never();
+        $this->seedFiles('FIRST=1', 'existing');
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => '', '--no-interaction' => true])
             ->expectsOutputToContain('The existing encryption key is required to update the encrypted environment file.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 
     public function testItRejectsAMissingSourceBeforeAskingForAKey(): void
     {
-        $this->mockFiles(null, 'existing');
-        File::shouldReceive('replace')->never();
+        $this->seedFiles(null, 'existing');
 
         $this->artisan('env:encrypt', ['--readable' => true])
             ->expectsOutputToContain('Environment file not found.')
             ->assertExitCode(1);
+
+        $this->assertSame([], $this->filesystem->writes);
     }
 }

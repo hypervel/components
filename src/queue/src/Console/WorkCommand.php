@@ -250,7 +250,7 @@ class WorkCommand extends Command
                 'queue' => $queue,
                 'status' => $status,
                 'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
-            ]));
+            ]), OutputInterface::OUTPUT_RAW);
 
             return;
         }

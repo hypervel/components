@@ -21,6 +21,8 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
+use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\Queue\Fixtures\JobToTestWithSchedule;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -61,7 +63,7 @@ class ScheduleTest extends TestCase
 {
     protected Container $container;
 
-    protected EventMutex&MockInterface $eventMutex;
+    protected EventMutex $eventMutex;
 
     protected MockInterface&SchedulingMutex $schedulingMutex;
 
@@ -71,7 +73,7 @@ class ScheduleTest extends TestCase
 
         $this->container = new Application;
         Container::setInstance($this->container);
-        $this->eventMutex = m::mock(EventMutex::class);
+        $this->eventMutex = new FakeEventMutex;
         $this->container->instance(EventMutex::class, $this->eventMutex);
         $this->schedulingMutex = m::mock(SchedulingMutex::class);
         $this->container->instance(SchedulingMutex::class, $this->schedulingMutex);
@@ -320,17 +322,15 @@ class ScheduleTest extends TestCase
 
     public function testMutexCanReceiveCustomStore(): void
     {
-        $eventMutex = m::mock(CacheEventMutex::class);
-        $eventMutex->shouldReceive('useStore')->once()->with('test');
-
-        $schedulingMutex = m::mock(CacheSchedulingMutex::class);
-        $schedulingMutex->shouldReceive('useStore')->once()->with('test');
-
-        $this->container->instance(EventMutex::class, $eventMutex);
-        $this->container->instance(SchedulingMutex::class, $schedulingMutex);
+        $cache = new FakeCacheFactory;
+        $this->container->instance(EventMutex::class, $eventMutex = new CacheEventMutex($cache));
+        $this->container->instance(SchedulingMutex::class, $schedulingMutex = new CacheSchedulingMutex($cache));
 
         $schedule = new Schedule;
         $schedule->useCache('test');
+
+        $this->assertSame('test', $eventMutex->store);
+        $this->assertSame('test', $schedulingMutex->store);
     }
 
     public function testServerShouldRunCachesMutexResultOnlyWithinSameMinute(): void

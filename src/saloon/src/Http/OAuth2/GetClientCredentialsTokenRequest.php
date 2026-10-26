@@ -55,11 +55,13 @@ class GetClientCredentialsTokenRequest extends Request
      */
     protected function defaultBody(): array
     {
+        $scopes = $this->oauthConfig->scopes($this->scopes);
+
         return [
             'grant_type' => 'client_credentials',
             'client_id' => $this->oauthConfig->clientId,
             'client_secret' => $this->oauthConfig->clientSecret,
-            'scope' => implode($this->scopeSeparator, $this->oauthConfig->scopes($this->scopes)),
+            ...($scopes === [] ? [] : ['scope' => implode($this->scopeSeparator, $scopes)]),
         ];
     }
 }

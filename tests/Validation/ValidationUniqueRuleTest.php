@@ -194,6 +194,10 @@ class ValidationUniqueRuleTest extends TestCase
         $rule = new Unique('table', 'column');
         $rule->where('foo', 0);
         $this->assertSame('unique:table,column,NULL,id,foo,"0"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->where('foo', 0.13);
+        $this->assertSame('unique:table,column,NULL,id,foo,"0.13"', (string) $rule);
     }
 
     public function testItValidatesUniqueRuleWithWhereInAndWhereNotIn(): void

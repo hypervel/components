@@ -61,6 +61,7 @@
     - [Signals](/docs/{{version}}/signals)
     - [WebSockets](/docs/{{version}}/websockets)
     - [Queues](/docs/{{version}}/queues)
+    - [Transactional Outbox](/docs/{{version}}/queue-outbox)
     - [Rate Limiting](/docs/{{version}}/rate-limiting)
     - [Search](/docs/{{version}}/search)
     - [Strings](/docs/{{version}}/strings)
@@ -100,8 +101,10 @@
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
     - [API Client](/docs/{{version}}/api-client)
+    - [Doctor](/docs/{{version}}/doctor)
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
+    - [Head](/docs/{{version}}/head)
     - [Horizon](/docs/{{version}}/horizon)
     - [Inertia](/docs/{{version}}/inertia)
     - [Nested Set](/docs/{{version}}/nested-set)

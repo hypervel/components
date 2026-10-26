@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Notifications\VerifyEmail;
+use Hypervel\Mail\Mailable;
 use Hypervel\Routing\Router;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
@@ -45,6 +46,14 @@ class VerifyEmailNotificationTest extends TestCase
 
         $this->assertSame('Verify your email address', $mail->subject);
         $this->assertSame('Verify Email Address', $mail->actionText);
+    }
+
+    public function testMailCallbackCanReturnAMailable(): void
+    {
+        $mail = new Mailable;
+        VerifyEmail::toMailUsing(fn (): Mailable => $mail);
+
+        $this->assertSame($mail, (new VerifyEmail)->toMail(new VerifyEmailNotifiableStub));
     }
 
     /**

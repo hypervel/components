@@ -21,14 +21,13 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testPropertiesAreSetCorrectly(): void
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->expects('getConnectionName')->times(2)->andReturn('connection');
+        $parent->expects('getConnectionName')->times(1)->andReturn('connection');
         $resolver = m::mock(ConnectionResolverInterface::class);
         $parent->setConnectionResolver($resolver);
         $connection = m::mock(Connection::class);
-        $resolver->expects('connection')->times(2)->andReturn($connection);
-        $grammar = m::mock(Grammar::class);
-        $connection->expects('getQueryGrammar')->times(2)->andReturn($grammar);
-        $parent->getConnection()->getQueryGrammar()->expects('getDateFormat')->andReturn('Y-m-d H:i:s');
+        $resolver->expects('connection')->times(1)->andReturn($connection);
+        $grammar = new Grammar($connection);
+        $connection->expects('getQueryGrammar')->times(1)->andReturn($grammar);
         $parent->setDateFormat('Y-m-d H:i:s');
         $pivot = Pivot::fromAttributes($parent, ['foo' => 'bar', 'created_at' => '2015-09-12'], 'table', true);
 
@@ -41,8 +40,7 @@ class DatabaseEloquentPivotTest extends TestCase
 
     public function testMutatorsAreCalledFromConstructor(): void
     {
-        $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->expects('getConnectionName')->andReturn('connection');
+        $parent = new DummyModel;
 
         $pivot = MutatorStub::fromAttributes($parent, ['foo' => 'bar'], 'table', true);
 
@@ -109,8 +107,7 @@ class DatabaseEloquentPivotTest extends TestCase
 
     public function testKeysCanBeSetProperly(): void
     {
-        $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->expects('getConnectionName')->andReturn('connection');
+        $parent = new DummyModel;
         $pivot = Pivot::fromAttributes($parent, ['foo' => 'bar'], 'table');
         $pivot->setPivotKeys('foreign', 'other');
 
@@ -182,9 +179,7 @@ class DatabaseEloquentPivotTest extends TestCase
 
     public function testPivotModelWithParentReturnsParentsTimestampColumns(): void
     {
-        $parent = m::mock(Model::class);
-        $parent->expects('getCreatedAtColumn')->andReturn('parent_created_at');
-        $parent->expects('getUpdatedAtColumn')->andReturn('parent_updated_at');
+        $parent = new DatabaseEloquentPivotTestCustomTimestampsModel;
 
         $pivotWithParent = new Pivot;
         $pivotWithParent->pivotParent = $parent;
@@ -280,4 +275,11 @@ class PrunableDeleteReturnPivotStub extends DeleteReturnPivotStub
 
 class DummyModel extends Model
 {
+}
+
+class DatabaseEloquentPivotTestCustomTimestampsModel extends Model
+{
+    public const ?string CREATED_AT = 'parent_created_at';
+
+    public const ?string UPDATED_AT = 'parent_updated_at';
 }

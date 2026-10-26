@@ -1001,6 +1001,20 @@ class ServerCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).
 
+If you would like to store a broadcast job as part of your database transaction, you may implement the `ShouldQueueViaOutbox` interface on the broadcast event. The [transactional outbox](/docs/{{version}}/queue-outbox) will then deliver the job to your queue after the transaction commits:
+
+```php
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
+
+class ServerCreated implements ShouldBroadcast, ShouldQueueViaOutbox
+{
+    // ...
+}
+```
+
+Dispatch the event inside the transaction without implementing `ShouldDispatchAfterCommit`. That interface would postpone the entire event until after commit, preventing the broadcast job from being stored in the transaction. Before using this feature, follow the [outbox setup instructions](/docs/{{version}}/queue-outbox#setup).
+
 <a name="authorizing-channels"></a>
 ## Authorizing Channels
 

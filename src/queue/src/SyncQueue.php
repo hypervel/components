@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
@@ -215,7 +217,14 @@ class SyncQueue extends Queue implements QueueContract
     {
         // JobProcessing hydrates the payload's context. Keep it through all job
         // events without replacing the context of the dispatching coroutine.
-        return $this->withLogContext(null, fn (): int => $this->processPayload($payload, $queue));
+        return $this->withLogContext(null, function () use ($payload, $queue): int {
+            if (CoroutineContext::get(self::OUTBOX_FORWARDED_CONTEXT_KEY) === null) {
+                return $this->processPayload($payload, $queue);
+            }
+
+            // A running handler may dispatch independent work through the same string handler.
+            return $this->withOutboxForwarding(null, fn (): int => $this->processPayload($payload, $queue));
+        });
     }
 
     /**
@@ -231,9 +240,15 @@ class SyncQueue extends Queue implements QueueContract
         try {
             $this->raiseBeforeJobEvent($queueJob);
 
-            $queueJob->fire();
+            $startedAt = hrtime(true);
 
-            $this->raiseAfterJobEvent($queueJob);
+            try {
+                $queueJob->fire();
+            } finally {
+                $duration = round((hrtime(true) - $startedAt) / 1e6, 2);
+            }
+
+            $this->raiseAfterJobEvent($queueJob, $duration);
         } catch (CanceledException $exception) {
             $canceled = true;
 
@@ -250,7 +265,7 @@ class SyncQueue extends Queue implements QueueContract
             }
         } finally {
             if (! $canceled) {
-                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
+                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null, $duration ?? null);
             }
         }
 
@@ -285,14 +300,14 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Raise the after queue job event.
      */
-    protected function raiseAfterJobEvent(JobContract $job): void
+    protected function raiseAfterJobEvent(JobContract $job, ?float $duration = null): void
     {
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobProcessed::class)) {
-                $events->dispatch(new JobProcessed($this->connectionName, $job));
+                $events->dispatch(new JobProcessed($this->connectionName, $job, $duration));
             }
         }
     }
@@ -300,14 +315,14 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Raise the job attempted event.
      */
-    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null): void
+    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null, ?float $duration = null): void
     {
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobAttempted::class)) {
-                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred));
+                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration));
             }
         }
     }
@@ -355,6 +370,46 @@ class SyncQueue extends Queue implements QueueContract
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->push($job, $data, $queue);
+    }
+
+    /**
+     * Keep local queue execution out of durable outbox storage.
+     */
+    protected function shouldStageViaOutbox(object|string $job): bool
+    {
+        return false;
+    }
+
+    /**
+     * Degrade selected outbox delivery to local execution after commit.
+     */
+    protected function shouldDispatchAfterCommit(object|string $job): bool
+    {
+        if (parent::shouldDispatchAfterCommit($job)) {
+            return true;
+        }
+
+        if (! $this->shouldDispatchViaOutbox($job) || ! $this->container->has('db.transactions')) {
+            return false;
+        }
+
+        /** @var DatabaseTransactionsManager $transactions */
+        $transactions = $this->container->make('db.transactions');
+
+        return $transactions->hasApplicableTransaction();
+    }
+
+    /**
+     * Honor the selected transaction without resolving outbox storage services.
+     */
+    protected function deferEnqueueAfterCommit(DatabaseTransactionsManager $transactions, object|string $job, Closure $enqueue): void
+    {
+        $this->deferBatchEnqueueAfterCommit(
+            $transactions,
+            [$job],
+            $enqueue,
+            $this->resolveOutboxCommitConnection($transactions, $job),
+        );
     }
 
     /**

@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Exceptions;
 
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
-use Hypervel\Foundation\Exceptions\Renderer\Listener;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Routing\Router;
-use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use RuntimeException;
 use Throwable;
 
@@ -112,14 +110,13 @@ class RendererTest extends TestCase
         $this->app->forgetInstance(ExceptionRenderer::class);
         $this->assertFalse($this->app->bound(ExceptionRenderer::class));
 
-        $listener = m::mock(Listener::class);
-        $listener->shouldReceive('registerListeners')->never();
-
-        $this->app->instance(Listener::class, $listener);
-        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
+        $events = new Dispatcher;
+        $this->app->instance('events', $events);
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
+
+        $this->assertFalse($events->hasListeners(QueryExecuted::class));
     }
 
     #[WithConfig('app.debug', true)]
@@ -139,14 +136,13 @@ class RendererTest extends TestCase
 
         $this->assertTrue($this->app->bound(ExceptionRenderer::class));
 
-        $listener = m::mock(Listener::class);
-        $listener->shouldReceive('registerListeners')->never();
-
-        $this->app->instance(Listener::class, $listener);
-        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
+        $events = new Dispatcher;
+        $this->app->instance('events', $events);
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
+
+        $this->assertFalse($events->hasListeners(QueryExecuted::class));
     }
 
     #[WithConfig('app.debug', true)]
@@ -155,14 +151,13 @@ class RendererTest extends TestCase
         $this->app->forgetInstance(ExceptionRenderer::class);
         $this->assertFalse($this->app->bound(ExceptionRenderer::class));
 
-        $listener = m::mock(Listener::class);
-        $listener->expects('registerListeners');
-
-        $this->app->instance(Listener::class, $listener);
-        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
+        $events = new Dispatcher;
+        $this->app->instance('events', $events);
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
+
+        $this->assertTrue($events->hasListeners(QueryExecuted::class));
     }
 
     #[WithConfig('app.debug', true)]

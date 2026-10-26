@@ -586,7 +586,7 @@ class AuthTokenGuardTestUser implements Authenticatable
     /**
      * Set the remember token.
      */
-    public function setRememberToken(string $value): void
+    public function setRememberToken(?string $value): void
     {
     }
 

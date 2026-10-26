@@ -35,6 +35,7 @@ use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Request;
 use Hypervel\Log\Context\Repository as ContextRepository;
@@ -42,6 +43,7 @@ use Hypervel\Log\Logger as HypervelLogger;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PDO;
 use Psr\Log\LoggerInterface;
 use ReflectionParameter;
 use RuntimeException;
@@ -306,15 +308,12 @@ class ContextualAttributeBindingTest extends TestCase
     public function testConfigAttribute(): void
     {
         $container = new Container;
-        $container->singleton('config', function (): Repository {
-            $repository = m::mock(Repository::class);
-            $repository->expects('get')->with('foo', null)->andReturn('foo');
-            $repository->expects('get')->with('bar', null)->andReturn('bar');
+        $container->singleton('config', fn (): Repository => new Repository(['foo' => 'foo', 'bar' => 'bar']));
 
-            return $repository;
-        });
+        $resolved = $container->make(ConfigTest::class);
 
-        $container->make(ConfigTest::class);
+        $this->assertSame('foo', $resolved->foo);
+        $this->assertSame('bar', $resolved->bar);
     }
 
     public function testDatabaseAttribute(): void
@@ -322,9 +321,9 @@ class ContextualAttributeBindingTest extends TestCase
         $container = new Container;
         $container->singleton('db', function (): DatabaseManager {
             $manager = m::mock(DatabaseManager::class);
-            $manager->expects('connection')->with('foo')->andReturn(m::mock(ConnectionInterface::class));
-            $manager->expects('connection')->with('bar')->andReturn(m::mock(ConnectionInterface::class));
-            $manager->expects('connection')->with(DatabaseConnectionIntegerBackedEnum::Zero)->andReturn(m::mock(ConnectionInterface::class));
+            $manager->expects('connection')->with('foo')->andReturn(new PdoConnection(new PDO('sqlite::memory:')));
+            $manager->expects('connection')->with('bar')->andReturn(new PdoConnection(new PDO('sqlite::memory:')));
+            $manager->expects('connection')->with(DatabaseConnectionIntegerBackedEnum::Zero)->andReturn(new PdoConnection(new PDO('sqlite::memory:')));
 
             return $manager;
         });
@@ -1011,7 +1010,7 @@ final readonly class ConfigTest
     /**
      * Create a new test fixture.
      */
-    public function __construct(#[Config('foo')] string $foo, #[Config('bar')] string $bar)
+    public function __construct(#[Config('foo')] public string $foo, #[Config('bar')] public string $bar)
     {
     }
 }

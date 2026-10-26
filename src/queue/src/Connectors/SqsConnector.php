@@ -90,6 +90,7 @@ class SqsConnector implements ConnectorInterface
             'prefix',
             'suffix',
             'after_commit',
+            'outbox',
             'key',
             'secret',
             'token',

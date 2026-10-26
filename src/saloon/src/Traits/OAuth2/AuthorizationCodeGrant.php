@@ -10,6 +10,7 @@ use Hypervel\Saloon\Data\AuthorizationUrl;
 use Hypervel\Saloon\Data\OAuthConfig;
 use Hypervel\Saloon\Exceptions\InvalidStateException;
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Saloon\Http\Auth\OAuthAccountAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\OAuth2\GetAccessTokenRequest;
 use Hypervel\Saloon\Http\OAuth2\GetRefreshTokenRequest;
@@ -17,6 +18,7 @@ use Hypervel\Saloon\Http\OAuth2\GetUserRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\UrlResolver;
+use Hypervel\Saloon\OAuthAccount;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use SensitiveParameter;
@@ -30,6 +32,24 @@ trait AuthorizationCodeGrant
 {
     use HasOAuthConfig;
     use ParsesOAuthTokenResponses;
+
+    /**
+     * Authenticate a connected account and renew its stored credentials when needed.
+     *
+     * @param null|callable(Request): void $requestModifier
+     */
+    public function accountAuthenticator(OAuthAccount $account, ?callable $requestModifier = null): OAuthAccountAuthenticator
+    {
+        return $account->authenticator(fn (OAuthAuthenticator $current): OAuthAuthenticator => $this->refreshAccessToken(
+            $current,
+            requestModifier: static function (Request $request) use ($requestModifier): void {
+                if ($requestModifier !== null) {
+                    $requestModifier($request);
+                }
+                $request->retry(1);
+            },
+        ));
+    }
 
     /**
      * Create an authorization URL and its paired state.
@@ -116,7 +136,9 @@ trait AuthorizationCodeGrant
         }
 
         $request = $config->modify($request);
-        $requestModifier?->__invoke($request);
+        if ($requestModifier !== null) {
+            $requestModifier($request);
+        }
         $response = $this->send($request);
 
         if ($returnResponse) {
@@ -154,7 +176,9 @@ trait AuthorizationCodeGrant
         }
 
         $request = $config->modify($this->resolveRefreshTokenRequest($config, $refreshToken));
-        $requestModifier?->__invoke($request);
+        if ($requestModifier !== null) {
+            $requestModifier($request);
+        }
         $response = $this->send($request);
 
         if ($returnResponse) {
@@ -182,11 +206,13 @@ trait AuthorizationCodeGrant
             throw new UnexpectedValueException('The OAuth token response contains an invalid refresh token.');
         }
 
-        return $this->createOAuthAuthenticator($accessToken, $refreshToken, $expiresAt);
+        return $this->createOAuthAuthenticator($accessToken, $refreshToken, $expiresAt, $this->resolveOAuthScopes($data['scope'] ?? null));
     }
 
     /**
      * Create an OAuth authenticator.
+     *
+     * @param null|list<string> $scopes
      */
     protected function createOAuthAuthenticator(
         #[SensitiveParameter]
@@ -194,8 +220,9 @@ trait AuthorizationCodeGrant
         #[SensitiveParameter]
         ?string $refreshToken = null,
         ?DateTimeImmutable $expiresAt = null,
+        ?array $scopes = null,
     ): OAuthAuthenticator {
-        return new AccessTokenAuthenticator($accessToken, $refreshToken, $expiresAt);
+        return new AccessTokenAuthenticator($accessToken, $refreshToken, $expiresAt, $scopes);
     }
 
     /**
@@ -208,7 +235,9 @@ trait AuthorizationCodeGrant
     {
         $config = $this->oauthConfig();
         $request = $config->modify($this->resolveUserRequest($config))->authenticate($oauthAuthenticator);
-        $requestModifier?->__invoke($request);
+        if ($requestModifier !== null) {
+            $requestModifier($request);
+        }
 
         return $this->send($request);
     }

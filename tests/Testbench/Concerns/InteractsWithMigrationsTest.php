@@ -50,6 +50,27 @@ class InteractsWithMigrationsTest extends TestCase
         ], $this->migrationOptions);
     }
 
+    #[Test]
+    public function itProcessesPackageMigrationPathListsAndNamedOptions(): void
+    {
+        $paths = [__DIR__ . '/../Fixtures/database/migrations', __DIR__ . '/../Fixtures/database/secondary-migrations'];
+
+        $this->loadMigrationsFrom($paths);
+
+        $this->assertSame([
+            '--path' => $paths,
+            '--realpath' => true,
+        ], $this->migrationOptions);
+
+        $this->loadMigrationsFrom(['--path' => $paths, '--database' => 'secondary']);
+
+        $this->assertSame([
+            '--path' => $paths,
+            '--database' => 'secondary',
+            '--realpath' => true,
+        ], $this->migrationOptions);
+    }
+
     /**
      * Resolve Hypervel migration options.
      *

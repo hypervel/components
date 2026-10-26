@@ -18,6 +18,7 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use Pusher\Pusher;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -330,16 +331,13 @@ class PusherBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
-        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
-        $request->shouldReceive('input')->with('callback', false)->andReturn(false);
+        $request = Request::create('/', 'POST', ['channel_name' => $channel, 'socket_id' => 'abcd.1234']);
 
         $user = m::mock('User');
         $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
         $user->shouldReceive('getAuthIdentifier')->andReturn(42);
 
-        $request->shouldReceive('user')->andReturn($user);
+        $request->setUserResolver(fn (): MockInterface => $user);
 
         return $request;
     }
@@ -349,12 +347,7 @@ class PusherBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithoutUserForChannel(string $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
-
-        $request->shouldReceive('user')->andReturn(null);
-
-        return $request;
+        return Request::create('/', 'POST', ['channel_name' => $channel]);
     }
 }
 

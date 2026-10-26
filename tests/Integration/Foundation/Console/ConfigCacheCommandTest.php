@@ -11,12 +11,15 @@ use LogicException;
 use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Process;
 
 class ConfigCacheCommandTest extends TestCase
 {
     protected array $files = [
         'bootstrap/cache/config.php',
         'config/testconfig.php',
+        '.env',
+        '.env.doctor',
     ];
 
     protected function setUp(): void
@@ -144,6 +147,30 @@ class ConfigCacheCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame($originalInstance, Container::getInstance());
+    }
+
+    public function testCachedCommandForwardsExplicitEnvironmentToItsBuildProcess(): void
+    {
+        $files = new Filesystem;
+        $files->put($this->app->basePath('.env'), "DOCTOR_CONFIG_VALUE=default\n");
+        $files->put($this->app->basePath('.env.doctor'), "DOCTOR_CONFIG_VALUE=selected\n");
+        $files->put($this->app->configPath('testconfig.php'), "<?php return ['value' => env('DOCTOR_CONFIG_VALUE')];\n");
+
+        $this->artisan('config:cache')->assertSuccessful();
+
+        $process = new Process(
+            [PHP_BINARY, $this->app->basePath('artisan'), 'config:cache', '--env=doctor'],
+            $this->app->basePath(),
+            [
+                'HYPERVEL_AUTOLOAD_PATH' => dirname(__DIR__, 4) . '/vendor/autoload.php',
+                'APP_ENV' => false,
+                'DOCTOR_CONFIG_VALUE' => false,
+            ],
+        );
+        $process->mustRun();
+
+        $cached = require $this->app->getCachedConfigPath();
+        $this->assertSame('selected', $cached['testconfig']['value']);
     }
 
     public function testConfigurationCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedConfig(): void

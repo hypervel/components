@@ -16,7 +16,6 @@ use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Jobs\SqsJob;
-use Hypervel\Queue\SqsQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -126,8 +125,6 @@ class QueueSqsJobTest extends TestCase
     public function testDeleteRemovesTheJobFromSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
-        $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
-        $queue->setContainer($this->mockedContainer);
         $job = $this->getJob();
         $job->getSqs()->expects('deleteMessage')->with(['QueueUrl' => $this->queueUrl, 'ReceiptHandle' => $this->mockedReceiptHandle]);
         $job->delete();
@@ -136,8 +133,6 @@ class QueueSqsJobTest extends TestCase
     public function testReleaseProperlyReleasesTheJobOntoSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
-        $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
-        $queue->setContainer($this->mockedContainer);
         $job = $this->getJob();
         $job->getSqs()->expects('changeMessageVisibility')->with(['QueueUrl' => $this->queueUrl, 'ReceiptHandle' => $this->mockedReceiptHandle, 'VisibilityTimeout' => $this->releaseDelay]);
         $job->release($this->releaseDelay);

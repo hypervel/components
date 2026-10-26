@@ -18,14 +18,16 @@ use Hypervel\Console\View\Components\Task;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Console\View\Components\Warn;
 use Hypervel\Console\View\TaskResult;
+use Hypervel\Tests\Console\Concerns\CreatesAnsweredOutputStyles;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
 
 class ComponentsTest extends TestCase
 {
+    use CreatesAnsweredOutputStyles;
+
     public function testAlert(): void
     {
         $output = new BufferedOutput;
@@ -82,32 +84,16 @@ class ComponentsTest extends TestCase
 
     public function testConfirm(): void
     {
-        $output = m::mock(OutputStyle::class);
+        $result = (new Confirm($this->outputStyleWithAnswer('')))->render('Question?');
+        $this->assertFalse($result);
 
-        $output->expects('confirm')
-            ->with('Question?', false)
-            ->andReturnTrue();
-
-        $result = (new Confirm($output))->render('Question?');
-        $this->assertTrue($result);
-
-        $output->expects('confirm')
-            ->with('Question?', true)
-            ->andReturnTrue();
-
-        $result = (new Confirm($output))->render('Question?', true);
+        $result = (new Confirm($this->outputStyleWithAnswer('')))->render('Question?', true);
         $this->assertTrue($result);
     }
 
     public function testChoice(): void
     {
-        $output = m::mock(OutputStyle::class);
-
-        $output->expects('askQuestion')
-            ->with(m::type(ChoiceQuestion::class))
-            ->andReturn('a');
-
-        $result = (new Choice($output))->render('Question?', ['a', 'b']);
+        $result = (new Choice($this->outputStyleWithAnswer('a')))->render('Question?', ['a', 'b']);
         $this->assertSame('a', $result);
     }
 

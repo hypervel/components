@@ -315,7 +315,7 @@ class Mailer implements MailerContract, MailQueueContract
         // If the given view is an array with numeric keys, we will just assume that
         // both a "pretty" and "plain" view were provided, so we will return this
         // array as is, since it should contain both views with numerical keys.
-        if (isset($view[0])) {
+        if (array_key_exists(0, $view)) {
             return [$view[0], $view[1], null];
         }
 

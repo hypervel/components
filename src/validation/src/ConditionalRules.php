@@ -7,7 +7,9 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
+use Stringable;
 
 class ConditionalRules
 {
@@ -20,13 +22,13 @@ class ConditionalRules
      * Create a new conditional rules instance.
      *
      * @param bool|callable $condition the boolean condition indicating if the rules should be added to the attribute
-     * @param array|Closure|Rule|string|ValidationRule $rules the rules to be added to the attribute
-     * @param array|Closure|Rule|string|ValidationRule $defaultRules the rules to be added to the attribute if the condition fails
+     * @param array|Closure|Rule|string|Stringable|ValidationRule $rules the rules to be added to the attribute
+     * @param array|Closure|Rule|string|Stringable|ValidationRule $defaultRules the rules to be added to the attribute if the condition fails
      */
     public function __construct(
         bool|callable $condition,
-        protected array|Closure|Rule|string|ValidationRule $rules,
-        protected array|Closure|Rule|string|ValidationRule $defaultRules = []
+        protected array|Closure|Rule|string|Stringable|ValidationRule $rules,
+        protected array|Closure|Rule|string|Stringable|ValidationRule $defaultRules = []
     ) {
         $this->condition = is_bool($condition) ? $condition : $condition(...);
     }
@@ -43,25 +45,21 @@ class ConditionalRules
 
     /**
      * Get the rules.
-     *
-     * @return array
      */
-    public function rules(array $data = []): mixed
+    public function rules(array $data = []): array
     {
-        return is_string($this->rules)
-            ? explode('|', $this->rules)
-            : value($this->rules, new Fluent($data));
+        $rules = $this->rules instanceof Closure ? ($this->rules)(new Fluent($data)) : $this->rules;
+
+        return is_string($rules) ? explode('|', $rules) : Arr::wrap($rules);
     }
 
     /**
      * Get the default rules.
-     *
-     * @return array
      */
-    public function defaultRules(array $data = []): mixed
+    public function defaultRules(array $data = []): array
     {
-        return is_string($this->defaultRules)
-            ? explode('|', $this->defaultRules)
-            : value($this->defaultRules, new Fluent($data));
+        $rules = $this->defaultRules instanceof Closure ? ($this->defaultRules)(new Fluent($data)) : $this->defaultRules;
+
+        return is_string($rules) ? explode('|', $rules) : Arr::wrap($rules);
     }
 }

@@ -49,6 +49,13 @@ Or, to explore a specific configuration file's values in detail, you may use the
 php artisan config:show database
 ```
 
+Use the `--json` option to read a configuration section or individual value from a script:
+
+```shell
+php artisan config:show database --json
+php artisan config:show app.debug --json
+```
+
 <a name="environment-configuration"></a>
 ## Environment Configuration
 
@@ -74,6 +81,8 @@ However, it is possible to encrypt your environment file using Hypervel's built-
 #### Additional Environment Files
 
 Before loading your application's environment variables, Hypervel determines if an `APP_ENV` environment variable has been externally provided or if the `--env` CLI argument has been specified. If so, Hypervel will attempt to load an `.env.[APP_ENV]` file if it exists. If it does not exist, the default `.env` file will be loaded.
+
+The `--env` option also applies when starting the application server, for example `php artisan serve --env=staging`.
 
 <a name="environment-variable-types"></a>
 ### Environment Variable Types
@@ -370,6 +379,8 @@ To give your application a speed boost, you should cache all of your configurati
 You should typically run the `php artisan config:cache` command as part of your production deployment process. The command should not be run during local development as configuration options will frequently need to be changed during the course of your application's development.
 
 Once the configuration has been cached, your application's `.env` file will not be loaded by the framework during requests or Artisan commands; therefore, the `env` function will only return external, system level environment variables.
+
+If a running server started without cached configuration, reloading its workers applies the new cache, but a full server restart is needed to remove inherited `.env` values from runtime `env` calls.
 
 For this reason, you should ensure you are only calling the `env` function from within your application's configuration (`config`) files. You can see many examples of this by examining Hypervel's default configuration files. Configuration values may be accessed from anywhere in your application using the `config` function [described above](#accessing-configuration-values).
 

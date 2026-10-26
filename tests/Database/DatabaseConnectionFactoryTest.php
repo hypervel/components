@@ -348,7 +348,7 @@ class DatabaseConnectionFactoryTest extends TestCase
     {
         $this->expectExceptionObject(new InvalidArgumentException('A driver must be specified.'));
 
-        $container = m::mock(Container::class);
+        $container = new Container;
         $factory = new ConnectionFactory($container);
         $factory->createConnector(['foo']);
     }

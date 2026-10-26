@@ -8,6 +8,7 @@ use DateInterval;
 use Exception;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -34,6 +35,8 @@ class InteractsWithQueueTest extends TestCase
 
     public function testReleasesUsingDateInterval(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+
         $queueJob = m::mock(Job::class);
         $queueJob->expects('release')->with(60);
 
@@ -47,6 +50,8 @@ class InteractsWithQueueTest extends TestCase
 
     public function testAssertsReleaseUsingDateInterval(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+
         $job = new class {
             use InteractsWithQueue;
         };
@@ -55,5 +60,19 @@ class InteractsWithQueueTest extends TestCase
             ->release(new DateInterval('PT1M'));
 
         $job->assertReleased(new DateInterval('PT1M'));
+    }
+
+    public function testAssertsReleaseOfFakeJobReleasedDirectlyWithDateInterval(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+
+        $job = new class {
+            use InteractsWithQueue;
+        };
+
+        $job->withFakeQueueInteractions();
+        $job->job->release(new DateInterval('PT1M'));
+
+        $job->assertReleased(60);
     }
 }

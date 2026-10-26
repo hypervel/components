@@ -423,6 +423,7 @@ class Kernel implements KernelContract
      * Run an Artisan console command by name.
      *
      * @throws CommandNotFoundException
+     * @throws Throwable when application bootstrap or command execution fails
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {

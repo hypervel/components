@@ -4,56 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class DatabaseSoftDeletingScopeTest extends TestCase
 {
     public function testApplyingScopeToABuilder(): void
     {
-        $scope = m::mock(SoftDeletingScope::class . '[extend]');
-        $builder = m::mock(EloquentBuilder::class);
-        $model = m::mock(Model::class);
-        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
-        $builder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
-        $builder->expects('whereNull')->with('table.deleted_at');
+        $builder = $this->newBuilder(scoped: false);
 
-        $scope->apply($builder, $model);
+        (new SoftDeletingScope)->apply($builder, $builder->getModel());
+
+        $this->assertSame('select * from "users" where "users"."deleted_at" is null', $builder->toSql());
     }
 
     public function testRestoreExtension(): void
     {
-        $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
-        ));
-        $scope = new SoftDeletingScope;
-        $scope->extend($builder);
-        $callback = $builder->getMacro('restore');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('withTrashed');
-        $model = m::mock(Model::class);
-        $givenBuilder->expects('getModel')->andReturn($model);
-        $model->expects('getDeletedAtColumn')->andReturn('deleted_at');
-        $givenBuilder->expects('update')->with(['deleted_at' => null]);
+        $connection = $this->newConnection();
+        $builder = $this->newBuilder($connection);
 
-        $callback($givenBuilder);
+        $builder->restore();
+
+        $this->assertSame(0, $connection->table('users')->whereNotNull('deleted_at')->count());
     }
 
     public function testRestoreOrCreateExtension(): void
     {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
+            $connection,
+            new Grammar($connection),
+            new Processor
         ));
 
         $scope = new SoftDeletingScope;
@@ -73,10 +64,11 @@ class DatabaseSoftDeletingScopeTest extends TestCase
 
     public function testCreateOrRestoreExtension(): void
     {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
+            $connection,
+            new Grammar($connection),
+            new Processor
         ));
 
         $scope = new SoftDeletingScope;
@@ -96,62 +88,63 @@ class DatabaseSoftDeletingScopeTest extends TestCase
 
     public function testWithTrashedExtension(): void
     {
-        $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
-        ));
-        $scope = m::mock(SoftDeletingScope::class . '[remove]');
-        $scope->extend($builder);
-        $callback = $builder->getMacro('withTrashed');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
-        $result = $callback($givenBuilder);
+        $builder = $this->newBuilder();
 
-        $this->assertEquals($givenBuilder, $result);
+        // Hypervel always groups the constraints added by a global scope.
+        $this->assertSame('select * from "users" where ("users"."deleted_at" is null)', $builder->toSql());
+        $this->assertSame('select * from "users"', $builder->withTrashed()->toSql());
     }
 
     public function testOnlyTrashedExtension(): void
     {
-        $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
-        ));
-        $model = m::mock(Model::class)->makePartial();
-        $scope = m::mock(SoftDeletingScope::class . '[remove]');
-        $scope->extend($builder);
-        $callback = $builder->getMacro('onlyTrashed');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('getModel')->andReturn($model);
-        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
-        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
-        $givenBuilder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
-        $givenBuilder->expects('whereNotNull')->with('table.deleted_at');
-        $result = $callback($givenBuilder);
+        $builder = $this->newBuilder();
 
-        $this->assertEquals($givenBuilder, $result);
+        $this->assertSame('select * from "users" where "users"."deleted_at" is not null', $builder->onlyTrashed()->toSql());
     }
 
     public function testWithoutTrashedExtension(): void
     {
-        $builder = new EloquentBuilder(new BaseBuilder(
-            m::mock(ConnectionInterface::class),
-            m::mock(Grammar::class),
-            m::mock(Processor::class)
-        ));
-        $model = m::mock(Model::class)->makePartial();
-        $scope = m::mock(SoftDeletingScope::class . '[remove]');
-        $scope->extend($builder);
-        $callback = $builder->getMacro('withoutTrashed');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('getModel')->andReturn($model);
-        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
-        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
-        $givenBuilder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
-        $givenBuilder->expects('whereNull')->with('table.deleted_at');
-        $result = $callback($givenBuilder);
+        $builder = $this->newBuilder();
 
-        $this->assertEquals($givenBuilder, $result);
+        $this->assertSame('select * from "users" where "users"."deleted_at" is null', $builder->withoutTrashed()->toSql());
     }
+
+    /**
+     * Create an in-memory connection with one trashed and one active user.
+     */
+    protected function newConnection(): SQLiteConnection
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('create table "users" ("id" integer primary key, "deleted_at" text, "updated_at" text)');
+        $pdo->exec("insert into \"users\" values (1, '2023-01-01 00:00:00', null)");
+        $pdo->exec('insert into "users" values (2, null, null)');
+
+        return new SQLiteConnection($pdo);
+    }
+
+    /**
+     * Create a soft deleting model builder, optionally with the scope and its extensions applied.
+     */
+    protected function newBuilder(?SQLiteConnection $connection = null, bool $scoped = true): EloquentBuilder
+    {
+        $builder = (new EloquentBuilder(($connection ?? new SQLiteConnection(new PDO('sqlite::memory:')))->query()))
+            ->setModel(new SoftDeletingScopeModelStub);
+
+        if ($scoped) {
+            $scope = new SoftDeletingScope;
+            $builder->withGlobalScope(SoftDeletingScope::class, $scope);
+            $scope->extend($builder);
+        }
+
+        return $builder;
+    }
+}
+
+class SoftDeletingScopeModelStub extends Model
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'users';
+
+    protected ?string $dateFormat = 'Y-m-d H:i:s';
 }

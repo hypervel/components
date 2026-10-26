@@ -147,6 +147,36 @@ class PendingDispatch
     }
 
     /**
+     * Dispatch the job through the transactional outbox.
+     */
+    public function viaOutbox(): static
+    {
+        $this->job->viaOutbox();
+
+        return $this;
+    }
+
+    /**
+     * Dispatch the job without the transactional outbox.
+     */
+    public function withoutOutbox(): static
+    {
+        $this->job->withoutOutbox();
+
+        return $this;
+    }
+
+    /**
+     * Stage the job on the given database connection.
+     */
+    public function onOutboxDatabase(UnitEnum|string $connection): static
+    {
+        $this->job->onOutboxDatabase($connection);
+
+        return $this;
+    }
+
+    /**
      * Set the jobs that should run if this job is successful.
      */
     public function chain(array $chain): static

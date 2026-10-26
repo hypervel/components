@@ -406,6 +406,22 @@ class AuthCodeFlowConnectorTest extends TestCase
         $this->assertInstanceOf(DateTimeImmutable::class, $newAuthenticator->getExpiresAt());
     }
 
+    public function testScopesReachCustomFactoriesOnExchangeAndRefresh(): void
+    {
+        $connector = new CustomResponseOAuth2Connector('hello');
+        Saloon::fake([
+            MockResponse::make(['access_token' => 'access', 'refresh_token' => 'refresh', 'scope' => 'read write']),
+            MockResponse::make(['access_token' => 'renewed', 'scope' => 'read']),
+        ]);
+
+        $original = $connector->getAccessToken('code');
+        $renewed = $connector->refreshAccessToken($original);
+
+        $this->assertSame(['read', 'write'], $original->getScopes());
+        $this->assertSame(['read'], $renewed->getScopes());
+        $this->assertSame('refresh', $renewed->getRefreshToken());
+    }
+
     public function testYouCanTapIntoTheRefreshTokenRequest(): void
     {
         $mockClient = new MockClient([

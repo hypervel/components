@@ -566,6 +566,8 @@ class Factory
 
     /**
      * Get a collection of the request / response pairs matching the given truth test.
+     *
+     * @param null|(callable(Request, null|Response): bool) $callback
      */
     public function recorded(?callable $callback = null): Collection
     {

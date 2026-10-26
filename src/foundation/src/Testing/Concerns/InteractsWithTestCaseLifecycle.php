@@ -16,6 +16,7 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Foundation\Testing\WithFaker;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
@@ -39,6 +40,11 @@ trait InteractsWithTestCaseLifecycle
     protected array $afterApplicationCreatedCallbacks = [];
 
     /**
+     * The callbacks that should be run after the application is refreshed.
+     */
+    protected array $afterApplicationRefreshedCallbacks = [];
+
+    /**
      * The callbacks that should be run before the application is destroyed.
      */
     protected array $beforeApplicationDestroyedCallbacks = [];
@@ -52,6 +58,11 @@ trait InteractsWithTestCaseLifecycle
      * Indicates if we have made it through the base setUp function.
      */
     protected bool $setUpHasRun = false;
+
+    /**
+     * Indicates if the application refreshed callbacks have started running.
+     */
+    protected bool $afterApplicationRefreshedCallbacksStarted = false;
 
     /**
      * Set up the test environment.
@@ -73,6 +84,12 @@ trait InteractsWithTestCaseLifecycle
         DatabaseConnectionResolver::resetCachedConnections();
 
         $this->runInCoroutine(function () {
+            $this->afterApplicationRefreshedCallbacksStarted = true;
+
+            foreach ($this->afterApplicationRefreshedCallbacks as $callback) {
+                $callback();
+            }
+
             $this->setUpTraits();
 
             // Preserve transaction manager context for the test coroutine.
@@ -150,6 +167,8 @@ trait InteractsWithTestCaseLifecycle
         $this->beforeApplicationDestroyedCallbacks = [];
         $this->callbackException = null;
         $this->setUpHasRun = false;
+        // Refreshed callbacks are kept so a reloaded application runs them again.
+        $this->afterApplicationRefreshedCallbacksStarted = false;
 
         try {
             $this->flushState();
@@ -173,10 +192,8 @@ trait InteractsWithTestCaseLifecycle
 
     /**
      * Boot the testing helper traits.
-     *
-     * @return array
      */
-    protected function setUpTraits()
+    protected function setUpTraits(): array
     {
         $uses = $this->traitsUsedByTest ??= class_uses_recursive(static::class);
 
@@ -239,6 +256,8 @@ trait InteractsWithTestCaseLifecycle
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        $this->forgetStaleMigrationState($uses);
+
         if (isset($uses[RefreshDatabase::class])) {
             $this->refreshDatabase(); // @phpstan-ignore method.notFound
         }
@@ -257,6 +276,24 @@ trait InteractsWithTestCaseLifecycle
     }
 
     /**
+     * Forget retained migration state when a selected in-memory database is missing.
+     */
+    protected function forgetStaleMigrationState(array $uses): void
+    {
+        if (! RefreshDatabaseState::$migrated) {
+            return;
+        }
+
+        if (
+            (isset($uses[RefreshDatabase::class]) && $this->hasMissingInMemoryDatabaseForRefresh()) // @phpstan-ignore method.notFound
+            || (isset($uses[DatabaseTruncation::class]) && $this->hasMissingInMemoryDatabaseForTruncation()) // @phpstan-ignore method.notFound
+        ) {
+            // A persistent database's migrated flag does not describe an uncached in-memory database.
+            RefreshDatabaseState::$migrated = false;
+        }
+    }
+
+    /**
      * Clean up the testing environment before the next test case.
      *
      * @internal
@@ -266,9 +303,23 @@ trait InteractsWithTestCaseLifecycle
     }
 
     /**
+     * Register a callback to be run after the application is refreshed.
+     *
+     * The callbacks run before the test case's traits are set up, and again for each reloaded application.
+     */
+    public function afterApplicationRefreshed(callable $callback): void
+    {
+        $this->afterApplicationRefreshedCallbacks[] = $callback;
+
+        if ($this->afterApplicationRefreshedCallbacksStarted) {
+            $callback();
+        }
+    }
+
+    /**
      * Register a callback to be run after the application is created.
      */
-    public function afterApplicationCreated(callable $callback)
+    public function afterApplicationCreated(callable $callback): void
     {
         $this->afterApplicationCreatedCallbacks[] = $callback;
 
@@ -280,7 +331,7 @@ trait InteractsWithTestCaseLifecycle
     /**
      * Register a callback to be run before the application is destroyed.
      */
-    protected function beforeApplicationDestroyed(callable $callback)
+    protected function beforeApplicationDestroyed(callable $callback): void
     {
         $this->beforeApplicationDestroyedCallbacks[] = $callback;
     }
@@ -288,7 +339,7 @@ trait InteractsWithTestCaseLifecycle
     /**
      * Execute the application's pre-destruction callbacks.
      */
-    protected function callBeforeApplicationDestroyedCallbacks()
+    protected function callBeforeApplicationDestroyedCallbacks(): void
     {
         foreach ($this->beforeApplicationDestroyedCallbacks as $callback) {
             try {

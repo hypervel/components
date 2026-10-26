@@ -167,14 +167,14 @@ class DatabaseSeederTest extends TestCase
     public function testSetContainer(): void
     {
         $seeder = new TestSeeder;
-        $container = m::mock(Container::class);
+        $container = new ContainerImplementation;
         $this->assertEquals($seeder->setContainer($container), $seeder);
     }
 
     public function testSetCommand(): void
     {
         $seeder = new TestSeeder;
-        $command = m::mock(Command::class);
+        $command = new Command;
         $this->assertEquals($seeder->setCommand($command), $seeder);
     }
 

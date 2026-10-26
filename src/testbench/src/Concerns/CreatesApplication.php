@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
+use Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions;
 use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
@@ -267,6 +268,7 @@ trait CreatesApplication
             $this->resolveApplicationBindings($app);
             $this->resolveApplicationExceptionHandler($app);
             $this->resolveApplicationEnvironmentVariables($app);
+            $app->make(ConfigureTerminalDimensions::class)->bootstrap($app);
             $this->resolveApplicationConfiguration($app);
 
             // Must run after resolveApplicationConfiguration() because LoadConfiguration's

@@ -12,14 +12,19 @@ use Throwable;
 class FakeJob extends Job
 {
     /**
-     * The number of seconds the released job was delayed.
+     * The delay the job was released with.
      */
-    public int $releaseDelay = 0;
+    public DateInterval|DateTimeInterface|int $releaseDelay = 0;
 
     /**
      * The number of attempts made to process the job.
      */
     public int $attempts = 1;
+
+    /**
+     * The exception the job failed with.
+     */
+    public ?Throwable $failedWith = null;
 
     public function __construct(
         public array $payload = [],
@@ -27,11 +32,6 @@ class FakeJob extends Job
         protected string $queue = 'default',
     ) {
     }
-
-    /**
-     * The exception the job failed with.
-     */
-    public ?Throwable $failedWith = null;
 
     /**
      * Get the job identifier.

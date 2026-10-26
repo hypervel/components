@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\BroadcastManager;
+use Hypervel\Cache\Console\CacheTableCommand;
+use Hypervel\Cache\DatabaseStore;
 use Hypervel\Config\Repository;
 use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
@@ -87,6 +89,17 @@ class FoundationConfigTest extends TestCase
         );
 
         $this->assertNull($config['schedule_store']);
+    }
+
+    public function testDatabaseCacheDefaultsMatchTheGeneratedTables(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'DB_CACHE_TABLE' => null,
+            'DB_CACHE_LOCK_TABLE' => null,
+        ], fn (): array => $this->cacheConfig());
+
+        $this->assertSame(CacheTableCommand::TABLE, $config['stores']['database']['table']);
+        $this->assertSame(DatabaseStore::DEFAULT_LOCK_TABLE, $config['stores']['database']['lock_table']);
     }
 
     public function testShippedCacheStoresUseTheirDriverEventDefaults(): void

@@ -94,10 +94,10 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $grammar->expects('compileCreateDatabase')->andReturn('sql');
+        $grammar = new class($connection) extends Grammar {
+        };
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with('sql')->andReturnTrue();
+        $connection->expects('statement')->with($grammar->compileCreateDatabase('foo'))->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->createDatabase('foo'));
@@ -106,10 +106,10 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $grammar->expects('compileDropDatabaseIfExists')->andReturn('sql');
+        $grammar = new class($connection) extends Grammar {
+        };
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with('sql')->andReturnTrue();
+        $connection->expects('statement')->with($grammar->compileDropDatabaseIfExists('foo'))->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
@@ -351,15 +351,21 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testGetColumnTypeAddsPrefix(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $processor = m::mock(Processor::class);
+        $grammar = new class($connection) extends Grammar {
+            /**
+             * Compile the query to determine the columns.
+             */
+            public function compileColumns(?string $schema, string $table): string
+            {
+                return "columns for {$table}";
+            }
+        };
+        $processor = new Processor;
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
-        $processor->expects('processColumns')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
         $builder = new Builder($connection);
         $connection->expects('getTablePrefix')->andReturn('prefix_');
-        $grammar->expects('compileColumns')->with(null, 'prefix_users')->andReturn('sql');
-        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
+        $connection->expects('selectFromWriteConnection')->with('columns for prefix_users')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
 
         $this->assertSame('integer', $builder->getColumnType('users', 'id'));
     }

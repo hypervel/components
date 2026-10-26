@@ -23,6 +23,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [Development Processes](#development-processes)
+    - [Doctor](#doctor)
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
@@ -34,6 +35,7 @@
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
+    - [Head](#head)
     - [Passport](#passport)
     - [Pennant](#pennant)
     - [Permission](#permission)
@@ -500,6 +502,11 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 
 For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn. The default server process uses `hypervel/watcher`; Pail is not included. See [The Dev Command](/docs/{{version}}/artisan#the-dev-command).
 
+<a name="doctor"></a>
+### Doctor
+
+Replace `laravel/doctor` with `hypervel/doctor` and the `Laravel\Doctor` namespace with `Hypervel\Doctor`. Rename calls to `EnvironmentMode::fromLaravelEnvironment()` to `fromHypervelEnvironment()`. Remove explicit registrations of `ApplicationTimezoneIsValid`: Hypervel rejects invalid timezones during startup, before Doctor can run. Register custom diagnostics during provider boot, and run programmatic repairs without concurrent application traffic. See [Doctor](/docs/{{version}}/doctor).
+
 <a name="scheduling"></a>
 ### Scheduling
 
@@ -579,6 +586,8 @@ Integrations built with `saloonphp/saloon`, its Laravel plugin, and its cache, p
 
 Connectors may be shared by concurrent requests, so they are read-only. Move code that changes a connector's headers, query parameters, options, authenticator, delay, middleware, or mock client at runtime to the request, the `send` call, or the connector's `boot` method. Requests use fluent methods such as `withHeaders` and `withQueryParameters` instead of `headers()->add()` and `query()->add()`. Replace `sendAsync` and promises with pools, retry properties with `retry` or `defaultRetryPolicy`, custom senders with HTTP connections, and the rate limit plugin's limits and stores with rate limiter policies. Request exceptions extend the HTTP client's `RequestException`, so `catch (SaloonException $e)` no longer catches failed responses. See [Differences From Saloon](/docs/{{version}}/saloon#differences-from-saloon).
 
+Custom OAuth authenticators must implement `getScopes(): ?array`. Overrides of either grant's `createOAuthAuthenticator()` factory append `?array $scopes = null` and pass it to the authenticator. Return `null` for unreported scopes and `[]` for an explicitly empty set. See [customizing OAuth requests](/docs/{{version}}/saloon#customizing-oauth-requests).
+
 <a name="broadcasting"></a>
 ### Broadcasting
 
@@ -602,6 +611,11 @@ Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfTo
 User models that use Fortify's `TwoFactorAuthenticatable` trait must also implement `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser`, or two-factor challenges will fail. See [two-factor authentication](/docs/{{version}}/fortify#two-factor-authentication).
 
 Fortify ignores Laravel's `fortify.passwords` setting. Declare the password reset broker with the guard's `passwords` key in `config/auth.php` instead. See [password resets](/docs/{{version}}/fortify#password-resets). Laravel's deprecated `Laravel\Fortify\Rules\Password` rule is not available; use `Hypervel\Validation\Rules\Password`.
+
+<a name="head"></a>
+### Head
+
+Head defaults, error definitions, and Inertia globals are shared for the worker lifetime. Register them during provider boot. Move request-dependent defaults and error definitions to `resolveDefaultsUsing()` and `resolveErrorsUsing()` so they read the current request when metadata is rendered. See [runtime defaults](/docs/{{version}}/head#runtime-defaults).
 
 <a name="passport"></a>
 ### Passport
@@ -791,7 +805,11 @@ Framework operations release idle database sessions at the boundaries listed in 
 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
+If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
+
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
+
+Laravel's `ConnectionResolver` can be built from an array of connection instances, but Hypervel's `ConnectionResolver` is the pooled resolver created by the container. Where package tests build Laravel's resolver directly, mock `ConnectionResolverInterface` to inject existing connections, or use the Capsule manager for real configured connections.
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
@@ -847,6 +865,8 @@ Hypervel stores job batches in a relational database. Laravel's DynamoDB batch r
 
 With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
 
+If you extend Horizon's `RedisQueue`, do not rely on `push()` calling your `pushRaw()` override. Override the protected `preparePayloadForPush()` method to prepare normal pushes, or `handlePayloadPushed()` to run code after Redis accepts the job. Direct calls to `pushRaw()` remain supported.
+
 When a Laravel package offers optional support for an unsupported driver, remove that integration from the Hypervel port unless the package can safely provide it through a separate optional dependency.
 
 <a name="testing-ports"></a>
@@ -895,6 +915,8 @@ abstract class TestCase extends BaseTestCase
 ```
 
 Add Hypervel's PHPUnit extension to the package's `phpunit.xml` file. Orchestra Testbench resets framework state from its test case, while Hypervel resets it from this extension. See [Test State Cleanup](/docs/{{version}}/testing#test-state-cleanup).
+
+Remove the unused `--custom-argument` flag from package test scripts. Hypervel's `package:test` command uses `-c` as a shortcut for `--configuration`, matching PHPUnit. See [Running Package Tests](/docs/{{version}}/testbench#running-package-tests).
 
 For package testing details, see the [Testbench documentation](/docs/{{version}}/testbench).
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Notifications;
 
 use Closure;
+use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\CarbonImmutable;
@@ -24,7 +25,7 @@ class VerifyEmail extends Notification
     /**
      * The callback that should be used to build the mail message.
      *
-     * @var null|(Closure(mixed, string): MailMessage)
+     * @var null|(Closure(mixed, string): (Mailable|MailMessage))
      */
     public static ?Closure $toMailCallback = null;
 
@@ -39,7 +40,7 @@ class VerifyEmail extends Notification
     /**
      * Build the mail representation of the notification.
      */
-    public function toMail(mixed $notifiable): MailMessage
+    public function toMail(mixed $notifiable): MailMessage|Mailable
     {
         $verificationUrl = $this->verificationUrl($notifiable);
 
@@ -100,7 +101,7 @@ class VerifyEmail extends Notification
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every email-verification notification.
      *
-     * @param Closure(mixed, string): MailMessage $callback
+     * @param Closure(mixed, string): (Mailable|MailMessage) $callback
      */
     public static function toMailUsing(Closure $callback): void
     {

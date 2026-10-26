@@ -69,10 +69,7 @@ class MailSesV2TransportTest extends TestCase
         $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['Source'] === 'myself@example.com'
@@ -119,10 +116,7 @@ class MailSesV2TransportTest extends TestCase
         $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', 'my-tenant');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === 'my-tenant';
@@ -164,10 +158,7 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);

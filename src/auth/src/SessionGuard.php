@@ -315,7 +315,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             return null;
         }
 
-        return $this->failedBasicResponse();
+        $this->failedBasicResponse();
     }
 
     /**
@@ -328,7 +328,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         $credentials = $this->basicCredentials($this->getRequest(), $field);
 
         if (! $this->once(array_merge($credentials, $extraConditions))) {
-            return $this->failedBasicResponse();
+            $this->failedBasicResponse();
         }
 
         return null;

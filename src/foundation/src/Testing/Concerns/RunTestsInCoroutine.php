@@ -10,6 +10,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\PostCondition;
 use PHPUnit\Framework\IncompleteTest;
@@ -45,6 +46,10 @@ trait RunTestsInCoroutine
      */
     protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
+        // Initialize each test process before it enters hooked coroutines,
+        // including tests that start their own run().
+        ConfigureTerminalDimensions::configure();
+
         if (Coroutine::getCid() !== -1 || ! $this->runsTestsInCoroutine()) {
             return parent::invokeTestMethod($methodName, $testArguments);
         }
@@ -177,12 +182,13 @@ trait RunTestsInCoroutine
                     }
                 }
 
+                // Cancel the native alarm while protected so it cannot fire during cleanup.
+                pcntl_alarm(0);
                 pcntl_signal_dispatch();
 
                 throw new TimeoutException('The coroutine test exceeded its time limit.');
             } catch (TimeoutException $exception) {
                 $timeoutException = $exception;
-                pcntl_alarm(0);
 
                 foreach (Coroutine::list() as $coroutine) {
                     if ($coroutine !== $current) {

@@ -674,7 +674,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     protected function ensureValidLocale(string $locale): void
     {
         // Mirrors the trust-boundary check in FileLoader::load(); keep both predicates identical.
-        if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
+        if (Str::contains($locale, ['/', '\\', '..', "\0"]) || $locale === '.') {
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
     }
