@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
@@ -46,13 +47,13 @@ class ConcurrentImportRunner
                     // Return idle sessions before another child can take this concurrency slot.
                     ConnectionResolver::releaseIdleConnections();
                 }
-            } catch (CanceledException $exception) {
-                $this->failure ??= new ChildCancellationException(
-                    'A child coroutine running a Scout import was canceled while its owner remained active.',
-                    previous: $exception,
-                );
             } catch (Throwable $exception) {
-                $this->failure ??= $exception;
+                $this->failure ??= Coroutine::isCancellation($exception)
+                    ? new ChildCancellationException(
+                        'A child coroutine running a Scout import was canceled while its owner remained active.',
+                        previous: $exception,
+                    )
+                    : $exception;
             }
         }, [ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);
 

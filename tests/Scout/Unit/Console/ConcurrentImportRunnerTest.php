@@ -14,6 +14,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -144,17 +145,22 @@ class ConcurrentImportRunnerTest extends TestCase
         }
     }
 
-    public function testWaitSurfacesIndependentChildCancellationAsAChildFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testWaitSurfacesIndependentChildCancellationAsAChildFailure(bool $cleanupThrows): void
     {
         $runner = new ConcurrentImportRunner(1);
         $operationStarted = new Channel(1);
         $blocker = new Channel(1);
         $childCoroutineId = null;
         $nativeCancellation = null;
+        $cleanupException = new RuntimeException('Import cleanup failed.');
 
         $runner->create(static function () use (
             $operationStarted,
             $blocker,
+            $cleanupThrows,
+            $cleanupException,
             &$childCoroutineId,
             &$nativeCancellation,
         ): void {
@@ -166,19 +172,33 @@ class ConcurrentImportRunnerTest extends TestCase
             } catch (CanceledException $exception) {
                 $nativeCancellation = $exception;
                 throw $exception;
+            } finally {
+                if ($cleanupThrows) {
+                    Coroutine::sleep(0.001);
+                    throw $cleanupException;
+                }
             }
         });
 
-        $this->assertTrue($operationStarted->pop());
-        $this->assertIsInt($childCoroutineId);
-        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
-
         try {
+            $this->assertTrue($operationStarted->pop(1));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
             $runner->wait();
             $this->fail('The child cancellation was not rethrown.');
         } catch (ChildCancellationException $exception) {
             $this->assertSame('A child coroutine running a Scout import was canceled while its owner remained active.', $exception->getMessage());
-            $this->assertSame($nativeCancellation, $exception->getPrevious());
+            $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $exception->getPrevious());
+            $this->assertFalse(Coroutine::isCancellation($exception));
+
+            if ($cleanupThrows) {
+                $this->assertSame($nativeCancellation, $cleanupException->getPrevious());
+            }
+        } finally {
+            $blocker->close();
+            if ($childCoroutineId !== null) {
+                Coroutine::join([$childCoroutineId], 1);
+            }
         }
     }
 }
