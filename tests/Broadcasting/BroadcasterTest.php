@@ -838,7 +838,7 @@ class DummyUser implements Authenticatable
     /**
      * Set the remember token for the user.
      */
-    public function setRememberToken(string $value): void
+    public function setRememberToken(?string $value): void
     {
     }
 

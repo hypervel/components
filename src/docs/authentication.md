@@ -1123,7 +1123,7 @@ interface Authenticatable
     public function getAuthPasswordName(): string;
     public function getAuthPassword(): ?string;
     public function getRememberToken(): ?string;
-    public function setRememberToken(string $value): void;
+    public function setRememberToken(?string $value): void;
     public function getRememberTokenName(): string;
 }
 ```
