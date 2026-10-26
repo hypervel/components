@@ -202,6 +202,8 @@ If you would like to see which migrations have already run and which are still p
 php artisan migrate:status
 ```
 
+Before the first pending migration, migrations whose `shouldRun` method returns `false` are shown as skipped. Later unapplied migrations remain pending because their conditions may depend on earlier migrations.
+
 If you provide the `--step` option to the `migrate` command, the command will run each migration as its own batch, allowing you to roll back individual migrations later using the `migrate:rollback` command:
 
 ```shell
