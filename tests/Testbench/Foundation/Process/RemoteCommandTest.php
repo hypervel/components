@@ -28,6 +28,23 @@ class RemoteCommandTest extends TestCase
 {
     use InteractsWithSqliteDatabaseFile;
 
+    /**
+     * The assertions to run once the test case has been torn down.
+     */
+    private ?Closure $afterTearDown = null;
+
+    /**
+     * Clean up the test environment.
+     */
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        if ($this->afterTearDown !== null) {
+            ($this->afterTearDown)();
+        }
+    }
+
     #[Test]
     public function itCanCallRemoteAndGetCurrentVersion(): void
     {
@@ -155,16 +172,16 @@ class RemoteCommandTest extends TestCase
             $existed = $files->isFile($path);
             $contents = $existed ? $files->get($path) : '';
 
-            // The base TestCase registered its restoration callback during setUp,
-            // so this later callback observes the already-restored manifest.
-            $this->beforeApplicationDestroyed(function () use ($files, $path, $existed, $contents): void {
+            // The base TestCase restores the manifest while the application is
+            // destroyed, so check it once teardown has finished.
+            $this->afterTearDown = function () use ($files, $path, $existed, $contents): void {
                 if ($existed) {
                     $this->assertFileExists($path);
                     $this->assertSame($contents, $files->get($path));
                 } else {
                     $this->assertFileDoesNotExist($path);
                 }
-            });
+            };
 
             // Force the child to build the manifest instead of reusing the baseline cache.
             if ($files->isFile($path)) {

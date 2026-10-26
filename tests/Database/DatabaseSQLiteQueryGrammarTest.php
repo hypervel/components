@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use PDO;
 
 class DatabaseSQLiteQueryGrammarTest extends TestCase
 {
@@ -22,8 +24,7 @@ class DatabaseSQLiteQueryGrammarTest extends TestCase
 
     public function testToRawSql(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
         $grammar = new SQLiteGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(

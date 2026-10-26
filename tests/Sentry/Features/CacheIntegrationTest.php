@@ -57,10 +57,12 @@ class CacheIntegrationTest extends TestCase
     #[Override]
     protected function setUp(): void
     {
-        parent::setUp();
-
         // Ensure that session keys can be detected in the tests that are running from the console
-        $this->app->make(CacheIntegration::class)->detectSessionKeyOnConsole = true;
+        $this->afterApplicationRefreshed(function (): void {
+            $this->app->make(CacheIntegration::class)->detectSessionKeyOnConsole = true;
+        });
+
+        parent::setUp();
     }
 
     public function testCacheBreadcrumbForWriteAndHitIsRecorded(): void

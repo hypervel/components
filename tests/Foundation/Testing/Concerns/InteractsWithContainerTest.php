@@ -122,9 +122,15 @@ class InteractsWithContainerTest extends TestCase
 
     public function testForgetMock(): void
     {
-        $this->mock(InstanceStub::class)
-            ->expects('execute')
-            ->andReturn('bar');
+        $this->app->instance(InstanceStub::class, new class extends InstanceStub {
+            /**
+             * Execute the stub.
+             */
+            public function execute(): string
+            {
+                return 'bar';
+            }
+        });
 
         $this->assertSame('bar', $this->app->make(InstanceStub::class)->execute());
 

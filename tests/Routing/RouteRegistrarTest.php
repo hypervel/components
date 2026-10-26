@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Routing\RouteRegistrarTest;
 
 use BadMethodCallException;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
@@ -19,7 +19,6 @@ use Hypervel\Tests\Routing\Fixtures\RouteDomainEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use InvalidArgumentException;
-use Mockery as m;
 use Stringable;
 
 class RouteRegistrarTest extends RoutingTestCase
@@ -33,7 +32,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $container = new Container;
         $container->bind(CallableDispatcherContract::class, fn (Container $app): CallableDispatcher => new CallableDispatcher($app));
 
-        $this->router = new Router(m::mock(Dispatcher::class), $container);
+        $this->router = new Router(new Dispatcher($container), $container);
     }
 
     public function testMiddlewareFluentRegistration(): void

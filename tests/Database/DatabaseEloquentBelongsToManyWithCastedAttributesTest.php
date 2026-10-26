@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentBelongsToManyWithCastedAttributesTest;
 
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
@@ -99,7 +100,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
         $related->shouldReceive('qualifyColumn');
         $builder->shouldReceive('join', 'where');
         $builder->shouldReceive('getQuery')->andReturn(
-            m::mock(QueryBuilder::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
+            m::mock(QueryBuilder::class, ['getGrammar' => new Grammar(m::mock(Connection::class))])
         );
 
         return new BelongsToMany(

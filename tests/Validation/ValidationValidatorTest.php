@@ -10671,6 +10671,18 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame(['mouse' => null], $validator->invalid());
     }
 
+    public function testExcludedAttributesDoNotExcludeAttributesSharingTheirName(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['price' => ['amount' => 10], 'price_note' => 'On sale'],
+            ['price' => 'exclude|array', 'price.amount' => 'integer', 'price_note' => 'string']
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(['price_note' => 'On sale'], $validator->validated());
+    }
+
     public function testExcludeWithValuesAreReallyRemoved(): void
     {
         $validator = new Validator(

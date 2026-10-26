@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
@@ -61,12 +62,18 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getContainer()->expects('make')->with('foo')->andReturn($handler);
         $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob())->andReturnSelf();
         $handler->expects('failed')->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
-        $events = m::mock(Dispatcher::class);
+        $events = new EventsDispatcher;
+        $failed = [];
+        $events->listen(JobFailed::class, function (JobFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
         $job->getContainer()->expects('make')->with(Dispatcher::class)->andReturn($events);
-        $events->expects('hasListeners')->with(JobFailed::class)->andReturnTrue();
-        $events->expects('dispatch')->with(m::type(JobFailed::class))->andReturnNull();
 
-        $job->fail(new Exception);
+        $job->fail($exception = new Exception);
+
+        $this->assertCount(1, $failed);
+        $this->assertSame($job, $failed[0]->job);
+        $this->assertSame($exception, $failed[0]->exception);
     }
 
     public function testFailWithNullFailedDriverDoesNotRollBackDatabaseTransaction(): void

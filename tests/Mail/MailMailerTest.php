@@ -206,6 +206,20 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString($expected, $sentMessage->toString());
     }
 
+    public function testMailerSendSendsOnlyPlainContentWhenViewPairHasNoHtmlView(): void
+    {
+        $view = $this->viewFactory('rendered.plain');
+
+        $mailer = new Mailer('array', $view, new ArrayTransport);
+
+        $sentMessage = $mailer->send([null, 'bar'], ['data'], function (Message $message): void {
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
+        });
+
+        $this->assertSame('rendered.plain', $sentMessage->getOriginalMessage()->getTextBody());
+        $this->assertNull($sentMessage->getOriginalMessage()->getHtmlBody());
+    }
+
     public function testToAllowsEmailAndName(): void
     {
         $view = $this->viewFactory('rendered.view');

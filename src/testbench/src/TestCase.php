@@ -55,6 +55,18 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function setUp(): void
     {
+        $this->setUpTheTestbenchEnvironment();
+    }
+
+    /**
+     * Set up the Testbench environment.
+     *
+     * Application reloads call this directly, so the test case's own setUp() runs only once.
+     *
+     * @internal
+     */
+    protected function setUpTheTestbenchEnvironment(): void
+    {
         if ($this->withoutBootingFramework()) {
             parent::setUp();
             return;
@@ -232,6 +244,18 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function tearDown(): void
     {
+        $this->tearDownTheTestbenchEnvironment();
+    }
+
+    /**
+     * Clean up the Testbench environment.
+     *
+     * Application reloads call this directly, so the test case's own tearDown() runs only once.
+     *
+     * @internal
+     */
+    protected function tearDownTheTestbenchEnvironment(): void
+    {
         if ($this->withoutBootingFramework()) {
             parent::tearDown();
             return;
@@ -288,6 +312,16 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         if ($exception !== null) {
             throw $exception;
         }
+    }
+
+    /**
+     * Register a callback to be run before the application is destroyed.
+     *
+     * Callbacks run newest first, so later setup is cleaned up before the setup it depends on.
+     */
+    public function beforeApplicationDestroyed(callable $callback): void
+    {
+        array_unshift($this->beforeApplicationDestroyedCallbacks, $callback);
     }
 
     /**

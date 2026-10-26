@@ -23,19 +23,12 @@ class InteractsWithIOTest extends TestCase
     {
         $command = new CommandInteractsWithIO;
         $bufferedOutput = new BufferedOutput;
-        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
-        $command->setOutput($output);
-
-        $output->expects('createProgressBar')
-            ->with(count($iterable))
-            ->andReturnUsing(function (int $steps) use ($bufferedOutput): ProgressBar {
-                // we can't mock ProgressBar because it's final, so return a real one
-                return new ProgressBar($bufferedOutput, $steps);
-            });
+        $command->setOutput(new OutputStyle(new ArgvInput, $bufferedOutput));
 
         $calledTimes = 0;
         $result = $command->withProgressBar($iterable, function (string $value, ProgressBar $bar, int|string $key) use (&$calledTimes, $iterable): void {
             $this->assertInstanceOf(ProgressBar::class, $bar);
+            $this->assertSame(count($iterable), $bar->getMaxSteps());
             $this->assertSame(array_values($iterable)[$calledTimes], $value);
             $this->assertSame(array_keys($iterable)[$calledTimes], $key);
             ++$calledTimes;
@@ -59,21 +52,14 @@ class InteractsWithIOTest extends TestCase
     {
         $command = new CommandInteractsWithIO;
         $bufferedOutput = new BufferedOutput;
-        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
-        $command->setOutput($output);
+        $command->setOutput(new OutputStyle(new ArgvInput, $bufferedOutput));
 
         $totalSteps = 5;
 
-        $output->expects('createProgressBar')
-            ->with($totalSteps)
-            ->andReturnUsing(function (int $steps) use ($bufferedOutput): ProgressBar {
-                // we can't mock ProgressBar because it's final, so return a real one
-                return new ProgressBar($bufferedOutput, $steps);
-            });
-
         $called = false;
-        $command->withProgressBar($totalSteps, function (ProgressBar $bar) use (&$called): void {
+        $command->withProgressBar($totalSteps, function (ProgressBar $bar) use (&$called, $totalSteps): void {
             $this->assertInstanceOf(ProgressBar::class, $bar);
+            $this->assertSame($totalSteps, $bar->getMaxSteps());
             $called = true;
         });
 

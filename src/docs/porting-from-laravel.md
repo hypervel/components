@@ -809,6 +809,8 @@ If your extension inspects transaction records or registers callbacks directly w
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
+Laravel's `ConnectionResolver` can be built from an array of connection instances, but Hypervel's `ConnectionResolver` is the pooled resolver created by the container. Where package tests build Laravel's resolver directly, mock `ConnectionResolverInterface` to inject existing connections, or use the Capsule manager for real configured connections.
+
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
 Custom base query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
