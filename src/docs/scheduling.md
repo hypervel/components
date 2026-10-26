@@ -69,7 +69,7 @@ If you would like to view an overview of your scheduled tasks and the next time 
 php artisan schedule:list
 ```
 
-The `schedule:list` command also supports `--timezone`, `--environment`, `--next`, and `--json` options for customizing the displayed timezone, filtering by environment, sorting by the next due date, or returning the schedule as JSON. The `--environment` option may be repeated to include tasks from multiple environments:
+The `schedule:list` command also supports `--timezone`, `--environment`, `--next`, and `--json` options for customizing the displayed timezone, filtering by environment, sorting by the next due date, or returning the schedule as JSON. JSON output includes an `on_one_server` field indicating whether each task is configured to run on one server. The `--environment` option may be repeated to include tasks from multiple environments:
 
 ```shell
 php artisan schedule:list --environment=staging --environment=production
