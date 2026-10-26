@@ -48,6 +48,7 @@ use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -507,7 +508,9 @@ class PoolTest extends TestCase
         }
     }
 
-    public function testIndependentRequestCancellationIsAChildFailureWithoutInvokingTheExceptionHandler(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIndependentRequestCancellationIsAChildFailureWithoutInvokingTheExceptionHandler(bool $cleanupThrows): void
     {
         $manager = $this->manager();
         $requestStarted = new Channel(1);
@@ -516,10 +519,13 @@ class PoolTest extends TestCase
         $nativeCancellation = null;
         $handlerInvoked = false;
         $outcome = null;
+        $cleanupException = new RuntimeException('Request cleanup failed.');
         $manager->fake([
             PoolRequestStub::class => function () use (
                 $requestStarted,
                 $blocker,
+                $cleanupThrows,
+                $cleanupException,
                 &$childCoroutineId,
                 &$nativeCancellation,
             ): never {
@@ -531,6 +537,11 @@ class PoolTest extends TestCase
                 } catch (CanceledException $exception) {
                     $nativeCancellation = $exception;
                     throw $exception;
+                } finally {
+                    if ($cleanupThrows) {
+                        Coroutine::sleep(0.001);
+                        throw $cleanupException;
+                    }
                 }
 
                 throw new RuntimeException('The request was not canceled.');
@@ -550,69 +561,104 @@ class PoolTest extends TestCase
             }
         });
 
-        $this->assertTrue($requestStarted->pop());
-        $this->assertIsInt($childCoroutineId);
-        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
-        Coroutine::join([$runner->getId()]);
+        try {
+            $this->assertTrue($requestStarted->pop(1));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+            Coroutine::join([$runner->getId()], 1);
+        } finally {
+            $blocker->close();
+            Coroutine::join([$runner->getId()], 1);
+        }
 
         $this->assertInstanceOf(PoolException::class, $outcome);
         $this->assertInstanceOf(ChildCancellationException::class, $outcome->failures()['request']);
-        $this->assertSame($nativeCancellation, $outcome->failures()['request']->getPrevious());
+        $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $outcome->failures()['request']->getPrevious());
+        $this->assertFalse(Coroutine::isCancellation($outcome));
+        if ($cleanupThrows) {
+            $this->assertSame($nativeCancellation, $cleanupException->getPrevious());
+        }
         $this->assertFalse($handlerInvoked);
     }
 
-    public function testResponseHandlerCancellationRetainsTheResponseAsAChildCallbackFailure(): void
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testHandlerCancellationRetainsTheRequestOutcomeAsAChildCallbackFailure(bool $requestFails, bool $cleanupThrows): void
     {
         $manager = $this->manager();
-        $manager->fake([PoolRequestStub::class => MockResponse::make(['ok' => true])]);
+        $manager->fake([PoolRequestStub::class => MockResponse::make(['ok' => ! $requestFails], $requestFails ? 500 : 200)]);
         $callbackStarted = new Channel(1);
         $blocker = new Channel(1);
         $childCoroutineId = null;
         $nativeCancellation = null;
         $outcome = null;
         $connector = new PoolConnectorStub($manager);
+        $cleanupException = new RuntimeException('Callback cleanup failed.');
 
         $runner = EngineCoroutine::create(function () use (
             $connector,
             $callbackStarted,
             $blocker,
+            $requestFails,
+            $cleanupThrows,
+            $cleanupException,
             &$childCoroutineId,
             &$nativeCancellation,
             &$outcome,
         ): void {
             try {
-                $connector->pool(['request' => new PoolRequestStub(1)])
-                    ->withResponseHandler(static function () use (
-                        $callbackStarted,
-                        $blocker,
-                        &$childCoroutineId,
-                        &$nativeCancellation,
-                    ): void {
-                        $childCoroutineId = Coroutine::id();
-                        $callbackStarted->push(true);
+                $pool = $connector->pool(['request' => new PoolRequestStub(1)]);
+                $handler = static function () use (
+                    $callbackStarted,
+                    $blocker,
+                    $cleanupThrows,
+                    $cleanupException,
+                    &$childCoroutineId,
+                    &$nativeCancellation,
+                ): void {
+                    $childCoroutineId = Coroutine::id();
+                    $callbackStarted->push(true);
 
-                        try {
-                            $blocker->pop();
-                        } catch (CanceledException $exception) {
-                            $nativeCancellation = $exception;
-                            throw $exception;
+                    try {
+                        $blocker->pop();
+                    } catch (CanceledException $exception) {
+                        $nativeCancellation = $exception;
+                        throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            Coroutine::sleep(0.001);
+                            throw $cleanupException;
                         }
-                    })
-                    ->send();
+                    }
+                };
+                $requestFails ? $pool->withExceptionHandler($handler) : $pool->withResponseHandler($handler);
+                $pool->send();
             } catch (Throwable $exception) {
                 $outcome = $exception;
             }
         });
 
-        $this->assertTrue($callbackStarted->pop());
-        $this->assertIsInt($childCoroutineId);
-        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
-        Coroutine::join([$runner->getId()]);
+        try {
+            $this->assertTrue($callbackStarted->pop(1));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+            Coroutine::join([$runner->getId()], 1);
+        } finally {
+            $blocker->close();
+            Coroutine::join([$runner->getId()], 1);
+        }
 
         $this->assertInstanceOf(PoolException::class, $outcome);
         $this->assertInstanceOf(ChildCancellationException::class, $outcome->callbackFailures()['request']);
-        $this->assertSame($nativeCancellation, $outcome->callbackFailures()['request']->getPrevious());
-        $this->assertSame(['request'], array_keys($outcome->responses()));
+        $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $outcome->callbackFailures()['request']->getPrevious());
+        $this->assertSame($requestFails ? [] : ['request'], array_keys($outcome->responses()));
+        $this->assertSame($requestFails ? ['request'] : [], array_keys($outcome->failures()));
+        $this->assertFalse(Coroutine::isCancellation($outcome));
+        if ($cleanupThrows) {
+            $this->assertSame($nativeCancellation, $cleanupException->getPrevious());
+        }
     }
 
     public function testProducerCancellationCancelsStartedRequestsAndEscapesExactly(): void
