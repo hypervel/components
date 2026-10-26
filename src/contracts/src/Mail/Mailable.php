@@ -52,7 +52,7 @@ interface Mailable
      *
      * @return $this
      */
-    public function locale(string $locale): static;
+    public function locale(?string $locale): static;
 
     /**
      * Set the name of the mailer that should be used to send the message.

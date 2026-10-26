@@ -46,7 +46,7 @@ class PendingMail
     /**
      * Set the locale of the message.
      */
-    public function locale(string $locale): static
+    public function locale(?string $locale): static
     {
         $this->locale = $locale;
 

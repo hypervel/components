@@ -944,7 +944,12 @@ class BelongsToMany extends Relation
         return $callback();
     }
 
-    public function getResults()
+    /**
+     * Get the results of the relationship.
+     *
+     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     */
+    public function getResults(): BaseCollection
     {
         return ! is_null($this->parent->{$this->parentKey})
             ? $this->get()

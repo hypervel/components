@@ -243,7 +243,7 @@ class Container implements ContainerContract
     /**
      * The callback used to determine the container's environment.
      *
-     * @var null|(callable(array<int, string>|string): bool|string)
+     * @var null|(callable(array<int, string>|string): (bool|string))
      */
     protected $environmentResolver;
 

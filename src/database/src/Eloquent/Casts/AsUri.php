@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Uri;
 
 class AsUri implements Castable
@@ -18,12 +19,18 @@ class AsUri implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Uri
+            /**
+             * Cast the stored value to a URI.
+             */
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Uri
             {
                 return isset($value) ? new Uri($value) : null;
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?string
+            /**
+             * Prepare the URI for storage.
+             */
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?string
             {
                 return isset($value) ? (string) $value : null;
             }

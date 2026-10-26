@@ -699,7 +699,7 @@ trait QueriesRelationships
     /**
      * Add a "belongs to" relationship where clause to the query.
      *
-     * @param EloquentCollection<int, Model>|Model $related
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -743,6 +743,8 @@ trait QueriesRelationships
 
     /**
      * Add a "BelongsTo" relationship with an "or where" clause to the query.
+     *
+     * @param EloquentCollection<int, covariant Model>|Model $related
      */
     public function orWhereBelongsTo(mixed $related, ?string $relationshipName = null): static
     {
@@ -752,7 +754,7 @@ trait QueriesRelationships
     /**
      * Add a "belongs to many" relationship where clause to the query.
      *
-     * @param EloquentCollection<int, Model>|Model $related
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -792,6 +794,8 @@ trait QueriesRelationships
 
     /**
      * Add a "belongs to many" relationship with an "or where" clause to the query.
+     *
+     * @param EloquentCollection<int, covariant Model>|Model $related
      *
      * @throws RuntimeException
      */

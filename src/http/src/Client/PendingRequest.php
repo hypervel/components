@@ -164,6 +164,8 @@ class PendingRequest implements Transient
 
     /**
      * The number of times to try the request.
+     *
+     * @var array<int, float|int>|int
      */
     protected array|int $tries = 1;
 

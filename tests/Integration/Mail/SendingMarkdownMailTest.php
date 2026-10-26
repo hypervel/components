@@ -286,7 +286,7 @@ class MarkdownBasicMailableWithTheme extends Mailable
 
 class MarkdownBasicMailableWithTextView extends Mailable
 {
-    public string $textView = 'text';
+    public ?string $textView = 'text';
 
     public function envelope(): Envelope
     {

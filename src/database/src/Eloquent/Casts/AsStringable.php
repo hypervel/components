@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Stringable;
 use Stringable as BaseStringable;
 
@@ -19,12 +20,18 @@ class AsStringable implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Stringable
+            /**
+             * Cast the stored value to a stringable instance.
+             */
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Stringable
             {
                 return isset($value) ? new Stringable($value) : null;
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?string
+            /**
+             * Prepare the stringable value for storage.
+             */
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?string
             {
                 return isset($value) ? (string) $value : null;
             }

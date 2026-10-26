@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\BinaryCodec;
 use InvalidArgumentException;
 
@@ -43,7 +44,7 @@ class AsBinary implements Castable
             /**
              * Transform the attribute from the underlying model values.
              */
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?string
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?string
             {
                 $attribute = $attributes[$key] ?? null;
 
@@ -61,7 +62,7 @@ class AsBinary implements Castable
             /**
              * Transform the attribute to its underlying model values.
              */
-            public function set(mixed $model, string $key, mixed $value, array $attributes): array
+            public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return [$key => BinaryCodec::encode($value, $this->format)];
             }

@@ -1023,8 +1023,10 @@ class Handler implements ExceptionHandlerContract
         $redirect = redirect($exception->redirectTo ?? url()->previous());
 
         if (CoroutineContext::get(Store::CONTEXT_KEY)) {
+            $errorBag = $request->input('_error_bag');
+
             $redirect->withInput(Arr::except($request->input(), $this->dontFlash))
-                ->withErrors($exception->errors(), $request->input('_error_bag', $exception->errorBag));
+                ->withErrors($exception->errors(), is_string($errorBag) ? $errorBag : $exception->errorBag);
         }
 
         return $redirect;

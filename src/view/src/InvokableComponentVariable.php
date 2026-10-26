@@ -7,16 +7,22 @@ namespace Hypervel\View;
 use ArrayIterator;
 use Closure;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
-use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Enumerable;
 use IteratorAggregate;
 use Stringable;
 use Traversable;
 
+/**
+ * @template-covariant TValue = mixed
+ *
+ * @mixin TValue
+ */
 class InvokableComponentVariable implements DeferringDisplayableValue, IteratorAggregate, Stringable
 {
     /**
      * Create a new variable instance.
+     *
+     * @param Closure(): TValue $callable
      */
     public function __construct(
         protected Closure $callable
@@ -25,14 +31,18 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Resolve the displayable value that the class is deferring.
+     *
+     * @return TValue
      */
-    public function resolveDisplayableValue(): Htmlable|string
+    public function resolveDisplayableValue(): mixed
     {
         return $this->__invoke();
     }
 
     /**
      * Get an iterator instance for the variable.
+     *
+     * @return ArrayIterator
      */
     public function getIterator(): Traversable
     {
@@ -59,6 +69,8 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Resolve the variable.
+     *
+     * @return TValue
      */
     public function __invoke(): mixed
     {

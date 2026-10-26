@@ -349,6 +349,15 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(['results'], $c->all());
     }
 
+    public function testLoadMissingWithoutRelationsDoesNotBuildAQuery(): void
+    {
+        $model = m::mock(Model::class);
+        $model->shouldNotReceive('newQueryWithoutRelationships');
+        $collection = new Collection([$model]);
+
+        $this->assertSame($collection, $collection->loadMissing([]));
+    }
+
     public function testCollectionDictionaryReturnsModelKeys(): void
     {
         $one = (new CollectionModel)->forceFill(['id' => 1]);

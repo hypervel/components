@@ -10,6 +10,7 @@ use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Lang;
@@ -29,7 +30,7 @@ class ResetPassword extends Notification
     /**
      * The callback that should be used to build the mail message.
      *
-     * @var null|(Closure(mixed, string): MailMessage)
+     * @var null|(Closure(mixed, string): (Mailable|MailMessage))
      */
     public static ?Closure $toMailCallback = null;
 
@@ -59,7 +60,7 @@ class ResetPassword extends Notification
     /**
      * Build the mail representation of the notification.
      */
-    public function toMail(mixed $notifiable): MailMessage
+    public function toMail(mixed $notifiable): MailMessage|Mailable
     {
         if (static::$toMailCallback) {
             return call_user_func(static::$toMailCallback, $notifiable, $this->token);
@@ -132,7 +133,7 @@ class ResetPassword extends Notification
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every reset-password notification.
      *
-     * @param Closure(mixed, string): MailMessage $callback
+     * @param Closure(mixed, string): (Mailable|MailMessage) $callback
      */
     public static function toMailUsing(Closure $callback): void
     {
