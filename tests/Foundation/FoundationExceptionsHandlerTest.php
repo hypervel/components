@@ -819,6 +819,44 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertEquals($argumentExpected, $argumentActual);
     }
 
+    public function testInvalidUsesErrorBagWhenStringAndFallsBackWhenNotString(): void
+    {
+        $errorBagActual = null;
+        CoroutineContext::set(Store::CONTEXT_KEY, m::mock(Store::class));
+
+        $this->container->singleton('redirect', function () use (&$errorBagActual): Redirector {
+            $redirector = m::mock(Redirector::class);
+            $responder = m::mock(RedirectResponse::class . '[withInput,withErrors]', ['/']);
+            $redirector->expects('to')->twice()->andReturn($responder);
+            $responder->expects('withInput')->twice()->andReturn($responder);
+            $responder->expects('withErrors')->twice()->with(
+                m::any(),
+                m::on(function (string $errorBag) use (&$errorBagActual): bool {
+                    $errorBagActual = $errorBag;
+
+                    return true;
+                })
+            )->andReturn($responder);
+
+            return $redirector;
+        });
+
+        $validator = m::mock(Validator::class);
+        $validator->expects('errors')->times(3)->andReturn(new MessageBag(['error' => 'My custom validation exception']));
+
+        $validationException = new ValidationException($validator);
+        $validationException->redirectTo = '/';
+        $validationException->errorBag = 'default_bag';
+
+        $request = Request::create('/', 'POST', ['_error_bag' => 'custom_bag']);
+        $this->handler->render($request, $validationException);
+        $this->assertSame('custom_bag', $errorBagActual);
+
+        $request = Request::create('/', 'POST', ['_error_bag' => ['invalid_array_bag']]);
+        $this->handler->render($request, $validationException);
+        $this->assertSame('default_bag', $errorBagActual);
+    }
+
     public function testSuspiciousOperationReturns400WithoutReporting(): void
     {
         $this->config->set('app.debug', true);
@@ -1551,7 +1589,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         $this->request->expects('expectsJson')->andReturn(false);
         $this->request->shouldReceive('input')->withNoArgs()->andReturn(['foo' => 'bar']);
-        $this->request->shouldReceive('input')->with('_error_bag', m::any())->andReturn('default');
+        $this->request->shouldReceive('input')->with('_error_bag')->andReturn('default');
 
         $session = m::mock(Store::class);
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
