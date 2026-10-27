@@ -11,6 +11,11 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
 permissions:
   contents: write
 
