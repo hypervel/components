@@ -61,6 +61,7 @@ class SkeletonConfigSync
 
         $expected = [];
         $published = [];
+        $unexpected = [];
 
         foreach ($rules['stubs'] as $name => $operations) {
             if (! array_key_exists($name, $sources)) {
@@ -71,13 +72,38 @@ class SkeletonConfigSync
             $expected["src/foundation/config-stubs/{$name}"] = $published[$name];
         }
 
-        foreach ($rules['skeletons'] as $skeleton => $files) {
-            if (! is_array($files)) {
+        foreach ($rules['skeletons'] as $skeleton => $options) {
+            if (! is_array($options)) {
                 throw new InvalidArgumentException("Skeleton rules must be an array: {$skeleton}");
+            }
+
+            if (in_array($skeleton, ['', '.', '..'], true) || str_contains((string) $skeleton, '/') || str_contains((string) $skeleton, '\\')) {
+                throw new InvalidArgumentException("Skeleton must be a single directory name: {$skeleton}");
             }
 
             if (! is_dir($root . '/skeletons/' . $skeleton)) {
                 throw new InvalidArgumentException("Skeleton directory does not exist: {$skeleton}");
+            }
+
+            $this->validateKeys($options, ['files', 'preserve'], $skeleton);
+            $files = $options['files'] ?? [];
+            $preserved = $options['preserve'] ?? [];
+            $existing = array_map('basename', glob($root . "/skeletons/{$skeleton}/config/*.php"));
+
+            foreach ($preserved as $name) {
+                if (array_key_exists($name, $sources)) {
+                    throw new InvalidArgumentException("Use file rules for framework config instead of preserving it: {$skeleton}/{$name}");
+                }
+
+                if (! in_array($name, $existing, true)) {
+                    throw new InvalidArgumentException("Preserved skeleton config does not exist: {$skeleton}/{$name}");
+                }
+            }
+
+            foreach ($existing as $name) {
+                if (! array_key_exists($name, $sources) && ! in_array($name, $preserved, true)) {
+                    $unexpected[] = "skeletons/{$skeleton}/config/{$name}";
+                }
             }
 
             foreach ($files as $name => $operations) {
@@ -102,6 +128,16 @@ class SkeletonConfigSync
                     "{$skeleton}/{$name}"
                 );
             }
+        }
+
+        if ($unexpected !== []) {
+            foreach ($unexpected as $path) {
+                fwrite(STDERR, "Unexpected skeleton config: {$path}\n");
+            }
+
+            fwrite(STDERR, "Remove obsolete copies of deleted or renamed framework configs. For intentional skeleton-only configs, list their filenames under that skeleton's preserve rule in bin/sync-skeleton-config/rules.php. No files were changed.\n");
+
+            return 1;
         }
 
         // This directory contains only generated overrides. Removed rules must not

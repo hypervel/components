@@ -26,7 +26,7 @@ Do not fix drift by editing generated files directly. Split and release workflow
 
 - `exclude`: framework config filenames to omit from every skeleton. Sync removes existing skeleton copies; check reports them as files that must be absent. The framework configs and publishing stubs remain available to `config:publish`. The list is empty by default.
 - `stubs`: differences from framework defaults for files published by `config:publish` when framework config merging is enabled. Only files listed here get a generated stub. Removing a stub rule removes its generated override on the next sync.
-- `skeletons`: skeleton directory names and their additional differences. Each registered skeleton receives every non-excluded framework config, using the generated publishing stub when one exists. An empty rules array means no additional differences.
+- `skeletons`: direct skeleton directory names and their additional rules. Each registered skeleton receives every non-excluded framework config, using the generated publishing stub when one exists. Use `files` for additional differences and `preserve` for skeleton-only config filenames. An empty rules array means no additional differences or preserved files.
 
 For example:
 
@@ -41,8 +41,10 @@ return [
     'skeletons' => [
         'hypervel' => [],
         'react-starter-kit' => [
-            'auth.php' => [
-                'replace' => ['defaults.guard' => "env('AUTH_GUARD', 'web')"],
+            'files' => [
+                'auth.php' => [
+                    'replace' => ['defaults.guard' => "env('AUTH_GUARD', 'web')"],
+                ],
             ],
         ],
     ],
@@ -55,7 +57,17 @@ The replacement above illustrates the syntax; it is not a required React setting
 
 The tool parses PHP without executing it, preserving environment expressions, comments, and formatting. Omitting an entry removes its attached comments and any imports no longer used by the remaining config. The exact framework-only `// @phpstan-ignore class.notFound` comment is stripped from generated files; other comments and string contents are retained.
 
-Skeleton configs with no corresponding framework source are left alone, allowing starter kits to include package-specific configuration. When removing or renaming a framework config, review and remove its old skeleton copies explicitly.
+Both sync and check reject unexpected skeleton config files before writing anything. When removing or renaming a framework config, remove its old skeleton copies too; the error lists any that remain.
+
+For a config owned by a skeleton, such as an optional package's `fortify.php`, add its filename to that skeleton's `preserve` list. The file must already exist and must not also be a framework config. Its contents remain untouched by sync:
+
+```php
+'hypervel' => [
+    'preserve' => ['fortify.php'],
+],
+```
+
+This keeps skeleton-only configuration explicit without deleting unrecognized files or tracking a separate generation manifest. Publishing stubs are fully generated: obsolete PHP stubs are removed automatically, while the directory's README is retained.
 
 ## Tests
 
