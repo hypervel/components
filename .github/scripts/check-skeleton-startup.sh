@@ -4,7 +4,7 @@
 # if startup fails or the workflow cancels while an HTTP request is in progress.
 set -euo pipefail
 
-timeout --kill-after=5s 60s php artisan serve > storage/logs/ci-startup.log 2>&1 &
+timeout --kill-after=5s 120s php artisan serve > storage/logs/ci-startup.log 2>&1 &
 server_pid=$!
 
 cleanup() {
