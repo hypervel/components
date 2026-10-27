@@ -10,17 +10,18 @@ server_pid=$!
 cleanup() {
     status=$?
     trap - EXIT
-    kill -TERM "$server_pid" 2>/dev/null || true
+    # Workers can outlive the timeout parent, so track the entire process group.
+    kill -TERM -- "-$server_pid" 2>/dev/null || true
 
     for attempt in {1..50}; do
-        if ! kill -0 "$server_pid" 2>/dev/null; then
+        if ! kill -0 -- "-$server_pid" 2>/dev/null; then
             break
         fi
         sleep 0.1
     done
 
     # timeout owns the process group, including the Swoole workers.
-    if kill -0 "$server_pid" 2>/dev/null; then
+    if kill -0 -- "-$server_pid" 2>/dev/null; then
         kill -KILL -- "-$server_pid" 2>/dev/null || true
     fi
     wait "$server_pid" 2>/dev/null || true
