@@ -1,6 +1,8 @@
 name: split repos
 
 on:
+  push:
+    branches: ['0.4']
   workflow_dispatch:
     inputs:
       repo:
