@@ -64,6 +64,18 @@ jobs:
           script: |
               core.setFailed('Workflow failed. Release version does not match with selected target branch. Did you select the correct branch?')
 
+      - name: Setup private key
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Check split repositories
+        run: bash ./bin/split.sh --check
+
       - name: Update Application.php version
         run: |
           sed -i "s/const string VERSION = '.*';/const string VERSION = '${VERSION}';/g" src/foundation/src/Application.php
@@ -75,15 +87,6 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
         with:
           commit_message: "Update version to v${{ steps.version.outputs.version }}"
-
-      - name: Setup private key
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          echo "StrictHostKeyChecking no" >> ~/.ssh/config
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Split and push
         run: |

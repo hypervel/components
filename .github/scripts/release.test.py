@@ -96,6 +96,56 @@ class ReleaseTest(unittest.TestCase):
         path.write_text("#!/bin/sh\nset -e\n" + script)
         path.chmod(0o755)
 
+    def test_check_accepts_empty_repositories_without_changing_any_refs(self):
+        commit = self.run_command("git", "rev-parse", "HEAD").stdout
+        result = self.run_command("bash", "bin/split.sh", "--check")
+        self.assertIn("All 2 split repositories are accessible.", result.stdout)
+        self.assertEqual(self.run_command("git", "rev-parse", "HEAD").stdout, commit)
+        self.assertEqual(self.run_command("git", "for-each-ref", "refs/hypervel-split/").stdout, "")
+        self.assertFalse((self.source / ".git" / "splitsh.db").exists())
+        for package in ("alpha", "beta"):
+            self.assertEqual(self.remote_git(package, "for-each-ref").stdout, "")
+
+    def test_check_reports_all_missing_repositories_together(self):
+        for package in ("alpha", "beta"):
+            self.run_command("mv", str(self.remote(package)), str(self.directory / f"{package}-unavailable.git"))
+        result = self.run_command("bash", "bin/split.sh", "--check", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing or inaccessible split repositories:", result.stdout.splitlines())
+        self.assertIn("  hypervel/alpha\n  hypervel/beta\n", result.stdout)
+
+    def test_missing_destination_stops_split_and_release_before_any_push(self):
+        self.run_command("mv", str(self.remote("beta")), str(self.directory / "beta-unavailable.git"))
+        for script, arguments in (("split.sh", []), ("release.sh", [self.version])):
+            with self.subTest(script=script):
+                result = self.run_command("bash", f"bin/{script}", *arguments, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Missing or inaccessible split repositories:", result.stdout.splitlines())
+                self.assertIn("  hypervel/beta", result.stdout.splitlines())
+                self.assertEqual(self.remote_git("alpha", "for-each-ref").stdout, "")
+                self.assert_no_tag("components")
+
+    def test_selected_package_checks_only_its_destination(self):
+        self.run_command("mv", str(self.remote("beta")), str(self.directory / "beta-unavailable.git"))
+        result = self.run_command("bash", "bin/split.sh", "alpha", "--check")
+        self.assertIn("All 1 split repositories are accessible.", result.stdout)
+        self.run_command("bash", "bin/split.sh", "alpha")
+        self.assertEqual(self.remote_git("alpha", "show", f"refs/heads/{self.branch}:contents").stdout, "initial")
+
+    def test_check_uses_the_selected_source_commit_package_list(self):
+        original = self.run_command("git", "rev-parse", "HEAD").stdout.strip()
+        (self.source / "src" / "gamma").mkdir()
+        (self.source / "src" / "gamma" / "contents").write_text("new package")
+        self.commit("later")
+        result = self.run_command("bash", "bin/split.sh", "--check", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing or inaccessible split repositories:", result.stdout.splitlines())
+        self.assertIn("  hypervel/gamma", result.stdout.splitlines())
+        self.run_command("bash", "bin/split.sh", "--ref", original, "--check")
+        self.run_command("bash", "bin/split.sh", "--ref", original)
+        for package in ("alpha", "beta"):
+            self.assertEqual(self.remote_git(package, "show", f"refs/heads/{self.branch}:contents").stdout, "initial")
+
     def test_release_refreshes_stale_splits_and_repeated_splits_are_unchanged(self):
         self.run_command("bash", "bin/split.sh")
         commit = self.commit("release")
