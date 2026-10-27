@@ -27,6 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           # Version commits and framework tag pushes authenticate through origin.
           persist-credentials: true
 
@@ -90,10 +91,12 @@ jobs:
           git config --global user.email "albert@hypervel.org"
           git config --global user.name "Hypervel"
           if [ ${{ inputs.force_delete }} = true ]; then
-            bash ./bin/release.sh v${{ steps.version.outputs.version }} -f
+            bash ./bin/release.sh "v$VERSION" -f
           else
-            bash ./bin/release.sh v${{ steps.version.outputs.version }}
+            bash ./bin/release.sh "v$VERSION"
           fi
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create release notes
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
