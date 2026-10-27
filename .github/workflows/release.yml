@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Remove optional "v" prefix
         id: version
@@ -79,10 +81,12 @@ jobs:
           git config --global user.email "albert@hypervel.org"
           git config --global user.name "Hypervel"
           if [ ${{ inputs.force_delete }} = true ]; then
-            bash ./bin/release.sh v${{ steps.version.outputs.version }} -f
+            bash ./bin/release.sh "v$VERSION" -f
           else
-            bash ./bin/release.sh v${{ steps.version.outputs.version }}
+            bash ./bin/release.sh "v$VERSION"
           fi
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create release notes
         uses: softprops/action-gh-release@v3
