@@ -11,6 +11,8 @@ composer check:skeleton-config
 
 Both commands run `sync.php`. The check command passes `--check`: it reports every missing, outdated, or obsolete managed output and exits with status 1 without writing files. PR tests and split/release workflows run this check before publishing.
 
+`composer fix` also runs sync after formatting and before analysis and tests. Review and commit any generated changes it produces.
+
 ## Fix a workflow failure
 
 1. Read the reported filenames or rule errors. Edit framework defaults in `src/foundation/config/` and intentional differences in `bin/sync-skeleton-config/rules.php`.

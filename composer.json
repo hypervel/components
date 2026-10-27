@@ -478,6 +478,7 @@
         "facade": "php -f src/facade-documenter/facade.php --",
         "fix": [
             "@lint:fix",
+            "@sync:skeleton-config",
             "@analyse",
             "@test:parallel",
             "@test:testbench",

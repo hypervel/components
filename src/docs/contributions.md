@@ -137,7 +137,7 @@ Before opening a code pull request, run `composer fix` from the repository root 
 composer fix
 ```
 
-This command runs php-cs-fixer and PHPStan for the framework and skeletons, the parallel framework test suite, the Testbench package-mode suite, and the Testbench consumer-package tests. Each skeleton uses its own formatting and analysis configuration.
+This command formats the framework and skeletons, syncs generated configuration from the formatted defaults, then runs PHPStan, the parallel framework test suite, the Testbench package-mode suite, and the Testbench consumer-package tests. Each skeleton uses its own formatting and analysis configuration. Review and commit the generated config changes alongside the source changes.
 
 Install the base skeleton's dependencies once before running the combined checks:
 
