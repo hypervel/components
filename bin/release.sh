@@ -20,13 +20,15 @@ fi
 NOW=$(date +%s)
 RELEASE_BRANCH="0.4"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-BASEPATH=$(cd `dirname $0`; cd ../src/; pwd)
+RELEASE_COMMIT=$(git rev-parse HEAD)
 VERSION=$1
-FORCE_DELETE=false
+SPLIT_OPTIONS=()
+TAG_OPTIONS=()
 
 # Check if -f flag is provided as second argument
-if [[ "$2" == "-f" ]]; then
-    FORCE_DELETE=true
+if [[ "${2:-}" == "-f" ]]; then
+    SPLIT_OPTIONS=(--force-tag)
+    TAG_OPTIONS=(--force)
 fi
 
 # Make sure current branch and release branch match.
@@ -48,10 +50,9 @@ fi
 # Make sure latest changes are fetched first.
 git fetch origin
 
-# Make sure that release branch is in sync with origin.
-if [[ $(git rev-parse HEAD) != $(git rev-parse origin/$RELEASE_BRANCH) ]]
-then
-    echo "Your branch is out of date with its upstream. Did you forget to pull or push any changes before releasing?"
+# The release commit must be published; later commits do not change this release.
+if ! git merge-base --is-ancestor "$RELEASE_COMMIT" "origin/$RELEASE_BRANCH"; then
+    echo "The release commit is not on origin/$RELEASE_BRANCH. Did you forget to push before releasing?"
 
     exit 1
 fi
@@ -62,48 +63,12 @@ then
     VERSION="v$VERSION"
 fi
 
-REMOTES=$(ls $BASEPATH)
+# Refresh every component and tag its exact split before publishing the framework tag.
+bash ./bin/split.sh --ref "$RELEASE_COMMIT" --tag "$VERSION" "${SPLIT_OPTIONS[@]}"
 
-# Delete the old release tag only if -f flag is provided
-if [ $FORCE_DELETE = true ]; then
-    echo "Forcing delete of existing tags..."
-    git push --delete origin $VERSION 2>/dev/null || true
-    git tag --delete $VERSION 2>/dev/null || true
-fi
+git tag "${TAG_OPTIONS[@]}" "$VERSION" "$RELEASE_COMMIT"
+git push "${TAG_OPTIONS[@]}" origin "refs/tags/$VERSION"
 
-# Tag Framework
-git tag $VERSION
-git push origin --tags
+TIME=$(( $(date +%s) - NOW ))
 
-# Tag Components
-for REMOTE in $REMOTES
-do
-    echo ""
-    echo ""
-    echo "Cloning $REMOTE";
-
-    TMP_DIR="/tmp/hypervel-split"
-    REMOTE_URL="git@github.com:hypervel/${REMOTE}.git"
-
-    rm -rf $TMP_DIR;
-    mkdir $TMP_DIR;
-
-    (
-        cd $TMP_DIR;
-
-        git clone $REMOTE_URL .
-        git checkout "$RELEASE_BRANCH";
-
-        echo "Releasing $REMOTE";
-        if [ "$FORCE_DELETE" = true ]; then
-            git push --delete origin $VERSION 2>/dev/null || true
-            git tag --delete $VERSION 2>/dev/null || true
-        fi
-        git tag $VERSION
-        git push origin --tags
-    )
-done
-
-TIME=$(echo "$(date +%s) - $NOW" | bc)
-
-printf "Execution time: %f seconds" $TIME
+printf 'Execution time: %s seconds\n' "$TIME"

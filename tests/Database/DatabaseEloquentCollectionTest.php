@@ -18,7 +18,6 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentCollectionTest extends TestCase
 {
@@ -272,32 +271,51 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame($mockModel, $c->findOrFail(1));
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testFindOrFailFindsManyModelsById(bool $arrayable): void
+    public function testFindOrFailFindsManyModelsById(): void
     {
-        $ids = fn (array $keys): array|BaseCollection => $arrayable ? collect($keys) : $keys;
         $model1 = (new CollectionModel)->forceFill(['id' => 1]);
         $model2 = (new CollectionModel)->forceFill(['id' => 2]);
 
         $c = new Collection;
-        $this->assertInstanceOf(Collection::class, $c->findOrFail($ids([])));
-        $this->assertCount(0, $c->findOrFail($ids([])));
+        $this->assertInstanceOf(Collection::class, $c->findOrFail([]));
+        $this->assertCount(0, $c->findOrFail([]));
 
         $c->push($model1);
-        $this->assertCount(1, $c->findOrFail($ids([1])));
-        $this->assertEquals(1, $c->findOrFail($ids([1]))->first()->id);
+        $this->assertCount(1, $c->findOrFail([1]));
+        $this->assertEquals(1, $c->findOrFail([1])->first()->id);
 
         $c->push($model2);
-        $this->assertCount(2, $c->findOrFail($ids([1, 2])));
-        $this->assertSame([$model1, $model2], $c->findOrFail($ids([1, 1, 2]))->all());
+        $this->assertCount(2, $c->findOrFail([1, 2]));
+        $this->assertSame([$model1, $model2], $c->findOrFail([1, 1, 2])->all());
 
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 3'));
 
-        $c->findOrFail($ids([1, 2, 3]));
+        $c->findOrFail([1, 2, 3]);
     }
 
-    public function testFindOrFailUsesModelKey(): void
+    public function testFindOrFailFindsManyModelsByArrayableIds(): void
+    {
+        $model1 = (new CollectionModel)->forceFill(['id' => 1]);
+        $model2 = (new CollectionModel)->forceFill(['id' => 2]);
+
+        $collection = new Collection;
+        $this->assertInstanceOf(Collection::class, $collection->findOrFail(new BaseCollection));
+        $this->assertCount(0, $collection->findOrFail(new BaseCollection));
+
+        $collection->push($model1);
+        $this->assertCount(1, $collection->findOrFail(new BaseCollection([1])));
+        $this->assertEquals(1, $collection->findOrFail(new BaseCollection([1]))->first()->id);
+
+        $collection->push($model2);
+        $this->assertCount(2, $collection->findOrFail(new BaseCollection([1, 2])));
+        $this->assertSame([$model1, $model2], $collection->findOrFail(new BaseCollection([1, 1, 2]))->all());
+
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 3'));
+
+        $collection->findOrFail(new BaseCollection([1, 3]));
+    }
+
+    public function testFindOrFailFindsModelByModelInstance(): void
     {
         $model = (new CollectionModel)->forceFill(['id' => 1, 'other_id' => 2]);
         $collection = new Collection([$model]);

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
+use Closure;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\JobLifecycleCallbacks;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
@@ -20,7 +22,7 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
-abstract class Job implements JobContract
+abstract class Job implements JobContract, JobLifecycleCallbacks
 {
     use InteractsWithTime;
 
@@ -58,6 +60,20 @@ abstract class Job implements JobContract
      * Indicates if the job has failed.
      */
     protected bool $failed = false;
+
+    /**
+     * The callbacks to run before releasing the job.
+     *
+     * @var list<Closure>
+     */
+    protected array $beforeReleasingCallbacks = [];
+
+    /**
+     * The callbacks to run before recording the job as failed.
+     *
+     * @var list<Closure>
+     */
+    protected array $beforeFailingCallbacks = [];
 
     /**
      * The name of the connection the job belongs to.
@@ -200,7 +216,29 @@ abstract class Job implements JobContract
      */
     public function release(int $delay = 0): void
     {
+        $this->runBeforeReleasingCallbacks();
+
         $this->released = true;
+    }
+
+    /**
+     * Register a callback to run before releasing the job.
+     */
+    public function beforeReleasing(Closure $callback): static
+    {
+        $this->beforeReleasingCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Run the callbacks before making another attempt available.
+     */
+    protected function runBeforeReleasingCallbacks(): void
+    {
+        foreach ($this->beforeReleasingCallbacks as $callback) {
+            $callback();
+        }
     }
 
     /**
@@ -236,15 +274,38 @@ abstract class Job implements JobContract
     }
 
     /**
+     * Register a callback to run before recording the job as failed.
+     */
+    public function beforeFailing(Closure $callback): static
+    {
+        $this->beforeFailingCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Run the callbacks before publishing the failure.
+     */
+    protected function runBeforeFailingCallbacks(): void
+    {
+        foreach ($this->beforeFailingCallbacks as $callback) {
+            $callback();
+        }
+    }
+
+    /**
      * Delete the job, call the "failed" method, and raise the failed job event.
      */
     public function fail(?Throwable $e = null): void
     {
-        $this->markAsFailed();
-
         if ($this->isDeleted()) {
+            $this->markAsFailed();
+
             return;
         }
+
+        $this->runBeforeFailingCallbacks();
+        $this->markAsFailed();
 
         try {
             $commandName = $this->payload()['data']['commandName'] ?? false;

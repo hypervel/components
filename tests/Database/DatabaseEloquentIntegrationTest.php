@@ -34,6 +34,7 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\Database\Fixtures\Models\Integration\Post as IgnoringTouchPost;
 use Hypervel\Tests\Database\Fixtures\Models\Integration\User as IgnoringTouchUser;
 use UnitEnum;
@@ -1468,6 +1469,35 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
         User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         User::findOrFail(new Collection([1, 1, 2, 3]));
+    }
+
+    public function testBelongsToManyFindOrFailAndFindOrWithEnumIds(): void
+    {
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        User::create(['id' => 5, 'email' => 'first@example.com']);
+        User::create(['id' => 6, 'email' => 'second@example.com']);
+        $user->friends()->attach([5, 6]);
+
+        $ids = [Bar::Foo, 6, Bar::Foo, 5];
+
+        foreach ([$ids, new Collection($ids)] as $ids) {
+            $this->assertEqualsCanonicalizing([5, 6], $user->friends()->findOrFail($ids)->modelKeys());
+            $this->assertEqualsCanonicalizing([5, 6], $user->friends()->findOr($ids, fn (): never => $this->fail('Unexpected callback.'))->modelKeys());
+        }
+
+        $user->friends()->detach(5);
+
+        foreach ([[Bar::Foo, 6], new Collection([Bar::Foo, 6])] as $ids) {
+            $this->assertSame('missing', $user->friends()->findOr($ids, fn (): string => 'missing'));
+
+            try {
+                $user->friends()->findOrFail($ids);
+                $this->fail('Expected ModelNotFoundException was not thrown.');
+            } catch (ModelNotFoundException $exception) {
+                $this->assertSame(User::class, $exception->getModel());
+                $this->assertSame([5, 6], $exception->getIds());
+            }
+        }
     }
 
     public function testOneToOneRelationship(): void

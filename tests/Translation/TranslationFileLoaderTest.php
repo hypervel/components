@@ -297,6 +297,20 @@ class TranslationFileLoaderTest extends TestCase
         $this->assertEquals(['foo' => 'bar', 'baz' => 'backagesplash'], $loader->load('en', '*', '*'));
     }
 
+    public function testLoadMethodForJSONPreservesNumericKeys(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $loader = new FileLoader($files, __DIR__);
+        $loader->addJsonPath(__DIR__ . '/another');
+
+        $files->expects('exists')->with(__DIR__ . '/en.json')->andReturn(true);
+        $files->expects('exists')->with(__DIR__ . '/another/en.json')->andReturn(true);
+        $files->expects('get')->with(__DIR__ . '/en.json')->andReturn('{"404":"Page not found","foo":"bar"}');
+        $files->expects('get')->with(__DIR__ . '/another/en.json')->andReturn('{"404":"Not found","500":"Server error"}');
+
+        $this->assertSame([404 => 'Page not found', 500 => 'Server error', 'foo' => 'bar'], $loader->load('en', '*', '*'));
+    }
+
     #[DataProvider('invalidJsonRootProvider')]
     public function testLoadMethodThrowExceptionWhenProvideInvalidJSON(string $json): void
     {

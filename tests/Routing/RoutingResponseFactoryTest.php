@@ -18,10 +18,17 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class ResponseFactoryTest extends TestCase
+class RoutingResponseFactoryTest extends TestCase
 {
     // PHPUnit's output capture runs outside the test coroutine.
     protected bool $runTestsInCoroutine = false;
+
+    public function testStreamDownloadFilenameWithoutAsciiEquivalent(): void
+    {
+        $response = $this->factory()->streamDownload(fn (): null => null, '請求書');
+
+        $this->assertSame('attachment; filename=___; filename*=utf-8\'\'%E8%AB%8B%E6%B1%82%E6%9B%B8', $response->headers->get('content-disposition'));
+    }
 
     public function testStreamRetainsGeneratorChunksLazily(): void
     {

@@ -69,6 +69,11 @@ class CallQueuedListener implements ShouldQueue
     public bool $failOnTimeout = false;
 
     /**
+     * Indicates if worker crashes should count towards the maximum exceptions.
+     */
+    public bool $countCrashesAsExceptions = false;
+
+    /**
      * Indicates if the job should be encrypted.
      */
     public bool $shouldBeEncrypted = false;

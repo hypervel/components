@@ -15,6 +15,7 @@ return new class extends Migration {
         Schema::create('table', function (Blueprint $table) {
             $table->unsignedInteger('id_column');
             $table->string('type');
+            $table->boolean('active')->default(true);
             $table->timestamps();
         });
     }

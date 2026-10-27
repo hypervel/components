@@ -61,7 +61,7 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
     public function ids(?string $queue = null): array
     {
         return (new Collection($this->all()))
-            ->when(! is_null($queue), fn ($collect) => $collect->where('queue', $queue))
+            ->when(! is_null($queue), fn ($collect) => $collect->whereStrict('queue', $queue))
             ->pluck('id')
             ->all();
     }

@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -77,6 +78,11 @@ class SendQueuedNotifications implements ShouldQueue
     public bool $failOnTimeout = false;
 
     /**
+     * Indicates if worker crashes should count towards the maximum exceptions.
+     */
+    public bool $countCrashesAsExceptions = false;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(mixed $notifiables, mixed $notification, ?array $channels = null)
@@ -89,6 +95,7 @@ class SendQueuedNotifications implements ShouldQueue
         $this->maxExceptions = $this->getAttributeValue($notification, MaxExceptions::class, 'maxExceptions');
         $this->deleteWhenMissingModels = $this->getAttributeValue($notification, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
         $this->failOnTimeout = $this->getAttributeValue($notification, FailOnTimeout::class, 'failOnTimeout') ?? false;
+        $this->countCrashesAsExceptions = $this->getAttributeValue($notification, CountCrashesAsExceptions::class, 'countCrashesAsExceptions') ?? false;
 
         if ($notification instanceof ShouldQueueAfterCommit) {
             $this->afterCommit = true;

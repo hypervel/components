@@ -863,6 +863,8 @@ Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, 
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 
+Custom queue drivers whose job classes implement `Hypervel\Contracts\Queue\Job` directly must also implement `Hypervel\Contracts\Queue\JobLifecycleCallbacks` to run jobs that use `CountCrashesAsExceptions`; extending `Hypervel\Queue\Jobs\Job` provides it. See [counting worker crashes](/docs/{{version}}/queues#counting-worker-crashes) for the callback requirements.
+
 With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
 
 If you extend Horizon's `RedisQueue`, do not rely on `push()` calling your `pushRaw()` override. Override the protected `preparePayloadForPush()` method to prepare normal pushes, or `handlePayloadPushed()` to run code after Redis accepts the job. Direct calls to `pushRaw()` remain supported.

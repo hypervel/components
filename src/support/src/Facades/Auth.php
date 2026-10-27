@@ -50,7 +50,7 @@ use Hypervel\Contracts\Auth\SupportsBasicAuth;
  * @method static string hashPasswordForCookie(string|null $passwordHash)
  * @method static bool hasMacro(string $name)
  * @method static void logoutCurrentDevice()
- * @method static \Hypervel\Contracts\Auth\Authenticatable|null logoutOtherDevices(string $password)
+ * @method static void logoutOtherDevices(string $password)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static void setCookieJar(\Hypervel\Contracts\Cookie\QueueingFactory $cookie)

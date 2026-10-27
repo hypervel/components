@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentBuilderTest;
 
+use BackedEnum;
 use BadMethodCallException;
 use Closure;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
@@ -30,6 +31,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
+use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
@@ -236,6 +238,57 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2], 'and', false);
         $builder->expects('get')->with(['column'])->andReturn(new Collection([$model]));
         $builder->findOrFail(new Collection([1, 2]), ['column']);
+    }
+
+    #[DataProvider('enumIdsProvider')]
+    public function testFindOrFailWithEnumIds(BackedEnum $id, int|string $value, bool $useCollection): void
+    {
+        $connection = $this->useInMemoryConnection();
+        $model = new Stub;
+        $model->setAttribute($model->getKeyName(), $value);
+
+        $builder = m::mock(Builder::class . '[find]', [$connection->query()]);
+        $builder->setModel($model);
+        $models = new Collection([$model]);
+        $ids = [$id, $id, $value];
+        $ids = $useCollection ? new BaseCollection($ids) : $ids;
+        $builder->expects('find')->with($ids, ['column'])->andReturn($models);
+
+        $this->assertSame($models, $builder->findOrFail($ids, ['column']));
+    }
+
+    #[DataProvider('enumIdsProvider')]
+    public function testFindOrFailWithMissingEnumIds(BackedEnum $id, int|string $value, bool $useCollection): void
+    {
+        $connection = $this->useInMemoryConnection();
+        $model = new Stub;
+        $model->setKeyType('string');
+        $model->setAttribute($model->getKeyName(), 'existing');
+
+        $builder = m::mock(Builder::class . '[find]', [$connection->query()]);
+        $builder->setModel($model);
+        $ids = ['existing', $id];
+        $ids = $useCollection ? new BaseCollection($ids) : $ids;
+        $builder->expects('find')->with($ids, ['*'])->andReturn(new Collection([$model]));
+
+        try {
+            $builder->findOrFail($ids);
+            $this->fail('Expected ModelNotFoundException was not thrown.');
+        } catch (ModelNotFoundException $exception) {
+            $this->assertSame(Stub::class, $exception->getModel());
+            $this->assertSame([$value], array_values($exception->getIds()));
+        }
+    }
+
+    /**
+     * Provide enum IDs and collection variants.
+     */
+    public static function enumIdsProvider(): iterable
+    {
+        foreach ([false, true] as $useCollection) {
+            yield [Bar::Foo, 5, $useCollection];
+            yield [BuilderTestBackedEnum::Bar, 'bar', $useCollection];
+        }
     }
 
     public function testFindOrMethod(): void

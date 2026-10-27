@@ -24,6 +24,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedHandler;
@@ -328,6 +329,25 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushed(CallQueuedListener::class, function ($job) {
             return $job->maxExceptions === 1 && $job->retryUntil !== null;
         });
+    }
+
+    public function testQueuePropagatesCountCrashesAsExceptions(): void
+    {
+        $dispatcher = new Dispatcher;
+        $fakeQueue = new QueueFake(new Container);
+        $dispatcher->setQueueResolver(function () use ($fakeQueue): QueueFake {
+            return $fakeQueue;
+        });
+
+        $dispatcher->listen('some.event', TestDispatcherCountCrashesAsExceptionsAttribute::class . '@handle');
+        $dispatcher->listen('some.event', TestDispatcherCountCrashesAsExceptionsProperty::class . '@handle');
+        $dispatcher->listen('other.event', TestDispatcherOptions::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo']);
+        $dispatcher->dispatch('other.event', ['foo']);
+
+        $fakeQueue->assertPushed(CallQueuedListener::class, fn (CallQueuedListener $job): bool => $job->class === TestDispatcherCountCrashesAsExceptionsAttribute::class && $job->countCrashesAsExceptions === true);
+        $fakeQueue->assertPushed(CallQueuedListener::class, fn (CallQueuedListener $job): bool => $job->class === TestDispatcherCountCrashesAsExceptionsProperty::class && $job->countCrashesAsExceptions === true);
+        $fakeQueue->assertPushed(CallQueuedListener::class, fn (CallQueuedListener $job): bool => $job->class === TestDispatcherOptions::class && $job->countCrashesAsExceptions === false);
     }
 
     public function testQueuePropagateTries(): void
@@ -1037,6 +1057,29 @@ class TestDispatcherGetDelayMethodOverridesAttribute implements ShouldQueue
     public function withDelay(): int
     {
         return 20;
+    }
+}
+
+#[CountCrashesAsExceptions]
+class TestDispatcherCountCrashesAsExceptionsAttribute implements ShouldQueue
+{
+    /**
+     * Handle the queued event.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+class TestDispatcherCountCrashesAsExceptionsProperty implements ShouldQueue
+{
+    public bool $countCrashesAsExceptions = true;
+
+    /**
+     * Handle the queued event.
+     */
+    public function handle(): void
+    {
     }
 }
 

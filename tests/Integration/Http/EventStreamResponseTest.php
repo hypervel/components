@@ -44,6 +44,52 @@ class EventStreamResponseTest extends TestCase
         $this->assertStringContainsString('data: </stream>', $content);
     }
 
+    public function testEventStreamMessagesWithLineBreaksAreSentAsMultipleDataLines(): void
+    {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): Generator {
+                yield "Hello\nWorld";
+
+                yield new StreamedEvent(
+                    event: 'chunk',
+                    data: "line 1\r\nline 2",
+                );
+            });
+        });
+
+        $content = $this->get('/stream')->streamedContent();
+
+        $this->assertStringContainsString("event: update\ndata: Hello\ndata: World\n\n", $content);
+        $this->assertStringContainsString("event: chunk\ndata: line 1\ndata: line 2\n\n", $content);
+        $this->assertStringContainsString("event: update\ndata: </stream>\n\n", $content);
+    }
+
+    public function testEventStreamEndMessageWithLineBreaksIsSentAsMultipleDataLines(): void
+    {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): Generator {
+                yield 'hello';
+            }, endStreamWith: new StreamedEvent(event: 'end', data: "done\nbye"));
+        });
+
+        $content = $this->get('/stream')->streamedContent();
+
+        $this->assertStringEndsWith("event: end\ndata: done\ndata: bye\n\n", $content);
+    }
+
+    public function testEventStreamMessageCannotStartAnotherEvent(): void
+    {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): Generator {
+                yield "harmless\n\nevent: injected\ndata: evil";
+            }, endStreamWith: null);
+        });
+
+        $content = $this->get('/stream')->streamedContent();
+
+        $this->assertSame("event: update\ndata: harmless\ndata: \ndata: event: injected\ndata: data: evil\n\n", $content);
+    }
+
     public function testEventStreamExceptionDoesNotLeakToClient(): void
     {
         Exceptions::fake();

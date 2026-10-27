@@ -1050,6 +1050,8 @@ class DatabaseEloquentFactoryTest extends TestCase
 
         $this->assertNull($comment->user_id);
         $this->assertNull($comment->commentable_id);
+        $this->assertNull($comment->commentable);
+        $this->assertNull($comment->commentable?->id);
     }
 
     public function testCanDefaultToWithoutParents(): void

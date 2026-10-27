@@ -35,6 +35,7 @@ class DatabaseMigrationStatusCommandTest extends TestCase
             '/tmp/2024_01_01_000000_create_users_table.php',
         ]);
         $migrator->shouldReceive('getMigrationName')->once()->with('/tmp/2024_01_01_000000_create_users_table.php')->andReturn('2024_01_01_000000_create_users_table');
+        $migrator->shouldReceive('shouldSkip')->once()->with('/tmp/2024_01_01_000000_create_users_table.php')->andReturn(false);
 
         $code = $this->runCommand($command, ['--pending' => '5']);
 

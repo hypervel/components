@@ -661,13 +661,13 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      *
      * @throws AuthenticationException
      */
-    public function logoutOtherDevices(#[SensitiveParameter] string $password): ?AuthenticatableContract
+    public function logoutOtherDevices(#[SensitiveParameter] string $password): void
     {
         if (! $this->user()) {
-            return null;
+            return;
         }
 
-        $result = $this->rehashUserPasswordForDeviceLogout($password);
+        $this->rehashUserPasswordForDeviceLogout($password);
 
         $this->session->put(
             'password_hash_' . $this->name,
@@ -680,8 +680,6 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         }
 
         $this->fireOtherDeviceLogoutEvent($this->user());
-
-        return $result;
     }
 
     /**
@@ -689,7 +687,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      *
      * @throws InvalidArgumentException
      */
-    protected function rehashUserPasswordForDeviceLogout(#[SensitiveParameter] string $password): ?AuthenticatableContract
+    protected function rehashUserPasswordForDeviceLogout(#[SensitiveParameter] string $password): void
     {
         $user = $this->user();
 
@@ -702,8 +700,6 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             ['password' => $password],
             force: true
         );
-
-        return $user;
     }
 
     /**

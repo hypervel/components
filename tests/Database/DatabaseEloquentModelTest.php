@@ -197,6 +197,19 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertFalse($model->isDirty('collectionAttribute'));
     }
 
+    #[TestWith(['{"nested":[]}', '{"nested":{}}', true])]
+    #[TestWith(['[]', '{}', true])]
+    #[TestWith(['{"value":1}', '{"value":"1"}', true])]
+    #[TestWith(['{"nested": {"value": 1}}', '{"nested":{"value":1}}', false])]
+    public function testObjectCastDirtyCheckingPreservesJsonTypes(string $original, string $current, bool $dirty): void
+    {
+        $model = new CastingStub;
+        $model->setRawAttributes(['objectAttribute' => $original], sync: true);
+        $model->objectAttribute = json_decode($current, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame($dirty, $model->isDirty('objectAttribute'));
+    }
+
     public function testDirtyOnCastedArrayObject(): void
     {
         $model = new CastingStub;

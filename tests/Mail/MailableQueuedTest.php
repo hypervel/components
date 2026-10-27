@@ -12,7 +12,10 @@ use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
@@ -309,6 +312,29 @@ class MailableQueuedTest extends TestCase
         });
     }
 
+    public function testQueuedMailableRespectsDeleteWhenMissingModelsAndFailOnTimeoutAttributes(): void
+    {
+        $job = new SendQueuedMailable(new MailableQueueableStubWithFailureAttributes);
+
+        $this->assertTrue($job->deleteWhenMissingModels);
+        $this->assertTrue($job->failOnTimeout);
+    }
+
+    public function testQueuedMailableRespectsDeleteWhenMissingModelsAndFailOnTimeoutProperties(): void
+    {
+        $job = new SendQueuedMailable(new MailableQueueableStubWithFailureProperties);
+
+        $this->assertTrue($job->deleteWhenMissingModels);
+        $this->assertTrue($job->failOnTimeout);
+    }
+
+    public function testQueuedMailableRespectsCountCrashesAsExceptions(): void
+    {
+        $this->assertTrue((new SendQueuedMailable(new MailableQueueableStubWithCountCrashesAttribute))->countCrashesAsExceptions);
+        $this->assertTrue((new SendQueuedMailable(new MailableQueueableStubWithCountCrashesProperty))->countCrashesAsExceptions);
+        $this->assertFalse((new SendQueuedMailable(new MailableQueueableStub))->countCrashesAsExceptions);
+    }
+
     public function testQueueMethodsPreserveStringAndEnumQueueNames(): void
     {
         $queueFake = new QueueFake($this->app);
@@ -458,6 +484,29 @@ class MailableQueueableStubWithRetryUntil extends MailableQueueableStub
 #[QueueAttribute('mail-queue')]
 class MailableQueueableStubWithQueueAndConnectionAttributes extends MailableQueueableStub
 {
+}
+
+#[DeleteWhenMissingModels]
+#[FailOnTimeout]
+class MailableQueueableStubWithFailureAttributes extends MailableQueueableStub
+{
+}
+
+class MailableQueueableStubWithFailureProperties extends MailableQueueableStub
+{
+    public bool $deleteWhenMissingModels = true;
+
+    public bool $failOnTimeout = true;
+}
+
+#[CountCrashesAsExceptions]
+class MailableQueueableStubWithCountCrashesAttribute extends MailableQueueableStub
+{
+}
+
+class MailableQueueableStubWithCountCrashesProperty extends MailableQueueableStub
+{
+    public bool $countCrashesAsExceptions = true;
 }
 
 #[Connection('sqs')]

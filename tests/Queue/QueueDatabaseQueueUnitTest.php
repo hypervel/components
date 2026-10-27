@@ -25,6 +25,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -333,6 +334,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertSame('13', $payload['backoff']);
             $this->assertSame(11, $payload['maxExceptions']);
             $this->assertFalse($payload['failOnTimeout']);
+            $this->assertFalse($payload['countCrashesAsExceptions']);
 
             return 1;
         });
@@ -359,6 +361,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertSame('9', $payload['backoff']);
             $this->assertSame(3, $payload['maxExceptions']);
             $this->assertTrue($payload['failOnTimeout']);
+            $this->assertTrue($payload['countCrashesAsExceptions']);
 
             return 1;
         });
@@ -1307,6 +1310,7 @@ class AfterCommitJob implements ShouldQueue
 }
 
 #[Backoff(9)]
+#[CountCrashesAsExceptions]
 #[FailOnTimeout]
 #[MaxExceptions(3)]
 #[Timeout(40)]
@@ -1319,6 +1323,8 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 {
     public int $backoff = 13;
 
+    public bool $countCrashesAsExceptions = false;
+
     public bool $failOnTimeout = false;
 
     public int $maxExceptions = 11;
@@ -1329,6 +1335,7 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 }
 
 #[Backoff(9)]
+#[CountCrashesAsExceptions]
 #[FailOnTimeout]
 #[MaxExceptions(3)]
 #[Timeout(40)]
@@ -1336,6 +1343,8 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 class JobWithAttributesAndDefaultProperties implements ShouldQueue
 {
     public int $backoff = 13;
+
+    public bool $countCrashesAsExceptions = false;
 
     public bool $failOnTimeout = false;
 

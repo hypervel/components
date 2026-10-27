@@ -13,6 +13,9 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
@@ -48,6 +51,21 @@ class SendQueuedMailable
     public bool $shouldBeEncrypted = false;
 
     /**
+     * Indicates if the job should be deleted when models are missing.
+     */
+    public bool $deleteWhenMissingModels = false;
+
+    /**
+     * Indicates if the job should be marked as failed on timeout.
+     */
+    public bool $failOnTimeout = false;
+
+    /**
+     * Indicates if worker crashes should count towards the maximum exceptions.
+     */
+    public bool $countCrashesAsExceptions = false;
+
+    /**
      * Create a new job instance.
      *
      * @param Mailable $mailable the mailable message instance
@@ -77,6 +95,9 @@ class SendQueuedMailable
         $this->shouldBeEncrypted = $mailable instanceof ShouldBeEncrypted;
         $this->timeout = $this->getAttributeValue($mailable, Timeout::class, 'timeout');
         $this->tries = $this->getAttributeValue($mailable, Tries::class, 'tries');
+        $this->deleteWhenMissingModels = $this->getAttributeValue($mailable, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
+        $this->failOnTimeout = $this->getAttributeValue($mailable, FailOnTimeout::class, 'failOnTimeout') ?? false;
+        $this->countCrashesAsExceptions = $this->getAttributeValue($mailable, CountCrashesAsExceptions::class, 'countCrashesAsExceptions') ?? false;
     }
 
     /**

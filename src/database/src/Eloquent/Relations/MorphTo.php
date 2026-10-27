@@ -378,7 +378,7 @@ class MorphTo extends BelongsTo
      */
     public function withTrashed(): static
     {
-        $callback = fn ($query) => $query->hasMacro('withTrashed') ? $query->withTrashed() : $query;
+        $callback = static fn (Builder $query): mixed => $query->hasMacro('withTrashed') ? $query->withTrashed() : $query;
 
         $this->macroBuffer[] = [
             'method' => 'when',
@@ -395,7 +395,7 @@ class MorphTo extends BelongsTo
      */
     public function withoutTrashed(): static
     {
-        $callback = fn ($query) => $query->hasMacro('withoutTrashed') ? $query->withoutTrashed() : $query;
+        $callback = static fn (Builder $query): mixed => $query->hasMacro('withoutTrashed') ? $query->withoutTrashed() : $query;
 
         $this->macroBuffer[] = [
             'method' => 'when',
@@ -412,7 +412,7 @@ class MorphTo extends BelongsTo
      */
     public function onlyTrashed(): static
     {
-        $callback = fn ($query) => $query->hasMacro('onlyTrashed') ? $query->onlyTrashed() : $query;
+        $callback = static fn (Builder $query): mixed => $query->hasMacro('onlyTrashed') ? $query->onlyTrashed() : $query;
 
         $this->macroBuffer[] = [
             'method' => 'when',

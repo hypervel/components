@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -10,7 +9,7 @@ use function PHPStan\Testing\assertType;
 
 assertType('string', Auth::hashPasswordForCookie('password-hash'));
 assertType('string', Auth::hashPasswordForCookie(null));
-assertType(Authenticatable::class . '|null', Auth::logoutOtherDevices('password'));
+Auth::logoutOtherDevices('password');
 
 // Guard reads and authentication attempts may observe different request state.
 if (Auth::check()) {

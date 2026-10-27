@@ -553,6 +553,16 @@ class Migrator
     }
 
     /**
+     * Determine if the migration at the given path should be skipped.
+     */
+    public function shouldSkip(string $path): bool
+    {
+        $migration = $this->resolvePath($path);
+
+        return $migration instanceof Migration && ! $migration->shouldRun();
+    }
+
+    /**
      * Get the distinct connections declared by the migrations at the given paths.
      *
      * @return list<string>
