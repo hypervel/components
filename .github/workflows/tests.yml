@@ -44,6 +44,9 @@ jobs:
       - name: Check code style
         run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
 
+      - name: Check skeleton configuration
+        run: composer check:skeleton-config
+
       - name: Run framework test suite
         run: vendor/bin/paratest -c phpunit.xml.dist
 
