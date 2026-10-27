@@ -1,0 +1,113 @@
+{
+    "name": "hypervel/framework",
+    "type": "library",
+    "description": "The Hypervel framework.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "laravel",
+        "hyperf",
+        "hypervel",
+        "framework",
+        "swoole"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": ">=8.2",
+        "ext-hash": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "ext-swoole": "^5.1|^6.0",
+        "composer-runtime-api": "^2.2",
+        "hyperf/database-pgsql": "~3.1.0",
+        "hyperf/database-sqlite": "~3.1.0",
+        "hyperf/memory": "~3.1.0",
+        "hyperf/process": "~3.1.0",
+        "hyperf/signal": "~3.1.0",
+        "hyperf/view-engine": "~3.1.0",
+        "league/flysystem": "^3.25.1",
+        "hypervel/auth": "^0.3.26",
+        "hypervel/broadcasting": "^0.3.26",
+        "hypervel/bus": "^0.3.26",
+        "hypervel/cache": "^0.3.26",
+        "hypervel/config": "^0.3.26",
+        "hypervel/console": "^0.3.26",
+        "hypervel/container": "^0.3.26",
+        "hypervel/cookie": "^0.3.26",
+        "hypervel/core": "^0.3.26",
+        "hypervel/coroutine": "^0.3.26",
+        "hypervel/dispatcher": "^0.3.26",
+        "hypervel/encryption": "^0.3.26",
+        "hypervel/event": "^0.3.26",
+        "hypervel/filesystem": "^0.3.26",
+        "hypervel/foundation": "^0.3.26",
+        "hypervel/hashing": "^0.3.26",
+        "hypervel/http": "^0.3.26",
+        "hypervel/http-client": "^0.3.26",
+        "hypervel/jwt": "^0.3.26",
+        "hypervel/log": "^0.3.26",
+        "hypervel/mail": "^0.3.26",
+        "hypervel/notifications": "^0.3.26",
+        "hypervel/object-pool": "^0.3.26",
+        "hypervel/process": "^0.3.26",
+        "hypervel/prompts": "^0.3.26",
+        "hypervel/queue": "^0.3.26",
+        "hypervel/router": "^0.3.26",
+        "hypervel/session": "^0.3.26",
+        "hypervel/support": "^0.3.26",
+        "hypervel/translation": "^0.3.26",
+        "hypervel/validation": "^0.3.26",
+        "guzzlehttp/guzzle": "^7.8.2",
+        "nunomaduro/termwind": "^2.0",
+        "friendsofhyperf/command-signals": "~3.1.0",
+        "hypervel/laminas-mime": "^0.1.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        }
+    },
+    "suggest": {
+        "ext-fileinfo": "Required to use the Filesystem class.",
+        "ext-ftp": "Required to use the Flysystem FTP driver.",
+        "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
+        "ext-pcntl": "Required to use all features of the queue worker and console signal trapping.",
+        "ext-posix": "Required to use all features of the queue worker.",
+        "ext-redis": "Required to use the Redis features and drivers such as cache and queue drivers (^4.0|^5.0|^6.0).",
+        "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
+        "aws/aws-sdk-php": "Required to use the SQS queue driver, DynamoDb failed job storage, and SES mail driver (^3.322.9).",
+        "fakerphp/faker": "Required to use the eloquent factory builder (^1.9.1).",
+        "filp/whoops": "Required for friendly error pages in development (^2.14.3).",
+        "friendsofhyperf/tinker": "Required to use the tinker console command (^3.1.0).",
+        "hypervel/redis": "Required to use the Redis features and drivers such as cache and queue drivers (^0.3.0).",
+        "league/flysystem-aws-s3-v3": "Required to use the Flysystem S3 driver (^3.25.1).",
+        "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.25.1).",
+        "league/flysystem-path-prefixing": "Required to use the scoped driver (^3.25.1).",
+        "league/flysystem-read-only": "Required to use read-only disks (^3.25.1)",
+        "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.25.1).",
+        "mockery/mockery": "Required to use mocking (^1.6).",
+        "pda/pheanstalk": "Required to use the beanstalk queue driver (^5.0).",
+        "php-http/discovery": "Required to use PSR-7 bridging features (^1.15).",
+        "phpunit/phpunit": "Required to use assertions and run tests (^10.5.35|^11.5.3|^12.0.1).",
+        "psr/http-message": "Required to allow Storage::put to accept a StreamInterface (^1.0).",
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0).",
+        "symfony/http-client": "Required to enable support for the Symfony API mail transports (^7.2).",
+        "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^7.2).",
+        "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^7.2)."
+    },
+    "minimum-stability": "dev"
+}
