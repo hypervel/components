@@ -137,7 +137,15 @@ Before opening a code pull request, run `composer fix` from the repository root 
 composer fix
 ```
 
-This command runs php-cs-fixer, both PHPStan configurations, the parallel framework test suite, the Testbench package-mode suite, and the Testbench consumer-package tests.
+This command runs php-cs-fixer and PHPStan for the framework and skeletons, the parallel framework test suite, the Testbench package-mode suite, and the Testbench consumer-package tests. Each skeleton uses its own formatting and analysis configuration.
+
+Install the base skeleton's dependencies once before running the combined checks:
+
+```shell
+composer --working-dir=skeletons/hypervel install
+```
+
+The check commands use installed dependencies. They do not install or update packages, build frontend assets, or start application servers.
 
 All CI checks must pass before a pull request will be reviewed. Investigate and address failures before requesting maintainer review.
 
@@ -151,6 +159,18 @@ composer analyse
 composer lint
 composer lint:fix
 ```
+
+To check only the skeletons:
+
+```shell
+composer lint:skeletons
+composer lint:skeletons:fix
+composer analyse:skeletons
+```
+
+Use `composer check:skeleton-config` to verify generated configuration in both the base skeleton and the React starter kit.
+
+The framework and skeleton installation workflows test fresh installations separately in CI. Pull requests, pushes to `0.4`, and manual runs use the checked-out packages; nightly runs use the published packages. The skeleton workflow also builds frontend assets, runs application checks, and verifies HTTP startup.
 
 If your change affects Wayfinder's generated TypeScript, also run:
 
