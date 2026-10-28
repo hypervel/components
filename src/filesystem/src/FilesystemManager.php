@@ -387,7 +387,8 @@ class FilesystemManager implements FactoryContract
             $config['root'],
             $visibility,
             $config['lock'] ?? LOCK_EX,
-            $links
+            $links,
+            lazyRootCreation: $config['lazy_root_creation'] ?? false,
         );
 
         return (new LocalFilesystemAdapter(

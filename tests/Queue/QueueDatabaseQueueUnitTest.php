@@ -51,6 +51,7 @@ use Mockery as m;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
@@ -153,14 +154,14 @@ class QueueDatabaseQueueUnitTest extends TestCase
     }
 
     #[DataProvider('reservationCleanupFailureProvider')]
-    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure): void
+    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure, bool $canceled): void
     {
         $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
         [$queue, $events] = $this->createFailingReservationQueue($failure);
         $queue->shouldReceive('causedByReservationQuery')->once()->andReturn(true);
         $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
 
-        if ($cleanupFailure instanceof CanceledException) {
+        if ($canceled) {
             $events->shouldReceive('dispatch')->never();
         } else {
             $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturn(false);
@@ -170,7 +171,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $queue->pop();
             $this->fail('Expected the reservation or cancellation failure.');
         } catch (Throwable $exception) {
-            $this->assertSame($cleanupFailure instanceof CanceledException ? $cleanupFailure : $failure, $exception);
+            $this->assertSame($canceled ? $cleanupFailure : $failure, $exception);
         }
     }
 
@@ -180,8 +181,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public static function reservationCleanupFailureProvider(): array
     {
         return [
-            'ordinary failure' => [new RuntimeException('Deletion failed.')],
-            'cancellation' => [new CanceledException('Deletion canceled.')],
+            'ordinary failure' => [new RuntimeException('Deletion failed.'), false],
+            'cancellation' => [new CanceledException('Deletion canceled.'), true],
+            'cleanup during cancellation' => [new RuntimeException('Deletion cleanup failed.', previous: new CanceledException), true],
         ];
     }
 
@@ -724,7 +726,54 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame($exception, $events[3]->exception);
     }
 
-    public function testBulkCancellationDoesNotRaiseFailureEvents(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOutboxSelectionCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    {
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'jobs', 'default');
+        $queue->setConnectionName('database');
+        $container = new Container;
+        $events = new Dispatcher($container);
+        $container->instance('events', $events);
+        $queue->setContainer($container);
+        $gate = $this->armCurrentCoroutineCancellation();
+        $cleanup = new RuntimeException('Transaction resolution cleanup failed.');
+        $container->bind('db.transactions', static function () use ($gate, $cleanup, $cleanupThrows): never {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+
+        try {
+            $queue->push((object) ['viaOutbox' => true]);
+            $this->fail('Expected cancellation to escape outbox selection.');
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+
+            $this->assertSame([], $failed);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBulkCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
     {
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -742,8 +791,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $gate = $this->armCurrentCoroutineCancellation();
-        $query->shouldReceive('insert')->once()->andReturnUsing(static function () use ($gate): never {
-            $gate->push(true);
+        $cleanup = new RuntimeException('Insert cleanup failed.');
+        $query->shouldReceive('insert')->once()->andReturnUsing(static function () use ($gate, $cleanup, $cleanupThrows): never {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
 
             throw new RuntimeException('Cancellation was not delivered.');
         });
@@ -759,11 +815,19 @@ class QueueDatabaseQueueUnitTest extends TestCase
         try {
             $queue->bulk(['first', 'second'], queue: 'emails');
             $this->fail('Expected cancellation to escape the bulk insert.');
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
             $this->assertSame([
                 JobQueueing::class,
                 JobQueueing::class,
             ], array_map(static fn (object $event): string => $event::class, $events));
+        } finally {
+            $gate->close();
         }
     }
 

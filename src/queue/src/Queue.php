@@ -15,6 +15,7 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
@@ -441,9 +442,11 @@ abstract class Queue
     {
         try {
             $stageViaOutbox = $this->shouldStageViaOutbox($job);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;
@@ -558,9 +561,11 @@ abstract class Queue
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
             $storedPayload = $this->preparePayloadForPush($job, $payload, $queue);
             $jobId = $callback($this, $storedPayload, $queue, $delay);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;
@@ -571,17 +576,21 @@ abstract class Queue
 
         try {
             $this->handlePayloadPushed($storedPayload, $queue);
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception = $throwable;
         }
 
         try {
             $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception ??= $throwable;
         }
 
@@ -622,9 +631,11 @@ abstract class Queue
             foreach ($notifications as $notification) {
                 try {
                     $notification($member);
-                } catch (CanceledException $cancellation) {
-                    throw $cancellation;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $exception ??= $throwable;
                 }
             }

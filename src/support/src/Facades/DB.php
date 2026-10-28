@@ -34,7 +34,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static \Hypervel\Database\Connection reconnect(\UnitEnum|string|null $name = null)
  * @method static void releaseIdleConnections()
  * @method static \Hypervel\Database\DatabaseManager setApplication(\Hypervel\Contracts\Foundation\Application $app)
- * @method static void setDefaultConnection(string|null $name)
+ * @method static void setDefaultConnection(\UnitEnum|string|null $name)
  * @method static void setReconnector(callable $reconnector)
  * @method static string[] supportedDrivers()
  * @method static mixed usingConnection(\UnitEnum|string $name, callable $callback)

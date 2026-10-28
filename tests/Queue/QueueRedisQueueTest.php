@@ -33,8 +33,11 @@ use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 
 class QueueRedisQueueTest extends TestCase
 {
@@ -158,6 +161,38 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer(new Container);
 
         $this->assertNull($queue->bulk(['first', 'second']));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBulkCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Redis cleanup failed.', previous: $cancellation);
+        }
+        $connection = $this->mockRedisProxyWithShaCache();
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('evalWithShaCache')->andThrow($cancellation);
+        $redis = m::mock(Redis::class);
+        $redis->expects('connection')->with('default')->andReturn($connection);
+        $queue = new RedisQueue($redis, 'default', 'default');
+        $events = new EventDispatcher($container = new Container);
+        $container->instance('events', $events);
+        $queue->setContainer($container)->setConnectionName('redis');
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+
+        try {
+            $queue->bulk(['first', 'second']);
+            $this->fail('Expected bulk cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([], $failed);
     }
 
     public function testEmptyBulkDoesNotResolveRedis(): void

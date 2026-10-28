@@ -12,6 +12,7 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
@@ -22,7 +23,6 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -433,9 +433,11 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             $this->isCluster ??= $connection->isCluster();
             $queueKey = $this->getQueueRedisKey($queue);
             $this->pushRawBatch($connection, $queueKey, $arguments);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             throw $this->notifyBatchMembers(
                 $jobs,
                 fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
@@ -503,9 +505,11 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
                     throw $failure;
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return new OutboxBatchResult($accepted, failure: $exception);
         }
 

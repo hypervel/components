@@ -749,6 +749,26 @@ $device = Device::query()->find(new BinaryParameter($uuidBytes));
 
 The wrapper only expresses binding intent. It does not encode or validate the value, and ordinary text strings should not be wrapped.
 
+When using `chunkById` or `lazyById` with binary strings returned by the query builder, use an `afterQuery` callback to provide a binary cursor. Pass its name as the cursor alias so the original column remains unchanged:
+
+```php
+use Hypervel\Database\BinaryParameter;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
+
+DB::table('files')->afterQuery(function (Collection $rows) {
+    foreach ($rows as $row) {
+        $row->cursor = is_resource($row->hash)
+            ? BinaryParameter::fromStream($row->hash)
+            : new BinaryParameter($row->hash);
+    }
+})->chunkById(100, function (Collection $files) {
+    // Process the files...
+}, 'hash', 'cursor');
+```
+
+Hypervel cannot distinguish an unwrapped binary string from text. Eloquent attributes using the `AsBinary` cast and binary streams returned by PostgreSQL are handled automatically.
+
 <a name="running-an-insert-statement"></a>
 #### Running an Insert Statement
 

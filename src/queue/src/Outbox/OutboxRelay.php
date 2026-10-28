@@ -9,6 +9,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -16,7 +17,6 @@ use Hypervel\Queue\Events\OutboxBatchDeliveryFailed;
 use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OutboxRelay
@@ -71,9 +71,11 @@ class OutboxRelay
                     return $queue instanceof PublishesOutboxMessages
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     return new OutboxBatchResult(failure: $exception);
                 }
             });
@@ -86,9 +88,11 @@ class OutboxRelay
                     }
 
                     return null;
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     return $exception;
                 }
             });
@@ -185,9 +189,11 @@ class OutboxRelay
 
                 try {
                     $this->events->dispatch($event);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $listenerFailure = $exception;
                 }
             }

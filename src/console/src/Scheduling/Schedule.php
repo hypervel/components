@@ -108,6 +108,11 @@ class Schedule
     public static bool $interruptible = true;
 
     /**
+     * Indicates if every event should only run on one server for each cron expression.
+     */
+    public static bool $alwaysOnOneServer = false;
+
+    /**
      * Create a new schedule instance.
      *
      * @param null|DateTimeZone|string $timezone the timezone the date should be evaluated on
@@ -394,7 +399,7 @@ class Schedule
      */
     public function dueEventsAt(Application $app, DateTimeInterface $time): Collection
     {
-        return (new Collection($this->events))
+        return (new Collection($this->events()))
             ->filter(fn (Event $event) => $event->isDueAt($app, $time));
     }
 
@@ -405,6 +410,16 @@ class Schedule
      */
     public function events(): array
     {
+        if (static::$alwaysOnOneServer) {
+            foreach ($this->events as $event) {
+                if ($event instanceof CallbackEvent && $event->description === null) {
+                    continue;
+                }
+
+                $event->onOneServer();
+            }
+        }
+
         return $this->events;
     }
 
@@ -498,12 +513,24 @@ class Schedule
     }
 
     /**
+     * Indicate that every event on the schedule should only run on one server for each cron expression.
+     *
+     * Boot-only. The flag persists for the worker lifetime and affects every
+     * schedule evaluated in the process.
+     */
+    public static function alwaysOnOneServer(bool $value = true): void
+    {
+        static::$alwaysOnOneServer = $value;
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
     {
         static::$pausable = true;
         static::$interruptible = true;
+        static::$alwaysOnOneServer = false;
         static::flushMacros();
     }
 

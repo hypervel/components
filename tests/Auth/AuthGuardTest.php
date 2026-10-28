@@ -836,6 +836,27 @@ class AuthGuardTest extends TestCase
         ];
     }
 
+    public function testHashPasswordForCookieAcceptsNullPassword(): void
+    {
+        $guard = $this->getGuard();
+        $deprecations = [];
+
+        set_error_handler(function (int $level, string $message) use (&$deprecations): bool {
+            $deprecations[] = $message;
+
+            return true;
+        }, E_DEPRECATED);
+
+        try {
+            $hash = $guard->hashPasswordForCookie(null);
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame([], $deprecations);
+        $this->assertSame($guard->hashPasswordForCookie(''), $hash);
+    }
+
     public function testLoginOnceSetsUser(): void
     {
         [$guard, $provider, $session] = $this->getRealGuard();

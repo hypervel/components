@@ -48,6 +48,10 @@ class DatabaseEloquentComparesRelatedModelsTest extends TestCase
             ->setConnection($connection)
             ->forceFill([$relatedKeyAttribute => $relatedKey]);
 
+        if ($relation instanceof MorphOne) {
+            $model->setAttribute($relation->getMorphType(), $relation->getMorphClass());
+        }
+
         $this->assertSame($expected, $relation->is($model));
         $this->assertSame(! $expected, $relation->isNot($model));
     }
@@ -78,6 +82,20 @@ class DatabaseEloquentComparesRelatedModelsTest extends TestCase
             foreach ($scenarios as $name => $scenario) {
                 yield "{$type}: {$name}" => [$type, ...$scenario];
             }
+        }
+    }
+
+    #[DataProvider('relationTypes')]
+    public function testUnrelatedModelsAreRejectedBeforeReadingMissingKeys(string $type): void
+    {
+        Model::preventAccessingMissingAttributes();
+        [$relation] = $this->newRelation($type, 1);
+
+        foreach ([['other_table', 'connection'], ['table', 'other_connection']] as [$table, $connection]) {
+            $model = (new ComparesRelatedModelsStub)->setTable($table)->newFromBuilder([], $connection);
+
+            $this->assertFalse($relation->is($model));
+            $this->assertTrue($relation->isNot($model));
         }
     }
 
