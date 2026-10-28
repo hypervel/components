@@ -1192,9 +1192,7 @@ class Builder implements BuilderContract
     protected function getCursorParameterBinding(Cursor $cursor, string $parameter): mixed
     {
         // Reverse the cast that produced the readable cursor, preserving qualified pivot casts.
-        $key = $this->model->hasCast($parameter)
-            ? $parameter
-            : Str::chopStart($parameter, $this->model->getTable() . '.');
+        $key = $this->getPagingAttribute($this->model, $parameter);
 
         return $this->model->encodeBinaryAttributeForDatabase($key, $cursor->parameter($parameter));
     }

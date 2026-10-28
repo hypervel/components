@@ -241,7 +241,9 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
         $this->assertSame($descending ? array_reverse($ids) : $ids, $actual);
     }
 
-    public function testBinaryPrimaryKeysCanBeCursorPaginatedInBothDirections(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBinaryPrimaryKeysCanBeCursorPaginatedInBothDirections(bool $aliased): void
     {
         $ids = [
             '00000000-0000-0000-0000-000000000001',
@@ -258,12 +260,15 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
         ]));
         $this->assertSame([$ids[2]], $explicit->pluck('id')->all());
 
-        $first = AsBinaryPrimaryKeyModel::query()->cursorPaginate(2);
-        $next = AsBinaryPrimaryKeyModel::query()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
+        $query = fn () => $aliased
+            ? AsBinaryPrimaryKeyModel::query()->from('binary_primary_keys as identifiers')->orderBy('identifiers.id')
+            : AsBinaryPrimaryKeyModel::query();
+        $first = $query()->cursorPaginate(2);
+        $next = $query()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
 
         $this->assertSame([$ids[2]], $next->pluck('id')->all());
 
-        $previous = AsBinaryPrimaryKeyModel::query()->cursorPaginate(2, cursor: $next->previousCursor()->encode());
+        $previous = $query()->cursorPaginate(2, cursor: $next->previousCursor()->encode());
 
         $this->assertSame([$ids[0], $ids[1]], $previous->pluck('id')->all());
     }

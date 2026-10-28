@@ -820,14 +820,20 @@ class DatabaseEloquentBuilderTest extends TestCase
     #[TestWith(['lazyById', 'id'])]
     #[TestWith(['chunkById', 'table.id'])]
     #[TestWith(['lazyById', 'table.id'])]
+    #[TestWith(['chunkById', 't.id'])]
+    #[TestWith(['lazyById', 't.id'])]
     #[TestWith(['chunkById', 't.id', true])]
     public function testPagingPreservesBinaryBindingsForSelectedAliases(string $method, string $column, bool $castAlias = false): void
     {
         [$connection, $builder, $ids] = $this->newBinaryUuidPagedBuilder();
         $builder->select(['id', 'id as cursor']);
 
+        if ($column === 't.id') {
+            $builder->from('table as t');
+        }
+
         if ($castAlias) {
-            $builder->from('table as t')->withCasts(['cursor' => AsBinary::uuid()]);
+            $builder->withCasts(['cursor' => AsBinary::uuid()]);
         }
 
         $actual = [];

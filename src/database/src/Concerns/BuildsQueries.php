@@ -409,10 +409,30 @@ trait BuildsQueries
         }
 
         // Either the selected alias or the model's paging column can declare binary binding intent.
-        $attribute = Str::chopStart($column, $result->getTable() . '.');
+        $attribute = $this->getPagingAttribute($result, $column);
         $lastId = $result->prepareBinaryAttributesForDatabase([$alias => $lastId])[$alias];
 
         return $result->prepareBinaryAttributesForDatabase([$attribute => $lastId])[$attribute];
+    }
+
+    /**
+     * Get the model attribute behind a qualified paging column.
+     */
+    protected function getPagingAttribute(Model $model, string $column): string
+    {
+        if ($model->hasCast($column)) {
+            return $column;
+        }
+
+        $prefixes = [$model->getTable() . '.'];
+
+        $query = $this instanceof Builder ? $this->getQuery() : $this;
+
+        if (($alias = $query->getFromAlias()) !== null) {
+            $prefixes[] = $alias . '.';
+        }
+
+        return Str::chopStart($column, $prefixes);
     }
 
     /**
