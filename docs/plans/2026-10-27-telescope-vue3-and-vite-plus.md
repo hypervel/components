@@ -10,7 +10,7 @@ Use one implementation checkpoint for the complete Part 2 monorepo refactor. Run
 
 Read this plan, the monorepo root `CLAUDE.md`, and the worktree's `AGENTS.md` after compaction. This plan does not override their approval, verification, source-reading, or dependency-management requirements. No implementation is authorized merely by writing the plan.
 
-Part 1 is merged on both remotes, Telescope's upstream-sync notes are updated, and GitHub closed the retired archive's lockfile alerts. The formatting exception below is approved. Part 2 is implemented, verified and reviewed. Remaining work: publish and merge its PR when authorized, then perform the post-merge dependency-graph and upstream-sync checks below.
+Part 1 is merged on both remotes, Telescope's upstream-sync notes are updated, and GitHub closed the retired archive's lockfile alerts. The formatting exception below is approved. Part 2 is published on both remotes. Remaining work: complete the authorized PR review and CI follow-up, merge when green, then perform the post-merge dependency-graph and upstream-sync checks below.
 
 ## Maintenance tradeoff and approval items
 
@@ -123,6 +123,8 @@ Correct the dashboard lifecycle and request bugs exposed during migration:
 - Monitoring mutations update displayed tags only after server success and report unconfirmed changes on failure. Snapshot submitted tags, deduplicate successful additions, and preserve a newer draft. Horizon's idempotent add does not need pending-state machinery. Disable Telescope's Monitor button until its initial list has loaded. Use a single native database upsert of unique Telescope tags to avoid concurrent duplicate-key failures, retaining strict database errors and the existing API.
 
 Cover failed-job cursor boundaries/search, list supersession and skipped refreshes, Poll overlap and failure recovery, rejected retries, and monitoring failure/draft behavior with focused tests. Extend existing PHP cursor coverage; retain the unique-tag storage test instead of duplicating its conflict assertions. No generic request framework, timer registry, copied Blade test templates or mocked chart-destroy test.
+
+Match Symfony Console's case-insensitive built-in style names in Prompts' visible-text and trailing-tag handling, requiring Console `^8.1.10` in the root and Prompts manifests. Verify mixed-case tags against the formatter and preserve uppercase closing tags when replacing the last visible grapheme. Cookie enum-name tests compare creation validity with native Symfony Cookie validation across the supported dependency range instead of assuming that the name `0` is invalid.
 
 Use `defineConfig`/`defineProject` from `vite-plus` for tool configuration and `vite-plus/test` for ordinary test imports. Remove standalone Vitest only when no retained peer/type/module reference requires it. Audit root `tsconfig.json`'s `vitest/globals`: tests already import their APIs, so remove unnecessary globals rather than leaving an unresolved type reference. Do not rewrite arbitrary `vite` API imports or module augmentation names to exports Vite+ does not provide.
 
