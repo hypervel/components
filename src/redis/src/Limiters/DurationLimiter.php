@@ -84,7 +84,8 @@ class DurationLimiter
 
         $this->decaysAt = (int) $results[1];
 
-        $this->remaining = max(0, (int) $results[2]);
+        // Lua numbers lose precision above 2^53, so remaining is calculated here.
+        $this->remaining = max(0, $this->maxLocks - (int) $results[2]);
 
         return (bool) $results[0];
     }
@@ -103,7 +104,7 @@ class DurationLimiter
         );
 
         $this->decaysAt = (int) $results[0];
-        $this->remaining = max(0, (int) $results[1]);
+        $this->remaining = max(0, $this->maxLocks - (int) $results[1]);
 
         return $this->remaining <= 0;
     }
@@ -134,18 +135,18 @@ local function reset()
 end
 
 if redis.call('EXISTS', KEYS[1]) == 0 then
-    return {reset(), ARGV[2] + ARGV[3], ARGV[4] - 1}
+    return {reset(), ARGV[2] + ARGV[3], 1}
 end
 
 if ARGV[1] >= redis.call('HGET', KEYS[1], 'start') and ARGV[1] <= redis.call('HGET', KEYS[1], 'end') then
     return {
         tonumber(redis.call('HINCRBY', KEYS[1], 'count', 1)) <= tonumber(ARGV[4]),
         redis.call('HGET', KEYS[1], 'end'),
-        ARGV[4] - redis.call('HGET', KEYS[1], 'count')
+        redis.call('HGET', KEYS[1], 'count')
     }
 end
 
-return {reset(), ARGV[2] + ARGV[3], ARGV[4] - 1}
+return {reset(), ARGV[2] + ARGV[3], 1}
 LUA;
     }
 
@@ -163,17 +164,17 @@ LUA;
         return <<<'LUA'
 
 if redis.call('EXISTS', KEYS[1]) == 0 then
-    return {ARGV[2] + ARGV[3], tonumber(ARGV[4])}
+    return {ARGV[2] + ARGV[3], 0}
 end
 
 if ARGV[1] >= redis.call('HGET', KEYS[1], 'start') and ARGV[1] <= redis.call('HGET', KEYS[1], 'end') then
     return {
         redis.call('HGET', KEYS[1], 'end'),
-        ARGV[4] - redis.call('HGET', KEYS[1], 'count')
+        redis.call('HGET', KEYS[1], 'count')
     }
 end
 
-return {ARGV[2] + ARGV[3], tonumber(ARGV[4])}
+return {ARGV[2] + ARGV[3], 0}
 LUA;
     }
 }
