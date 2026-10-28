@@ -1,6 +1,7 @@
 import { shallowMount } from '@vue/test-utils';
 import { format } from 'sql-formatter';
 import { describe, expect, it } from 'vitest';
+import { h } from 'vue';
 import Preview from './preview.vue';
 
 /**
@@ -21,9 +22,9 @@ function mountPreview(content) {
     const PreviewScreenStub = {
         name: 'preview-screen',
         props: ['resource', 'title', 'id'],
-        render(h) {
+        render() {
             const slot = (name) => {
-                const scoped = this.$scopedSlots[name];
+                const scoped = this.$slots[name];
 
                 return scoped ? scoped({ entry }) : [];
             };
@@ -35,16 +36,18 @@ function mountPreview(content) {
     const CopyClipboardStub = {
         name: 'copy-clipboard',
         props: ['data'],
-        render(h) {
-            return h('div', { class: 'copy-clipboard-stub' }, this.$slots.default);
+        render() {
+            return h('div', { class: 'copy-clipboard-stub' }, this.$slots.default());
         },
     };
 
     return shallowMount(Preview, {
-        mocks: { $route: { params: { id: 'entry-id' } } },
-        stubs: {
-            'preview-screen': PreviewScreenStub,
-            'copy-clipboard': CopyClipboardStub,
+        global: {
+            mocks: { $route: { params: { id: 'entry-id' } } },
+            stubs: {
+                'preview-screen': PreviewScreenStub,
+                'copy-clipboard': CopyClipboardStub,
+            },
         },
     });
 }
@@ -118,5 +121,20 @@ describe('query preview', () => {
 
         expect(pre.classes()).toContain('hljs');
         expect(pre.html()).toContain('hljs-keyword');
+    });
+
+    it('does not highlight absent content when an entry fails to load', async () => {
+        const wrapper = shallowMount(Preview, {
+            global: {
+                mocks: { $route: { params: { id: 'missing-entry' } } },
+                stubs: { 'preview-screen': true },
+            },
+        });
+
+        wrapper.findComponent({ name: 'preview-screen' }).vm.$emit('ready');
+        await wrapper.vm.$nextTick();
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.find('pre').exists()).toBe(false);
     });
 });

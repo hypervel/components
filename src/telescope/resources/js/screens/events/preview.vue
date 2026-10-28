@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 export default {
     data(){
         return {
@@ -12,18 +12,18 @@ export default {
 
 <template>
     <preview-screen title="Event Details" resource="events" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Event</td>
                 <td>
                     {{ slotProps.entry.content.name }}
 
-                    <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.broadcast"> Broadcast </span>
+                    <span class="badge badge-secondary ms-2" v-if="slotProps.entry.content.broadcast"> Broadcast </span>
                 </td>
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -64,7 +64,7 @@ export default {
                                     <td class="card-bg-secondary">
                                         {{ listener.name }}
 
-                                        <span class="badge badge-secondary ml-2" v-if="listener.queued"> Queued </span>
+                                        <span class="badge badge-secondary ms-2" v-if="listener.queued"> Queued </span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -72,6 +72,6 @@ export default {
                     </div>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

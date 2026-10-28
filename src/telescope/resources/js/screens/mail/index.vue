@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from 'lodash';
 
 export default {
@@ -15,20 +15,22 @@ export default {
 
 <template>
     <index-screen title="Mail" resource="mail">
-        <tr slot="table-header">
-            <th scope="col">Mailable</th>
-            <th scope="col" class="text-right">Recipients</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Mailable</th>
+                <th scope="col" class="text-end">Recipients</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>
                 <span :title="slotProps.entry.content.mailable">{{
                     truncate(slotProps.entry.content.mailable || '-', 70)
                 }}</span>
 
-                <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.queued"> Queued </span>
+                <span class="badge badge-secondary ms-2" v-if="slotProps.entry.content.queued"> Queued </span>
 
                 <br />
 
@@ -37,7 +39,7 @@ export default {
                 </small>
             </td>
 
-            <td class="table-fit text-right text-muted">
+            <td class="table-fit text-end text-muted">
                 {{ recipientsCount(slotProps.entry) }}
             </td>
 

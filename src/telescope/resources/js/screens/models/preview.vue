@@ -1,5 +1,4 @@
-<script type="text/ecmascript-6">
-import _ from 'lodash';
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
@@ -19,7 +18,7 @@ export default {
 
 <template>
     <preview-screen title="Model Action" resource="models" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Model</td>
                 <td>
@@ -44,7 +43,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div
                 class="card mt-5 overflow-hidden"
                 v-if="slotProps.entry.content.action != 'deleted' && slotProps.entry.content.changes"
@@ -61,6 +60,6 @@ export default {
                     </copy-clipboard>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

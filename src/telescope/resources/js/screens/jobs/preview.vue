@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 
 import StylesMixin from './../../mixins/entriesStyles';
 import ExceptionCodePreview from './../../components/ExceptionCodePreview.vue';
@@ -26,7 +26,7 @@ export default {
 
 <template>
     <preview-screen title="Job Details" resource="jobs" :id="$route.params.id" entry-point="true">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Status</td>
                 <td>
@@ -89,7 +89,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -175,8 +175,6 @@ export default {
 
             <!-- Additional Information -->
             <related-entries :entry="entry" :batch="batch"> </related-entries>
-        </div>
+        </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from "lodash"
 
 export default {
@@ -39,5 +39,3 @@ export default {
         </tbody>
     </table>
 </template>
-
-<style scoped></style>
