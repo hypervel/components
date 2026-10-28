@@ -29,6 +29,7 @@ use Hypervel\Database\Schema\Builder;
  * @method static void executeBlueprint(\Hypervel\Database\Schema\Blueprint $blueprint)
  * @method static void flushMacros()
  * @method static void flushState()
+ * @method static array getColumn(string $table, string $column)
  * @method static array<int, string> getColumnListing(string $table)
  * @method static array<int, array> getColumns(string $table)
  * @method static string getColumnType(string $table, string $column, bool $fullDefinition = false)

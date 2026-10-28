@@ -13,6 +13,7 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedClosure;
@@ -24,6 +25,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
+use stdClass;
 
 class SupportTestingQueueFakeTest extends TestCase
 {
@@ -93,6 +95,72 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertPushed(function (JobStub $job) {
             return true;
         });
+    }
+
+    public function testAssertPushedWithArrayOfProperties(): void
+    {
+        $this->fake->pushOn('high', new JobWithPropertiesStub('pending', new ModelForQueueFakeStub(['id' => 1])));
+
+        $this->fake->assertPushed(JobWithPropertiesStub::class, ['status' => 'pending', 'model' => new ModelForQueueFakeStub(['id' => 1])]);
+        $this->fake->assertPushedOn('high', JobWithPropertiesStub::class, ['status' => 'pending']);
+        $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['status' => 'complete']);
+        $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['model' => new ModelForQueueFakeStub(['id' => 2])]);
+    }
+
+    public function testAssertPushedWithArrayOfPropertiesDoesNotMatchMissingOrMismatchedProperties(): void
+    {
+        $this->fake->push(new JobWithPropertiesStub('pending'));
+
+        $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['status' => new ModelForQueueFakeStub(['id' => 1])]);
+        $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['model' => new ModelForQueueFakeStub(['id' => 1])]);
+        $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['missing' => null]);
+        $this->fake->assertPushed(JobWithPropertiesStub::class, ['model' => null]);
+    }
+
+    public function testPropertyMapsDoNotMatchUnreadablePropertiesAsNull(): void
+    {
+        $job = new class {
+            public static ?string $shared = null;
+
+            public string $uninitialized;
+
+            protected string $hidden = 'pending';
+
+            private string $secret = 'pending';
+        };
+
+        $this->fake->push($job);
+
+        foreach (['shared', 'uninitialized', 'hidden', 'secret'] as $property) {
+            $this->fake->assertNotPushed($job::class, [$property => null]);
+        }
+    }
+
+    public function testPropertyMapsMatchNullDynamicPropertiesAndPropertyHooks(): void
+    {
+        $job = new class extends stdClass {
+            public ?string $status {
+                get => null;
+            }
+
+            public ?string $backedStatus {
+                get => $this->backedStatus ?? null;
+            }
+        };
+        $job->dynamic = null;
+
+        $this->fake->push($job);
+
+        $this->fake->assertPushed($job::class, ['dynamic' => null, 'status' => null, 'backedStatus' => null]);
+    }
+
+    public function testAssertPushedPreservesArrayCallbacks(): void
+    {
+        $predicate = fn (JobWithPropertiesStub $job): bool => $job->status === 'pending';
+        $this->fake->pushOn('high', new JobWithPropertiesStub('pending'));
+
+        $this->fake->assertPushed(JobWithPropertiesStub::class, [$predicate, '__invoke']);
+        $this->fake->assertPushedOn('high', JobWithPropertiesStub::class, [$predicate, '__invoke']);
     }
 
     public function testQueueSize(): void
@@ -1053,6 +1121,21 @@ class JobToFakeStub
     public function handle(): void
     {
     }
+}
+
+class JobWithPropertiesStub
+{
+    /**
+     * Create a job with the given properties.
+     */
+    public function __construct(public string $status, public ?ModelForQueueFakeStub $model = null)
+    {
+    }
+}
+
+class ModelForQueueFakeStub extends Model
+{
+    protected array $guarded = [];
 }
 
 #[Delay(15)]

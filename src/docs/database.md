@@ -1071,6 +1071,12 @@ $indexes = Schema::getIndexes('users');
 $foreignKeys = Schema::getForeignKeys('users');
 ```
 
+To inspect a single column, use the `getColumn` method. An exact column name takes precedence over a case-insensitive match, and an empty array is returned if the column does not exist:
+
+```php
+$column = Schema::getColumn('users', 'email');
+```
+
 If you would like to inspect a database connection that is not your application's default connection, you may use the `connection` method:
 
 ```php

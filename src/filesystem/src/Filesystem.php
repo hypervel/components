@@ -19,6 +19,7 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Mime\MimeTypes;
 use Throwable;
+use UnexpectedValueException;
 
 class Filesystem
 {
@@ -672,7 +673,19 @@ class Filesystem
             return false;
         }
 
-        $items = new FilesystemIterator($directory);
+        try {
+            $items = new FilesystemIterator($directory);
+        } catch (UnexpectedValueException $exception) {
+            // Another process may remove the directory after the check above.
+            $this->clearStatCache($directory);
+
+            if (! $this->isDirectory($directory)) {
+                return false;
+            }
+
+            throw $exception;
+        }
+
         $success = true;
 
         foreach ($items as $item) {

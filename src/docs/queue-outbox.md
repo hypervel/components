@@ -253,7 +253,7 @@ The relay supports the following options:
 | `--sleep` | `1` | Seconds to wait after finding no work or after a delivery failure. Must be positive; fractions are supported. |
 | `--max-jobs` | `0` | Stop after taking this many messages from the outbox; zero means unlimited. |
 | `--max-time` | `0` | Stop taking new work after this many seconds; zero means unlimited. |
-| `--memory` | `128` | Memory limit in megabytes. |
+| `--memory` | `128` | Memory limit in megabytes, or a percentage of PHP's finite `memory_limit` (for example, `60%`). |
 | `--stop-when-empty` | Off | Stop when no selected database has messages ready for delivery, after finishing work already started. |
 | `--once` | Off | Process at most one batch from each selected database, without sleeping. |
 

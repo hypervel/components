@@ -368,6 +368,26 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $user->save();
     }
 
+    public function testConfiguredAttributesAreExcludedWhenReplicating(): void
+    {
+        $user = GeneratedUser::create([
+            'first_name' => 'Taylor',
+            'last_name' => 'Otwell',
+        ]);
+
+        $replica = $user->replicate();
+        $replica->save();
+
+        $this->assertSame(2, $replica->id);
+        $this->assertSame('Taylor Otwell', $replica->name);
+
+        $quietReplica = $user->replicateQuietly();
+        $quietReplica->save();
+
+        $this->assertSame(3, $quietReplica->id);
+        $this->assertSame('Taylor Otwell', $quietReplica->name);
+    }
+
     public function testRefreshedAttributesAreNotWrittenBackAfterIncrements(): void
     {
         $item = GeneratedTotal::create(['price' => 2, 'quantity' => 3, 'options' => ['color' => 'red']]);

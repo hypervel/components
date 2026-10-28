@@ -76,6 +76,21 @@ class SupportTestingNotificationFakeTest extends TestCase
         });
     }
 
+    public function testAssertSentToWithArrayOfProperties(): void
+    {
+        $this->fake->send($this->user, new NotificationWithPropertiesStub('pending'));
+
+        $this->fake->assertSentTo($this->user, NotificationWithPropertiesStub::class, ['status' => 'pending']);
+        $this->fake->assertNotSentTo($this->user, NotificationWithPropertiesStub::class, ['status' => 'complete']);
+    }
+
+    public function testAssertSentOnDemandWithArrayOfProperties(): void
+    {
+        $this->fake->send(new AnonymousNotifiable, new NotificationWithPropertiesStub('pending'));
+
+        $this->fake->assertSentOnDemand(NotificationWithPropertiesStub::class, ['status' => 'pending']);
+    }
+
     public function testAssertNotSentTo(): void
     {
         $this->fake->assertNotSentTo($this->user, NotificationStub::class);
@@ -280,6 +295,16 @@ class NotificationWithFalsyShouldSendStub extends Notification
     public function shouldSend(mixed $notifiable, string $channel): bool
     {
         return false;
+    }
+}
+
+class NotificationWithPropertiesStub extends NotificationStub
+{
+    /**
+     * Create a notification with the given status.
+     */
+    public function __construct(public string $status)
+    {
     }
 }
 

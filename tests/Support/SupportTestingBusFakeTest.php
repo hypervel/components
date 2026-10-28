@@ -19,6 +19,7 @@ use Hypervel\Support\Testing\Fakes\PendingBatchFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
 
@@ -421,6 +422,17 @@ class SupportTestingBusFakeTest extends TestCase
         $this->fake->assertDispatchedSyncTimes(function (OtherBusJobStub $job) {
             return $job->id === 1;
         }, 2);
+    }
+
+    #[TestWith(['dispatch', 'assertDispatched', 'assertNotDispatched'])]
+    #[TestWith(['dispatchSync', 'assertDispatchedSync', 'assertNotDispatchedSync'])]
+    #[TestWith(['dispatchAfterResponse', 'assertDispatchedAfterResponse', 'assertNotDispatchedAfterResponse'])]
+    public function testAssertDispatchedWithArrayOfProperties(string $dispatchMethod, string $assertMethod, string $assertNotMethod): void
+    {
+        $this->fake->{$dispatchMethod}(new BusJobWithPropertiesStub('pending'));
+
+        $this->fake->{$assertMethod}(BusJobWithPropertiesStub::class, ['status' => 'pending']);
+        $this->fake->{$assertNotMethod}(BusJobWithPropertiesStub::class, ['status' => 'complete']);
     }
 
     #[DataProvider('countAssertionMethods')]
@@ -1158,6 +1170,16 @@ class SupportTestingBusFakeTest extends TestCase
 
 class BusJobStub
 {
+}
+
+class BusJobWithPropertiesStub
+{
+    /**
+     * Create a job with the given status.
+     */
+    public function __construct(public string $status)
+    {
+    }
 }
 
 class ChainedJobStub
