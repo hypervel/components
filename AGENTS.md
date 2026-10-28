@@ -395,8 +395,13 @@ Decide where state lives before writing code:
 Classes that use static caching need a `flushState()` method for test cleanup — see "Static state and test cleanup" under Writing Tests.
 
 - **Release idle pooled connections before unrelated long waits** — Holding connections while waiting for external services or child coroutines can exhaust pools and limit concurrency. Release them at the appropriate shared boundary, preserving active operations and session ownership; consider reacquisition costs rather than adding release calls indiscriminately. For database sessions, reuse `ConnectionResolver::releaseIdleConnections()`, which preserves transactions and explicit pins. See `Mailer::sendSymfonyMessage()` and `ConcurrentImportRunner::wait()` for examples.
-- **Treat coroutine cancellation separately from errors** — Code that owns coroutine cancellation must pass `CanceledException` through unchanged and clean up the children or resources it owns. Add this only where cancellation can actually happen and mishandling it causes a real bug—not to every `catch (Throwable)`.
-- **Contain cancellation in direct engine coroutines** — A callback passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.
+
+### Coroutine cancellation
+
+- **Treat coroutine cancellation separately from errors** — Where cancellation needs different handling and the operation runs callbacks or listeners—including `releaseIdleConnections()`—use `Coroutine::causedByCancellation($exception)`. Cleanup errors can carry cancellation in their exception chain. Preserve the original exception, perform owned cleanup, and propagate cancellation instead of retrying or continuing normal work. Report genuine cleanup errors without swallowing cancellation. Add this only where cancellation can actually happen and mishandling it causes a real bug. Keep plain checks for native-only operations.
+- **Preserve cancellation ownership** — If shared work can safely be retried, allow another waiter to retry after its owner is canceled. Otherwise, share the failure behind `ForeignCancellationException`, or `ChildCancellationException` for an independently canceled child, preserving the original cause. The canceled owner propagates its own exception unchanged; waiters must not mistake it for their own cancellation.
+- **Contain cancellation in direct engine coroutines** — Callbacks passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.
+- **Test cancellation through cleanup** — When adding or changing cancellation-sensitive retry, child-management or shared-result handling, extend relevant regression tests with throwing cleanup during cancellation. Verify the resulting behavior, not just the exception type.
 
 ## When to Stop and Report
 
