@@ -12,13 +12,13 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Support\Collection;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 use WeakReference;
@@ -296,9 +296,11 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                             $forwarded,
                             fn () => $this->manager->connection($connection)->{$method}(...$arguments),
                         );
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $e) {
+                    if (Coroutine::causedByCancellation($e)) {
+                        throw $e;
+                    }
+
                     $lastException = $e;
 
                     $failedQueues[] = $connection;
