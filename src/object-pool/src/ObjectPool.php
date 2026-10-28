@@ -6,11 +6,11 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\PoolChannel;
 use Hypervel\ObjectPool\Exceptions\PoolClosedException;
 use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -179,8 +179,16 @@ abstract class ObjectPool implements ObjectPoolContract
         while (($object = $this->channel->pop()) !== false) {
             try {
                 $this->destroyObject($object);
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
+            } catch (Throwable $exception) {
+                if (! Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
+                if ($cancellation === null) {
+                    $cancellation = $exception;
+                } else {
+                    PoolErrorReporter::report($exception);
+                }
             }
         }
 
@@ -320,9 +328,11 @@ abstract class ObjectPool implements ObjectPoolContract
             if ($this->destroyCallback !== null) {
                 ($this->destroyCallback)($object);
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             PoolErrorReporter::report($exception);
         } finally {
             unset(
