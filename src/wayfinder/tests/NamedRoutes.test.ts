@@ -1,5 +1,10 @@
-import { expect, it } from "vitest";
-import { dashboard, invalid_js_name, invokable, query } from "./.generated/routes";
+import { expect, it } from "vite-plus/test";
+import {
+    dashboard,
+    invalid_js_name,
+    invokable,
+    query,
+} from "./.generated/routes";
 import { edit } from "./.generated/routes/posts";
 
 it("exports named routes", () => {
@@ -30,5 +35,8 @@ it("exports named routes", () => {
 
 it("exports QUERY routes and their form variants", () => {
     expect(query()).toEqual({ url: "/query", method: "query" });
-    expect(query.form()).toEqual({ action: "/query?_method=QUERY", method: "post" });
+    expect(query.form()).toEqual({
+        action: "/query?_method=QUERY",
+        method: "post",
+    });
 });

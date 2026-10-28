@@ -21,19 +21,16 @@ export default {
         };
     },
 
-
     /**
      * Prepare the component.
      */
     mounted() {
-        document.title = "Dumps - Telescope";
+        document.title = 'Dumps - Telescope';
 
         this.initDumperJs();
 
         this.loadEntries();
-
     },
-
 
     /**
      * Clean up before the component is unmounted.
@@ -43,59 +40,65 @@ export default {
         clearTimeout(this.newEntriesTimeout);
     },
 
-
     methods: {
-        loadEntries(){
-            const {signal} = this.requestController;
+        loadEntries() {
+            const { signal } = this.requestController;
 
-            return axios.post(Telescope.basePath + '/telescope-api/dumps', null, {signal}).then(response => {
-                if (signal.aborted) return;
+            return axios
+                .post(Telescope.basePath + '/telescope-api/dumps', null, { signal })
+                .then((response) => {
+                    if (signal.aborted) return;
 
-                this.ready = true;
-                this.dump = response.data.dump;
-                this.entries = response.data.entries;
-                this.recordingStatus = response.data.status;
+                    this.ready = true;
+                    this.dump = response.data.dump;
+                    this.entries = response.data.entries;
+                    this.recordingStatus = response.data.status;
 
-                this.$nextTick(() => this.triggerDumps());
+                    this.$nextTick(() => this.triggerDumps());
 
-                this.checkForNewEntries();
-            }).catch(error => {
-                if (signal.aborted) return;
+                    this.checkForNewEntries();
+                })
+                .catch((error) => {
+                    if (signal.aborted) return;
 
-                this.ready = true;
+                    this.ready = true;
 
-                if (this.mayRetry(error, signal)) this.checkForNewEntries();
-            });
+                    if (this.mayRetry(error, signal)) this.checkForNewEntries();
+                });
         },
-
 
         /**
          * Keep checking if there are new entries.
          */
-        checkForNewEntries(){
-            const {signal} = this.requestController;
+        checkForNewEntries() {
+            const { signal } = this.requestController;
 
             clearTimeout(this.newEntriesTimeout);
 
             this.newEntriesTimeout = setTimeout(() => {
-                axios.post(Telescope.basePath + '/telescope-api/dumps?take=1', null, {signal}).then(response => {
-                    if (signal.aborted) return;
+                axios
+                    .post(Telescope.basePath + '/telescope-api/dumps?take=1', null, { signal })
+                    .then((response) => {
+                        if (signal.aborted) return;
 
-                    this.recordingStatus = response.data.status;
+                        this.recordingStatus = response.data.status;
 
-                    if (response.data.entries.length && !this.entries.length) {
-                        this.loadEntries();
-                    } else if (response.data.entries.length && _.first(response.data.entries).id !== _.first(this.entries).id) {
-                        this.loadEntries();
-                    } else {
-                        this.checkForNewEntries();
-                    }
-                }).catch(error => {
-                    if (this.mayRetry(error, signal)) this.checkForNewEntries();
-                });
+                        if (response.data.entries.length && !this.entries.length) {
+                            this.loadEntries();
+                        } else if (
+                            response.data.entries.length &&
+                            _.first(response.data.entries).id !== _.first(this.entries).id
+                        ) {
+                            this.loadEntries();
+                        } else {
+                            this.checkForNewEntries();
+                        }
+                    })
+                    .catch((error) => {
+                        if (this.mayRetry(error, signal)) this.checkForNewEntries();
+                    });
             }, this.newEntriesTimer);
         },
-
 
         /**
          * Initialize the VarDumper JS functions.
@@ -104,16 +107,15 @@ export default {
             this.sfDump = sfdump(document);
         },
 
-
         /**
          * Trigger the Sfdump() for every newly dumped <pre> tag.
          */
         triggerDumps() {
             const divs = this.$refs.dumps;
 
-            if (! divs) return;
+            if (!divs) return;
 
-            divs.forEach(el => {
+            divs.forEach((el) => {
                 const id = el.children[0].id;
 
                 if (this.triggered.includes(id)) return;
@@ -121,9 +123,9 @@ export default {
                 this.sfDump(id);
                 this.triggered.push(id);
             });
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

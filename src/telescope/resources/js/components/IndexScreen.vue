@@ -3,10 +3,7 @@ import _ from 'lodash';
 import axios from 'axios';
 
 export default {
-    props: [
-        'resource', 'title', 'showAllFamily', 'hideSearch'
-    ],
-
+    props: ['resource', 'title', 'showAllFamily', 'hideSearch'],
 
     /**
      * The component's data.
@@ -36,7 +33,6 @@ export default {
         };
     },
 
-
     /**
      * Create the component's debounced search.
      */
@@ -44,12 +40,11 @@ export default {
         this.debouncer = _.debounce((callback) => callback(), 500);
     },
 
-
     /**
      * Prepare the component.
      */
     mounted() {
-        document.title = this.title + " - Telescope";
+        document.title = this.title + ' - Telescope';
 
         this.familyHash = this.$route.query.family_hash || '';
 
@@ -70,7 +65,6 @@ export default {
         document.addEventListener('keyup', this.focusOnSearch);
     },
 
-
     /**
      * Clean up before the component is unmounted.
      */
@@ -83,7 +77,6 @@ export default {
         this.debouncer.cancel();
         document.removeEventListener('keyup', this.focusOnSearch);
     },
-
 
     watch: {
         '$route.query': function () {
@@ -114,119 +107,130 @@ export default {
         },
     },
 
-
     methods: {
-        loadEntries(after){
-            const {signal} = this.requestController;
+        loadEntries(after) {
+            const { signal } = this.requestController;
 
-            return axios.post(Telescope.basePath + '/telescope-api/' + this.resource,
-                    null, {
-                        signal,
-                        params: {
-                            tag: this.tag,
-                            exact_tag: this.$route.query.exact_tag,
-                            before: this.lastEntryIndex,
-                            take: this.entriesPerRequest,
-                            family_hash: this.familyHash,
-                        },
+            return axios
+                .post(Telescope.basePath + '/telescope-api/' + this.resource, null, {
+                    signal,
+                    params: {
+                        tag: this.tag,
+                        exact_tag: this.$route.query.exact_tag,
+                        before: this.lastEntryIndex,
+                        take: this.entriesPerRequest,
+                        family_hash: this.familyHash,
+                    },
+                })
+                .then((response) => {
+                    if (signal.aborted) return;
+
+                    this.lastEntryIndex = response.data.entries.length
+                        ? _.last(response.data.entries).sequence
+                        : this.lastEntryIndex;
+
+                    this.hasMoreEntries = response.data.entries.length >= this.entriesPerRequest;
+
+                    this.recordingStatus = response.data.status;
+
+                    if (_.isFunction(after)) {
+                        after(
+                            this.familyHash || this.showAllFamily
+                                ? response.data.entries
+                                : _.uniqBy(response.data.entries, (entry) => entry.family_hash || _.uniqueId()),
+                        );
                     }
-            ).then(response => {
-                if (signal.aborted) return;
+                })
+                .catch((error) => {
+                    if (signal.aborted) return;
 
-                this.lastEntryIndex = response.data.entries.length ? _.last(response.data.entries).sequence : this.lastEntryIndex;
+                    this.ready = true;
+                    this.loadingNewEntries = false;
+                    this.loadingMoreEntries = false;
 
-                this.hasMoreEntries = response.data.entries.length >= this.entriesPerRequest;
+                    if (!this.mayRetry(error, signal)) return;
 
-                this.recordingStatus = response.data.status;
-
-                if (_.isFunction(after)) {
-                    after(
-                            this.familyHash || this.showAllFamily ? response.data.entries : _.uniqBy(response.data.entries, entry => entry.family_hash || _.uniqueId())
-                    );
-                }
-            }).catch(error => {
-                if (signal.aborted) return;
-
-                this.ready = true;
-                this.loadingNewEntries = false;
-                this.loadingMoreEntries = false;
-
-                if (!this.mayRetry(error, signal)) return;
-
-                this.checkForNewEntries();
-                this.updateEntries();
-            });
+                    this.checkForNewEntries();
+                    this.updateEntries();
+                });
         },
-
 
         /**
          * Keep checking if there are new entries.
          */
-        checkForNewEntries(){
-            const {signal} = this.requestController;
+        checkForNewEntries() {
+            const { signal } = this.requestController;
 
             clearTimeout(this.newEntriesTimeout);
 
             this.newEntriesTimeout = setTimeout(() => {
-                axios.post(Telescope.basePath + '/telescope-api/' + this.resource,
-                        null, {
-                            signal,
-                            params: {tag: this.tag, exact_tag: this.$route.query.exact_tag, take: 1, family_hash: this.familyHash},
-                        }
-                ).then(response => {
-                    if (!signal.aborted) {
-                        this.recordingStatus = response.data.status;
+                axios
+                    .post(Telescope.basePath + '/telescope-api/' + this.resource, null, {
+                        signal,
+                        params: {
+                            tag: this.tag,
+                            exact_tag: this.$route.query.exact_tag,
+                            take: 1,
+                            family_hash: this.familyHash,
+                        },
+                    })
+                    .then((response) => {
+                        if (!signal.aborted) {
+                            this.recordingStatus = response.data.status;
 
-                        if (response.data.entries.length && !this.entries.length) {
-                            this.loadNewEntries();
-                        } else if (response.data.entries.length && _.first(response.data.entries).id !== _.first(this.entries).id) {
-                            if (this.$root.autoLoadsNewEntries) {
+                            if (response.data.entries.length && !this.entries.length) {
                                 this.loadNewEntries();
+                            } else if (
+                                response.data.entries.length &&
+                                _.first(response.data.entries).id !== _.first(this.entries).id
+                            ) {
+                                if (this.$root.autoLoadsNewEntries) {
+                                    this.loadNewEntries();
+                                } else {
+                                    this.hasNewEntries = true;
+                                }
                             } else {
-                                this.hasNewEntries = true;
+                                this.checkForNewEntries();
                             }
-                        } else {
-                            this.checkForNewEntries();
                         }
-                    }
-                }).catch(error => {
-                    if (this.mayRetry(error, signal)) this.checkForNewEntries();
-                });
+                    })
+                    .catch((error) => {
+                        if (this.mayRetry(error, signal)) this.checkForNewEntries();
+                    });
             }, this.newEntriesTimer);
         },
-
 
         /**
          * Update the timeago of each entry.
          */
-        updateTimeAgo(){
+        updateTimeAgo() {
             this.updateTimeAgoTimeout = setTimeout(() => {
-                this.$el.querySelectorAll('[data-timeago]').forEach(time => {
+                this.$el.querySelectorAll('[data-timeago]').forEach((time) => {
                     time.textContent = this.timeAgo(time.dataset.timeago);
                 });
 
                 this.updateTimeAgo();
-            }, 60000)
+            }, 60000);
         },
-
 
         /**
          * Search the entries of this type.
          */
-        search(){
+        search() {
             this.debouncer(() => {
                 this.hasNewEntries = false;
                 this.lastEntryIndex = '';
 
-                return this.$router.push({query: _.assign({}, this.$route.query, {tag: this.tag, exact_tag: undefined})});
+                return this.$router.push({
+                    query: _.assign({}, this.$route.query, { tag: this.tag, exact_tag: undefined }),
+                });
             });
         },
-
 
         /**
          * Load more entries.
          */
-        loadOlderEntries(){
+        loadOlderEntries() {
             this.loadingMoreEntries = true;
 
             this.loadEntries((entries) => {
@@ -236,11 +240,10 @@ export default {
             });
         },
 
-
         /**
          * Load new entries.
          */
-        loadNewEntries(){
+        loadNewEntries() {
             this.hasMoreEntries = true;
             this.hasNewEntries = false;
             this.lastEntryIndex = '';
@@ -257,47 +260,55 @@ export default {
             });
         },
 
-
         /**
          * Update the existing entries if needed.
          */
-        updateEntries(){
-            const {signal} = this.requestController;
+        updateEntries() {
+            const { signal } = this.requestController;
 
             if (this.resource !== 'jobs') return;
 
             clearTimeout(this.updateEntriesTimeout);
 
             this.updateEntriesTimeout = setTimeout(() => {
-                let uuids = _.chain(this.entries).filter(entry => entry.content.status === 'pending').map('id').value();
+                let uuids = _.chain(this.entries)
+                    .filter((entry) => entry.content.status === 'pending')
+                    .map('id')
+                    .value();
 
                 if (!uuids.length) return this.updateEntries();
 
-                axios.post(Telescope.basePath + '/telescope-api/' + this.resource, {
-                    uuids: uuids
-                }, {signal}).then(response => {
-                    if (signal.aborted) return;
+                axios
+                    .post(
+                        Telescope.basePath + '/telescope-api/' + this.resource,
+                        {
+                            uuids: uuids,
+                        },
+                        { signal },
+                    )
+                    .then((response) => {
+                        if (signal.aborted) return;
 
-                    this.recordingStatus = response.data.status;
+                        this.recordingStatus = response.data.status;
 
-                    this.entries = _.map(this.entries, entry => {
-                        if (!_.includes(uuids, entry.id)) return entry;
+                        this.entries = _.map(this.entries, (entry) => {
+                            if (!_.includes(uuids, entry.id)) return entry;
 
-                        return _.find(response.data.entries, {id: entry.id}) || entry;
+                            return _.find(response.data.entries, { id: entry.id }) || entry;
+                        });
+
+                        this.updateEntries();
+                    })
+                    .catch((error) => {
+                        if (this.mayRetry(error, signal)) this.updateEntries();
                     });
-
-                    this.updateEntries();
-                }).catch(error => {
-                    if (this.mayRetry(error, signal)) this.updateEntries();
-                });
             }, this.updateEntriesTimer);
         },
-
 
         /**
          * Focus on the search input when "/" key is hit.
          */
-        focusOnSearch(event){
+        focusOnSearch(event) {
             if (event.key === '/') {
                 let searchInput = this.$el.querySelector('#searchInput');
 
@@ -305,9 +316,9 @@ export default {
                     searchInput.focus();
                 }
             }
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

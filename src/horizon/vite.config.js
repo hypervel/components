@@ -1,11 +1,16 @@
 import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite-plus';
 
-/** @type {import('vite').UserConfig} */
-export default {
+export default defineConfig({
     plugins: [vue()],
+    test: {
+        name: 'horizon',
+        environment: 'jsdom',
+        include: ['resources/js/**/*.test.js'],
+    },
     build: {
         assetsDir: '',
-        rollupOptions: {
+        rolldownOptions: {
             input: ['resources/js/app.js', 'resources/sass/styles.scss', 'resources/sass/styles-dark.scss'],
             output: {
                 entryFileNames: '[name].js',
@@ -19,4 +24,4 @@ export default {
             '@': '/resources/js',
         },
     },
-};
+});

@@ -2,10 +2,8 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
+    mixins: [StylesMixin],
+};
 </script>
 
 <template>
@@ -30,7 +28,7 @@ export default {
             </td>
 
             <td class="table-fit">
-                {{truncate(slotProps.entry.content.message, 30)}}
+                {{ truncate(slotProps.entry.content.message, 30) }}
             </td>
 
             <td

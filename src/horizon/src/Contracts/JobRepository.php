@@ -84,7 +84,7 @@ interface JobRepository
     /**
      * Retrieve the jobs with the given IDs.
      */
-    public function getJobs(array $ids, mixed $indexFrom = 0): Collection;
+    public function getJobs(array $ids, int $indexFrom = 0): Collection;
 
     /**
      * Insert the job into storage.

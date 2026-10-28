@@ -1,12 +1,12 @@
 <script>
 export default {
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
@@ -55,9 +55,11 @@ export default {
             <tr>
                 <td class="table-fit text-muted">Exit Code</td>
                 <td>
-                    {{ slotProps.entry.content.exit_code === undefined || slotProps.entry.content.exit_code === null
-                        ? '-'
-                        : slotProps.entry.content.exit_code }}
+                    {{
+                        slotProps.entry.content.exit_code === undefined || slotProps.entry.content.exit_code === null
+                            ? '-'
+                            : slotProps.entry.content.exit_code
+                    }}
                 </td>
             </tr>
 

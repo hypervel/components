@@ -2,10 +2,7 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-
+    mixins: [StylesMixin],
 
     data() {
         return {
@@ -17,9 +14,9 @@ export default {
     methods: {
         formatExpiration(expiration) {
             return expiration + ' seconds';
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -57,7 +54,9 @@ export default {
                     </li>
                 </ul>
 
-                <pre class="code-bg p-4 mb-0 text-white">{{ slotProps.entry.content.value === null ? 'null' : slotProps.entry.content.value }}</pre>
+                <pre class="code-bg p-4 mb-0 text-white">{{
+                    slotProps.entry.content.value === null ? 'null' : slotProps.entry.content.value
+                }}</pre>
             </div>
         </template>
     </preview-screen>

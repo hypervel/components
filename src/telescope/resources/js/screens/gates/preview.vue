@@ -2,18 +2,15 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-
+    mixins: [StylesMixin],
 
     data() {
         return {
             entry: null,
             batch: [],
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
@@ -38,7 +35,7 @@ export default {
             <tr>
                 <td class="table-fit text-muted">Message</td>
                 <td>
-                    {{slotProps.entry.content.message}}
+                    {{ slotProps.entry.content.message }}
                 </td>
             </tr>
 

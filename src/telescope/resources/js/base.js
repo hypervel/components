@@ -72,7 +72,7 @@ export default {
                 this.alertError(
                     'Telescope stopped listening for new entries. The server returned a ' +
                         error.response.status +
-                        ' response.'
+                        ' response.',
                 );
 
                 return false;

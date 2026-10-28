@@ -2,19 +2,16 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
+    mixins: [StylesMixin],
 
-
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'data'
+            currentTab: 'data',
         };
     },
-}
+};
 </script>
 
 <template>

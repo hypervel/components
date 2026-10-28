@@ -1,13 +1,13 @@
 <script>
 export default {
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'arguments'
+            currentTab: 'arguments',
         };
-    }
-}
+    },
+};
 </script>
 
 <template>

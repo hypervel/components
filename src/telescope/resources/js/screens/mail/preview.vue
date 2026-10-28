@@ -13,20 +13,23 @@ export default {
         /**
          * Format the given list of addresses.
          */
-        formatAddresses(addresses){
-            return _.chain(addresses).map((name, email) => {
-                return (name ? "<" + name + "> " : '') + email;
-            }).join(', ').value()
-        }
+        formatAddresses(addresses) {
+            return _.chain(addresses)
+                .map((name, email) => {
+                    return (name ? '<' + name + '> ' : '') + email;
+                })
+                .join(', ')
+                .value();
+        },
     },
 
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
         };
     },
-}
+};
 </script>
 
 <template>

@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import axios from 'axios';
 import { Modal } from 'bootstrap';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vite-plus/test';
 import Base from '../../base';
 import Monitoring from './index.vue';
 
@@ -46,6 +46,7 @@ it('focuses the input and supports canceling and reopening the modal', async () 
     await wrapper.find('.card-header button').trigger('click');
     await input.setValue('new tag');
     await input.trigger('keyup', { key: 'Enter' });
+    await flushPromises();
     expect(wrapper.find('tbody').text()).toContain('new tag');
     expect(axios.post).toHaveBeenCalledWith('/telescope/telescope-api/monitored-tags', { tag: 'new tag' });
     expect(document.body.classList.contains('modal-open')).toBe(false);
@@ -73,21 +74,68 @@ it('removes a tag only after confirmation', async () => {
     expect(wrapper.text()).toContain('No tags are currently being monitored.');
 });
 
-it('aborts a pending load and releases an open modal when unmounted', async () => {
-    const pending = Promise.withResolvers();
-    axios.get.mockReturnValue(pending.promise);
+it('releases an open modal when unmounted', async () => {
     await mountMonitoring();
     await wrapper.find('.card-header button').trigger('click');
     const element = wrapper.find('.modal').element;
-    const signal = axios.get.mock.calls[0][1].signal;
     wrapper.unmount();
     wrapper = null;
 
-    expect(signal.aborted).toBe(true);
     expect(Modal.getInstance(element)).toBeNull();
     expect(document.body.classList.contains('modal-open')).toBe(false);
     expect(document.body.style.overflow).toBe('');
     expect(document.querySelector('.modal-backdrop')).toBeNull();
+});
+
+it('disables monitoring until the initial tags load and aborts that load on unmount', async () => {
+    const pending = Promise.withResolvers();
+    axios.get.mockReturnValue(pending.promise);
+    await mountMonitoring();
+    expect(wrapper.find('.card-header button').element.disabled).toBe(true);
+    const signal = axios.get.mock.calls[0][1].signal;
+    wrapper.unmount();
+    wrapper = null;
+    expect(signal.aborted).toBe(true);
     pending.reject(new Error('canceled'));
     await flushPromises();
+});
+
+it('does not add a tag before success and preserves the draft after rejection', async () => {
+    await mountMonitoring();
+    await wrapper.find('.card-header button').trigger('click');
+    await wrapper.find('input').setValue('new tag');
+    const pending = Promise.withResolvers();
+    axios.post.mockReturnValue(pending.promise);
+    const request = wrapper.vm.monitorNewTag();
+    expect(wrapper.vm.tags).toEqual(['existing']);
+    pending.reject(new Error('Request failed'));
+    await request;
+    expect(wrapper.vm.tags).toEqual(['existing']);
+    expect(wrapper.vm.newTag).toBe('new tag');
+    expect(wrapper.vm.$root.alert.message).toContain('could not confirm');
+});
+
+it('retains a monitored tag when confirmed removal fails', async () => {
+    await mountMonitoring();
+    await wrapper.find('tbody a').trigger('click');
+    axios.post.mockRejectedValue(new Error('Request failed'));
+    await wrapper.vm.$root.alert.confirmationProceed();
+    expect(wrapper.vm.tags).toEqual(['existing']);
+    expect(wrapper.vm.$root.alert.message).toContain('could not confirm');
+});
+
+it('deduplicates successful additions without clearing a newer draft', async () => {
+    await mountMonitoring();
+    await wrapper.find('.card-header button').trigger('click');
+    await wrapper.find('input').setValue('submitted');
+    const pending = Promise.withResolvers();
+    axios.post.mockReturnValue(pending.promise);
+    const first = wrapper.vm.monitorNewTag();
+    const second = wrapper.vm.monitorNewTag();
+    await wrapper.find('input').setValue('next draft');
+    pending.resolve({ data: {} });
+    await Promise.all([first, second]);
+    expect(wrapper.vm.tags).toEqual(['existing', 'submitted']);
+    expect(wrapper.vm.newTag).toBe('next draft');
+    expect(document.body.classList.contains('modal-open')).toBe(true);
 });

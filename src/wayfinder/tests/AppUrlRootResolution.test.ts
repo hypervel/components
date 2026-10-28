@@ -1,17 +1,27 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
 const generatorScript = path.join(__dirname, "generate.php");
+let outputPath: string;
+
+beforeEach(() => {
+    outputPath = mkdtempSync(
+        path.join(tmpdir(), "hypervel-wayfinder-app-url-"),
+    );
+});
+
+afterEach(() => {
+    rmSync(outputPath, { recursive: true, force: true });
+});
 
 const generateWithAppUrl = (
     appUrl: string,
     outputPath: string,
     env: NodeJS.ProcessEnv = {},
 ) => {
-    rmSync(outputPath, { recursive: true, force: true });
-
     execFileSync("php", [generatorScript, outputPath], {
         env: {
             ...process.env,
@@ -22,8 +32,6 @@ const generateWithAppUrl = (
 };
 
 test("prefixes generated URLs with APP_URL path", () => {
-    const outputPath = "/tmp/wayfinder-app-url-path";
-
     generateWithAppUrl("http://localhost:8081/v2", outputPath);
 
     const contents = readFileSync(
@@ -39,8 +47,6 @@ test("prefixes generated URLs with APP_URL path", () => {
 });
 
 test("does not inject APP_URL port into explicit domain routes", () => {
-    const outputPath = "/tmp/wayfinder-app-url-port";
-
     generateWithAppUrl("https://localhost:8001", outputPath);
 
     const contents = readFileSync(
@@ -58,8 +64,6 @@ test("does not inject APP_URL port into explicit domain routes", () => {
 });
 
 test("applies forced HTTPS scheme to explicit domain routes", () => {
-    const outputPath = "/tmp/wayfinder-forced-https";
-
     generateWithAppUrl("https://localhost:8001", outputPath, {
         WAYFINDER_FORCE_HTTPS: "1",
     });
@@ -72,7 +76,9 @@ test("applies forced HTTPS scheme to explicit domain routes", () => {
         "utf8",
     );
 
-    expect(contents).toContain("url: 'https://example.test/fixed-domain/{param}'");
+    expect(contents).toContain(
+        "url: 'https://example.test/fixed-domain/{param}'",
+    );
     expect(contents).toContain(
         "url: 'https://{defaultDomain?}.au/default-parameters-domain/{param}'",
     );
