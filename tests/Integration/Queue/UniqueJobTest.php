@@ -28,7 +28,10 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('cache')]
@@ -317,6 +320,84 @@ class UniqueJobTest extends QueueTestCase
         Queue::assertPushed(UniqueTestJob::class);
     }
 
+    public function testQueueFakeForReleasesUniqueJobLocks(): void
+    {
+        Queue::fakeFor(function (): void {
+            UniqueTestJob::dispatch();
+            Queue::assertPushed(UniqueTestJob::class);
+        });
+
+        $this->assertTrue(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+    }
+
+    public function testQueueFakeReleasesUniqueListenerLocksBetweenFakes(): void
+    {
+        Event::listen(UniqueTestEvent::class, UniqueTestListener::class);
+
+        Queue::fake();
+
+        event(new UniqueTestEvent);
+        $this->assertCount(1, Queue::listenersPushed(UniqueTestListener::class));
+
+        Queue::fake();
+
+        event(new UniqueTestEvent);
+        $this->assertCount(1, Queue::listenersPushed(UniqueTestListener::class));
+    }
+
+    public function testQueueFakeForReleasesUniqueListenerLocks(): void
+    {
+        Event::listen(UniqueTestEvent::class, UniqueTestListener::class);
+
+        Queue::fakeFor(function (): void {
+            event(new UniqueTestEvent);
+            $this->assertCount(1, Queue::listenersPushed(UniqueTestListener::class));
+        });
+
+        Queue::fake();
+
+        event(new UniqueTestEvent);
+        $this->assertCount(1, Queue::listenersPushed(UniqueTestListener::class));
+    }
+
+    public function testQueueFakeExceptForReleasesUniqueJobLocks(): void
+    {
+        Queue::fakeExceptFor(function (): void {
+            UniqueTestJob::dispatch();
+            Queue::assertPushed(UniqueTestJob::class);
+        });
+
+        $this->assertTrue(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+    }
+
+    #[TestWith(['fakeFor'])]
+    #[TestWith(['fakeExceptFor'])]
+    public function testScopedQueueFakeRestoresManagerWhenLockCleanupThrows(string $method): void
+    {
+        $manager = Queue::getFacadeRoot();
+        $failure = new RuntimeException('Cache unavailable during lock cleanup.');
+        $caught = null;
+
+        try {
+            Queue::{$method}(function () use ($failure): void {
+                UniqueTestJob::dispatch();
+
+                $cache = m::mock(Cache::class);
+                $cache->shouldReceive('getStore')->once()->andThrow($failure);
+                $this->app->instance(Cache::class, $cache);
+            });
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame($manager, Queue::getFacadeRoot());
+    }
+
     public function testQueueFakePreservesUniqueJobLockWithinTest(): void
     {
         Queue::fake();
@@ -594,6 +675,28 @@ class UniqueTestAfterCommitJob implements ShouldQueue, ShouldBeUnique
      * Handle the job.
      */
     public function handle(): void
+    {
+    }
+}
+
+class UniqueTestEvent
+{
+}
+
+class UniqueTestListener implements ShouldQueue, ShouldBeUnique
+{
+    /**
+     * Get the listener's unique ID.
+     */
+    public function uniqueId(): string
+    {
+        return 'unique-id-1';
+    }
+
+    /**
+     * Handle the event.
+     */
+    public function handle(UniqueTestEvent $event): void
     {
     }
 }

@@ -621,7 +621,8 @@ class QueueFake extends QueueManager implements Fake, Queue
                 'delay' => $delay,
             ];
 
-            if ($job instanceof ShouldBeUnique) {
+            if ($job instanceof ShouldBeUnique
+                || ($job instanceof CallQueuedListener && $job->shouldBeUnique())) {
                 $this->uniqueJobs[] = $job;
             }
 
@@ -812,6 +813,10 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     public function releaseUniqueJobLocks(): void
     {
+        if (empty($this->uniqueJobs)) {
+            return;
+        }
+
         $lock = new UniqueLock($this->app->make(Cache::class));
 
         foreach ($this->uniqueJobs as $job) {
