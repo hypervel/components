@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
 
 /**
+ * @method static void alwaysOnOneServer(bool $value = true)
  * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|array|string $callback, array $parameters = [])
  * @method static \Hypervel\Console\Scheduling\Event command(\Symfony\Component\Console\Command\Command|string $command, array $parameters = [])
  * @method static string compileArrayInput(string|int $key, array $value)

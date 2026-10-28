@@ -392,6 +392,19 @@ Schedule::command('report:generate')
     ->onOneServer();
 ```
 
+To apply `onOneServer` to all scheduled tasks, you may call the `alwaysOnOneServer` method in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Support\Facades\Schedule;
+
+public function boot(): void
+{
+    Schedule::alwaysOnOneServer();
+}
+```
+
+Scheduled closures without a [name](#naming-unique-jobs) are excluded and will continue to run on every server.
+
 You may use the `useCache` method to override the configured cache store used by the scheduler to obtain the atomic locks necessary for single-server tasks:
 
 ```php
