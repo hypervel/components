@@ -442,9 +442,11 @@ abstract class Queue
     {
         try {
             $stageViaOutbox = $this->shouldStageViaOutbox($job);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;

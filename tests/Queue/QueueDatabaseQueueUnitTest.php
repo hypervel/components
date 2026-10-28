@@ -728,6 +728,51 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
+    public function testOutboxSelectionCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    {
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'jobs', 'default');
+        $queue->setConnectionName('database');
+        $container = new Container;
+        $events = new Dispatcher($container);
+        $container->instance('events', $events);
+        $queue->setContainer($container);
+        $gate = $this->armCurrentCoroutineCancellation();
+        $cleanup = new RuntimeException('Transaction resolution cleanup failed.');
+        $container->bind('db.transactions', static function () use ($gate, $cleanup, $cleanupThrows): never {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+
+        try {
+            $queue->push((object) ['viaOutbox' => true]);
+            $this->fail('Expected cancellation to escape outbox selection.');
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+
+            $this->assertSame([], $failed);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
     public function testBulkCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
     {
         $queue = new TestDatabaseQueue(
