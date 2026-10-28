@@ -22,10 +22,10 @@ use Hypervel\Ai\Responses\StreamableAgentResponse;
 use Hypervel\Ai\Storage\StoredTurn;
 use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakReference;
 
@@ -207,10 +207,14 @@ class RememberConversation
         $cancellation = null;
 
         if ($newConversation) {
-            if (! $exception instanceof CanceledException && ! $exception instanceof StreamAbandonedException) {
+            if (($exception === null || ! Coroutine::causedByCancellation($exception)) && ! $exception instanceof StreamAbandonedException) {
                 try {
                     $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
-                } catch (CanceledException $caught) {
+                } catch (Throwable $caught) {
+                    if (! Coroutine::causedByCancellation($caught)) {
+                        throw $caught;
+                    }
+
                     $cancellation = $caught;
                 }
             }
@@ -367,9 +371,11 @@ class RememberConversation
             );
 
             return Str::limit($response->text, 100);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return Str::limit($prompt, 100, preserveWords: true);
         }
     }
