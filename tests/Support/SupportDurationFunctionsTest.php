@@ -13,8 +13,24 @@ use function Hypervel\Support\hours;
 use function Hypervel\Support\minutes;
 use function Hypervel\Support\seconds;
 
-class SupportIntervalFunctionsTest extends TestCase
+class SupportDurationFunctionsTest extends TestCase
 {
+    public function testDurationFunctionsAcceptIntegers(): void
+    {
+        $this->assertEquals(90, seconds(90)->totalSeconds);
+        $this->assertEquals(300, minutes(5)->totalSeconds);
+        $this->assertEquals(7200, hours(2)->totalSeconds);
+        $this->assertEquals(172800, days(2)->totalSeconds);
+    }
+
+    public function testDurationFunctionsKeepFractionalValues(): void
+    {
+        $this->assertEquals(1400, seconds(1.4)->totalMilliseconds);
+        $this->assertEquals(90, minutes(1.5)->totalSeconds);
+        $this->assertEquals(1800, hours(0.5)->totalSeconds);
+        $this->assertEquals(36, days(1.5)->totalHours);
+    }
+
     #[DataProvider('intervalProvider')]
     public function testIntervalsPreserveWholeAndFractionalUnits(
         callable $helper,
