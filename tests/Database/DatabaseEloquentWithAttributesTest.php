@@ -112,6 +112,23 @@ class DatabaseEloquentWithAttributesTest extends TestCase
         $this->assertSame(WithAttributesEnum::Internal, $model->type);
     }
 
+    public function testForceCreateAddsAttributesViaDb(): void
+    {
+        $this->bootTable();
+
+        WithAttributesModel::query()
+            ->withAttributes([
+                'is_admin' => 1,
+                'type' => WithAttributesEnum::Internal,
+            ])
+            ->forceCreate(['first_name' => 'FIRST', 'last_name' => 'LAST']);
+
+        $model = WithAttributesModel::first();
+
+        $this->assertTrue($model->is_admin);
+        $this->assertSame(WithAttributesEnum::Internal, $model->type);
+    }
+
     protected function bootTable(): void
     {
         $this->schema()->create((new WithAttributesModel)->getTable(), function ($table) {

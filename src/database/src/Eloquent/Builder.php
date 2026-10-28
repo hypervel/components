@@ -1216,7 +1216,7 @@ class Builder implements BuilderContract
     public function forceCreate(array $attributes): Model
     {
         return $this->model::unguarded(function () use ($attributes) {
-            return $this->newModelInstance()->create($attributes);
+            return $this->newModelInstance()->create(array_merge($this->pendingAttributes, $attributes));
         });
     }
 
