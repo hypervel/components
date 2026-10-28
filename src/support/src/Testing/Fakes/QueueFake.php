@@ -9,13 +9,10 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
-use Hypervel\Bus\UniqueLock;
-use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
@@ -33,6 +30,7 @@ use function Hypervel\Support\enum_value;
 
 /**
  * @phpstan-type RawPushType array{payload: string, queue: ?string, options: array<array-key, mixed>}
+ * @phpstan-import-type LockSnapshot from DispatchLockContext
  */
 class QueueFake extends QueueManager implements Fake, Queue
 {
@@ -68,9 +66,11 @@ class QueueFake extends QueueManager implements Fake, Queue
     protected array $rawPushes = [];
 
     /**
-     * All of the unique jobs that were pushed.
+     * The dispatch locks owned by faked jobs.
+     *
+     * @var list<LockSnapshot>
      */
-    protected array $uniqueJobs = [];
+    protected array $dispatchLocks = [];
 
     /**
      * All of the jobs that have been marked as reserved.
@@ -621,12 +621,12 @@ class QueueFake extends QueueManager implements Fake, Queue
                 'delay' => $delay,
             ];
 
-            if ($job instanceof ShouldBeUnique
-                || ($job instanceof CallQueuedListener && $job->shouldBeUnique())) {
-                $this->uniqueJobs[] = $job;
-            }
-
             if (is_object($job)) {
+                // Retain acquired ownership; reconstructing locks from jobs can release another dispatch's lock.
+                if (($snapshot = DispatchLockContext::snapshot($job)) !== null) {
+                    $this->dispatchLocks[] = $snapshot;
+                }
+
                 DispatchLockContext::accept($job);
             }
 
@@ -809,21 +809,15 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
-     * Release the locks for all unique jobs that were pushed.
+     * Release the dispatch locks owned by faked jobs.
      */
     public function releaseUniqueJobLocks(): void
     {
-        if (empty($this->uniqueJobs)) {
-            return;
+        foreach ($this->dispatchLocks as $snapshot) {
+            DispatchLockContext::releaseSnapshot($snapshot);
         }
 
-        $lock = new UniqueLock($this->app->make(Cache::class));
-
-        foreach ($this->uniqueJobs as $job) {
-            $lock->release($job);
-        }
-
-        $this->uniqueJobs = [];
+        $this->dispatchLocks = [];
     }
 
     /**

@@ -153,13 +153,15 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        $fake = static::fake($jobsToFake);
+        static::fake($jobsToFake);
 
         try {
             return $callable();
         } finally {
             try {
-                $fake->releaseUniqueJobLocks();
+                if (($fake = static::getFacadeRoot()) instanceof QueueFake) {
+                    $fake->releaseUniqueJobLocks();
+                }
             } finally {
                 static::swap($originalQueueManager);
             }
@@ -173,13 +175,15 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        $fake = static::fakeExcept($jobsToAllow);
+        static::fakeExcept($jobsToAllow);
 
         try {
             return $callable();
         } finally {
             try {
-                $fake->releaseUniqueJobLocks();
+                if (($fake = static::getFacadeRoot()) instanceof QueueFake) {
+                    $fake->releaseUniqueJobLocks();
+                }
             } finally {
                 static::swap($originalQueueManager);
             }

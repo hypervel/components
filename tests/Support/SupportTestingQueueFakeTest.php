@@ -554,6 +554,22 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertTrue($lock->acquire(new QueueFakeUniqueJobStub));
     }
 
+    public function testDirectPushDoesNotReleaseAnotherDispatchesUniqueLock(): void
+    {
+        $application = new Application;
+        $cache = new Repository(new WorkerArrayStore);
+        $application->instance(CacheContract::class, $cache);
+        $fake = new QueueFake($application);
+        $lock = new UniqueLock($cache);
+
+        $this->assertTrue($lock->acquire(new QueueFakeUniqueJobStub));
+
+        $fake->push(new QueueFakeUniqueJobStub);
+        $fake->releaseUniqueJobLocks();
+
+        $this->assertFalse($lock->acquire(new QueueFakeUniqueJobStub));
+    }
+
     public function testItCanInvokeCallbacksBeforeAndAfterPushingFakedJobs(): void
     {
         $steps = [];

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\UniqueJobTest;
 
+use Closure;
 use Exception;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository as CacheRepository;
@@ -28,7 +30,6 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -376,19 +377,33 @@ class UniqueJobTest extends QueueTestCase
 
     #[TestWith(['fakeFor'])]
     #[TestWith(['fakeExceptFor'])]
+    public function testScopedQueueFakeReleasesReplacementFakesLocks(string $method): void
+    {
+        Queue::{$method}(function (): void {
+            Queue::fake();
+            UniqueTestJob::dispatch();
+            Queue::assertPushed(UniqueTestJob::class);
+        });
+
+        $this->assertTrue(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+    }
+
+    #[TestWith(['fakeFor'])]
+    #[TestWith(['fakeExceptFor'])]
     public function testScopedQueueFakeRestoresManagerWhenLockCleanupThrows(string $method): void
     {
         $manager = Queue::getFacadeRoot();
         $failure = new RuntimeException('Cache unavailable during lock cleanup.');
         $caught = null;
+        DispatchLockContext::captureReleaseContextUsing(
+            static fn (): Closure => static fn (): never => throw $failure
+        );
 
         try {
-            Queue::{$method}(function () use ($failure): void {
+            Queue::{$method}(function (): void {
                 UniqueTestJob::dispatch();
-
-                $cache = m::mock(Cache::class);
-                $cache->shouldReceive('getStore')->once()->andThrow($failure);
-                $this->app->instance(Cache::class, $cache);
             });
         } catch (RuntimeException $exception) {
             $caught = $exception;
