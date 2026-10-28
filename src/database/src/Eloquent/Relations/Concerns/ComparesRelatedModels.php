@@ -21,7 +21,7 @@ trait ComparesRelatedModels
             && ConnectionName::withoutWriteType($this->related->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName());
 
         if ($match && $this instanceof SupportsPartialRelations && $this->isOneOfMany()) {
-            return $this->query
+            return (clone $this->query)
                 ->whereKey($model->getKey())
                 ->exists();
         }

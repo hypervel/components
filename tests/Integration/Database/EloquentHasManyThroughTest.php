@@ -154,6 +154,22 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals([1], $categories->pluck('id')->all());
     }
 
+    public function testHasOneOfManySameParentAndThroughParentTable(): void
+    {
+        Category::create();
+        Category::create();
+        Category::create(['parent_id' => 1]);
+        Category::create(['parent_id' => 2]);
+
+        $oldest = Product::create(['category_id' => 3]);
+        $latest = Product::create(['category_id' => 3]);
+
+        $this->assertEquals([1], Category::has('latestSubProduct')->pluck('id')->all());
+        $this->assertEquals([1], Category::whereHas('latestSubProduct', fn ($query) => $query->whereKey($latest->id))->pluck('id')->all());
+        $this->assertEquals([], Category::whereHas('latestSubProduct', fn ($query) => $query->whereKey($oldest->id))->pluck('id')->all());
+        $this->assertEquals([1 => 1, 2 => 0, 3 => 0, 4 => 0], Category::withCount('latestSubProduct')->pluck('latest_sub_product_count', 'id')->all());
+    }
+
     public function testFirstOrNewOnMissingRecord(): void
     {
         $taylor = User::create(['name' => 'Taylor', 'slug' => 'taylor']);
@@ -598,6 +614,14 @@ class Category extends Model
     public function subProducts(): HasManyThrough
     {
         return $this->hasManyThrough(Product::class, self::class, 'parent_id');
+    }
+
+    /**
+     * Get the latest product in the category's child categories.
+     */
+    public function latestSubProduct(): HasOneThrough
+    {
+        return $this->hasOneThrough(Product::class, self::class, 'parent_id')->latestOfMany();
     }
 }
 

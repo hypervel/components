@@ -82,6 +82,16 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertTrue($parent->attachment()->isNot($child));
     }
 
+    public function testChildIsNotModelOfAnotherParentType(): void
+    {
+        $parent = Post::first();
+        $child = Attachment::first();
+        $child->attachable_type = 'another-type';
+
+        $this->assertFalse($parent->attachment()->is($child));
+        $this->assertTrue($parent->attachment()->isNot($child));
+    }
+
     public function testChildIsNotModelWithAnotherConnection(): void
     {
         $parent = Post::first();

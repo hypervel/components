@@ -48,6 +48,10 @@ class DatabaseEloquentComparesRelatedModelsTest extends TestCase
             ->setConnection($connection)
             ->forceFill([$relatedKeyAttribute => $relatedKey]);
 
+        if ($relation instanceof MorphOne) {
+            $model->setAttribute($relation->getMorphType(), $relation->getMorphClass());
+        }
+
         $this->assertSame($expected, $relation->is($model));
         $this->assertSame(! $expected, $relation->isNot($model));
     }
