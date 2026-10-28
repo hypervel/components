@@ -9,6 +9,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
@@ -462,18 +463,19 @@ class PooledConnection implements PoolConnection
 
             // Recorded after the listeners, which may still change a shared connection's grammar.
             $this->recordDateFormat();
-        } catch (CanceledException $cancellation) {
-            $cancellationFailure = $cancellation;
-            $this->markInvalid();
         } catch (Throwable $exception) {
             $this->markInvalid();
 
-            try {
-                $this->logger->error('Release connection failed: ' . $exception);
-            } catch (CanceledException $loggingCancellation) {
-                $cancellationFailure = $loggingCancellation;
-            } catch (Throwable $loggingException) {
-                $ordinaryFailure = $loggingException;
+            if (Coroutine::causedByCancellation($exception)) {
+                $cancellationFailure = $exception;
+            } else {
+                try {
+                    $this->logger->error('Release connection failed: ' . $exception);
+                } catch (CanceledException $loggingCancellation) {
+                    $cancellationFailure = $loggingCancellation;
+                } catch (Throwable $loggingException) {
+                    $ordinaryFailure = $loggingException;
+                }
             }
         } finally {
             $this->lease?->detach();

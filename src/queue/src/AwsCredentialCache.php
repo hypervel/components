@@ -12,7 +12,7 @@ use GuzzleHttp\Promise\RejectedPromise;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class AwsCredentialCache
@@ -80,11 +80,13 @@ class AwsCredentialCache
                 $lock = $store->lock($key . ':refresh', static::LOCK_SECONDS);
 
                 $lock->block(static::LOCK_WAIT_SECONDS);
-            } catch (CanceledException $e) {
-                // The lock may have been acquired before the wait was canceled;
-                // releasing an unowned lock is a no-op.
-                $this->releaseAfterFailure($lock, $e);
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    // The lock may have been acquired before the wait was canceled;
+                    // releasing an unowned lock is a no-op.
+                    $this->releaseAfterFailure($lock, $e);
+                }
+
                 continue;
             }
 
@@ -121,9 +123,11 @@ class AwsCredentialCache
                     && $credentials->getExpiration() - time() > static::REFRESH_WINDOW) {
                     return $credentials;
                 }
-            } catch (CanceledException $e) {
-                throw $e;
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 // An unavailable store falls back to the next store or a direct fetch.
             }
         }
@@ -184,9 +188,11 @@ class AwsCredentialCache
         foreach ($this->repositories() as $repository) {
             try {
                 $repository()->put($key, $credentials, $ttl);
-            } catch (CanceledException $e) {
-                throw $e;
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 // An unavailable store must not prevent credential resolution.
             }
         }
@@ -200,9 +206,11 @@ class AwsCredentialCache
         foreach ($this->repositories() as $repository) {
             try {
                 $repository()->forget($key);
-            } catch (CanceledException $e) {
-                throw $e;
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 // An unavailable store must not prevent credential resolution.
             }
         }
@@ -225,9 +233,11 @@ class AwsCredentialCache
     {
         try {
             $lock?->release();
-        } catch (CanceledException $e) {
-            throw $e;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             // The lock expires on its own if it cannot be released.
         }
     }
@@ -242,11 +252,11 @@ class AwsCredentialCache
     {
         try {
             $lock?->release();
-        } catch (CanceledException $cleanupCancellation) {
-            if (! $failure instanceof CanceledException) {
-                throw $cleanupCancellation;
+        } catch (Throwable $cleanupException) {
+            if (Coroutine::causedByCancellation($cleanupException) && ! Coroutine::causedByCancellation($failure)) {
+                throw $cleanupException;
             }
-        } catch (Throwable) {
+
             // Preserve the primary failure.
         }
 

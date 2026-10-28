@@ -104,14 +104,12 @@ When code is running outside a coroutine, `Coroutine::id()` returns `-1`. Inside
 <a name="parent-coroutine-ids"></a>
 ### Parent Coroutine IDs
 
-You may retrieve the parent coroutine ID using the `parentId` method or its `pid` alias:
+You may retrieve the parent coroutine ID using the `parentId` method:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
 
 $parentId = Coroutine::parentId();
-
-$parentId = Coroutine::pid();
 ```
 
 When the current coroutine is a top-level coroutine, the parent ID is `0`. You may also pass a coroutine ID to inspect the parent of another coroutine:
@@ -358,19 +356,23 @@ Hypervel uses `Swoole\Coroutine\CanceledException` as a terminal control-flow si
 Most application code does not need special cancellation handling. If low-level application or package code catches `Throwable` to report, retry, wrap, or replace an operation failure, it should let cancellation escape first:
 
 ```php
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 try {
     $result = performOperation();
-} catch (CanceledException $exception) {
-    throw $exception;
 } catch (Throwable $exception) {
+    if (Coroutine::causedByCancellation($exception)) {
+        throw $exception;
+    }
+
     report($exception);
 
     return null;
 }
 ```
+
+`Coroutine::causedByCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. Rethrowing preserves any cleanup error for the caller to report. A cancellation wrapped in `Hypervel\Coroutine\Exceptions\ForeignCancellationException` came from another coroutine, such as the owner of a shared operation this code was waiting for. If the chain reaches that exception before it reaches a cancellation, `causedByCancellation` returns `false`, so you can handle it as an ordinary failure. `ChildCancellationException` extends it for independently canceled children.
 
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
@@ -379,12 +381,12 @@ Cleanup that does not wait should remain in `finally` as usual. Code that owns c
 
 Hypervel catches unhandled exceptions thrown inside `Coroutine::create`, `go`, `co`, or `Coroutine::fork` and reports them through the application's exception handler when one is available.
 
-You may disable this automatic reporting for the entire worker process using `enableReportException`:
+You may disable this automatic reporting for the entire worker process using `reportExceptions`:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
 
-Coroutine::enableReportException(false);
+Coroutine::reportExceptions(false);
 ```
 
 > [!WARNING]
@@ -544,7 +546,7 @@ Copied values follow the same rules as [`go` and `Coroutine::fork`](#copying-cor
 
 If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
 
-If the child is canceled independently while its waiting parent remains active, `wait` throws `Hypervel\Coroutine\Exceptions\ChildCancellationException`. The native cancellation is available as the previous exception.
+If the child is canceled independently while its waiting parent remains active, `wait` throws `Hypervel\Coroutine\Exceptions\ChildCancellationException`. Its previous exception is the native cancellation, or the cleanup error if the child's cleanup threw while unwinding cancellation.
 
 If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Coroutine\CanceledException` inside it. Hypervel then gives the child up to 10 seconds to finish and run its deferred callbacks before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException` in the waiting coroutine.
 
@@ -692,7 +694,7 @@ try {
 }
 ```
 
-An independently canceled child is recorded as `Hypervel\Coroutine\Exceptions\ChildCancellationException`, with the native cancellation available as its previous exception.
+An independently canceled child is recorded as `Hypervel\Coroutine\Exceptions\ChildCancellationException`. Its previous exception is the native cancellation, or the cleanup error if the child's cleanup threw while unwinding cancellation.
 
 <a name="limiting-parallel-work"></a>
 ### Limiting Parallel Work

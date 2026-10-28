@@ -8,11 +8,13 @@ use Exception;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\FakeJob;
+use Hypervel\Queue\Middleware\FailOnException;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
@@ -21,8 +23,10 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ThrottlesExceptionsTest extends TestCase
 {
@@ -405,7 +409,9 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertSame(63, $job->releasedAfter);
     }
 
-    public function testCancellationBypassesFailurePolicyAndRateLimitAccounting(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationBypassesFailurePolicyAndRateLimitAccounting(bool $cleanupThrows): void
     {
         $limiter = m::mock(Limiter::class);
         $limiter->expects('inspect')
@@ -443,17 +449,83 @@ class ThrottlesExceptionsTest extends TestCase
         $job = m::mock();
         $job->shouldNotReceive('release', 'delete', 'fail');
         $gate = $this->armCurrentCoroutineCancellation();
+        $cleanupException = new RuntimeException('Cleanup failed.');
 
         try {
-            $middleware->handle($job, static function () use ($gate): never {
-                $gate->push(true);
+            $middleware->handle($job, static function () use ($gate, $cleanupThrows, $cleanupException): never {
+                try {
+                    $gate->push(true);
 
-                throw new RuntimeException('Cancellation was not delivered.');
+                    throw new RuntimeException('Cancellation was not delivered.');
+                } finally {
+                    if ($cleanupThrows) {
+                        throw $cleanupException;
+                    }
+                }
             });
             $this->fail('Expected cancellation to escape the middleware.');
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+
             $this->assertFalse($callbacksCalled);
         }
+    }
+
+    public function testIndependentChildCancellationIsCountedAndReleased(): void
+    {
+        $job = (new CircuitBreakerTestJob)->withFakeQueueInteractions();
+        $failure = new ChildCancellationException(previous: new CanceledException);
+        $limiter = m::mock(Limiter::class);
+        $limiter->expects('inspect')->with(m::type(Limit::class))->andReturn(new LimitResult(true, 10, 10, 0, 0));
+        $limiter->expects('consume')->with(m::type(Limit::class))->andReturn(new LimitResult(true, 10, 9, 0, 0));
+        $limiter->shouldNotReceive('clear');
+        $rateLimiter = m::mock(RateLimiter::class);
+        $rateLimiter->expects('store')->with(null)->andReturn($limiter);
+        $this->app->instance(RateLimiter::class, $rateLimiter);
+        $this->spy(ExceptionHandler::class)->expects('report')->with($failure, []);
+
+        (new ThrottlesExceptions)->backoff(1)->report()->handle($job, static fn () => throw $failure);
+
+        $job->assertReleased(60)->assertNotFailed();
+    }
+
+    #[TestWith(['release'])]
+    #[TestWith(['delete'])]
+    #[TestWith(['fail'])]
+    public function testInnerTerminalActionIsNotReplacedByAnotherRelease(string $action): void
+    {
+        $job = (new CircuitBreakerTestJob)->withFakeQueueInteractions();
+        $exception = new RuntimeException('Inner pipeline failed.');
+        $released = 0;
+        $failed = 0;
+        $job->job->beforeReleasing(static function () use (&$released): void { ++$released; });
+        $job->job->beforeFailing(static function () use (&$failed): void { ++$failed; });
+
+        try {
+            (new ThrottlesExceptions)->handle($job, static function () use ($job, $action, $exception): never {
+                if ($action === 'fail') {
+                    (new FailOnException([RuntimeException::class]))->handle($job, static function () use ($exception): never {
+                        throw $exception;
+                    });
+                } else {
+                    $job->{$action}();
+                }
+
+                throw $exception;
+            });
+            $this->fail('Expected the original exception.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame($action === 'release' ? 1 : 0, $released);
+        $this->assertSame($action === 'fail' ? 1 : 0, $failed);
+        $this->assertSame($action === 'delete', $job->job->isDeleted());
     }
 
     public function testReportingExceptions(): void

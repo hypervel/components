@@ -30,6 +30,7 @@
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/reflection": "^0.4",

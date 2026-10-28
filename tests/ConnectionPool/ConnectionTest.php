@@ -19,6 +19,7 @@ use Hypervel\Tests\ConnectionPool\Fixtures\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -143,15 +144,18 @@ class ConnectionTest extends TestCase
         $fake->assertDispatched(ConnectionReleasing::class, fn (ConnectionReleasing $event): bool => $event->connection === $connection);
     }
 
-    public function testReleaseListenerCancellationStillReturnsTheConnectionOnce(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReleaseListenerCancellationStillReturnsTheConnectionOnce(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('listener canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Listener cleanup failed.', previous: $cancellation) : $cancellation;
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
         $container->shouldReceive('bound')->with('events')->andReturnTrue();
         $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
         $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow($cancellation);
+        $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
         $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
         $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
         $pool->shouldReceive('release')->once()->with($connection);
@@ -159,21 +163,24 @@ class ConnectionTest extends TestCase
         try {
             $connection->release();
             $this->fail('The release listener was expected to be canceled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
     }
 
-    public function testReleaseListenerCancellationRemainsPrimaryOverCleanupCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReleaseListenerCancellationRemainsPrimaryOverCleanupCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('listener canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Listener cleanup failed.', previous: $cancellation) : $cancellation;
         $cleanupCancellation = new CanceledException('release canceled');
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
         $container->shouldReceive('bound')->with('events')->andReturnTrue();
         $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
         $dispatcher->shouldReceive('hasListeners')->once()->with(ConnectionReleasing::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andThrow($cancellation);
+        $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
         $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
         $pool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
         $pool->shouldReceive('release')->once()->with($connection)->andThrow($cleanupCancellation);
@@ -181,8 +188,8 @@ class ConnectionTest extends TestCase
         try {
             $connection->release();
             $this->fail('The release listener was expected to be canceled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
     }
 

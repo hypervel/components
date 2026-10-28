@@ -34,6 +34,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -171,16 +172,21 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertTrue($_SERVER['__background.failed']);
     }
 
-    public function testCancellationDoesNotInvokeBackgroundExceptionCallback(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationReportsOnlyCleanupErrorsThroughTheExceptionCallback(bool $cleanupThrows): void
     {
         CancelingBackgroundQueueTestHandler::$failed = false;
-        $result = null;
+        $reported = [];
         $background = new BackgroundQueue;
-        $background->setExceptionCallback(static function (Throwable $exception) use (&$result): void {
-            $result = $exception;
+        $background->setExceptionCallback(static function (Throwable $exception) use (&$reported): void {
+            $reported[] = $exception;
         });
         $background->setConnectionName('background');
         $container = $this->getContainer();
+        $handler = new CancelingBackgroundQueueTestHandler;
+        $handler->cleanupException = $cleanupThrows ? new RuntimeException('Job cleanup failed.') : null;
+        $container->instance(CancelingBackgroundQueueTestHandler::class, $handler);
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->once();
@@ -191,7 +197,10 @@ class QueueBackgroundQueueTest extends TestCase
         try {
             run(fn () => $background->push(CancelingBackgroundQueueTestHandler::class));
 
-            $this->assertNull($result);
+            $this->assertSame($cleanupThrows ? [$handler->cleanupException] : [], $reported);
+            if ($cleanupThrows) {
+                $this->assertInstanceOf(CanceledException::class, $handler->cleanupException->getPrevious());
+            }
             $this->assertFalse(CancelingBackgroundQueueTestHandler::$failed);
         } finally {
             CancelingBackgroundQueueTestHandler::$failed = false;
@@ -730,6 +739,8 @@ class CancelingBackgroundQueueTestHandler
 {
     public static bool $failed = false;
 
+    public ?RuntimeException $cleanupException = null;
+
     public function fire(): never
     {
         $gate = new Channel(1);
@@ -740,9 +751,15 @@ class CancelingBackgroundQueueTestHandler
             EngineCoroutine::cancelById($coroutineId, throwException: true);
         });
 
-        $gate->push(true);
+        try {
+            $gate->push(true);
 
-        throw new RuntimeException('Cancellation was not delivered.');
+            throw new RuntimeException('Cancellation was not delivered.');
+        } finally {
+            if ($this->cleanupException !== null) {
+                throw $this->cleanupException;
+            }
+        }
     }
 
     public function failed(): void

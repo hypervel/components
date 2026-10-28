@@ -37,6 +37,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\UriInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -505,7 +506,9 @@ class PaginatorTest extends TestCase
         $this->assertSame(0, $paginator->totalResults());
     }
 
-    public function testFirstPageHandlerCancellationStopsBeforeSchedulingRemainingPages(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFirstPageHandlerCancellationStopsBeforeSchedulingRemainingPages(bool $cleanupThrows): void
     {
         $manager = $this->manager();
         $requested = [];
@@ -519,10 +522,11 @@ class PaginatorTest extends TestCase
         $started = new Channel(1);
         $blocker = new Channel(1);
         $nativeCancellation = null;
+        $cleanupException = new RuntimeException('Response handler cleanup failed.');
         $outcome = null;
-        $runner = EngineCoroutine::create(static function () use ($paginator, $started, $blocker, &$nativeCancellation, &$outcome): void {
+        $runner = EngineCoroutine::create(static function () use ($paginator, $started, $blocker, $cleanupThrows, $cleanupException, &$nativeCancellation, &$outcome): void {
             try {
-                $paginator->pool(responseHandler: static function () use ($started, $blocker, &$nativeCancellation): void {
+                $paginator->pool(responseHandler: static function () use ($started, $blocker, $cleanupThrows, $cleanupException, &$nativeCancellation): void {
                     $started->push(true);
 
                     try {
@@ -530,6 +534,10 @@ class PaginatorTest extends TestCase
                     } catch (CanceledException $exception) {
                         $nativeCancellation = $exception;
                         throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            throw $cleanupException;
+                        }
                     }
                 });
             } catch (Throwable $exception) {
@@ -543,7 +551,7 @@ class PaginatorTest extends TestCase
             EngineCoroutine::join([$runner->getId()], 5);
             $this->assertFalse(EngineCoroutine::exists($runner->getId()));
             $this->assertInstanceOf(CanceledException::class, $nativeCancellation);
-            $this->assertSame($nativeCancellation, $outcome);
+            $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $outcome);
             $this->assertSame([1], $requested);
         } finally {
             if (EngineCoroutine::exists($runner->getId())) {

@@ -33,7 +33,9 @@ use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Ai\agent;
 use function Hypervel\Tests\Ai\Fixtures\fakeOpenAiResponse;
@@ -62,17 +64,28 @@ class FilesystemToolsTest extends TestCase
     }
 
     #[DataProvider('cancellationPaths')]
-    public function testFilesystemCancellationIsNotConvertedToAToolResult(string $toolClass, string $method): void
+    public function testFilesystemCancellationIsNotConvertedToAToolResult(string $toolClass, string $method, bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('Download canceled.');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Filesystem cleanup failed.', previous: $cancellation);
+        }
         $disk = m::mock(FilesystemAdapter::class);
         $disk->shouldReceive('fileExists')->andReturn(true);
         $disk->shouldReceive('size')->andReturn(10)->byDefault();
+        $disk->shouldReceive('lastModified')->andReturn(1)->byDefault();
+        $disk->shouldReceive('mimeType')->andReturn('text/plain')->byDefault();
+        $disk->shouldReceive('getVisibility')->andReturn('public')->byDefault();
         $disk->shouldReceive($method)->once()->andThrow($cancellation);
+        $caught = null;
 
-        $this->expectExceptionObject($cancellation);
+        try {
+            (new $toolClass($disk))->handle(new Request(['path' => 'file.txt', 'from' => 'file.txt', 'to' => 'copy.txt']));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
 
-        (new $toolClass($disk))->handle(new Request(['path' => 'file.txt', 'from' => 'file.txt', 'to' => 'copy.txt']));
+        $this->assertSame($cancellation, $caught);
     }
 
     /**
@@ -80,14 +93,24 @@ class FilesystemToolsTest extends TestCase
      */
     public static function cancellationPaths(): array
     {
-        return [
+        $paths = [
             'copy' => [CopyFile::class, 'copy'],
             'move' => [MoveFile::class, 'move'],
             'read metadata' => [ReadFile::class, 'size'],
             'metadata size' => [GetFileMetadata::class, 'size'],
-            'optional metadata' => [GetFileMetadata::class, 'lastModified'],
+            'metadata modification time' => [GetFileMetadata::class, 'lastModified'],
+            'metadata MIME type' => [GetFileMetadata::class, 'mimeType'],
+            'metadata visibility' => [GetFileMetadata::class, 'getVisibility'],
             'URL' => [GetFileUrl::class, 'url'],
         ];
+        $cases = [];
+
+        foreach ($paths as $name => $arguments) {
+            $cases[$name] = [...$arguments, false];
+            $cases[$name . ' with cleanup failure'] = [...$arguments, true];
+        }
+
+        return $cases;
     }
 
     #[DataProvider('invalidSourcePaths')]
