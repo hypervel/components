@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import axios from 'axios';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vite-plus/test';
 import { h } from 'vue';
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import Base from '../base';
@@ -24,9 +24,13 @@ async function mountPreview(path = '/jobs/first') {
     const Parent = {
         data: () => ({ entry: null, batch: [] }),
         render() {
-            return h(PreviewScreen, { resource: 'jobs', title: 'Job', id: this.$route.params.id }, {
-                'after-attributes-card': ({ entry }) => h('p', { class: 'entry-content' }, entry.id),
-            });
+            return h(
+                PreviewScreen,
+                { resource: 'jobs', title: 'Job', id: this.$route.params.id },
+                {
+                    'after-attributes-card': ({ entry }) => h('p', { class: 'entry-content' }, entry.id),
+                },
+            );
         },
     };
     const router = createRouter({
@@ -41,17 +45,20 @@ async function mountPreview(path = '/jobs/first') {
         ],
     });
     await router.push(path);
-    wrapper = mount({
-        data: () => ({ alert: {} }),
-        render: () => h(RouterView),
-    }, {
-        global: {
-            plugins: [router],
-            mixins: [Base],
-            components: { 'preview-screen': PreviewScreen },
-            stubs: { 'vue-json-pretty': true, 'copy-clipboard': true },
+    wrapper = mount(
+        {
+            data: () => ({ alert: {} }),
+            render: () => h(RouterView),
         },
-    });
+        {
+            global: {
+                plugins: [router],
+                mixins: [Base],
+                components: { 'preview-screen': PreviewScreen },
+                stubs: { 'vue-json-pretty': true, 'copy-clipboard': true },
+            },
+        },
+    );
     wrapper.vm.$root.alert = wrapper.vm.alert;
     await flushPromises();
 
@@ -122,10 +129,12 @@ it('polls a pending job until it completes and stops on unmount', async () => {
 });
 
 it('loads scheduled entries through their endpoint and links tags to the schedule list', async () => {
-    axios.get.mockResolvedValue(response({
-        ...entry('first', 'finished'),
-        tags: ['daily,weekly'],
-    }));
+    axios.get.mockResolvedValue(
+        response({
+            ...entry('first', 'finished'),
+            tags: ['daily,weekly'],
+        }),
+    );
     const { screen } = await mountPreview('/schedule/first');
 
     expect(axios.get.mock.calls[0][0]).toBe('/telescope/telescope-api/schedule/first');
@@ -149,12 +158,26 @@ it('resolves an exception in its parent state and ignores completion after navig
     const exception = {
         ...entry('first'),
         family_hash: 'family',
-        content: { ...entry('first').content, class: 'RuntimeException', message: 'Failed', context: { user: 1 }, trace: [], line_preview: {} },
+        content: {
+            ...entry('first').content,
+            class: 'RuntimeException',
+            message: 'Failed',
+            context: { user: 1 },
+            trace: [],
+            line_preview: {},
+        },
     };
     axios.get.mockResolvedValue(response(exception));
-    axios.put.mockResolvedValue(response({ ...exception, content: { ...exception.content, resolved_at: '2026-10-28T01:00:00Z' } }));
+    axios.put.mockResolvedValue(
+        response({ ...exception, content: { ...exception.content, resolved_at: '2026-10-28T01:00:00Z' } }),
+    );
     const { router } = await mountPreview('/exceptions/first');
-    expect(wrapper.findAll('.nav-link').find(link => link.text() === 'Context').isVisible()).toBe(true);
+    expect(
+        wrapper
+            .findAll('.nav-link')
+            .find((link) => link.text() === 'Context')
+            .isVisible(),
+    ).toBe(true);
     await wrapper.find('button').trigger('click');
     wrapper.vm.alert.confirmationProceed();
     await flushPromises();

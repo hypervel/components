@@ -1,6 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import { format } from 'sql-formatter';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { h } from 'vue';
 import Preview from './preview.vue';
 
@@ -64,7 +64,7 @@ describe('query preview', () => {
         expect(wrapper.find('pre').text()).toContain('products');
         expect(wrapper.find('pre').text()).toMatch(/select/i);
         expect(wrapper.find('pre').text()).toBe(
-            format('select * from products where name like "%a%"', { language: 'sqlite' })
+            format('select * from products where name like "%a%"', { language: 'sqlite' }),
         );
     });
 
@@ -106,7 +106,7 @@ describe('query preview', () => {
         const wrapper = mountPreview({ driver: 'mysql', sql: query });
 
         expect(wrapper.findComponent({ name: 'copy-clipboard' }).props('data')).toBe(
-            format(query, { language: 'mysql' })
+            format(query, { language: 'mysql' }),
         );
     });
 

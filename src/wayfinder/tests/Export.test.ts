@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { exportMethod } from "./.generated/routes/index";
 
 test("export param", () => {

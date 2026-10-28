@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import copy from 'copy-to-clipboard';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vite-plus/test';
 import CopyClipboard from './CopyClipboard.vue';
 
 vi.mock('copy-to-clipboard', () => ({ default: vi.fn() }));

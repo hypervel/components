@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import { h } from 'vue';
 import Preview from './preview.vue';
 
@@ -23,7 +23,7 @@ function mountPreview(content) {
     });
 }
 
-it.each([0, false, '', null])('displays a recorded cache value of %j', value => {
+it.each([0, false, '', null])('displays a recorded cache value of %j', (value) => {
     const wrapper = mountPreview({ value });
 
     expect(wrapper.find('pre').exists()).toBe(true);
@@ -31,7 +31,7 @@ it.each([0, false, '', null])('displays a recorded cache value of %j', value => 
     wrapper.unmount();
 });
 
-it.each(['missed', 'forget'])('omits the value card for a %s entry without a value', type => {
+it.each(['missed', 'forget'])('omits the value card for a %s entry without a value', (type) => {
     const wrapper = mountPreview({ type });
 
     expect(wrapper.find('pre').exists()).toBe(false);

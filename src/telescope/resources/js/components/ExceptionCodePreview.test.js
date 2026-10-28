@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import ExceptionCodePreview from './ExceptionCodePreview.vue';
 
 it('displays source text without interpreting HTML on either kind of line', () => {
@@ -9,7 +9,7 @@ it('displays source text without interpreting HTML on either kind of line', () =
     });
 
     expect(wrapper.find('img').exists()).toBe(false);
-    expect(wrapper.findAll('p').map(line => line.text())).toEqual(['10 ' + source, '11 ' + source]);
+    expect(wrapper.findAll('p').map((line) => line.text())).toEqual(['10 ' + source, '11 ' + source]);
     expect(wrapper.find('p.highlight').find('.hljs-keyword').exists()).toBe(false);
     expect(wrapper.findAll('p')[1].find('.hljs-keyword').exists()).toBe(true);
     wrapper.unmount();

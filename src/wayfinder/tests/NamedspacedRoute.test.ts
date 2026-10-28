@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { store } from "./.generated/routes/namespaced/my-package";
 
 it("can access a namespaced route", () => {

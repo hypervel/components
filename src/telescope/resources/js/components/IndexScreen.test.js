@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import axios from 'axios';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { h } from 'vue';
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import Base from '../base';
@@ -28,13 +28,16 @@ async function mountIndex(path = '/logs', autoLoad = false) {
 
     container = document.createElement('div');
     document.body.appendChild(container);
-    wrapper = mount({
-        data: () => ({ alert: {}, autoLoadsNewEntries: autoLoad }),
-        render: () => h(RouterView),
-    }, {
-        attachTo: container,
-        global: { plugins: [router], mixins: [Base] },
-    });
+    wrapper = mount(
+        {
+            data: () => ({ alert: {}, autoLoadsNewEntries: autoLoad }),
+            render: () => h(RouterView),
+        },
+        {
+            attachTo: container,
+            global: { plugins: [router], mixins: [Base] },
+        },
+    );
     wrapper.vm.$root.alert = wrapper.vm.alert;
     wrapper.vm.$root.autoLoadsNewEntries = autoLoad;
     await flushPromises();
@@ -71,7 +74,7 @@ describe('entry lists', () => {
 
         pending.resolve(response([entry('stale')]));
         await flushPromises();
-        expect(screen.vm.entries.map(entry => entry.id)).toEqual(['first']);
+        expect(screen.vm.entries.map((entry) => entry.id)).toEqual(['first']);
     });
 
     it('keeps literal tag matching when polling for new entries', async () => {
@@ -100,7 +103,7 @@ describe('entry lists', () => {
         expect(axios.post).toHaveBeenCalledTimes(requests);
     });
 
-    it.each([false, true])('respects automatic loading set to %s', async autoLoad => {
+    it.each([false, true])('respects automatic loading set to %s', async (autoLoad) => {
         const { screen } = await mountIndex('/logs', autoLoad);
         axios.post.mockResolvedValue(response([entry('new')]));
         await vi.advanceTimersByTimeAsync(2500);
@@ -114,14 +117,15 @@ describe('entry lists', () => {
     it('updates pending jobs without changing unrelated entries', async () => {
         axios.post.mockResolvedValue(response([entry('first'), entry('finished', 'processed')]));
         const { screen } = await mountIndex('/jobs');
-        axios.post.mockImplementation((_url, body) => Promise.resolve(
-            response(body?.uuids ? [entry('first', 'processed')] : [entry('first')])
-        ));
+        axios.post.mockImplementation((_url, body) =>
+            Promise.resolve(response(body?.uuids ? [entry('first', 'processed')] : [entry('first')])),
+        );
         await vi.advanceTimersByTimeAsync(2500);
 
         expect(axios.post.mock.calls.find(([, body]) => body?.uuids)[1]).toEqual({ uuids: ['first'] });
-        expect(screen.vm.entries.map(entry => [entry.id, entry.content.status])).toEqual([
-            ['first', 'processed'], ['finished', 'processed'],
+        expect(screen.vm.entries.map((entry) => [entry.id, entry.content.status])).toEqual([
+            ['first', 'processed'],
+            ['finished', 'processed'],
         ]);
     });
 
