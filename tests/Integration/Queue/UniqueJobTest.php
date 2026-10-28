@@ -22,6 +22,7 @@ use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
@@ -30,6 +31,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -385,6 +387,25 @@ class UniqueJobTest extends QueueTestCase
             Queue::assertPushed(UniqueTestJob::class);
         });
 
+        $this->assertTrue(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+    }
+
+    #[TestWith(['fakeFor'])]
+    #[TestWith(['fakeExceptFor'])]
+    public function testScopedQueueFakeReleasesItsLocksAfterSwappingTheFacade(string $method): void
+    {
+        $manager = Queue::getFacadeRoot();
+
+        Queue::{$method}(function (): void {
+            UniqueTestJob::dispatch();
+            Queue::assertPushed(UniqueTestJob::class);
+
+            Queue::swap(m::mock(QueueManager::class));
+        });
+
+        $this->assertSame($manager, Queue::getFacadeRoot());
         $this->assertTrue(
             $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
         );

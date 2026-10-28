@@ -153,15 +153,13 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        static::fake($jobsToFake);
+        $fake = static::fake($jobsToFake);
 
         try {
             return $callable();
         } finally {
             try {
-                if (($fake = static::getFacadeRoot()) instanceof QueueFake) {
-                    $fake->releaseUniqueJobLocks();
-                }
+                static::releaseScopedFakeLocks($fake);
             } finally {
                 static::swap($originalQueueManager);
             }
@@ -175,18 +173,31 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        static::fakeExcept($jobsToAllow);
+        $fake = static::fakeExcept($jobsToAllow);
 
         try {
             return $callable();
         } finally {
             try {
-                if (($fake = static::getFacadeRoot()) instanceof QueueFake) {
-                    $fake->releaseUniqueJobLocks();
-                }
+                static::releaseScopedFakeLocks($fake);
             } finally {
                 static::swap($originalQueueManager);
             }
+        }
+    }
+
+    /**
+     * Release the dispatch locks owned by a scoped fake and its replacement.
+     */
+    protected static function releaseScopedFakeLocks(QueueFake $fake): void
+    {
+        $fake->releaseUniqueJobLocks();
+
+        // A fake installed inside the callback owns dispatches made after it replaced this one.
+        $active = static::getFacadeRoot();
+
+        if ($active instanceof QueueFake && $active !== $fake) {
+            $active->releaseUniqueJobLocks();
         }
     }
 
