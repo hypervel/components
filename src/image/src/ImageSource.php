@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Image;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Coroutine\Locker;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -66,13 +67,18 @@ class ImageSource
                 }
 
                 $this->contents = $contents;
-            } catch (CanceledException $exception) {
-                // The owner's cancellation belongs to the owner. Every other reader sees an
-                // ordinary failure, since the resolver cannot be repeated after a partial read.
-                $this->exception = new ImageException('Image source resolution was canceled.', previous: $exception);
-
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::isCancellation($exception)) {
+                    // The resolver cannot be repeated after a partial read. Other readers
+                    // receive its failure without inheriting the owner's cancellation.
+                    $this->exception = new ImageException('Image source resolution was canceled.', previous: new ForeignCancellationException(
+                        'The coroutine resolving the image source was canceled.',
+                        previous: $exception,
+                    ));
+
+                    throw $exception;
+                }
+
                 $this->exception = $exception;
             } finally {
                 $this->resolver = null;
