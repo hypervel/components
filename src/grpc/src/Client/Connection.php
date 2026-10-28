@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
@@ -498,7 +499,7 @@ final class Connection
                     if (! $this->isClosed()) {
                         try {
                             $this->failConnection($this->connectionException(
-                                $exception,
+                                new ForeignCancellationException($exception->getMessage(), previous: $exception),
                                 'The gRPC response receiver was canceled.',
                             ));
                         } catch (CanceledException) {
@@ -815,7 +816,10 @@ final class Connection
         string $fallback,
     ): never {
         try {
-            $this->terminateWhileLocked($this->connectionException($cancellation, $fallback));
+            $this->terminateWhileLocked($this->connectionException(
+                new ForeignCancellationException($cancellation->getMessage(), previous: $cancellation),
+                $fallback,
+            ));
         } catch (CanceledException) {
             // The caller's original cancellation remains the primary outcome.
         }

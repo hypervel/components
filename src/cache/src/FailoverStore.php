@@ -15,8 +15,8 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 use WeakReference;
@@ -296,9 +296,11 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
                 if (! $store->flushLocks()) {
                     $result = false;
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -361,9 +363,11 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
                     return $method instanceof Closure
                         ? $method($repository)
                         : $repository->{$method}(...$arguments);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $lastException = $exception;
 
                     $failedCaches[] = $store;
@@ -405,9 +409,11 @@ class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, C
             foreach ($this->stores as $position => $store) {
                 try {
                     $results[] = $this->store($store)->{$method}(...$arguments);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $lastException = $exception;
                     $failedCaches[] = $store;
 

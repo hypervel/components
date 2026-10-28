@@ -1,0 +1,50 @@
+name: framework installation
+
+on:
+  push:
+    branches: ['0.4']
+  pull_request:
+    branches: ['0.4']
+  schedule:
+    - cron: '37 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve framework (${{ github.event_name == 'schedule' && 'published' || 'checkout' }})
+    if: github.event_name != 'schedule' || github.repository == 'hypervel/components'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+    env:
+      HYPERVEL_INSTALL_DIR: ${{ github.workspace }}/.tmp/framework-install
+      COMPOSER_MEMORY_LIMIT: '-1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Validate metapackage
+        run: composer validate --strict --no-check-lock src/framework/composer.json
+
+      - name: Create a clean project requiring only the framework
+        run: |
+          mkdir -p "$HYPERVEL_INSTALL_DIR"
+          composer --working-dir="$HYPERVEL_INSTALL_DIR" init --name=hypervel/framework-install-check --type=project --license=MIT --require=hypervel/framework:0.4.x-dev --no-interaction
+          composer --working-dir="$HYPERVEL_INSTALL_DIR" config minimum-stability dev
+          composer --working-dir="$HYPERVEL_INSTALL_DIR" config prefer-stable true
+
+      # Nightly runs check Packagist; PRs, pushes, and manual runs check this commit.
+      - name: Use the checked-out packages
+        if: github.event_name != 'schedule'
+        run: php .github/scripts/use-local-packages.php "$HYPERVEL_INSTALL_DIR" 0.4.x-dev
+
+      - name: Resolve runtime dependencies without skeleton or monorepo dev dependencies
+        run: composer --working-dir="$HYPERVEL_INSTALL_DIR" update --no-install --no-dev --no-interaction --no-progress

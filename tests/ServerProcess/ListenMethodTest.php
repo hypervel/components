@@ -218,7 +218,7 @@ class ListenMethodTest extends TestCase
 
     public function testListenerClosesItsChannelWhenTheExceptionReporterThrows(): void
     {
-        Coroutine::enableReportException(false);
+        Coroutine::reportExceptions(false);
         $reporterFailure = new RuntimeException('reporter failed');
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')

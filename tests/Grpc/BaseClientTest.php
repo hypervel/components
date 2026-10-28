@@ -8,8 +8,10 @@ use Closure;
 use Google\Protobuf\Internal\Message;
 use Google\Protobuf\StringValue;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Engine\Http\V2\Response;
 use Hypervel\Grpc\Client\BaseClient;
 use Hypervel\Grpc\Client\BidiStreamingCall;
@@ -35,9 +37,12 @@ use Hypervel\Tests\Grpc\Fixtures\ClientCallClientFactory;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -292,6 +297,41 @@ class BaseClientTest extends TestCase
             $this->assertNull($result->exception);
             $this->assertSame(1, $result->attemptCount);
         }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileReleasingAnIdleConnectionDoesNotFinishTheOperation(bool $cleanupThrows): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->bindFactory(new ClientCallClientFactory($engineClient));
+        $finished = false;
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe(
+            new BaseClientGrpcOperationObserverStub(
+                static fn (): null => null,
+                static function () use (&$finished): void {
+                    $finished = true;
+                },
+            ),
+        );
+        $client = $this->newClient();
+        $cancellation = new CanceledException;
+        $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: $cancellation) : $cancellation;
+        $lease = m::mock(ConnectionLease::class);
+        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        CoroutineContext::set('__grpc.test.connection_lease', $lease);
+
+        try {
+            $client->unary('/testing.Service/Unary', new StringValue, [StringValue::class, 'decode']);
+            $this->fail('Expected cancellation before the transport starts.');
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
+        } finally {
+            CoroutineContext::forget('__grpc.test.connection_lease');
+        }
+
+        $this->assertFalse($finished);
+        $this->assertSame([], $engineClient->sentRequests);
     }
 
     public function testPreTransportFailureFinishesTheLogicalOperationWithoutAnAttempt(): void

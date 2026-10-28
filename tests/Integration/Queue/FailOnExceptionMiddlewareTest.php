@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Queue;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -111,7 +112,9 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $expectedToFail ? $job->assertFailed() : $job->assertNotFailed();
     }
 
-    public function testCancellationBypassesTheFailurePredicateAndJobFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationBypassesTheFailurePredicateAndJobFailure(bool $cleanupThrows): void
     {
         $predicateCalled = false;
         $middleware = new FailOnException(
@@ -124,17 +127,77 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $job = m::mock();
         $job->shouldNotReceive('fail');
         $gate = $this->armCurrentCoroutineCancellation();
+        $cleanupException = new LogicException('Cleanup failed.');
 
         try {
-            $middleware->handle($job, static function () use ($gate): never {
-                $gate->push(true);
+            $middleware->handle($job, static function () use ($gate, $cleanupThrows, $cleanupException): never {
+                try {
+                    $gate->push(true);
 
-                throw new LogicException('Cancellation was not delivered.');
+                    throw new LogicException('Cancellation was not delivered.');
+                } finally {
+                    if ($cleanupThrows) {
+                        throw $cleanupException;
+                    }
+                }
             });
             $this->fail('Expected cancellation to escape the middleware.');
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+
             $this->assertFalse($predicateCalled);
         }
+    }
+
+    public function testIndependentChildCancellationAppliesTheFailurePolicy(): void
+    {
+        $job = (new FailOnExceptionMiddlewareTestJob(LogicException::class))->withFakeQueueInteractions();
+        $failure = new ChildCancellationException(previous: new CanceledException);
+        $middleware = new FailOnException([ChildCancellationException::class]);
+
+        try {
+            $middleware->handle($job, static fn () => throw $failure);
+            $this->fail('Expected the child failure.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $job->assertFailedWith($failure)->assertNotReleased();
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReleasedJobIsNotFailedEvenWhenThePredicateReleasesIt(bool $releaseInPredicate): void
+    {
+        $job = (new FailOnExceptionMiddlewareTestJob(LogicException::class))->withFakeQueueInteractions();
+        $exception = new LogicException('Job failed after release.');
+        $middleware = new FailOnException(static function () use ($job, $releaseInPredicate): bool {
+            if ($releaseInPredicate) {
+                $job->release(30);
+            }
+
+            return true;
+        });
+
+        try {
+            $middleware->handle($job, static function () use ($job, $releaseInPredicate, $exception): never {
+                if (! $releaseInPredicate) {
+                    $job->release(30);
+                }
+
+                throw $exception;
+            });
+            $this->fail('Expected the original exception.');
+        } catch (LogicException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $job->assertReleased(30)->assertNotFailed();
     }
 
     /**

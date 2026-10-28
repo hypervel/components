@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Http\Auth;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Locker;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Saloon\Data\TokenAcquisitionResult;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class TokenAcquisition
@@ -50,10 +50,10 @@ class TokenAcquisition
                 $result->completed = true;
 
                 return $result->value;
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
-                $result->error = $exception;
+                if (! Coroutine::causedByCancellation($exception)) {
+                    $result->error = $exception;
+                }
 
                 throw $exception;
             } finally {

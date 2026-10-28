@@ -19,7 +19,6 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\ProcessUtils;
 use Override;
 use ReflectionClass;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -404,16 +403,16 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
                 $exception = $throwable;
             }
 
-            if (! $exception instanceof CanceledException
+            if (($exception === null || ! Coroutine::causedByCancellation($exception))
                 && $container->resolvedScoped(DeferredCallbackCollection::class)
             ) {
                 try {
                     $container->make(DeferredCallbackCollection::class)
                         ->invokeWhen(fn (DeferredCallback $callback): bool => ($exception === null && $exitCode === SymfonyCommand::SUCCESS) || $callback->always);
-                } catch (CanceledException $cancellation) {
-                    $exception = $cancellation;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if ($exception === null || Coroutine::causedByCancellation($throwable)) {
+                        $exception = $throwable;
+                    }
                 }
             }
         } finally {

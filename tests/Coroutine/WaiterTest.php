@@ -20,6 +20,7 @@ use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -392,19 +393,24 @@ class WaiterTest extends TestCase
         $this->assertFalse($childAlive);
     }
 
-    public function testIndependentChildCancellationIsWrappedForTheActiveOwner(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIndependentChildCancellationIsWrappedForTheActiveOwner(bool $cleanupThrows): void
     {
         $waiter = new Waiter;
         $childStarted = new Channel(1);
         $childBlocker = new Channel(1);
         $childCoroutineId = null;
         $childCancellation = null;
+        $cleanupException = new RuntimeException('Child cleanup failed.');
         $outcome = null;
 
         $parent = EngineCoroutine::create(function () use (
             $waiter,
             $childStarted,
             $childBlocker,
+            $cleanupThrows,
+            $cleanupException,
             &$childCoroutineId,
             &$childCancellation,
             &$outcome,
@@ -413,6 +419,8 @@ class WaiterTest extends TestCase
                 $outcome = $waiter->wait(function () use (
                     $childStarted,
                     $childBlocker,
+                    $cleanupThrows,
+                    $cleanupException,
                     &$childCoroutineId,
                     &$childCancellation,
                 ): void {
@@ -424,6 +432,11 @@ class WaiterTest extends TestCase
                     } catch (CanceledException $exception) {
                         $childCancellation = $exception;
                         throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            Coroutine::sleep(0.001);
+                            throw $cleanupException;
+                        }
                     }
                 });
             } catch (Throwable $exception) {
@@ -431,14 +444,24 @@ class WaiterTest extends TestCase
             }
         });
 
-        $this->assertTrue($childStarted->pop());
-        $this->assertIsInt($childCoroutineId);
-        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
-        Coroutine::join([$parent->getId()]);
+        try {
+            $this->assertTrue($childStarted->pop(1));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+            Coroutine::join([$parent->getId()], 1);
+        } finally {
+            $childBlocker->close();
+            Coroutine::join([$parent->getId()], 1);
+        }
 
         $this->assertInstanceOf(ChildCancellationException::class, $outcome);
         $this->assertSame('A child coroutine managed by Waiter was canceled while its owner remained active.', $outcome->getMessage());
-        $this->assertSame($childCancellation, $outcome->getPrevious());
+        $this->assertSame($cleanupThrows ? $cleanupException : $childCancellation, $outcome->getPrevious());
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
+
+        if ($cleanupThrows) {
+            $this->assertSame($childCancellation, $cleanupException->getPrevious());
+        }
     }
 
     public function testWaitReturnsAfterDeferredWorkCompletes(): void

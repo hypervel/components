@@ -7,6 +7,8 @@ on:
       - 'bin/release.sh'
       - 'bin/splitsh-lite'
       - '.github/scripts/release.test.py'
+      - '.github/scripts/check-skeleton-startup.sh'
+      - '.github/scripts/check-skeleton-startup.test.py'
       - '.github/workflows/publishing-tests.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/split.yml'
@@ -16,6 +18,8 @@ on:
       - 'bin/release.sh'
       - 'bin/splitsh-lite'
       - '.github/scripts/release.test.py'
+      - '.github/scripts/check-skeleton-startup.sh'
+      - '.github/scripts/check-skeleton-startup.test.py'
       - '.github/workflows/publishing-tests.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/split.yml'
@@ -33,5 +37,8 @@ jobs:
         run: |
           bash -n bin/split.sh
           bash -n bin/release.sh
+          bash -n .github/scripts/check-skeleton-startup.sh
       - name: Test publishing with local repositories
         run: python3 .github/scripts/release.test.py
+      - name: Test skeleton startup cleanup
+        run: python3 .github/scripts/check-skeleton-startup.test.py

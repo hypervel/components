@@ -19,8 +19,24 @@ permissions:
   contents: read
 
 jobs:
+  config:
+    name: Check generated configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist --no-interaction --no-scripts
+      - name: Check skeleton configuration
+        run: composer check:skeleton-config
+
   split:
     name: Split on branch ${{ github.ref }}
+    needs: config
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

@@ -15,14 +15,19 @@ use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\Channel as BroadcastChannel;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class BroadcastBatchingTest extends TestCase
 {
@@ -158,12 +163,13 @@ class BroadcastBatchingTest extends TestCase
     }
 
     #[DataProvider('cancellationModes')]
-    public function testCancelingAProducerBlockedOnItsBacklogCancelsTheSender(bool $throwException): void
+    public function testCancelingAProducerBlockedOnItsBacklogCancelsTheSender(bool $throwException, bool $cleanupThrows): void
     {
         config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
         $waiting = new Channel(1);
         $active = false;
         $caught = null;
+        $cleanupException = new RuntimeException('Producer cleanup failed.');
         Event::listen(AnonymousEvent::class, static function () use ($waiting, &$active): void {
             $active = true;
             try {
@@ -172,15 +178,21 @@ class BroadcastBatchingTest extends TestCase
                 $active = false;
             }
         });
-        $parent = EngineCoroutine::create(static function () use (&$caught): void {
-            $response = new StreamableAgentResponse('invocation', static function (): Generator {
-                for ($index = 0; $index < 256; ++$index) {
-                    yield new TextDelta((string) $index, 'message', 'x', 1);
+        $parent = EngineCoroutine::create(static function () use (&$caught, $cleanupThrows, $cleanupException): void {
+            $response = new StreamableAgentResponse('invocation', static function () use ($cleanupThrows, $cleanupException): Generator {
+                try {
+                    for ($index = 0; $index < 256; ++$index) {
+                        yield new TextDelta((string) $index, 'message', 'x', 1);
+                    }
+                } finally {
+                    if ($cleanupThrows) {
+                        throw $cleanupException;
+                    }
                 }
             });
             try {
                 $response->broadcast(new BroadcastChannel('conversation'));
-            } catch (CanceledException $exception) {
+            } catch (Throwable $exception) {
                 $caught = $exception;
             }
         });
@@ -189,7 +201,12 @@ class BroadcastBatchingTest extends TestCase
             $this->assertTrue($active);
             $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), $throwException));
             Coroutine::join([$parent->getId()], 1);
-            $this->assertInstanceOf(CanceledException::class, $caught);
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $caught);
+                $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $caught);
+            }
             $this->assertFalse($active);
         } finally {
             $waiting->close();
@@ -201,11 +218,97 @@ class BroadcastBatchingTest extends TestCase
     }
 
     /**
-     * Cover both native coroutine cancellation modes.
+     * Cover both native cancellation modes with normal and throwing cleanup.
      */
     public static function cancellationModes(): array
     {
-        return ['throw' => [true], 'return false' => [false]];
+        return [
+            'throw' => [true, false],
+            'return false' => [false, false],
+            'throw with cleanup failure' => [true, true],
+            'return false with cleanup failure' => [false, true],
+        ];
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testCancellationWhileFinishingBroadcastsCancelsTheSender(bool $cleanupThrows, bool $producerFails): void
+    {
+        config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
+        $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: new CanceledException) : new CanceledException;
+        $lease = m::mock(ConnectionLease::class);
+        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        $waiting = new Channel(1);
+        $senderCanceled = false;
+        $senderId = null;
+        Event::listen(AnonymousEvent::class, static function () use ($waiting, &$senderCanceled, &$senderId): void {
+            $senderId = Coroutine::id();
+
+            try {
+                $waiting->pop(1);
+            } catch (CanceledException $exception) {
+                $senderCanceled = true;
+                throw $exception;
+            }
+        });
+        $response = new StreamableAgentResponse('invocation', static function () use ($producerFails): Generator {
+            yield new TextDelta('text', 'message', 'Hello', 1);
+            if ($producerFails) {
+                throw new RuntimeException('Producer failed.');
+            }
+        });
+        $caught = null;
+        CoroutineContext::set('__ai.test.connection_lease', $lease);
+
+        try {
+            $response->broadcast(new BroadcastChannel('conversation'));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            CoroutineContext::forget('__ai.test.connection_lease');
+            $waiting->close();
+            if ($senderId !== null) {
+                Coroutine::join([$senderId], 1);
+            }
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertTrue($senderCanceled);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIndependentSenderCancellationIsAChildFailure(bool $cleanupThrows): void
+    {
+        config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
+        $cleanupException = new RuntimeException('Sender cleanup failed.');
+        Event::listen(AnonymousEvent::class, static function () use ($cleanupThrows, $cleanupException): void {
+            try {
+                EngineCoroutine::cancelById(Coroutine::id(), throwException: true);
+            } finally {
+                if ($cleanupThrows) {
+                    Coroutine::sleep(0.001);
+                    throw $cleanupException;
+                }
+            }
+        });
+        $response = new StreamableAgentResponse('invocation', static fn (): array => [new TextDelta('text', 'message', 'Hello', 1)]);
+
+        try {
+            $response->broadcast(new BroadcastChannel('conversation'));
+            $this->fail('The sender cancellation must reach the caller.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertFalse(Coroutine::causedByCancellation($exception));
+
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $exception->getPrevious());
+                $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            }
+        }
     }
 
     public function testSenderFailureReachesTheCallerAndDisposesTheProducer(): void

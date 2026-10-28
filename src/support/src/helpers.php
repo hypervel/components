@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
@@ -17,7 +18,6 @@ use Hypervel\Support\Optional;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable as SupportStringable;
-use Swoole\Coroutine\CanceledException;
 
 if (! function_exists('append_config')) {
     /**
@@ -337,9 +337,11 @@ if (! function_exists('retry')) {
 
             try {
                 return $callback($attempts);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 if ($times < 1 || ($when && ! $when($e))) {
                     throw $e;
                 }

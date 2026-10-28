@@ -49,6 +49,7 @@ use Hypervel\Tests\Ai\Fixtures\OpenAiHelpers;
 use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -561,7 +562,7 @@ class RememberConversationTest extends TestCase
     }
 
     #[DataProvider('stoppedTitleModes')]
-    public function testRecordableStoppedStreamsDoNotWaitForOrStartTitleRequests(bool $concurrent, bool $abandoned): void
+    public function testRecordableStoppedStreamsDoNotWaitForOrStartTitleRequests(bool $concurrent, bool $abandoned, bool $cleanupThrows): void
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => $concurrent]);
         $prompt = $this->prompt();
@@ -570,6 +571,9 @@ class RememberConversationTest extends TestCase
         $active = false;
         $finished = false;
         $failure = new CanceledException('Stream consumer canceled');
+        if ($cleanupThrows) {
+            $failure = new RuntimeException('Stream cleanup failed.', previous: $failure);
+        }
         $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
             ->makePartial()->shouldAllowMockingProtectedMethods();
 
@@ -630,9 +634,10 @@ class RememberConversationTest extends TestCase
     public static function stoppedTitleModes(): array
     {
         return [
-            'serial abandonment' => [false, true],
-            'concurrent abandonment' => [true, true],
-            'serial cancellation' => [false, false],
+            'serial abandonment' => [false, true, false],
+            'concurrent abandonment' => [true, true, false],
+            'serial cancellation' => [false, false, false],
+            'serial cancellation with cleanup failure' => [false, false, true],
         ];
     }
 
@@ -867,11 +872,16 @@ class RememberConversationTest extends TestCase
         return ['failed turn' => [true], 'completed turn' => [false]];
     }
 
-    public function testTitleCancellationSavesTheCompletedTurnBeforeRethrowing(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTitleCancellationSavesTheCompletedTurnBeforeRethrowing(bool $cleanupThrows): void
     {
         config(['ai.conversations.generate_title' => true]);
         $prompt = $this->prompt();
         $failure = new CanceledException('Title request canceled');
+        if ($cleanupThrows) {
+            $failure = new RuntimeException('Title cleanup failed.', previous: $failure);
+        }
         $loop = m::mock(TextGenerationLoop::class);
         $loop->shouldReceive('generate')->once()->andThrow($failure);
         $prompt->provider()->shouldReceive('textGenerationLoop')->once()->andReturn($loop);

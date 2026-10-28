@@ -24,7 +24,9 @@ use Hypervel\Support\Stringable;
 use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -341,6 +343,52 @@ class EventTest extends TestCase
         $event->releaseMutexOnTerminationSignal();
     }
 
+    #[TestWith(['start', false])]
+    #[TestWith(['start', true])]
+    #[TestWith(['after', false])]
+    #[TestWith(['after', true])]
+    #[TestWith(['output', false])]
+    #[TestWith(['output', true])]
+    public function testCancellationDuringCleanupSupersedesAnEarlierFailure(string $failurePhase, bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('Cleanup canceled.');
+        $cleanup = $cleanupThrows ? new RuntimeException('Cleanup failed.') : null;
+        $cancel = static function () use ($cancellation, $cleanup): never {
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
+        };
+        $mutex = m::mock(EventMutex::class);
+        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $event = new EventTestExecutableEvent($mutex);
+        $event->withoutOverlapping();
+
+        if ($failurePhase === 'output') {
+            $event->sendOutputTo('test.log')->after($cancel);
+            $filesystem = m::mock(Filesystem::class);
+            $filesystem->shouldReceive('isFile')->once()->with('test.log')->andReturnTrue();
+            $filesystem->shouldReceive('put')->once()->with('test.log', 'output')->andReturnFalse();
+            $this->container->instance(Filesystem::class, $filesystem);
+            $mutex->shouldReceive('forget')->once();
+        } else {
+            $event->{$failurePhase === 'start' ? 'before' : 'after'}(static fn () => throw new RuntimeException('Earlier failure.'));
+            $mutex->shouldReceive('forget')->once()->andReturnUsing($cancel);
+        }
+
+        try {
+            $event->run($this->container);
+            $this->fail('Expected cancellation to supersede the earlier failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
+        }
+
+        $event->releaseMutexOnTerminationSignal();
+    }
+
     public function testExitPublicationFailureStillRunsCallbacksAndReleasesMutex(): void
     {
         $afterCalled = false;
@@ -548,6 +596,49 @@ class EventTest extends TestCase
 
         $this->assertTrue($afterCalled);
         $this->assertFalse($event->hasRetainedProcess());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOutputCancellationReleasesTheMutexAndProcessWithoutRunningAfterCallbacks(bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('Output write canceled.');
+        $cleanup = $cleanupThrows ? new RuntimeException('Output cleanup failed.') : null;
+        $afterCalled = false;
+        $process = m::mock(Process::class);
+        $process->shouldReceive('getOutput')->once()->andReturn('process output');
+        $mutex = m::mock(EventMutex::class);
+        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $mutex->shouldReceive('forget')->once();
+        $event = new EventTestProcessEvent($mutex, $process);
+        $event->withoutOverlapping()->sendOutputTo('test.log');
+        $event->after(static function () use (&$afterCalled): void {
+            $afterCalled = true;
+        });
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('put')->once()->with('test.log', 'process output')->andReturnUsing(
+            static function () use ($cancellation, $cleanup): never {
+                try {
+                    throw $cancellation;
+                } finally {
+                    if ($cleanup !== null) {
+                        throw $cleanup;
+                    }
+                }
+            }
+        );
+        $this->container->instance(Filesystem::class, $filesystem);
+
+        try {
+            $event->run($this->container);
+            $this->fail('Expected output cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
+        }
+
+        $this->assertFalse($afterCalled);
+        $this->assertFalse($event->hasRetainedProcess());
+        $event->releaseMutexOnTerminationSignal();
     }
 
     public function testProcessIsReleasedAfterAfterCallbackFailure(): void

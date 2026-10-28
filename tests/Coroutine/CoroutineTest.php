@@ -10,6 +10,8 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
@@ -18,14 +20,46 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
 
 class CoroutineTest extends TestCase
 {
+    #[DataProvider('cancellationExceptions')]
+    public function testCancellationClassificationRespectsCoroutineBoundaries(Throwable $exception, bool $expected): void
+    {
+        $this->assertSame($expected, Coroutine::causedByCancellation($exception));
+    }
+
+    /**
+     * Distinguish operation cancellation from another coroutine's failure.
+     */
+    public static function cancellationExceptions(): array
+    {
+        $cancellation = new CanceledException;
+        $cleanup = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        $child = new ChildCancellationException('The child stopped.', previous: $cleanup);
+        $foreign = new ForeignCancellationException('The shared operation stopped.', previous: $cleanup);
+
+        return [
+            'direct cancellation' => [$cancellation, true],
+            'cleanup replaced cancellation' => [$cleanup, true],
+            'nested cleanup' => [new RuntimeException(previous: $cleanup), true],
+            'independent child' => [$child, false],
+            'wrapped independent child' => [new RuntimeException(previous: $child), false],
+            'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
+            'shared operation' => [$foreign, false],
+            'wrapped shared operation' => [new RuntimeException(previous: $foreign), false],
+            'ordinary error' => [new RuntimeException, false],
+        ];
+    }
+
     public function testCreateAndForkReturnPositiveCoroutineIds(): void
     {
         $this->assertGreaterThan(0, Coroutine::create(static fn (): null => null));
@@ -263,7 +297,9 @@ class CoroutineTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
     }
 
-    public function testFlushStateRestoresExceptionReporting(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExceptionReportingCanBeRestored(bool $flushState): void
     {
         try {
             $container = new Container;
@@ -273,11 +309,19 @@ class CoroutineTest extends TestCase
 
             $handler->shouldReceive('report')->once();
 
-            Coroutine::enableReportException(false);
-            Coroutine::flushState();
+            Coroutine::reportExceptions(false);
+            Coroutine::create(function () {
+                throw new Exception('Reporting is disabled.');
+            });
+
+            if ($flushState) {
+                Coroutine::flushState();
+            } else {
+                Coroutine::reportExceptions();
+            }
 
             Coroutine::create(function () {
-                throw new Exception('Should be reported after flushState.');
+                throw new Exception('Reporting is enabled again.');
             });
         } finally {
             Coroutine::flushState();

@@ -20,6 +20,7 @@ parameters:
   treatPhpDocTypesAsCertain: false
   reportUnmatchedIgnoredErrors: false
   paths:
+    - bin/sync-skeleton-config
     - src
     - src/testing/bin/hypervel-test-profile
   scanFiles:

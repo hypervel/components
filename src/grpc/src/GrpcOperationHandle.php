@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Grpc;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Contracts\GrpcOperationObserver;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -49,9 +49,11 @@ final class GrpcOperationHandle
         foreach ($this->observers as [$observer, $token]) {
             try {
                 $observer->finished($this->operation, $token, $result);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $observerFailure ??= $throwable;
             }
         }

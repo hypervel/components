@@ -234,10 +234,17 @@ trait HandlesTextStreaming
             }
         }
 
+        $finishReason = $this->extractFinishReason($lastData);
+
+        // Ollama reports stop alongside complete tool calls; a length stop truncated the response, so its calls must not run.
+        if ($finishReason === FinishReason::Stop && $toolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
+        }
+
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
-            finishReason: filled($toolCalls) ? FinishReason::ToolCalls : $this->extractFinishReason($lastData),
+            finishReason: $finishReason,
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $lastData['model'] ?? $model),
         );

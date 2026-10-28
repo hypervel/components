@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Pagination;
 
 use Countable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Saloon\Exceptions\PoolException;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Request;
@@ -16,7 +17,6 @@ use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
 use Iterator;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -285,9 +285,11 @@ abstract class Paginator implements Countable, Iterator
             if ($responseHandler !== null) {
                 try {
                     $responseHandler($firstResponse, $firstKey);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $initialCallbackFailure = $exception;
                 }
             }

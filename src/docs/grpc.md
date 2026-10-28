@@ -277,6 +277,8 @@ $previousAttempts = $call->previousAttempts();
 
 The `deadline` method returns a `Hypervel\Support\CarbonImmutable` instance or `null` when the client did not set a deadline. The `timeRemaining` method returns the remaining number of seconds, while `deadlineExceeded` determines whether the deadline has passed.
 
+If the client's deadline passes while the service is waiting, for example on a query, an HTTP request or a sleep, Hypervel interrupts the wait by throwing `Swoole\Coroutine\CanceledException` and responds with `DeadlineExceeded`. Place cleanup in `finally` blocks and follow the [coroutine cancellation guidance](/docs/{{version}}/coroutines#coroutine-cancellation) when catching errors. If cleanup throws while the cancellation unwinds, the exception is reported and the client still receives `DeadlineExceeded`.
+
 The `previousAttempts` method returns the number of completed retry attempts reported by the client. This can be useful for logging or idempotency handling.
 
 > [!NOTE]

@@ -19,12 +19,14 @@ use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 class CommandMutexTest extends TestCase
 {
@@ -216,7 +218,9 @@ class CommandMutexTest extends TestCase
         }
     }
 
-    public function testAfterExecuteCancellationSupersedesAnOrdinaryCommandFailureAndStillReleasesTheMutex(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAfterExecuteCancellationSupersedesAnOrdinaryCommandFailureAndStillReleasesTheMutex(bool $cleanupThrows): void
     {
         $command = new class extends Command implements Isolatable {
             public function __invoke(): void
@@ -226,24 +230,35 @@ class CommandMutexTest extends TestCase
         };
         $command->setHypervel($this->app);
         $cancellation = new CanceledException('canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Observer cleanup failed.') : null;
 
         $commandMutex = $this->mockCommandMutex();
         $commandMutex->shouldReceive('create')->once()->andReturnTrue();
         $commandMutex->shouldReceive('forget')->once()->andReturnTrue();
         $this->app->make(Dispatcher::class)->listen(
             AfterExecute::class,
-            fn () => throw $cancellation,
+            static function () use ($cancellation, $cleanup): never {
+                try {
+                    throw $cancellation;
+                } finally {
+                    if ($cleanup !== null) {
+                        throw $cleanup;
+                    }
+                }
+            },
         );
 
         try {
             $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
             $this->fail('Expected the after-execute observer to preserve cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
     }
 
-    public function testMutexCancellationSupersedesAnOrdinaryCommandFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testMutexCancellationSupersedesAnOrdinaryCommandFailure(bool $cleanupThrows): void
     {
         $command = new class extends Command implements Isolatable {
             public function __invoke(): void
@@ -253,16 +268,25 @@ class CommandMutexTest extends TestCase
         };
         $command->setHypervel($this->app);
         $cancellation = new CanceledException('canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Mutex cleanup failed.') : null;
 
         $commandMutex = $this->mockCommandMutex();
         $commandMutex->shouldReceive('create')->once()->andReturnTrue();
-        $commandMutex->shouldReceive('forget')->once()->andThrow($cancellation);
+        $commandMutex->shouldReceive('forget')->once()->andReturnUsing(static function () use ($cancellation, $cleanup): never {
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
+        });
 
         try {
             $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
             $this->fail('Expected mutex release to preserve cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
     }
 

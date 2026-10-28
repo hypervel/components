@@ -7,7 +7,7 @@ namespace Hypervel\Ai\Tools\Filesystem;
 use Hypervel\Ai\Attributes\Strict;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 #[Strict]
@@ -32,9 +32,11 @@ class GetFileMetadata extends FilesystemTool
 
         try {
             $size = $disk->size($path);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return "File [{$path}] does not exist.";
         }
 

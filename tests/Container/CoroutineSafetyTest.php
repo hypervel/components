@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -776,7 +777,9 @@ class CoroutineSafetyTest extends TestCase
         $this->assertInstanceOf(stdClass::class, $ownerFinished->pop(1));
     }
 
-    public function testOwnerCancellationReachesOnlyTheOwnerAndTheNextResolutionRetries(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOwnerCancellationReachesOnlyTheOwnerAndTheNextResolutionRetries(bool $cleanupThrows): void
     {
         $container = new CoroutineInspectingContainer;
         $ownerEntered = new Channel(1);
@@ -785,10 +788,19 @@ class CoroutineSafetyTest extends TestCase
         $waiterFinished = new Channel(1);
         $attempts = 0;
 
-        $container->singleton('service', function () use ($ownerEntered, $releaseOwner, &$attempts) {
+        $cleanupException = new RuntimeException('Resolution cleanup failed.');
+        $container->singleton('service', function () use ($ownerEntered, $releaseOwner, &$attempts, $cleanupThrows, $cleanupException) {
             if (++$attempts === 1) {
                 $ownerEntered->push(true);
-                $releaseOwner->pop();
+                try {
+                    $releaseOwner->pop();
+                } finally {
+                    if ($cleanupThrows) {
+                        usleep(1000);
+
+                        throw $cleanupException;
+                    }
+                }
             }
 
             return new stdClass;
@@ -823,10 +835,22 @@ class CoroutineSafetyTest extends TestCase
 
             $ownerException = $ownerFinished->pop(1);
             $waiterException = $waiterFinished->pop(1);
+            SwooleCoroutine::join([$ownerId, $waiterId], 1);
+            $this->assertFalse(SwooleCoroutine::exists($ownerId));
+            $this->assertFalse(SwooleCoroutine::exists($waiterId));
 
-            $this->assertInstanceOf(CanceledException::class, $ownerException);
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $ownerException);
+                $this->assertInstanceOf(CanceledException::class, $ownerException->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $ownerException);
+            }
+
+            $this->assertTrue(Coroutine::causedByCancellation($ownerException));
             $this->assertInstanceOf(BindingResolutionException::class, $waiterException);
-            $this->assertSame($ownerException, $waiterException->getPrevious());
+            $this->assertInstanceOf(ForeignCancellationException::class, $waiterException->getPrevious());
+            $this->assertSame($ownerException, $waiterException->getPrevious()->getPrevious());
+            $this->assertFalse(Coroutine::causedByCancellation($waiterException));
         } finally {
             $releaseOwner->push(true, 0.001);
             $this->cancelSurvivingCoroutines([$ownerId, $waiterId]);

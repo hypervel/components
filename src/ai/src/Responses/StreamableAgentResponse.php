@@ -25,7 +25,6 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 use Traversable;
@@ -146,16 +145,20 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
                     $send($event);
                 }
             });
-        } catch (CanceledException $exception) {
-            $batcher?->cancel();
-
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                $batcher?->cancel();
+
+                throw $exception;
+            }
+
             try {
                 $batcher?->finish();
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $senderFailure) {
+                if (Coroutine::causedByCancellation($senderFailure)) {
+                    throw $senderFailure;
+                }
+
                 if ($senderFailure !== $exception) {
                     report($senderFailure);
                 }

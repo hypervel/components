@@ -16,6 +16,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -330,49 +331,67 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $this->assertSame(['always', 'recovery'], $calls);
     }
 
-    public function testApplicationOwnerCancellationSkipsDeferredCallbacks(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testApplicationOwnerCancellationSkipsDeferredCallbacks(bool $cleanupThrows): void
     {
         $application = $this->createConsoleApplication();
         $cancellation = new CanceledException;
+        $cleanup = $cleanupThrows ? new RuntimeException('Cleanup failed.') : null;
         $calls = [];
 
-        $application->addCommand(new PlainDeferredCommand('test:application-cancellation', function () use (&$calls, $cancellation): never {
+        $application->addCommand(new PlainDeferredCommand('test:application-cancellation', function () use (&$calls, $cancellation, $cleanup): never {
             defer(function () use (&$calls): void {
                 $calls[] = 'always';
             }, always: true);
 
-            throw $cancellation;
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
         }));
 
         try {
             $application->call('test:application-cancellation');
             $this->fail('Expected the command to be cancelled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
 
         $this->assertSame([], $calls);
     }
 
-    public function testCommandOwnerCancellationSkipsDeferredCallbacks(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCommandOwnerCancellationSkipsDeferredCallbacks(bool $cleanupThrows): void
     {
         $application = $this->createConsoleApplication();
         $cancellation = new CanceledException;
+        $cleanup = $cleanupThrows ? new RuntimeException('Cleanup failed.') : null;
         $calls = [];
 
-        $application->addCommand(new DeferredCommand('test:command-cancellation', function () use (&$calls, $cancellation): never {
+        $application->addCommand(new DeferredCommand('test:command-cancellation', function () use (&$calls, $cancellation, $cleanup): never {
             defer(function () use (&$calls): void {
                 $calls[] = 'always';
             }, always: true);
 
-            throw $cancellation;
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
         }));
 
         try {
             $application->call('test:command-cancellation');
             $this->fail('Expected the command to be cancelled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
 
         $this->assertSame([], $calls);
@@ -426,14 +445,17 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         }
     }
 
-    public function testApplicationOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testApplicationOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(bool $cleanupThrows): void
     {
         $application = $this->createConsoleApplication();
         $commandFailure = new RuntimeException('command failed');
         $cancellation = new CanceledException('canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Drain cleanup failed.') : null;
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation, $cleanup),
         );
 
         $application->addCommand(new DeferredCommand('test:application-drain-cancellation', function () use ($commandFailure): never {
@@ -445,19 +467,22 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         try {
             $application->call('test:application-drain-cancellation');
             $this->fail('Expected the deferred callback drain to preserve cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
     }
 
-    public function testCommandOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCommandOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(bool $cleanupThrows): void
     {
         $application = $this->createConsoleApplication();
         $commandFailure = new RuntimeException('command failed');
         $cancellation = new CanceledException('canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Drain cleanup failed.') : null;
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation, $cleanup),
         );
 
         $application->addCommand(new DeferredCommand('test:command-drain-cancellation', function () use ($commandFailure): never {
@@ -469,8 +494,8 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         try {
             $application->call('test:command-drain-cancellation');
             $this->fail('Expected the deferred callback drain to preserve cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
     }
 
@@ -539,7 +564,7 @@ class ThrowingDeferredCallbackCollection extends DeferredCallbackCollection
     /**
      * Create a new callback collection.
      */
-    public function __construct(private readonly Throwable $exception)
+    public function __construct(private readonly Throwable $exception, private readonly ?Throwable $cleanupException = null)
     {
     }
 
@@ -548,6 +573,12 @@ class ThrowingDeferredCallbackCollection extends DeferredCallbackCollection
      */
     public function invokeWhen(?Closure $when = null): void
     {
-        throw $this->exception;
+        try {
+            throw $this->exception;
+        } finally {
+            if ($this->cleanupException !== null) {
+                throw $this->cleanupException;
+            }
+        }
     }
 }

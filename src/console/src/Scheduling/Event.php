@@ -19,6 +19,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Mailer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Context\Repository;
 use Hypervel\Support\Arr;
@@ -171,25 +172,31 @@ class Event
             $exception = $throwable;
         }
 
-        if ($exitCode === null) {
-            try {
-                $this->removeMutex();
-            } catch (Throwable $throwable) {
-                $exception ??= $throwable;
-            }
-
-            CoroutineContext::forget($this->processContextKey());
-        } else {
+        if ($exitCode !== null) {
             try {
                 $this->writeOutput($container);
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
+        }
 
+        if ($exitCode === null || ($exception !== null && Coroutine::causedByCancellation($exception))) {
+            try {
+                $this->removeMutex();
+            } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception)) {
+                    $exception = $throwable;
+                }
+            }
+
+            CoroutineContext::forget($this->processContextKey());
+        } else {
             try {
                 $this->finish($container, $exitCode);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
+                    $exception = $throwable;
+                }
             }
         }
 
@@ -308,13 +315,17 @@ class Event
         try {
             $this->callAfterCallbacks($container);
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
+                $exception = $throwable;
+            }
         }
 
         try {
             $this->removeMutex();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
+                $exception = $throwable;
+            }
         }
 
         CoroutineContext::forget($this->processContextKey());

@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Image\Driver;
 use Hypervel\Contracts\Image\Transformation;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Image\Image;
@@ -16,6 +17,7 @@ use Hypervel\Image\ImageException;
 use Hypervel\Image\ImageManager;
 use Hypervel\Image\ImagePipeline;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -86,7 +88,9 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame(1, $resolutionCalls);
     }
 
-    public function testOwnerCancellationReachesOnlyTheOwnerAndOthersGetTheCachedFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOwnerCancellationReachesOnlyTheOwnerAndOthersGetTheCachedFailure(bool $cleanupThrows): void
     {
         $container = new Container;
         $container->instance('config', new Repository([
@@ -99,9 +103,18 @@ class CoroutineSafetyTest extends TestCase
 
         $resolutionCalls = 0;
         $release = new Channel(1);
-        $image = new Image(function () use (&$resolutionCalls, $release): string {
+        $cleanupException = new RuntimeException('Image source cleanup failed.');
+        $image = new Image(function () use (&$resolutionCalls, $release, $cleanupThrows, $cleanupException): string {
             ++$resolutionCalls;
-            $release->pop();
+            try {
+                $release->pop();
+            } finally {
+                if ($cleanupThrows) {
+                    usleep(1000);
+
+                    throw $cleanupException;
+                }
+            }
 
             return 'shared image';
         });
@@ -129,11 +142,22 @@ class CoroutineSafetyTest extends TestCase
 
             $first = $failures->pop(1);
             $second = $failures->pop(1);
+            Coroutine::join([$ownerId, $waiterId], 1);
             $results = [$first[0] => $first[1], $second[0] => $second[1]];
 
-            $this->assertInstanceOf(CanceledException::class, $results['owner']);
+            if ($cleanupThrows) {
+                $this->assertInstanceOf(ImageException::class, $results['owner']);
+                $this->assertSame($cleanupException, $results['owner']->getPrevious());
+                $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $results['owner']);
+            }
+
+            $this->assertTrue(Coroutine::causedByCancellation($results['owner']));
             $this->assertInstanceOf(ImageException::class, $results['waiter']);
-            $this->assertSame($results['owner'], $results['waiter']->getPrevious());
+            $this->assertInstanceOf(ForeignCancellationException::class, $results['waiter']->getPrevious());
+            $this->assertSame($cleanupThrows ? $cleanupException : $results['owner'], $results['waiter']->getPrevious()->getPrevious());
+            $this->assertFalse(Coroutine::causedByCancellation($results['waiter']));
         } finally {
             $release->push(true, 0.001);
 

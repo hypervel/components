@@ -24,10 +24,12 @@ use Hypervel\Tests\TestCase;
 use IteratorAggregate;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 use Traversable;
 
 class SupportHelpersTest extends TestCase
@@ -1239,9 +1241,12 @@ class SupportHelpersTest extends TestCase
         Sleep::assertSequence([Sleep::usleep(100_500)]);
     }
 
-    public function testCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationIsNotRetriedOrPassedToRetryPolicy(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('operation cancelled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $attempts = 0;
         $policyCalled = false;
         $sleepCalled = false;
@@ -1249,10 +1254,10 @@ class SupportHelpersTest extends TestCase
         try {
             retry(
                 3,
-                function () use (&$attempts, $cancellation): never {
+                function () use (&$attempts, $failure): never {
                     ++$attempts;
 
-                    throw $cancellation;
+                    throw $failure;
                 },
                 function () use (&$sleepCalled): int {
                     $sleepCalled = true;
@@ -1266,8 +1271,8 @@ class SupportHelpersTest extends TestCase
                 },
             );
             $this->fail('Expected the operation cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame(1, $attempts);

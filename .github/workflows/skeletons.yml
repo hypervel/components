@@ -1,0 +1,97 @@
+name: skeleton installation
+
+on:
+  push:
+    branches: ['0.4']
+  pull_request:
+    branches: ['0.4']
+  schedule:
+    - cron: '47 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Hypervel skeleton (${{ github.event_name == 'schedule' && 'published' || 'checkout' }})
+    if: github.event_name != 'schedule' || github.repository == 'hypervel/components'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+
+    env:
+      HYPERVEL_APP_DIR: ${{ github.workspace }}/.tmp/skeleton-app
+      COMPOSER_MEMORY_LIMIT: '-1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Validate skeleton metadata
+        run: composer validate --strict --no-check-lock skeletons/hypervel/composer.json
+
+      - name: Copy the checked-out skeleton and configure local packages
+        if: github.event_name != 'schedule'
+        run: |
+          mkdir -p "$HYPERVEL_APP_DIR"
+          cp -a skeletons/hypervel/. "$HYPERVEL_APP_DIR/"
+          php .github/scripts/use-local-packages.php "$HYPERVEL_APP_DIR" 0.4.x-dev
+
+      # Published installs catch split or Packagist problems without blocking PRs
+      # on changes that have not been merged and published yet.
+      - name: Download the published skeleton
+        if: github.event_name == 'schedule'
+        run: composer create-project hypervel/hypervel "$HYPERVEL_APP_DIR" 0.4.x-dev --no-install --no-scripts --no-interaction
+
+      - name: Initialize the environment
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: composer run-script post-root-package-install --no-interaction
+
+      - name: Install dependencies
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Initialize the application
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: |
+          composer run-script post-create-project-cmd --no-interaction
+          php artisan migrate --force --no-interaction
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Build frontend assets
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: |
+          npm install --no-package-lock --no-audit --no-fund
+          npm run build
+
+      - name: Check code style
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: PHP_CS_FIXER_IGNORE_ENV=1 composer lint
+
+      - name: Analyse application code
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: composer analyse
+
+      - name: Run application tests
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        run: vendor/bin/phpunit
+
+      - name: Check HTTP startup
+        working-directory: ${{ env.HYPERVEL_APP_DIR }}
+        env:
+          SERVER_HOST: 127.0.0.1
+          SERVER_PORT: 18080
+          SERVER_WORKERS: 2
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/check-skeleton-startup.sh"

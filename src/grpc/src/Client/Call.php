@@ -6,6 +6,7 @@ namespace Hypervel\Grpc\Client;
 
 use Closure;
 use Google\Protobuf\Internal\Message;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
 use Hypervel\Grpc\Compression;
@@ -308,9 +309,11 @@ abstract class Call
                 }
 
                 $this->unaryResponse = $this->deserializePendingPayload();
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 if ($throwable instanceof ProtocolException) {
                     $this->storeFailure($throwable);
                 }
@@ -677,13 +680,15 @@ abstract class Call
             ++$this->attempts;
 
             return true;
-        } catch (CanceledException $throwable) {
-            if ($backoffCheckpoint !== null) {
-                $this->retryBackoff?->restore($backoffCheckpoint);
+        } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                if ($backoffCheckpoint !== null) {
+                    $this->retryBackoff?->restore($backoffCheckpoint);
+                }
+
+                throw $throwable;
             }
 
-            throw $throwable;
-        } catch (Throwable $throwable) {
             if ($this->isLogicallyCanceled()) {
                 if ($backoffCheckpoint !== null) {
                     $this->retryBackoff?->restore($backoffCheckpoint);
@@ -828,7 +833,7 @@ abstract class Call
      */
     private function storeFailure(Throwable $failure): void
     {
-        if ($failure instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($failure)) {
             throw $failure;
         }
 

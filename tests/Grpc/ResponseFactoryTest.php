@@ -27,6 +27,7 @@ use InvalidArgumentException;
 use Iterator;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
@@ -230,19 +231,53 @@ class ResponseFactoryTest extends TestCase
         $this->assertSame('-1', $trailers['grpc-retry-pushback-ms']);
     }
 
-    public function testPreservesCancellationWhileAdvancingAStream(): void
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testPreservesCancellationWhileAdvancingAStream(bool $deadlineExpired, bool $cleanupThrows): void
     {
-        [$factory] = $this->factory();
+        $handler = m::mock(ExceptionHandler::class);
         $cancellation = new CanceledException;
-        $messages = static function () use ($cancellation): iterable {
+        $cleanupException = new RuntimeException('Stream cleanup failed.');
+        if ($deadlineExpired && $cleanupThrows) {
+            $handler->shouldReceive('report')->once()->with($cleanupException);
+        } else {
+            $handler->shouldNotReceive('report');
+        }
+        [$factory, $contexts] = $this->factory($handler);
+        $now = 0;
+        if ($deadlineExpired) {
+            $contexts->set(new ServerCallContext(
+                Metadata::make(),
+                'testing.Service',
+                'Call',
+                '127.0.0.1:50051',
+                null,
+                Deadline::usingClock(1, static function () use (&$now): int { return $now; }),
+                0,
+            ));
+        }
+        $messages = static function () use ($cancellation, $cleanupThrows, $cleanupException, &$now): iterable {
             yield new GPBEmpty;
-            throw $cancellation;
+            $now = 1;
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanupException;
+                }
+            }
         };
         $response = $factory->make($this->request(serverStreaming: true), $messages());
 
-        $this->expectExceptionObject($cancellation);
+        if (! $deadlineExpired) {
+            $this->expectExceptionObject($cleanupThrows ? $cleanupException : $cancellation);
+        }
 
         $response->streamTo(static fn (): bool => true);
+
+        $this->assertSame((string) StatusCode::DeadlineExceeded->value, $response->trailers()['grpc-status']);
     }
 
     public function testReportsInvalidUnaryAndStreamedServiceValues(): void

@@ -20,6 +20,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class AgentToolTest extends TestCase
 {
@@ -73,9 +74,12 @@ class AgentToolTest extends TestCase
     }
 
     #[DataProvider('deliveryModes')]
-    public function testCancellationEscapesTheSubAgent(bool $streaming): void
+    public function testCancellationEscapesTheSubAgent(bool $streaming, bool $cleanupThrows): void
     {
         $exception = new CanceledException('Sub-agent canceled.');
+        if ($cleanupThrows) {
+            $exception = new RuntimeException('Sub-agent cleanup failed.', previous: $exception);
+        }
         $agent = m::mock(Agent::class);
 
         if ($streaming) {
@@ -94,16 +98,21 @@ class AgentToolTest extends TestCase
         try {
             $streaming ? iterator_to_array($tool->stream($request)) : $tool->handle($request);
             $this->fail('Cancellation must reach the parent agent.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($exception, $caught);
         }
     }
 
     /**
-     * Provide synchronous and streaming delegation.
+     * Provide synchronous and streaming cancellation with normal and throwing cleanup.
      */
     public static function deliveryModes(): array
     {
-        return ['prompt' => [false], 'stream' => [true]];
+        return [
+            'prompt' => [false, false],
+            'stream' => [true, false],
+            'prompt cleanup failure' => [false, true],
+            'stream cleanup failure' => [true, true],
+        ];
     }
 }

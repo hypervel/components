@@ -10,7 +10,9 @@ use Faker\Provider\en_US\Address as AmericanAddress;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Testbench\TestCase;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LogLevel;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -83,15 +85,18 @@ class FoundationHelpersTest extends TestCase
         );
     }
 
-    public function testRescuePreservesCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRescuePreservesCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $reported = false;
         $rescued = false;
 
         try {
             rescue(
-                fn () => throw $cancellation,
+                fn () => throw $failure,
                 function () use (&$rescued): void {
                     $rescued = true;
                 },
@@ -103,8 +108,8 @@ class FoundationHelpersTest extends TestCase
             );
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertFalse($reported);

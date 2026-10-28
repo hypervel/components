@@ -27,6 +27,7 @@ use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\ServiceMethod;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 use RuntimeException;
@@ -72,21 +73,37 @@ class UnaryCallTest extends TestCase
         $this->assertSame($results['first'], $call->wait());
     }
 
-    public function testCanceledUnaryDeserializationCanBeResumedByAnotherWaiter(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCanceledUnaryDeserializationCanBeResumedByAnotherWaiter(bool $cleanupThrows): void
     {
         $deadline = Deadline::fromTimeout(null);
         $state = $this->state($deadline);
         $this->respondSuccessfully($state, 'hello');
-        $cancellation = new CanceledException;
+        $cancellation = null;
+        $cleanupException = new RuntimeException('Deserializer cleanup failed.');
+        $blocker = new Channel(1);
         $deserializations = 0;
         $call = $this->call(
             $state,
             $deadline,
-            static function (string $payload) use (&$deserializations, $cancellation): Message {
+            static function (string $payload) use (&$deserializations, &$cancellation, $blocker, $cleanupThrows, $cleanupException): Message {
                 ++$deserializations;
 
                 if ($deserializations === 1) {
-                    throw $cancellation;
+                    try {
+                        $blocker->pop();
+                    } catch (CanceledException $exception) {
+                        $cancellation = $exception;
+
+                        throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            usleep(1000);
+
+                            throw $cleanupException;
+                        }
+                    }
                 }
 
                 $message = new StringValue;
@@ -96,15 +113,26 @@ class UnaryCallTest extends TestCase
             },
         );
 
-        try {
-            $call->wait();
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
-        }
+        $failure = null;
+        $waiter = EngineCoroutine::create(static function () use ($call, &$failure): void {
+            try {
+                $call->wait();
+            } catch (Throwable $exception) {
+                $failure = $exception;
+            }
+        });
 
-        $this->assertSame('hello', $call->wait()->getValue());
-        $this->assertSame(2, $deserializations);
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($waiter->getId(), throwException: true));
+            EngineCoroutine::join([$waiter->getId()], 1);
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertSame($cleanupThrows ? $cleanupException : $cancellation, $failure);
+            $this->assertSame('hello', $call->wait()->getValue());
+            $this->assertSame(2, $deserializations);
+        } finally {
+            $blocker->close();
+            EngineCoroutine::join([$waiter->getId()], 1);
+        }
     }
 
     public function testCancellingOneMetadataWaiterDoesNotFailTheCall(): void
@@ -437,38 +465,55 @@ class UnaryCallTest extends TestCase
         }
     }
 
-    public function testCanceledRetryDoesNotPreventALaterRetry(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCanceledRetryDoesNotPreventALaterRetry(bool $cleanupThrows): void
     {
         $deadline = Deadline::fromTimeout(null);
         $first = $this->state($deadline);
-        $first->handle($this->trailersOnly(
-            status: StatusCode::Unavailable,
-            headers: ['grpc-retry-pushback-ms' => '0'],
-        ));
+        $first->handle($this->trailersOnly(status: StatusCode::Unavailable));
+        $policy = new RetryPolicy(maxAttempts: 2, initialBackoff: 0.001, maxBackoff: 0.001);
+        $backoff = new RetryBackoff($policy, new Randomizer(new Mt19937(1234)));
         $factoryStarted = new Channel(2);
         $releaseFactory = new Channel(1);
         $waiterCompleted = new Channel(1);
         $cancellation = null;
         $failure = null;
         $attempts = 0;
+        $cleanupException = new RuntimeException('Retry preparation cleanup failed.');
         $call = $this->call(
             $first,
             $deadline,
-            retryPolicy: new RetryPolicy(maxAttempts: 2),
+            retryPolicy: $policy,
             attemptFactory: function () use (
                 $deadline,
                 $factoryStarted,
                 $releaseFactory,
                 &$attempts,
+                $cleanupThrows,
+                $cleanupException,
             ): StreamState {
-                $factoryStarted->push(true);
-                $releaseFactory->pop();
+                try {
+                    $factoryStarted->push(true);
+                    $releaseFactory->pop();
+                } catch (CanceledException $exception) {
+                    try {
+                        throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            usleep(1000);
+
+                            throw $cleanupException;
+                        }
+                    }
+                }
                 ++$attempts;
                 $state = $this->state($deadline);
                 $this->respondSuccessfully($state, 'retried');
 
                 return $state;
             },
+            retryBackoff: $backoff,
         );
         $waiter = EngineCoroutine::create(static function () use (
             $call,
@@ -491,8 +536,15 @@ class UnaryCallTest extends TestCase
             $this->assertTrue($factoryStarted->pop(1));
             $this->assertTrue(EngineCoroutine::cancelById($waiter->getId(), throwException: true));
             $this->assertTrue($waiterCompleted->pop(1));
-            $this->assertInstanceOf(CanceledException::class, $cancellation);
-            $this->assertNull($failure);
+            EngineCoroutine::join([$waiter->getId()], 1);
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $failure);
+                $this->assertInstanceOf(CanceledException::class, $failure->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $cancellation);
+                $this->assertNull($failure);
+            }
+            $this->assertSame(0, $backoff->checkpoint());
             $this->assertSame(0, $attempts);
 
             $this->assertTrue($releaseFactory->push(true));

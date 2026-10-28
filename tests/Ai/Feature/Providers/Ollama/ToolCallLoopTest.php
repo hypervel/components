@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Feature\Providers\Ollama;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Ai\Exceptions\NoSuchToolException;
+use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
@@ -175,6 +176,43 @@ class ToolCallLoopTest extends TestCase
 
         $this->assertCount(2, $recorded);
         $this->assertSame('The number is 72019', $response->text);
+    }
+
+    public function testToolCallsAreNotExecutedWhenDoneReasonIsLength(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response([
+                    'model' => 'llama3.1:8b',
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => '',
+                        'tool_calls' => [[
+                            'id' => 'call_123',
+                            'function' => [
+                                'name' => 'FixedNumberGenerator',
+                                'arguments' => (object) [],
+                            ],
+                        ]],
+                    ],
+                    'done_reason' => 'length',
+                    'done' => true,
+                    'prompt_eval_count' => 10,
+                    'eval_count' => 5,
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $response = (new ToolUsingAgent(fixed: true))->prompt(
+            'Generate a number',
+            provider: 'ollama',
+        );
+
+        Http::assertSentCount(1);
+        $this->assertCount(1, $response->steps);
+        $this->assertSame(FinishReason::Length, $response->steps[0]->finishReason);
+        $this->assertCount(0, $response->toolResults);
     }
 
     public function testMultiStepToolLoopReturnsAccumulatedResponseShape(): void
