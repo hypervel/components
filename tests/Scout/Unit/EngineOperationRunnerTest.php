@@ -10,6 +10,7 @@ use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -195,10 +196,12 @@ class EngineOperationRunnerTest extends TestCase
         $this->assertSame(['first', 'second'], $finished);
     }
 
-    public function testStartingCancellationSkipsAllCompletionAndOperationWork(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStartingCancellationSkipsAllCompletionAndOperationWork(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
-        $cancellation = new CanceledException;
+        $cancellation = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
         $finished = false;
         $callbackCalled = false;
 
@@ -230,10 +233,12 @@ class EngineOperationRunnerTest extends TestCase
         $this->assertFalse($callbackCalled);
     }
 
-    public function testOperationCancellationSkipsAllCompletion(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOperationCancellationSkipsAllCompletion(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
-        $cancellation = new CanceledException;
+        $cancellation = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
         $finished = false;
 
         $runner->observe($this->observer(
@@ -257,11 +262,13 @@ class EngineOperationRunnerTest extends TestCase
         $this->assertFalse($finished);
     }
 
-    public function testCompletionCancellationStopsLaterObserversAndSupersedesOperationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCompletionCancellationStopsLaterObserversAndSupersedesOperationFailure(bool $cleanupThrows): void
     {
         $runner = new EngineOperationRunner;
         $operationFailure = new RuntimeException('operation failed');
-        $cancellation = new CanceledException;
+        $cancellation = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
         $secondFinished = false;
 
         $runner->observe($this->observer(
