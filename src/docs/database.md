@@ -1071,7 +1071,7 @@ $indexes = Schema::getIndexes('users');
 $foreignKeys = Schema::getForeignKeys('users');
 ```
 
-To inspect a single column, use the `getColumn` method. Column names are matched without regard to case, and an empty array is returned if the column does not exist:
+To inspect a single column, use the `getColumn` method. An exact column name takes precedence over a case-insensitive match, and an empty array is returned if the column does not exist:
 
 ```php
 $column = Schema::getColumn('users', 'email');

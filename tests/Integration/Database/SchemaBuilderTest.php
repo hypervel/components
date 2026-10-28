@@ -454,9 +454,11 @@ class SchemaBuilderTest extends DatabaseTestCase
     {
         Schema::create('foo', function (Blueprint $table) {
             $table->string('bar');
+            $table->string('Émail');
         });
 
         $this->assertSame('bar', Schema::getColumn('foo', 'BAR')['name']);
+        $this->assertSame('Émail', Schema::getColumn('foo', 'émail')['name']);
     }
 
     public function testGetColumnWithUnknownColumn(): void
