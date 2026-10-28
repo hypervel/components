@@ -255,10 +255,24 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
         }
 
-        $explicit = AsBinaryPrimaryKeyModel::query()->orderBy('id')->cursorPaginate(2, cursor: new Cursor([
-            'id' => new BinaryParameter(Uuid::fromString($ids[1])->toBinary()),
-        ]));
-        $this->assertSame([$ids[2]], $explicit->pluck('id')->all());
+        if (! $aliased) {
+            $bytes = Uuid::fromString($ids[1])->toBinary();
+            $stream = fopen('php://memory', 'w+');
+
+            try {
+                fwrite($stream, $bytes);
+                rewind($stream);
+
+                foreach ([new BinaryParameter($bytes), $stream] as $parameter) {
+                    $explicit = AsBinaryPrimaryKeyModel::query()->orderBy('id')
+                        ->cursorPaginate(2, cursor: new Cursor(['id' => $parameter]));
+
+                    $this->assertSame([$ids[2]], $explicit->pluck('id')->all());
+                }
+            } finally {
+                fclose($stream);
+            }
+        }
 
         $query = fn () => $aliased
             ? AsBinaryPrimaryKeyModel::query()->from('binary_primary_keys as identifiers')->orderBy('identifiers.id')

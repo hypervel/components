@@ -1980,11 +1980,17 @@ trait HasAttributes
 
     /**
      * Encode a binary attribute's cast value, such as a UUID string, for database binding.
+     *
+     * Preserve explicit binary parameters and raw streams without encoding them again.
      */
     public function encodeBinaryAttributeForDatabase(string $key, mixed $value): mixed
     {
         if ($value instanceof BinaryParameter || ! $this->isBinaryCast($this->getCasts()[$key] ?? null)) {
             return $value;
+        }
+
+        if (is_resource($value)) {
+            return BinaryParameter::fromStream($value);
         }
 
         $bytes = $this->resolveCasterClass($key)->set($this, $key, $value, $this->attributes)[$key];
