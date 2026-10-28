@@ -11,6 +11,7 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -722,6 +723,47 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
         $this->assertSame($exception, $events[2]->exception);
         $this->assertSame($exception, $events[3]->exception);
+    }
+
+    public function testBulkFailureListenerCancellationIsPropagatedInsteadOfReported(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andThrow(new RuntimeException('Insert failed.'));
+
+        $cancellation = new RuntimeException('Listener cleanup failed.', previous: new CanceledException);
+        $notified = 0;
+        $dispatcher->listen(JobQueueingFailed::class, static function () use (&$notified, $cancellation): void {
+            ++$notified;
+
+            throw $cancellation;
+        });
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $container->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->bulk(['first', 'second'], queue: 'emails');
+            $this->fail('Expected the cancellation to propagate.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($cancellation, $actual);
+        }
+
+        $this->assertSame(1, $notified);
     }
 
     public function testBulkCancellationDoesNotRaiseFailureEvents(): void

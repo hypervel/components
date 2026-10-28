@@ -15,6 +15,7 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
@@ -625,6 +626,11 @@ abstract class Queue
                 } catch (CanceledException $cancellation) {
                     throw $cancellation;
                 } catch (Throwable $throwable) {
+                    // Collected failures surface only after every member is notified, which is too late for cancellation.
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $exception ??= $throwable;
                 }
             }
