@@ -1917,12 +1917,53 @@ class QueueSqsQueueTest extends TestCase
 
         $this->sqs->expects('sendMessageBatch')->andReturn(new Result([
             'Successful' => [['Id' => '0', 'MessageId' => 'accepted-id']],
-            'Failed' => [['Id' => '1', 'Code' => 'Rejected', 'Message' => 'invalid']],
+            'Failed' => [['Id' => '1', 'Code' => 'Rejected', 'Message' => 'invalid', 'SenderFault' => true]],
         ]));
 
         $this->expectException(SqsException::class);
 
         $queue->bulk(['a', 'b'], 'data', $this->queueName);
+    }
+
+    public function testBulkRetainsOverflowPointersForServerFaultRejections(): void
+    {
+        $payload = json_encode(['uuid' => 'ambiguous'], JSON_THROW_ON_ERROR);
+        $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'ambiguous';
+
+        $store = m::mock(CacheRepository::class);
+        $store->expects('put')->with($path, $payload)->andReturnTrue();
+        $store->shouldNotReceive('forget');
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->expects('store')->with('database')->andReturn($store);
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->once())->method('createPayload')->willReturn($payload);
+
+        // An SDK retry may have resent an entry SQS already accepted before the final server fault.
+        $this->sqs->expects('sendMessageBatch')->andReturn(new Result([
+            'Successful' => [],
+            'Failed' => [['Id' => '0', 'Code' => 'InternalError', 'Message' => 'failed', 'SenderFault' => false]],
+        ]));
+
+        $this->expectException(SqsException::class);
+
+        $queue->bulk(['a'], 'data', $this->queueName);
     }
 
     public function testBulkCleansEarlierWritesWhenAWriteFailsBeforeSending(): void

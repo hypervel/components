@@ -484,7 +484,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             }
 
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
-            // Only explicit per-entry failures below are provably rejected.
+            // Only sender-fault entries below are provably rejected.
             try {
                 $result = $this->sqs->sendMessageBatch([
                     'QueueUrl' => $queueUrl,
@@ -520,7 +520,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $rejectedPaths = [];
 
                     foreach ($result['Failed'] as $rejected) {
-                        if (isset($overflow[$rejected['Id']])) {
+                        if (isset($overflow[$rejected['Id']]) && $this->isProvenRejection($rejected)) {
                             $rejectedPaths[] = $overflow[$rejected['Id']]['path'];
                         }
                     }
@@ -612,7 +612,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         unset($entry);
                     }
 
-                    // SDK failures are ambiguous; only explicit rejects own safe cleanup.
+                    // SDK failures are ambiguous; only sender-fault rejects own safe cleanup.
                     $result = $this->sqs->sendMessageBatch(['QueueUrl' => $queueUrl, 'Entries' => $chunk]);
                     $chunkIds = array_fill_keys(array_column($chunk, 'Id'), true);
 
@@ -627,7 +627,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                             $paths = [];
 
                             foreach ($result['Failed'] as $rejected) {
-                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']])) {
+                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']]) && $this->isProvenRejection($rejected)) {
                                     $paths[] = $overflow[$rejected['Id']]['path'];
                                 }
                             }
@@ -670,6 +670,18 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 'result' => $result,
             ],
         );
+    }
+
+    /**
+     * Determine if a batch failure proves SQS never accepted the entry.
+     *
+     * SDK retries resend entries SQS may have already accepted, so a server fault
+     * on the final attempt is ambiguous. Sender faults reject the entry's own
+     * content, which every attempt would have been rejected for.
+     */
+    protected function isProvenRejection(array $failure): bool
+    {
+        return ($failure['SenderFault'] ?? false) === true;
     }
 
     /**

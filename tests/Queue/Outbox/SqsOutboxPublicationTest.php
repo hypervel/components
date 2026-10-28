@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue\Outbox;
 
+use Aws\CommandInterface;
+use Aws\MockHandler;
 use Aws\Result;
 use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
@@ -158,6 +160,45 @@ class SqsOutboxPublicationTest extends TestCase
         $this->assertSame($first->payload, $store->get($paths[0]));
         $this->assertFalse($store->has($paths[1]));
         $this->assertSame($accepted->payload, $store->get($paths[2]));
+    }
+
+    public function testServerFaultAfterAnSdkRetryRetainsThePayloadAnEarlierAttemptMayReference(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $store = new Repository(new WorkerArrayStore);
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->with(null)->andReturn($store);
+        $container->instance('cache', $cache);
+        $paths = [];
+        $handler = new MockHandler;
+        $handler->append(
+            function (CommandInterface $command) use (&$paths): SqsException {
+                $paths[] = json_decode($command['Entries'][0]['MessageBody'], true)['@pointer'];
+
+                return new SqsException('Connection reset after SQS accepted the message.', $command, ['connection_error' => true]);
+            },
+            function (CommandInterface $command) use (&$paths): Result {
+                $paths[] = json_decode($command['Entries'][0]['MessageBody'], true)['@pointer'];
+
+                return new Result([
+                    'Successful' => [],
+                    'Failed' => [['Id' => '1', 'Code' => 'InternalError', 'Message' => 'Internal error', 'SenderFault' => false]],
+                ]);
+            },
+        );
+        $client = new SqsClient(['region' => 'us-east-1', 'version' => 'latest', 'credentials' => false, 'handler' => $handler]);
+        $queue = new SqsQueue($client, 'orders.fifo', overflowStorage: ['enabled' => true, 'always' => true]);
+        $queue->setContainer($container);
+        $message = $this->message(1, 'orders.fifo');
+
+        $result = $queue->publishOutboxMessages([$message]);
+
+        $this->assertSame([], $result->accepted);
+        $this->assertInstanceOf(SqsException::class, $result->failure);
+        $this->assertCount(2, $paths);
+        $this->assertSame($paths[0], $paths[1]);
+        $this->assertSame($message->payload, $store->get($paths[0]));
     }
 
     /**

@@ -130,7 +130,7 @@ class SqsBatchLifecycleTest extends TestCase
 
             return new Result([
                 'Successful' => array_map(static fn (int $id): array => ['Id' => (string) $id, 'MessageId' => 'accepted-' . $id], range(0, 8)),
-                'Failed' => [['Id' => '9', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected']],
+                'Failed' => [['Id' => '9', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected', 'SenderFault' => true]],
             ]);
         });
         $queued = $failed = [];
