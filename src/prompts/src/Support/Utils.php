@@ -80,7 +80,7 @@ class Utils
     {
         $text = self::filterTerminalControls($text, preserveFormatting: false);
         $text = preg_replace(
-            '/(?<!\\\)<(?:\/?(?:info|comment|question|error)|\/|(?i:(?:(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)(?:;(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)*))>/',
+            '/(?<!\\\)<(?:\/?(?i:info|comment|question|error)|\/|(?i:(?:(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)(?:;(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)*))>/',
             '',
             $text,
         );
