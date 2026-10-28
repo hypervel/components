@@ -25,6 +25,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
+use stdClass;
 
 class SupportTestingQueueFakeTest extends TestCase
 {
@@ -114,6 +115,39 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['model' => new ModelForQueueFakeStub(['id' => 1])]);
         $this->fake->assertNotPushed(JobWithPropertiesStub::class, ['missing' => null]);
         $this->fake->assertPushed(JobWithPropertiesStub::class, ['model' => null]);
+    }
+
+    public function testPropertyMapsDoNotMatchUnreadablePropertiesAsNull(): void
+    {
+        $job = new class {
+            public static ?string $shared = null;
+
+            public string $uninitialized;
+
+            protected string $hidden = 'pending';
+
+            private string $secret = 'pending';
+        };
+
+        $this->fake->push($job);
+
+        foreach (['shared', 'uninitialized', 'hidden', 'secret'] as $property) {
+            $this->fake->assertNotPushed($job::class, [$property => null]);
+        }
+    }
+
+    public function testPropertyMapsMatchNullDynamicPropertiesAndPropertyHooks(): void
+    {
+        $job = new class extends stdClass {
+            public ?string $status {
+                get => null;
+            }
+        };
+        $job->dynamic = null;
+
+        $this->fake->push($job);
+
+        $this->fake->assertPushed($job::class, ['dynamic' => null, 'status' => null]);
     }
 
     public function testAssertPushedPreservesArrayCallbacks(): void

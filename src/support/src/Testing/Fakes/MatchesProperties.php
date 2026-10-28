@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use ReflectionProperty;
 
 trait MatchesProperties
 {
@@ -21,11 +22,23 @@ trait MatchesProperties
         }
 
         return fn (object|string $object): bool => (new Collection($callback))->every(function (mixed $expected, string $property) use ($object): bool {
-            if (! property_exists($object, $property) && ! isset($object->{$property})) {
+            if (! is_object($object)) {
                 return false;
             }
 
-            $actual = $object->{$property} ?? null;
+            if (! isset($object->{$property})) {
+                if (! property_exists($object, $property)) {
+                    return false;
+                }
+
+                $reflection = new ReflectionProperty($object, $property);
+
+                if (! $reflection->isPublic() || $reflection->isStatic() || ! $reflection->isInitialized($object)) {
+                    return false;
+                }
+            }
+
+            $actual = $object->{$property};
 
             return $expected instanceof Model && $actual instanceof Model
                 ? $expected->is($actual)

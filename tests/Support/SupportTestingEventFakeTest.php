@@ -108,6 +108,13 @@ class SupportTestingEventFakeTest extends TestCase
         $this->fake->assertNotDispatched(EventWithPropertiesStub::class, ['status' => 'complete']);
     }
 
+    public function testPropertyMapsDoNotMatchStringEvents(): void
+    {
+        $this->fake->dispatch(EventWithPropertiesStub::class);
+
+        $this->fake->assertNotDispatched(EventWithPropertiesStub::class, ['status' => null]);
+    }
+
     public function testAssertNotDispatched(): void
     {
         $this->fake->assertNotDispatched(EventStub::class);
