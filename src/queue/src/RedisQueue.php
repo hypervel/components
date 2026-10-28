@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
@@ -465,6 +466,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function publishOutboxMessages(array $messages): OutboxBatchResult
     {
         $accepted = [];
+        $observerFailure = null;
 
         if ($messages === []) {
             return new OutboxBatchResult;
@@ -497,19 +499,21 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
                     $accepted[] = $message->id;
                 }
 
+                // Observers report after publication, so they must not hold back later destinations.
                 $failure = $this->notifyBatchMembers($prepared, fn (array $member) => $this->handlePayloadPushed($member['payload'], $member['queue']));
-
-                if ($failure !== null) {
-                    throw $failure;
-                }
+                $observerFailure ??= $failure;
             }
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
+            if ($observerFailure !== null) {
+                PoolErrorReporter::report($observerFailure);
+            }
+
             return new OutboxBatchResult($accepted, failure: $exception);
         }
 
-        return new OutboxBatchResult($accepted);
+        return new OutboxBatchResult($accepted, failure: $observerFailure);
     }
 
     /**

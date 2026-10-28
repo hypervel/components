@@ -23,6 +23,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class RedisOutboxPublicationTest extends TestCase
 {
@@ -80,7 +81,7 @@ class RedisOutboxPublicationTest extends TestCase
         $this->assertInstanceOf(RuntimeException::class, $result->failure);
     }
 
-    public function testHorizonStampsPublicationAndDrainsAcceptedNotificationsBeforeStopping(): void
+    public function testHorizonStampsPublicationAndKeepsPublishingAfterObserverFailures(): void
     {
         CarbonImmutable::setTestNow('2040-01-01 12:00:00');
         [$queue, $connection, $events] = $this->queue(horizon: true);
@@ -97,16 +98,19 @@ class RedisOutboxPublicationTest extends TestCase
         });
         $events->listen(JobQueued::class, fn () => $this->fail('Horizon relay must not emit JobQueued.'));
         $stored = [];
-        $connection->expects('evalWithShaCache')->andReturnUsing(function (string $script, array $keys, array $arguments) use (&$stored): int {
-            $stored = [$arguments[1], $arguments[3]];
+        $connection->expects('evalWithShaCache')->twice()->andReturnUsing(function (string $script, array $keys, array $arguments) use (&$stored): int {
+            for ($index = 1; $index < count($arguments); $index += 2) {
+                $stored[] = $arguments[$index];
+            }
 
-            return 2;
+            return intdiv(count($arguments), 2);
         });
 
         $result = $queue->publishOutboxMessages($messages);
 
-        $this->assertSame([1, 2], $result->accepted);
+        $this->assertSame([1, 2, 3], $result->accepted);
         $this->assertSame($failure, $result->failure);
+        $this->assertCount(3, $stored);
         $this->assertSame($stored, $pending);
         $this->assertSame($stored, $pushed);
 
@@ -117,6 +121,19 @@ class RedisOutboxPublicationTest extends TestCase
             unset($decoded['pushedAt']);
             $this->assertSame($original, $decoded);
         }
+    }
+
+    public function testObserverCancellationStopsPublishingLaterDestinations(): void
+    {
+        [$queue, $connection, $events] = $this->queue(horizon: true);
+        $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
+        $events->listen(JobPushed::class, static fn () => throw $cancellation);
+        $connection->expects('evalWithShaCache')->once()->andReturn(1);
+
+        $result = $queue->publishOutboxMessages([$this->message(1), $this->message(2, 'other')]);
+
+        $this->assertSame([1], $result->accepted);
+        $this->assertSame($cancellation, $result->failure);
     }
 
     /**
