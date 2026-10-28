@@ -661,7 +661,9 @@ class PoolTest extends TestCase
         }
     }
 
-    public function testProducerCancellationCancelsStartedRequestsAndEscapesExactly(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testProducerCancellationCancelsStartedRequestsAndEscapesExactly(bool $cleanupThrows): void
     {
         $manager = $this->manager();
         $requestStarted = new Channel(1);
@@ -670,6 +672,8 @@ class PoolTest extends TestCase
         $producerBlocker = new Channel(1);
         $childCancellation = null;
         $parentCancellation = null;
+        $cleanupException = new RuntimeException('Request producer cleanup failed.');
+        $outcome = null;
         $manager->fake([
             PoolRequestStub::class => function () use ($requestStarted, $requestBlocker, &$childCancellation): never {
                 $requestStarted->push(true);
@@ -691,24 +695,49 @@ class PoolTest extends TestCase
             $producerSuspended,
             $producerBlocker,
             &$parentCancellation,
+            $cleanupThrows,
+            $cleanupException,
+            &$outcome,
         ): void {
             try {
-                $connector->pool((static function () use ($producerSuspended, $producerBlocker): iterable {
+                $connector->pool((static function () use ($producerSuspended, $producerBlocker, &$parentCancellation, $cleanupThrows, $cleanupException): iterable {
                     yield 'request' => new PoolRequestStub(1);
                     $producerSuspended->push(true);
-                    $producerBlocker->pop();
+                    try {
+                        $producerBlocker->pop();
+                    } catch (CanceledException $exception) {
+                        $parentCancellation = $exception;
+
+                        throw $exception;
+                    } finally {
+                        if ($cleanupThrows) {
+                            usleep(1000);
+
+                            throw $cleanupException;
+                        }
+                    }
                 })())->send();
-            } catch (CanceledException $exception) {
-                $parentCancellation = $exception;
+            } catch (Throwable $exception) {
+                $outcome = $exception;
             }
         });
 
-        $this->assertTrue($requestStarted->pop());
-        $this->assertTrue($producerSuspended->pop());
-        $this->assertTrue(EngineCoroutine::cancelById($runner->getId(), throwException: true));
+        try {
+            $this->assertTrue($requestStarted->pop(1));
+            $this->assertTrue($producerSuspended->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($runner->getId(), throwException: true));
+            Coroutine::join([$runner->getId()], 1);
 
-        $this->assertInstanceOf(CanceledException::class, $parentCancellation);
-        $this->assertInstanceOf(CanceledException::class, $childCancellation);
+            $this->assertFalse(Coroutine::exists($runner->getId()));
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertInstanceOf(CanceledException::class, $childCancellation);
+            $this->assertSame($cleanupThrows ? $cleanupException : $parentCancellation, $outcome);
+            $this->assertTrue(Coroutine::isCancellation($outcome));
+        } finally {
+            $requestBlocker->close();
+            $producerBlocker->close();
+            Coroutine::join([$runner->getId()], 1);
+        }
     }
 
     public function testRepeatedKeysUseTheLaterInputAndProcessDoesNotCollectResponses(): void

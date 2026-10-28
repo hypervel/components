@@ -12,7 +12,6 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\Saloon\Exceptions\InvalidPoolItemException;
 use Hypervel\Saloon\Exceptions\PoolException;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -262,20 +261,25 @@ class Pool
                     }
                 });
             }
-        } catch (CanceledException $exception) {
-            $concurrent->cancel();
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::isCancellation($exception)) {
+                $concurrent->cancel();
+
+                throw $exception;
+            }
+
             $orchestrationFailure = $exception;
         }
 
         try {
             ConnectionResolver::releaseIdleConnections();
-        } catch (CanceledException $exception) {
-            $concurrent->cancel();
-
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::isCancellation($exception)) {
+                $concurrent->cancel();
+
+                throw $exception;
+            }
+
             $orchestrationFailure ??= $exception;
         }
 
