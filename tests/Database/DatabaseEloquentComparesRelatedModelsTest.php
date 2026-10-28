@@ -85,6 +85,20 @@ class DatabaseEloquentComparesRelatedModelsTest extends TestCase
         }
     }
 
+    #[DataProvider('relationTypes')]
+    public function testUnrelatedModelsAreRejectedBeforeReadingMissingKeys(string $type): void
+    {
+        Model::preventAccessingMissingAttributes();
+        [$relation] = $this->newRelation($type, 1);
+
+        foreach ([['other_table', 'connection'], ['table', 'other_connection']] as [$table, $connection]) {
+            $model = (new ComparesRelatedModelsStub)->setTable($table)->newFromBuilder([], $connection);
+
+            $this->assertFalse($relation->is($model));
+            $this->assertTrue($relation->isNot($model));
+        }
+    }
+
     /**
      * Create a relation of the given type and the related key attribute it compares.
      *

@@ -22,9 +22,7 @@ use Hypervel\Database\Query\JoinClause;
 class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
 {
     use CanBeOneOfMany;
-    use ComparesRelatedModels {
-        is as protected isRelatedModel;
-    }
+    use ComparesRelatedModels;
     use SupportsDefaultModels;
 
     public function getResults()
@@ -104,21 +102,14 @@ class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
     }
 
     /**
-     * Determine if the model is the related instance of the relationship.
-     */
-    public function is(?Model $model): bool
-    {
-        return $model?->getAttribute($this->getMorphType()) === $this->morphClass
-            && $this->isRelatedModel($model);
-    }
-
-    /**
-     * Get the value of the model's foreign key.
+     * Get the foreign key when the model has the matching morph type.
      *
      * @param TRelatedModel $model
      */
     protected function getRelatedKeyFrom(Model $model): mixed
     {
-        return $model->getAttribute($this->getForeignKeyName());
+        return $model->getAttribute($this->getMorphType()) === $this->morphClass
+            ? $model->getAttribute($this->getForeignKeyName())
+            : null;
     }
 }

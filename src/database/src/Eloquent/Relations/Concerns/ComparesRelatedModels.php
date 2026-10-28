@@ -16,9 +16,9 @@ trait ComparesRelatedModels
     public function is(?Model $model): bool
     {
         $match = ! is_null($model)
-            && $this->compareKeys($this->getParentKey(), $this->getRelatedKeyFrom($model))
             && $this->related->getTable() === $model->getTable()
-            && ConnectionName::withoutWriteType($this->related->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName());
+            && ConnectionName::withoutWriteType($this->related->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName())
+            && $this->compareKeys($this->getParentKey(), $this->getRelatedKeyFrom($model));
 
         if ($match && $this instanceof SupportsPartialRelations && $this->isOneOfMany()) {
             return (clone $this->query)
