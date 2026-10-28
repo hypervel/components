@@ -63,8 +63,6 @@ class TestViewsTest extends TestCase
     {
         $this->filesystem->deleteDirectory($this->tempDir);
 
-        Facade::setFacadeApplication(null);
-
         if ($this->originalParallelTesting === null) {
             unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
         } else {
