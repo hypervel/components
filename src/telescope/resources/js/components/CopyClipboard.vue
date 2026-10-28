@@ -7,7 +7,7 @@ export default {
     data() {
         return {
             copying: false,
-        }
+        };
     },
 
     methods: {
@@ -15,21 +15,21 @@ export default {
             if (copy(this.copyText)) {
                 this.copying = true;
 
-                setTimeout(() => this.copying = false, 1000);
+                setTimeout(() => (this.copying = false), 1000);
             }
-        }
+        },
     },
 
     computed: {
         copyText() {
-            if (typeof this.data === "string") {
+            if (typeof this.data === 'string') {
                 return this.data;
             }
 
             return JSON.stringify(this.data, null, '\t');
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

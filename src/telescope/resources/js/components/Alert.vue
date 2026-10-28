@@ -4,14 +4,13 @@ import { Modal } from 'bootstrap';
 export default {
     props: ['type', 'message', 'autoClose', 'confirmationProceed', 'confirmationCancel'],
 
-    data(){
+    data() {
         return {
             timeout: null,
             alertModal: null,
-            anotherModalOpened: document.body.classList.contains('modal-open')
-        }
+            anotherModalOpened: document.body.classList.contains('modal-open'),
+        };
     },
-
 
     mounted() {
         this.alertModal = Modal.getOrCreateInstance(this.$el, {
@@ -28,14 +27,12 @@ export default {
         }
     },
 
-
     beforeUnmount() {
         clearTimeout(this.timeout);
         this.alertModal.hide();
         this.$el.removeEventListener('hidden.bs.modal', this.hidden);
         this.alertModal.dispose();
     },
-
 
     methods: {
         /**
@@ -53,39 +50,36 @@ export default {
             }
         },
 
-
         /**
          * Close the modal.
          */
-        close(){
+        close() {
             clearTimeout(this.timeout);
 
             this.alertModal.hide();
         },
 
-
         /**
          * Confirm and close the modal.
          */
-        confirm(){
+        confirm() {
             this.confirmationProceed();
 
             this.close();
         },
 
-
         /**
          * Cancel and close the modal.
          */
-        cancel(){
+        cancel() {
             if (this.confirmationCancel) {
                 this.confirmationCancel();
             }
 
             this.close();
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

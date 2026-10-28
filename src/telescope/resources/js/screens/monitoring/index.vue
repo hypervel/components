@@ -13,33 +13,35 @@ export default {
             ready: false,
             newTag: '',
             newTagModal: null,
-            requestController: new AbortController()
+            requestController: new AbortController(),
         };
     },
 
     /**
      * Prepare the component.
      */
-    mounted(){
-        document.title = "Monitoring - Telescope";
+    mounted() {
+        document.title = 'Monitoring - Telescope';
 
         this.newTagModal = Modal.getOrCreateInstance(this.$refs.addTagModal, {
             backdrop: 'static',
         });
 
-        const {signal} = this.requestController;
+        const { signal } = this.requestController;
 
-        axios.get(Telescope.basePath + '/telescope-api/monitored-tags', {signal}).then(response => {
-            if (signal.aborted) return;
+        axios
+            .get(Telescope.basePath + '/telescope-api/monitored-tags', { signal })
+            .then((response) => {
+                if (signal.aborted) return;
 
-            this.tags = response.data.tags;
+                this.tags = response.data.tags;
 
-            this.ready = true;
-        }).catch(error => {
-            if (!signal.aborted) throw error;
-        })
+                this.ready = true;
+            })
+            .catch((error) => {
+                if (!signal.aborted) throw error;
+            });
     },
-
 
     /**
      * Clean up before the component is unmounted.
@@ -50,52 +52,68 @@ export default {
         this.newTagModal.dispose();
     },
 
-
     methods: {
-        removeTag(tag){
-            this.alertConfirm('Are you sure you want to remove this tag?', ()=> {
-                this.tags = _.reject(this.tags, t => t === tag);
-
-                axios.post(Telescope.basePath + '/telescope-api/monitored-tags/delete', {tag: tag});
+        removeTag(tag) {
+            this.alertConfirm('Are you sure you want to remove this tag?', () => {
+                return axios
+                    .post(Telescope.basePath + '/telescope-api/monitored-tags/delete', { tag })
+                    .then(() => {
+                        this.tags = _.reject(this.tags, (t) => t === tag);
+                    })
+                    .catch(() => {
+                        this.alertError(
+                            'Telescope could not confirm the monitoring change. Reload the page to check the current tags.',
+                        );
+                    });
             });
         },
-
 
         /**
          * Opens the modal for adding new monitored tag.
          */
-        openNewTagModal(){
+        openNewTagModal() {
             this.newTagModal.show();
             this.$refs.newTagInput.focus();
         },
 
-
         /**
          * Monitor the given tag.
          */
-        monitorNewTag(){
-            if (this.newTag.length && !this.tags.includes(this.newTag)) {
-                axios.post(Telescope.basePath + '/telescope-api/monitored-tags', {tag: this.newTag});
+        monitorNewTag() {
+            const tag = this.newTag;
 
-                this.tags.push(this.newTag);
+            if (!tag.length || this.tags.includes(tag)) {
+                this.cancelNewTag();
+                return;
             }
 
-            this.newTagModal.hide();
+            return axios
+                .post(Telescope.basePath + '/telescope-api/monitored-tags', { tag })
+                .then(() => {
+                    if (!this.tags.includes(tag)) this.tags.push(tag);
 
-            this.newTag = '';
+                    if (this.newTag === tag) {
+                        this.newTagModal.hide();
+                        this.newTag = '';
+                    }
+                })
+                .catch(() => {
+                    this.alertError(
+                        'Telescope could not confirm the monitoring change. Reload the page to check the current tags.',
+                    );
+                });
         },
-
 
         /**
          * Cancel adding a new tag.
          */
-        cancelNewTag(){
+        cancelNewTag() {
             this.newTagModal.hide();
 
             this.newTag = '';
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -103,7 +121,7 @@ export default {
         <div class="card-header d-flex align-items-center justify-content-between">
             <h2 class="h6 m-0">Monitoring</h2>
 
-            <button class="btn btn-primary" v-on:click.prevent="openNewTagModal">Monitor</button>
+            <button class="btn btn-primary" :disabled="!ready" v-on:click.prevent="openNewTagModal">Monitor</button>
         </div>
 
         <div v-if="!ready" class="d-flex align-items-center justify-content-center card-bg-secondary p-5 bottom-radius">

@@ -1,4 +1,4 @@
-import { afterEach, expect, expectTypeOf, test } from "vitest";
+import { afterEach, expect, expectTypeOf, test } from "vite-plus/test";
 import {
     defaultParametersDomain,
     dynamicParametersDomain,
@@ -103,10 +103,7 @@ test("it preserves dynamic URL defaults when adding runtime defaults", () => {
 });
 
 test("applyUrlDefaults returns an object for exact nullish inputs without widening unions", () => {
-    type OptionalDefaults =
-        | { locale?: string }
-        | null
-        | undefined;
+    type OptionalDefaults = { locale?: string } | null | undefined;
 
     expectTypeOf(applyUrlDefaults(undefined)).toEqualTypeOf<
         Record<string, unknown>

@@ -2,10 +2,8 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
+    mixins: [StylesMixin],
+};
 </script>
 
 <template>
@@ -40,7 +38,7 @@ export default {
                         requestStatusClass(
                             slotProps.entry.content.response_status !== undefined
                                 ? slotProps.entry.content.response_status
-                                : null
+                                : null,
                         )
                     "
                 >

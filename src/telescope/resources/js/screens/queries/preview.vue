@@ -50,8 +50,8 @@ export default {
         },
 
         // REMOVED: queryLanguage(); without JSON commands, every query highlights as SQL.
-    }
-}
+    },
+};
 </script>
 
 <template>
@@ -90,7 +90,9 @@ export default {
                 </ul>
                 <div class="code-bg p-4 mb-0 text-white">
                     <copy-clipboard :data="formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver)">
-                        <pre class="code-bg text-white language-sql" ref="querycode">{{ formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver) }}</pre>
+                        <pre class="code-bg text-white language-sql" ref="querycode">{{
+                            formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver)
+                        }}</pre>
                     </copy-clipboard>
                 </div>
             </div>

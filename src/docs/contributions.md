@@ -102,7 +102,7 @@ Every pull request must:
 - Include tests for new or changed behavior, including relevant failure cases and coroutine isolation.
 - Update the documentation when public APIs, configuration, or documented behavior change.
 - Describe the verification performed and its results.
-- Pass the required automated checks before human review is requested.
+- Pass the required automated checks before human review is requested, except the [compiled-assets check](#compiled-assets) when waiting for a maintainer to rebuild changed assets.
 
 </div>
 
@@ -147,7 +147,7 @@ composer --working-dir=skeletons/hypervel install
 
 The check commands use installed dependencies. They do not install or update packages, build frontend assets, or start application servers.
 
-All CI checks must pass before a pull request will be reviewed. Investigate and address failures before requesting maintainer review.
+Investigate and address CI failures before requesting maintainer review. The compiled-assets check may fail while a contributor's source changes await a maintainer rebuild. All checks must pass before merge.
 
 Documentation-only changes do not require the PHP test and analysis suite. Verify the changed instructions, examples, and links, and ensure the applicable CI checks pass.
 
@@ -171,6 +171,15 @@ composer analyse:skeletons
 Use `composer check:skeleton-config` to verify generated configuration in both the base skeleton and the React starter kit.
 
 The framework and skeleton installation workflows test fresh installations separately in CI. Pull requests, pushes to `0.4`, and manual runs use the checked-out packages; nightly runs use the published packages. The skeleton workflow also builds frontend assets, runs application checks, and verifies HTTP startup.
+
+Framework JavaScript uses a shared Vite+ and pnpm workspace. After [installing the frontend dependencies](#compiled-assets), check source and run its tests from the repository root:
+
+```shell
+pnpm check
+pnpm test
+```
+
+Use `pnpm check:fix` to apply formatting and supported lint fixes. You can select a test project with `pnpm test:horizon`, `pnpm test:telescope`, `pnpm test:mcp`, or `pnpm test:wayfinder`.
 
 If your change affects Wayfinder's generated TypeScript, also run:
 
@@ -198,14 +207,26 @@ Do not disable checks, skip affected tests, or weaken assertions to make a pull 
 
 Hypervel packages such as Horizon and Telescope include JavaScript and CSS assets for their dashboards. If you are submitting a change that affects dashboard source files, do not commit the generated `dist` files unless a maintainer asks you to do so. Due to their size, compiled assets cannot realistically be reviewed with the same care as source files. This could be exploited as a way to inject malicious code into Hypervel. In order to defensively prevent this, compiled assets will be generated and committed by Hypervel maintainers when needed.
 
-To work on the Horizon or Telescope dashboards, use Node.js 24 (24.15 or later) and npm 11.10 or newer. Run these commands from `src/horizon` or `src/telescope` in the components repository:
+Framework frontend source lives in the components repository. Horizon, Telescope, the exception renderer, Workbench, Wayfinder, and the AI demo share the root dependency catalog and lockfile. Their split repositories ship compiled assets for Composer consumers; frontend development takes place in a fork of components.
+
+Install [Vite+](https://viteplus.dev/guide/getting-started), then run from the repository root:
 
 ```shell
-npm ci
-npm run build
+vp install --frozen-lockfile
+vp run check
+vp test
+vp run build
 ```
 
-Use `npm run watch` to rebuild assets as you edit. Telescope's component tests run with `npm test` from `src/telescope`. After updating dependencies, run `npm audit`, test the dashboard, and rebuild its assets. Maintainers commit the generated `dist` files before merging; applications install these assets through Composer and do not need Node.js.
+Vite+ selects the Node.js and pnpm versions declared in the root `package.json`. You can also use Node.js 24 (24.15 or later) and the exact declared pnpm version directly: run `pnpm install --frozen-lockfile`, then `pnpm check`, `pnpm test`, and `pnpm build`. Plain pnpm does not switch its own version in this repository.
+
+The root build compiles every framework frontend and the AI demo, and minifies the MCP browser SDK. To build one package, use `pnpm build:horizon`, `pnpm build:telescope`, `pnpm build:exception-renderer`, `pnpm build:workbench`, or `pnpm build:ai-workbench`. To rebuild a dashboard as you edit, run `pnpm --dir src/horizon watch` or `pnpm --dir src/telescope watch`. The same commands are available through `vp run`.
+
+Use package-manager commands to update dependencies. Keep shared versions in `pnpm-workspace.yaml`'s catalog and declarations in the packages that use them. After an update, run `pnpm audit`, including development dependencies, then the checks, tests and builds. Browser dependencies are also declared as development dependencies, so auditing production dependencies alone is insufficient.
+
+Maintainers commit rebuilt Horizon and Telescope `dist` files, the exception renderer's `dist`, Workbench's `public/build`, and the minified MCP SDK alongside the source and lockfile changes. The CI asset check reports changed or new output files. Contributors may leave these generated files for a maintainer to rebuild and review before merge. The AI demo's build output stays untracked. Applications install the distributed assets through Composer and do not need Node.js.
+
+Application skeletons are independent projects. Their manifests and builds do not use the framework workspace or catalog. Follow the skeleton's own installation commands when working on an application.
 
 <a name="ai-generated-contributions"></a>
 ## AI-Generated Contributions
@@ -227,6 +248,12 @@ If you discover a security vulnerability within Hypervel, please send an email t
 Hypervel follows the [PSR-4](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-4-autoloader.md) autoloading standard and uses php-cs-fixer to enforce coding style. All PHP files must declare strict types. Use modern PHP 8.4+ features where appropriate.
 
 Parameters, return values, properties, class constants, and closure signatures must be fully typed wherever PHP and inherited signatures permit.
+
+Frontend formatting is configured in the root `vite.config.ts`. To omit recorded formatting-only commits from local Git blame, run:
+
+```shell
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
 
 <a name="phpdoc"></a>
 ### PHPDoc

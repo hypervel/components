@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import storage from "./.generated/routes/storage";
 
 it("can import storage routes", () => {

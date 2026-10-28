@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { Dropdown } from 'bootstrap';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vite-plus/test';
 import Base from '../base';
 import RelatedEntries from './RelatedEntries.vue';
 
@@ -20,7 +20,10 @@ const contents = {
     client_request: { method: 'GET', uri: 'https://example.test', response_status: 200, duration: 1 },
 };
 const batch = Object.entries(contents).map(([type, content]) => ({
-    id: type, type, content, created_at: '2026-10-28T00:00:00Z',
+    id: type,
+    type,
+    content,
+    created_at: '2026-10-28T00:00:00Z',
 }));
 
 let wrapper;
@@ -48,8 +51,13 @@ it('makes every related entry type reachable and preserves router history state'
     mountRelated();
 
     expect(wrapper.findAll('.nav-item:not(.dropdown)')).toHaveLength(7);
-    expect(wrapper.findAll('.dropdown-item').map(link => link.text())).toEqual([
-        'Mail (1)', 'Notifications (1)', 'Events (1)', 'Cache (1)', 'Redis (1)', 'HTTP Client (1)',
+    expect(wrapper.findAll('.dropdown-item').map((link) => link.text())).toEqual([
+        'Mail (1)',
+        'Notifications (1)',
+        'Events (1)',
+        'Cache (1)',
+        'Redis (1)',
+        'HTTP Client (1)',
     ]);
     await wrapper.findAll('.dropdown-item').at(-1).trigger('click');
     expect(window.location.hash).toBe('#client_requests');

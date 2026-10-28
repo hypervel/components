@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { Modal } from 'bootstrap';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vite-plus/test';
 import Alert from './Alert.vue';
 
 let wrapper;
@@ -34,7 +34,10 @@ it.each([
 
     expect(document.activeElement).toBe(wrapper.element);
     expect(document.body.classList.contains('modal-open')).toBe(true);
-    await wrapper.findAll('button').find(button => button.text() === label).trigger('click');
+    await wrapper
+        .findAll('button')
+        .find((button) => button.text() === label)
+        .trigger('click');
 
     expect(action).toHaveBeenCalledOnce();
     expect(alert.type).toBeNull();
@@ -78,7 +81,10 @@ it('preserves an underlying modal when the confirmation closes', async () => {
     try {
         underlyingModal.show();
         mountAlert();
-        await wrapper.findAll('button').find(button => button.text() === 'Cancel').trigger('click');
+        await wrapper
+            .findAll('button')
+            .find((button) => button.text() === 'Cancel')
+            .trigger('click');
         expect(underlyingElement.classList.contains('show')).toBe(true);
         expect(document.body.classList.contains('modal-open')).toBe(true);
         expect(document.body.style.overflow).toBe('hidden');

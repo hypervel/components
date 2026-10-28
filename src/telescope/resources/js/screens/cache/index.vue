@@ -2,10 +2,8 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
+    mixins: [StylesMixin],
+};
 </script>
 
 <template>

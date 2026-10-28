@@ -8,11 +8,11 @@ export default {
     props: ['lines', 'highlightedLine'],
 
     methods: {
-        highlight(line){
+        highlight(line) {
             return hljs.highlight(line, { language: 'php' }).value;
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

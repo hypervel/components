@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import { h } from 'vue';
 import Preview from './preview.vue';
 
@@ -29,7 +29,7 @@ it('renders recorded Reply-To, CC and BCC addresses without changing mail links'
         cc: { 'cc@example.test': '' },
         bcc: { 'bcc@example.test': 'Hidden' },
     });
-    const rows = Object.fromEntries(wrapper.findAll('tr').map(row => row.findAll('td').map(cell => cell.text())));
+    const rows = Object.fromEntries(wrapper.findAll('tr').map((row) => row.findAll('td').map((cell) => cell.text())));
 
     expect(rows['Reply-To']).toBe('<Reply> reply@example.test');
     expect(rows.CC).toBe('cc@example.test');
@@ -39,9 +39,9 @@ it('renders recorded Reply-To, CC and BCC addresses without changing mail links'
     wrapper.unmount();
 });
 
-it.each([[], {}])('omits empty address collections represented by %j', empty => {
+it.each([[], {}])('omits empty address collections represented by %j', (empty) => {
     const wrapper = mountPreview({ replyTo: empty, cc: empty, bcc: empty });
-    const labels = wrapper.findAll('tr td:first-child').map(cell => cell.text());
+    const labels = wrapper.findAll('tr td:first-child').map((cell) => cell.text());
 
     expect(labels).not.toContain('Reply-To');
     expect(labels).not.toContain('CC');

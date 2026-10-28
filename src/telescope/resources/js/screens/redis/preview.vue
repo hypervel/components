@@ -1,12 +1,12 @@
 <script>
 export default {
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
         };
     },
-}
+};
 </script>
 
 <template>

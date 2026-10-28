@@ -17,173 +17,181 @@ export default {
         },
     },
 
-    mixins: [
-        StylesMixin,
-    ],
-
+    mixins: [StylesMixin],
 
     /**
      * The component's data.
      */
-    data(){
+    data() {
         return {
-            currentTab: 'exceptions'
+            currentTab: 'exceptions',
         };
     },
-
 
     /**
      * Prepare the component.
      */
-    mounted(){
+    mounted() {
         this.activateFirstTab();
     },
 
-
     watch: {
-        entry(){
+        entry() {
             this.activateFirstTab();
-        }
+        },
     },
 
-
     methods: {
-        activateFirstTab(){
+        activateFirstTab() {
             if (window.location.hash) {
                 this.currentTab = window.location.hash.substring(1);
             } else if (this.exceptions.length) {
-                this.currentTab = 'exceptions'
+                this.currentTab = 'exceptions';
             } else if (this.logs.length) {
-                this.currentTab = 'logs'
+                this.currentTab = 'logs';
             } else if (this.views.length) {
-                this.currentTab = 'views'
+                this.currentTab = 'views';
             } else if (this.queries.length) {
-                this.currentTab = 'queries'
+                this.currentTab = 'queries';
             } else if (this.models.length) {
-                this.currentTab = 'models'
+                this.currentTab = 'models';
             } else if (this.jobs.length) {
-                this.currentTab = 'jobs'
+                this.currentTab = 'jobs';
             } else if (this.mails.length) {
-                this.currentTab = 'mails'
+                this.currentTab = 'mails';
             } else if (this.notifications.length) {
-                this.currentTab = 'notifications'
+                this.currentTab = 'notifications';
             } else if (this.events.length) {
-                this.currentTab = 'events'
+                this.currentTab = 'events';
             } else if (this.cache.length) {
-                this.currentTab = 'cache'
+                this.currentTab = 'cache';
             } else if (this.gates.length) {
-                this.currentTab = 'gates'
+                this.currentTab = 'gates';
             } else if (this.redis.length) {
-                this.currentTab = 'redis'
+                this.currentTab = 'redis';
             } else if (this.clientRequests.length) {
                 this.currentTab = 'client_requests';
             }
         },
 
-        activateTab(tab){
+        activateTab(tab) {
             this.currentTab = tab;
             window.history.replaceState(window.history.state, '', '#' + this.currentTab);
-        }
+        },
     },
 
-
     computed: {
-        hasRelatedEntries(){
-            return !!_.reject(this.batch, entry => {
+        hasRelatedEntries() {
+            return !!_.reject(this.batch, (entry) => {
                 return _.includes(['request', 'command'], entry.type);
             }).length;
         },
 
         exceptions() {
-            return _.filter(this.batch, {type: 'exception'});
+            return _.filter(this.batch, { type: 'exception' });
         },
 
         gates() {
-            return _.filter(this.batch, {type: 'gate'});
+            return _.filter(this.batch, { type: 'gate' });
         },
 
         logs() {
-            return _.filter(this.batch, {type: 'log'});
+            return _.filter(this.batch, { type: 'log' });
         },
 
         queries() {
-            return _.filter(this.batch, {type: 'query'});
+            return _.filter(this.batch, { type: 'query' });
         },
 
         models() {
-            return _.filter(this.batch, {type: 'model'});
+            return _.filter(this.batch, { type: 'model' });
         },
 
         jobs() {
-            return _.filter(this.batch, {type: 'job'});
+            return _.filter(this.batch, { type: 'job' });
         },
 
         events() {
-            return _.filter(this.batch, {type: 'event'});
+            return _.filter(this.batch, { type: 'event' });
         },
 
         cache() {
-            return _.filter(this.batch, {type: 'cache'});
+            return _.filter(this.batch, { type: 'cache' });
         },
 
         redis() {
-            return _.filter(this.batch, {type: 'redis'});
+            return _.filter(this.batch, { type: 'redis' });
         },
 
         mails() {
-            return _.filter(this.batch, {type: 'mail'});
+            return _.filter(this.batch, { type: 'mail' });
         },
 
         notifications() {
-            return _.filter(this.batch, {type: 'notification'});
+            return _.filter(this.batch, { type: 'notification' });
         },
 
         views() {
-            return _.filter(this.batch, {type: 'view'});
+            return _.filter(this.batch, { type: 'view' });
         },
 
         clientRequests() {
-            return _.filter(this.batch, {type: 'client_request'});
+            return _.filter(this.batch, { type: 'client_request' });
         },
 
         queriesSummary() {
             return {
-                time: _.reduce(this.queries, (time, q) => { return time + parseFloat(q.content.time) }, 0.00).toFixed(2),
-                duplicated: this.queries.length - _.size(_.groupBy(this.queries, (q) => { return `${q.content.hash}-${q.content.connection}` })),
+                time: _.reduce(
+                    this.queries,
+                    (time, q) => {
+                        return time + parseFloat(q.content.time);
+                    },
+                    0.0,
+                ).toFixed(2),
+                duplicated:
+                    this.queries.length -
+                    _.size(
+                        _.groupBy(this.queries, (q) => {
+                            return `${q.content.hash}-${q.content.connection}`;
+                        }),
+                    ),
             };
         },
 
-        tabs(){
-            return _.filter([
-                {title: "Exceptions", type: "exceptions", count: this.exceptions.length},
-                {title: "Logs", type: "logs", count: this.logs.length},
-                {title: "Views", type: "views", count: this.views.length},
-                {title: "Queries", type: "queries", count: this.queries.length},
-                {title: "Models", type: "models", count: this.models.length},
-                {title: "Gates", type: "gates", count: this.gates.length},
-                {title: "Jobs", type: "jobs", count: this.jobs.length},
-                {title: "Mail", type: "mails", count: this.mails.length},
-                {title: "Notifications", type: "notifications", count: this.notifications.length},
-                {title: "Events", type: "events", count: this.events.length},
-                {title: "Cache", type: "cache", count: this.cache.length},
-                {title: "Redis", type: "redis", count: this.redis.length},
-                {title: "HTTP Client", type: "client_requests", count: this.clientRequests.length},
-            ], tab => tab.count > 0);
+        tabs() {
+            return _.filter(
+                [
+                    { title: 'Exceptions', type: 'exceptions', count: this.exceptions.length },
+                    { title: 'Logs', type: 'logs', count: this.logs.length },
+                    { title: 'Views', type: 'views', count: this.views.length },
+                    { title: 'Queries', type: 'queries', count: this.queries.length },
+                    { title: 'Models', type: 'models', count: this.models.length },
+                    { title: 'Gates', type: 'gates', count: this.gates.length },
+                    { title: 'Jobs', type: 'jobs', count: this.jobs.length },
+                    { title: 'Mail', type: 'mails', count: this.mails.length },
+                    { title: 'Notifications', type: 'notifications', count: this.notifications.length },
+                    { title: 'Events', type: 'events', count: this.events.length },
+                    { title: 'Cache', type: 'cache', count: this.cache.length },
+                    { title: 'Redis', type: 'redis', count: this.redis.length },
+                    { title: 'HTTP Client', type: 'client_requests', count: this.clientRequests.length },
+                ],
+                (tab) => tab.count > 0,
+            );
         },
 
-        separateTabs(){
+        separateTabs() {
             return _.slice(this.tabs, 0, 7);
         },
 
-        dropdownTabs(){
+        dropdownTabs() {
             return _.slice(this.tabs, 7);
         },
 
-        dropdownTabSelected(){
+        dropdownTabSelected() {
             return _.includes(_.map(this.dropdownTabs, 'type'), this.currentTab);
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -785,7 +793,7 @@ export default {
                                     requestStatusClass(
                                         entry.content.response_status !== undefined
                                             ? entry.content.response_status
-                                            : null
+                                            : null,
                                     )
                                 "
                             >

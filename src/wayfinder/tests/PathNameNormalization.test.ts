@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import api from "./.generated/routes/api";
 import v1 from "./.generated/routes/api/v1";
 

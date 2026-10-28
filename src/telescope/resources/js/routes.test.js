@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import { h } from 'vue';
 import { createMemoryHistory, createRouter, RouterLink } from 'vue-router';
 import routes from './routes';
@@ -28,19 +28,32 @@ const sections = [
 it('keeps the matching sidebar section active on detail pages without changing named URLs', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes });
     await router.push('/requests');
-    const wrapper = mount({
-        render: () => h('nav', sections.map(([section]) => h(RouterLink, {
-            to: '/' + section,
-            activeClass: 'active',
-        }, () => section))),
-    }, { global: { plugins: [router] } });
+    const wrapper = mount(
+        {
+            render: () =>
+                h(
+                    'nav',
+                    sections.map(([section]) =>
+                        h(
+                            RouterLink,
+                            {
+                                to: '/' + section,
+                                activeClass: 'active',
+                            },
+                            () => section,
+                        ),
+                    ),
+                ),
+        },
+        { global: { plugins: [router] } },
+    );
 
     try {
         for (const [section, name] of sections) {
             await router.push({ name, params: { id: 'entry-id' }, query: { tag: 'Example:1' } });
 
             expect(router.currentRoute.value.path).toBe('/' + section + '/entry-id');
-            expect(wrapper.findAll('a.active').map(link => link.text())).toEqual([section]);
+            expect(wrapper.findAll('a.active').map((link) => link.text())).toEqual([section]);
             expect(router.resolve({ name: section }).path).toBe('/' + section);
         }
     } finally {

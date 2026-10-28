@@ -50,6 +50,7 @@ class InteractsWithStringsTest extends TestCase
                 "\e]8;;https://example.com\x07lin┃\e]8;;\x07",
             ],
             'named style' => ['<info>abc</info>', '<info>ab┃</info>'],
+            'uppercase named style' => ['<INFO>abc</INFO>', '<INFO>ab┃</INFO>'],
             'inline style' => ['<fg=red>abc</>', '<fg=red>ab┃</>'],
         ];
     }
