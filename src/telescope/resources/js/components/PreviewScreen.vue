@@ -4,14 +4,13 @@ import axios from 'axios';
 
 export default {
     props: {
-        resource: {required: true},
-        title: {required: true},
-        id: {required: true},
-        entryPoint: {default: false},
+        resource: { required: true },
+        title: { required: true },
+        id: { required: true },
+        entryPoint: { default: false },
     },
 
     emits: ['ready'],
-
 
     /**
      * The component's data.
@@ -29,21 +28,18 @@ export default {
         };
     },
 
-
     watch: {
         id() {
-            this.prepareEntry()
-        }
+            this.prepareEntry();
+        },
     },
-
 
     /**
      * Prepare the component.
      */
     mounted() {
-        this.prepareEntry()
+        this.prepareEntry();
     },
-
 
     /**
      * Clean up before the component is unmounted.
@@ -53,22 +49,19 @@ export default {
         clearTimeout(this.updateEntryTimeout);
     },
 
-
     computed: {
         job() {
-            return _.find(this.batch, {type: 'job'})
+            return _.find(this.batch, { type: 'job' });
         },
 
         request() {
-            return _.find(this.batch, {type: 'request'})
+            return _.find(this.batch, { type: 'request' });
         },
-
 
         command() {
-            return _.find(this.batch, {type: 'command'})
+            return _.find(this.batch, { type: 'command' });
         },
     },
-
 
     methods: {
         prepareEntry() {
@@ -76,7 +69,7 @@ export default {
             this.requestController = new AbortController();
             clearTimeout(this.updateEntryTimeout);
 
-            document.title = this.title + " - Telescope";
+            document.title = this.title + ' - Telescope';
             this.ready = false;
 
             // The component is reused when the route ID changes, so a failed load must not leave the previous entry on screen.
@@ -87,12 +80,12 @@ export default {
 
             if (this.unwatchReady) this.unwatchReady();
 
-            const unwatch = this.unwatchReady = this.$watch('ready', newVal => {
+            const unwatch = (this.unwatchReady = this.$watch('ready', (newVal) => {
                 if (newVal) {
                     this.$emit('ready');
                     unwatch();
                 }
-            });
+            }));
 
             this.loadEntry((response) => {
                 this.entry = response.data.entry;
@@ -107,31 +100,32 @@ export default {
             });
         },
 
+        loadEntry(after, polling = false) {
+            const { signal } = this.requestController;
 
-        loadEntry(after, polling = false){
-            const {signal} = this.requestController;
+            return axios
+                .get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, { signal })
+                .then((response) => {
+                    if (signal.aborted) return;
 
-            return axios.get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, {signal}).then(response => {
-                if (signal.aborted) return;
+                    if (_.isFunction(after)) {
+                        after(response);
+                    }
+                })
+                .catch((error) => {
+                    if (signal.aborted) return;
 
-                if (_.isFunction(after)) {
-                    after(response);
-                }
-            }).catch(error => {
-                if (signal.aborted) return;
+                    this.ready = true;
 
-                this.ready = true;
-
-                // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
-                if (polling && this.mayRetry(error, signal)) this.updateEntry();
-            })
+                    // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
+                    if (polling && this.mayRetry(error, signal)) this.updateEntry();
+                });
         },
-
 
         /**
          * Update the existing entry if needed.
          */
-        updateEntry(){
+        updateEntry() {
             if (this.resource != 'jobs') return;
             if (!this.entry || this.entry.content.status !== 'pending') return;
 
@@ -148,9 +142,9 @@ export default {
                     this.updateEntry();
                 }, true);
             }, this.updateEntryTimer);
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>

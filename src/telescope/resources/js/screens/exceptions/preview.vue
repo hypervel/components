@@ -6,37 +6,37 @@ import Stacktrace from './../../components/Stacktrace.vue';
 export default {
     components: {
         'code-preview': ExceptionCodePreview,
-        'stack-trace': Stacktrace
+        'stack-trace': Stacktrace,
     },
 
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'message'
+            currentTab: 'message',
         };
     },
 
     methods: {
         hasContext() {
-            return this.entry.content.hasOwnProperty('context')
-                && this.entry.content.context !== null;
+            return this.entry.content.hasOwnProperty('context') && this.entry.content.context !== null;
         },
 
         markExceptionAsResolved(entry) {
             this.alertConfirm('Are you sure you want to mark this exception as resolved?', () => {
+                axios
+                    .put(Telescope.basePath + '/telescope-api/exceptions/' + entry.id, {
+                        resolved_at: 'now',
+                    })
+                    .then((response) => {
+                        if (this.$route.params.id !== entry.id) return;
 
-                axios.put(Telescope.basePath + '/telescope-api/exceptions/' + entry.id, {
-                    'resolved_at': 'now',
-                }).then(response => {
-                    if (this.$route.params.id !== entry.id) return;
-
-                    this.entry = response.data.entry;
-                })
+                        this.entry = response.data.entry;
+                    });
             });
         },
-    }
-}
+    },
+};
 </script>
 
 <template>
@@ -158,7 +158,11 @@ export default {
                         </copy-clipboard>
                     </div>
 
-                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'extra'" v-if="slotProps.entry.content.extra">
+                    <div
+                        class="code-bg p-4 mb-0 text-white"
+                        v-show="currentTab == 'extra'"
+                        v-if="slotProps.entry.content.extra"
+                    >
                         <copy-clipboard :data="slotProps.entry.content.extra">
                             <vue-json-pretty :data="slotProps.entry.content.extra"></vue-json-pretty>
                         </copy-clipboard>

@@ -51,7 +51,7 @@ window.highlight = function (
     truncate = false,
     editor = false,
     startingLine = 1,
-    highlightedLine = null
+    highlightedLine = null,
 ) {
     return highlighter.codeToHtml(code, {
         lang: language,

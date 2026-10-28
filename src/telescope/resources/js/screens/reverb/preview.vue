@@ -6,7 +6,7 @@ export default {
             batch: [],
         };
     },
-}
+};
 </script>
 
 <template>

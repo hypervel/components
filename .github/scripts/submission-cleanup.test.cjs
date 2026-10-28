@@ -11,23 +11,38 @@ const recentDate = '2026-10-19T12:00:00Z';
 
 function draft(overrides = {}) {
     return {
-        number: 1, node_id: 'PR_1', state: 'open', draft: true, user: author,
-        labels: [], head: { sha: 'old-head' }, created_at: oldDate, updated_at: oldDate,
+        number: 1,
+        node_id: 'PR_1',
+        state: 'open',
+        draft: true,
+        user: author,
+        labels: [],
+        head: { sha: 'old-head' },
+        created_at: oldDate,
+        updated_at: oldDate,
         ...overrides,
     };
 }
 
 function issue(overrides = {}) {
     return {
-        number: 2, node_id: 'I_2', state: 'open', user: author,
-        labels: [{ name: 'not enough info' }], created_at: oldDate, updated_at: oldDate,
+        number: 2,
+        node_id: 'I_2',
+        state: 'open',
+        user: author,
+        labels: [{ name: 'not enough info' }],
+        created_at: oldDate,
+        updated_at: oldDate,
         ...overrides,
     };
 }
 
 function notice(at = oldDate, head = 'old-head') {
     return {
-        id: 10, user: bot, created_at: oldDate, updated_at: oldDate,
+        id: 10,
+        user: bot,
+        created_at: oldDate,
+        updated_at: oldDate,
         body: `<!-- hypervel-draft-activity ${JSON.stringify({ head, at })} -->`,
     };
 }
@@ -47,27 +62,38 @@ async function run(options = {}) {
     const pullRequests = options.pullRequests || [];
     const issues = options.issues || [];
     const methods = [
-        'repos.getCollaboratorPermissionLevel', 'pulls.list', 'pulls.get', 'pulls.listReviews',
-        'pulls.listReviewComments', 'pulls.update', 'issues.listForRepo', 'issues.get',
-        'issues.listComments', 'issues.listEventsForTimeline', 'issues.createComment',
-        'issues.updateComment', 'issues.update',
+        'repos.getCollaboratorPermissionLevel',
+        'pulls.list',
+        'pulls.get',
+        'pulls.listReviews',
+        'pulls.listReviewComments',
+        'pulls.update',
+        'issues.listForRepo',
+        'issues.get',
+        'issues.listComments',
+        'issues.listEventsForTimeline',
+        'issues.createComment',
+        'issues.updateComment',
+        'issues.update',
     ];
     const rest = { repos: {}, pulls: {}, issues: {} };
     for (const method of methods) {
         const [resource, name] = method.split('.');
-        rest[resource][name] = async parameters => {
+        rest[resource][name] = async (parameters) => {
             calls.push({ method, ...parameters });
             if (method === 'repos.getCollaboratorPermissionLevel') {
-                return { data: options.permissions?.[parameters.username] || {
-                    permission: parameters.username === 'maintainer' ? 'write' : 'read',
-                } };
+                return {
+                    data: options.permissions?.[parameters.username] || {
+                        permission: parameters.username === 'maintainer' ? 'write' : 'read',
+                    },
+                };
             }
             if (method === 'pulls.get') {
-                const current = pullRequests.find(item => item.number === parameters.pull_number);
+                const current = pullRequests.find((item) => item.number === parameters.pull_number);
                 return { data: { ...current, ...options.currentPullRequest } };
             }
             if (method === 'issues.get') {
-                const current = issues.find(item => item.number === parameters.issue_number);
+                const current = issues.find((item) => item.number === parameters.issue_number);
                 return { data: { ...current, ...options.currentIssue } };
             }
             mutations.push({ method, ...parameters });
@@ -91,7 +117,8 @@ async function run(options = {}) {
         }
     };
     const github = {
-        rest, paginate,
+        rest,
+        paginate,
         graphql: async (query, variables) => ({
             node: options.edits?.[variables.id] || { lastEditedAt: null, editor: null },
         }),
@@ -100,16 +127,22 @@ async function run(options = {}) {
         github,
         context: {
             repo: { owner: 'hypervel', repo: 'components' },
-            eventName: options.eventName || 'schedule', payload: options.payload || {},
+            eventName: options.eventName || 'schedule',
+            payload: options.payload || {},
         },
-        core: { info: message => logs.push(message) }, now, dryRun: options.dryRun || false,
+        core: { info: (message) => logs.push(message) },
+        now,
+        dryRun: options.dryRun || false,
     });
     return { mutations, logs, calls };
 }
 
 test('closes an inactive external draft with an explanation and no branch deletion', async () => {
     const { mutations } = await run({ pullRequests: [draft()], comments: { 1: [notice()] } });
-    assert.deepEqual(mutations.map(change => change.method), ['issues.createComment', 'pulls.update']);
+    assert.deepEqual(
+        mutations.map((change) => change.method),
+        ['issues.createComment', 'pulls.update'],
+    );
     assert.match(mutations[0].body, /seven days/);
     assert.match(mutations[0].body, /contributions\.md/);
     assert.equal(mutations[1].state, 'closed');
@@ -124,7 +157,8 @@ test('gives existing drafts a full seven days from their first notice', async ()
 
 test('records a newly observed head even if the commit has an old date', async () => {
     const { mutations } = await run({
-        pullRequests: [draft({ head: { sha: 'new-head' } })], comments: { 1: [notice()] },
+        pullRequests: [draft({ head: { sha: 'new-head' } })],
+        comments: { 1: [notice()] },
     });
     assert.equal(mutations.length, 1);
     assert.equal(mutations[0].method, 'issues.updateComment');
@@ -140,18 +174,23 @@ test('ignores contributor-supplied tracking markers', async () => {
 
 test('honors the seven-day boundary', async () => {
     const before = await run({
-        pullRequests: [draft()], comments: { 1: [notice('2026-10-13T12:00:01Z')] },
+        pullRequests: [draft()],
+        comments: { 1: [notice('2026-10-13T12:00:01Z')] },
     });
     assert.equal(before.mutations.length, 0);
     const atDeadline = await run({
-        pullRequests: [draft()], comments: { 1: [notice('2026-10-13T12:00:00Z')] },
+        pullRequests: [draft()],
+        comments: { 1: [notice('2026-10-13T12:00:00Z')] },
     });
     assert.equal(atDeadline.mutations.at(-1).method, 'pulls.update');
 });
 
 test('exempts ready, closed, maintainer-authored, bot-authored, and labeled pull requests', async () => {
     for (const overrides of [
-        { draft: false }, { state: 'closed' }, { user: maintainer }, { user: bot },
+        { draft: false },
+        { state: 'closed' },
+        { user: maintainer },
+        { user: bot },
         { labels: [{ name: 'maintainer-directed' }] },
     ]) {
         const { mutations } = await run({ pullRequests: [draft(overrides)] });
@@ -167,7 +206,9 @@ test('author comments, comment edits, reviews, and review replies extend the dea
         { reviewComments: [response()] },
     ]) {
         const { mutations } = await run({
-            pullRequests: [draft()], comments: { 1: [notice()] }, ...additions,
+            pullRequests: [draft()],
+            comments: { 1: [notice()] },
+            ...additions,
         });
         assert.equal(mutations.length, 0);
     }
@@ -175,7 +216,8 @@ test('author comments, comment edits, reviews, and review replies extend the dea
 
 test('bot comments and maintainer reviews do not reset the draft timer', async () => {
     const { mutations } = await run({
-        pullRequests: [draft()], comments: { 1: [notice(), response(bot)] },
+        pullRequests: [draft()],
+        comments: { 1: [notice(), response(bot)] },
         reviews: [{ user: maintainer, submitted_at: recentDate }],
         reviewComments: [response(bot)],
     });
@@ -188,7 +230,9 @@ test('author body edits and recent draft conversion or reopening extend the dead
         { timelineItems: { nodes: [{ createdAt: recentDate }] } },
     ]) {
         const { mutations } = await run({
-            pullRequests: [draft()], comments: { 1: [notice()] }, edits: { PR_1: edit },
+            pullRequests: [draft()],
+            comments: { 1: [notice()] },
+            edits: { PR_1: edit },
         });
         assert.equal(mutations.length, 0);
     }
@@ -196,11 +240,16 @@ test('author body edits and recent draft conversion or reopening extend the dead
 
 test('does not close a draft changed while its activity was being checked', async () => {
     for (const currentPullRequest of [
-        { draft: false }, { state: 'closed' }, { head: { sha: 'new-head' } },
-        { updated_at: recentDate }, { labels: [{ name: 'maintainer-directed' }] },
+        { draft: false },
+        { state: 'closed' },
+        { head: { sha: 'new-head' } },
+        { updated_at: recentDate },
+        { labels: [{ name: 'maintainer-directed' }] },
     ]) {
         const { mutations } = await run({
-            pullRequests: [draft()], comments: { 1: [notice()] }, currentPullRequest,
+            pullRequests: [draft()],
+            comments: { 1: [notice()] },
+            currentPullRequest,
         });
         assert.equal(mutations.length, 0);
     }
@@ -208,7 +257,9 @@ test('does not close a draft changed while its activity was being checked', asyn
 
 test('human pull request events record activity without closing anything', async () => {
     const { mutations } = await run({
-        pullRequests: [draft()], comments: { 1: [notice()] }, eventName: 'pull_request_target',
+        pullRequests: [draft()],
+        comments: { 1: [notice()] },
+        eventName: 'pull_request_target',
         payload: { pull_request: { number: 1 }, sender: author },
     });
     assert.equal(mutations.length, 1);
@@ -217,7 +268,8 @@ test('human pull request events record activity without closing anything', async
 
 test('bot-triggered edits do not update the draft activity notice', async () => {
     const { mutations } = await run({
-        pullRequests: [draft()], eventName: 'pull_request_target',
+        pullRequests: [draft()],
+        eventName: 'pull_request_target',
         payload: { pull_request: { number: 1 }, sender: bot },
     });
     assert.equal(mutations.length, 0);
@@ -225,7 +277,10 @@ test('bot-triggered edits do not update the draft activity notice', async () => 
 
 test('closes an unanswered maintainer information request as not planned, not fixed', async () => {
     const { mutations } = await run({ issues: [issue()], events: [request()] });
-    assert.deepEqual(mutations.map(change => change.method), ['issues.createComment', 'issues.update']);
+    assert.deepEqual(
+        mutations.map((change) => change.method),
+        ['issues.createComment', 'issues.update'],
+    );
     assert.match(mutations[0].body, /does not mean the reported problem is fixed/);
     assert.equal(mutations[1].state_reason, 'not_planned');
 });
@@ -240,7 +295,8 @@ test('requires a maintainer information request and honors its fourteen-day boun
 
 test('accepts information requests from repository triagers', async () => {
     const { mutations } = await run({
-        issues: [issue()], events: [request(oldDate, { login: 'triager', type: 'User' })],
+        issues: [issue()],
+        events: [request(oldDate, { login: 'triager', type: 'User' })],
         permissions: { triager: { permission: 'read', role_name: 'triage' } },
     });
     assert.equal(mutations.at(-1).method, 'issues.update');
@@ -248,7 +304,9 @@ test('accepts information requests from repository triagers', async () => {
 
 test('a reporter response stops closure even if the maintainer has not replied for fourteen days', async () => {
     const { mutations } = await run({
-        issues: [issue()], events: [request()], comments: { 2: [response(author, '2026-10-02T12:00:00Z')] },
+        issues: [issue()],
+        events: [request()],
+        comments: { 2: [response(author, '2026-10-02T12:00:00Z')] },
     });
     assert.equal(mutations.length, 0);
 });
@@ -265,7 +323,9 @@ test('reporter body edits, comment edits, and reopenings count as responses', as
 
 test('bot and other-user replies are not reporter responses', async () => {
     const { mutations } = await run({
-        issues: [issue()], events: [request()], comments: { 2: [response(bot), response(maintainer)] },
+        issues: [issue()],
+        events: [request()],
+        comments: { 2: [response(bot), response(maintainer)] },
         edits: { I_2: { editor: { login: bot.login }, lastEditedAt: recentDate } },
     });
     assert.equal(mutations.at(-1).method, 'issues.update');
@@ -273,7 +333,8 @@ test('bot and other-user replies are not reporter responses', async () => {
 
 test('reapplying the information label starts a new request', async () => {
     const { mutations } = await run({
-        issues: [issue()], events: [request(), request(recentDate)],
+        issues: [issue()],
+        events: [request(), request(recentDate)],
     });
     assert.equal(mutations.length, 0);
 });
@@ -281,7 +342,8 @@ test('reapplying the information label starts a new request', async () => {
 test('exempts directed issues and never treats a pull request as an information-request issue', async () => {
     for (const overrides of [
         { labels: [{ name: 'not enough info' }, { name: 'maintainer-directed' }] },
-        { pull_request: {} }, { user: bot },
+        { pull_request: {} },
+        { user: bot },
     ]) {
         assert.equal((await run({ issues: [issue(overrides)], events: [request()] })).mutations.length, 0);
     }
@@ -289,7 +351,9 @@ test('exempts directed issues and never treats a pull request as an information-
 
 test('rechecks issue state, exemption, label, and activity before closing', async () => {
     for (const currentIssue of [
-        { state: 'closed' }, { labels: [] }, { updated_at: recentDate },
+        { state: 'closed' },
+        { labels: [] },
+        { updated_at: recentDate },
         { labels: [{ name: 'not enough info' }, { name: 'maintainer-directed' }] },
     ]) {
         assert.equal((await run({ issues: [issue()], events: [request()], currentIssue })).mutations.length, 0);
@@ -298,17 +362,21 @@ test('rechecks issue state, exemption, label, and activity before closing', asyn
 
 test('processes subsequent API pages', async () => {
     const { mutations } = await run({
-        pullRequests: [draft({ draft: false }), draft({ number: 3 })], comments: { 3: [notice()] },
+        pullRequests: [draft({ draft: false }), draft({ number: 3 })],
+        comments: { 3: [notice()] },
     });
     assert.equal(mutations.at(-1).pull_number, 3);
 });
 
 test('dry runs make no writes for either closures or initial notices', async () => {
     const { mutations, logs } = await run({
-        pullRequests: [draft(), draft({ number: 3 })], comments: { 1: [notice()] },
-        issues: [issue()], events: [request()], dryRun: true,
+        pullRequests: [draft(), draft({ number: 3 })],
+        comments: { 1: [notice()] },
+        issues: [issue()],
+        events: [request()],
+        dryRun: true,
     });
     assert.equal(mutations.length, 0);
     assert.equal(logs.length, 3);
-    assert.ok(logs.every(message => message.endsWith('(dry run)')));
+    assert.ok(logs.every((message) => message.endsWith('(dry run)')));
 });

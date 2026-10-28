@@ -2,19 +2,16 @@
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
+    mixins: [StylesMixin],
 
-
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'message'
+            currentTab: 'message',
         };
     },
-}
+};
 </script>
 
 <template>
@@ -77,7 +74,11 @@ export default {
                     </div>
 
                     <!-- Extra (Context facade data) -->
-                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'extra'" v-if="slotProps.entry.content.extra">
+                    <div
+                        class="code-bg p-4 mb-0 text-white"
+                        v-show="currentTab == 'extra'"
+                        v-if="slotProps.entry.content.extra"
+                    >
                         <copy-clipboard :data="slotProps.entry.content.extra">
                             <vue-json-pretty :data="slotProps.entry.content.extra"></vue-json-pretty>
                         </copy-clipboard>

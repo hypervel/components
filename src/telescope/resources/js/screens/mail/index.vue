@@ -3,14 +3,16 @@ import _ from 'lodash';
 
 export default {
     methods: {
-        recipientsCount(entry){
-            return _.union((entry.content.to ? Object.keys(entry.content.to) : []),
-                    (entry.content.cc ? Object.keys(entry.content.cc) : []),
-                    (entry.content.bcc ? Object.keys(entry.content.bcc) : []),
-                    (entry.content.replyTo ? Object.keys(entry.content.replyTo) : [])).length;
-        }
-    }
-}
+        recipientsCount(entry) {
+            return _.union(
+                entry.content.to ? Object.keys(entry.content.to) : [],
+                entry.content.cc ? Object.keys(entry.content.cc) : [],
+                entry.content.bcc ? Object.keys(entry.content.bcc) : [],
+                entry.content.replyTo ? Object.keys(entry.content.replyTo) : [],
+            ).length;
+        },
+    },
+};
 </script>
 
 <template>

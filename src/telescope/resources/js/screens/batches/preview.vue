@@ -5,8 +5,8 @@ export default {
             entry: null,
             batch: [],
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
