@@ -36,6 +36,7 @@ const app = createApp({
             autoLoadsNewEntries: localStorage[LOCALSTORAGE_AUTOLOAD_KEY] === '1',
 
             recording: Telescope.recording,
+            recordingPending: false,
         };
     },
 
@@ -54,10 +55,25 @@ const app = createApp({
         },
 
         toggleRecording() {
-            axios.post(Telescope.basePath + '/telescope-api/toggle-recording');
+            if (this.recordingPending) {
+                return;
+            }
 
-            window.Telescope.recording = !Telescope.recording;
-            this.recording = !this.recording;
+            this.recordingPending = true;
+
+            return axios
+                .post(Telescope.basePath + '/telescope-api/toggle-recording')
+                .then(() => {
+                    this.recording = !this.recording;
+                })
+                .catch(() => {
+                    this.alertError(
+                        'Telescope could not confirm the recording change. Reload the page to see the current status.',
+                    );
+                })
+                .finally(() => {
+                    this.recordingPending = false;
+                });
         },
 
         clearEntries(shouldConfirm = true) {
@@ -65,12 +81,17 @@ const app = createApp({
                 return;
             }
 
-            axios.delete(Telescope.basePath + '/telescope-api/entries').then((response) => location.reload());
+            return axios
+                .delete(Telescope.basePath + '/telescope-api/entries')
+                .then(() => location.reload())
+                .catch(() =>
+                    this.alertError('Telescope could not confirm that entries were cleared. Reload the page to check.'),
+                );
         },
 
         keydownListener(event) {
             if (event.metaKey && event.key === 'k') {
-                this.clearEntries(false);
+                void this.clearEntries(false);
             }
         },
     },

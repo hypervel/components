@@ -395,14 +395,17 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function monitor(array $tags): void
     {
-        $tags = array_values(array_diff(array_unique($tags), $this->monitoring()));
+        $tags = array_values(array_unique($tags));
 
         if (empty($tags)) {
             return;
         }
 
-        $this->table('telescope_monitoring')->insert(
+        // Upsert so concurrent requests monitoring the same tag cannot collide on its primary key.
+        $this->table('telescope_monitoring')->upsert(
             array_map(static fn (string $tag): array => ['tag' => $tag], $tags),
+            ['tag'],
+            ['tag'],
         );
     }
 
