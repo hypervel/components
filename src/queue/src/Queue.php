@@ -798,6 +798,11 @@ abstract class Queue
      */
     protected function raiseJobQueueingFailedEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay, Throwable $exception): void
     {
+        // Cancellation is not a queueing failure; wrapped cancellation skips the event like a bare one.
+        if (Coroutine::causedByCancellation($exception)) {
+            return;
+        }
+
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
