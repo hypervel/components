@@ -16,8 +16,10 @@ use Hypervel\Grpc\ServerGrpcOperation;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class GrpcOperationRunnerTest extends TestCase
 {
@@ -191,10 +193,13 @@ class GrpcOperationRunnerTest extends TestCase
         }
     }
 
-    public function testStartingCancellationSkipsPreviouslyStartedCompletions(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStartingCancellationSkipsPreviouslyStartedCompletions(bool $cleanupThrows): void
     {
         $runner = new GrpcOperationRunner;
         $cancellation = new CanceledException;
+        $failure = $cleanupThrows ? new RuntimeException('Observer cleanup failed.', previous: $cancellation) : $cancellation;
         $finished = false;
 
         $runner->observe($this->observer(
@@ -204,31 +209,34 @@ class GrpcOperationRunnerTest extends TestCase
             },
         ));
         $runner->observe($this->observer(
-            function () use ($cancellation): never {
-                throw $cancellation;
+            function () use ($failure): never {
+                throw $failure;
             },
         ));
 
         try {
             $runner->start($this->clientOperation());
             $this->fail('Expected observer startup to be cancelled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertFalse($finished);
     }
 
-    public function testCompletionCancellationStopsLaterObserversAndSupersedesARealFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCompletionCancellationStopsLaterObserversAndSupersedesARealFailure(bool $cleanupThrows): void
     {
         $runner = new GrpcOperationRunner;
         $cancellation = new CanceledException;
+        $failure = $cleanupThrows ? new RuntimeException('Observer cleanup failed.', previous: $cancellation) : $cancellation;
         $laterFinished = false;
 
         $runner->observe($this->observer(
             fn (): null => null,
-            function () use ($cancellation): never {
-                throw $cancellation;
+            function () use ($failure): never {
+                throw $failure;
             },
         ));
         $runner->observe($this->observer(
@@ -246,8 +254,8 @@ class GrpcOperationRunnerTest extends TestCase
                 1,
             ));
             $this->fail('Expected observer completion to be cancelled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertTrue($handle->isFinished());

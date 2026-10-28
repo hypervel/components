@@ -12,9 +12,9 @@ use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -149,13 +149,15 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
                 foreach (array_keys($values) as $key) {
                     try {
                         $store->forget((string) $key);
-                    } catch (CanceledException $exception) {
-                        // Finish this layer's cleanup, as callStores() does across layers.
-                        $cancellation ??= $exception;
-                    } catch (Throwable) {
-                        // An ordinary failure usually means the layer is unreachable, so stop
-                        // instead of paying a timeout per key. callStores() discards these.
-                        break;
+                    } catch (Throwable $exception) {
+                        if (Coroutine::causedByCancellation($exception)) {
+                            // Finish this layer's cleanup, as callStores() does across layers.
+                            $cancellation ??= $exception;
+                        } else {
+                            // An ordinary failure usually means the layer is unreachable, so stop
+                            // instead of paying a timeout per key. callStores() discards these.
+                            break;
+                        }
                     }
                 }
 
@@ -677,17 +679,18 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
             return true;
         }
 
-        $cancellation = $exception instanceof CanceledException ? $exception : null;
+        $cancellation = $exception !== null && Coroutine::causedByCancellation($exception) ? $exception : null;
 
         if ($rollback !== null) {
             // Clear deepest-first so a concurrent read cannot back-fill a cleared upper layer.
             foreach (array_reverse($completed) as $store) {
                 try {
                     $rollback($store);
-                } catch (CanceledException $cleanupCancellation) {
-                    $cancellation ??= $cleanupCancellation;
-                } catch (Throwable) {
-                    // Preserve the write failure that made compensation necessary.
+                } catch (Throwable $cleanupException) {
+                    // Preserve the write failure unless cleanup was canceled.
+                    if (Coroutine::causedByCancellation($cleanupException)) {
+                        $cancellation ??= $cleanupException;
+                    }
                 }
             }
         }
@@ -716,9 +719,11 @@ class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanF
                 if (! $handler($store)) {
                     $result = false;
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

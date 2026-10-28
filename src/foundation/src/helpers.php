@@ -27,6 +27,7 @@ use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Cookie\CookieJar;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
@@ -51,7 +52,6 @@ use Hypervel\Translation\Translator;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -789,9 +789,11 @@ if (! function_exists('rescue')) {
     {
         try {
             return $callback();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             if (value($report, $e)) {
                 report($e);
             }

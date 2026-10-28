@@ -10,8 +10,6 @@ use Aws\Credentials\EcsCredentialProvider;
 use Aws\Credentials\InstanceProfileProvider;
 use Aws\Exception\CredentialsException;
 use Closure;
-use DateInterval;
-use DateTimeInterface;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
@@ -30,6 +28,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use ReflectionFunction;
 use RuntimeException;
@@ -263,9 +262,14 @@ class QueueSqsConnectorTest extends TestCase
         $this->assertSame('direct-key', $provider()->wait()->getAccessKeyId());
     }
 
-    public function testCancellationWhileRecheckingCachedCredentialsReleasesTheRefreshLock(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileRecheckingCachedCredentialsReleasesTheRefreshLock(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Read cleanup failed.', previous: $cancellation);
+        }
         $repository = new InterruptibleCredentialRepository(new ArrayStore);
         // The first read misses before locking; the second is the recheck under the lock.
         $repository->getFailures[2] = $cancellation;
@@ -277,29 +281,36 @@ class QueueSqsConnectorTest extends TestCase
             );
 
             $this->fail('The cancellation should propagate.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertRefreshLockIsFree($repository);
     }
 
-    public function testCancellationWhileStoringCredentialsReleasesTheRefreshLock(): void
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    public function testCancellationWhileUpdatingTheCredentialCacheReleasesTheRefreshLock(bool $cleanupThrows, bool $cacheable): void
     {
         $cancellation = new CanceledException('canceled');
-        $repository = new InterruptibleCredentialRepository(new ArrayStore);
-        $repository->putFailure = $cancellation;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cache cleanup failed.', previous: $cancellation);
+        }
+        $repository = m::mock(Repository::class, [new ArrayStore])->makePartial();
+        $repository->shouldReceive($cacheable ? 'put' : 'forget')->once()->andThrow($cancellation);
 
         $promise = (new AwsCredentialCache(fn () => $repository))->resolve(
             'credentials',
-            fn () => Create::promiseFor(new Credentials('fresh-key', 'fresh-secret', expires: time() + 3600)),
+            fn () => Create::promiseFor(new Credentials('fresh-key', 'fresh-secret', expires: $cacheable ? time() + 3600 : null)),
         );
 
         try {
             $promise->wait();
 
             $this->fail('The cancellation should propagate.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -339,9 +350,14 @@ class QueueSqsConnectorTest extends TestCase
         ];
     }
 
-    public function testRejectedCancellationSurvivesACanceledLockRelease(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRejectedCancellationSurvivesACanceledLockRelease(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Provider cleanup failed.', previous: $cancellation);
+        }
         $store = new InterruptibleCredentialStore;
         $store->releaseFailure = new CanceledException('release canceled');
         $repository = new Repository($store);
@@ -355,9 +371,62 @@ class QueueSqsConnectorTest extends TestCase
             $promise->wait();
 
             $this->fail('The cancellation should propagate.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileAcquiringTheRefreshLockDoesNotCallTheProvider(bool $cleanupThrows): void
+    {
+        $failure = $cleanupThrows ? new RuntimeException('Lock cleanup failed.', previous: new CanceledException) : new CanceledException;
+        $lock = m::mock(ArrayLock::class);
+        $lock->shouldReceive('block')->once()->andThrow($failure);
+        $lock->shouldReceive('release')->once()->andReturnFalse();
+        $store = m::mock(ArrayStore::class)->makePartial();
+        $store->shouldReceive('lock')->once()->andReturn($lock);
+        $repository = new Repository($store);
+        $providerCalled = false;
+        $caught = null;
+
+        try {
+            (new AwsCredentialCache(fn () => $repository))->resolve('credentials', function () use (&$providerCalled): PromiseInterface {
+                $providerCalled = true;
+
+                return Create::promiseFor(new Credentials('key', 'secret'));
+            });
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($providerCalled);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLockReleaseCancellationPropagatesAfterCredentialResolution(bool $providerFails): void
+    {
+        $failure = new RuntimeException('Lock cleanup failed.', previous: new CanceledException);
+        $store = new InterruptibleCredentialStore;
+        $store->releaseFailure = $failure;
+        $repository = new Repository($store);
+        $caught = null;
+
+        try {
+            (new AwsCredentialCache(fn () => $repository))->resolve('credentials', static function () use ($providerFails): PromiseInterface {
+                if ($providerFails) {
+                    throw new RuntimeException('Provider failed.');
+                }
+
+                return Create::promiseFor(new Credentials('key', 'secret', expires: time() + 3600));
+            })->wait();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     public function testCredentialsCacheKeyIsScopedToThePodIdentityAndConnection(): void
@@ -857,11 +926,6 @@ class InterruptibleCredentialRepository extends Repository
     public array $getFailures = [];
 
     /**
-     * The failure thrown by put(), if any.
-     */
-    public ?Throwable $putFailure = null;
-
-    /**
      * The number of get() calls made.
      */
     protected int $getCalls = 0;
@@ -876,18 +940,6 @@ class InterruptibleCredentialRepository extends Repository
         }
 
         return parent::get($key, $default);
-    }
-
-    /**
-     * Store an item in the cache, or throw the queued put failure.
-     */
-    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
-    {
-        if ($this->putFailure) {
-            throw $this->putFailure;
-        }
-
-        return parent::put($key, $value, $ttl);
     }
 }
 

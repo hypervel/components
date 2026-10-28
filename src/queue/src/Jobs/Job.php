@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\JobLifecycleCallbacks;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
@@ -19,7 +20,6 @@ use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
 use JsonException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Job implements JobContract, JobLifecycleCallbacks
@@ -324,10 +324,10 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
 
             try {
                 $batchRepository->rollBack();
-            } catch (CanceledException $exception) {
-                throw $exception;
-            } catch (Throwable) {
-                // ...
+            } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
             }
         }
 
@@ -351,8 +351,8 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
             if ($this->payloadException === null) {
                 $this->failed($e);
             }
-        } catch (CanceledException $exception) {
-            $canceled = true;
+        } catch (Throwable $exception) {
+            $canceled = Coroutine::causedByCancellation($exception);
 
             throw $exception;
         } finally {

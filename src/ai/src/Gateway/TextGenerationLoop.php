@@ -65,6 +65,7 @@ use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
@@ -1163,9 +1164,11 @@ class TextGenerationLoop
 
             try {
                 $result = $this->executeTool($tool, $arguments, $toolCall->id, $context);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $failed = true;
                 $result = 'The tool call failed: ' . $exception->getMessage();
             }

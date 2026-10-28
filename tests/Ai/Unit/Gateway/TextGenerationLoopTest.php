@@ -68,7 +68,10 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class TextGenerationLoopTest extends TestCase
 {
@@ -1650,16 +1653,21 @@ class TextGenerationLoopTest extends TestCase
         );
     }
 
-    public function testCancellationIsNotRecordedAsACompletedToolFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationIsNotRecordedAsACompletedToolFailure(bool $cleanupThrows): void
     {
         $provider = textGenerationLoopProvider();
         $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldReceive('generateTextStep')->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
+        $gateway->shouldNotReceive('generateTextStep');
         $store = m::mock(ClaimsPendingApprovals::class);
         $claim = new ApprovalClaim('message', 'token');
-        $store->shouldReceive('claimPendingApprovals')->once()->with('conversation', ['call'])->andReturn($claim);
+        $store->shouldReceive('claimPendingApprovals')->once()->with('conversation', ['call', 'next'])->andReturn($claim);
         $store->shouldNotReceive('recordApprovalResult');
         $exception = new CanceledException('Canceled while executing the approved tool.');
+        if ($cleanupThrows) {
+            $exception = new RuntimeException('Tool cleanup failed.', previous: $exception);
+        }
         $tool = $this->approvalTool();
         $tool->shouldReceive('handle')->once()->andThrow($exception);
         $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
@@ -1669,13 +1677,13 @@ class TextGenerationLoopTest extends TestCase
                 $provider,
                 'model',
                 '',
-                messages: [new AssistantMessage('', collect([new ToolCall('call', 'tool', [])]))],
+                messages: [new AssistantMessage('', collect([new ToolCall('call', 'tool', []), new ToolCall('next', 'tool', [])]))],
                 tools: [$tool],
-                approval: ['call' => Decision::approve()],
+                approval: ['*' => Decision::approve()],
                 context: $context,
             );
             $this->fail('Cancellation was swallowed.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($exception, $caught);
         }
 

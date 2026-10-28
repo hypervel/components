@@ -21,6 +21,7 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\CarbonImmutable;
@@ -31,7 +32,6 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -361,15 +361,15 @@ class ScheduleRunCommand extends Command
 
         // Nested commands leave deferred work to this boundary. Drain after
         // task listeners so callbacks cannot run early.
-        if (! $exception instanceof CanceledException) {
+        if ($exception === null || ! Coroutine::causedByCancellation($exception)) {
             try {
                 $this->invokeDeferredCallbacks(
                     $exception === null && ! CoroutineContext::get(self::TASK_FAILED_CONTEXT_KEY, false)
                 );
-            } catch (CanceledException $cancellation) {
-                $exception = $cancellation;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || Coroutine::causedByCancellation($throwable)) {
+                    $exception = $throwable;
+                }
             }
         }
 
@@ -521,9 +521,11 @@ class ScheduleRunCommand extends Command
                     "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
                 );
             }
-        } catch (CanceledException $e) {
-            throw $e;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $failed = true;
             // runEvent reports ordinary failures instead of throwing them to
             // runTask; keep that outcome local to this task's deferred work.

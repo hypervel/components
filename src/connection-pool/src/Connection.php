@@ -10,6 +10,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool as ConnectionPoolContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coroutine\Coroutine;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -48,7 +49,7 @@ abstract class Connection implements ConnectionContract
         try {
             $this->pool->release($this);
         } catch (Throwable $exception) {
-            if (! $failure instanceof CanceledException) {
+            if ($failure === null || ! Coroutine::causedByCancellation($failure)) {
                 throw $exception;
             }
 
@@ -86,9 +87,11 @@ abstract class Connection implements ConnectionContract
                     $dispatcher->dispatch(new ConnectionReleasing($this));
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->logger?->error((string) $exception);
         }
     }

@@ -13,7 +13,10 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -250,6 +253,31 @@ class CallbackEventTest extends TestCase
             $this->fail('The callback exception was not thrown.');
         } catch (RuntimeException $exception) {
             $this->assertSame('callback failed', $exception->getMessage());
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAfterCallbackCancellationSupersedesCallbackFailure(bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('After callback canceled.');
+        $cleanup = $cleanupThrows ? new RuntimeException('After callback cleanup failed.') : null;
+        $event = new CallbackEvent($this->mutex, static fn () => throw new RuntimeException('Callback failed.'));
+        $event->after(static function () use ($cancellation, $cleanup): never {
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
+        });
+
+        try {
+            $event->run($this->app);
+            $this->fail('Expected cancellation to supersede the callback failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
     }
 

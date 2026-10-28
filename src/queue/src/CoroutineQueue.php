@@ -137,8 +137,8 @@ abstract class CoroutineQueue extends SyncQueue
     protected function executePayload(string $payload, ?string $queue = null): int
     {
         $this->scheduleExecution(function () use ($payload, $queue): void {
-            // Report failures while the job's context is still active, then
-            // restore the dispatching coroutine.
+            // Only native cancellation is silent. Report cleanup errors through the
+            // configured callback while the job's log context is active.
             $this->withLogContext(null, function () use ($payload, $queue): void {
                 try {
                     $this->processPayload($payload, $queue);

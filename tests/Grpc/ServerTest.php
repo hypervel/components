@@ -398,6 +398,7 @@ class ServerTest extends TestCase
         $handler = new HandleCall(
             $contexts,
             new Timer,
+            $exceptions,
             4 * 1024 * 1024,
             Compression::Identity,
         );

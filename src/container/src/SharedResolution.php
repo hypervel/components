@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Container;
 
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Throwable;
@@ -47,8 +49,11 @@ class SharedResolution
     {
         // The owner's cancellation belongs to the owner. Waiters see an ordinary
         // failure, so their own requests and jobs do not stop as if canceled.
-        $this->failure = $failure instanceof CanceledException
-            ? new BindingResolutionException('Shared container resolution was canceled before completion.', previous: $failure)
+        $this->failure = Coroutine::causedByCancellation($failure)
+            ? new BindingResolutionException('Shared container resolution was canceled before completion.', previous: new ForeignCancellationException(
+                'The coroutine resolving the shared service was canceled.',
+                previous: $failure,
+            ))
             : $failure;
         $this->settled = true;
         $this->signal->close();

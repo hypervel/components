@@ -116,6 +116,7 @@ class GrpcServiceProvider extends ServiceProvider
         $this->app->singleton(HandleCall::class, fn ($app) => new HandleCall(
             $app->make(CallContextStore::class),
             $app->make(Timer::class),
+            $app->make(ExceptionMapper::class),
             $server['max_receive_message_size'],
             $server['compression'],
         ));
