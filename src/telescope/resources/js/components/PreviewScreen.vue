@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from 'lodash';
 import axios from 'axios';
 
@@ -9,6 +9,8 @@ export default {
         id: {required: true},
         entryPoint: {default: false},
     },
+
+    emits: ['ready'],
 
 
     /**
@@ -44,9 +46,9 @@ export default {
 
 
     /**
-     * Clean after the component is destroyed.
+     * Clean up before the component is unmounted.
      */
-    destroyed() {
+    beforeUnmount() {
         this.requestController.abort();
         clearTimeout(this.updateEntryTimeout);
     },
@@ -162,7 +164,7 @@ export default {
                 v-if="!ready"
                 class="d-flex align-items-center justify-content-center card-bg-secondary p-5 bottom-radius"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin mr-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin me-2">
                     <path
                         d="M12 10a2 2 0 0 1-3.41 1.41A2 2 0 0 1 10 8V0a9.97 9.97 0 0 1 10 10h-8zm7.9 1.41A10 10 0 1 1 8.59.1v2.03a8 8 0 1 0 9.29 9.29h2.02zm-4.07 0a6 6 0 1 1-7.25-7.25v2.1a3.99 3.99 0 0 0-1.4 6.57 4 4 0 0 0 6.56-1.42h2.1z"
                     ></path>
@@ -250,7 +252,7 @@ export default {
                                         name: resource,
                                         query: { tag: tag },
                                     }"
-                                    class="badge badge-info mr-1"
+                                    class="badge badge-info me-1"
                                 >
                                     {{ tag }}
                                 </router-link>
@@ -270,37 +272,39 @@ export default {
             </div>
 
             <table class="table mb-0 card-bg-secondary table-borderless">
-                <tr>
-                    <td class="table-fit text-muted">ID</td>
+                <tbody>
+                    <tr>
+                        <td class="table-fit text-muted">ID</td>
 
-                    <td>
-                        {{ entry.content.user.id }}
-                    </td>
-                </tr>
+                        <td>
+                            {{ entry.content.user.id }}
+                        </td>
+                    </tr>
 
-                <tr v-if="entry.content.user.name">
-                    <td class="table-fit text-muted align-middle">Name</td>
+                    <tr v-if="entry.content.user.name">
+                        <td class="table-fit text-muted align-middle">Name</td>
 
-                    <td class="align-middle">
-                        <img
-                            :src="entry.content.user.avatar"
-                            :alt="entry.content.user.name"
-                            class="mr-2 rounded-circle"
-                            height="40"
-                            width="40"
-                            v-if="entry.content.user.avatar"
-                        />
-                        {{ entry.content.user.name }}
-                    </td>
-                </tr>
+                        <td class="align-middle">
+                            <img
+                                :src="entry.content.user.avatar"
+                                :alt="entry.content.user.name"
+                                class="me-2 rounded-circle"
+                                height="40"
+                                width="40"
+                                v-if="entry.content.user.avatar"
+                            />
+                            {{ entry.content.user.name }}
+                        </td>
+                    </tr>
 
-                <tr v-if="entry.content.user.email">
-                    <td class="table-fit text-muted">Email Address</td>
+                    <tr v-if="entry.content.user.email">
+                        <td class="table-fit text-muted">Email Address</td>
 
-                    <td>
-                        {{ entry.content.user.email }}
-                    </td>
-                </tr>
+                        <td>
+                            {{ entry.content.user.email }}
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
 
