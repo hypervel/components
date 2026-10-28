@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Http;
 
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Http\Controllers\RecordingController;
@@ -68,6 +69,36 @@ class RouteTest extends FeatureTestCase
             'Client Requests' => ['/telescope/telescope-api/client-requests', EntryType::CLIENT_REQUEST],
             'Reverb' => ['/telescope/telescope-api/reverb', EntryType::REVERB],
         ];
+    }
+
+    public function testTagLinksMatchLiterallyWhileSearchesMatchAnyListedTag(): void
+    {
+        $entries = [];
+
+        foreach (['a', 'b', 'a,b', 'unrelated'] as $tag) {
+            $entry = EntryModelFactory::new()->create(['type' => EntryType::LOG]);
+            $entries[$tag] = $entry->uuid;
+
+            DB::table('telescope_entries_tags')->insert([
+                'entry_uuid' => $entry->uuid,
+                'tag' => $tag,
+            ]);
+        }
+
+        $response = $this->post('/telescope/telescope-api/logs?tag=a%2Cb&exact_tag=1')
+            ->assertSuccessful();
+
+        $this->assertSame([$entries['a,b']], array_column($response->json('entries'), 'id'));
+
+        foreach (['a,b', 'b, a'] as $search) {
+            $response = $this->post('/telescope/telescope-api/logs?' . http_build_query(['tag' => $search]))
+                ->assertSuccessful();
+
+            $this->assertEqualsCanonicalizing(
+                [$entries['a'], $entries['b']],
+                array_column($response->json('entries'), 'id'),
+            );
+        }
     }
 
     public function testQueueDetailReturnsTheCompleteRelatedBatch(): void
