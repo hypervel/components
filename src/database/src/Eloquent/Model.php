@@ -288,7 +288,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Cache of resolved custom builder classes per model.
      *
-     * @var array<class-string<static>, class-string<Builder<static>>|false>
+     * @var array<class-string<self>, class-string<Builder<*>>|false>
      */
     protected static array $resolvedBuilderClasses = [];
 
@@ -2109,7 +2109,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Resolve the custom Eloquent builder class from the model attributes.
      *
-     * @return class-string<Builder>|false
+     * @return class-string<Builder<*>>|false
      */
     protected function resolveCustomBuilderClass(): string|false
     {

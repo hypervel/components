@@ -6,7 +6,6 @@ namespace Hypervel\Database\Eloquent\Attributes;
 
 use Attribute;
 use Hypervel\Database\Eloquent\Builder;
-use Hypervel\Database\Eloquent\Model;
 
 /**
  * Declare the Eloquent builder class for a model using an attribute.
@@ -26,7 +25,7 @@ class UseEloquentBuilder
     /**
      * Create a new attribute instance.
      *
-     * @param class-string<Builder<Model>> $builderClass
+     * @param class-string<Builder<*>> $builderClass
      */
     public function __construct(
         public string $builderClass,
