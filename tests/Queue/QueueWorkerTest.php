@@ -37,6 +37,7 @@ use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
@@ -77,6 +78,7 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
@@ -106,6 +108,10 @@ class QueueWorkerTest extends TestCase
     /** @var list<array{Channel, int}> */
     protected array $registeredJobs = [];
 
+    private ?string $errorLogDirectory = null;
+
+    private string|false $previousErrorLog = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -125,9 +131,19 @@ class QueueWorkerTest extends TestCase
      */
     protected function tearDownInCoroutine(): void
     {
-        foreach ($this->registeredJobs as [$gate, $coroutineId]) {
-            $gate->close();
-            Coroutine::join([$coroutineId], 1);
+        try {
+            foreach ($this->registeredJobs as [$gate, $coroutineId]) {
+                $gate->close();
+                Coroutine::join([$coroutineId], 1);
+            }
+        } finally {
+            if ($this->errorLogDirectory !== null) {
+                if ($this->previousErrorLog !== false) {
+                    ini_set('error_log', $this->previousErrorLog);
+                }
+
+                (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+            }
         }
     }
 
@@ -732,9 +748,12 @@ class QueueWorkerTest extends TestCase
         }
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testNonKillingTimeoutOwnsTheOutcomeAfterMiddlewareCleanupThrows(bool $reportExceptions): void
+    #[TestWith([false, 'normal'])]
+    #[TestWith([true, 'normal'])]
+    #[TestWith([true, 'original'])]
+    #[TestWith([true, 'ordinary'])]
+    #[TestWith([true, 'cancellation'])]
+    public function testNonKillingTimeoutHandlesCleanupAndReportingFailures(bool $reportExceptions, string $reportingMode): void
     {
         Worker::$killOnTimeout = false;
         Worker::$reportJobExceptions = $reportExceptions;
@@ -742,6 +761,28 @@ class QueueWorkerTest extends TestCase
         $timer = new QueueWorkerTimer;
         $gate = new Channel(1);
         $cleanupException = new RuntimeException('Job cleanup failed.');
+        $reportingFailure = new RuntimeException('Reporting failed.');
+        $caught = null;
+        $errorLog = null;
+        if ($reportingMode !== 'normal') {
+            $errorLog = $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $report = $this->exceptionHandler->expects('report')->with($cleanupException);
+            if ($reportingMode === 'cancellation') {
+                $report->andReturnUsing(function () use ($reportingFailure): never {
+                    try {
+                        $this->armCurrentCoroutineCancellation()->push(true);
+
+                        throw new RuntimeException('Cancellation was not delivered.');
+                    } finally {
+                        throw $reportingFailure;
+                    }
+                });
+            } else {
+                $report->andThrow($reportingMode === 'original' ? $cleanupException : $reportingFailure);
+                $this->exceptionHandler->expects('report')->with(m::type(TimeoutExceededException::class));
+            }
+        }
         $command = new class {
             use InteractsWithQueue;
         };
@@ -770,7 +811,13 @@ class QueueWorkerTest extends TestCase
         $worker->currentTime = 100;
         $options = new WorkerOptions;
         $worker->startMonitorForTest($options);
-        $coroutineId = Coroutine::create(static fn () => $worker->runNextJob('default', 'queue', $options));
+        $coroutineId = Coroutine::create(static function () use ($worker, $options, &$caught): void {
+            try {
+                $worker->runNextJob('default', 'queue', $options);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+        });
 
         try {
             $worker->currentTime = 105;
@@ -778,19 +825,40 @@ class QueueWorkerTest extends TestCase
             Coroutine::join([$coroutineId], 5);
 
             $this->assertFalse(Coroutine::exists($coroutineId));
+            if ($reportingMode === 'cancellation') {
+                $this->assertSame($reportingFailure, $caught);
+                $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+                $this->assertFalse($job->failed);
+                $this->assertFalse($job->released);
+                $this->events->assertNotDispatched(JobAttempted::class);
+                $this->assertFileDoesNotExist($errorLog);
+
+                return;
+            }
+
+            $this->assertNull($caught);
             $this->assertTrue($job->failed);
             $this->assertFalse($job->released);
             $this->assertInstanceOf(TimeoutExceededException::class, $job->failedWith);
             $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
             $this->events->assertDispatchedOnce(JobTimedOut::class);
             $this->events->assertDispatchedOnce(JobAttempted::class);
+            $this->events->assertDispatched(JobAttempted::class, static fn (JobAttempted $event): bool => ! $event->successful());
             $this->events->assertNotDispatched(JobProcessed::class);
             $this->assertFalse($worker->hasTimeoutJobsForTest());
             $this->assertSame([], $worker->runningJobsForTest());
-            $this->exceptionHandler->assertReportedCount($reportExceptions ? 2 : 0);
-            if ($reportExceptions) {
-                $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $cleanupException);
-                $this->exceptionHandler->assertReported(TimeoutExceededException::class);
+            if ($reportingMode === 'normal') {
+                $this->exceptionHandler->assertReportedCount($reportExceptions ? 2 : 0);
+                if ($reportExceptions) {
+                    $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $cleanupException);
+                    $this->exceptionHandler->assertReported(TimeoutExceededException::class);
+                }
+            } else {
+                $contents = file_get_contents($errorLog);
+                $this->assertSame(1, substr_count($contents, 'Job cleanup failed.'));
+                if ($reportingMode === 'ordinary') {
+                    $this->assertStringContainsString('Reporting failed.', $contents);
+                }
             }
         } finally {
             $gate->close();
@@ -1021,9 +1089,10 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch');
     }
 
-    #[TestWith(['failed callback'])]
-    #[TestWith(['marker clear'])]
-    public function testTimeoutHandlingErrorsDoNotAbandonOtherAttempts(string $failurePhase): void
+    #[TestWith(['failed callback', false])]
+    #[TestWith(['marker clear', false])]
+    #[TestWith(['failed callback', true])]
+    public function testTimeoutHandlingErrorsDoNotAbandonOtherAttempts(string $failurePhase, bool $reportingThrows): void
     {
         $this->container->instance('config', new ConfigRepository(['queue' => ['failed' => ['driver' => 'null']]]));
         $this->events = new EventsDispatcher($this->container);
@@ -1036,12 +1105,18 @@ class QueueWorkerTest extends TestCase
         $this->events->listen(JobTimedOut::class, static function (JobTimedOut $event) use (&$timedOutJobs): void {
             $timedOutJobs[] = $event->job;
         });
+        $error = new RuntimeException('Timeout handling failed.');
+        $errorLog = null;
+        if ($reportingThrows) {
+            $errorLog = $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($error)->andThrow(new RuntimeException('Reporting failed.'));
+        }
         $timer = new QueueWorkerTimer;
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
         $worker->currentTime = 100;
         $cache = new Repository(new WorkerArrayStore);
         $worker->setCache($cache);
-        $error = new RuntimeException('Timeout handling failed.');
         if ($failurePhase === 'marker clear') {
             $cache->setEventDispatcher($cacheEvents = new EventsDispatcher($this->container));
             $cacheEvents->listen(ForgettingKey::class, static function (ForgettingKey $event) use ($error): void {
@@ -1094,8 +1169,14 @@ class QueueWorkerTest extends TestCase
             $this->assertSame($jobs, $timedOutJobs);
             $this->assertSame($failurePhase === 'marker clear', $cache->has('job-processing:first'));
             $this->assertFalse($cache->has('job-processing:second'));
-            $this->exceptionHandler->assertReportedCount(1);
-            $this->exceptionHandler->assertReported(static fn (RuntimeException $reported): bool => $reported === $error);
+            if ($reportingThrows) {
+                $contents = file_get_contents($errorLog);
+                $this->assertStringContainsString('Timeout handling failed.', $contents);
+                $this->assertStringContainsString('Reporting failed.', $contents);
+            } else {
+                $this->exceptionHandler->assertReportedCount(1);
+                $this->exceptionHandler->assertReported(static fn (RuntimeException $reported): bool => $reported === $error);
+            }
         } finally {
             foreach ($gates as $gate) {
                 $gate->close();
@@ -1702,10 +1783,18 @@ class QueueWorkerTest extends TestCase
         ], $connection->pops);
     }
 
-    public function testExceptionIsReportedIfConnectionThrowsExceptionOnJobPop(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExceptionIsReportedIfConnectionThrowsExceptionOnJobPop(bool $reportingThrows): void
     {
+        $e = new RuntimeException('Pop failed.');
+        if ($reportingThrows) {
+            $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($e)->andThrow(new RuntimeException('Reporting failed.'));
+        }
         $worker = new InsomniacWorker(
-            new WorkerFakeManager('default', new BrokenQueueConnection('default', $e = new RuntimeException)),
+            new WorkerFakeManager('default', new BrokenQueueConnection('default', $e)),
             $this->events,
             $this->exceptionHandler,
             function () {
@@ -1715,7 +1804,9 @@ class QueueWorkerTest extends TestCase
 
         $worker->runNextJob('default', 'queue', $this->workerOptions());
 
-        $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        if (! $reportingThrows) {
+            $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        }
     }
 
     #[TestWith([false])]
@@ -2695,6 +2786,7 @@ class QueueWorkerTest extends TestCase
         $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
         $report = $this->exceptionHandler->shouldReceive('report')->once()->with($failure);
         if ($reportingThrows) {
+            $this->captureErrorLog();
             $report->andThrow(new RuntimeException('Reporting failed.'));
         }
 
@@ -2776,8 +2868,13 @@ class QueueWorkerTest extends TestCase
     }
 
     #[DataProvider('lostDatabaseConnections')]
-    public function testWorkerStopsWithLostConnectionReason(Throwable $failure): void
+    public function testWorkerStopsWithLostConnectionReason(Throwable $failure, bool $reportingThrows = false): void
     {
+        if ($reportingThrows) {
+            $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($failure)->andThrow(new RuntimeException('Reporting failed.'));
+        }
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
         $worker = $this->getWorker('default', ['queue' => [
             $job = new WorkerFakeJob(static fn (): never => throw $failure),
@@ -2797,11 +2894,12 @@ class QueueWorkerTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{Throwable}>
+     * @return iterable<string, array{0: Throwable, 1?: bool}>
      */
     public static function lostDatabaseConnections(): iterable
     {
         yield 'query' => [self::queryException('select 1', [], 'server has gone away')];
+        yield 'query with failing reporter' => [self::queryException('select 1', [], 'server has gone away'), true];
         yield 'no reconnector' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'wrapped by the job' => [new RuntimeException('The import failed.', previous: self::queryException('select 1', [], 'server has gone away'))];
         yield 'wrapped driver failure' => [new QueryException('test', 'select 1', [], new RuntimeException('The driver failed.', previous: new PDOException('server has gone away')))];
@@ -3260,6 +3358,20 @@ class QueueWorkerTest extends TestCase
             },
             $timer,
         ];
+    }
+
+    /**
+     * Capture fallback diagnostics until this test's coroutine is cleaned up.
+     */
+    private function captureErrorLog(): string
+    {
+        $this->errorLogDirectory = ParallelTesting::tempDir('QueueWorkerTest');
+        (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+        mkdir($this->errorLogDirectory, 0777, true);
+        $path = $this->errorLogDirectory . '/php-error.log';
+        $this->previousErrorLog = ini_set('error_log', $path);
+
+        return $path;
     }
 
     /**

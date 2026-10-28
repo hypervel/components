@@ -448,7 +448,7 @@ class Worker
                             }
 
                             if (! $exception instanceof CanceledException && static::$reportJobExceptions) {
-                                $this->withCoroutineContext($options, fn () => $this->exceptions->report($exception));
+                                $this->withCoroutineContext($options, fn () => $this->reportException($exception));
                             }
                         } finally {
                             ++$this->jobsProcessed;
@@ -887,7 +887,27 @@ class Worker
             throw $exception;
         }
 
-        $this->exceptions->report($exception);
+        $this->reportException($exception);
+    }
+
+    /**
+     * Report an exception, writing it to the PHP error log if reporting fails.
+     */
+    protected function reportException(Throwable $exception): void
+    {
+        try {
+            $this->exceptions->report($exception);
+        } catch (Throwable $reportingFailure) {
+            // A failed logger can rethrow the error we were already handling.
+            if ($reportingFailure !== $exception && FrameworkCoroutine::causedByCancellation($reportingFailure)) {
+                throw $reportingFailure;
+            }
+
+            try {
+                error_log((string) $exception . ($reportingFailure === $exception ? '' : PHP_EOL . (string) $reportingFailure));
+            } catch (Throwable) {
+            }
+        }
     }
 
     /**
@@ -1036,7 +1056,7 @@ class Worker
                 throw $e;
             }
 
-            $this->exceptions->report($e);
+            $this->reportException($e);
 
             $this->stopWorkerIfLostConnection($e);
 
@@ -1099,7 +1119,7 @@ class Worker
                 }
 
                 if (static::$reportJobExceptions) {
-                    $this->exceptions->report($e);
+                    $this->reportException($e);
                 }
 
                 $this->stopWorkerIfLostConnection($e);
@@ -1273,7 +1293,13 @@ class Worker
                 }
 
                 if (! $e instanceof CanceledException && ! $e instanceof TimeoutExceededException && static::$reportJobExceptions) {
-                    $this->exceptions->report($e);
+                    try {
+                        $this->reportException($e);
+                    } catch (Throwable $exception) {
+                        $canceled = true;
+
+                        throw $exception;
+                    }
                 }
 
                 $e = $this->timeoutExceededException($job);
@@ -1320,7 +1346,7 @@ class Worker
                 }
 
                 if ($invalidPayloadException !== null && static::$reportJobExceptions) {
-                    $this->exceptions->report($invalidPayloadException);
+                    $this->reportException($invalidPayloadException);
                 }
             }
         }
@@ -1899,14 +1925,14 @@ class Worker
                 ));
             }
         } catch (Throwable $exception) {
-            $this->exceptions->report($exception);
+            $this->reportException($exception);
         } finally {
             try {
                 if (static::$killCallback) {
                     call_user_func(static::$killCallback, $status);
                 }
             } catch (Throwable $exception) {
-                $this->exceptions->report($exception);
+                $this->reportException($exception);
             } finally {
                 // Neither shutdown hooks nor their error reporting may keep the worker alive.
                 $this->terminateProcess($status);
