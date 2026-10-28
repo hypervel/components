@@ -60,11 +60,23 @@ Primary research:
 
 ## Part 1 — Telescope dashboard migration
 
+### Buffered-response transport prerequisite
+
+Remove `Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024` from `src/foundation/config/server.php`. Review this fix together with the complete dashboard migration, then give it a separate commit. This inherited override makes Swoole's process-mode send reject bodies over 2 MiB after HTTP/1.1 headers have been sent, producing empty responses. It affects buffered HTML/JSON and large individual streamed writes. Swoole's native default is `UINT_MAX`; the setting checks send size, not buffer allocation. Use that native default instead of substituting another arbitrary cap. Leave `OPTION_SOCKET_BUFFER_SIZE` unchanged.
+
+Regenerate both skeleton configs with `composer sync:skeleton-config`, remove the same override from `tests/Benchmarks/Sentry/Fixtures/app/config/server.php`, and run `composer check:skeleton-config`. Check for other maintained copies before committing. Do not edit generated skeleton files directly or change historical archives. No porting-guide or upgrade entry is needed: this removes an internal transport restriction in unreleased 0.4, whose upgrade guidance already requires a fresh application.
+
+Leave `ResponseBridge` and the dependency unchanged. Native `end()` preserves compression, `Content-Length`, and existing protocol/trailer handling. A PHP `write()` loop would disable Swoole compression and add unnecessary framing and failure paths. Removing the size override does not make buffered responses memory-bounded; streaming and file responses remain the appropriate mechanisms for large generated output. Do not add a compression subsystem, transport abstraction, or new application option.
+
+Add one focused real process-mode loopback regression using the shipped server settings and `ResponseBridge`: a buffered HTTP/1.1 body over 2 MiB must arrive intact with the correct `Content-Length`. The fixture must consume the production settings so restoring the override makes the test fail; override only fixture isolation settings such as worker count, logging and ports. Follow `ResponseCancellationTest`'s automatic-port, bounded-wait and unconditional-cleanup pattern. Do not add a mock matrix or duplicate compression, trailer and failure-path tests for unchanged bridge code. Direct loopback checks have already verified native compression and a single streamed write over 2 MiB without the override.
+
+Run the new test file immediately after writing it. At completion run `composer lint:fix`, `composer analyse`, then `composer test:parallel -- --processes=4 tests/HttpServer`, along with the config synchronization check. No separate WebSocket/Reverb/gRPC test expansion is needed for an unchanged bridge.
+
 ### 1. Establish the behavior and build baseline
 
 Read all Telescope frontend components, screens, mixins, Blade layout, styles, and existing query-preview tests. Compare Horizon's corresponding setup and frontend conventions before editing each area. Use current Laravel Telescope as the behavior reference, including fixes already present in Hypervel.
 
-Run the current Telescope tests and production build using its existing independent npm setup. Record expected asset filenames and raw/compressed sizes outside the repository. Exercise the existing UI sufficiently to distinguish migration failures from inherited defects. This PR covers Telescope, directly required CI/docs updates, and the authorized archive removal. The corresponding Horizon modal correction belongs with its Bootstrap upgrade and shared test setup in Part 2, avoiding an interim independent npm test setup.
+Run the current Telescope tests and production build using its existing independent npm setup. Record expected asset filenames and raw/compressed sizes outside the repository. Exercise the existing UI sufficiently to distinguish migration failures from inherited defects. This PR covers Telescope, the server-config correction above, directly required CI/docs updates, and the authorized archive removal. The corresponding Horizon modal correction belongs with its Bootstrap upgrade and shared test setup in Part 2, avoiding an interim independent npm test setup.
 
 Preserve these contracts:
 
@@ -105,7 +117,7 @@ app.mixin(Base);
 app.mount('#telescope');
 ```
 
-This is a structural example, not replacement code: retain all state, registrations, listeners, and bootstrap settings. The compiler-enabled Vue import is deliberate because the root template lives in Blade. Do not copy Horizon's product-specific globals or proxy-path configuration into Telescope. Check initial navigation and route reuse rather than adding speculative waits or forcing remounts.
+This is a structural example, not replacement code: retain all state, registrations, listeners, and bootstrap settings. The compiler-enabled Vue import is deliberate because the root template lives in Blade. Do not copy Horizon's product-specific globals or proxy-path configuration into Telescope. Nest each list/detail route pair under a component-less section parent, with `''` and `':id'` children, as Horizon does. Router 4 matches active links by route record, so flat sibling records lose the sidebar highlight on detail pages. Preserve existing names and URLs, and verify active links with the real route definitions. Check initial navigation and route reuse rather than adding speculative waits or forcing remounts.
 
 Use `defineConfig` and the Vue 3 plugin in Telescope's build and test configs. Rely on the plugin's Options API and production feature-flag defaults; add no redundant `define` settings. For Vite 8 use `build.rolldownOptions` rather than deprecated `rollupOptions`. Retain current output locations and the inline-compatible runtime format; check Lightning CSS output in the visual comparison. No `@vue/compat`, dual Vue runtime, runtime version detection, or Vue 2 translation layer.
 
@@ -157,7 +169,7 @@ Perform browser verification using a disposable Testbench application and the re
 
 Run affected PHP tests, especially `tests/Telescope/Http/{RouteTest,CspNonceTest,AuthorizationTest}.php`, package metadata, asset rendering, and install behavior. Follow `AGENTS.md`'s formatting/static-analysis/test order for any PHP changes; use `composer test:parallel -- --processes=4 tests/Telescope` for the package suite. Do not run a full framework suite merely for JS formatting.
 
-Rebuild and commit Telescope's complete `dist/` alongside the source. Check light/dark CSS and `app.css`/`app.js` filenames, absence of new unresolved imports or runtime asset requests, correct PHP rendering/nonces, and raw/compressed output changes. A meaningful increase needs explanation and optimization; no arbitrary percentage budget or benchmark claim without measurement.
+Rebuild and commit Telescope's complete `dist/` alongside the source. Check light/dark CSS and `app.css`/`app.js` filenames, absence of new unresolved imports or runtime asset requests, correct PHP rendering/nonces, and raw/compressed output changes. Measure the complete rendered dashboard HTML as well as individual assets, and verify its delivery through the real process-mode HTTP/1.1 server. A meaningful increase needs explanation and optimization; no arbitrary percentage budget or benchmark claim without measurement. Preserve the full timezone data and supported SQL dialects; shrinking bundles must not remove valid date or custom-driver behavior.
 
 Run `npm audit` including development dependencies and all severities. Resolve active Telescope advisories before merging; do not downgrade the toolchain to escape a compatibility problem. After merge, confirm its lockfile alerts close once GitHub refreshes them. An unresolved advisory needs investigation and an owner decision, not an automatic ignore.
 
