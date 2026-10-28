@@ -21,8 +21,10 @@ use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Support\defer;
 
@@ -488,11 +490,16 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame('old', $stack->get('foo'));
     }
 
-    public function testPutPreservesOriginalCancellationAndCompletesCompensation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutPreservesOriginalCancellationAndCompletesCompensation(bool $cleanupThrows): void
     {
         $top = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $cancellation = new CanceledException('write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Write cleanup failed.', previous: $cancellation);
+        }
         $cleanupCancellation = new CanceledException('cleanup canceled');
 
         $top->shouldReceive('put')->once()->andReturnTrue();
@@ -503,16 +510,21 @@ class CacheStackStoreTest extends TestCase
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
             $this->fail('Expected the write cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testPutCleanupCancellationSupersedesOrdinaryWriteFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutCleanupCancellationSupersedesOrdinaryWriteFailure(bool $cleanupThrows): void
     {
         $top = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
+        if ($cleanupThrows) {
+            $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
+        }
 
         $top->shouldReceive('put')->once()->andReturnTrue();
         $bottom->shouldReceive('put')->once()->andThrow(new RuntimeException('write failed'));
@@ -522,16 +534,21 @@ class CacheStackStoreTest extends TestCase
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
             $this->fail('Expected the cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
     }
 
-    public function testPutCleanupCancellationSupersedesFalseWriteResult(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutCleanupCancellationSupersedesFalseWriteResult(bool $cleanupThrows): void
     {
         $top = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
+        if ($cleanupThrows) {
+            $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
+        }
 
         $top->shouldReceive('put')->once()->andReturnTrue();
         $bottom->shouldReceive('put')->once()->andReturnFalse();
@@ -540,7 +557,7 @@ class CacheStackStoreTest extends TestCase
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
             $this->fail('Expected the cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
     }
@@ -751,11 +768,16 @@ class CacheStackStoreTest extends TestCase
         $this->assertSame([null, null], [$bottom->get('first'), $bottom->get('second')]);
     }
 
-    public function testPutManyCleanupContinuesAfterCancellationStopsAtOrdinaryFailureAndKeepsCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutManyCleanupContinuesAfterCancellationStopsAtOrdinaryFailureAndKeepsCancellation(bool $cleanupThrows): void
     {
         $top = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
+        if ($cleanupThrows) {
+            $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
+        }
 
         $top->shouldReceive('putMany')->once()->andReturnTrue();
         $bottom->shouldReceive('putMany')->once()->andThrow(new RuntimeException('write failed'));
@@ -769,7 +791,7 @@ class CacheStackStoreTest extends TestCase
         try {
             (new StackStore([$top, $bottom]))->putMany(['first' => 'one', 'second' => 'two', 'third' => 'three'], 60);
             $this->fail('Expected the cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
     }
@@ -957,12 +979,17 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
-    public function testForgetCancellationSupersedesEarlierFailureAndStopsFurtherLayers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testForgetCancellationSupersedesEarlierFailureAndStopsFurtherLayers(bool $cleanupThrows): void
     {
         $top = m::mock(ArrayStore::class);
         $middle = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $cancellation = new CanceledException('forget canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Forget cleanup failed.', previous: $cancellation);
+        }
 
         $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('first failure'));
         $middle->shouldReceive('forget')->once()->with('foo')->andThrow($cancellation);
@@ -971,7 +998,7 @@ class CacheStackStoreTest extends TestCase
         try {
             (new StackStore([$top, $middle, $bottom]))->forget('foo');
             $this->fail('Expected the forget cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
