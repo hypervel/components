@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use PropertyHookType;
 use ReflectionProperty;
 
 trait MatchesProperties
@@ -33,7 +34,8 @@ trait MatchesProperties
 
                 $reflection = new ReflectionProperty($object, $property);
 
-                if (! $reflection->isPublic() || $reflection->isStatic() || ! $reflection->isInitialized($object)) {
+                if (! $reflection->isPublic() || $reflection->isStatic()
+                    || (! $reflection->hasHook(PropertyHookType::Get) && ! $reflection->isInitialized($object))) {
                     return false;
                 }
             }

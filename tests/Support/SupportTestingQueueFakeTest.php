@@ -142,12 +142,16 @@ class SupportTestingQueueFakeTest extends TestCase
             public ?string $status {
                 get => null;
             }
+
+            public ?string $backedStatus {
+                get => $this->backedStatus ?? null;
+            }
         };
         $job->dynamic = null;
 
         $this->fake->push($job);
 
-        $this->fake->assertPushed($job::class, ['dynamic' => null, 'status' => null]);
+        $this->fake->assertPushed($job::class, ['dynamic' => null, 'status' => null, 'backedStatus' => null]);
     }
 
     public function testAssertPushedPreservesArrayCallbacks(): void
