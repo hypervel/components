@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 
@@ -204,6 +206,38 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
 
             $this->assertSame($name, AsBinaryFactoryPrimaryKeyModel::query()->whereKey($key)->sole()->name);
         }
+    }
+
+    #[TestWith(['chunkById', false])]
+    #[TestWith(['chunkByIdDesc', true])]
+    #[TestWith(['lazyById', false])]
+    #[TestWith(['lazyByIdDesc', true])]
+    public function testBinaryPrimaryKeysCanBePaged(string $method, bool $descending): void
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+            '00000000-0000-0000-0000-000000000003',
+        ];
+
+        foreach ($ids as $id) {
+            AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
+        }
+
+        $query = AsBinaryPrimaryKeyModel::query();
+        $actual = [];
+
+        if (str_starts_with($method, 'lazy')) {
+            $actual = $query->{$method}(2)->take(4)->pluck('id')->all();
+        } else {
+            $query->{$method}(2, function (Collection $models) use (&$actual): bool {
+                array_push($actual, ...$models->pluck('id')->all());
+
+                return count($actual) < 4;
+            });
+        }
+
+        $this->assertSame($descending ? array_reverse($ids) : $ids, $actual);
     }
 
     public function testBinaryPrimaryKeysPreserveBindingIntentAcrossModelOperations(): void

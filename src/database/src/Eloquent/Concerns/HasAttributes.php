@@ -1969,12 +1969,8 @@ trait HasAttributes
             }
 
             if (is_resource($value)) {
-                $binary = stream_get_contents($value, offset: 0);
-                rewind($value);
-                $value = $binary;
-            }
-
-            if (is_string($value)) {
+                $attributes[$key] = BinaryParameter::fromStream($value);
+            } elseif (is_string($value)) {
                 $attributes[$key] = new BinaryParameter($value);
             }
         }

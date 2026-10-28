@@ -7,6 +7,7 @@ namespace Hypervel\Database\Concerns;
 use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
@@ -205,7 +206,7 @@ trait BuildsQueries
                 return false;
             }
 
-            $lastId = data_get($results->last(), $alias);
+            $lastId = $this->getLastIdFromChunk($results->last(), $alias);
 
             if ($lastId === null) {
                 throw new RuntimeException("The chunkById operation was aborted because the [{$alias}] column is not present in the query result.");
@@ -282,6 +283,8 @@ trait BuildsQueries
                 if ($countResults < $chunkSize) {
                     return;
                 }
+
+                unset($results);
 
                 ++$page;
             }
@@ -366,15 +369,27 @@ trait BuildsQueries
                     return;
                 }
 
-                $lastId = data_get($results->last(), $alias);
+                $lastId = $this->getLastIdFromChunk($results->last(), $alias);
 
                 if ($lastId === null) {
                     throw new RuntimeException("The lazyById operation was aborted because the [{$alias}] column is not present in the query result.");
                 }
 
+                unset($results);
+
                 ++$page;
             }
         });
+    }
+
+    /**
+     * Get the ID of the last result of a chunk to continue paging from.
+     */
+    protected function getLastIdFromChunk(mixed $result, string $alias): mixed
+    {
+        return $result instanceof Model
+            ? $result->prepareBinaryAttributesForDatabase([$alias => $result->getRawOriginal($alias)])[$alias]
+            : data_get($result, $alias);
     }
 
     /**

@@ -13,6 +13,7 @@ use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -757,6 +758,29 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $this->assertSame([1, 2], $builder->lazyById(2, 'someIdField')->take(2)->map(fn (Stub $model): int => $model->someIdField)->all());
         $this->assertSame([[]], $this->pagedBindings($connection));
+    }
+
+    public function testChunkByIdUsesTheRawKeyOfCastModels(): void
+    {
+        [$connection, $builder, $ids] = $this->newBinaryUuidPagedBuilder();
+
+        $chunks = [];
+        $builder->chunkById(2, function (Collection $results) use (&$chunks): bool {
+            $chunks[] = $results->pluck('id')->all();
+
+            return count($chunks) < 3;
+        });
+
+        $this->assertSame([[$ids[0], $ids[1]], [$ids[2]]], $chunks);
+        $this->assertEquals([[], [new BinaryParameter(hex2bin(str_replace('-', '', $ids[1])))]], $this->pagedBindings($connection));
+    }
+
+    public function testLazyByIdUsesTheRawKeyOfCastModels(): void
+    {
+        [$connection, $builder, $ids] = $this->newBinaryUuidPagedBuilder();
+
+        $this->assertSame($ids, $builder->lazyById(2)->take(4)->map(fn (BinaryUuidStub $model): string => $model->id)->all());
+        $this->assertEquals([[], [new BinaryParameter(hex2bin(str_replace('-', '', $ids[1])))]], $this->pagedBindings($connection));
     }
 
     public function testPluckReturnsTheMutatedAttributesOfAModel(): void
@@ -4016,6 +4040,33 @@ class DatabaseEloquentBuilderTest extends TestCase
     }
 
     /**
+     * Create a builder for paged models with binary UUID keys.
+     *
+     * @return array{SQLiteConnection, Builder, list<string>}
+     */
+    protected function newBinaryUuidPagedBuilder(): array
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+            '00000000-0000-0000-0000-000000000003',
+        ];
+
+        $connection = $this->useInMemoryConnection();
+        $connection->statement('create table "table" ("id" blob primary key)');
+
+        foreach ($ids as $id) {
+            $connection->table('table')->insert(['id' => new BinaryParameter(hex2bin(str_replace('-', '', $id)))]);
+        }
+
+        $connection->enableQueryLog();
+
+        $builder = (new Builder($connection->query()))->setModel(new BinaryUuidStub);
+
+        return [$connection, $builder, $ids];
+    }
+
+    /**
      * Get the bindings of each logged query.
      */
     protected function pagedBindings(SQLiteConnection $connection): array
@@ -4059,6 +4110,23 @@ class DatabaseEloquentBuilderTest extends TestCase
 class Stub extends Model
 {
     protected ?string $table = 'table';
+}
+
+class BinaryUuidStub extends Model
+{
+    protected ?string $table = 'table';
+
+    protected string $keyType = 'string';
+
+    public bool $incrementing = false;
+
+    /**
+     * Get the attributes that should be cast.
+     */
+    protected function casts(): array
+    {
+        return ['id' => AsBinary::uuid()];
+    }
 }
 
 class FreshQueryBuilder extends Builder
