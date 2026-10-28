@@ -9,6 +9,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -67,15 +68,21 @@ class OutboxRelay
             $result = $this->inFreshCoroutine(function () use ($connection, $group): OutboxBatchResult {
                 try {
                     $queue = $this->queues->connection($connection);
-
-                    return $queue instanceof PublishesOutboxMessages
+                    $result = $queue instanceof PublishesOutboxMessages
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
                 } catch (CanceledException|ChildCancellationException $exception) {
                     throw $exception;
                 } catch (Throwable $exception) {
-                    return new OutboxBatchResult(failure: $exception);
+                    $result = new OutboxBatchResult(failure: $exception);
                 }
+
+                // Drivers may return a wrapped cancellation as a failure, which must still stop delivery unsettled.
+                if ($result->failure !== null && Coroutine::causedByCancellation($result->failure)) {
+                    throw $result->failure;
+                }
+
+                return $result;
             });
             $duration = (hrtime(true) - $startedAt) / 1_000_000_000;
             $result = $this->validateResult($group, $result);

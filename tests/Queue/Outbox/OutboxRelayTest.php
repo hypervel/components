@@ -278,6 +278,38 @@ class OutboxRelayTest extends TestCase
         $this->assertTrue($released);
     }
 
+    #[DataProvider('wrappedCancellationOutcomes')]
+    public function testWrappedCancellationFromADriverStopsDeliveryWithoutSettlement(bool $returned): void
+    {
+        $repository = m::mock(DatabaseOutboxRepository::class);
+        $repository->shouldNotReceive('settle');
+        $queues = m::mock(Factory::class);
+        $queue = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
+        $exceptions = m::mock(ExceptionHandler::class);
+        $exceptions->shouldNotReceive('report');
+        $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
+        $queues->expects('connection')->andReturn($queue);
+        $publication = $queue->expects('publishOutboxMessages');
+        $returned
+            ? $publication->andReturn(new OutboxBatchResult([1], failure: $cancellation))
+            : $publication->andThrow($cancellation);
+
+        try {
+            (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2)]);
+            $this->fail('Wrapped cancellation must stop delivery.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
+    }
+
+    /**
+     * Cover drivers that report cancellation in their result and drivers that throw it.
+     */
+    public static function wrappedCancellationOutcomes(): array
+    {
+        return ['returned' => [true], 'thrown' => [false]];
+    }
+
     /**
      * Build a message whose age and diagnostics are visible to observers.
      */
