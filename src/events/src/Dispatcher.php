@@ -506,14 +506,14 @@ class Dispatcher implements DispatcherContract
         try {
             $result = $this->invokeListeners($event, $payload, $halt);
         } catch (Throwable $exception) {
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
             try {
                 $this->invokeObservers($event, $payload);
             } catch (Throwable $observerException) {
-                if (Coroutine::isCancellation($observerException)) {
+                if (Coroutine::causedByCancellation($observerException)) {
                     throw $observerException;
                 }
 
@@ -544,7 +544,7 @@ class Dispatcher implements DispatcherContract
             try {
                 $observer($event, $payload);
             } catch (Throwable $exception) {
-                if (Coroutine::isCancellation($exception)) {
+                if (Coroutine::causedByCancellation($exception)) {
                     throw $exception;
                 }
 

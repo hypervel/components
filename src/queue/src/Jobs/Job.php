@@ -325,7 +325,7 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
             try {
                 $batchRepository->rollBack();
             } catch (Throwable $exception) {
-                if (Coroutine::isCancellation($exception)) {
+                if (Coroutine::causedByCancellation($exception)) {
                     throw $exception;
                 }
             }
@@ -352,7 +352,7 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
                 $this->failed($e);
             }
         } catch (Throwable $exception) {
-            $canceled = Coroutine::isCancellation($exception);
+            $canceled = Coroutine::causedByCancellation($exception);
 
             throw $exception;
         } finally {

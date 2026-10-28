@@ -136,7 +136,7 @@ class HandleCall
             try {
                 $response = $next($request);
             } catch (Throwable $exception) {
-                if (! FrameworkCoroutine::isCancellation($exception) || ! $context->deadlineExceeded()) {
+                if (! FrameworkCoroutine::causedByCancellation($exception) || ! $context->deadlineExceeded()) {
                     throw $exception;
                 }
 

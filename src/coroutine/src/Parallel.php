@@ -118,7 +118,7 @@ class Parallel
                         try {
                             $results[$key] = $callback();
                         } catch (Throwable $throwable) {
-                            $throwables[$key] = Coroutine::isCancellation($throwable)
+                            $throwables[$key] = Coroutine::causedByCancellation($throwable)
                                 ? new ChildCancellationException(
                                     'A child coroutine managed by Parallel was canceled while its owner remained active.',
                                     previous: $throwable,

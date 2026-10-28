@@ -846,11 +846,11 @@ class CoroutineSafetyTest extends TestCase
                 $this->assertInstanceOf(CanceledException::class, $ownerException);
             }
 
-            $this->assertTrue(Coroutine::isCancellation($ownerException));
+            $this->assertTrue(Coroutine::causedByCancellation($ownerException));
             $this->assertInstanceOf(BindingResolutionException::class, $waiterException);
             $this->assertInstanceOf(ForeignCancellationException::class, $waiterException->getPrevious());
             $this->assertSame($ownerException, $waiterException->getPrevious()->getPrevious());
-            $this->assertFalse(Coroutine::isCancellation($waiterException));
+            $this->assertFalse(Coroutine::causedByCancellation($waiterException));
         } finally {
             $releaseOwner->push(true, 0.001);
             $this->cancelSurvivingCoroutines([$ownerId, $waiterId]);

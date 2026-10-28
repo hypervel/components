@@ -503,7 +503,7 @@ abstract class BaseClient
 
             return [$state, $connection];
         } catch (Throwable $throwable) {
-            if (Coroutine::isCancellation($throwable)) {
+            if (Coroutine::causedByCancellation($throwable)) {
                 throw $throwable;
             }
 

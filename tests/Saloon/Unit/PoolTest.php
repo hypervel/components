@@ -574,7 +574,7 @@ class PoolTest extends TestCase
         $this->assertInstanceOf(PoolException::class, $outcome);
         $this->assertInstanceOf(ChildCancellationException::class, $outcome->failures()['request']);
         $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $outcome->failures()['request']->getPrevious());
-        $this->assertFalse(Coroutine::isCancellation($outcome));
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
         if ($cleanupThrows) {
             $this->assertSame($nativeCancellation, $cleanupException->getPrevious());
         }
@@ -655,7 +655,7 @@ class PoolTest extends TestCase
         $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $outcome->callbackFailures()['request']->getPrevious());
         $this->assertSame($requestFails ? [] : ['request'], array_keys($outcome->responses()));
         $this->assertSame($requestFails ? ['request'] : [], array_keys($outcome->failures()));
-        $this->assertFalse(Coroutine::isCancellation($outcome));
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
         if ($cleanupThrows) {
             $this->assertSame($nativeCancellation, $cleanupException->getPrevious());
         }
@@ -732,7 +732,7 @@ class PoolTest extends TestCase
             $this->assertInstanceOf(CanceledException::class, $parentCancellation);
             $this->assertInstanceOf(CanceledException::class, $childCancellation);
             $this->assertSame($cleanupThrows ? $cleanupException : $parentCancellation, $outcome);
-            $this->assertTrue(Coroutine::isCancellation($outcome));
+            $this->assertTrue(Coroutine::causedByCancellation($outcome));
         } finally {
             $requestBlocker->close();
             $producerBlocker->close();

@@ -51,7 +51,7 @@ class TokenAcquisition
 
                 return $result->value;
             } catch (Throwable $exception) {
-                if (! Coroutine::isCancellation($exception)) {
+                if (! Coroutine::causedByCancellation($exception)) {
                     $result->error = $exception;
                 }
 

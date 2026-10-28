@@ -44,7 +44,7 @@ class GrpcOperationRunner
                 $startedObservers[] = [$observer, $observer->starting($operation)];
             }
         } catch (Throwable $throwable) {
-            if (Coroutine::isCancellation($throwable)) {
+            if (Coroutine::causedByCancellation($throwable)) {
                 throw $throwable;
             }
 

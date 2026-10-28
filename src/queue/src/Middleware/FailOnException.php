@@ -61,7 +61,7 @@ class FailOnException
         try {
             return $next($job);
         } catch (Throwable $e) {
-            if (Coroutine::isCancellation($e)) {
+            if (Coroutine::causedByCancellation($e)) {
                 throw $e;
             }
 

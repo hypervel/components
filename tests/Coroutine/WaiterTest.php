@@ -457,7 +457,7 @@ class WaiterTest extends TestCase
         $this->assertInstanceOf(ChildCancellationException::class, $outcome);
         $this->assertSame('A child coroutine managed by Waiter was canceled while its owner remained active.', $outcome->getMessage());
         $this->assertSame($cleanupThrows ? $cleanupException : $childCancellation, $outcome->getPrevious());
-        $this->assertFalse(Coroutine::isCancellation($outcome));
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
 
         if ($cleanupThrows) {
             $this->assertSame($childCancellation, $cleanupException->getPrevious());

@@ -68,7 +68,7 @@ class ImageSource
 
                 $this->contents = $contents;
             } catch (Throwable $exception) {
-                if (Coroutine::isCancellation($exception)) {
+                if (Coroutine::causedByCancellation($exception)) {
                     // The resolver cannot be repeated after a partial read. Other readers
                     // receive its failure without inheriting the owner's cancellation.
                     $this->exception = new ImageException('Image source resolution was canceled.', previous: new ForeignCancellationException(

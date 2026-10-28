@@ -466,7 +466,7 @@ class PooledConnection implements PoolConnection
         } catch (Throwable $exception) {
             $this->markInvalid();
 
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 $cancellationFailure = $exception;
             } else {
                 try {

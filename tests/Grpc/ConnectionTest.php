@@ -504,7 +504,7 @@ class ConnectionTest extends TestCase
             } catch (ConnectionException $exception) {
                 $this->assertInstanceOf(ForeignCancellationException::class, $exception->getPrevious());
                 $this->assertSame($cancellation, $exception->getPrevious()->getPrevious());
-                $this->assertFalse(FrameworkCoroutine::isCancellation($exception));
+                $this->assertFalse(FrameworkCoroutine::causedByCancellation($exception));
             }
         }
     }
@@ -569,7 +569,7 @@ class ConnectionTest extends TestCase
         } catch (ConnectionException $exception) {
             $this->assertInstanceOf(ForeignCancellationException::class, $exception->getPrevious());
             $this->assertSame($cancellation, $exception->getPrevious()->getPrevious());
-            $this->assertFalse(FrameworkCoroutine::isCancellation($exception));
+            $this->assertFalse(FrameworkCoroutine::causedByCancellation($exception));
         }
     }
 

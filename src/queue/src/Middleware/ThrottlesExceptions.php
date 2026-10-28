@@ -111,7 +111,7 @@ class ThrottlesExceptions
         } catch (Throwable $throwable) {
             $queueJob = $job->job ?? null;
 
-            if (Coroutine::isCancellation($throwable)
+            if (Coroutine::causedByCancellation($throwable)
                 || $queueJob?->hasFailed() || $queueJob?->isDeletedOrReleased()) {
                 throw $throwable;
             }

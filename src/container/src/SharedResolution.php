@@ -49,7 +49,7 @@ class SharedResolution
     {
         // The owner's cancellation belongs to the owner. Waiters see an ordinary
         // failure, so their own requests and jobs do not stop as if canceled.
-        $this->failure = Coroutine::isCancellation($failure)
+        $this->failure = Coroutine::causedByCancellation($failure)
             ? new BindingResolutionException('Shared container resolution was canceled before completion.', previous: new ForeignCancellationException(
                 'The coroutine resolving the shared service was canceled.',
                 previous: $failure,

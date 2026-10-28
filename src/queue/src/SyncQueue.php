@@ -250,7 +250,7 @@ class SyncQueue extends Queue implements QueueContract
 
             $this->raiseAfterJobEvent($queueJob, $duration);
         } catch (Throwable $e) {
-            if (Coroutine::isCancellation($e)) {
+            if (Coroutine::causedByCancellation($e)) {
                 $canceled = true;
 
                 throw $e;
@@ -261,7 +261,7 @@ class SyncQueue extends Queue implements QueueContract
             try {
                 $this->handleException($queueJob, $e);
             } catch (Throwable $exception) {
-                $canceled = Coroutine::isCancellation($exception);
+                $canceled = Coroutine::causedByCancellation($exception);
 
                 throw $exception;
             }

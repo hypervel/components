@@ -50,7 +50,7 @@ final class GrpcOperationHandle
             try {
                 $observer->finished($this->operation, $token, $result);
             } catch (Throwable $throwable) {
-                if (Coroutine::isCancellation($throwable)) {
+                if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;
                 }
 

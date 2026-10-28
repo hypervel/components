@@ -6,17 +6,21 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ConcurrentImportRunnerTest extends TestCase
 {
@@ -115,6 +119,45 @@ class ConcurrentImportRunnerTest extends TestCase
         $this->assertTrue($completed);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileReleasingTheParentConnectionCancelsActiveImports(bool $cleanupThrows): void
+    {
+        $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: new CanceledException) : new CanceledException;
+        $lease = m::mock(ConnectionLease::class);
+        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        $runner = new ConcurrentImportRunner(1);
+        $blocker = new Channel(1);
+        $childCanceled = false;
+        $childId = null;
+        $caught = null;
+        $runner->create(static function () use ($blocker, &$childCanceled, &$childId): void {
+            $childId = Coroutine::id();
+
+            try {
+                $blocker->pop(1);
+            } catch (CanceledException) {
+                $childCanceled = true;
+            }
+        });
+        CoroutineContext::set('__scout.test.connection_lease', $lease);
+
+        try {
+            $runner->wait();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            CoroutineContext::forget('__scout.test.connection_lease');
+            $blocker->close();
+            if ($childId !== null) {
+                Coroutine::join([$childId], 1);
+            }
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertTrue($childCanceled);
+    }
+
     public function testWaitPreservesTheFirstFailureWhenMultipleChildrenFail(): void
     {
         $runner = new ConcurrentImportRunner(2);
@@ -189,7 +232,7 @@ class ConcurrentImportRunnerTest extends TestCase
         } catch (ChildCancellationException $exception) {
             $this->assertSame('A child coroutine running a Scout import was canceled while its owner remained active.', $exception->getMessage());
             $this->assertSame($cleanupThrows ? $cleanupException : $nativeCancellation, $exception->getPrevious());
-            $this->assertFalse(Coroutine::isCancellation($exception));
+            $this->assertFalse(Coroutine::causedByCancellation($exception));
 
             if ($cleanupThrows) {
                 $this->assertSame($nativeCancellation, $cleanupException->getPrevious());

@@ -157,7 +157,7 @@ class Waiter
         if ($result instanceof ExceptionThrower) {
             $exception = $result->getThrowable();
 
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw new ChildCancellationException(
                     'A child coroutine managed by Waiter was canceled while its owner remained active.',
                     previous: $exception,

@@ -287,7 +287,7 @@ class ParallelTest extends TestCase
         $this->assertInstanceOf(ChildCancellationException::class, $outcome);
         $this->assertSame('A child coroutine managed by Parallel was canceled while its owner remained active.', $outcome->getMessage());
         $this->assertSame($cleanupThrows ? $cleanupException : $childCancellation, $outcome->getPrevious());
-        $this->assertFalse(Coroutine::isCancellation($outcome));
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
     }
 
     /**

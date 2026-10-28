@@ -54,7 +54,7 @@ class BroadcastBatcher
                 $work = fn () => $this->drain($send);
                 $runner === null ? $work() : $runner($work);
             } catch (Throwable $exception) {
-                $this->failure = Coroutine::isCancellation($exception)
+                $this->failure = Coroutine::causedByCancellation($exception)
                     ? new ChildCancellationException('The broadcast sender was canceled while its owner remained active.', previous: $exception)
                     : $exception;
             } finally {
@@ -99,12 +99,12 @@ class BroadcastBatcher
         try {
             // Completion callbacks may have borrowed the slot needed to send the final batches.
             ConnectionResolver::releaseIdleConnections();
-        } catch (CanceledException $exception) {
-            $this->cancel();
-
-            throw $exception;
         } catch (Throwable $exception) {
-            $this->concurrent->wait();
+            if (Coroutine::causedByCancellation($exception)) {
+                $this->cancel();
+            } else {
+                $this->concurrent->wait();
+            }
 
             throw $exception;
         }

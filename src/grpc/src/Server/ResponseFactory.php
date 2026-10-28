@@ -576,7 +576,7 @@ class ResponseFactory
         Throwable $throwable,
         ServerCallContext $context,
     ): RpcException {
-        if (Coroutine::isCancellation($throwable)) {
+        if (Coroutine::causedByCancellation($throwable)) {
             if ($context->deadlineExceeded()) {
                 if (! $throwable instanceof CanceledException) {
                     $this->exceptions->report($throwable);

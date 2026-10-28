@@ -95,7 +95,7 @@ class MessageSerializer
         try {
             $message = $deserialize($payload);
         } catch (Throwable $throwable) {
-            if (Coroutine::isCancellation($throwable)) {
+            if (Coroutine::causedByCancellation($throwable)) {
                 throw $throwable;
             }
 

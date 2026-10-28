@@ -22,6 +22,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -33,7 +34,7 @@ class CoroutineTest extends TestCase
     #[DataProvider('cancellationExceptions')]
     public function testCancellationClassificationRespectsCoroutineBoundaries(Throwable $exception, bool $expected): void
     {
-        $this->assertSame($expected, Coroutine::isCancellation($exception));
+        $this->assertSame($expected, Coroutine::causedByCancellation($exception));
     }
 
     /**
@@ -296,7 +297,9 @@ class CoroutineTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
     }
 
-    public function testFlushStateRestoresExceptionReporting(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExceptionReportingCanBeRestored(bool $flushState): void
     {
         try {
             $container = new Container;
@@ -306,11 +309,19 @@ class CoroutineTest extends TestCase
 
             $handler->shouldReceive('report')->once();
 
-            Coroutine::enableReportException(false);
-            Coroutine::flushState();
+            Coroutine::reportExceptions(false);
+            Coroutine::create(function () {
+                throw new Exception('Reporting is disabled.');
+            });
+
+            if ($flushState) {
+                Coroutine::flushState();
+            } else {
+                Coroutine::reportExceptions();
+            }
 
             Coroutine::create(function () {
-                throw new Exception('Should be reported after flushState.');
+                throw new Exception('Reporting is enabled again.');
             });
         } finally {
             Coroutine::flushState();

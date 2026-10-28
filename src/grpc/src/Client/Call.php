@@ -310,7 +310,7 @@ abstract class Call
 
                 $this->unaryResponse = $this->deserializePendingPayload();
             } catch (Throwable $throwable) {
-                if (Coroutine::isCancellation($throwable)) {
+                if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;
                 }
 
@@ -681,7 +681,7 @@ abstract class Call
 
             return true;
         } catch (Throwable $throwable) {
-            if (Coroutine::isCancellation($throwable)) {
+            if (Coroutine::causedByCancellation($throwable)) {
                 if ($backoffCheckpoint !== null) {
                     $this->retryBackoff?->restore($backoffCheckpoint);
                 }
@@ -833,7 +833,7 @@ abstract class Call
      */
     private function storeFailure(Throwable $failure): void
     {
-        if (Coroutine::isCancellation($failure)) {
+        if (Coroutine::causedByCancellation($failure)) {
             throw $failure;
         }
 

@@ -861,7 +861,7 @@ class Worker
      */
     protected function reportTimeoutException(Throwable $exception): void
     {
-        if (FrameworkCoroutine::isCancellation($exception)) {
+        if (FrameworkCoroutine::causedByCancellation($exception)) {
             throw $exception;
         }
 
@@ -1231,7 +1231,7 @@ class Worker
                 }
 
                 $e = $this->timeoutExceededException($job);
-            } elseif (FrameworkCoroutine::isCancellation($e)) {
+            } elseif (FrameworkCoroutine::causedByCancellation($e)) {
                 $canceled = true;
 
                 throw $e;
@@ -1242,7 +1242,7 @@ class Worker
             try {
                 $this->handleJobException($connectionName, $job, $options, $e);
             } catch (Throwable $exception) {
-                $canceled = FrameworkCoroutine::isCancellation($exception);
+                $canceled = FrameworkCoroutine::causedByCancellation($exception);
 
                 throw $exception;
             }
@@ -1395,7 +1395,7 @@ class Worker
                 $e
             );
         } catch (Throwable $exception) {
-            $canceled = FrameworkCoroutine::isCancellation($exception);
+            $canceled = FrameworkCoroutine::causedByCancellation($exception);
 
             throw $exception;
         } finally {

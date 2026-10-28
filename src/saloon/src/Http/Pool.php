@@ -217,7 +217,7 @@ class Pool
                         // Throwable responses are failures, so the exception handler receives every failed request.
                         $response = $this->connector->send($request)->throw();
                     } catch (Throwable $exception) {
-                        if (Coroutine::isCancellation($exception)) {
+                        if (Coroutine::causedByCancellation($exception)) {
                             $failures[$inputPosition] = [$key, new ChildCancellationException(
                                 'A child coroutine running a Saloon pool request was canceled while its owner remained active.',
                                 previous: $exception,
@@ -233,7 +233,7 @@ class Pool
                                 ($this->exceptionHandler)($exception, $key);
                             } catch (Throwable $callbackException) {
                                 $failures[$inputPosition] = [$key, $exception];
-                                $callbackFailures[$inputPosition] = [$key, Coroutine::isCancellation($callbackException)
+                                $callbackFailures[$inputPosition] = [$key, Coroutine::causedByCancellation($callbackException)
                                     ? new ChildCancellationException(
                                         'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
                                         previous: $callbackException,
@@ -252,7 +252,7 @@ class Pool
                     try {
                         $this->responseHandler?->__invoke($response, $key);
                     } catch (Throwable $callbackException) {
-                        $callbackFailures[$inputPosition] = [$key, Coroutine::isCancellation($callbackException)
+                        $callbackFailures[$inputPosition] = [$key, Coroutine::causedByCancellation($callbackException)
                             ? new ChildCancellationException(
                                 'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
                                 previous: $callbackException,
@@ -262,7 +262,7 @@ class Pool
                 });
             }
         } catch (Throwable $exception) {
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 $concurrent->cancel();
 
                 throw $exception;
@@ -274,7 +274,7 @@ class Pool
         try {
             ConnectionResolver::releaseIdleConnections();
         } catch (Throwable $exception) {
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 $concurrent->cancel();
 
                 throw $exception;

@@ -49,7 +49,7 @@ abstract class Connection implements ConnectionContract
         try {
             $this->pool->release($this);
         } catch (Throwable $exception) {
-            if ($failure === null || ! Coroutine::isCancellation($failure)) {
+            if ($failure === null || ! Coroutine::causedByCancellation($failure)) {
                 throw $exception;
             }
 
@@ -88,7 +88,7 @@ abstract class Connection implements ConnectionContract
                 }
             }
         } catch (Throwable $exception) {
-            if (Coroutine::isCancellation($exception)) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 

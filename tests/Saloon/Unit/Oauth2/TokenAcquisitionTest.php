@@ -100,7 +100,7 @@ class TokenAcquisitionTest extends TestCase
         try {
             $this->assertTrue(EngineCoroutine::cancelById($owner));
             $ownerException = $results->pop(1);
-            $this->assertTrue(Coroutine::isCancellation($ownerException));
+            $this->assertTrue(Coroutine::causedByCancellation($ownerException));
             if ($cleanupThrows) {
                 $this->assertSame($cleanupException, $ownerException);
                 $this->assertInstanceOf(CanceledException::class, $ownerException->getPrevious());
