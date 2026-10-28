@@ -18,6 +18,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\QueryException;
@@ -112,6 +113,13 @@ class Worker
      * @var array<string, float>
      */
     protected array $timeoutJobIds = [];
+
+    /**
+     * Notifications that may still publish a timed-out attempt's outcome.
+     *
+     * @var array<string, WaitGroup>
+     */
+    protected array $timeoutNotifications = [];
 
     /**
      * The job monitor's ID.
@@ -434,6 +442,14 @@ class Worker
                     $concurrent->create(function () use ($job, $connectionName, $options): void {
                         try {
                             $this->runJob($job, $connectionName, $options);
+                        } catch (Throwable $exception) {
+                            if (! FrameworkCoroutine::causedByCancellation($exception)) {
+                                throw $exception;
+                            }
+
+                            if (! $exception instanceof CanceledException && static::$reportJobExceptions) {
+                                $this->withCoroutineContext($options, fn () => $this->exceptions->report($exception));
+                            }
                         } finally {
                             ++$this->jobsProcessed;
                             $this->lastJobProcessedAt = $this->currentTime();
@@ -767,9 +783,15 @@ class Worker
      */
     protected function interruptTimeoutJob(string $jobId, array $job): void
     {
+        // Create the barrier before notification can yield, so a body finishing meanwhile waits for it.
+        $notification = static::$killOnTimeout ? null : ($this->timeoutNotifications[$jobId] = new WaitGroup(1));
+
         try {
             $this->notifyTimeoutJob($job['job']);
         } finally {
+            unset($this->timeoutNotifications[$jobId]);
+            $notification?->done();
+
             if (isset($this->runningJobs[$jobId])
                 && $job['coroutine_id'] !== $this->parkedCoroutineId
                 && Coroutine::exists($job['coroutine_id'])) {
@@ -1009,9 +1031,11 @@ class Worker
                     return $job;
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (FrameworkCoroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $this->exceptions->report($e);
 
             $this->stopWorkerIfLostConnection($e);
@@ -1069,9 +1093,11 @@ class Worker
         return $this->withCoroutineContext($options, function () use ($job, $connectionName, $options) {
             try {
                 $this->process($connectionName, $job, $options);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $e) {
+                if (FrameworkCoroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 if (static::$reportJobExceptions) {
                     $this->exceptions->report($e);
                 }
@@ -1199,6 +1225,17 @@ class Worker
                 // failure handling or completion listeners.
                 if (! static::$killOnTimeout) {
                     unset($this->runningJobs[$runningJobId]);
+
+                    // The notification may still release or delete this attempt.
+                    if ($notification = $this->timeoutNotifications[$runningJobId] ?? null) {
+                        try {
+                            $notification->wait();
+                        } catch (CanceledException $exception) {
+                            $canceled = true;
+
+                            throw $exception;
+                        }
+                    }
                 }
             }
 
@@ -1206,6 +1243,11 @@ class Worker
             if (isset($this->timeoutJobIds[$runningJobId])) {
                 $exceptionOccurred = $this->timeoutExceededException($job);
                 $canceled = static::$killOnTimeout;
+
+                if (! static::$killOnTimeout && ! $job->isDeletedOrReleased() && ! $job->hasFailed()) {
+                    // Catching cancellation does not replace the timeout's retry or failure policy.
+                    throw $exceptionOccurred;
+                }
 
                 return;
             }
@@ -1219,6 +1261,10 @@ class Worker
                 ));
             }
         } catch (Throwable $e) {
+            if ($canceled) {
+                throw $e;
+            }
+
             if ($runningJobId !== null && isset($this->timeoutJobIds[$runningJobId])) {
                 if (static::$killOnTimeout) {
                     $canceled = true;
@@ -1226,7 +1272,7 @@ class Worker
                     throw $e;
                 }
 
-                if (! $e instanceof CanceledException && static::$reportJobExceptions) {
+                if (! $e instanceof CanceledException && ! $e instanceof TimeoutExceededException && static::$reportJobExceptions) {
                     $this->exceptions->report($e);
                 }
 
@@ -1364,7 +1410,7 @@ class Worker
             // go ahead and mark it as failed now so we do not have to release this again.
             // A released attempt no longer owns the reservation; the next delivery
             // enforces its limits without publishing a second outcome here.
-            if (! $job->hasFailed() && ! $job->isReleased()) {
+            if (! $job->hasFailed() && ! $job->isDeletedOrReleased()) {
                 $this->markJobAsFailedIfWillExceedMaxAttempts(
                     $connectionName,
                     $job,
