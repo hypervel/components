@@ -117,14 +117,13 @@ class Parallel
                     $childCallable = static function () use ($callback, $key, &$results, &$throwables): void {
                         try {
                             $results[$key] = $callback();
-                        } catch (CanceledException $exception) {
-                            $throwables[$key] = new ChildCancellationException(
-                                'A child coroutine managed by Parallel was canceled while its owner remained active.',
-                                previous: $exception,
-                            );
-                            unset($results[$key]);
                         } catch (Throwable $throwable) {
-                            $throwables[$key] = $throwable;
+                            $throwables[$key] = Coroutine::isCancellation($throwable)
+                                ? new ChildCancellationException(
+                                    'A child coroutine managed by Parallel was canceled while its owner remained active.',
+                                    previous: $throwable,
+                                )
+                                : $throwable;
                             unset($results[$key]);
                         }
                     };

@@ -374,7 +374,7 @@ try {
 }
 ```
 
-`Coroutine::isCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. It returns `false` for `ChildCancellationException`: that exception means an independently canceled child failed while its owner remained active, so the owner can handle it as an ordinary failure. Rethrowing preserves any cleanup error for the caller to report.
+`Coroutine::isCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. Rethrowing preserves any cleanup error for the caller to report. A cancellation wrapped in `Hypervel\Coroutine\Exceptions\ForeignCancellationException` came from another coroutine, such as the owner of a shared operation this code was waiting for. If the chain reaches that exception before it reaches a cancellation, `isCancellation` returns `false`, so you can handle it as an ordinary failure. `ChildCancellationException` extends it for independently canceled children.
 
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
@@ -696,7 +696,7 @@ try {
 }
 ```
 
-An independently canceled child is recorded as `Hypervel\Coroutine\Exceptions\ChildCancellationException`, with the native cancellation available as its previous exception.
+An independently canceled child is recorded as `Hypervel\Coroutine\Exceptions\ChildCancellationException`. Its previous exception is the native cancellation, or the cleanup error if the child's cleanup threw while unwinding cancellation.
 
 <a name="limiting-parallel-work"></a>
 ### Limiting Parallel Work

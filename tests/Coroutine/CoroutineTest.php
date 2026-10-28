@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
@@ -30,19 +31,20 @@ use function Hypervel\Coroutine\go;
 class CoroutineTest extends TestCase
 {
     #[DataProvider('cancellationExceptions')]
-    public function testCancellationClassificationRespectsChildBoundaries(Throwable $exception, bool $expected): void
+    public function testCancellationClassificationRespectsCoroutineBoundaries(Throwable $exception, bool $expected): void
     {
         $this->assertSame($expected, Coroutine::isCancellation($exception));
     }
 
     /**
-     * Distinguish operation cancellation from an independently canceled child.
+     * Distinguish operation cancellation from another coroutine's failure.
      */
     public static function cancellationExceptions(): array
     {
         $cancellation = new CanceledException;
         $cleanup = new RuntimeException('Cleanup failed.', previous: $cancellation);
         $child = new ChildCancellationException('The child stopped.', previous: $cleanup);
+        $foreign = new ForeignCancellationException('The shared operation stopped.', previous: $cleanup);
 
         return [
             'direct cancellation' => [$cancellation, true],
@@ -51,6 +53,8 @@ class CoroutineTest extends TestCase
             'independent child' => [$child, false],
             'wrapped independent child' => [new RuntimeException(previous: $child), false],
             'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
+            'shared operation' => [$foreign, false],
+            'wrapped shared operation' => [new RuntimeException(previous: $foreign), false],
             'ordinary error' => [new RuntimeException, false],
         ];
     }
