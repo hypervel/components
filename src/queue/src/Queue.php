@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
@@ -637,6 +638,20 @@ abstract class Queue
         }
 
         return $exception;
+    }
+
+    /**
+     * Notify every batch member of a failure, reporting listener errors so they cannot replace it.
+     *
+     * @template TMember
+     * @param array<array-key, TMember> $members
+     * @param Closure(TMember): void $notification
+     */
+    protected function notifyBatchMembersOfFailure(array $members, Closure $notification): void
+    {
+        if (($exception = $this->notifyBatchMembers($members, $notification)) !== null) {
+            PoolErrorReporter::report($exception);
+        }
     }
 
     /**

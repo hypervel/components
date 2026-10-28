@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Aws\Result;
+use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
@@ -15,6 +16,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusContract;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventsContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -96,7 +98,7 @@ class SqsBatchLifecycleTest extends TestCase
 
     public function testFailureNotificationsDrainAndRetainThePrimaryAttemptError(): void
     {
-        [$queue, $client, $events] = $this->queue();
+        [$queue, $client, $events, $container] = $this->queue();
         $primary = new RuntimeException('Transport failed.');
         $listener = new RuntimeException('Listener failed.');
         $client->expects('sendMessageBatch')->andThrow($primary);
@@ -105,12 +107,15 @@ class SqsBatchLifecycleTest extends TestCase
             $failed[] = $event;
         });
         $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
 
         try {
             $queue->bulk(['first', 'second']);
-            $this->fail('The failure listener should throw.');
+            $this->fail('The primary attempt error should be rethrown.');
         } catch (RuntimeException $caught) {
-            $this->assertSame($listener, $caught);
+            $this->assertSame($primary, $caught);
         }
 
         $this->assertSame(['first', 'second'], array_column($failed, 'job'));
@@ -142,12 +147,15 @@ class SqsBatchLifecycleTest extends TestCase
         $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
             $failed[] = $event->job;
         });
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
 
         try {
             $queue->bulk(array_map('strval', range(1, 11)));
-            $this->fail('The monitoring failure should be rethrown.');
-        } catch (RuntimeException $caught) {
-            $this->assertSame($listener, $caught);
+            $this->fail('The rejection should be rethrown.');
+        } catch (SqsException $caught) {
+            $this->assertSame('InvalidParameterValue', $caught->getAwsErrorCode());
         }
 
         $this->assertSame(array_map('strval', range(1, 9)), $queued);

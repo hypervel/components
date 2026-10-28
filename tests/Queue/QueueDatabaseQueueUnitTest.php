@@ -725,6 +725,47 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame($exception, $events[3]->exception);
     }
 
+    public function testBulkInsertFailureIsNotReplacedByAFailingFailureListener(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $exception = new RuntimeException('Insert failed.');
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andThrow($exception);
+
+        $listener = new RuntimeException('Listener failed.');
+        $failed = [];
+        $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $dispatcher->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->bulk(['first', 'second'], queue: 'emails');
+            $this->fail('Expected the bulk insert to fail.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertSame(['first', 'second'], $failed);
+    }
+
     public function testBulkFailureListenerCancellationIsPropagatedInsteadOfReported(): void
     {
         $queue = new TestDatabaseQueue(

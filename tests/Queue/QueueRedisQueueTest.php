@@ -8,6 +8,7 @@ use DateInterval;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Contracts\Redis\Factory as Redis;
@@ -158,6 +159,42 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer(new Container);
 
         $this->assertNull($queue->bulk(['first', 'second']));
+    }
+
+    public function testBulkRedisFailureIsNotReplacedByAFailingFailureListener(): void
+    {
+        $exception = new RuntimeException('Redis unavailable.');
+        $connection = $this->mockRedisProxyWithShaCache();
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('evalWithShaCache')->andThrow($exception);
+        $redis = m::mock(Redis::class);
+        $redis->expects('connection')->with('default')->andReturn($connection);
+
+        Container::setInstance($container = new Container);
+        $events = new EventDispatcher($container);
+        $container->instance('events', $events);
+        $queue = new RedisQueue($redis, 'default', 'default');
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+
+        $listener = new RuntimeException('Listener failed.');
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->bulk(['first', 'second']);
+            $this->fail('Expected the Redis failure to be rethrown.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertSame(['first', 'second'], $failed);
     }
 
     public function testEmptyBulkDoesNotResolveRedis(): void

@@ -537,21 +537,20 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
                 },
             );
+
+            if ($exception !== null && $notificationFailure !== null) {
+                PoolErrorReporter::report($notificationFailure);
+            }
+
             $exception ??= $notificationFailure;
 
             if ($exception === null) {
                 continue;
             }
 
-            try {
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable $throwable) {
-                $notificationFailure ??= $throwable;
-            }
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
-            throw $notificationFailure ?? $exception;
+            throw $exception;
         }
     }
 
@@ -693,17 +692,13 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
         ?string $queue,
         Throwable $exception,
     ): void {
-        $notificationFailure = $this->notifyBatchMembers(
+        $this->notifyBatchMembersOfFailure(
             array_keys($outstandingMessageIds),
             function (int $id) use ($messages, $queue, $exception): void {
                 $message = $messages[$id];
                 $this->raiseJobQueueingFailedEvent($queue, $message['job'], $message['payload'], $message['delay'], $exception);
             },
         );
-
-        if ($notificationFailure !== null) {
-            throw $notificationFailure;
-        }
     }
 
     /**
