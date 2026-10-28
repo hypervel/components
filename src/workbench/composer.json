@@ -45,7 +45,7 @@
         "hypervel/testbench": "^0.4",
         "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
-        "symfony/console": "^8.1.2",
+        "symfony/console": "^8.1.10",
         "symfony/http-foundation": "^8.1"
     },
     "autoload": {
