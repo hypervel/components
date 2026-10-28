@@ -783,6 +783,69 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([[], [new BinaryParameter(hex2bin(str_replace('-', '', $ids[1])))]], $this->pagedBindings($connection));
     }
 
+    #[TestWith(['chunkById', false])]
+    #[TestWith(['lazyById', false])]
+    #[TestWith(['chunkById', true])]
+    #[TestWith(['lazyById', true])]
+    public function testPagingUsesCursorAliasesAddedAfterHydration(string $method, bool $accessor): void
+    {
+        [, $builder] = $this->newPagedBuilder([1, 2, 3]);
+
+        if ($accessor) {
+            $builder->setModel(new CursorAliasStub);
+        } else {
+            $builder->afterQuery(static function (Collection $models): void {
+                foreach ($models as $model) {
+                    $model->setAttribute('cursor', $model->getRawOriginal('id'));
+                }
+            });
+        }
+
+        $actual = [];
+
+        if ($method === 'lazyById') {
+            $actual = $builder->lazyById(2, 'id', 'cursor')->take(4)->pluck('id')->all();
+        } else {
+            $builder->chunkById(2, function (Collection $models) use (&$actual): bool {
+                array_push($actual, ...$models->pluck('id')->all());
+
+                return count($actual) < 4;
+            }, 'id', 'cursor');
+        }
+
+        $this->assertSame([1, 2, 3], $actual);
+    }
+
+    #[TestWith(['chunkById', 'id'])]
+    #[TestWith(['lazyById', 'id'])]
+    #[TestWith(['chunkById', 'table.id'])]
+    #[TestWith(['lazyById', 'table.id'])]
+    #[TestWith(['chunkById', 't.id', true])]
+    public function testPagingPreservesBinaryBindingsForSelectedAliases(string $method, string $column, bool $castAlias = false): void
+    {
+        [$connection, $builder, $ids] = $this->newBinaryUuidPagedBuilder();
+        $builder->select(['id', 'id as cursor']);
+
+        if ($castAlias) {
+            $builder->from('table as t')->withCasts(['cursor' => AsBinary::uuid()]);
+        }
+
+        $actual = [];
+
+        if ($method === 'lazyById') {
+            $actual = $builder->lazyById(2, $column, 'cursor')->take(4)->pluck('id')->all();
+        } else {
+            $builder->chunkById(2, function (Collection $models) use (&$actual): bool {
+                array_push($actual, ...$models->pluck('id')->all());
+
+                return count($actual) < 4;
+            }, $column, 'cursor');
+        }
+
+        $this->assertSame($ids, $actual);
+        $this->assertEquals([[], [new BinaryParameter(hex2bin(str_replace('-', '', $ids[1])))]], $this->pagedBindings($connection));
+    }
+
     public function testPluckReturnsTheMutatedAttributesOfAModel(): void
     {
         $builder = $this->getBuilder();
@@ -4110,6 +4173,17 @@ class DatabaseEloquentBuilderTest extends TestCase
 class Stub extends Model
 {
     protected ?string $table = 'table';
+}
+
+class CursorAliasStub extends Stub
+{
+    /**
+     * Return the raw key as an explicit paging cursor.
+     */
+    public function getCursorAttribute(): mixed
+    {
+        return $this->getRawOriginal('id');
+    }
 }
 
 class BinaryUuidStub extends Model

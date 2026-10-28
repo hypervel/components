@@ -1954,7 +1954,7 @@ trait HasAttributes
     }
 
     /**
-     * Prepare binary-cast attributes for database binding.
+     * Wrap raw binary attribute bytes or streams for database binding.
      *
      * @param array<string, mixed> $attributes
      * @return array<string, mixed>
@@ -1976,6 +1976,20 @@ trait HasAttributes
         }
 
         return $attributes;
+    }
+
+    /**
+     * Encode a binary attribute's cast value, such as a UUID string, for database binding.
+     */
+    public function encodeBinaryAttributeForDatabase(string $key, mixed $value): mixed
+    {
+        if ($value instanceof BinaryParameter || ! $this->isBinaryCast($this->getCasts()[$key] ?? null)) {
+            return $value;
+        }
+
+        $bytes = $this->resolveCasterClass($key)->set($this, $key, $value, $this->attributes)[$key];
+
+        return is_string($bytes) ? new BinaryParameter($bytes) : $bytes;
     }
 
     /**

@@ -758,7 +758,9 @@ use Hypervel\Support\Facades\DB;
 
 DB::table('files')->afterQuery(function (Collection $rows) {
     foreach ($rows as $row) {
-        $row->cursor = new BinaryParameter($row->hash);
+        $row->cursor = is_resource($row->hash)
+            ? BinaryParameter::fromStream($row->hash)
+            : new BinaryParameter($row->hash);
     }
 })->chunkById(100, function (Collection $files) {
     // Process the files...
