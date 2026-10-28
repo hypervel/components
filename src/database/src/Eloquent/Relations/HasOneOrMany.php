@@ -393,9 +393,9 @@ abstract class HasOneOrMany extends Relation
      */
     public function forceCreate(array $attributes = []): Model
     {
-        $attributes = array_merge($this->getQuery()->pendingAttributes, $attributes);
-
-        $attributes[$this->getForeignKeyName()] = $this->getParentKey();
+        // Pending-attribute mutators may read the relationship key.
+        $attributes = [$this->getForeignKeyName() => $this->getParentKey()]
+            + array_merge($this->getQuery()->pendingAttributes, $attributes);
 
         return $this->applyInverseRelationToModel($this->related->forceCreate($attributes));
     }

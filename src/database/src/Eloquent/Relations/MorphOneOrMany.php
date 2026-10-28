@@ -70,10 +70,11 @@ abstract class MorphOneOrMany extends HasOneOrMany
      */
     public function forceCreate(array $attributes = []): Model
     {
-        $attributes = array_merge($this->getQuery()->pendingAttributes, $attributes);
-
-        $attributes[$this->getForeignKeyName()] = $this->getParentKey();
-        $attributes[$this->getMorphType()] = $this->morphClass;
+        // Pending-attribute mutators may read the relationship keys.
+        $attributes = [
+            $this->getForeignKeyName() => $this->getParentKey(),
+            $this->getMorphType() => $this->morphClass,
+        ] + array_merge($this->getQuery()->pendingAttributes, $attributes);
 
         return $this->applyInverseRelationToModel($this->related->forceCreate($attributes));
     }

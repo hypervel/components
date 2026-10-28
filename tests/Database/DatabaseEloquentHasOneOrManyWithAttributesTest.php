@@ -8,6 +8,7 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 {
@@ -323,6 +324,30 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $this->assertTrue($relatedModel->fresh()->is_admin);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testForceCreateSetsRelationKeysBeforePendingAttributeMutators(bool $polymorphic): void
+    {
+        $this->createTable();
+        $parent = new RelatedWithAttributesModel;
+        $parent->id = 123;
+        $relation = $polymorphic
+            ? $parent->morphMany(RelatedWithParentAttributesModel::class, 'relatable')
+            : $parent->hasMany(RelatedWithParentAttributesModel::class, 'parent_id');
+        $foreignKey = $polymorphic ? 'relatable_id' : 'parent_id';
+
+        $model = $relation->withAttributes([
+            'parent_reference' => true,
+            $foreignKey => 456,
+            ...($polymorphic ? ['relatable_type' => 'wrong-type'] : []),
+        ])->forceCreate([$foreignKey => 789]);
+
+        $this->assertSame(
+            ($polymorphic ? $parent::class : 'parent') . ':123',
+            $model->fresh()->parent_reference
+        );
+    }
+
     /**
      * Create the table used to verify persisted relationship attributes.
      */
@@ -333,6 +358,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
             $table->unsignedBigInteger('parent_id')->nullable();
             $table->nullableMorphs('relatable');
             $table->boolean('is_admin')->default(false);
+            $table->string('parent_reference')->nullable();
             $table->timestamps();
         });
     }
@@ -345,4 +371,19 @@ class RelatedWithAttributesModel extends Model
     protected array $casts = [
         'is_admin' => 'boolean',
     ];
+}
+
+class RelatedWithParentAttributesModel extends RelatedWithAttributesModel
+{
+    protected ?string $table = 'related_with_attributes_models';
+
+    /**
+     * Derive the reference from the relationship keys.
+     */
+    public function setParentReferenceAttribute(bool $value): void
+    {
+        $type = $this->attributes['relatable_type'] ?? 'parent';
+        $key = $this->attributes['relatable_id'] ?? $this->attributes['parent_id'] ?? 'missing';
+        $this->attributes['parent_reference'] = "{$type}:{$key}";
+    }
 }
