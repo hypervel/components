@@ -8,10 +8,10 @@ Work in `/home/binaryfire/workspace/contrib/hypervel/components-vite-plus`. The 
 
 Read this plan, the monorepo root `CLAUDE.md`, and the worktree's `AGENTS.md` after compaction. This plan does not override their approval, verification, source-reading, or dependency-management requirements. No implementation is authorized merely by writing the plan.
 
-Remaining work:
+Part 1 implementation and verification are complete. Remaining work:
 
-- Resolve the owner approval items below before implementing their dependent changes.
-- Implement and verify Part 1, including its generated assets and documentation.
+- After Part 1 merges, check the retired lockfile alerts and coordinate Telescope's upstream-sync notes as described below.
+- Resolve the formatting approval item before its dependent Part 2 changes.
 - After Part 1 merges, implement and verify Part 2.
 
 ## Maintenance tradeoff and approval items
