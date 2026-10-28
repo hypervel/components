@@ -7,6 +7,7 @@ namespace Hypervel\Grpc\Server;
 use Composer\InstalledVersions;
 use Generator;
 use Google\Protobuf\Internal\Message;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\Metadata;
@@ -575,8 +576,12 @@ class ResponseFactory
         Throwable $throwable,
         ServerCallContext $context,
     ): RpcException {
-        if ($throwable instanceof CanceledException) {
+        if (Coroutine::isCancellation($throwable)) {
             if ($context->deadlineExceeded()) {
+                if (! $throwable instanceof CanceledException) {
+                    $this->exceptions->report($throwable);
+                }
+
                 return $this->deadlineFailure();
             }
 

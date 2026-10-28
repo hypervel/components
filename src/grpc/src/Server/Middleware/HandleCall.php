@@ -7,6 +7,7 @@ namespace Hypervel\Grpc\Server\Middleware;
 use Closure;
 use Google\Protobuf\Internal\Message;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\ProtocolException;
@@ -17,6 +18,7 @@ use Hypervel\Grpc\Protocol\MessageSerializer;
 use Hypervel\Grpc\Protocol\MetadataCodec;
 use Hypervel\Grpc\Protocol\Timeout;
 use Hypervel\Grpc\Server\CallContextStore;
+use Hypervel\Grpc\Server\ExceptionMapper;
 use Hypervel\Grpc\Server\GrpcStreamedResponse;
 use Hypervel\Grpc\Server\ResponseFactory;
 use Hypervel\Grpc\Server\ServerCallContext;
@@ -27,6 +29,7 @@ use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use LogicException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Decode and scope one supported inbound gRPC call.
@@ -35,9 +38,13 @@ use Swoole\Coroutine\CanceledException;
  */
 class HandleCall
 {
+    /**
+     * Create the inbound call handler.
+     */
     public function __construct(
         private readonly CallContextStore $contexts,
         private readonly Timer $timer,
+        private readonly ExceptionMapper $exceptions,
         private readonly int $maxReceiveMessageSize,
         private readonly Compression $preferredCompression,
     ) {
@@ -128,9 +135,13 @@ class HandleCall
 
             try {
                 $response = $next($request);
-            } catch (CanceledException $exception) {
-                if (! $context->deadlineExceeded()) {
+            } catch (Throwable $exception) {
+                if (! FrameworkCoroutine::isCancellation($exception) || ! $context->deadlineExceeded()) {
                     throw $exception;
+                }
+
+                if (! $exception instanceof CanceledException) {
+                    $this->exceptions->report($exception);
                 }
 
                 return $this->deadlineFailure();
