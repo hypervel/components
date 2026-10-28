@@ -462,27 +462,41 @@
         "analyse": [
             "Composer\\Config::disableProcessTimeout",
             "phpstan analyse",
-            "phpstan analyse -c phpstan.types.neon.dist"
+            "phpstan analyse -c phpstan.types.neon.dist",
+            "@analyse:skeletons @no_additional_args"
         ],
+        "analyse:skeletons": "@composer --working-dir=skeletons/hypervel analyse",
         "check": [
+            "@check:skeleton-config",
             "@test",
             "@test:testbench",
             "@test:dogfood",
             "@analyse",
             "@lint"
         ],
+        "check:skeleton-config": "@php bin/sync-skeleton-config/sync.php --check",
         "facade": "php -f src/facade-documenter/facade.php --",
         "fix": [
             "@lint:fix",
+            "@sync:skeleton-config",
             "@analyse",
             "@test:parallel",
             "@test:testbench",
             "@test:dogfood"
         ],
         "generate:grpc-health": "bash bin/generate-grpc-health.sh",
-        "lint": "php-cs-fixer fix --diff --dry-run",
-        "lint:fix": "php-cs-fixer fix",
+        "lint": [
+            "php-cs-fixer fix --diff --dry-run",
+            "@lint:skeletons @no_additional_args"
+        ],
+        "lint:fix": [
+            "php-cs-fixer fix",
+            "@lint:skeletons:fix @no_additional_args"
+        ],
+        "lint:skeletons": "@composer --working-dir=skeletons/hypervel lint",
+        "lint:skeletons:fix": "@composer --working-dir=skeletons/hypervel lint:fix",
         "sync:grpc-health": "php src/grpc/resources/proto/sync-health-protocol.php",
+        "sync:skeleton-config": "@php bin/sync-skeleton-config/sync.php",
         "test": [
             "Composer\\Config::disableProcessTimeout",
             "phpunit"

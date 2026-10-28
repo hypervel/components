@@ -37,9 +37,11 @@ Key paths:
 | Path | Description |
 |------|-------------|
 | `src/docs/` | Hypervel documentation and the source for the `hypervel/docs` package. |
+| `src/framework/` | Composer metadata for `hypervel/framework`, the metapackage that installs the standard framework components. Published to its own read-only split repository. |
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
+| `skeletons/` | Application skeletons and starter kits, each published to its own read-only split repository. `hypervel/` is the base application skeleton; `react-starter-kit/` is the React starter kit. |
 | `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics). |
 | `docs/todo.md` | Tracked gaps and improvements worth doing. |
 

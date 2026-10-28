@@ -11,17 +11,39 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
 permissions:
   contents: write
 
 jobs:
-  release:
+  config:
+    name: Check generated configuration
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist --no-interaction --no-scripts
+      - name: Check skeleton configuration
+        run: composer check:skeleton-config
+
+  release:
+    needs: config
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           # Version commits and framework tag pushes authenticate through origin.
           persist-credentials: true
 
@@ -58,18 +80,6 @@ jobs:
           script: |
               core.setFailed('Workflow failed. Release version does not match with selected target branch. Did you select the correct branch?')
 
-      - name: Update Application.php version
-        run: |
-          sed -i "s/const string VERSION = '.*';/const string VERSION = '${VERSION}';/g" src/foundation/src/Application.php
-          grep -Fq -- "const string VERSION = '${VERSION}';" src/foundation/src/Application.php
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-
-      - name: Commit version change
-        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
-        with:
-          commit_message: "Update version to v${{ steps.version.outputs.version }}"
-
       - name: Setup private key
         run: |
           mkdir -p ~/.ssh
@@ -79,16 +89,33 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Check split repositories
+        run: bash ./bin/split.sh --check
+
+      - name: Update Application.php version
+        run: |
+          sed -i "s/const string VERSION = '.*';/const string VERSION = '${VERSION}';/g" src/foundation/src/Application.php
+          grep -Fq -- "const string VERSION = '${VERSION}';" src/foundation/src/Application.php
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Commit version change
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
+        with:
+          commit_message: "Update version to v${{ steps.version.outputs.version }}"
+
       - name: Split and push
         run: |
           git config pull.rebase true
           git config --global user.email "albert@hypervel.org"
           git config --global user.name "Hypervel"
           if [ ${{ inputs.force_delete }} = true ]; then
-            bash ./bin/release.sh v${{ steps.version.outputs.version }} -f
+            bash ./bin/release.sh "v$VERSION" -f
           else
-            bash ./bin/release.sh v${{ steps.version.outputs.version }}
+            bash ./bin/release.sh "v$VERSION"
           fi
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create release notes
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
