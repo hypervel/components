@@ -12,26 +12,32 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class StreamCancellationTest extends TestCase
 {
-    #[DataProvider('protocols')]
-    public function testCancellationEscapesWithoutAnErrorOrCompletionFrame(?string $protocol): void
+    #[DataProvider('cancellationProtocols')]
+    public function testCancellationEscapesWithoutAnErrorOrCompletionFrame(?string $protocol, bool $cleanupThrows): void
     {
         Exceptions::fake();
         $cancellation = new CanceledException('The client disconnected.');
+        $cleanup = new RuntimeException('Producer cleanup failed.');
         $cleanedUp = false;
         $completed = false;
         $caught = null;
-        $stream = (new StreamableAgentResponse('invocation-1', function () use ($cancellation, &$cleanedUp): Generator {
+        $stream = (new StreamableAgentResponse('invocation-1', function () use ($cancellation, $cleanup, $cleanupThrows, &$cleanedUp): Generator {
             try {
                 yield new StreamStart('message-1', 'openai', 'gpt-5', time());
 
                 throw $cancellation;
             } finally {
                 $cleanedUp = true;
+
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
             }
         }))->catch(function (Throwable $exception) use (&$caught): void {
             $caught = $exception;
@@ -55,17 +61,36 @@ class StreamCancellationTest extends TestCase
 
                 return true;
             });
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $thrown = $exception;
         }
 
-        $this->assertSame($cancellation, $thrown);
-        $this->assertSame($cancellation, $caught);
+        $this->assertSame($cleanupThrows ? $cleanup : $cancellation, $thrown);
+        $this->assertSame($cleanupThrows ? $cleanup : $cancellation, $caught);
+
+        if ($cleanupThrows) {
+            $this->assertSame($cancellation, $cleanup->getPrevious());
+        }
         $this->assertTrue($cleanedUp);
         $this->assertFalse($completed);
         $this->assertNotEmpty($chunks);
         $this->assertDoesNotMatchRegularExpression('/error|finish|\[DONE\]/i', implode('', $chunks));
         Exceptions::assertNothingReported();
+    }
+
+    /**
+     * Provide cancellation with and without a producer cleanup failure for each protocol.
+     */
+    public static function cancellationProtocols(): array
+    {
+        $cases = [];
+
+        foreach (self::protocols() as $name => [$protocol]) {
+            $cases[$name] = [$protocol, false];
+            $cases[$name . ' cleanup'] = [$protocol, true];
+        }
+
+        return $cases;
     }
 
     #[DataProvider('protocols')]
