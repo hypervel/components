@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Grpc\Protocol;
 
 use Google\Protobuf\Internal\Message;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use InvalidArgumentException;
 use Swoole\Coroutine\CanceledException;
@@ -93,9 +94,11 @@ class MessageSerializer
 
         try {
             $message = $deserialize($payload);
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
+            if (Coroutine::isCancellation($throwable)) {
+                throw $throwable;
+            }
+
             throw new ProtocolException(
                 'Unable to deserialize the gRPC message.',
                 previous: $throwable,

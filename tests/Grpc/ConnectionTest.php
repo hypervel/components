@@ -9,6 +9,8 @@ use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\RequestInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\HttpClientException;
@@ -477,10 +479,13 @@ class ConnectionTest extends TestCase
     {
         $cancellation = new CanceledException;
         $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $active = $this->state();
+        $this->start($connection, $this->request(), $active);
+
         $client->sendUsing(static function () use ($cancellation): int {
             throw $cancellation;
         });
-        $connection = $this->connection(new ConnectionTestClientFactory($client));
         $state = $this->state();
 
         try {
@@ -492,11 +497,15 @@ class ConnectionTest extends TestCase
 
         $this->assertTrue($connection->isClosed());
 
-        try {
-            $state->status();
-            $this->fail('Expected the uncertain stream to fail with its connection.');
-        } catch (ConnectionException $exception) {
-            $this->assertSame($cancellation, $exception->getPrevious());
+        foreach ([$active, $state] as $failedState) {
+            try {
+                $failedState->status();
+                $this->fail('Expected the stream to fail with its connection.');
+            } catch (ConnectionException $exception) {
+                $this->assertInstanceOf(ForeignCancellationException::class, $exception->getPrevious());
+                $this->assertSame($cancellation, $exception->getPrevious()->getPrevious());
+                $this->assertFalse(FrameworkCoroutine::isCancellation($exception));
+            }
         }
     }
 
@@ -558,7 +567,9 @@ class ConnectionTest extends TestCase
             $state->status();
             $this->fail('Expected the uncertain stream to fail with its connection.');
         } catch (ConnectionException $exception) {
-            $this->assertSame($cancellation, $exception->getPrevious());
+            $this->assertInstanceOf(ForeignCancellationException::class, $exception->getPrevious());
+            $this->assertSame($cancellation, $exception->getPrevious()->getPrevious());
+            $this->assertFalse(FrameworkCoroutine::isCancellation($exception));
         }
     }
 

@@ -9,6 +9,7 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\RpcException;
@@ -501,9 +502,11 @@ abstract class BaseClient
             $connection->start($requestFactory, $state, $deadline);
 
             return [$state, $connection];
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::isCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $operationHandle?->finish(new GrpcOperationResult(
                 $throwable instanceof RpcException ? $throwable->status() : null,
                 $throwable,
