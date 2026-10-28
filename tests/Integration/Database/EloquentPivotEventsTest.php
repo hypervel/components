@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
@@ -57,6 +58,11 @@ class EloquentPivotEventsTest extends DatabaseTestCase
 
         Schema::create('equipmentables', function (Blueprint $table) {
             $table->increments('id');
+            $table->morphs('equipmentable');
+            $table->foreignId('equipment_id');
+        });
+
+        Schema::create('equipmentables_no_id', function (Blueprint $table): void {
             $table->morphs('equipmentable');
             $table->foreignId('equipment_id');
         });
@@ -207,6 +213,23 @@ class EloquentPivotEventsTest extends DatabaseTestCase
             PivotEventsTestModelEquipment::$eventsMorphTypes
         );
     }
+
+    public function testCustomMorphPivotWithoutPrimaryKeyTouchesOwnersOnDetach(): void
+    {
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+
+        $project = PivotEventsTestProject::forceCreate(['name' => 'Test Project']);
+        $equipment = PivotEventsTestEquipment::forceCreate(['name' => 'important-equipment']);
+
+        $project->touchingEquipments()->attach($equipment);
+
+        CarbonImmutable::setTestNow('2017-10-10 11:10:10');
+
+        $project->touchingEquipments()->detach($equipment);
+
+        $this->assertSame(0, $project->touchingEquipments()->count());
+        $this->assertSame('2017-10-10 11:10:10', $equipment->refresh()->updated_at->toDateTimeString());
+    }
 }
 
 class PivotEventsTestUser extends Model
@@ -260,6 +283,15 @@ class PivotEventsTestProject extends Model
     public function equipments(): MorphToMany
     {
         return $this->morphToMany(PivotEventsTestEquipment::class, 'equipmentable')->using(PivotEventsTestModelEquipment::class);
+    }
+
+    /**
+     * Get equipment through a pivot that touches its owner.
+     */
+    public function touchingEquipments(): MorphToMany
+    {
+        return $this->morphToMany(PivotEventsTestEquipment::class, 'equipmentable', 'equipmentables_no_id')
+            ->using(PivotEventsTestTouchingModelEquipment::class);
     }
 }
 
@@ -324,6 +356,21 @@ class PivotEventsTestModelEquipment extends MorphPivot
     public function equipmentable(): MorphTo
     {
         return $this->morphTo();
+    }
+}
+
+class PivotEventsTestTouchingModelEquipment extends MorphPivot
+{
+    public ?string $table = 'equipmentables_no_id';
+
+    protected array $touches = ['equipment'];
+
+    /**
+     * Get the equipment attached by this pivot.
+     */
+    public function equipment(): BelongsTo
+    {
+        return $this->belongsTo(PivotEventsTestEquipment::class);
     }
 }
 
