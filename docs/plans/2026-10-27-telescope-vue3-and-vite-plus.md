@@ -4,25 +4,21 @@
 
 Modernize Telescope's dashboard using Horizon's actual Vue 3 conventions, then consolidate framework JavaScript development under Vite+, pnpm workspaces, and dependency catalogs. Deliver two independently reviewable PRs against `0.4`, in that order. Do not change `0.3` or `main`.
 
-Work in `/home/binaryfire/workspace/contrib/hypervel/components-vite-plus`. The initial branch is `chore/telescope-vue3`. After PR 1 merges, create PR 2's branch from updated `origin/0.4` in this worktree; do not mix the toolchain migration into PR 1. Commit whole files in focused commits with explanatory bodies. Commit, push, open, or merge PRs only when authorized; never squash by default.
+Part 1 was merged and its worktree removed. For Part 2, create a fresh `/home/binaryfire/workspace/contrib/hypervel/components-vite-plus` worktree and branch from updated `origin/0.4`, carrying forward this plan's latest changes. Commit whole files in focused commits with explanatory bodies. Commit, push, open, or merge PRs only when authorized; never squash by default.
+
+Use one implementation checkpoint for the complete Part 2 monorepo refactor. Run focused checks during development, then complete verification and a full self-review before one peer code-review loop through signoff. Do not split packages or tooling steps into separate checkpoints. This does not change the requirement to investigate non-trivial unexpected issues and reach peer consensus before implementing their fixes.
 
 Read this plan, the monorepo root `CLAUDE.md`, and the worktree's `AGENTS.md` after compaction. This plan does not override their approval, verification, source-reading, or dependency-management requirements. No implementation is authorized merely by writing the plan.
 
-Part 1 implementation and verification are complete. Remaining work:
-
-- After Part 1 merges, check the retired lockfile alerts and coordinate Telescope's upstream-sync notes as described below.
-- Resolve the formatting approval item before its dependent Part 2 changes.
-- After Part 1 merges, implement and verify Part 2.
+Part 1 is merged on both remotes, Telescope's upstream-sync notes are updated, and GitHub closed the retired archive's lockfile alerts. The formatting exception below is approved. Part 2 is implemented, verified and reviewed. Remaining work: publish and merge its PR when authorized, then perform the post-merge dependency-graph and upstream-sync checks below.
 
 ## Maintenance tradeoff and approval items
 
 Both changes address real maintenance costs. Vue 2 constrains Telescope's Vite plugin and retains an unpatched compiler advisory. Retaining Options API, Horizon's patterns, and Telescope's recognizable structure makes future template/lifecycle adaptations straightforward. Request cancellation, routing, and modal behavior still require understanding and tests; upstream patches will not always apply unchanged. A shared toolchain then reduces duplicated dependency decisions, vulnerable lockfile drift, and inconsistent commands across the framework. Use standard Vite+/pnpm behavior first; depart only for a demonstrated requirement.
 
-The following proposal requires owner approval; writing it here is not approval:
+The owner has approved the following exception:
 
-- **Formatting exception:** permit deterministic Vite+ formatting of maintained first-party frontend source/tests, including ports. Add this approved adaptation to `AGENTS.md`'s Porting Policy during Part 2: “Formatting JavaScript, TypeScript, Vue and frontend CSS sources with the repository's Vite+ formatter configuration, preserving upstream logic, naming, structure and comments.” Use standard root formatter overrides based on upstream conventions; vendored/generated files remain excluded. This gives maintained source normal Vite+ quality coverage without changing its architecture. Owner approval is required before applying the formatter or editing the rule.
-
-The owner has approved deleting the entire `_archive/docs/0.3` directory. Do this in a separate commit in Part 1, checking remaining documentation/archive references for stale links and preserving other archives. Confirm its lockfile alerts close after GitHub refreshes the graph. This retires inactive documentation and its dependency metadata; it does not fix vulnerable code in a supported application.
+- **Formatting exception — approved:** permit deterministic Vite+ formatting of maintained first-party frontend source/tests, including ports. Add this approved adaptation to `AGENTS.md`'s Porting Policy during Part 2: “Formatting JavaScript, TypeScript, Vue and frontend CSS sources with the repository's Vite+ formatter configuration, preserving upstream logic, naming, structure and comments.” Use standard root formatter overrides based on upstream conventions; vendored/generated files remain excluded. This approval covers applying the formatter and updating the corresponding Porting Policy rule.
 
 ## Shared decisions
 
@@ -42,7 +38,7 @@ The paths below are relative to this worktree unless absolute. Read the actual s
 | Area | Relevant files and constraints |
 | --- | --- |
 | Horizon reference | `src/horizon/resources/js/app.js`, `base.js`, `components/Alert.vue`, `components/Poll.vue`, and `screens/recentJobs/index.vue`: Vue 3, Router 4, Options API, native Bootstrap 5 APIs. Its style is a reference, not proof that every existing detail is correct. |
-| Telescope | `src/telescope/resources/js/`, `resources/views/layout.blade.php`, `resources/sass/`, `vite.config.js`, `vitest.config.js`, `package.json`, `package-lock.json`: Vue 2.7, Router 3, Bootstrap 4, jQuery, Popper 1, Vue Test Utils 1. |
+| Telescope | `src/telescope/resources/js/`, `resources/views/layout.blade.php`, `resources/sass/`, `vite.config.js`, `vitest.config.js`, `package.json`, `package-lock.json`: Vue 3, Router 4, Bootstrap 5.3 and Vue Test Utils 2; independent npm installation and separate build/test configurations. |
 | Upstream | Read-only Laravel references under `/home/binaryfire/workspace/references/laravel/{telescope,horizon}`. Laravel Telescope currently remains on Vue 2. Compare source/tests and the established upstream tracking records; adapting a dashboard to Vue 3 does not change which upstream fixes need porting. |
 | Root tooling | `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `vitest.config.ts`, `tsconfig.json`: pnpm already exists; Horizon, Telescope, and Workbench are excluded. The nested exception renderer and AI workbench are not selected by `src/*`. |
 | Existing CI | `.github/workflows/tests.yml` runs root MCP/Wayfinder tests and a separate npm installation/test for Telescope. `.github/workflows/skeletons.yml` builds a fresh base application separately. |
@@ -58,125 +54,13 @@ Primary research:
 - [Oxc compatibility](https://oxc.rs/compatibility.html): Vue formatting and script linting do not imply Vue template linting. Vue compilation and behavioral tests remain necessary.
 - [Dependabot catalogs](https://github.blog/changelog/2025-02-04-dependabot-now-supports-pnpm-workspace-catalogs-ga/), [supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories), and [dependency graph limitations](https://docs.github.com/en/code-security/reference/supply-chain-security/dependency-graph-supported-package-ecosystems): version-update support and security-graph ingestion are separate capabilities. Do not assume a green Dependabot configuration proves transitive advisory coverage.
 
-## Part 1 — Telescope dashboard migration
+## Part 1 outcomes Part 2 relies on
 
-### Buffered-response transport prerequisite
+The framework response-size correction and Telescope migration are merged. Telescope retains Horizon-style Options API, Router 4, Bootstrap 5.3, its existing endpoints and committed inline assets. Preserve its behavioral tests and literal-tag matching.
 
-Remove `Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024` from `src/foundation/config/server.php`. Review this fix together with the complete dashboard migration, then give it a separate commit. This inherited override makes Swoole's process-mode send reject bodies over 2 MiB after HTTP/1.1 headers have been sent, producing empty responses. It affects buffered HTML/JSON and large individual streamed writes. Swoole's native default is `UINT_MAX`; the setting checks send size, not buffer allocation. Use that native default instead of substituting another arbitrary cap. Leave `OPTION_SOCKET_BUFFER_SIZE` unchanged.
-
-Regenerate both skeleton configs with `composer sync:skeleton-config`, remove the same override from `tests/Benchmarks/Sentry/Fixtures/app/config/server.php`, and run `composer check:skeleton-config`. Check for other maintained copies before committing. Do not edit generated skeleton files directly or change historical archives. No porting-guide or upgrade entry is needed: this removes an internal transport restriction in unreleased 0.4, whose upgrade guidance already requires a fresh application.
-
-Leave `ResponseBridge` and the dependency unchanged. Native `end()` preserves compression, `Content-Length`, and existing protocol/trailer handling. A PHP `write()` loop would disable Swoole compression and add unnecessary framing and failure paths. Removing the size override does not make buffered responses memory-bounded; streaming and file responses remain the appropriate mechanisms for large generated output. Do not add a compression subsystem, transport abstraction, or new application option.
-
-Add one focused real process-mode loopback regression using the shipped server settings and `ResponseBridge`: a buffered HTTP/1.1 body over 2 MiB must arrive intact with the correct `Content-Length`. The fixture must consume the production settings so restoring the override makes the test fail; override only fixture isolation settings such as worker count, logging and ports. Follow `ResponseCancellationTest`'s automatic-port, bounded-wait and unconditional-cleanup pattern. Do not add a mock matrix or duplicate compression, trailer and failure-path tests for unchanged bridge code. Direct loopback checks have already verified native compression and a single streamed write over 2 MiB without the override.
-
-Run the new test file immediately after writing it. At completion run `composer lint:fix`, `composer analyse`, then `composer test:parallel -- --processes=4 tests/HttpServer`, along with the config synchronization check. No separate WebSocket/Reverb/gRPC test expansion is needed for an unchanged bridge.
-
-### 1. Establish the behavior and build baseline
-
-Read all Telescope frontend components, screens, mixins, Blade layout, styles, and existing query-preview tests. Compare Horizon's corresponding setup and frontend conventions before editing each area. Use current Laravel Telescope as the behavior reference, including fixes already present in Hypervel.
-
-Run the current Telescope tests and production build using its existing independent npm setup. Record expected asset filenames and raw/compressed sizes outside the repository. Exercise the existing UI sufficiently to distinguish migration failures from inherited defects. This PR covers Telescope, the server-config correction above, directly required CI/docs updates, and the authorized archive removal. The corresponding Horizon modal correction belongs with its Bootstrap upgrade and shared test setup in Part 2, avoiding an interim independent npm test setup.
-
-Preserve these contracts:
-
-- `/telescope` and configured empty, root, or nested Telescope paths; route names, IDs, query strings, history navigation, and deep links.
-- Existing API endpoints, request bodies, CSRF behavior, timezone formatting, recording toggles, clear confirmation, and auto-load local-storage preference.
-- Lists, filtering, family grouping, pagination, pending-job updates, related entries, dumps, monitored tags, SQL formatting/highlighting, JSON inspection, and clipboard contents.
-- Light/dark styling, responsive layout, modal/dropdown behavior, and supported HTTP development installations.
-- `Telescope::css()`, `js()`, script variables, nonce handling, and the Blade shell. The dashboard assets are inlined; a build that succeeds but emits unresolved external chunks is not acceptable.
-
-### 2. Move onto Vue 3 and the Horizon application pattern
-
-Use package-manager commands to update `src/telescope/package.json` and its npm lockfile. Install supported compatible releases of Vue 3, Router 4, `@vitejs/plugin-vue`, Vue Test Utils 2, and `vue-json-pretty` 2. Replace `@vitejs/plugin-vue2`, Vue 2 compiler dependencies, and the Vue 2 clipboard wrapper. Declare directly imported dependencies; do not rely on npm hoisting to conceal missing declarations.
-
-Upgrade Telescope's standalone Vite/Vitest to supported versions compatible with these plugins and Node 24. PR 1 still uses plain Vite and npm; Vite+ and workspace/catalog changes belong to Part 2. Preserve the minimum-release-age policy and inspect changes in the complete dependency graph. Do not use `--force`, legacy-peer-deps, or a compatibility shim to pass installation.
-
-Follow `src/horizon/resources/js/app.js`:
-
-```js
-import { createApp } from 'vue/dist/vue.esm-bundler.js';
-import { createRouter, createWebHistory } from 'vue-router';
-
-const app = createApp({
-    data() {
-        return {
-            // Telescope's existing root-owned state.
-        };
-    },
-});
-
-const router = createRouter({
-    history: createWebHistory(routerBasePath),
-    routes: Routes,
-});
-
-app.use(router);
-app.component('preview-screen', PreviewScreen);
-app.mixin(Base);
-app.mount('#telescope');
-```
-
-This is a structural example, not replacement code: retain all state, registrations, listeners, and bootstrap settings. The compiler-enabled Vue import is deliberate because the root template lives in Blade. Do not copy Horizon's product-specific globals or proxy-path configuration into Telescope. Nest each list/detail route pair under a component-less section parent, with `''` and `':id'` children, as Horizon does. Router 4 matches active links by route record, so flat sibling records lose the sidebar highlight on detail pages. Preserve existing names and URLs, and verify active links with the real route definitions. Check initial navigation and route reuse rather than adding speculative waits or forcing remounts.
-
-Use `defineConfig` and the Vue 3 plugin in Telescope's build and test configs. Rely on the plugin's Options API and production feature-flag defaults; add no redundant `define` settings. For Vite 8 use `build.rolldownOptions` rather than deprecated `rollupOptions`. Retain current output locations and the inline-compatible runtime format; check Lightning CSS output in the visual comparison. No `@vue/compat`, dual Vue runtime, runtime version detection, or Vue 2 translation layer.
-
-### 3. Convert templates, ownership, and lifecycle behavior
-
-Keep existing screen/file names and route organization. Match Horizon's component import/registration style and readable Options API method layout. Remove redundant `type="text/ecmascript-6"` script attributes, unused imports/components/data, empty option blocks, and empty styles when no longer needed. Keep useful behavior comments and the intentional upstream exclusion notes.
-
-- Replace `slot`/`slot-scope` with `#name`/`v-slot`. Convert named slots on real elements into `<template #name="slotProps">` wrappers while retaining the element's attributes and conditions inside the wrapper. Check slot fallback behavior and table markup; do not accidentally introduce wrapper elements into `<tbody>`.
-- Rename lifecycle hooks to Vue 3 hooks, using `beforeUnmount` for resource cleanup. Declare emitted component events. Review array watchers, conditional/list precedence, transitions, `v-for` refs, root attribute forwarding, and router-link behavior against Vue 3's actual semantics.
-- Preserve PreviewScreen's upstream parent mirroring and declared screen state. Vue 3 supports this relationship; the exception preview intentionally updates its parent-owned entry after resolving an exception, and `hasContext()` also consumes it. Replacing that flow would require an additional update channel with no demonstrated benefit for this migration. Convert scoped-slot syntax without changing ownership. Test exception resolution, its stale-route guard, context tabs, related entries and the `ready` event used by query highlighting.
-- Preserve the request-controller ownership and stale-response guards in `IndexScreen`, `PreviewScreen`, dumps, and monitoring. Abort on route changes/unmount, clear their timers, and prevent canceled responses from starting new polling. Keep existing 2.5-second list/job polling, 2-second dump polling, and minute-based relative-time refresh; no interval-per-row design or deep watcher over full payloads.
-- Replace Base's module-level shared `debouncer` with an IndexScreen-owned debounced search created in `created()` and canceled in `beforeUnmount`. IndexScreen is its only consumer. Vue binds mixin methods, losing the debounce function's `.cancel` property; today a search queued before navigation can write its tag into the next screen's query. Preserve the 500 ms delay and do not swallow unexpected router/navigation errors. Retain the existing retry distinction between canceled requests, network errors, and HTTP errors.
-- Register IndexScreen's search shortcut with a named `keyup` listener and remove that same listener in `beforeUnmount`, instead of assigning and clearing `document.onkeyup`. Use `event.key === '/'` to match the documented character shortcut rather than deprecated numeric key codes; the old code also matched shifted `?` on US keyboards. Preserve the no-op when the search field is absent. Verify focus and listener cleanup without introducing a keyboard-shortcut abstraction.
-- Generated tag links select a literal stored tag, including commas, using `exact_tag=1`. Add the default-false `EntryQueryOptions::$exactTag` and fluent `exactTag(bool $exactTag = true)`, populated through `Request::boolean()`. Keep ordinary comma-separated, trimmed OR searches unchanged. Both modes use one tag-table subquery; remove the redundant nested self-subquery. IndexScreen forwards the route option for list loads, pagination and polling, and clears it when editing the search field. Verify the HTTP mapping and returned entries in one route test, plus link generation and forwarding/clearing in existing component tests.
-- Check the dump renderer's Vue 3 ref array as entries are replaced. Its initialization matches by ID, not ref order. Do not add a resource-tracking subsystem for bounded per-mount data or the vendored renderer's empty style element.
-- Fix the verified mail-preview omission while converting that template: Reply-To, CC and BCC conditions currently read `slotProps.entry.replyTo`/`cc`/`bcc`, but `MailWatcher::recordMail()` records these under `entry.content`. Use the existing lodash `!_.isEmpty(...)` check: an empty address array is truthy in JavaScript. Test populated and empty collections; preserve the payload and download/preview endpoints.
-
-### 4. Complete the UI dependency migration
-
-Adopt Bootstrap 5's native Modal/Dropdown APIs as Horizon does, removing Telescope's unsupported Bootstrap 4/jQuery/Popper 1 combination. This is an explicit part of the dashboard refactor: it removes obsolete integration code and leaves the two dashboards using the same native component patterns. It is not a claim that Vue 3 itself requires Bootstrap 5.
-
-- Read Horizon's modal integration and the Bootstrap migration guide; use direct imports, component-owned instances and cleanup. Do not copy Horizon code without checking event-listener/timer disposal.
-- Close an open modal before disposing it and detach owned listeners/timers. Bootstrap's `dispose()` alone removes the backdrop but leaves `body.modal-open` and its scroll lock. Both dashboards use non-animated `class="modal"` markup without `fade`: retain it so `hide()` followed by `dispose()` completes synchronously in `beforeUnmount`, without event-waiting machinery. Preserve nested confirmation behavior without a global modal registry or indiscriminate body cleanup. Apply the same correction to Horizon in Part 2.
-- Update modal/dropdown data attributes, spacing/direction utilities, badges, and changed Sass variables throughout Telescope's Vue files and Blade layout. Preserve the intended appearance, including dark-theme colors and nested confirmation dialogs. Adapt custom selectors to the new markup instead of adding a Bootstrap 4 compatibility stylesheet.
-- Use a current supported stable Bootstrap 5 release, rather than freezing a new migration to Horizon's historical `~5.1.3` solely to reduce Sass changes. Check the supported release and visual differences; align Horizon onto the same supported line during Part 2. In PR 1 replace Telescope's physical `node_modules/bootstrap/scss/bootstrap` Sass import with the package import pattern used by Horizon.
-- Set `$enable-dark-mode: false` before Bootstrap's Sass import. Bootstrap 5.3 otherwise adds its unused color-mode rules; preserve the dashboard's own light/dark stylesheets and theme selection. Apply the same setting to Horizon during Part 2 and verify both themes visually.
-- Replace jQuery DOM access in the minute-based time display and focus handling with ordinary DOM operations or Vue refs. Write time labels as text. Remove the global Popper assignment and unused jQuery/Popper dependencies; explicitly declare Bootstrap's actual peers where needed.
-- Replace `vue-copy-to-clipboard` with a direct use of its existing underlying `copy-to-clipboard` library inside Telescope's `CopyClipboard.vue`. The wrapper uses Vue 2 functional/render APIs despite its broad peer range. Direct use avoids another Vue adapter and preserves HTTP clipboard behavior. Do not replace it with secure-context-only `navigator.clipboard.writeText` or invent a clipboard framework.
-- Preserve string and tab-indented JSON copying, prevent anchor navigation, and show success only when `copy()` returns true. Keep the component's `data` prop and default slot. The library already presents a manual-copy prompt on failure; do not add a second failure alert. Its one-shot feedback reset is bounded and harmless after unmount, so do not add timer-management machinery or a timer-only regression test.
-- Verify `vue-json-pretty`'s updated CSS, primitive/object/array rendering, expansion and large-payload behavior in the browser pass. Avoid remounting the entire dashboard or serializing payloads repeatedly to bridge the version change; do not duplicate the library's own rendering tests.
-
-### 5. Verification for PR 1
-
-Use Vue Test Utils 2 with real Vue 3 mounting where behavior matters. Port the existing `resources/js/screens/queries/preview.test.js` assertions without weakening them: use imported `h`, function-valued `$slots`, and `global.mocks`/`global.stubs`. Retain SQL dialect, PostgreSQL operator, copy-content, and highlighting coverage. Remove fixtures' Vue 2 render APIs.
-
-Add focused tests beside the relevant components rather than a test for every mechanical syntax edit:
-
-| Test area | Required behavior |
-| --- | --- |
-| Index/polling | Router 4 query/filter updates, auto-load on/off, canceled in-flight responses, polling/unmount cleanup, and network retry versus HTTP failure. A queued search must not affect the next route or start another request. The `/` shortcut focuses the present search field and stops handling events after unmount. Fake timers and deferred promises avoid slow sleeps. |
-| Preview/router reuse | Related entries, clearing stale data on ID changes/failure, pending-job updates, exception resolution/context, and `ready` after usable content. Use Router 4 memory history for component route-reuse tests. |
-| Clipboard | Strings/objects passed to the copy function, success feedback only when copying succeeds, and no accidental navigation. Verify actual copying and manual fallback over plain HTTP in the browser. |
-| Modal/monitoring | Confirmation/cancel behavior, nested modal state, focus, repeated open/close, tag removal, listener/instance cleanup. |
-| Dumps | Repeated entries/ref updates and initialization of each newly rendered dump by ID without repeated initialization. Check third-party expansion/rendering behavior in the browser. |
-| Mail preview | Recorded Reply-To/CC/BCC addresses appear; empty collections produce no empty address rows. |
-
-Run each changed test file immediately, then the complete Telescope JS tests and production build. Keep `.github/workflows/tests.yml` running the package's own `npm test`; update requirements only as needed for the supported Node/npm toolchain. Add a build check for this dashboard in that job.
-
-Perform browser verification using a disposable Testbench application and the real rendered Telescope Blade shell/compiled assets. Use SQLite and fixture entries or intercepted API responses; no external services or real user data. Use browser automation available in the implementation environment, with bounded startup/readiness/shutdown and unconditional cleanup. Do not introduce a general browser-testing platform or refactor the self-mounting entry module solely for jsdom. Cover application initialization, empty/root/nested base paths, direct preview routes, back/forward navigation and duplicate startup requests here. Exercise all navigation sections and the component-test table, family grouping, pagination, JSON rendering, dump expansion, light/dark themes, modal/dropdown interactions, plain-HTTP copying/manual fallback, and developer-console errors. PHP rendering or a successful JS build alone does not verify a Vue migration.
-
-Run affected PHP tests, especially `tests/Telescope/Http/{RouteTest,CspNonceTest,AuthorizationTest}.php`, package metadata, asset rendering, and install behavior. Follow `AGENTS.md`'s formatting/static-analysis/test order for any PHP changes; use `composer test:parallel -- --processes=4 tests/Telescope` for the package suite. Do not run a full framework suite merely for JS formatting.
-
-Rebuild and commit Telescope's complete `dist/` alongside the source. Check light/dark CSS and `app.css`/`app.js` filenames, absence of new unresolved imports or runtime asset requests, correct PHP rendering/nonces, and raw/compressed output changes. Measure the complete rendered dashboard HTML as well as individual assets, and verify its delivery through the real process-mode HTTP/1.1 server. A meaningful increase needs explanation and optimization; no arbitrary percentage budget or benchmark claim without measurement. Preserve the full timezone data and supported SQL dialects; shrinking bundles must not remove valid date or custom-driver behavior.
-
-Run `npm audit` including development dependencies and all severities. Resolve active Telescope advisories before merging; do not downgrade the toolchain to escape a compatibility problem. After merge, confirm its lockfile alerts close once GitHub refreshes them. An unresolved advisory needs investigation and an owner decision, not an automatic ignore.
-
-Put Vue 2-to-3 and Bootstrap translation notes in the Telescope entry of `/home/binaryfire/workspace/monorepo/_tmp/upstream-sync/sync.yaml`, where sync sessions look for adaptations. Preserve `checked_through` unless additional upstream commits were actually reviewed. Coordinate this external, actively edited tracking file with the owner at merge; do not overwrite others' edits. Public contributor documentation explains the build workflow, not private sync-session mechanics.
-
-PR 1 is complete only when the migrated dashboard works independently with its own npm manifest/lockfile, all affected checks pass, compiled assets are committed, and obsolete Vue 2/UI integration code is removed.
+- Both dashboards use non-animated modals. Call `hide()` before `dispose()` during unmount, removing owned listeners and timers; preserve nested-modal scrolling behavior.
+- Align Horizon with Telescope's supported Bootstrap 5.3 line and package-based Sass import. Preserve the dashboards' own theme selection and light/dark stylesheets.
+- Set `$enable-dark-mode: false` before importing Bootstrap, avoiding its unused color-mode rules.
 
 ## Part 2 — Vite+, workspace, catalogs, and checks
 
@@ -228,6 +112,18 @@ Resolve active dependency advisories, including Wayfinder's `happy-dom`: [GHSA-8
 
 Fix Horizon's verified modal cleanup alongside that upgrade: its monitoring screen has no unmount cleanup, and Alert retains its modal listener/instance and auto-close timer. Use the same non-animated hide/dispose pattern as Telescope, detach owned listeners and clear the timer, and preserve nested confirmation behavior. Add focused component regression tests using the shared Vitest setup for navigation/unmount while open, repeated open/close, timer/listener cleanup and restoration of body scrolling. Rebuild Horizon's committed `dist/` with the other Part 2 assets.
 
+Fix Telescope's root action failure paths: update root recording state only after a successful toggle response, and use a component-local pending guard to prevent overlapping toggle requests from one dashboard. Clear the guard in `finally`; on failure explain that the recording change could not be confirmed and ask the user to reload. Remove the unused global recording write. Clearing entries reloads only on success and reports failure through the existing alert. Keep endpoints, PHP payloads, confirmation and keyboard behavior. Test the real entry's mounted root instance with a test-only wrapper around Vue's public create/mount APIs: deferred success with a suppressed second request, rejected toggle with guard release, and rejected clear without reload. Do not copy Blade markup or add production testing APIs.
+
+Correct the dashboard lifecycle and request bugs exposed during migration:
+
+- Remove Horizon's obsolete script MIME attributes so its JavaScript is formatted. Key its root RouterView by `$route.path`, preserving query-only updates while remounting resource screens on navigation; remove redundant route watchers. Keep Chart.js instances non-reactive with Vue's `markRaw` so identity-based animation cleanup works, and destroy them on unmount. Correct Alert's accessible label and dead SVG styles. Verify navigation and chart cleanup in the browser against actual templates/assets; keep any canvas harness disposable.
+- Make Horizon Poll await an explicit required `callback` prop, skip overlapping ticks, report failures with `console.error`, and release its busy state in `finally`. Retain intervals and visibility behavior. Dashboard waits for all three requests with `Promise.allSettled` before reporting the first failure. Disable immediate polling only on the three list screens that also load on mount. Return request promises through every polling caller.
+- In the four Horizon lists, cancel superseded reads and reads owned by an unmounted screen. Skip refreshes while a user load is pending, allow canceled reads to settle without errors, and ignore their late responses. Clear both search debounce timers on unmount. Failed-job search resets pagination and sends one request with Axios query parameters. Use after-index cursors consistently; restore the backend's upstream zero alias and use the calculated inclusive start for both tagged selection and row indices.
+- Release failed-job and batch retry state after rejected requests and report that the retry could not be confirmed. Keep the short success cooldown, but let existing polling refresh results instead of issuing delayed requests after navigation. Apply the failure alert to failed-list retries too.
+- Monitoring mutations update displayed tags only after server success and report unconfirmed changes on failure. Snapshot submitted tags, deduplicate successful additions, and preserve a newer draft. Horizon's idempotent add does not need pending-state machinery. Disable Telescope's Monitor button until its initial list has loaded. Use a single native database upsert of unique Telescope tags to avoid concurrent duplicate-key failures, retaining strict database errors and the existing API.
+
+Cover failed-job cursor boundaries/search, list supersession and skipped refreshes, Poll overlap and failure recovery, rejected retries, and monitoring failure/draft behavior with focused tests. Extend existing PHP cursor coverage; retain the unique-tag storage test instead of duplicating its conflict assertions. No generic request framework, timer registry, copied Blade test templates or mocked chart-destroy test.
+
 Use `defineConfig`/`defineProject` from `vite-plus` for tool configuration and `vite-plus/test` for ordinary test imports. Remove standalone Vitest only when no retained peer/type/module reference requires it. Audit root `tsconfig.json`'s `vitest/globals`: tests already import their APIs, so remove unnecessary globals rather than leaving an unresolved type reference. Do not rewrite arbitrary `vite` API imports or module augmentation names to exports Vite+ does not provide.
 
 Set the root development Node requirement to the selected toolchain's supported range and use Node 24 at or above its required minimum in CI. Pin pnpm once at the root; remove members' npm-specific `devEngines.packageManager` declarations. Use Vite+ for managed runtime/package-manager selection and its documented pnpm `runtimeOnFail: ignore`/`pmOnFail: ignore` settings so pnpm does not compete with it. Preserve the declarations that Vite+ reads. Contributors can instead use exactly the pinned pnpm and a supported Node to bootstrap with `pnpm install --frozen-lockfile` and run the project-local CLI. Explain that plain pnpm no longer auto-switches its version under this policy.
@@ -265,13 +161,15 @@ export default defineConfig({
 
 Retain Wayfinder's `happy-dom`, PHP fixture-generation `globalSetup`, and cached-route test mode. Telescope retains `jsdom` and the Vue plugin; configure the same environment/plugin for Horizon's focused modal tests. Name the dashboard test projects `telescope` and `horizon` so their selectors work. Declare their test dependencies explicitly. Keep include paths relative to the correct project roots. Verify discovery from both root and package directories so root patterns cannot accidentally skip tests.
 
-Resolve the formatting approval item before implementing this section. Recommended design: root `lint`/`fmt` settings cover maintained first-party JavaScript, TypeScript, Vue and frontend CSS/config, with a few upstream-compatible overrides where useful (for example Wayfinder's double quotes). Use Horizon's Options API/naming/organization as the coding reference; copying its incidental whitespace inconsistencies is not necessary to preserve its patterns. Exclude dependencies, immutable vendored assets such as Telescope's VarDumper script, generated/minified outputs, Blade/PHP, instruction files, historical plans, and independent skeletons. Exclusions for formatting do not remove generated files from behavioral/type tests. Do not silently exclude every port simply to avoid requesting a justified rule exception.
+Use the approved formatting exception: root `lint`/`fmt` settings cover maintained first-party JavaScript, TypeScript, Vue and frontend CSS/config, including repository CJS scripts and the mail theme, with a few upstream-compatible overrides where useful (for example Wayfinder's double quotes). Use Horizon's Options API/naming/organization as the coding reference; copying its incidental whitespace inconsistencies is not necessary to preserve its patterns. Root check scripts generate Wayfinder's imported fixtures before running native `vp check` or `vp check --fix`, without a member-path list, so a fresh installation can type-check the tests. Share config exclusions for dependencies, immutable vendored assets such as Telescope's VarDumper script, generated/minified outputs, test fixtures, Blade templates, archives and independent skeletons. Add format-only exclusions for PHP, Markdown, JSON/YAML metadata and other non-frontend formats found during discovery. Verify discovery includes maintained scripts while preserving fixture contents. Exclusions for formatting do not remove generated files from behavioral/type tests. Maintained ports are included under the approved exception.
 
 Set root formatter options explicitly rather than inheriting Oxfmt's two-space defaults. Use four spaces, semicolons and single quotes for ordinary framework frontend code, with standard `fmt.overrides`: `vueIndentScriptAndStyle: true` for Horizon, `false` for Telescope's upstream layout, and double quotes for MCP. Mirror Wayfinder's upstream `.prettierrc.json` (four spaces, semicolons, double quotes, `trailingComma: 'all'` and print width 80). Choose other wrapping settings against representative upstream files, keeping recognizable layout without per-file exceptions. This preserves upstream comparison while both dashboards share Horizon's component architecture and Options API conventions.
 
-Keep the initial formatting pass in a separate formatting-only commit. Record its full hash in `.git-blame-ignore-revs` with the subsequent configuration/documentation changes so formatting does not obscure history; no dedicated hash-recording commit or custom tooling is needed. Recheck the hash after any final rebase and before merge, updating the entry if it changed. Preserve the commits when merging. Document `git config blame.ignoreRevsFile .git-blame-ignore-revs` in `src/docs/contributions.md` for local blame; GitHub honors the file automatically. Record the approved Porting Policy adaptation in `AGENTS.md` only after owner approval.
+Keep the initial formatting pass in a separate formatting-only commit. Record its full hash in `.git-blame-ignore-revs` with the subsequent configuration/documentation changes so formatting does not obscure history; no dedicated hash-recording commit or custom tooling is needed. Recheck the hash after any final rebase and before merge, updating the entry if it changed. Preserve the commits when merging. Document `git config blame.ignoreRevsFile .git-blame-ignore-revs` in `src/docs/contributions.md` for local blame; GitHub honors the file automatically. Record the approved Porting Policy adaptation in `AGENTS.md` during Part 2.
 
 Use root overrides for browser/Node/test environments and actual product globals (`Telescope`, `Horizon`, etc.). Do not enable broad rules and then suppress entire components. Type-aware checks cover real TypeScript projects; Vue script linting is not Vue template/type verification. Retain Vue compilation and component tests, and Wayfinder's generated-output `tsc` check even if `vp check` also checks authored TypeScript. Never autoformat generated Wayfinder fixtures before asserting what the generator produces.
+
+Disable only `typescript/unbound-method` for test files: mock assertions inspect methods without calling them, and the native rule has no test-aware variant. Express Wayfinder's negative argument-type checks with `expectTypeOf(...).toBeCallableWith(...)` and `@ts-expect-error`, preserving runtime tests. Remove the AI demo's obsolete `baseUrl` and use relative path mappings. Mark MCP's internally handled asynchronous request dispatch explicitly with `void`. Remove Workbench's empty bootstrap module/import and Horizon's unused transition rules, row classes and theme variables; preserve Telescope's live transitions.
 
 Keep build-specific inputs, CSS processing, aliases, output paths, and plugins in each package. Do not extract a shared build-config framework merely because two small configs look alike. Use the current supported Vite configuration surface; audit obsolete options during migration.
 
@@ -279,7 +177,7 @@ Expose ordinary root scripts with these responsibilities:
 
 | Script | Behavior |
 | --- | --- |
-| `check` / `check:fix` | Vite+ quality checks / their supported fixes on the selected source paths. |
+| `check` / `check:fix` | Generate Wayfinder fixtures, then run native `vp check` / `vp check --fix`, scoped by shared config exclusions. |
 | `test` / `test:watch` | All registered projects / explicit watch mode. |
 | `test:mcp`, `test:horizon`, `test:telescope`, `test:wayfinder` | Select the named test project. |
 | `test:wayfinder:cached` | Run the same Wayfinder project with `WAYFINDER_CACHE_ROUTES=1`. |
@@ -312,9 +210,9 @@ Failure output must name affected files and the relevant root build command, and
 
 ### 5. CI, dependency maintenance, and documentation
 
-Consolidate the current JavaScript job in `.github/workflows/tests.yml`. Use a reviewed commit-SHA-pinned `voidzero-dev/setup-vp` release with its documented inputs, one Node policy, and one frozen root installation. Remove the separate global npm/Telescope installation. Keep Composer installation because Wayfinder generates fixtures through PHP.
+Consolidate the current JavaScript job in `.github/workflows/tests.yml`. Trust the mounted checkout for Git commands in the container. Use a reviewed commit-SHA-pinned `voidzero-dev/setup-vp` release with its documented inputs, one Node policy, and one frozen root installation. Remove the separate global npm/Telescope installation. Keep Composer installation because Wayfinder generates fixtures through PHP.
 
-Run commands sequentially: generate required Wayfinder fixtures; quality checks; framework asset builds and committed-output verification; all registered JS tests; cached Wayfinder tests; generated-output type check. Generated MCP behavior must be tested after minification. Avoid overlapping processes that generate the same Wayfinder output directory. Pin setup action and toolchain versions; do not introduce remote task-result caching or a bespoke changed-package detector without a demonstrated need. Package-manager caching is sufficient.
+Run commands sequentially: the root quality-check script, including its Wayfinder fixture generation; framework asset builds and committed-output verification; all registered JS tests; cached Wayfinder tests; generated-output type check. Generated MCP behavior must be tested after minification. Avoid overlapping processes that generate the same Wayfinder output directory. Pin setup action and toolchain versions; do not introduce remote task-result caching or a bespoke changed-package detector without a demonstrated need. Package-manager caching is sufficient.
 
 Keep skeleton installation CI independent. If quality changes touch shared workflow requirements, verify that its exported application still installs and builds without access to monorepo `node_modules` or catalogs. Do not automatically migrate its npm commands or add skeleton source to root checks.
 
