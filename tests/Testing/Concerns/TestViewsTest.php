@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\Concerns;
 
+use ErrorException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\Facades\File;
 use Hypervel\Testing\Concerns\TestViews;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -174,6 +176,106 @@ class TestViewsTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->tempDir . '/test_7');
         $this->assertDirectoryExists($this->tempDir);
         $this->assertFileExists($this->tempDir . '/shared.php');
+    }
+
+    public function testSetUpProcessToleratesDirectoryCreatedByConcurrentRun(): void
+    {
+        $path = $this->tempDir . '/test_9';
+
+        // Another parallel run created the directory after the first metadata check.
+        mkdir($path, 0755, true);
+
+        $this->bootTestViewsUsingFilesystem($this->tempDir, '9', new class extends Filesystem {
+            private bool $checked = false;
+
+            /**
+             * Return the stale metadata once, then observe the concurrent creation.
+             */
+            public function isDirectory(string $directory): bool
+            {
+                if (! $this->checked) {
+                    $this->checked = true;
+
+                    return false;
+                }
+
+                return parent::isDirectory($directory);
+            }
+        });
+
+        $this->withWarningsAsExceptions(
+            fn () => Container::getInstance()->make(ParallelTesting::class)->callSetUpProcessCallbacks()
+        );
+
+        $this->assertDirectoryExists($path);
+    }
+
+    public function testTearDownProcessToleratesDirectoryRemovedByConcurrentRun(): void
+    {
+        $path = $this->tempDir . '/test_9';
+
+        // Another parallel run removed the directory after the first metadata check.
+        $this->bootTestViewsUsingFilesystem($this->tempDir, '9', new class extends Filesystem {
+            private bool $checked = false;
+
+            /**
+             * Return the stale metadata once, then observe the concurrent removal.
+             */
+            public function isDirectory(string $directory): bool
+            {
+                if (! $this->checked) {
+                    $this->checked = true;
+
+                    return true;
+                }
+
+                return parent::isDirectory($directory);
+            }
+        });
+
+        $this->withWarningsAsExceptions(
+            fn () => Container::getInstance()->make(ParallelTesting::class)->callTearDownProcessCallbacks()
+        );
+
+        $this->assertDirectoryDoesNotExist($path);
+    }
+
+    /**
+     * Boot the view callbacks with the given filesystem and worker token.
+     */
+    protected function bootTestViewsUsingFilesystem(string $compiled, string $token, Filesystem $files): void
+    {
+        $container = Container::getInstance();
+        $container->make('config')->set('view.compiled', $compiled);
+        $container->make(ParallelTesting::class)->resolveTokenUsing(fn () => $token);
+        $container->instance('files', $files);
+        File::clearResolvedInstance();
+        $instance = $this->makeTestViewsInstance();
+
+        (new ReflectionMethod($instance, 'bootTestViews'))->invoke($instance);
+    }
+
+    /**
+     * Run the callback with unsuppressed warnings converted to exceptions.
+     */
+    protected function withWarningsAsExceptions(callable $callback): void
+    {
+        $reporting = error_reporting();
+
+        set_error_handler(function (int $severity, string $message, string $file, int $line) use ($reporting): bool {
+            // A changed level means the warning was silenced with the @ operator...
+            if (error_reporting() !== $reporting) {
+                return false;
+            }
+
+            throw new ErrorException($message, 0, $severity, $file, $line);
+        });
+
+        try {
+            $callback();
+        } finally {
+            restore_error_handler();
+        }
     }
 
     /**
