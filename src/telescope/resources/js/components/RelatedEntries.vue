@@ -1,10 +1,21 @@
-<script type="text/ecmascript-6">
+<script>
+import { Dropdown } from 'bootstrap';
 import _ from 'lodash';
 import StylesMixin from './../mixins/entriesStyles';
 
 export default {
     props: ['entry', 'batch'],
 
+    directives: {
+        dropdown: {
+            mounted(element) {
+                Dropdown.getOrCreateInstance(element);
+            },
+            beforeUnmount(element) {
+                Dropdown.getInstance(element).dispose();
+            },
+        },
+    },
 
     mixins: [
         StylesMixin,
@@ -71,9 +82,7 @@ export default {
 
         activateTab(tab){
             this.currentTab = tab;
-            if(window.history.replaceState) {
-                window.history.replaceState(null, null, '#' + this.currentTab);
-            }
+            window.history.replaceState(window.history.state, '', '#' + this.currentTab);
         }
     },
 
@@ -83,10 +92,6 @@ export default {
             return !!_.reject(this.batch, entry => {
                 return _.includes(['request', 'command'], entry.type);
             }).length;
-        },
-
-        entryTypesAvailable(){
-            return _.uniqBy(this.batch, 'type').length;
         },
 
         exceptions() {
@@ -171,7 +176,7 @@ export default {
         },
 
         dropdownTabs(){
-            return _.slice(this.tabs, 7, 10);
+            return _.slice(this.tabs, 7);
         },
 
         dropdownTabSelected(){
@@ -184,13 +189,12 @@ export default {
 <template>
     <div class="card overflow-hidden mt-5" v-if="hasRelatedEntries">
         <ul class="nav nav-pills">
-            <li class="nav-item" v-for="tab in separateTabs">
+            <li class="nav-item" v-for="tab in separateTabs" :key="tab.type">
                 <a
                     class="nav-link"
                     :class="{ active: currentTab == tab.type }"
                     href="#"
                     v-on:click.prevent="activateTab(tab.type)"
-                    v-if="tab.count"
                 >
                     {{ tab.title }} ({{ tab.count }})
                 </a>
@@ -199,7 +203,8 @@ export default {
                 <a
                     class="nav-link dropdown-toggle"
                     :class="{ active: dropdownTabSelected }"
-                    data-toggle="dropdown"
+                    data-bs-toggle="dropdown"
+                    v-dropdown
                     href="#"
                     role="button"
                     aria-haspopup="true"
@@ -212,6 +217,7 @@ export default {
                         :class="{ active: currentTab == tab.type }"
                         href="#"
                         v-for="tab in dropdownTabs"
+                        :key="tab.type"
                         v-on:click.prevent="activateTab(tab.type)"
                         >{{ tab.title }} ({{ tab.count }})</a
                     >
@@ -308,7 +314,7 @@ export default {
                                 duplicated.</small
                             >
                         </th>
-                        <th class="text-right">
+                        <th class="text-end">
                             Duration<br /><small>{{ queriesSummary.time }}ms</small>
                         </th>
                         <th></th>
@@ -320,7 +326,7 @@ export default {
                             <code>{{ truncate(entry.content.sql, 110) }}</code>
                         </td>
 
-                        <td class="table-fit text-right">
+                        <td class="table-fit text-end">
                             <span class="badge badge-danger" v-if="entry.content.slow">
                                 {{ entry.content.time }}ms
                             </span>
@@ -487,7 +493,7 @@ export default {
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th class="text-right">Listeners</th>
+                        <th class="text-end">Listeners</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -497,10 +503,10 @@ export default {
                         <td :title="entry.content.name">
                             {{ truncate(entry.content.name, 80) }}
 
-                            <span class="badge badge-info ml-2" v-if="entry.content.broadcast"> Broadcast </span>
+                            <span class="badge badge-info ms-2" v-if="entry.content.broadcast"> Broadcast </span>
                         </td>
 
-                        <td class="table-fit text-right text-muted">
+                        <td class="table-fit text-end text-muted">
                             {{ entry.content.listeners.length }}
                         </td>
 
@@ -572,7 +578,7 @@ export default {
                 <thead>
                     <tr>
                         <th>Command</th>
-                        <th class="text-right">Duration</th>
+                        <th class="text-end">Duration</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -582,7 +588,7 @@ export default {
                         <td :title="entry.content.command">
                             {{ truncate(entry.content.command, 100) }}
                         </td>
-                        <td class="table-fit text-right text-muted">{{ entry.content.time }}ms</td>
+                        <td class="table-fit text-end text-muted">{{ entry.content.time }}ms</td>
 
                         <td class="table-fit">
                             <router-link
@@ -621,7 +627,7 @@ export default {
                                 truncate(entry.content.mailable || '-', 70)
                             }}</span>
 
-                            <span class="badge badge-secondary ml-2" v-if="entry.content.queued"> Queued </span>
+                            <span class="badge badge-secondary ms-2" v-if="entry.content.queued"> Queued </span>
 
                             <br />
 
@@ -669,7 +675,7 @@ export default {
                                 truncate(entry.content.notification || '-', 70)
                             }}</span>
 
-                            <span class="badge badge-secondary ml-2" v-if="entry.content.queued"> Queued </span>
+                            <span class="badge badge-secondary ms-2" v-if="entry.content.queued"> Queued </span>
 
                             <br />
 
@@ -709,7 +715,7 @@ export default {
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th class="text-right">Composers</th>
+                        <th class="text-end">Composers</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -721,7 +727,7 @@ export default {
                             <small class="text-muted">{{ truncate(entry.content.path, 100) }}</small>
                         </td>
 
-                        <td class="table-fit text-right text-muted">
+                        <td class="table-fit text-end text-muted">
                             {{ entry.content.composers ? entry.content.composers.length : 0 }}
                         </td>
 
@@ -753,15 +759,15 @@ export default {
                         <th>Verb</th>
                         <th>URI</th>
                         <th>Status</th>
-                        <th class="text-right">Duration</th>
-                        <th class="text-right">Happened</th>
+                        <th class="text-end">Duration</th>
+                        <th class="text-end">Happened</th>
                         <th></th>
                     </tr>
                 </thead>
 
                 <tbody>
                     <tr v-for="entry in clientRequests">
-                        <td class="table-fit pr-0">
+                        <td class="table-fit pe-0">
                             <span class="badge" :class="'badge-' + requestMethodClass(entry.content.method)">
                                 {{ entry.content.method }}
                             </span>
@@ -789,13 +795,13 @@ export default {
                             </span>
                         </td>
 
-                        <td class="table-fit text-right text-muted">
+                        <td class="table-fit text-end text-muted">
                             <span v-if="entry.content.duration">{{ entry.content.duration }}ms</span>
                             <span v-else>-</span>
                         </td>
 
                         <td
-                            class="table-fit text-right text-muted"
+                            class="table-fit text-end text-muted"
                             :data-timeago="entry.created_at"
                             :title="entry.created_at"
                         >
