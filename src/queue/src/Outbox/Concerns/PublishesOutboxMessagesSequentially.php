@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Outbox\Concerns;
 
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\InteractsWithTime;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait PublishesOutboxMessagesSequentially
@@ -40,9 +40,11 @@ trait PublishesOutboxMessagesSequentially
                 $queue->pushRaw($message->payload, $message->queue, $message->options);
                 $accepted[] = $message->id;
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return new OutboxBatchResult($accepted, $deferred, $exception);
         }
 
