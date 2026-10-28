@@ -20,7 +20,7 @@ class ListenerOptions extends WorkerOptions
         string $name = 'default',
         ?string $environment = null,
         array|int $backoff = 0,
-        int $memory = 128,
+        float|string $memory = 128,
         int $timeout = 60,
         float $sleep = 3,
         int $maxTries = 1,

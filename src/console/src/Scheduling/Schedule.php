@@ -484,6 +484,20 @@ class Schedule
     }
 
     /**
+     * Determine if the schedule has been interrupted since the given time.
+     */
+    public function hasBeenInterruptedSince(DateTimeInterface $time): bool
+    {
+        if (! static::$interruptible) {
+            return false;
+        }
+
+        $interruptedAt = Container::getInstance()->make(Cache::class)->get('hypervel:schedule:interrupt');
+
+        return is_numeric($interruptedAt) && (int) $interruptedAt >= Date::instance($time)->getTimestampMs();
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void

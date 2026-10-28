@@ -21,7 +21,7 @@ class RelayCommand extends Command
                             {--concurrency=1 : The maximum number of batches to relay at once}
                             {--max-jobs=0 : The number of messages to claim before stopping}
                             {--max-time=0 : The maximum number of seconds the relay should run}
-                            {--memory=128 : The memory limit in megabytes}';
+                            {--memory=128 : The memory limit in megabytes, or as a percentage of the PHP memory limit}';
 
     protected string $description = 'Relay committed outbox messages to their queues';
 
@@ -53,7 +53,7 @@ class RelayCommand extends Command
             concurrency: (int) $this->option('concurrency'),
             maxJobs: (int) $this->option('max-jobs'),
             maxTime: (int) $this->option('max-time'),
-            memory: (float) $this->option('memory'),
+            memory: (string) $this->option('memory'),
             stopWhenEmpty: (bool) $this->option('stop-when-empty'),
             once: (bool) $this->option('once'),
         ));

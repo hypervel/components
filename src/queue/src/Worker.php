@@ -1852,8 +1852,10 @@ class Worker
     /**
      * Determine if the memory limit has been exceeded.
      */
-    public function memoryExceeded(float $memoryLimit): bool
+    public function memoryExceeded(float|string $memoryLimit): bool
     {
+        $memoryLimit = MemoryLimit::toMegabytes($memoryLimit);
+
         return $memoryLimit > 0 && $this->currentMemoryUsage() >= $memoryLimit;
     }
 

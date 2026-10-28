@@ -2942,6 +2942,14 @@ php artisan queue:work --force
 <a name="resource-considerations"></a>
 #### Resource Considerations
 
+The `--memory` option specifies the memory limit in megabytes at which the worker should exit. By default, this limit is 128 megabytes. You may also specify a percentage of PHP's configured `memory_limit`:
+
+```shell
+php artisan queue:work --memory=60%
+```
+
+The `queue:listen` command also accepts memory limits in megabytes or as a percentage. Percentage-based limits require a finite PHP `memory_limit`. If PHP's memory limit is unlimited (`-1`), use a limit in megabytes instead. A process monitor such as [Supervisor](#supervisor-configuration) can automatically restart the worker after it exits.
+
 Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, after [image manipulation](/docs/{{version}}/images), release references to image objects when you no longer need them. Do not retain them in static properties or singleton services between jobs.
 
 <a name="lost-database-connections"></a>
@@ -3803,6 +3811,16 @@ Queue::assertClosurePushed(function (CallQueuedClosure $job) {
     return $job->name === 'validate-order';
 });
 ```
+
+Alternatively, you may pass an array of expected property values as the second argument to `assertPushed` or `assertNotPushed`, or as the third argument to `assertPushedOn`:
+
+```php
+Queue::assertPushed(ShipOrder::class, ['order' => $order]);
+
+Queue::assertPushedOn('shipping', ShipOrder::class, ['order' => $order]);
+```
+
+All specified properties must match. Values are compared using strict equality, while Eloquent models are compared using their `is` method. The `Bus` facade's `assertDispatched`, `assertNotDispatched`, `assertDispatchedSync`, and `assertDispatchedAfterResponse` methods also accept an array of expected property values as their second argument.
 
 <a name="testing-bus-dispatches"></a>
 ### Testing Bus Dispatches
