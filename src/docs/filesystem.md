@@ -111,7 +111,18 @@ The credential variables use the AWS SDK's standard names, while the region foll
 
 The optional `AWS_ROOT` value scopes the disk to a key prefix within the bucket. When it is empty, the disk operates from the bucket root.
 
-If you supply a callable `credentials` provider, calls to that provider run one at a time, including when it is shared with SQS or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
+To use an IAM role, set the disk's `credentials` option to `ecs` for container credentials or `instance` for EC2 instance credentials. You may also provide an array containing the provider name and its AWS SDK options:
+
+```php
+'credentials' => [
+    'provider' => 'ecs',
+    'timeout' => 7,
+],
+```
+
+Named providers take precedence over the disk's `key` and `secret`. Each pooled client fetches and reuses its credentials until they need refreshing. Provider names and options are part of the [client pool identity](#driver-pools), so equivalent configurations share a pool without an explicit fingerprint.
+
+You may also supply a callable `credentials` provider, which takes precedence over `key` and `secret`. Calls to that provider run one at a time, including when it is shared with SQS or SES. Hypervel does not cache custom provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants. Configuration containing objects or closures requires an explicit `pool.fingerprint`.
 
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration

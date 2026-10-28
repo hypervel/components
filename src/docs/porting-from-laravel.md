@@ -768,6 +768,8 @@ Custom filesystem contract implementations must also provide `fileExists()` and 
 
 S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
 
+If you override `FilesystemManager::formatS3Config()`, named credential providers remain configuration data there. Customize their resolution through `createS3Client()` instead.
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
