@@ -124,6 +124,7 @@ export default {
                         signal,
                         params: {
                             tag: this.tag,
+                            exact_tag: this.$route.query.exact_tag,
                             before: this.lastEntryIndex,
                             take: this.entriesPerRequest,
                             family_hash: this.familyHash,
@@ -170,7 +171,7 @@ export default {
                 axios.post(Telescope.basePath + '/telescope-api/' + this.resource,
                         null, {
                             signal,
-                            params: {tag: this.tag, take: 1, family_hash: this.familyHash},
+                            params: {tag: this.tag, exact_tag: this.$route.query.exact_tag, take: 1, family_hash: this.familyHash},
                         }
                 ).then(response => {
                     if (!signal.aborted) {
@@ -217,7 +218,7 @@ export default {
                 this.hasNewEntries = false;
                 this.lastEntryIndex = '';
 
-                return this.$router.push({query: _.assign({}, this.$route.query, {tag: this.tag})});
+                return this.$router.push({query: _.assign({}, this.$route.query, {tag: this.tag, exact_tag: undefined})});
             });
         },
 

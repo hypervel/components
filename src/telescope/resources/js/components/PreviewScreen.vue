@@ -250,7 +250,7 @@ export default {
                                     :key="tag"
                                     :to="{
                                         name: resource,
-                                        query: { tag: tag },
+                                        query: { tag: tag, exact_tag: 1 },
                                     }"
                                     class="badge badge-info me-1"
                                 >

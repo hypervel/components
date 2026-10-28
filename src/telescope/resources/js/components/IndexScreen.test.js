@@ -59,28 +59,38 @@ describe('entry lists', () => {
     it('passes complete filter values and cancels the old load when the query changes', async () => {
         const pending = Promise.withResolvers();
         axios.post.mockReturnValueOnce(pending.promise);
-        const { router, screen } = await mountIndex('/logs?tag=a%26b%23c&family_hash=family');
+        const { router, screen } = await mountIndex('/logs?tag=a%26b%23c&exact_tag=1&family_hash=family');
         const original = axios.post.mock.calls[0][2];
 
-        expect(original.params).toEqual({ tag: 'a&b#c', family_hash: 'family', before: '', take: 50 });
+        expect(original.params).toEqual({ tag: 'a&b#c', exact_tag: '1', family_hash: 'family', before: '', take: 50 });
         await router.push('/logs?tag=next');
         await flushPromises();
         expect(original.signal.aborted).toBe(true);
         expect(axios.post.mock.calls[1][2].params.tag).toBe('next');
+        expect(axios.post.mock.calls[1][2].params.exact_tag).toBeUndefined();
 
         pending.resolve(response([entry('stale')]));
         await flushPromises();
         expect(screen.vm.entries.map(entry => entry.id)).toEqual(['first']);
     });
 
-    it('debounces search and cancels a queued search when leaving the screen', async () => {
-        const { router, screen } = await mountIndex();
+    it('keeps literal tag matching when polling for new entries', async () => {
+        await mountIndex('/logs?tag=a%2Cb&exact_tag=1');
+        await vi.advanceTimersByTimeAsync(2500);
+        expect(axios.post.mock.calls[1][2].params).toMatchObject({ tag: 'a,b', exact_tag: '1', take: 1 });
+    });
+
+    it('debounces search, clears literal matching and cancels a queued search when leaving the screen', async () => {
+        const { router, screen } = await mountIndex('/logs?tag=a%2Cb&exact_tag=1');
         await screen.find('input').setValue('first search');
         await vi.advanceTimersByTimeAsync(499);
-        expect(router.currentRoute.value.query.tag).toBeUndefined();
+        expect(router.currentRoute.value.query.tag).toBe('a,b');
+        expect(router.currentRoute.value.query.exact_tag).toBe('1');
         await vi.advanceTimersByTimeAsync(1);
         await flushPromises();
         expect(router.currentRoute.value.query.tag).toBe('first search');
+        expect(router.currentRoute.value.query.exact_tag).toBeUndefined();
+        expect(axios.post.mock.calls[1][2].params.exact_tag).toBeUndefined();
 
         await screen.find('input').setValue('abandoned search');
         await router.push('/other');

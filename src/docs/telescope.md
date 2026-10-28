@@ -372,6 +372,8 @@ public function register(): void
 }
 ```
 
+In the dashboard, clicking a tag shows entries with that exact tag. To find entries with any of several tags, enter a comma-separated list in the search field.
+
 <a name="available-watchers"></a>
 ## Available Watchers
 

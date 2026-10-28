@@ -124,12 +124,12 @@ it('polls a pending job until it completes and stops on unmount', async () => {
 it('loads scheduled entries through their endpoint and links tags to the schedule list', async () => {
     axios.get.mockResolvedValue(response({
         ...entry('first', 'finished'),
-        tags: ['daily'],
+        tags: ['daily,weekly'],
     }));
     const { screen } = await mountPreview('/schedule/first');
 
     expect(axios.get.mock.calls[0][0]).toBe('/telescope/telescope-api/schedule/first');
-    expect(screen.find('a.badge').attributes('href')).toBe('/schedule?tag=daily');
+    expect(screen.find('a.badge').attributes('href')).toBe('/schedule?tag=daily,weekly&exact_tag=1');
 });
 
 it.each([
