@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import axios from 'axios';
 import ExceptionCodePreview from './../../components/ExceptionCodePreview.vue';
 import Stacktrace from './../../components/Stacktrace.vue';
@@ -41,7 +41,7 @@ export default {
 
 <template>
     <preview-screen title="Exception Details" resource="exceptions" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Type</td>
                 <td>
@@ -85,7 +85,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps" class="mt-5">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -167,8 +167,6 @@ export default {
                     <stack-trace :trace="slotProps.entry.content.trace" v-show="currentTab == 'trace'"></stack-trace>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

@@ -198,6 +198,15 @@ Do not disable checks, skip affected tests, or weaken assertions to make a pull 
 
 Hypervel packages such as Horizon and Telescope include JavaScript and CSS assets for their dashboards. If you are submitting a change that affects dashboard source files, do not commit the generated `dist` files unless a maintainer asks you to do so. Due to their size, compiled assets cannot realistically be reviewed with the same care as source files. This could be exploited as a way to inject malicious code into Hypervel. In order to defensively prevent this, compiled assets will be generated and committed by Hypervel maintainers when needed.
 
+To work on the Horizon or Telescope dashboards, use Node.js 24 (24.15 or later) and npm 11.10 or newer. Run these commands from `src/horizon` or `src/telescope` in the components repository:
+
+```shell
+npm ci
+npm run build
+```
+
+Use `npm run watch` to rebuild assets as you edit. Telescope's component tests run with `npm test` from `src/telescope`. After updating dependencies, run `npm audit`, test the dashboard, and rebuild its assets. Maintainers commit the generated `dist` files before merging; applications install these assets through Composer and do not need Node.js.
+
 <a name="ai-generated-contributions"></a>
 ## AI-Generated Contributions
 

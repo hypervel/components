@@ -62,11 +62,6 @@ export default {
         },
 
         /**
-         * Creates a debounced function that delays invoking a callback.
-         */
-        debouncer: _.debounce((callback) => callback(), 500),
-
-        /**
          * Determine if a failed request may be polled again.
          */
         mayRetry(error, signal) {

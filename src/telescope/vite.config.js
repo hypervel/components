@@ -1,11 +1,11 @@
-import vue2 from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite';
 
-/** @type {import('vite').UserConfig} */
-export default {
-    plugins: [vue2()],
+export default defineConfig({
+    plugins: [vue()],
     build: {
         assetsDir: '',
-        rollupOptions: {
+        rolldownOptions: {
             input: ['resources/js/app.js', 'resources/sass/styles.scss', 'resources/sass/styles-dark.scss'],
             output: {
                 entryFileNames: '[name].js',
@@ -14,9 +14,4 @@ export default {
             },
         },
     },
-    resolve: {
-        alias: {
-            vue: 'vue/dist/vue.esm.js',
-        },
-    },
-};
+});

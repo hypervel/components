@@ -1,21 +1,9 @@
-<script type="text/ecmascript-6">
-import axios from 'axios';
-import StylesMixin from './../../mixins/entriesStyles';
-
+<script>
 export default {
-    components: {},
-
-
-    mixins: [
-        StylesMixin,
-    ],
-
-
     data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'data'
         };
     }
 }
@@ -23,7 +11,7 @@ export default {
 
 <template>
     <preview-screen title="Batch Details" resource="batches" :id="$route.params.id" entry-point="true">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Status</td>
                 <td>
@@ -116,5 +104,3 @@ export default {
         </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

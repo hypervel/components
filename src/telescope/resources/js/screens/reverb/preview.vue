@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 export default {
     data() {
         return {
@@ -11,7 +11,7 @@ export default {
 
 <template>
     <preview-screen title="Reverb Event Details" resource="reverb" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Event</td>
                 <td>
@@ -42,7 +42,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden" v-if="slotProps.entry.content.message">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -52,6 +52,6 @@ export default {
 
                 <pre class="code-bg p-4 mb-0 text-white">{{ slotProps.entry.content.message }}</pre>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

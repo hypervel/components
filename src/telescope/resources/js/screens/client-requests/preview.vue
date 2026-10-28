@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
@@ -19,7 +19,7 @@ export default {
 
 <template>
     <preview-screen title="HTTP Client Request Details" resource="client-requests" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Method</td>
                 <td>
@@ -65,7 +65,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -129,6 +129,6 @@ export default {
                     </template>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

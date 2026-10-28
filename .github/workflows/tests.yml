@@ -132,3 +132,7 @@ jobs:
       - name: Run Telescope dashboard tests
         working-directory: src/telescope
         run: npm test
+
+      - name: Build Telescope dashboard assets
+        working-directory: src/telescope
+        run: npm run build

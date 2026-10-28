@@ -1,8 +1,15 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from 'lodash';
 
 export default {
     methods: {
+        /**
+         * Determine whether any addresses were recorded.
+         */
+        hasAddresses(addresses) {
+            return !_.isEmpty(addresses);
+        },
+
         /**
          * Format the given list of addresses.
          */
@@ -24,13 +31,13 @@ export default {
 
 <template>
     <preview-screen title="Mail Details" resource="mail" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Mailable</td>
                 <td>
                     {{ slotProps.entry.content.mailable }}
 
-                    <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.queued"> Queued </span>
+                    <span class="badge badge-secondary ms-2" v-if="slotProps.entry.content.queued"> Queued </span>
                 </td>
             </tr>
 
@@ -48,21 +55,21 @@ export default {
                 </td>
             </tr>
 
-            <tr v-if="slotProps.entry.replyTo">
+            <tr v-if="hasAddresses(slotProps.entry.content.replyTo)">
                 <td class="table-fit text-muted">Reply-To</td>
                 <td>
                     {{ formatAddresses(slotProps.entry.content.replyTo) }}
                 </td>
             </tr>
 
-            <tr v-if="slotProps.entry.cc">
+            <tr v-if="hasAddresses(slotProps.entry.content.cc)">
                 <td class="table-fit text-muted">CC</td>
                 <td>
                     {{ formatAddresses(slotProps.entry.content.cc) }}
                 </td>
             </tr>
 
-            <tr v-if="slotProps.entry.bcc">
+            <tr v-if="hasAddresses(slotProps.entry.content.bcc)">
                 <td class="table-fit text-muted">BCC</td>
                 <td>
                     {{ formatAddresses(slotProps.entry.content.bcc) }}
@@ -86,15 +93,15 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps" class="mt-5">
-            <div class="card">
+        <template #after-attributes-card>
+            <div class="card mt-5">
                 <iframe
                     :src="Telescope.basePath + '/telescope-api/mail/' + $route.params.id + '/preview'"
                     width="100%"
                     height="400"
                 ></iframe>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>
 

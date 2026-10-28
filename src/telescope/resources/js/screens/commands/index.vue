@@ -1,17 +1,15 @@
-<script type="text/ecmascript-6">
-export default {}
-</script>
-
 <template>
     <index-screen title="Commands" resource="commands">
-        <tr slot="table-header">
-            <th scope="col">Command</th>
-            <th scope="col" class="table-fit">Exit Code</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Command</th>
+                <th scope="col" class="table-fit">Exit Code</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td :title="slotProps.entry.content.command">
                 <code>{{ truncate(slotProps.entry.content.command, 90) }}</code>
             </td>

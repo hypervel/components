@@ -1,19 +1,16 @@
-import Vue from 'vue';
+import { createApp } from 'vue/dist/vue.esm-bundler.js';
 import Base from './base';
 import axios from 'axios';
 import Routes from './routes';
-import VueRouter from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 import moment from 'moment-timezone';
-import popper from 'popper.js';
-import relatedEntries from './components/RelatedEntries.vue';
-import indexScreen from './components/IndexScreen.vue';
-import previewScreen from './components/PreviewScreen.vue';
-import alert from './components/Alert.vue';
-import copyClipboard from './components/CopyClipboard.vue';
-
-import 'bootstrap';
+import RelatedEntries from './components/RelatedEntries.vue';
+import IndexScreen from './components/IndexScreen.vue';
+import PreviewScreen from './components/PreviewScreen.vue';
+import Alert from './components/Alert.vue';
+import CopyClipboard from './components/CopyClipboard.vue';
 
 const LOCALSTORAGE_AUTOLOAD_KEY = 'telescopeAutoLoadsNewEntries';
 
@@ -23,41 +20,9 @@ if (token) {
     axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
 }
 
-Vue.use(VueRouter);
-
-window.Popper = popper;
-
 moment.tz.setDefault(Telescope.timezone);
 
-window.Telescope.basePath = '/' + window.Telescope.path;
-
-let routerBasePath = window.Telescope.basePath + '/';
-
-if (window.Telescope.path === '' || window.Telescope.path === '/') {
-    routerBasePath = '/';
-    window.Telescope.basePath = '';
-}
-
-const router = new VueRouter({
-    routes: Routes,
-    mode: 'history',
-    base: routerBasePath,
-});
-
-Vue.component('vue-json-pretty', VueJsonPretty);
-Vue.component('related-entries', relatedEntries);
-Vue.component('index-screen', indexScreen);
-Vue.component('preview-screen', previewScreen);
-Vue.component('alert', alert);
-Vue.component('copy-clipboard', copyClipboard);
-
-Vue.mixin(Base);
-
-new Vue({
-    el: '#telescope',
-
-    router,
-
+const app = createApp({
     data() {
         return {
             alert: {
@@ -78,7 +43,7 @@ new Vue({
         window.addEventListener('keydown', this.keydownListener);
     },
 
-    destroyed() {
+    beforeUnmount() {
         window.removeEventListener('keydown', this.keydownListener);
     },
 
@@ -110,3 +75,30 @@ new Vue({
         },
     },
 });
+
+window.Telescope.basePath = '/' + window.Telescope.path;
+
+let routerBasePath = window.Telescope.basePath + '/';
+
+if (window.Telescope.path === '' || window.Telescope.path === '/') {
+    routerBasePath = '/';
+    window.Telescope.basePath = '';
+}
+
+const router = createRouter({
+    history: createWebHistory(routerBasePath),
+    routes: Routes,
+});
+
+app.use(router);
+
+app.component('vue-json-pretty', VueJsonPretty);
+app.component('related-entries', RelatedEntries);
+app.component('index-screen', IndexScreen);
+app.component('preview-screen', PreviewScreen);
+app.component('alert', Alert);
+app.component('copy-clipboard', CopyClipboard);
+
+app.mixin(Base);
+
+app.mount('#telescope');

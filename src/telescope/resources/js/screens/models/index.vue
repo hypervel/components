@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
@@ -10,14 +10,16 @@ export default {
 
 <template>
     <index-screen title="Models" resource="models">
-        <tr slot="table-header">
-            <th scope="col">Model</th>
-            <th scope="col">Action</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Model</th>
+                <th scope="col">Action</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>{{ truncate(slotProps.entry.content.model, 70) }}</td>
 
             <td class="table-fit">

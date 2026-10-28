@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 export default {
     data(){
         return {
@@ -11,7 +11,7 @@ export default {
 
 <template>
     <preview-screen title="Notification Details" resource="notifications" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Channel</td>
                 <td>
@@ -24,7 +24,7 @@ export default {
                 <td>
                     {{ slotProps.entry.content.notification }}
 
-                    <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.queued"> Queued </span>
+                    <span class="badge badge-secondary ms-2" v-if="slotProps.entry.content.queued"> Queued </span>
                 </td>
             </tr>
 
