@@ -353,6 +353,24 @@ class Builder
     }
 
     /**
+     * Get the column for a given table.
+     *
+     * @return array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}|array{}
+     */
+    public function getColumn(string $table, string $column): array
+    {
+        $column = strtolower($column);
+
+        foreach ($this->getColumns($table) as $value) {
+            if (strtolower($value['name']) === $column) {
+                return $value;
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * Get the columns for a given table.
      *
      * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>
