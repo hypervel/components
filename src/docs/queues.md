@@ -2309,7 +2309,7 @@ $this->release(10);
 $this->release(now()->plus(seconds: 10));
 ```
 
-After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. The next delivery checks the job's attempt limit as usual.
+After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.
 
 <a name="manually-failing-a-job"></a>
 #### Manually Failing a Job
@@ -4154,7 +4154,7 @@ When an interrupting signal is delivered to running jobs, Hypervel dispatches a 
 
 Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
 
-When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual.
+When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual. Exceptions from stopping listeners or the callback are reported and do not prevent termination.
 
 <a name="credits"></a>
 ## Credits

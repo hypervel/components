@@ -1838,25 +1838,34 @@ class Worker
         ?WorkerOptions $options = null,
         ?WorkerStopReason $reason = null,
     ): never {
-        if ($this->events->hasListeners(WorkerStopping::class)) {
-            $this->events->dispatch(new WorkerStopping(
-                $connectionName,
-                $queue,
-                $status,
-                $options,
-                $reason,
-                $this->jobsProcessed,
-                $this->lastJobProcessedAt,
-                $this->currentMemoryUsage(),
-                terminatesImmediately: true,
-            ));
+        try {
+            if ($this->events->hasListeners(WorkerStopping::class)) {
+                $this->events->dispatch(new WorkerStopping(
+                    $connectionName,
+                    $queue,
+                    $status,
+                    $options,
+                    $reason,
+                    $this->jobsProcessed,
+                    $this->lastJobProcessedAt,
+                    $this->currentMemoryUsage(),
+                    terminatesImmediately: true,
+                ));
+            }
+        } catch (Throwable $exception) {
+            $this->exceptions->report($exception);
+        } finally {
+            try {
+                if (static::$killCallback) {
+                    call_user_func(static::$killCallback, $status);
+                }
+            } catch (Throwable $exception) {
+                $this->exceptions->report($exception);
+            } finally {
+                // Neither shutdown hooks nor their error reporting may keep the worker alive.
+                $this->terminateProcess($status);
+            }
         }
-
-        if (static::$killCallback) {
-            call_user_func(static::$killCallback, $status);
-        }
-
-        $this->terminateProcess($status);
     }
 
     /**

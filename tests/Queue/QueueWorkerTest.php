@@ -2521,25 +2521,56 @@ class QueueWorkerTest extends TestCase
 
     public function testWorkerCanBeKilledUsingCustomCallback(): void
     {
-        Worker::killUsing(function (int $status): never {
-            throw new RuntimeException("Killed with status [{$status}].");
-        });
+        $failure = new RuntimeException('The kill callback failed.');
+        $callbackStatus = null;
+        Worker::killUsing(function (int $status) use ($failure, &$callbackStatus): never {
+            $callbackStatus = $status;
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Killed with status [124].');
+            throw $failure;
+        });
 
         try {
             (new KillTestWorker(...$this->workerDependencies('default', ['queue' => []])))
                 ->kill('default', 'default', 124, new WorkerOptions, WorkerStopReason::TimedOut);
-        } finally {
-            Worker::killUsing(null);
-
-            $this->events->assertDispatchedOnce(WorkerStopping::class);
-            $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event): bool {
-                return $event->status === 124
-                    && $event->reason === WorkerStopReason::TimedOut;
-            });
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(124, $exception->status);
         }
+
+        $this->assertSame(124, $callbackStatus);
+        $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $failure);
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event): bool {
+            return $event->status === 124
+                && $event->reason === WorkerStopReason::TimedOut;
+        });
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStoppingListenerFailureCannotPreventTheKillCallbackOrTermination(bool $reportingThrows): void
+    {
+        $failure = new RuntimeException('The stopping listener failed.');
+        $this->spyEvents();
+        $this->events->shouldReceive('dispatch')->once()->with(m::type(WorkerStopping::class))->andThrow($failure);
+        $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $report = $this->exceptionHandler->shouldReceive('report')->once()->with($failure);
+        if ($reportingThrows) {
+            $report->andThrow(new RuntimeException('Reporting failed.'));
+        }
+
+        $callbackStatus = null;
+        Worker::killUsing(function (int $status) use (&$callbackStatus): void {
+            $callbackStatus = $status;
+        });
+
+        try {
+            (new KillTestWorker(...$this->workerDependencies()))
+                ->kill('default', 'queue', 124, new WorkerOptions, WorkerStopReason::TimedOut);
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(124, $exception->status);
+        }
+
+        $this->assertSame(124, $callbackStatus);
     }
 
     public function testWorkerStartingIsDispatched(): void
