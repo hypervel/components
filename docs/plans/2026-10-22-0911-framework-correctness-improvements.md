@@ -19,6 +19,11 @@ The database capability, query-builder, queue middleware, validation, decimal-ca
 - Let `UseEloquentBuilder` accept `class-string<Builder<*>>`, matching the existing builder property and factory return type. The attribute accepts builders bound to a particular model; `Builder<Model>` incorrectly excludes them because the model parameter is invariant. Align the resolved-class cache and resolver return annotation with the same boundary. Runtime construction and public signatures remain unchanged.
 - Cover the attribute with a model-bounded generic builder and `HasBuilder`, including a model subclass and a terminal query result in the type fixtures.
 
+### Immutable date modifier types
+
+- Keep `CarbonImmutable::addMonths()` metadata typed as `static`, including its optional anchor-day argument. Carbon preserves subclasses at runtime; inherited metadata naming the base class incorrectly widens fluent results. Extend the existing modifier type fixture and reuse the runtime metadata/subclass test. No runtime or API behavior changes.
+- The complete fix belongs in Carbon's PHPDoc generator, which emits concrete class names for fluent returns. Retain the existing local annotations until a corrected release is adopted, then remove the redundant annotations and their reflection test while keeping type regressions. Track that dependency update and cleanup in [the framework todo](../todo.md#framework-wide); do not duplicate Carbon's full generated method list here.
+
 ### Exact JSON numbers
 
 - Add `Json::decodeNumbersAsStrings(string $json, bool $assoc = true, int $depth = self::MAXIMUM_NESTING_DEPTH): mixed` for exact numeric API inputs. Return every numeric token as its original string, including integers, trailing zeros and exponent notation; preserve ordinary strings, booleans, null and native array/object shapes.

@@ -19,6 +19,7 @@ use Hypervel\Support\Traits\DateHelpers;
  * @method static addMinute()
  * @method static addMinutes(int|float $value = 1)
  * @method static addMonth()
+ * @method static addMonths(int|float $value = 1, ?int $anchorDay = null)
  * @method static addSecond()
  * @method static addSeconds(int|float $value = 1)
  * @method static ceilSecond(float $precision = 1)
