@@ -56,6 +56,12 @@ use Hypervel\Support\Facades\Storage;
 Storage::disk('local')->put('example.txt', 'Contents');
 ```
 
+By default, the local driver creates its root directory when the disk is resolved. To defer creation until a write operation needs the directory, set the `lazy_root_creation` option to `true` in the disk's configuration:
+
+```php
+'lazy_root_creation' => true,
+```
+
 <a name="the-public-disk"></a>
 ### The Public Disk
 

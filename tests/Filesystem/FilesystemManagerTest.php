@@ -321,6 +321,38 @@ class FilesystemManagerTest extends TestCase
         ]));
     }
 
+    public function testCanBuildLocalDisksThatLazilyCreateTheirRootDirectory(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $root = $this->tempDir . '/lazy-root';
+
+        $disk = $filesystem->build([
+            'driver' => 'local',
+            'root' => $root,
+            'lazy_root_creation' => true,
+        ]);
+
+        $this->assertDirectoryDoesNotExist($root);
+
+        $disk->put('filename.txt', 'file content');
+
+        $this->assertDirectoryExists($root);
+        $this->assertSame('file content', $disk->get('filename.txt'));
+    }
+
+    public function testCanBuildLocalDisksThatEagerlyCreateTheirRootDirectory(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $root = $this->tempDir . '/eager-root';
+
+        $filesystem->build([
+            'driver' => 'local',
+            'root' => $root,
+        ]);
+
+        $this->assertDirectoryExists($root);
+    }
+
     public function testConfiguredOndemandDiskNameIsReserved(): void
     {
         $filesystem = new FilesystemManager($this->getContainer([
