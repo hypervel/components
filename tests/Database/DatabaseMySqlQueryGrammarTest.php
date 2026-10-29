@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
@@ -149,6 +150,54 @@ SQL],
             'select /*+ MAX_EXECUTION_TIME(3000) */ * from `users` where `id` = ? for update',
             $locking->toSql()
         );
+    }
+
+    #[DataProvider('nestedUnionVersions')]
+    public function testNestedUnionMembersUseTheSupportedServerSyntax(string $connectionClass, string $version, bool $wrapped): void
+    {
+        $pdo = m::mock(PDO::class);
+        $pdo->shouldReceive('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn($version);
+        $connection = new $connectionClass($pdo, 'database');
+        $member = $connection->table('posts')->select('id')->where('id', '<=', 3)
+            ->unionAll($connection->table('posts')->select('id')->whereBetween('id', [4, 6]))
+            ->orderByDesc('id')->offset(1)->limit(3);
+        $query = $connection->table('posts')->select('id')->where('id', 7)
+            ->unionAll($member)->orderByDesc('id')->limit(2);
+        $memberSql = '(select `id` from `posts` where `id` <= ?) union all (select `id` from `posts` where `id` between ? and ?) order by `id` desc limit 3 offset 1';
+
+        $this->assertSame(
+            '(select `id` from `posts` where `id` = ?) union all ('
+                . ($wrapped ? 'select * from (' . $memberSql . ') as `union_table`' : $memberSql)
+                . ') order by `id` desc limit 2',
+            $query->toSql()
+        );
+        $this->assertSame([7, 3, 4, 6], $query->getBindings());
+        $this->assertSame(3, $member->unionLimit);
+        $this->assertSame(1, $member->unionOffset);
+    }
+
+    /**
+     * Cover native nesting and older syntax through both MySQL-compatible drivers.
+     */
+    public static function nestedUnionVersions(): iterable
+    {
+        yield 'MySQL 5.7' => [MySqlConnection::class, '5.7.44', true];
+        yield 'MySQL 8.0.30' => [MySqlConnection::class, '8.0.30', true];
+        yield 'MySQL 8.0.31' => [MySqlConnection::class, '8.0.31', false];
+        yield 'MariaDB 10.11 through mysql' => [MySqlConnection::class, '10.11.19-MariaDB', false];
+        yield 'MariaDB 10.11' => [MariaDbConnection::class, '10.11.19-MariaDB', false];
+    }
+
+    public function testOrdinaryUnionMembersDoNotInspectTheServerVersion(): void
+    {
+        $connection = m::mock(MySqlConnection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->shouldNotReceive('getServerVersion');
+        $connection->shouldNotReceive('isMaria');
+        $query = new Builder($connection, new MySqlGrammar($connection), new Processor);
+        $query->from('posts')->select('id')->unionAll($query->newQuery()->from('archives')->select('id'));
+
+        $this->assertSame('(select `id` from `posts`) union all (select `id` from `archives`)', $query->toSql());
     }
 
     public function testOuterTimeoutLeavesAnUntimedSubqueryUndecorated(): void

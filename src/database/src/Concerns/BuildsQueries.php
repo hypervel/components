@@ -17,6 +17,7 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
@@ -509,75 +510,35 @@ trait BuildsQueries
         $orders = $this->ensureOrderForCursorPagination(! is_null($cursor) && $cursor->pointsToPreviousItems());
 
         if (! is_null($cursor)) {
-            // Reset the union bindings so we can add the cursor where in the correct position...
-            $this->setBindings([], 'union');
+            $query = $this instanceof Builder ? $this->getQuery() : $this;
+            $originalColumns = $query->columns;
+            $originalColumnNames = [];
 
-            $addCursorConditions = function (QueryBuilder|Builder $builder, $previousColumn, $originalColumn, $i) use (&$addCursorConditions, $cursor, $orders) {
-                // Unions are base queries; the other builder family only appears in nested constraints without unions.
-                $unionBuilders = $builder instanceof self ? $builder->getUnionBuilders() : new Collection;
-
-                if (! is_null($previousColumn)) {
-                    $originalColumn ??= $this->getOriginalColumnNameForCursorPagination($this, $previousColumn);
-
-                    $builder->where(
-                        $originalColumn !== $previousColumn && Str::contains($originalColumn, ['(', ')']) ? new Expression($originalColumn) : $originalColumn,
-                        '=',
-                        $this->getCursorParameterBinding($cursor, $previousColumn)
-                    );
-
-                    $unionBuilders->each(function ($unionBuilder) use ($previousColumn, $cursor) {
-                        $unionBuilder->where(
-                            $this->getOriginalColumnNameForCursorPagination($unionBuilder, $previousColumn),
-                            '=',
-                            $this->getCursorParameterBinding($cursor, $previousColumn)
-                        );
-
-                        $this->addBinding($unionBuilder->getRawBindings()['where'], 'union');
-                    });
+            // Resolve argument-only aliases before get() installs its projection,
+            // then restore it so Eloquent scopes retain their normal column semantics.
+            $query->columns ??= Arr::wrap($columns);
+            try {
+                foreach ($orders as $order) {
+                    $originalColumnNames[$order['column']] = $this->getOriginalColumnNameForCursorPagination($this, $order['column']);
                 }
+            } finally {
+                $query->columns = $originalColumns;
+            }
 
-                $builder->where(function (QueryBuilder|Builder $secondBuilder) use ($addCursorConditions, $cursor, $orders, $i, $unionBuilders) {
-                    ['column' => $column, 'direction' => $direction] = $orders[$i];
+            $comparisons = [];
+            $bindings = [];
+            foreach ($orders as $order) {
+                $column = $order['column'];
+                $original = $originalColumnNames[$column];
+                $order['original'] = $original !== $column && Str::contains($original, ['(', ')'])
+                    ? new Expression($original) : $original;
+                $comparisons[] = $order;
+                $bindings[$column] = $this->getCursorParameterBinding($cursor, $column);
+            }
 
-                    $originalColumn = $this->getOriginalColumnNameForCursorPagination($this, $column);
-
-                    $secondBuilder->where(
-                        $originalColumn !== $column && Str::contains($originalColumn, ['(', ')']) ? new Expression($originalColumn) : $originalColumn,
-                        $direction === 'asc' ? '>' : '<',
-                        $this->getCursorParameterBinding($cursor, $column)
-                    );
-
-                    if ($i < $orders->count() - 1) {
-                        $secondBuilder->orWhere(function (QueryBuilder|Builder $thirdBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
-                            $addCursorConditions($thirdBuilder, $column, $originalColumn, $i + 1);
-                        });
-                    }
-
-                    $unionBuilders->each(function ($unionBuilder) use ($column, $direction, $cursor, $i, $orders, $addCursorConditions) {
-                        $unionWheres = $unionBuilder->getRawBindings()['where'];
-
-                        $originalColumn = $this->getOriginalColumnNameForCursorPagination($unionBuilder, $column);
-                        $unionBuilder->where(function ($unionBuilder) use ($column, $direction, $cursor, $i, $orders, $addCursorConditions, $originalColumn, $unionWheres) {
-                            $unionBuilder->where(
-                                $originalColumn,
-                                $direction === 'asc' ? '>' : '<',
-                                $this->getCursorParameterBinding($cursor, $column)
-                            );
-
-                            if ($i < $orders->count() - 1) {
-                                $unionBuilder->orWhere(function (QueryBuilder|Builder $fourthBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
-                                    $addCursorConditions($fourthBuilder, $column, $originalColumn, $i + 1);
-                                });
-                            }
-
-                            $this->addBinding($unionWheres, 'union');
-                            $this->addBinding($unionBuilder->getRawBindings()['where'], 'union');
-                        });
-                    });
-                });
-            };
-
-            $addCursorConditions($this, null, null, 0);
+            // Members are resolved by their output positions during SELECT preparation;
+            // keep their select/join bindings and never rewrite a shared union builder.
+            $query->addCursorPaginationConditions($comparisons, $bindings);
         }
 
         $this->limit($perPage + 1);
