@@ -4,7 +4,7 @@
 
 Independently useful database, queue, validation, decimal-casting and JSON-decoding improvements. Keep this plan independent of private applications and packages; describe framework requirements without their names, paths, or domain details. Preserve Laravel signatures and protected extension points, except for explicitly approved behavior changes.
 
-The database capability, query-builder, queue middleware, validation, decimal-casting and pooled in-memory database restoration changes are implemented and verified; merging remains. Record further framework changes here when they warrant planning, without duplicating consumer-specific implementation plans.
+All changes below are implemented and verified; merging remains. Record further framework changes here when they warrant planning, without duplicating consumer-specific implementation plans.
 
 ## Design
 
@@ -18,6 +18,11 @@ The database capability, query-builder, queue middleware, validation, decimal-ca
 
 - Let `UseEloquentBuilder` accept `class-string<Builder<*>>`, matching the existing builder property and factory return type. The attribute accepts builders bound to a particular model; `Builder<Model>` incorrectly excludes them because the model parameter is invariant. Align the resolved-class cache and resolver return annotation with the same boundary. Runtime construction and public signatures remain unchanged.
 - Cover the attribute with a model-bounded generic builder and `HasBuilder`, including a model subclass and a terminal query result in the type fixtures.
+
+### Raw attribute replacement
+
+- Clear both Eloquent cast-value caches before `setRawAttributes()` optionally calls `syncOriginal()`. Synchronization reads attributes through the cached casts; clearing afterwards lets stale objects overwrite the replacement values and marks those wrong values clean. Preserve the signature and unsynchronized replacement behavior, and explain the intentional ordering difference beside the code.
+- Use one regression parameterized over synchronization, covering both `AsArrayObject` and an `Attribute` getter/setter object. Check replacement values, raw originals and dirty state without database setup.
 
 ### Immutable date modifier types
 

@@ -2015,12 +2015,13 @@ trait HasAttributes
     {
         $this->attributes = $attributes;
 
+        // Laravel clears these after syncing, which merges stale cast objects over the replacement values.
+        $this->classCastCache = [];
+        $this->attributeCastCache = [];
+
         if ($sync) {
             $this->syncOriginal();
         }
-
-        $this->classCastCache = [];
-        $this->attributeCastCache = [];
 
         return $this;
     }
