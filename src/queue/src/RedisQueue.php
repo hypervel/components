@@ -14,7 +14,6 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
@@ -513,7 +512,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             }
 
             if ($observerFailure !== null) {
-                PoolErrorReporter::report($observerFailure);
+                $this->reportSecondaryFailure($observerFailure);
             }
 
             return new OutboxBatchResult($accepted, failure: $exception);

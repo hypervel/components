@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue\Outbox;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Events\Dispatcher;
@@ -150,6 +151,26 @@ class RedisOutboxPublicationTest extends TestCase
         try {
             $queue->publishOutboxMessages([$this->message(1), $this->message(2, 'other')]);
             $this->fail('Expected observer cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCancellationDuringObserverFailureReportingPropagates(): void
+    {
+        [$queue, $connection, $events] = $this->queue(horizon: true);
+        $observerFailure = new RuntimeException('Observer failed.');
+        $events->listen(JobPushed::class, static fn () => throw $observerFailure);
+        $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:first')->andReturn(1);
+        $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:second')->andThrow(new RuntimeException('Redis unavailable.'));
+        $cancellation = new RuntimeException('Reporting cleanup failed.', previous: new CanceledException);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($observerFailure)->andThrow($cancellation);
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second')]);
+            $this->fail('Expected reporting cancellation to propagate.');
         } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
