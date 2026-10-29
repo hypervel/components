@@ -4128,7 +4128,7 @@ class AppServiceProvider extends ServiceProvider
 
 The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run. It is `null` when the worker skips the job because it was already deleted, such as by a `JobProcessing` listener.
 
-Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. This event is not dispatched when coroutine cancellation interrupts the attempt, including when the exception was caused by cancellation. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 

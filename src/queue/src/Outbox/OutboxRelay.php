@@ -67,17 +67,23 @@ class OutboxRelay
             $result = $this->inFreshCoroutine(function () use ($connection, $group): OutboxBatchResult {
                 try {
                     $queue = $this->queues->connection($connection);
-
-                    return $queue instanceof PublishesOutboxMessages
+                    $result = $queue instanceof PublishesOutboxMessages
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 
-                    return new OutboxBatchResult(failure: $exception);
+                    $result = new OutboxBatchResult(failure: $exception);
                 }
+
+                // Drivers and the sequential fallback may return cancellation, including a canceled child's, as a result failure.
+                if ($result->failure !== null && $this->shouldStopDelivery($result->failure)) {
+                    throw $result->failure;
+                }
+
+                return $result;
             });
             $duration = (hrtime(true) - $startedAt) / 1_000_000_000;
             $result = $this->validateResult($group, $result);
@@ -89,7 +95,7 @@ class OutboxRelay
 
                     return null;
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 
@@ -107,6 +113,14 @@ class OutboxRelay
         }
 
         return $successful;
+    }
+
+    /**
+     * Determine whether cancellation requires delivery to stop.
+     */
+    protected function shouldStopDelivery(Throwable $exception): bool
+    {
+        return $exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception);
     }
 
     /**
@@ -190,7 +204,7 @@ class OutboxRelay
                 try {
                     $this->events->dispatch($event);
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 

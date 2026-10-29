@@ -11,6 +11,7 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -24,6 +25,7 @@ use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
@@ -43,6 +45,7 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
@@ -724,6 +727,81 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
         $this->assertSame($exception, $events[2]->exception);
         $this->assertSame($exception, $events[3]->exception);
+    }
+
+    #[TestWith(['success'])]
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['wrapped'])]
+    public function testBulkInsertFailureListenerErrorReporting(string $reporting): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $exception = new RuntimeException('Insert failed.');
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andThrow($exception);
+
+        $listener = new RuntimeException('Listener failed.');
+        $failed = [];
+        $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $dispatcher->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $report = $handler->expects('report')->with($listener);
+        $reportingFailure = match ($reporting) {
+            'ordinary' => new RuntimeException('Reporting failed.'),
+            'cancellation' => new CanceledException,
+            'wrapped' => new RuntimeException('Reporting cleanup failed.', previous: new CanceledException),
+            default => null,
+        };
+        if ($reportingFailure !== null) {
+            $report->andThrow($reportingFailure);
+        }
+        $container->instance(ExceptionHandler::class, $handler);
+        $directory = ParallelTesting::tempDir('QueueDatabaseQueueReportingTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($directory);
+        $files->makeDirectory($directory, recursive: true);
+        $errorLog = $directory . '/errors.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+
+        try {
+            try {
+                $queue->bulk(['first', 'second'], queue: 'emails');
+                $this->fail('Expected the bulk insert to fail.');
+            } catch (Throwable $actual) {
+                $this->assertSame(in_array($reporting, ['cancellation', 'wrapped'], true) ? $reportingFailure : $exception, $actual);
+            }
+
+            if ($reporting === 'ordinary') {
+                $contents = $files->get($errorLog);
+                $this->assertStringContainsString('Listener failed.', $contents);
+                $this->assertStringContainsString('Reporting failed.', $contents);
+            } else {
+                $this->assertFileDoesNotExist($errorLog);
+            }
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertSame(['first', 'second'], $failed);
     }
 
     #[TestWith([false])]

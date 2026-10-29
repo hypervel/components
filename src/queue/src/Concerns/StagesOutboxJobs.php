@@ -193,11 +193,11 @@ trait StagesOutboxJobs
                 throw $exception;
             }
 
-            $failure = $this->notifyBatchMembers($prepared, function (array $member) use ($queue, $exception): void {
+            $this->notifyBatchMembersOfFailure($prepared, function (array $member) use ($queue, $exception): void {
                 $this->raiseJobQueueingFailedEvent($queue, $member['job'], $member['payload'], $member['delay'], $exception);
             });
 
-            throw $failure ?? $exception;
+            throw $exception;
         }
 
         return array_values($direct);
