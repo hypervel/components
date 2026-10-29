@@ -230,6 +230,15 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('query-middleware');
     }
 
+    public function testCanRegisterQueryRouteWithControllerAction(): void
+    {
+        $this->router->middleware('query-middleware')
+            ->query('users', RouteRegistrarControllerStub::class . '@index');
+
+        $this->seeResponse('controller', Request::create('users', 'QUERY'));
+        $this->seeMiddleware('query-middleware');
+    }
+
     public function testCanRegisterAnyRouteWithClosureAction(): void
     {
         $this->router->middleware('test-middleware')->any('users', function () {

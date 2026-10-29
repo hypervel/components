@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import hljs from 'highlight.js/lib/core';
 import php from 'highlight.js/lib/languages/php';
 
@@ -8,15 +8,11 @@ export default {
     props: ['lines', 'highlightedLine'],
 
     methods: {
-        highlight(line, number){
-            if (number == this.highlightedLine) {
-                return line;
-            }
-
+        highlight(line) {
             return hljs.highlight(line, { language: 'php' }).value;
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -24,7 +20,7 @@ export default {
         <p v-for="(line, number) in lines"
            :key="number"
            class="mb-0"
-           :class="{'highlight': number == highlightedLine}"><span class="mr-4">{{number}}</span> <span v-html="highlight(line, number)" /></p>
+           :class="{'highlight': number == highlightedLine}"><span class="me-4">{{number}}</span> <span v-if="number == highlightedLine">{{ line }}</span><span v-else v-html="highlight(line)" /></p>
     </pre>
 </template>
 

@@ -34,9 +34,11 @@ use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 
 class QueueRedisQueueTest extends TestCase
 {
@@ -198,10 +200,16 @@ class QueueRedisQueueTest extends TestCase
         $this->assertSame(['first', 'second'], $failed);
     }
 
-    #[DataProvider('enqueueMethods')]
-    public function testWrappedCancellationDoesNotRaiseFailureEvents(string $method): void
+    #[TestWith(['push', false])]
+    #[TestWith(['push', true])]
+    #[TestWith(['bulk', false])]
+    #[TestWith(['bulk', true])]
+    public function testCancellationDoesNotRaiseFailureEvents(string $method, bool $cleanupThrows): void
     {
-        $cancellation = new RuntimeException('Redis cleanup failed.', previous: new CanceledException);
+        $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Redis cleanup failed.', previous: $cancellation);
+        }
         $connection = $this->mockRedisProxyWithShaCache();
         $connection->expects('isCluster')->andReturnFalse();
         $connection->expects('evalWithShaCache')->andThrow($cancellation);
@@ -222,19 +230,11 @@ class QueueRedisQueueTest extends TestCase
         try {
             $method === 'bulk' ? $queue->bulk(['first', 'second']) : $queue->push('first');
             $this->fail('Expected the cancellation to propagate.');
-        } catch (RuntimeException $actual) {
+        } catch (Throwable $actual) {
             $this->assertSame($cancellation, $actual);
         }
 
         $this->assertSame(0, $failed);
-    }
-
-    /**
-     * Cover single and set-based enqueue failure paths.
-     */
-    public static function enqueueMethods(): array
-    {
-        return ['push' => ['push'], 'bulk' => ['bulk']];
     }
 
     public function testEmptyBulkDoesNotResolveRedis(): void

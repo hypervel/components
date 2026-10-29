@@ -4472,6 +4472,36 @@ class HttpClientTest extends TestCase
         $this->assertSame('https://example.com', (string) $effectiveUri);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPendingRequestIsReleasedWithoutGarbageCollectionAfterThrow(bool $withoutFactory): void
+    {
+        $body = str_repeat('x', 1024);
+        $this->factory->fake(['https://example.com' => $this->factory::response($body)]);
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $pendingRequest = $withoutFactory
+                ? (new PendingRequest)
+                    ->throwUnless(static fn (Response $response): bool => false)
+                    ->stub(static fn (): PromiseInterface => Factory::response($body))
+                : $this->factory->throw();
+            $response = $pendingRequest->get('https://example.com');
+
+            $this->assertSame($body, $response->body());
+
+            $reference = WeakReference::create($pendingRequest);
+            unset($pendingRequest);
+
+            $this->assertNull($reference->get());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
+    }
+
     public function testTransferStatsArePresentWhenFakingAnAsyncRequestUsingAPromiseResponse(): void
     {
         $this->factory->fake(['https://example.com' => $this->factory::response()]);
@@ -6010,31 +6040,6 @@ class HttpClientTest extends TestCase
         $this->expectException(ConnectionException::class);
 
         $this->factory->maxRedirects(1)->get('https://1.example.com');
-    }
-
-    public function testPendingRequestsAreFreedOnceUnset(): void
-    {
-        $garbageCollectionEnabled = gc_enabled();
-        gc_disable();
-
-        try {
-            $request = (new PendingRequest)
-                ->throwUnless(static fn (Response $response): bool => false)
-                ->stub(static fn (): PromiseInterface => Factory::response('ok'));
-
-            $reference = WeakReference::create($request);
-            $response = $request->post('http://localhost/memory-test');
-
-            $this->assertSame('ok', $response->body());
-
-            unset($request, $response);
-
-            $this->assertNull($reference->get());
-        } finally {
-            if ($garbageCollectionEnabled) {
-                gc_enable();
-            }
-        }
     }
 
     public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void

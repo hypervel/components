@@ -423,6 +423,57 @@ class SchemaBuilderTest extends DatabaseTestCase
         ));
     }
 
+    public function testGetColumnsWithUnknownTable(): void
+    {
+        Schema::create('foo', function (Blueprint $table) {
+            $table->id();
+            $table->string('bar')->nullable();
+        });
+
+        $columns = Schema::getColumns('baz');
+
+        $this->assertIsArray($columns);
+        $this->assertEmpty($columns);
+    }
+
+    public function testGetColumn(): void
+    {
+        Schema::create('foo', function (Blueprint $table) {
+            $table->id();
+            $table->string('bar')->nullable();
+            $table->string('baz')->default('test');
+        });
+
+        $column = Schema::getColumn('foo', 'bar');
+
+        $this->assertSame('bar', $column['name']);
+        $this->assertTrue($column['nullable']);
+    }
+
+    public function testGetColumnIsCaseInsensitive(): void
+    {
+        Schema::create('foo', function (Blueprint $table) {
+            $table->string('bar');
+            $table->string('Émail');
+        });
+
+        $this->assertSame('bar', Schema::getColumn('foo', 'BAR')['name']);
+        $this->assertSame('Émail', Schema::getColumn('foo', 'émail')['name']);
+    }
+
+    public function testGetColumnWithUnknownColumn(): void
+    {
+        Schema::create('foo', function (Blueprint $table) {
+            $table->id();
+            $table->string('bar')->nullable();
+        });
+
+        $column = Schema::getColumn('foo', 'baz');
+
+        $this->assertIsArray($column);
+        $this->assertEmpty($column);
+    }
+
     public function testGetColumnsOnView(): void
     {
         DB::statement('create view foo (bar) as select 1');
@@ -431,6 +482,25 @@ class SchemaBuilderTest extends DatabaseTestCase
 
         $this->assertCount(1, $columns);
         $this->assertSame('bar', $columns[0]['name']);
+    }
+
+    public function testGetColumnOnView(): void
+    {
+        DB::statement('create view foo (bar) as select 1');
+
+        $column = Schema::getColumn('foo', 'bar');
+
+        $this->assertSame('bar', $column['name']);
+    }
+
+    public function testGetColumnOnViewWithUnknownColumn(): void
+    {
+        DB::statement('create view foo (bar) as select 1');
+
+        $column = Schema::getColumn('foo', 'baz');
+
+        $this->assertIsArray($column);
+        $this->assertEmpty($column);
     }
 
     public function testGetIndexes(): void

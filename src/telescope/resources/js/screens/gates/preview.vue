@@ -1,24 +1,21 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-
+    mixins: [StylesMixin],
 
     data() {
         return {
             entry: null,
             batch: [],
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
     <preview-screen title="Gate Details" resource="gates" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Ability</td>
                 <td>
@@ -38,7 +35,7 @@ export default {
             <tr>
                 <td class="table-fit text-muted">Message</td>
                 <td>
-                    {{slotProps.entry.content.message}}
+                    {{ slotProps.entry.content.message }}
                 </td>
             </tr>
 
@@ -48,7 +45,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -62,6 +59,6 @@ export default {
                     </copy-clipboard>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

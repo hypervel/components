@@ -236,7 +236,7 @@ class RedisJobRepository implements JobRepository
     /**
      * Retrieve the jobs with the given IDs.
      */
-    public function getJobs(array $ids, mixed $indexFrom = 0): Collection
+    public function getJobs(array $ids, int $indexFrom = 0): Collection
     {
         $jobs = $this->pipeline(function ($pipe) use ($ids) {
             foreach ($ids as $id) {

@@ -17,7 +17,6 @@ use Hypervel\Queue\Events\OutboxBatchDeliveryFailed;
 use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OutboxRelay
@@ -71,9 +70,11 @@ class OutboxRelay
                     $result = $queue instanceof PublishesOutboxMessages
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $result = new OutboxBatchResult(failure: $exception);
                 }
 
@@ -93,9 +94,11 @@ class OutboxRelay
                     }
 
                     return null;
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     return $exception;
                 }
             });
@@ -192,9 +195,11 @@ class OutboxRelay
 
                 try {
                     $this->events->dispatch($event);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     $listenerFailure = $exception;
                 }
             }

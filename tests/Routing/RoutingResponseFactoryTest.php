@@ -15,8 +15,11 @@ use Hypervel\Routing\ResponseFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class RoutingResponseFactoryTest extends TestCase
 {
@@ -83,14 +86,23 @@ class RoutingResponseFactoryTest extends TestCase
         $this->assertSame(['invokable'], $chunks);
     }
 
-    public function testStreamKeepsOrdinaryCallbacksOnSymfonyResponse(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamKeepsOrdinaryCallbacksOnSymfonyResponse(bool $setCallbackLater): void
     {
-        $response = $this->factory()->stream(static function (): void {
+        $callback = static function (): void {
             echo 'callback';
-        });
+        };
+        $response = $this->factory()->stream($setCallbackLater ? null : $callback);
+
+        if ($setCallbackLater) {
+            $response->setCallback($callback);
+        }
 
         $this->assertInstanceOf(StreamedResponse::class, $response);
         $this->assertNotInstanceOf(IterableStreamedResponse::class, $response);
+        $this->expectOutputString('callback');
+        $response->sendContent();
     }
 
     public function testEventStreamStopsProducingAfterAFailedWrite(): void
@@ -158,26 +170,42 @@ class RoutingResponseFactoryTest extends TestCase
     }
 
     #[DataProvider('streamingFactoryMethods')]
-    public function testStreamingFactoriesPassCancellationThroughWithoutReportingOrWrapping(string $method): void
+    public function testStreamingFactoriesPassCancellationThroughWithoutReportingOrWrapping(string $method, bool $cleanupThrows): void
     {
         $failure = new CanceledException('response canceled');
+        $cleanup = new RuntimeException('cleanup failed');
         $handler = m::mock(ExceptionHandler::class);
         $handler->shouldNotReceive('report');
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
-        $callback = $method === 'eventStream'
-            ? static function () use ($failure): iterable {
-                yield 'first';
+        $operation = static function () use ($failure, $cleanup, $cleanupThrows): never {
+            try {
                 throw $failure;
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
             }
-        : static fn () => throw $failure;
+        };
+        $callback = $method === 'eventStream'
+            ? static function () use ($operation): iterable {
+                yield 'first';
+                $operation();
+            }
+        : $operation;
         $response = $this->factory()->{$method}($callback);
         $this->expectOutputString($method === 'eventStream' ? "event: update\ndata: first\n\n" : '');
+        $caught = null;
 
         try {
             $response->sendContent();
-            $this->fail('Expected response production to propagate cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($failure, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cleanupThrows ? $cleanup : $failure, $caught);
+
+        if ($cleanupThrows) {
+            $this->assertSame($failure, $cleanup->getPrevious());
         }
     }
 
@@ -186,7 +214,12 @@ class RoutingResponseFactoryTest extends TestCase
      */
     public static function streamingFactoryMethods(): array
     {
-        return [['eventStream'], ['streamDownload']];
+        return [
+            'event stream' => ['eventStream', false],
+            'event stream cleanup' => ['eventStream', true],
+            'download' => ['streamDownload', false],
+            'download cleanup' => ['streamDownload', true],
+        ];
     }
 
     private function factory(): ResponseFactory

@@ -2,14 +2,18 @@
     export default {
         data() {
             return {
-                loading: 0,
+                loading: false,
                 lastExecutionTime: 0,
                 pollingInterval: null,
-            }
+            };
         },
 
-
         props: {
+            callback: {
+                type: Function,
+                required: true,
+            },
+
             interval: {
                 type: Number,
                 default: 3,
@@ -23,9 +27,8 @@
             immediate: {
                 type: Boolean,
                 default: true,
-            }
+            },
         },
-
 
         beforeMount() {
             this.updatePollingInterval();
@@ -35,15 +38,13 @@
             }
         },
 
-
         mounted() {
             this.createListener();
 
             if (!this.keepAlive) {
-                document.addEventListener('visibilitychange', this.visibilitychangeListener = this.changedVisibility);
+                document.addEventListener('visibilitychange', (this.visibilitychangeListener = this.changedVisibility));
             }
         },
-
 
         beforeUnmount() {
             this.removeListener();
@@ -53,19 +54,23 @@
             }
         },
 
-
         methods: {
-            emitPoll() {
+            async emitPoll() {
                 if (this.loading) {
                     return;
                 }
 
-                this.loading++;
-                this.$emit('poll');
-                this.loading--;
+                this.loading = true;
                 this.lastExecutionTime = Date.now();
-            },
 
+                try {
+                    await this.callback();
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    this.loading = false;
+                }
+            },
 
             removeListener() {
                 if (this.poll) {
@@ -75,13 +80,11 @@
                 }
             },
 
-
             createListener() {
                 this.poll = setInterval(() => {
                     this.emitPoll();
                 }, this.pollingInterval);
             },
-
 
             updatePollingInterval() {
                 if (this.keepAlive) {
@@ -97,22 +100,20 @@
                 }
             },
 
-
             changedVisibility() {
                 this.updatePollingInterval();
                 this.removeListener();
                 this.createListener();
 
                 // throttling
-                if ((Date.now() - this.lastExecutionTime) >= this.pollingInterval) {
+                if (Date.now() - this.lastExecutionTime >= this.pollingInterval) {
                     this.emitPoll();
                 }
             },
         },
 
-
-        render(h) {
+        render() {
             return null;
-        }
-    }
+        },
+    };
 </script>

@@ -366,6 +366,38 @@ class FilesystemTest extends TestCase
         $this->assertFalse($files->deleteDirectory($this->tempDir . '/bar/file.txt'));
     }
 
+    public function testDeleteDirectoryReturnsFalseWhenAnotherProcessRemovesItAfterTheCheck(): void
+    {
+        $directory = $this->tempDir . '/removed-by-another-process';
+        mkdir($directory);
+        $files = new class extends Filesystem {
+            private bool $checked = false;
+
+            /**
+             * Remove the directory after reading its initial metadata.
+             */
+            public function isDirectory(string $directory): bool
+            {
+                $exists = parent::isDirectory($directory);
+
+                if (! $this->checked) {
+                    $this->checked = true;
+                    // In-process removal clears PHP's stat cache and would hide the race.
+                    exec('rmdir ' . escapeshellarg($directory), $output, $status);
+
+                    if ($status !== 0) {
+                        throw new RuntimeException('The external directory removal failed.');
+                    }
+                }
+
+                return $exists;
+            }
+        };
+
+        $this->assertFalse($files->deleteDirectory($directory));
+        $this->assertDirectoryDoesNotExist($directory);
+    }
+
     public function testDeleteDirectoryReportsFailureAfterAttemptingEveryEntry(): void
     {
         $directory = $this->tempDir . '/exhaustive-delete';

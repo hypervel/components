@@ -15,15 +15,16 @@ Set `OPENAI_API_KEY` in `workbench/.env` before sending prompts. Live prompts us
 
 ## Browser
 
-Build the frontend, then start the server:
+Install the shared frontend dependencies and build the demo from the components repository root:
 
 ```sh
-npm --prefix workbench ci
-npm --prefix workbench run build
-composer serve
+pnpm install --frozen-lockfile
+pnpm build:ai-workbench
 ```
 
-Open <http://127.0.0.1:8000/chat>. For frontend development, run `npm --prefix workbench run dev` in another terminal instead of building the assets.
+Use the Node.js and pnpm versions declared in the root `package.json`, or run these commands through Vite+ as described in the [contribution guide](../../src/docs/contributions.md#compiled-assets). Frontend dependencies are maintained in the root workspace and lockfile.
+
+Start the server with `composer serve` from `dogfood/ai`, then open <http://127.0.0.1:8000/chat>. For frontend development, run `pnpm --dir dogfood/ai/workbench dev` from the repository root in another terminal instead of building the assets.
 
 The server listens locally by default. The demo uses a shared sample user and has no authentication; it is intended for local development. Conversations are stored in `workbench/database/database.sqlite` and survive server restarts.
 

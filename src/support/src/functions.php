@@ -88,6 +88,7 @@ function milliseconds(int|float $milliseconds): CarbonInterval
  */
 function seconds(int|float $seconds): CarbonInterval
 {
+    // Build durations numerically: CarbonInterval::make() rejects floats printed in scientific notation.
     if (is_int($seconds)) {
         return CarbonInterval::seconds($seconds);
     }

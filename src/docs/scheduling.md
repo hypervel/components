@@ -392,6 +392,19 @@ Schedule::command('report:generate')
     ->onOneServer();
 ```
 
+To apply `onOneServer` to all scheduled tasks, you may call the `alwaysOnOneServer` method in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Console\Scheduling\Schedule;
+
+public function boot(): void
+{
+    Schedule::alwaysOnOneServer();
+}
+```
+
+Scheduled callbacks without a [name](#naming-unique-jobs), including closures and invokable objects, are excluded and will continue to run on every server.
+
 You may use the `useCache` method to override the configured cache store used by the scheduler to obtain the atomic locks necessary for single-server tasks:
 
 ```php
@@ -576,7 +589,7 @@ Schedule::command('users:delete')->everyTenSeconds()->runInBackground();
 
 When the long-running `schedule:run` process receives `SIGTERM`, `SIGINT`, or `SIGQUIT`, it stops starting new tasks and waits for running tasks to finish. A second termination signal stops the process immediately and releases its owned overlap locks, unless the task disables `releaseOnTerminationSignals`. Configure your process manager's shutdown timeout to allow your longest task to finish. A forced `SIGKILL` cannot release overlap locks; they remain until they expire or you run `schedule:clear-cache`.
 
-When deploying your application, you may also use `schedule:interrupt` to stop the scheduler so that the next invocation picks up your newly deployed code. This command writes a flag to the cache that `schedule:run` polls. After detecting the flag, the scheduler finishes the current set of due events and waits for running background tasks before exiting.
+When deploying your application, you may also use `schedule:interrupt` to stop the scheduler so that the next invocation picks up your newly deployed code. This command records an interruption timestamp in the cache. Schedulers started before the interruption finish the current set of due events and wait for running background tasks before exiting. Schedulers started afterward are unaffected.
 
 This command should be invoked after your application is finished deploying:
 
@@ -584,13 +597,23 @@ This command should be invoked after your application is finished deploying:
 php artisan schedule:interrupt
 ```
 
-By default, the interrupt flag expires after one minute. You may use the `--minutes` option to extend this window if your deployment process takes longer:
+Long-running scheduled commands may check for an interruption between units of work using `Schedule::hasBeenInterruptedSince`. Record the command's start time and pass it to this method:
 
-```shell
-php artisan schedule:interrupt --minutes=5
+```php
+use Hypervel\Support\Facades\Schedule;
+
+$startedAt = now();
+
+foreach ($items as $item) {
+    if (Schedule::hasBeenInterruptedSince($startedAt)) {
+        break;
+    }
+
+    // Process the item...
+}
 ```
 
-If you do not want the scheduler to poll for pause or interrupt flags, call `Schedule::withoutInterruptionPolling()` during boot. The `schedule:pause` command will then fail instead of pausing the scheduler. Operating-system termination signals still stop the scheduler.
+If you do not want the scheduler to poll for pause or interrupt signals, call `Schedule::withoutInterruptionPolling()` during boot. The `schedule:pause` command will then fail instead of pausing the scheduler, and `Schedule::hasBeenInterruptedSince` will return `false`. Operating-system termination signals still stop the scheduler.
 
 <a name="running-the-scheduler-locally"></a>
 ### Running the Scheduler Locally

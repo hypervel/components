@@ -23,6 +23,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -254,22 +255,49 @@ class OutboxRelayTest extends TestCase
         return [[false], [true]];
     }
 
-    public function testIndependentPhaseCancellationReleasesResourcesAndStopsWithoutSettlement(): void
+    #[TestWith(['sequential', false])]
+    #[TestWith(['sequential', true])]
+    #[TestWith(['publication', true])]
+    #[TestWith(['settlement', true])]
+    #[TestWith(['notification', true])]
+    public function testIndependentPhaseCancellationReleasesResourcesAndStopsDelivery(string $phase, bool $cleanupThrows): void
     {
         $repository = m::mock(DatabaseOutboxRepository::class);
         $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class);
+        $queue = m::mock($phase === 'sequential' ? Queue::class : Queue::class . ', ' . PublishesOutboxMessages::class);
         $exceptions = m::mock(ExceptionHandler::class);
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Phase cleanup failed.', previous: $cancellation);
+        }
         $released = false;
         $queues->expects('connection')->andReturn($queue);
-        $queue->expects('pushRaw')->andReturnUsing(static function () use ($cancellation, &$released): never {
+        $cancel = static function () use ($cancellation, &$released): never {
             Coroutine::defer(static function () use (&$released): void { $released = true; });
             throw $cancellation;
-        });
+        };
+        $events = new Dispatcher;
+
+        if ($phase === 'sequential') {
+            $queue->expects('pushRaw')->andReturnUsing($cancel);
+        } elseif ($phase === 'publication') {
+            $queue->expects('publishOutboxMessages')->andReturnUsing($cancel);
+        } else {
+            $queue->expects('publishOutboxMessages')->andReturn(new OutboxBatchResult([1]));
+            if ($phase === 'settlement') {
+                $repository->expects('settle')->andReturnUsing($cancel);
+            } else {
+                $repository->expects('settle')->andReturn(1);
+                $events->listen(OutboxBatchDelivered::class, $cancel);
+            }
+        }
+        $messages = [$this->message(1)];
+        if ($phase !== 'notification') {
+            $messages[] = $this->message(2, 'other');
+        }
 
         try {
-            (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2, 'other')]);
+            (new OutboxRelay($repository, $queues, $events, $exceptions))->deliver('primary', $messages);
             $this->fail('Child cancellation must stop delivery.');
         } catch (ChildCancellationException $exception) {
             $this->assertSame($cancellation, $exception->getPrevious());

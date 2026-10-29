@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
@@ -338,6 +341,32 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(2.5, $result->items()[0]->score);
     }
 
+    public function testCursorPaginationUsesTheBinaryPivotCast(): void
+    {
+        Schema::table('test_post_user', function (Blueprint $table): void {
+            $table->binary('position', length: 16, fixed: true)->nullable();
+        });
+        $user = TestUser::create();
+
+        foreach ([1, 2, 3] as $position) {
+            $post = TestPost::create();
+            DB::table('test_post_user')->insert([
+                'user_id' => $user->id,
+                'post_id' => $post->id,
+                'position' => new BinaryParameter(hex2bin(str_pad((string) $position, 32, '0', STR_PAD_LEFT))),
+            ]);
+        }
+
+        $relation = fn (): BelongsToMany => $user->favoritePosts()
+            ->using(CursorBinaryPivot::class)
+            ->withPivot('position')
+            ->orderBy('test_post_user.position');
+        $first = $relation()->cursorPaginate(2);
+        $next = $relation()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
+
+        $this->assertSame([3], $next->pluck('id')->all());
+    }
+
     public function testRelationsAcceptCursorObjects(): void
     {
         TestOwner::fillAndInsert([[]]);
@@ -388,6 +417,11 @@ class TestUser extends Model
     {
         return $this->belongsToMany(TestPost::class, 'test_post_user', 'user_id', 'post_id');
     }
+}
+
+class CursorBinaryPivot extends Pivot
+{
+    protected array $casts = ['position' => AsBinary::class . ':uuid'];
 }
 
 class TestOwner extends Model

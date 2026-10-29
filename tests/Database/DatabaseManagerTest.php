@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Closure;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\PdoConnection;
@@ -37,6 +42,42 @@ class DatabaseManagerTest extends TestCase
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
+    }
+
+    public function testSetDefaultConnectionAcceptsEnums(): void
+    {
+        $container = new Container;
+        $config = new Repository(['database' => ['default' => 'sqlite']]);
+        $container->instance('config', $config);
+
+        $manager = new DatabaseManager($container, m::mock(ConnectionFactory::class));
+
+        $manager->setDefaultConnection(DatabaseManagerTestBackedConnection::Reporting);
+
+        $this->assertSame('reporting', $manager->getDefaultConnection());
+        $this->assertSame('reporting', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
+        $this->assertSame('sqlite', $config->get('database.default'));
+
+        $manager->setDefaultConnection(DatabaseManagerTestUnitConnection::analytics);
+
+        $this->assertSame('analytics', $manager->getDefaultConnection());
+
+        $manager->setDefaultConnection(DatabaseManagerConnectionName::Zero);
+
+        $this->assertSame('0', $manager->getDefaultConnection());
+    }
+
+    public function testUsingConnectionAcceptsEnumsAndRestoresTheDefaultConnection(): void
+    {
+        $container = new Container;
+        $container->instance('config', new Repository(['database' => ['default' => 'sqlite']]));
+
+        $manager = new DatabaseManager($container, m::mock(ConnectionFactory::class));
+
+        $default = $manager->usingConnection(DatabaseManagerTestBackedConnection::Reporting, fn (): ?string => $manager->getDefaultConnection());
+
+        $this->assertSame('reporting', $default);
+        $this->assertSame('sqlite', $manager->getDefaultConnection());
     }
 
     public function testReconnectorAcceptsArrayCallable(): void
@@ -687,6 +728,16 @@ class DatabaseManagerTest extends TestCase
         $statement = $pdo->prepare('insert into users (name) values (?)');
         $statement->execute([$name]);
     }
+}
+
+enum DatabaseManagerTestBackedConnection: string
+{
+    case Reporting = 'reporting';
+}
+
+enum DatabaseManagerTestUnitConnection
+{
+    case analytics;
 }
 
 enum DatabaseManagerConnectionName: int

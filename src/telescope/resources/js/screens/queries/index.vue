@@ -1,22 +1,20 @@
-<script type="text/ecmascript-6">
-export default {}
-</script>
-
 <template>
     <index-screen title="Queries" resource="queries">
-        <tr slot="table-header">
-            <th scope="col">Query</th>
-            <th scope="col" class="text-right">Duration</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Query</th>
+                <th scope="col" class="text-end">Duration</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td :title="slotProps.entry.content.sql">
                 <code>{{ truncate(slotProps.entry.content.sql, 90) }}</code>
             </td>
 
-            <td class="table-fit text-right text-muted">
+            <td class="table-fit text-end text-muted">
                 <span class="badge badge-danger" v-if="slotProps.entry.content.slow">
                     {{ slotProps.entry.content.time }}ms
                 </span>

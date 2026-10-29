@@ -75,7 +75,7 @@ jobs:
         working-directory: dogfood/ai
         run: vendor/bin/testbench package:test --no-progress
 
-  wayfinder_tests:
+  javascript_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
@@ -90,45 +90,47 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
       - name: Install Composer dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Vite+ and install dependencies
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
-          node-version: 24
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args: ['--frozen-lockfile']
 
-      - name: Install pnpm
+      - name: Check frontend source
+        run: vp run check
+
+      - name: Build frontend assets
+        run: vp run build
+
+      - name: Check committed frontend assets
         run: |
-          corepack enable
-          corepack prepare pnpm@12.10.1 --activate
+          asset_changes=$(git status --porcelain --untracked-files=all -- \
+            src/horizon/dist src/telescope/dist \
+            src/foundation/resources/exceptions/renderer/dist \
+            src/workbench/public/build src/mcp/resources/js/mcp-sdk.min.js)
+          if [ -n "$asset_changes" ]; then
+            printf '%s\n' "$asset_changes"
+            echo 'Compiled assets are out of date. Run pnpm build from the repository root.'
+            echo 'See the Compiled Assets section in src/docs/contributions.md. A maintainer must commit rebuilt assets before merging.'
+            exit 1
+          fi
 
-      - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run MCP browser SDK tests
-        run: pnpm test:mcp
-
-      - name: Run Wayfinder tests
-        run: pnpm test:wayfinder
+      - name: Run JavaScript tests
+        run: vp test
 
       - name: Run Wayfinder tests against cached routes
-        run: pnpm test:wayfinder:cached
+        run: vp run test:wayfinder:cached
 
       - name: Type-check generated Wayfinder output
-        run: pnpm typecheck:wayfinder
-
-      # Telescope's dashboard is a standalone npm package whose devEngines require npm 11.10 or newer.
-      - name: Install npm for Telescope
-        run: npm install --global npm@11.21.0
-
-      - name: Install Telescope dependencies
-        working-directory: src/telescope
-        run: npm ci
-
-      - name: Run Telescope dashboard tests
-        working-directory: src/telescope
-        run: npm test
+        run: vp run typecheck:wayfinder

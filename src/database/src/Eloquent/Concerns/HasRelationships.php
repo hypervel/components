@@ -476,18 +476,14 @@ trait HasRelationships
      * Create a pending has-many-through or has-one-through relationship.
      *
      * @template TIntermediateModel of Model
+     * @template TLocalRelationship of HasOneOrMany<TIntermediateModel, $this, *>
      *
-     * @param HasMany<TIntermediateModel, covariant $this>|HasOne<TIntermediateModel, covariant $this>|string $relationship
+     * @param string|TLocalRelationship $relationship
      * @return (
      *     $relationship is string
      *     ? PendingHasThroughRelationship<Model, $this, HasOneOrMany<Model, $this, *>>
-     *     : (
-     *          $relationship is HasMany<TIntermediateModel, $this>
-     *          ? PendingHasThroughRelationship<TIntermediateModel, $this, HasMany<TIntermediateModel, $this>>
-     *          : PendingHasThroughRelationship<TIntermediateModel, $this, HasOne<TIntermediateModel, $this>>
-     *     )
+     *     : PendingHasThroughRelationship<TIntermediateModel, $this, TLocalRelationship>
      * )
-     * @phpstan-ignore conditionalType.alwaysFalse (template covariance limitation with conditional return types)
      */
     public function through(string|HasOneOrMany $relationship): PendingHasThroughRelationship
     {

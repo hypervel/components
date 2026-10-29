@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
@@ -18,6 +20,30 @@ use RuntimeException;
 
 class DatabaseQueryBuilderPaginationTest extends TestCase
 {
+    public function testBinaryStringsCanBePagedUsingAnExplicitCursorAlias(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table files (hash blob primary key)');
+        $hashes = [pack('N', 1), pack('N', 2), pack('N', 3)];
+
+        foreach ($hashes as $hash) {
+            $connection->table('files')->insert(['hash' => new BinaryParameter($hash)]);
+        }
+
+        $actual = [];
+        $connection->table('files')->afterQuery(function (Collection $rows): void {
+            foreach ($rows as $row) {
+                $row->cursor = new BinaryParameter($row->hash);
+            }
+        })->chunkById(2, function (Collection $rows) use (&$actual): bool {
+            array_push($actual, ...$rows->pluck('hash')->all());
+
+            return count($actual) < 4;
+        }, 'hash', 'cursor');
+
+        $this->assertSame($hashes, $actual);
+    }
+
     #[DataProvider('readWriteRouting')]
     public function testGroupedCountsPreserveReadWriteRouting(bool $useWritePdo, int $expectedCount): void
     {

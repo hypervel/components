@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import Controllers from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers";
 import barrelAlias from "./.generated/routes/barrel-alias";
 import collision from "./.generated/routes/collision";
@@ -91,9 +91,7 @@ test("uses explicit namespace imports without no-op object assignment", () => {
         "utf8",
     );
 
-    expect(controllers).toContain(
-        'from "./BarrelCollisionController/index"',
-    );
+    expect(controllers).toContain('from "./BarrelCollisionController/index"');
     expect(controllers).toContain(
         'from "./ReverseBarrelCollisionController/index"',
     );

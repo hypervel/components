@@ -20,7 +20,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SqsOutboxPublicationTest extends TestCase
 {
@@ -63,11 +66,18 @@ class SqsOutboxPublicationTest extends TestCase
         return [[null, false, null], [0, false, 0], [-30, false, 0], [30, false, 30], [1000, false, 900], [0, true, null]];
     }
 
-    public function testBatchSizeLimitsAndLaterSdkFailureRetainEarlierConfirmation(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['cleanup'])]
+    public function testBatchSizeLimitsAndLaterSdkFailureRetainEarlierConfirmation(string $failureType): void
     {
         $client = m::mock(SqsClient::class);
         $queue = new SqsQueue($client, 'orders');
-        $failure = new RuntimeException('SDK retries exhausted.');
+        $failure = match ($failureType) {
+            'cancellation' => new CanceledException,
+            'cleanup' => new RuntimeException('SDK cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('SDK retries exhausted.'),
+        };
         $calls = 0;
         $client->expects('sendMessageBatch')->twice()->andReturnUsing(function (array $arguments) use (&$calls, $failure): Result {
             if (++$calls === 2) {
@@ -80,8 +90,16 @@ class SqsOutboxPublicationTest extends TestCase
             return new Result(['Successful' => array_map(static fn (array $entry): array => ['Id' => $entry['Id'], 'MessageId' => 'sqs-' . $entry['Id']], $arguments['Entries'])]);
         });
 
-        $result = $queue->publishOutboxMessages(array_map(fn (int $id): OutboxMessage => $this->message($id), range(1, 11)));
+        try {
+            $result = $queue->publishOutboxMessages(array_map(fn (int $id): OutboxMessage => $this->message($id), range(1, 11)));
+        } catch (Throwable $exception) {
+            $this->assertNotSame('ordinary', $failureType);
+            $this->assertSame($failure, $exception);
 
+            return;
+        }
+
+        $this->assertSame('ordinary', $failureType, 'Cancellation must propagate instead of returning a batch result.');
         $this->assertSame(range(1, 10), $result->accepted);
         $this->assertSame($failure, $result->failure);
     }

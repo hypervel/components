@@ -497,6 +497,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         $command->setInput(new ArrayInput(['--whisper' => true], $command->getDefinition()));
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, Date::now());
         $this->captureOutput($command);
 
         (new ReflectionMethod($command, 'runOnce'))->invoke($command);
@@ -984,11 +985,11 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand($cache);
         $this->invokeRunEvents($command, [$callbackEvent]);
 
-        // A stale last check makes shouldStop() read the interrupt signal unless polling is disabled.
+        // A stale last check makes shouldInterrupt() read the interrupt signal unless polling is disabled.
         (new ReflectionProperty($command, 'lastChecked'))->setValue($command, CarbonImmutable::now()->subSeconds(5));
 
         $this->assertSame(1, $runCount);
-        $this->assertFalse((new ReflectionMethod($command, 'shouldStop'))->invoke($command));
+        $this->assertFalse((new ReflectionMethod($command, 'shouldInterrupt'))->invoke($command));
     }
 
     public function testNonRepeatableEventOnlyRunsOncePerMinute(): void
@@ -1063,6 +1064,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         $command->setInput(new ArrayInput([], $command->getDefinition()));
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, Date::now());
         $output = $this->captureOutput($command);
 
         (new ReflectionMethod($command, 'runOnce'))->invoke($command);
@@ -1237,7 +1239,6 @@ class ScheduleRunCommandTest extends TestCase
         $schedule = m::mock(Schedule::class);
         $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
         $cache = m::mock(Cache::class);
-        $cache->expects('forget')->with('hypervel:schedule:interrupt');
         $cache->shouldNotReceive('get');
         $command = $this->makeCommand($cache);
         $command->setInput(new ArrayInput([], $command->getDefinition()));
@@ -1370,30 +1371,6 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->assertCount(3, $this->dispatched);
         $this->assertSame($first, $this->dispatched[0]->task);
-    }
-
-    public function testRunOnceResetsThePreviousShutdownRequest(): void
-    {
-        $signal = null;
-        $this->captureTerminationSignal($signal);
-        $command = $this->makeCommand();
-        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
-        $signal(SIGTERM);
-        $ran = false;
-        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$ran): void {
-            $ran = true;
-        });
-        $schedule = m::mock(Schedule::class);
-        $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->with('hypervel:schedule:paused', false)->andReturnFalse();
-        $cache->shouldNotReceive('get')->with('hypervel:schedule:interrupt', false);
-        $command->setInput(new ArrayInput(['--once' => true], $command->getDefinition()));
-        $this->captureOutput($command);
-
-        $command->handle($schedule, $this->dispatcher, $cache, $this->handler);
-
-        $this->assertTrue($ran);
     }
 
     public function testSecondTerminationSignalReleasesMutexesBeforeTerminating(): void

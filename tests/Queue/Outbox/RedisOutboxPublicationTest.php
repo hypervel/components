@@ -22,8 +22,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisOutboxPublicationTest extends TestCase
 {
@@ -57,15 +59,30 @@ class RedisOutboxPublicationTest extends TestCase
         return [[false], [true]];
     }
 
-    public function testLaterDestinationFailurePreservesEarlierConfirmation(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['cleanup'])]
+    public function testLaterDestinationFailurePreservesEarlierConfirmation(string $failureType): void
     {
         [$queue, $connection] = $this->queue();
-        $failure = new RuntimeException('Redis connection lost.');
+        $failure = match ($failureType) {
+            'cancellation' => new CanceledException,
+            'cleanup' => new RuntimeException('Redis cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('Redis connection lost.'),
+        };
         $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:first')->andReturn(1);
         $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:second')->andThrow($failure);
 
-        $result = $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second'), $this->message(3, 'third')]);
+        try {
+            $result = $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second'), $this->message(3, 'third')]);
+        } catch (Throwable $exception) {
+            $this->assertNotSame('ordinary', $failureType);
+            $this->assertSame($failure, $exception);
 
+            return;
+        }
+
+        $this->assertSame('ordinary', $failureType, 'Cancellation must propagate instead of returning a batch result.');
         $this->assertSame([1], $result->accepted);
         $this->assertSame($failure, $result->failure);
     }
@@ -130,10 +147,12 @@ class RedisOutboxPublicationTest extends TestCase
         $events->listen(JobPushed::class, static fn () => throw $cancellation);
         $connection->expects('evalWithShaCache')->once()->andReturn(1);
 
-        $result = $queue->publishOutboxMessages([$this->message(1), $this->message(2, 'other')]);
-
-        $this->assertSame([1], $result->accepted);
-        $this->assertSame($cancellation, $result->failure);
+        try {
+            $queue->publishOutboxMessages([$this->message(1), $this->message(2, 'other')]);
+            $this->fail('Expected observer cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     /**

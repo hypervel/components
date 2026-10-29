@@ -25,6 +25,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -571,10 +572,16 @@ class ServerTest extends TestCase
         ], $order);
     }
 
-    public function testOnRequestSkipsFallbackEmissionAndTerminationAfterCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOnRequestSkipsFallbackEmissionAndTerminationAfterCancellation(bool $chained): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $cancellation = new CanceledException;
+
+        if ($chained) {
+            $cancellation = new RuntimeException('cleanup failed', previous: $cancellation);
+        }
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')->once()->andThrow($cancellation);
@@ -600,21 +607,17 @@ class ServerTest extends TestCase
         $swooleResponse->shouldReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end')->never();
 
         $caughtCancellation = null;
-        $failure = null;
         $completed = new Channel(1);
         $requestCoroutine = EngineCoroutine::create(function () use (
             $completed,
             $server,
             $swooleResponse,
             &$caughtCancellation,
-            &$failure,
         ): void {
             try {
                 $server->onRequest($this->createSwooleRequest(), $swooleResponse);
-            } catch (CanceledException $exception) {
+            } catch (Throwable $exception) {
                 $caughtCancellation = $exception;
-            } catch (Throwable $throwable) {
-                $failure = $throwable;
             } finally {
                 $completed->push(true);
             }
@@ -622,7 +625,6 @@ class ServerTest extends TestCase
 
         try {
             $this->assertTrue($completed->pop(1));
-            $this->assertNull($failure);
             $this->assertSame($cancellation, $caughtCancellation);
             $this->assertSame([], $dispatchedEvents);
             $this->assertFalse(RequestContext::has());
@@ -637,9 +639,15 @@ class ServerTest extends TestCase
     public function testOnRequestStopsAtCancellationDuringFinalization(
         string $stage,
         array $expectedOrder,
+        bool $chained,
     ): void {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $cancellation = new CanceledException;
+
+        if ($chained) {
+            $cancellation = new RuntimeException('cleanup failed', previous: $cancellation);
+        }
+
         $order = [];
 
         $kernel = m::mock(KernelContract::class);
@@ -700,23 +708,29 @@ class ServerTest extends TestCase
                 });
         }
 
+        $caught = null;
+
         try {
             $server->onRequest($this->createSwooleRequest(), $swooleResponse);
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertSame($expectedOrder, $order);
     }
 
     public static function lifecycleCancellationStages(): array
     {
         return [
-            'handled listener' => ['handled', ['handled']],
-            'response send' => ['send', ['handled']],
-            'sent listener' => ['sent', ['handled', 'sent']],
-            'termination' => ['terminate', ['handled', 'sent', 'terminate']],
+            'handled listener' => ['handled', ['handled'], false],
+            'response send' => ['send', ['handled'], false],
+            'sent listener' => ['sent', ['handled', 'sent'], false],
+            'termination' => ['terminate', ['handled', 'sent', 'terminate'], false],
+            'handled listener cleanup' => ['handled', ['handled'], true],
+            'response send cleanup' => ['send', ['handled'], true],
+            'sent listener cleanup' => ['sent', ['handled', 'sent'], true],
+            'termination cleanup' => ['terminate', ['handled', 'sent', 'terminate'], true],
         ];
     }
 

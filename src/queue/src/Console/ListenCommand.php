@@ -23,7 +23,7 @@ class ListenCommand extends Command
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
                             {--backoff=0 : The number of seconds to wait before retrying a job that encountered an uncaught exception}
                             {--force : Force the worker to run even in maintenance mode}
-                            {--memory=128 : The memory limit in megabytes}
+                            {--memory=128 : The memory limit in megabytes, or as a percentage of the PHP memory limit}
                             {--queue= : The queue to listen on}
                             {--sleep=3 : The number of seconds to sleep when no job is available}
                             {--rest=0 : The number of seconds to rest between jobs}
@@ -97,7 +97,7 @@ class ListenCommand extends Command
             name: $this->option('name'),
             environment: $this->option('env'),
             backoff: (int) $backoff,
-            memory: (int) $this->option('memory'),
+            memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),
             maxTries: (int) $this->option('tries'),

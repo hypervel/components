@@ -7,6 +7,7 @@ namespace Hypervel\Database\Concerns;
 use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
@@ -205,7 +206,7 @@ trait BuildsQueries
                 return false;
             }
 
-            $lastId = data_get($results->last(), $alias);
+            $lastId = $this->getNextPageIdFromChunk($results->last(), $column, $alias);
 
             if ($lastId === null) {
                 throw new RuntimeException("The chunkById operation was aborted because the [{$alias}] column is not present in the query result.");
@@ -282,6 +283,8 @@ trait BuildsQueries
                 if ($countResults < $chunkSize) {
                     return;
                 }
+
+                unset($results);
 
                 ++$page;
             }
@@ -366,15 +369,70 @@ trait BuildsQueries
                     return;
                 }
 
-                $lastId = data_get($results->last(), $alias);
+                $lastId = $this->getNextPageIdFromChunk($results->last(), $column, $alias);
 
                 if ($lastId === null) {
                     throw new RuntimeException("The lazyById operation was aborted because the [{$alias}] column is not present in the query result.");
                 }
 
+                unset($results);
+
                 ++$page;
             }
         });
+    }
+
+    /**
+     * Get the ID of the last result of a chunk to continue paging from.
+     */
+    protected function getLastIdFromChunk(mixed $result, string $alias): mixed
+    {
+        if (! $result instanceof Model) {
+            return data_get($result, $alias);
+        }
+
+        // Callbacks and accessors can provide cursor aliases that are not selected columns.
+        return array_key_exists($alias, $original = $result->getRawOriginal())
+            ? $original[$alias]
+            : data_get($result, $alias);
+    }
+
+    /**
+     * Prepare the last chunk ID for comparison with the paging column.
+     */
+    protected function getNextPageIdFromChunk(mixed $result, string $column, string $alias): mixed
+    {
+        $lastId = $this->getLastIdFromChunk($result, $alias);
+
+        if (! $result instanceof Model) {
+            return $lastId;
+        }
+
+        // Either the selected alias or the model's paging column can declare binary binding intent.
+        $attribute = $this->getPagingAttribute($result, $column);
+        $lastId = $result->prepareBinaryAttributesForDatabase([$alias => $lastId])[$alias];
+
+        return $result->prepareBinaryAttributesForDatabase([$attribute => $lastId])[$attribute];
+    }
+
+    /**
+     * Get the model attribute behind a qualified paging column.
+     */
+    protected function getPagingAttribute(Model $model, string $column): string
+    {
+        if ($model->hasCast($column)) {
+            return $column;
+        }
+
+        $prefixes = [$model->getTable() . '.'];
+
+        $query = $this instanceof Builder ? $this->getQuery() : $this;
+
+        if (($alias = $query->getFromAlias()) !== null) {
+            $prefixes[] = $alias . '.';
+        }
+
+        return Str::chopStart($column, $prefixes);
     }
 
     /**
@@ -454,8 +512,9 @@ trait BuildsQueries
             // Reset the union bindings so we can add the cursor where in the correct position...
             $this->setBindings([], 'union');
 
-            $addCursorConditions = function (self $builder, $previousColumn, $originalColumn, $i) use (&$addCursorConditions, $cursor, $orders) {
-                $unionBuilders = $builder->getUnionBuilders();
+            $addCursorConditions = function (QueryBuilder|Builder $builder, $previousColumn, $originalColumn, $i) use (&$addCursorConditions, $cursor, $orders) {
+                // Unions are base queries; the other builder family only appears in nested constraints without unions.
+                $unionBuilders = $builder instanceof self ? $builder->getUnionBuilders() : new Collection;
 
                 if (! is_null($previousColumn)) {
                     $originalColumn ??= $this->getOriginalColumnNameForCursorPagination($this, $previousColumn);
@@ -463,21 +522,21 @@ trait BuildsQueries
                     $builder->where(
                         Str::contains($originalColumn, ['(', ')']) ? new Expression($originalColumn) : $originalColumn,
                         '=',
-                        $cursor->parameter($previousColumn)
+                        $this->getCursorParameterBinding($cursor, $previousColumn)
                     );
 
                     $unionBuilders->each(function ($unionBuilder) use ($previousColumn, $cursor) {
                         $unionBuilder->where(
                             $this->getOriginalColumnNameForCursorPagination($unionBuilder, $previousColumn),
                             '=',
-                            $cursor->parameter($previousColumn)
+                            $this->getCursorParameterBinding($cursor, $previousColumn)
                         );
 
                         $this->addBinding($unionBuilder->getRawBindings()['where'], 'union');
                     });
                 }
 
-                $builder->where(function (self $secondBuilder) use ($addCursorConditions, $cursor, $orders, $i, $unionBuilders) {
+                $builder->where(function (QueryBuilder|Builder $secondBuilder) use ($addCursorConditions, $cursor, $orders, $i, $unionBuilders) {
                     ['column' => $column, 'direction' => $direction] = $orders[$i];
 
                     $originalColumn = $this->getOriginalColumnNameForCursorPagination($this, $column);
@@ -485,11 +544,11 @@ trait BuildsQueries
                     $secondBuilder->where(
                         Str::contains($originalColumn, ['(', ')']) ? new Expression($originalColumn) : $originalColumn,
                         $direction === 'asc' ? '>' : '<',
-                        $cursor->parameter($column)
+                        $this->getCursorParameterBinding($cursor, $column)
                     );
 
                     if ($i < $orders->count() - 1) {
-                        $secondBuilder->orWhere(function (self $thirdBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
+                        $secondBuilder->orWhere(function (QueryBuilder|Builder $thirdBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
                             $addCursorConditions($thirdBuilder, $column, $originalColumn, $i + 1);
                         });
                     }
@@ -502,11 +561,11 @@ trait BuildsQueries
                             $unionBuilder->where(
                                 $originalColumn,
                                 $direction === 'asc' ? '>' : '<',
-                                $cursor->parameter($column)
+                                $this->getCursorParameterBinding($cursor, $column)
                             );
 
                             if ($i < $orders->count() - 1) {
-                                $unionBuilder->orWhere(function (self $fourthBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
+                                $unionBuilder->orWhere(function (QueryBuilder|Builder $fourthBuilder) use ($addCursorConditions, $column, $originalColumn, $i) {
                                     $addCursorConditions($fourthBuilder, $column, $originalColumn, $i + 1);
                                 });
                             }
@@ -528,6 +587,14 @@ trait BuildsQueries
             'cursorName' => $cursorName,
             'parameters' => $orders->pluck('column')->toArray(),
         ]);
+    }
+
+    /**
+     * Get a cursor parameter for database binding.
+     */
+    protected function getCursorParameterBinding(Cursor $cursor, string $parameter): mixed
+    {
+        return $cursor->parameter($parameter);
     }
 
     /**

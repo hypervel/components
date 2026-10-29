@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { show } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/AuditEntryController";
 
 test("can resolve model binding keys for camelCase route handler parameters", () => {

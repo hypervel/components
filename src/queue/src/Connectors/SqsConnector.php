@@ -140,11 +140,16 @@ class SqsConnector implements ConnectorInterface
     protected function resolveCredentialProvider(array $config): mixed
     {
         $credentials = $config['credentials'];
+        $provider = is_callable($credentials)
+            ? $credentials
+            : (is_array($credentials) ? ($credentials['provider'] ?? null) : $credentials);
 
-        $provider = is_array($credentials) ? ($credentials['provider'] ?? null) : $credentials;
+        if (is_callable($provider)) {
+            return new SerializedCredentialProvider($provider);
+        }
 
         if (! is_string($provider)) {
-            return is_callable($provider) ? new SerializedCredentialProvider($provider) : $provider;
+            return $provider;
         }
 
         $options = is_array($credentials) ? Arr::except($credentials, ['provider']) : [];

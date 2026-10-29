@@ -1,17 +1,17 @@
-<script type="text/ecmascript-6">
+<script>
 export default {
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
-    <preview-screen title="Scheduled Command Details" resource="requests" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+    <preview-screen title="Scheduled Command Details" resource="schedule" :id="$route.params.id">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Description</td>
                 <td>
@@ -55,9 +55,11 @@ export default {
             <tr>
                 <td class="table-fit text-muted">Exit Code</td>
                 <td>
-                    {{ slotProps.entry.content.exit_code === undefined || slotProps.entry.content.exit_code === null
-                        ? '-'
-                        : slotProps.entry.content.exit_code }}
+                    {{
+                        slotProps.entry.content.exit_code === undefined || slotProps.entry.content.exit_code === null
+                            ? '-'
+                            : slotProps.entry.content.exit_code
+                    }}
                 </td>
             </tr>
 
@@ -76,8 +78,8 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps" v-if="slotProps.entry.content.output">
-            <div class="card mt-5 overflow-hidden">
+        <template #after-attributes-card="slotProps">
+            <div class="card mt-5 overflow-hidden" v-if="slotProps.entry.content.output">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
                         <a class="nav-link active">Output</a>
@@ -88,6 +90,6 @@ export default {
                     <pre class="code-bg p-4 mb-0 text-white">{{ slotProps.entry.content.output }}</pre>
                 </copy-clipboard>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

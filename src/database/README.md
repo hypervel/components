@@ -28,6 +28,6 @@ Documentation: https://hypervel.org/docs/database
 - Eloquent expression plucks use `Query\Builder::pluckWithColumn()` to retain the returned field name for casts and accessors. Custom query builders overriding `pluck()` must also override `pluckWithColumn()` to customize this path. String-based Eloquent plucks still call `pluck()`.
 - Eloquent's protected `refreshSavedAttributes()` method receives the raw attribute values each write stored, so configured attributes are refreshed from the row that write changed. Models that override this method must accept the `array $attributes` argument.
 - Eloquent `updateFrom()` maintains the model's `updated_at` timestamp, like `update()`. Laravel forwards this method without adding a timestamp.
-- `BelongsToMany` records pivot filters in an ordered `$pivotConstraints` list instead of Laravel's `$pivotWheres`, `$pivotWhereIns`, and `$pivotWhereNulls` properties. Relationship extensions should use the `wherePivot*` methods instead of accessing those arrays.
+- `BelongsToMany` records pivot filters in an ordered `$pivotConstraints` list instead of Laravel's `$pivotWheres`, `$pivotWhereIns`, `$pivotWhereNulls`, and `$pivotWhereBetweens` properties. Relationship extensions should use the `wherePivot*` methods instead of accessing those arrays.
 
 Ported from: https://github.com/laravel/framework

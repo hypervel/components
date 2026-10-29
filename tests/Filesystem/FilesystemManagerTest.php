@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use Aws\CommandInterface;
+use Aws\Credentials\Credentials;
+use Aws\Exception\CredentialsException;
 use Aws\MockHandler;
 use Aws\Result;
 use Aws\S3\S3Client;
@@ -12,6 +14,9 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient as GcsClient;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -45,10 +50,13 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+
+use function Aws\serialize;
 
 enum FilesystemTestStringBackedDisk: string
 {
@@ -100,6 +108,191 @@ class FilesystemManagerTest extends TestCase
         parent::tearDown();
     }
 
+    public function testEcsS3DiskUsesExplicitEndpointAndIgnoresStaticCredentials(): void
+    {
+        $environment = [
+            'AWS_ACCESS_KEY_ID' => 'ambient-r2-key',
+            'AWS_SECRET_ACCESS_KEY' => 'ambient-r2-secret',
+            'AWS_ENDPOINT_URL' => 'https://r2.example.com',
+            'AWS_ENDPOINT_URL_S3' => 'https://r2.example.com',
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI' => '',
+            'AWS_CONTAINER_CREDENTIALS_FULL_URI' => 'http://192.0.2.1/credentials',
+        ];
+        $previous = [];
+
+        foreach ($environment as $key => $value) {
+            $previous[$key] = getenv($key);
+            putenv($key . '=' . $value);
+        }
+
+        try {
+            $disk = (new FilesystemManager($this->getContainer()))->build([
+                'driver' => 's3',
+                'credentials' => 'ecs',
+                'region' => 'us-east-2',
+                'bucket' => 'arn:aws:s3:us-east-2:123456789012:accesspoint/environment-bucket',
+                'key' => 'disk-r2-key',
+                'secret' => 'disk-r2-secret',
+                'endpoint' => 'https://s3-accesspoint.us-east-2.amazonaws.com',
+            ]);
+
+            // An invalid container host fails before HTTP, rather than falling back to R2 keys.
+            $this->expectException(CredentialsException::class);
+            $this->expectExceptionMessage('unsupported host');
+
+            $disk->withClient(function (S3Client $client): void {
+                $this->assertSame('us-east-2', $client->getRegion());
+                $this->assertSame('https://s3-accesspoint.us-east-2.amazonaws.com', (string) $client->getEndpoint());
+                $client->getCredentials()->wait();
+            });
+        } finally {
+            foreach ($previous as $key => $value) {
+                putenv($value === false ? $key : $key . '=' . $value);
+            }
+        }
+    }
+
+    public function testS3DisksRouteAccessPointsAndR2ToTheirOwnEndpoints(): void
+    {
+        $previous = getenv('AWS_ENDPOINT_URL');
+        putenv('AWS_ENDPOINT_URL=https://ambient.example.com');
+        $manager = new FilesystemManager($this->getContainer());
+
+        try {
+            $aws = $manager->build([
+                'driver' => 's3',
+                'region' => 'us-east-2',
+                'endpoint' => 'https://s3-accesspoint.us-east-2.amazonaws.com',
+                'bucket' => 'arn:aws:s3:us-east-2:123456789012:accesspoint/environment-bucket',
+                'credentials' => false,
+            ]);
+            $r2 = $manager->build([
+                'driver' => 's3',
+                'region' => 'auto',
+                'endpoint' => 'https://account.r2.cloudflarestorage.com',
+                'bucket' => 'archive',
+                'key' => 'r2-key',
+                'secret' => 'r2-secret',
+            ]);
+
+            // Serialize requests without sending them to either provider.
+            foreach (['GetObject', 'PutObject', 'DeleteObject'] as $operation) {
+                $awsUri = $aws->withClient(static fn (S3Client $client): string => (string) serialize($client->getCommand($operation, [
+                    'Bucket' => $aws->getConfig()['bucket'], 'Key' => 'hello.txt',
+                ]))->getUri());
+                $r2Uri = $r2->withClient(static fn (S3Client $client): string => (string) serialize($client->getCommand($operation, [
+                    'Bucket' => $r2->getConfig()['bucket'], 'Key' => 'hello.txt',
+                ]))->getUri());
+
+                $this->assertSame('https://environment-bucket-123456789012.s3-accesspoint.us-east-2.amazonaws.com/hello.txt', $awsUri);
+                $this->assertSame('https://archive.account.r2.cloudflarestorage.com/hello.txt', $r2Uri);
+            }
+        } finally {
+            putenv($previous === false ? 'AWS_ENDPOINT_URL' : 'AWS_ENDPOINT_URL=' . $previous);
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testS3CredentialProviderOptionsAndMemoization(bool $clientOverride): void
+    {
+        $previous = getenv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI');
+        putenv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI=/credentials');
+        $requests = 0;
+
+        try {
+            $config = [
+                ...$this->s3DiskConfig('documents'),
+                'credentials' => [
+                    'provider' => 'ecs',
+                    'timeout' => 7,
+                    'client' => function (RequestInterface $request, array $options) use (&$requests): PromiseInterface {
+                        ++$requests;
+                        $this->assertEquals(7, $options['timeout']);
+
+                        return Create::promiseFor(new Response(200, [], json_encode([
+                            'AccessKeyId' => 'container-key',
+                            'SecretAccessKey' => 'container-secret',
+                            'Token' => 'container-token',
+                            'Expiration' => gmdate('c', time() + 3600),
+                        ])));
+                    },
+                ],
+                'endpoint' => 'https://custom-s3.example.com',
+                'pool' => ['fingerprint' => 'ecs-test-client'],
+            ];
+
+            if ($clientOverride) {
+                $config['client']['credentials'] = $config['credentials'];
+                $config['credentials'] = 'instance';
+            }
+
+            $disk = (new FilesystemManager($this->getContainer()))->build($config);
+
+            $disk->withClient(function (S3Client $client) use (&$requests): void {
+                $this->assertSame('container-key', $client->getCredentials()->wait()->getAccessKeyId());
+                $this->assertSame('container-token', $client->getCredentials()->wait()->getSecurityToken());
+                $this->assertSame(1, $requests);
+                $this->assertSame('https://custom-s3.example.com', (string) $client->getEndpoint());
+            });
+        } finally {
+            putenv($previous === false ? 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI' : 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI=' . $previous);
+        }
+    }
+
+    public function testS3InstanceCredentialProvider(): void
+    {
+        $previous = getenv('AWS_EC2_METADATA_DISABLED');
+        putenv('AWS_EC2_METADATA_DISABLED=true');
+
+        try {
+            $disk = (new FilesystemManager($this->getContainer()))->build([
+                ...$this->s3DiskConfig('documents'),
+                'credentials' => 'instance',
+            ]);
+
+            $this->expectException(CredentialsException::class);
+            $this->expectExceptionMessage('EC2 metadata service access disabled');
+
+            $disk->withClient(static fn (S3Client $client): mixed => $client->getCredentials()->wait());
+        } finally {
+            putenv($previous === false ? 'AWS_EC2_METADATA_DISABLED' : 'AWS_EC2_METADATA_DISABLED=' . $previous);
+        }
+    }
+
+    public function testS3RejectsUnknownCredentialProviders(): void
+    {
+        $disk = (new FilesystemManager($this->getContainer()))->build([
+            ...$this->s3DiskConfig('documents'),
+            'credentials' => 'unknown',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid credential provider [unknown].');
+
+        $disk->withClient(static fn (S3Client $client): mixed => $client->getCredentials()->wait());
+    }
+
+    public function testS3PreservesExistingCredentialConfigurations(): void
+    {
+        foreach ([false, ['key' => 'key', 'secret' => 'secret'], fn (): null => null] as $credentials) {
+            $this->assertSame($credentials, $this->s3Config(['credentials' => $credentials])['credentials']);
+        }
+
+        $this->assertArrayNotHasKey('credentials', $this->s3Config([]));
+        $this->assertSame(['key' => 'key', 'secret' => 'secret', 'token' => 'token'], $this->s3Config([
+            'key' => 'key', 'secret' => 'secret', 'token' => 'token',
+        ])['credentials']);
+    }
+
+    /**
+     * Format S3 configuration without constructing a client.
+     */
+    protected function s3Config(array $config): array
+    {
+        return (new InspectableFilesystemManager($this->getContainer()))->formatS3ConfigForTest($config);
+    }
+
     public function testExceptionThrownOnUnsupportedDriver(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Disk [local] does not have a configured driver.'));
@@ -126,6 +319,38 @@ class FilesystemManagerTest extends TestCase
             'url' => 'my-custom-url',
             'visibility' => 'public',
         ]));
+    }
+
+    public function testCanBuildLocalDisksThatLazilyCreateTheirRootDirectory(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $root = $this->tempDir . '/lazy-root';
+
+        $disk = $filesystem->build([
+            'driver' => 'local',
+            'root' => $root,
+            'lazy_root_creation' => true,
+        ]);
+
+        $this->assertDirectoryDoesNotExist($root);
+
+        $disk->put('filename.txt', 'file content');
+
+        $this->assertDirectoryExists($root);
+        $this->assertSame('file content', $disk->get('filename.txt'));
+    }
+
+    public function testCanBuildLocalDisksThatEagerlyCreateTheirRootDirectory(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $root = $this->tempDir . '/eager-root';
+
+        $filesystem->build([
+            'driver' => 'local',
+            'root' => $root,
+        ]);
+
+        $this->assertDirectoryExists($root);
     }
 
     public function testConfiguredOndemandDiskNameIsReserved(): void
@@ -399,7 +624,7 @@ class FilesystemManagerTest extends TestCase
             'pool' => ['max_objects' => 2],
         ]);
         $clientPooled = $manager->build([
-            ...$this->s3Config('pooled-cloud'),
+            ...$this->s3DiskConfig('pooled-cloud'),
             'pool' => ['max_objects' => 2],
         ]);
 
@@ -1237,8 +1462,8 @@ class FilesystemManagerTest extends TestCase
     {
         $container = $this->getContainer([
             'disks' => [
-                'documents' => $this->s3Config('documents'),
-                'archives' => $this->s3Config('archives'),
+                'documents' => $this->s3DiskConfig('documents'),
+                'archives' => $this->s3DiskConfig('archives'),
             ],
         ]);
         Container::setInstance($container);
@@ -1257,12 +1482,68 @@ class FilesystemManagerTest extends TestCase
         $this->assertCount(1, $container->make(PoolFactory::class)->getPools());
     }
 
+    public function testNamedS3ProvidersKeepStableAndDistinctClientPools(): void
+    {
+        $container = $this->getContainer();
+        $manager = new FilesystemManager($container);
+        $poolNames = [];
+
+        foreach (['ecs', 'instance', ['provider' => 'ecs', 'timeout' => 2], ['provider' => 'ecs', 'timeout' => 3]] as $credentials) {
+            $config = [...$this->s3DiskConfig('documents'), 'credentials' => $credentials];
+            $first = $manager->build($config);
+            $second = $manager->build([...$config, 'bucket' => 'archives']);
+
+            $this->assertSame($first->getPoolName(), $second->getPoolName());
+            $this->assertSame(
+                $first->withClient(static fn (S3Client $client): int => spl_object_id($client)),
+                $second->withClient(static fn (S3Client $client): int => spl_object_id($client)),
+            );
+            $poolNames[] = $first->getPoolName();
+        }
+
+        $this->assertCount(4, array_unique($poolNames));
+        $this->assertCount(4, $container->make(PoolFactory::class)->getPools());
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testS3ArrayCallableCredentialsTakePrecedenceOverLegacyKeys(bool $nested, bool $clientOverride): void
+    {
+        $provider = new class {
+            /**
+             * Return credentials from the explicitly configured provider.
+             */
+            public function resolve(): PromiseInterface
+            {
+                return Create::promiseFor(new Credentials('provider-key', 'provider-secret'));
+            }
+        };
+        $credentials = [$provider, 'resolve'];
+        $config = [
+            ...$this->s3DiskConfig('documents', 'legacy-key'),
+            'credentials' => $nested ? ['provider' => $credentials] : $credentials,
+            'pool' => ['fingerprint' => 'array-provider'],
+        ];
+
+        if ($clientOverride) {
+            $config['client']['credentials'] = $config['credentials'];
+            unset($config['credentials']);
+        }
+
+        $disk = (new FilesystemManager($this->getContainer()))->build($config);
+
+        $this->assertSame('provider-key', $disk->withClient(
+            static fn (S3Client $client): string => $client->getCredentials()->wait()->getAccessKeyId(),
+        ));
+    }
+
     public function testS3DisksWithDifferentCredentialsUseDifferentClientPools(): void
     {
         $container = $this->getContainer([
             'disks' => [
-                'first' => $this->s3Config('documents', 'first-key'),
-                'second' => $this->s3Config('documents', 'second-key'),
+                'first' => $this->s3DiskConfig('documents', 'first-key'),
+                'second' => $this->s3DiskConfig('documents', 'second-key'),
             ],
         ]);
         Container::setInstance($container);
@@ -1283,7 +1564,7 @@ class FilesystemManagerTest extends TestCase
         $container = $this->getContainer();
         Container::setInstance($container);
         $manager = new FilesystemManager($container);
-        $config = $this->s3Config('documents');
+        $config = $this->s3DiskConfig('documents');
         $first = $manager->build($config);
         $second = $manager->build($config);
 
@@ -1298,13 +1579,13 @@ class FilesystemManagerTest extends TestCase
 
     public function testExplicitPoolNamesAndFingerprintsDeclareConstructionEquivalence(): void
     {
-        $namedFirst = $this->s3Config('first-bucket', 'first-key');
+        $namedFirst = $this->s3DiskConfig('first-bucket', 'first-key');
         $namedFirst['pool'] = ['name' => 'shared-account', 'fingerprint' => 'account-v1'];
-        $namedSecond = $this->s3Config('second-bucket', 'second-key');
+        $namedSecond = $this->s3DiskConfig('second-bucket', 'second-key');
         $namedSecond['pool'] = ['name' => 'shared-account', 'fingerprint' => 'account-v1'];
-        $fingerprintedFirst = $this->s3Config('third-bucket', 'third-key');
+        $fingerprintedFirst = $this->s3DiskConfig('third-bucket', 'third-key');
         $fingerprintedFirst['pool'] = ['fingerprint' => 'declared-equivalent'];
-        $fingerprintedSecond = $this->s3Config('fourth-bucket', 'fourth-key');
+        $fingerprintedSecond = $this->s3DiskConfig('fourth-bucket', 'fourth-key');
         $fingerprintedSecond['pool'] = ['fingerprint' => 'declared-equivalent'];
         $container = $this->getContainer([
             'disks' => [
@@ -1368,9 +1649,9 @@ class FilesystemManagerTest extends TestCase
 
     public function testConvergedDisksRejectConflictingPoolOptions(): void
     {
-        $firstConfig = $this->s3Config('documents');
+        $firstConfig = $this->s3DiskConfig('documents');
         $firstConfig['pool'] = ['max_objects' => 1];
-        $secondConfig = $this->s3Config('archives');
+        $secondConfig = $this->s3DiskConfig('archives');
         $secondConfig['pool'] = ['max_objects' => 2];
         $container = $this->getContainer([
             'disks' => [
@@ -1395,7 +1676,7 @@ class FilesystemManagerTest extends TestCase
 
     public function testScopedClientPoolOptionsMustMatchTheBaseDisk(): void
     {
-        $baseConfig = $this->s3Config('documents');
+        $baseConfig = $this->s3DiskConfig('documents');
         $baseConfig['pool'] = ['max_objects' => 1];
         $container = $this->getContainer([
             'disks' => [
@@ -1424,7 +1705,7 @@ class FilesystemManagerTest extends TestCase
     public function testForgetDiskDropsOnlyTheWrapperAndPreservesTheSharedPool(): void
     {
         $container = $this->getContainer([
-            'disks' => ['documents' => $this->s3Config('documents')],
+            'disks' => ['documents' => $this->s3DiskConfig('documents')],
         ]);
         Container::setInstance($container);
         $manager = new FilesystemManager($container);
@@ -1447,8 +1728,8 @@ class FilesystemManagerTest extends TestCase
     {
         $container = $this->getContainer([
             'disks' => [
-                'documents' => $this->s3Config('documents'),
-                'archives' => $this->s3Config('archives'),
+                'documents' => $this->s3DiskConfig('documents'),
+                'archives' => $this->s3DiskConfig('archives'),
             ],
         ]);
         Container::setInstance($container);
@@ -1461,7 +1742,7 @@ class FilesystemManagerTest extends TestCase
 
         $this->assertFalse($container->make(PoolFactory::class)->has($identity));
 
-        $manager->build($this->s3Config('archives'))
+        $manager->build($this->s3DiskConfig('archives'))
             ->withClient(static fn (object $client): object => $client);
         $this->assertTrue($container->make(PoolFactory::class)->has($identity));
 
@@ -1489,7 +1770,7 @@ class FilesystemManagerTest extends TestCase
         foreach (['parent disk', 'another scoped disk', 'on-demand build'] as $source) {
             $container = $this->getContainer([
                 'disks' => [
-                    'cloud' => $this->s3Config('documents'),
+                    'cloud' => $this->s3DiskConfig('documents'),
                     'target' => [
                         'driver' => 'scoped',
                         'disk' => 'cloud',
@@ -1507,7 +1788,7 @@ class FilesystemManagerTest extends TestCase
             $disk = match ($source) {
                 'parent disk' => $manager->disk('cloud'),
                 'another scoped disk' => $manager->disk('other'),
-                'on-demand build' => $manager->build($this->s3Config('archives')),
+                'on-demand build' => $manager->build($this->s3DiskConfig('archives')),
             };
             $disk->withClient(static fn (object $client): object => $client);
             $identity = $disk->getPoolName();
@@ -1594,7 +1875,7 @@ class FilesystemManagerTest extends TestCase
         ];
         $container = $this->getContainer([
             'disks' => [
-                'cloud' => $this->s3Config('documents'),
+                'cloud' => $this->s3DiskConfig('documents'),
                 'inner' => [
                     'driver' => 'scoped',
                     'disk' => 'cloud',
@@ -1621,7 +1902,7 @@ class FilesystemManagerTest extends TestCase
     {
         $container = $this->getContainer([
             'disks' => [
-                'cloud' => $this->s3Config('documents'),
+                'cloud' => $this->s3DiskConfig('documents'),
                 'scoped' => [
                     'driver' => 'scoped',
                     'disk' => 'cloud',
@@ -2021,7 +2302,7 @@ class FilesystemManagerTest extends TestCase
     public function testScopedS3BuildsShareTheParentClientPoolWithoutCollisions(): void
     {
         $container = $this->getContainer([
-            'disks' => ['cloud' => $this->s3Config('documents')],
+            'disks' => ['cloud' => $this->s3DiskConfig('documents')],
         ]);
         Container::setInstance($container);
         $manager = new FilesystemManager($container);
@@ -2340,7 +2621,10 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
-    private function s3Config(string $bucket, string $key = 'test-key'): array
+    /**
+     * Create an S3 disk configuration with static credentials.
+     */
+    private function s3DiskConfig(string $bucket, string $key = 'test-key'): array
     {
         return [
             'driver' => 's3',
@@ -2412,6 +2696,14 @@ class CustomFilesystemDriver
 
 class InspectableFilesystemManager extends FilesystemManager
 {
+    /**
+     * Expose S3 configuration formatting for credential assertions.
+     */
+    public function formatS3ConfigForTest(array $config): array
+    {
+        return $this->formatS3Config($config);
+    }
+
     public function callCustomCreatorForTest(array $config): Filesystem
     {
         return $this->callCustomCreator($config);

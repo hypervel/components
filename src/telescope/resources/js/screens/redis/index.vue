@@ -1,22 +1,20 @@
-<script type="text/ecmascript-6">
-export default {}
-</script>
-
 <template>
     <index-screen title="Redis" resource="redis">
-        <tr slot="table-header">
-            <th scope="col">Command</th>
-            <th scope="col" class="text-right">Duration</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Command</th>
+                <th scope="col" class="text-end">Duration</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>
                 <code>{{ truncate(slotProps.entry.content.command, 80) }}</code>
             </td>
 
-            <td class="table-fit text-right text-muted">{{ slotProps.entry.content.time }}ms</td>
+            <td class="table-fit text-end text-muted">{{ slotProps.entry.content.time }}ms</td>
 
             <td
                 class="table-fit text-muted"

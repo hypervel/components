@@ -16,6 +16,7 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Jobs\SqsJob;
@@ -26,7 +27,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -257,15 +257,16 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
 
             try {
                 $this->storeOverflowPayload($store, $path, $overflowPayload);
-            } catch (CanceledException $cancellation) {
+            } catch (Throwable $exception) {
                 try {
                     $this->cleanupOverflowPayloads($store, [$path]);
-                } catch (CanceledException) {
-                }
+                } catch (Throwable $cleanupException) {
+                    if (! Coroutine::causedByCancellation($exception)) {
+                        throw $cleanupException;
+                    }
 
-                throw $cancellation;
-            } catch (Throwable $exception) {
-                $this->cleanupOverflowPayloads($store, [$path]);
+                    PoolErrorReporter::report($cleanupException);
+                }
 
                 throw $exception;
             }
@@ -455,9 +456,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             $queueUrl = $this->getQueue($queue);
             $store = $overflow === [] ? null : $this->overflowStore();
             $chunks = $this->chunkBatchEntries($entries);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
             throw $exception;
@@ -475,9 +478,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if ($store !== null) {
                     $this->storeBatchOverflowPayloads($chunk, $overflow, $store);
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
@@ -490,9 +495,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     'QueueUrl' => $queueUrl,
                     'Entries' => $chunk,
                 ]);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
@@ -638,9 +645,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     }
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return new OutboxBatchResult($accepted, failure: $exception);
         }
 
@@ -808,18 +817,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 $paths[] = $payload['path'];
                 $this->storeOverflowPayload($store, $payload['path'], $payload['payload']);
             }
-        } catch (CanceledException $cancellation) {
+        } catch (Throwable $exception) {
             if ($paths !== []) {
                 try {
                     $this->cleanupOverflowPayloads($store, $paths);
-                } catch (CanceledException) {
-                }
-            }
+                } catch (Throwable $cleanupException) {
+                    if (! Coroutine::causedByCancellation($exception)) {
+                        throw $cleanupException;
+                    }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
-            if ($paths !== []) {
-                $this->cleanupOverflowPayloads($store, $paths);
+                    PoolErrorReporter::report($cleanupException);
+                }
             }
 
             throw $exception;
@@ -840,10 +848,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if (! $store->forget($path)) {
                     throw new RuntimeException("Unable to delete the SQS overflow payload [{$path}].");
                 }
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
             } catch (Throwable $exception) {
-                PoolErrorReporter::report($exception);
+                if ($cancellation === null && Coroutine::causedByCancellation($exception)) {
+                    $cancellation = $exception;
+                } else {
+                    PoolErrorReporter::report($exception);
+                }
             }
         }
 

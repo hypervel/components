@@ -1,23 +1,23 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
+    mixins: [StylesMixin],
+};
 </script>
 
 <template>
     <index-screen title="Cache" resource="cache">
-        <tr slot="table-header">
-            <th scope="col">Key</th>
-            <th scope="col">Action</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Key</th>
+                <th scope="col">Action</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>{{ truncate(slotProps.entry.content.key, 80) }}</td>
 
             <td class="table-fit">
