@@ -187,19 +187,45 @@ class SchemaBuilderTest extends DatabaseTestCase
         Schema::create('test', static function (Blueprint $table) {
             $table->timestamp('foo')->useCurrent();
             $table->string('bar')->default('value');
+            $table->string('literal_null')->default('NULL');
+            $table->string('literal_timestamp')->default('CURRENT_TIMESTAMP');
+            $table->string('nullable_value')->nullable()->default(null);
+            $table->integer('zero')->default(0);
+            $table->dateTime('fractional_timestamp', 3)->useCurrent();
         });
 
         $columns = Schema::getColumns('test');
         $defaultFoo = collect($columns)->firstWhere('name', 'foo')['default'];
         $defaultBar = collect($columns)->firstWhere('name', 'bar')['default'];
+        $defaults = collect($columns)->pluck('default', 'name');
 
         Schema::table('test', static function (Blueprint $table) {
             $table->renameColumn('foo', 'new_foo');
             $table->renameColumn('bar', 'new_bar');
+            $table->renameColumn('literal_null', 'new_literal_null');
+            $table->renameColumn('literal_timestamp', 'new_literal_timestamp');
+            $table->renameColumn('nullable_value', 'new_nullable_value');
+            $table->renameColumn('zero', 'new_zero');
+            $table->renameColumn('fractional_timestamp', 'new_fractional_timestamp');
         });
 
-        $this->assertEquals(collect(Schema::getColumns('test'))->firstWhere('name', 'new_foo')['default'], $defaultFoo);
-        $this->assertEquals(collect(Schema::getColumns('test'))->firstWhere('name', 'new_bar')['default'], $defaultBar);
+        $renamed = collect(Schema::getColumns('test'))->pluck('default', 'name');
+
+        $this->assertEquals($defaultFoo, $renamed['new_foo']);
+        $this->assertEquals($defaultBar, $renamed['new_bar']);
+        foreach (['literal_null', 'literal_timestamp', 'nullable_value', 'zero', 'fractional_timestamp'] as $column) {
+            $this->assertSame($defaults[$column], $renamed['new_' . $column]);
+        }
+
+        DB::table('test')->insert(['new_bar' => 'inserted']);
+        $row = DB::table('test')->first();
+
+        $this->assertSame('NULL', $row->new_literal_null);
+        $this->assertSame('CURRENT_TIMESTAMP', $row->new_literal_timestamp);
+        $this->assertNull($row->new_nullable_value);
+        $this->assertEquals(0, $row->new_zero);
+        $this->assertNotNull($row->new_foo);
+        $this->assertNotNull($row->new_fractional_timestamp);
     }
 
     #[RequiresDatabase('sqlite')]

@@ -297,11 +297,9 @@ class MySqlGrammar extends Grammar
     #[Override]
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
-        $isMaria = $this->connection->isMaria();
-        $version = $this->connection->getServerVersion();
-
-        if (($isMaria && version_compare($version, '10.5.2', '<'))
-            || (! $isMaria && version_compare($version, '8.0.3', '<'))) {
+        // All supported MariaDB versions have native column renaming.
+        if (! $this->connection->isMaria()
+            && version_compare($this->connection->getServerVersion(), '8.0.3', '<')) {
             return $this->compileLegacyRenameColumn($blueprint, $command);
         }
 
@@ -316,6 +314,14 @@ class MySqlGrammar extends Grammar
         $column = (new Collection($this->connection->getSchemaBuilder()->getColumns($blueprint->getTable())))
             ->firstWhere('name', $command->from);
 
+        // Metadata leaves string defaults unquoted. Only temporal columns can
+        // use CURRENT_TIMESTAMP as an expression; "NULL" remains a string.
+        $default = $column['default'];
+        if (in_array($column['type_name'], ['timestamp', 'datetime'], true)
+            && $default !== null && str_starts_with(strtolower($default), 'current_timestamp')) {
+            $default = new Expression($default);
+        }
+
         $modifiers = $this->addModifiers($column['type'], $blueprint, new ColumnDefinition([
             'change' => true,
             'type' => match ($column['type_name']) {
@@ -327,9 +333,7 @@ class MySqlGrammar extends Grammar
                 default => $column['type_name'],
             },
             'nullable' => $column['nullable'],
-            'default' => $column['default'] && (str_starts_with(strtolower($column['default']), 'current_timestamp') || $column['default'] === 'NULL')
-                ? new Expression($column['default'])
-                : $column['default'],
+            'default' => $default,
             'autoIncrement' => $column['auto_increment'],
             'collation' => $column['collation'],
             'comment' => $column['comment'],
