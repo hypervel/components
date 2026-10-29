@@ -71,15 +71,15 @@ class OutboxRelay
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 
                     $result = new OutboxBatchResult(failure: $exception);
                 }
 
-                // Drivers may return a wrapped cancellation as a failure, which must still stop delivery unsettled.
-                if ($result->failure !== null && Coroutine::causedByCancellation($result->failure)) {
+                // Drivers and the sequential fallback may return cancellation, including a canceled child's, as a result failure.
+                if ($result->failure !== null && $this->shouldStopDelivery($result->failure)) {
                     throw $result->failure;
                 }
 
@@ -95,7 +95,7 @@ class OutboxRelay
 
                     return null;
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 
@@ -113,6 +113,14 @@ class OutboxRelay
         }
 
         return $successful;
+    }
+
+    /**
+     * Determine whether cancellation requires delivery to stop.
+     */
+    protected function shouldStopDelivery(Throwable $exception): bool
+    {
+        return $exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception);
     }
 
     /**
@@ -196,7 +204,7 @@ class OutboxRelay
                 try {
                     $this->events->dispatch($event);
                 } catch (Throwable $exception) {
-                    if ($exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception)) {
+                    if ($this->shouldStopDelivery($exception)) {
                         throw $exception;
                     }
 

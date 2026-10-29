@@ -306,36 +306,44 @@ class OutboxRelayTest extends TestCase
         $this->assertTrue($released);
     }
 
-    #[DataProvider('wrappedCancellationOutcomes')]
-    public function testWrappedCancellationFromADriverStopsDeliveryWithoutSettlement(bool $returned): void
+    #[DataProvider('driverCancellationOutcomes')]
+    public function testDriverCancellationStopsDeliveryWithoutSettlement(string $outcome, bool $child): void
     {
         $repository = m::mock(DatabaseOutboxRepository::class);
         $repository->shouldNotReceive('settle');
         $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
+        $queue = m::mock($outcome === 'sequential' ? Queue::class : Queue::class . ', ' . PublishesOutboxMessages::class);
         $exceptions = m::mock(ExceptionHandler::class);
         $exceptions->shouldNotReceive('report');
         $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
-        $queues->expects('connection')->andReturn($queue);
-        $publication = $queue->expects('publishOutboxMessages');
-        $returned
+        if ($child) {
+            $cancellation = new ChildCancellationException('Publication child canceled.', previous: $cancellation);
+        }
+        $queues->expects('connection')->with('redis')->andReturn($queue);
+        $publication = $queue->expects($outcome === 'sequential' ? 'pushRaw' : 'publishOutboxMessages');
+        $outcome === 'returned'
             ? $publication->andReturn(new OutboxBatchResult([1], failure: $cancellation))
             : $publication->andThrow($cancellation);
 
         try {
-            (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2)]);
-            $this->fail('Wrapped cancellation must stop delivery.');
+            (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2, 'other')]);
+            $this->fail('Driver cancellation must stop delivery.');
         } catch (ChildCancellationException $exception) {
-            $this->assertSame($cancellation, $exception->getPrevious());
+            $this->assertSame($cancellation, $child ? $exception : $exception->getPrevious());
         }
     }
 
     /**
-     * Cover drivers that report cancellation in their result and drivers that throw it.
+     * Cover cancellation thrown by drivers or returned directly and through the sequential fallback.
      */
-    public static function wrappedCancellationOutcomes(): array
+    public static function driverCancellationOutcomes(): array
     {
-        return ['returned' => [true], 'thrown' => [false]];
+        return [
+            'returned wrapped cancellation' => ['returned', false],
+            'thrown wrapped cancellation' => ['thrown', false],
+            'sequential child cancellation' => ['sequential', true],
+            'thrown child cancellation' => ['thrown', true],
+        ];
     }
 
     /**
