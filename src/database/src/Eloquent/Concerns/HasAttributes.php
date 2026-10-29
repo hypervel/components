@@ -1108,6 +1108,8 @@ trait HasAttributes
 
         $this->attributes[$key] = $value;
 
+        unset($this->attributeCastCache[$key]);
+
         return $this;
     }
 
@@ -1149,7 +1151,12 @@ trait HasAttributes
     {
         $this->mergeAttributesFromCachedCasts();
 
-        return $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
+        $result = $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
+
+        // The setter may read and cache this attribute before replacing its stored value.
+        unset($this->classCastCache[$key], $this->attributeCastCache[$key]);
+
+        return $result;
     }
 
     /**
@@ -1173,7 +1180,10 @@ trait HasAttributes
             )
         );
 
-        if ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching)) {
+        unset($this->classCastCache[$key]);
+
+        // Setter-only inputs must not overwrite later changes to objects returned by class casts.
+        if ($attribute->get && ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching))) {
             $this->attributeCastCache[$key] = $value;
         } else {
             unset($this->attributeCastCache[$key]);
@@ -1198,19 +1208,25 @@ trait HasAttributes
     {
         [$key, $path] = explode('->', $key, 2);
 
+        $this->mergeAttributeFromCachedCasts($key);
+
         $value = $this->castAttributeAsJson($key, $this->getArrayAttributeWithValue(
             $path,
             $key,
             $value
         ));
 
-        $this->attributes[$key] = $this->isEncryptedCastable($key)
-            ? $this->castAttributeAsEncryptedString($key, $value)
-            : $value;
+        $this->attributes[$key] = match (true) {
+            $this->isEncryptedCastable($key) => $this->castAttributeAsEncryptedString($key, $value),
+            $this->isEncryptedClassCastable($key) => Crypt::encryptString($value),
+            default => $value,
+        };
 
         if ($this->isClassCastable($key)) {
             unset($this->classCastCache[$key]);
         }
+
+        unset($this->attributeCastCache[$key]);
 
         return $this;
     }
@@ -1231,6 +1247,9 @@ trait HasAttributes
                 $this->attributes
             ))
         );
+
+        // A custom caster may read the accessor while preparing the new stored value.
+        unset($this->attributeCastCache[$key]);
 
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
@@ -1260,6 +1279,8 @@ trait HasAttributes
                 $this->getEnumCaseFromValue($enumClass, $value)
             );
         }
+
+        unset($this->attributeCastCache[$key]);
     }
 
     /**
@@ -1309,11 +1330,11 @@ trait HasAttributes
             return [];
         }
 
-        return $this->fromJson(
-            $this->isEncryptedCastable($key)
-                ? $this->fromEncryptedString($this->attributes[$key])
-                : $this->attributes[$key]
-        );
+        return $this->fromJson(match (true) {
+            $this->isEncryptedCastable($key) => $this->fromEncryptedString($this->attributes[$key]),
+            $this->isEncryptedClassCastable($key) => Crypt::decryptString($this->attributes[$key]),
+            default => $this->attributes[$key],
+        });
     }
 
     /**
@@ -1390,7 +1411,7 @@ trait HasAttributes
      * Set the encrypter instance that will be used to encrypt attributes.
      *
      * Boot-only. The encrypter persists in a static property for the worker
-     * lifetime and is used by every encrypted attribute across all coroutines.
+     * lifetime and is used by primitive encrypted casts across all coroutines.
      */
     public static function encryptUsing(?EncrypterContract $encrypter): void
     {
@@ -1673,6 +1694,15 @@ trait HasAttributes
     protected function isEncryptedCastable(string $key): bool
     {
         return $this->castMetadataCache['encryptedCastable'][$key] ??= $this->hasCast($key, ['encrypted', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
+    }
+
+    /**
+     * Determine whether a value is an encrypted class castable for inbound manipulation.
+     */
+    protected function isEncryptedClassCastable(string $key): bool
+    {
+        return $this->isClassCastable($key)
+            && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class]);
     }
 
     /**
@@ -2365,8 +2395,9 @@ trait HasAttributes
             return $current === $original;
         }
         if ($this->isClassCastable($key) && $original !== null && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class])) {
-            if (empty(static::currentEncrypter()->getPreviousKeys())) {
-                return $this->fromEncryptedString($attribute) === $this->fromEncryptedString($original);
+            // These casts use Crypt, independently of the model's custom encrypter.
+            if (empty(Crypt::getPreviousKeys())) {
+                return Crypt::decryptString($attribute) === Crypt::decryptString($original);
             }
 
             return false;
