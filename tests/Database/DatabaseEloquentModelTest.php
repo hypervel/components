@@ -2104,9 +2104,25 @@ class DatabaseEloquentModelTest extends TestCase
         );
     }
 
-    public function testReplacingOneBackingColumnKeepsOtherClassCastEdits(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReplacingOneBackingColumnKeepsOtherCastEdits(bool $attribute): void
     {
-        $model = (new ModelStub)->mergeCasts(['address' => Address::class]);
+        $model = $attribute ? new class extends Model {
+            /**
+             * Get and set the address columns.
+             */
+            protected function address(): Attribute
+            {
+                return Attribute::make(
+                    get: static fn (mixed $value, array $attributes): Address => new Address($attributes['address_line_one'], $attributes['address_line_two']),
+                    set: static fn (Address $value): array => [
+                        'address_line_one' => $value->lineOne,
+                        'address_line_two' => $value->lineTwo,
+                    ],
+                );
+            }
+        } : (new ModelStub)->mergeCasts(['address' => Address::class]);
         $model->setRawAttributes(['address_line_one' => 'First', 'address_line_two' => 'Second'], true);
         $address = $model->address;
         $address->lineTwo = 'Unsaved';
@@ -2115,6 +2131,91 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('Replacement', $model->address->lineOne);
         $this->assertSame('Unsaved', $model->address->lineTwo);
         $this->assertSame(['address_line_one' => 'Replacement', 'address_line_two' => 'Unsaved'], $model->getDirty());
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testPartialCastWritebackKeepsTheBaselineForLaterEdits(bool $attribute, bool $assign): void
+    {
+        $model = $attribute ? new class extends Model {
+            /**
+             * Get the address and write only its changed columns.
+             */
+            protected function address(): Attribute
+            {
+                return Attribute::make(
+                    get: static fn (mixed $value, array $attributes): Address => new Address($attributes['address_line_one'], $attributes['address_line_two']),
+                    set: static fn (Address $value, array $attributes): array => array_diff_assoc([
+                        'address_line_one' => $value->lineOne,
+                        'address_line_two' => $value->lineTwo,
+                    ], $attributes),
+                );
+            }
+        } : (new ModelStub)->mergeCasts(['address' => PartialAddressCast::class]);
+        $model->setRawAttributes(['address_line_one' => 'First', 'address_line_two' => 'Second'], true);
+        if ($assign) {
+            $model->address = new Address('First', 'Second');
+        }
+        $address = $model->address;
+
+        $this->assertSame([], $model->getDirty());
+
+        $address->lineOne = 'Changed';
+        $this->assertSame(['address_line_one' => 'Changed'], $model->getDirty());
+
+        $address->lineTwo = 'Later';
+        $this->assertSame(['address_line_one' => 'Changed', 'address_line_two' => 'Later'], $model->getDirty());
+        $this->assertSame($address, $model->address);
+    }
+
+    #[TestWith([false, 'old'])]
+    #[TestWith([true, 'old'])]
+    #[TestWith([false, null])]
+    #[TestWith([true, null])]
+    public function testCachedAccessorsRefreshAfterAnotherSetterWritesTheirRawValue(bool $getOnly, ?string $initial): void
+    {
+        $model = new class extends Model {
+            public bool $getOnly = false;
+
+            public int $setterCalls = 0;
+
+            /**
+             * Get the slug, optionally allowing explicit updates.
+             */
+            protected function slug(): Attribute
+            {
+                return Attribute::make(
+                    get: static fn (?string $value): ?string => $value === null ? null : '/' . $value,
+                    set: $this->getOnly ? null : function (string $value): string {
+                        ++$this->setterCalls;
+
+                        return ltrim($value, '/');
+                    },
+                )->shouldCache();
+            }
+
+            /**
+             * Set the name and its stored slug.
+             */
+            public function setNameAttribute(string $value): void
+            {
+                $this->attributes['name'] = $value;
+                $this->attributes['slug'] = strtolower($value);
+            }
+        };
+        $model->getOnly = $getOnly;
+        $model->setRawAttributes(['name' => 'Old', 'slug' => $initial], true);
+        $this->assertSame($initial === null ? null : '/old', $model->slug);
+
+        $model->name = 'New';
+
+        if ($getOnly || $initial === null) {
+            $this->assertSame(0, $model->setterCalls);
+        }
+        $this->assertSame('/new', $model->slug);
+        $this->assertSame(['name' => 'New', 'slug' => 'new'], $model->getDirty());
     }
 
     public function testRawAttributeReplacementDoesNotWriteBackCachedObjects(): void
@@ -5773,6 +5874,28 @@ class AttributeSettingsMutationModel extends Model
 
             return [];
         });
+    }
+}
+
+class PartialAddressCast implements CastsAttributes
+{
+    /**
+     * Return the address from its backing columns.
+     */
+    public function get(Model $model, string $key, mixed $value, array $attributes): Address
+    {
+        return new Address($attributes['address_line_one'], $attributes['address_line_two']);
+    }
+
+    /**
+     * Return only the address columns changed by this write.
+     */
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
+    {
+        return array_diff_assoc([
+            'address_line_one' => $value->lineOne,
+            'address_line_two' => $value->lineTwo,
+        ], $attributes);
     }
 }
 
