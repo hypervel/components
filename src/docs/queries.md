@@ -201,7 +201,9 @@ DB::table('users')->where('active', false)
     });
 ```
 
-When a selected alias uses your paging column's name, keep the actual column selected under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`. For queries with joins or raw sources, qualify an unselected paging column, such as `users.id`; Hypervel throws if another selected alias hides its name and the source cannot be identified. This also applies to the descending methods and `forPageAfterId` / `forPageBeforeId`.
+When a selected alias uses your paging column's name, keep the actual column selected under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`. Their descending methods accept the same argument.
+
+For queries with joins or raw sources, qualify an unselected paging column, such as `users.id`; Hypervel throws if another selected alias hides its name and the source cannot be identified. This rule also applies to `forPageAfterId` and `forPageBeforeId`, which do not accept an `alias` argument.
 
 Since the `chunkById` and `lazyById` methods add their own "where" conditions to the query being executed, you should typically [logically group](#logical-grouping) your own conditions within a closure:
 
