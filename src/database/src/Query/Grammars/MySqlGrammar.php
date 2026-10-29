@@ -164,6 +164,17 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Arrange select bindings while retaining legacy group-limit ordering.
+     */
+    public function prepareBindingsForSelect(Builder $query): array
+    {
+        // The legacy form keeps ORDER BY after WHERE instead of in a window projection.
+        return isset($query->groupLimit) && $this->useLegacyGroupLimit($query)
+            ? $query->getRawBindings()
+            : parent::prepareBindingsForSelect($query);
+    }
+
+    /**
      * Determine whether to use a legacy group limit clause for MySQL < 8.0.
      */
     public function useLegacyGroupLimit(Builder $query): bool
@@ -310,6 +321,25 @@ class MySqlGrammar extends Grammar
     {
         return ($query->limit === null ? 'limit 18446744073709551615 ' : '')
             . parent::compileOffset($query, $offset);
+    }
+
+    /**
+     * Compile nested union members using the syntax supported by the server.
+     */
+    protected function compileUnion(array $union): string
+    {
+        $query = $union['query'];
+
+        if (! $query->unions || $this->connection->isMaria()
+            || version_compare($this->connection->getServerVersion(), '8.0.31', '>=')) {
+            return parent::compileUnion($union);
+        }
+
+        // Older MySQL servers cannot parse a union as a union member. Supported
+        // MariaDB and newer MySQL servers retain their native nesting and plans.
+        return ($union['all'] ? ' union all ' : ' union ')
+            . '(select * from (' . $query->getGrammar()->compileSelectQuery($query)
+            . ') as ' . $this->wrap('union_table') . ')';
     }
 
     /**

@@ -1164,6 +1164,8 @@ class Builder implements BuilderContract
             $this->enforceOrderBy();
         }
 
+        $this->query->prepareCursorOrdering();
+
         $reverseDirection = function ($order) {
             if (! isset($order['direction'])) {
                 return $order;
@@ -1175,8 +1177,12 @@ class Builder implements BuilderContract
         };
 
         if ($shouldReverse) {
-            $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
-            $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
+            if (! empty($this->query->unionOrders)) {
+                // Reversing the page must not change a bounded first SELECT's rows.
+                $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
+            } else {
+                $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
+            }
         }
 
         $orders = ! empty($this->query->unionOrders) ? $this->query->unionOrders : $this->query->orders;
