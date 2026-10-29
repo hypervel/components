@@ -16,10 +16,11 @@ use Hypervel\Validation\Validator;
 
 class ValidatorTest extends DatabaseTestCase
 {
-    protected function setUp(): void
+    /**
+     * Create the validation fixtures after the database has been refreshed.
+     */
+    protected function afterRefreshingDatabase(): void
     {
-        parent::setUp();
-
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
             $table->string('uuid');
@@ -50,8 +51,6 @@ class ValidatorTest extends DatabaseTestCase
 
     public function testUniqueWithCustomModelKey(): void
     {
-        $_SERVER['CUSTOM_MODEL_KEY_NAME'] = 'uuid';
-
         $validator = $this->getValidator(['first_name' => 'John'], ['first_name' => 'unique:' . UserWithUuid::class]);
         $this->assertFalse($validator->passes());
 
@@ -63,13 +62,12 @@ class ValidatorTest extends DatabaseTestCase
         $validator = $this->getValidator(['first_name' => 'John'], ['first_name' => 'unique:users,first_name,' . $user->uuid . ',uuid']);
         $this->assertTrue($validator->passes());
 
-        $validator = $this->getValidator(['first_name' => 'John'], ['first_name' => 'unique:users,first_name,' . $user->uuid . ',id']);
+        // Keep the wrong-column check independent of database-specific UUID-to-integer coercion.
+        $validator = $this->getValidator(['first_name' => 'John'], ['first_name' => 'unique:users,first_name,' . $user->uuid . ',first_name']);
         $this->assertFalse($validator->passes());
 
         $validator = $this->getValidator(['first_name' => 'Taylor'], ['first_name' => 'unique:' . UserWithUuid::class]);
         $this->assertTrue($validator->passes());
-
-        unset($_SERVER['CUSTOM_MODEL_KEY_NAME']);
     }
 
     public function testImplicitAttributeFormatting(): void
