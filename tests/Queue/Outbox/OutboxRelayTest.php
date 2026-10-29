@@ -306,6 +306,46 @@ class OutboxRelayTest extends TestCase
         $this->assertTrue($released);
     }
 
+    #[DataProvider('driverCancellationOutcomes')]
+    public function testDriverCancellationStopsDeliveryWithoutSettlement(string $outcome, bool $child): void
+    {
+        $repository = m::mock(DatabaseOutboxRepository::class);
+        $repository->shouldNotReceive('settle');
+        $queues = m::mock(Factory::class);
+        $queue = m::mock($outcome === 'sequential' ? Queue::class : Queue::class . ', ' . PublishesOutboxMessages::class);
+        $exceptions = m::mock(ExceptionHandler::class);
+        $exceptions->shouldNotReceive('report');
+        $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
+        if ($child) {
+            $cancellation = new ChildCancellationException('Publication child canceled.', previous: $cancellation);
+        }
+        $queues->expects('connection')->with('redis')->andReturn($queue);
+        $publication = $queue->expects($outcome === 'sequential' ? 'pushRaw' : 'publishOutboxMessages');
+        $outcome === 'returned'
+            ? $publication->andReturn(new OutboxBatchResult([1], failure: $cancellation))
+            : $publication->andThrow($cancellation);
+
+        try {
+            (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2, 'other')]);
+            $this->fail('Driver cancellation must stop delivery.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $child ? $exception : $exception->getPrevious());
+        }
+    }
+
+    /**
+     * Cover cancellation thrown by drivers or returned directly and through the sequential fallback.
+     */
+    public static function driverCancellationOutcomes(): array
+    {
+        return [
+            'returned wrapped cancellation' => ['returned', false],
+            'thrown wrapped cancellation' => ['thrown', false],
+            'sequential child cancellation' => ['sequential', true],
+            'thrown child cancellation' => ['thrown', true],
+        ];
+    }
+
     /**
      * Build a message whose age and diagnostics are visible to observers.
      */

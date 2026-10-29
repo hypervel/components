@@ -489,7 +489,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             }
 
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
-            // Only explicit per-entry failures below are provably rejected.
+            // Only sender-fault entries below are treated as rejected.
             try {
                 $result = $this->sqs->sendMessageBatch([
                     'QueueUrl' => $queueUrl,
@@ -527,7 +527,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $rejectedPaths = [];
 
                     foreach ($result['Failed'] as $rejected) {
-                        if (isset($overflow[$rejected['Id']])) {
+                        if (isset($overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                             $rejectedPaths[] = $overflow[$rejected['Id']]['path'];
                         }
                     }
@@ -544,23 +544,20 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
                 },
             );
+
+            if ($exception !== null && $notificationFailure !== null) {
+                $this->reportSecondaryFailure($notificationFailure);
+            }
+
             $exception ??= $notificationFailure;
 
             if ($exception === null) {
                 continue;
             }
 
-            try {
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
-            } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    throw $throwable;
-                }
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
-                $notificationFailure ??= $throwable;
-            }
-
-            throw $notificationFailure ?? $exception;
+            throw $exception;
         }
     }
 
@@ -621,7 +618,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         unset($entry);
                     }
 
-                    // SDK failures are ambiguous; only explicit rejects own safe cleanup.
+                    // SDK failures are ambiguous; only sender-fault rejects are cleaned up.
                     $result = $this->sqs->sendMessageBatch(['QueueUrl' => $queueUrl, 'Entries' => $chunk]);
                     $chunkIds = array_fill_keys(array_column($chunk, 'Id'), true);
 
@@ -636,7 +633,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                             $paths = [];
 
                             foreach ($result['Failed'] as $rejected) {
-                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']])) {
+                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                                     $paths[] = $overflow[$rejected['Id']]['path'];
                                 }
                             }
@@ -684,6 +681,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
+     * Determine if a failed batch entry's overflow payload may be cleaned up.
+     *
+     * Treat explicit sender-fault entries as rejected. SDK retries can make
+     * server-fault responses ambiguous, so those payloads are retained.
+     */
+    protected function isSenderFaultRejection(array $failure): bool
+    {
+        return ($failure['SenderFault'] ?? false) === true;
+    }
+
+    /**
      * Raise queueing-failed events for every outstanding message.
      */
     protected function raiseBatchFailedEvents(
@@ -692,17 +700,13 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
         ?string $queue,
         Throwable $exception,
     ): void {
-        $notificationFailure = $this->notifyBatchMembers(
+        $this->notifyBatchMembersOfFailure(
             array_keys($outstandingMessageIds),
             function (int $id) use ($messages, $queue, $exception): void {
                 $message = $messages[$id];
                 $this->raiseJobQueueingFailedEvent($queue, $message['job'], $message['payload'], $message['delay'], $exception);
             },
         );
-
-        if ($notificationFailure !== null) {
-            throw $notificationFailure;
-        }
     }
 
     /**
@@ -847,7 +851,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if ($cancellation === null && Coroutine::causedByCancellation($exception)) {
                     $cancellation = $exception;
                 } else {
-                    PoolErrorReporter::report($exception);
+                    try {
+                        $this->reportSecondaryFailure($exception);
+                    } catch (Throwable $reportingCancellation) {
+                        $cancellation ??= $reportingCancellation;
+                    }
                 }
             }
         }

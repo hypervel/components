@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue\Outbox;
 
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
@@ -194,6 +195,33 @@ class OutboxDispatchTest extends TestCase
             $failed[] = $event->job;
         });
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
+
+        try {
+            $queue->bulk($jobs);
+            $this->fail('Expected finalization to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($jobs, $failed);
+        $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
+    public function testBulkFailureIsNotReplacedByAFailingFailureListener(): void
+    {
+        $queue = $this->queue();
+        $failure = new RuntimeException('Finalization failed');
+        $listener = new RuntimeException('Listener failed');
+        $failed = [];
+        $this->app->make('events')->listen(JobPayloadFinalizing::class, static fn () => throw $failure);
+        $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $this->app->make('events')->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
         try {
             $queue->bulk($jobs);

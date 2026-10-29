@@ -431,10 +431,12 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
                 throw $exception;
             }
 
-            throw $this->notifyBatchMembers(
+            $this->notifyBatchMembersOfFailure(
                 $jobs,
                 fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
-            ) ?? $exception;
+            );
+
+            throw $exception;
         }
 
         foreach ($jobs as $job) {

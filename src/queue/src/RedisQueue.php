@@ -438,10 +438,12 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
                 throw $exception;
             }
 
-            throw $this->notifyBatchMembers(
+            $this->notifyBatchMembersOfFailure(
                 $jobs,
                 fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
-            ) ?? $exception;
+            );
+
+            throw $exception;
         }
 
         foreach ($jobs as $job) {
@@ -467,6 +469,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function publishOutboxMessages(array $messages): OutboxBatchResult
     {
         $accepted = [];
+        $observerFailure = null;
 
         if ($messages === []) {
             return new OutboxBatchResult;
@@ -499,21 +502,23 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
                     $accepted[] = $message->id;
                 }
 
+                // Observers report after publication, so they must not hold back later destinations.
                 $failure = $this->notifyBatchMembers($prepared, fn (array $member) => $this->handlePayloadPushed($member['payload'], $member['queue']));
-
-                if ($failure !== null) {
-                    throw $failure;
-                }
+                $observerFailure ??= $failure;
             }
         } catch (Throwable $exception) {
             if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
+            if ($observerFailure !== null) {
+                $this->reportSecondaryFailure($observerFailure);
+            }
+
             return new OutboxBatchResult($accepted, failure: $exception);
         }
 
-        return new OutboxBatchResult($accepted);
+        return new OutboxBatchResult($accepted, failure: $observerFailure);
     }
 
     /**
