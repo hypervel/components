@@ -64,6 +64,133 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         yield 'lazy descending' => ['lazyByIdDesc', true, true];
     }
 
+    #[DataProvider('keysetIterators')]
+    public function testKeysetIterationUsesTheSourceColumnWhenAnAliasShadowsIt(string $method, bool $lazy, bool $descending): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, code integer)');
+        $connection->unprepared('insert into entries values (1, 40), (2, 30), (3, 20), (4, 10)');
+
+        foreach ([false, true] as $union) {
+            $query = $connection->table('entries')->select('code as id', 'id as original_id');
+            if ($union) {
+                $query->where('id', '<', 3)->unionAll(
+                    $connection->table('entries')->select('code as id', 'id as original_id')->where('id', '>=', 3)
+                );
+            }
+            $actual = [];
+            if ($lazy) {
+                $actual = $query->{$method}(2, 'id', 'original_id')->take(8)->pluck('original_id')->all();
+            } else {
+                $this->assertTrue($query->{$method}(2, function (Collection $rows) use (&$actual): bool {
+                    array_push($actual, ...$rows->pluck('original_id')->all());
+
+                    return count($actual) < 8;
+                }, 'id', 'original_id'));
+            }
+
+            $this->assertSame($descending ? [4, 3, 2, 1] : [1, 2, 3, 4], $actual);
+        }
+    }
+
+    public function testUnionCursorPrefersOutputAliasesOverOtherSourceColumns(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, name integer)');
+        $connection->unprepared('insert into entries values (1, 101), (2, 102), (3, 103), (4, 104)');
+        $query = $connection->table('entries')->select('name as label', 'id as name')->where('id', '<', 3)
+            ->unionAll($connection->table('entries')->select('name as label', 'id as name')->where('id', '>=', 3))
+            ->orderBy('name');
+        $cursor = null;
+        foreach ([1, 2, 3, 4] as $expected) {
+            $page = (clone $query)->cursorPaginate(1, cursor: $cursor);
+            $this->assertSame([$expected], $page->pluck('name')->all());
+            $cursor = $page->nextCursor();
+        }
+        $this->assertNull($cursor);
+        foreach ([3, 2, 1] as $expected) {
+            $page = (clone $query)->cursorPaginate(1, cursor: $page->previousCursor());
+            $this->assertSame([$expected], $page->pluck('name')->all());
+        }
+        $this->assertNull($page->previousCursor());
+    }
+
+    #[TestWith(['id', 'entries.id'])]
+    #[TestWith(['entries.id', 'id'])]
+    public function testUnionPagingMatchesQualifiedAndUnqualifiedSourceColumns(string $selected, string $column): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer)');
+        $connection->unprepared('insert into entries values (1), (2), (3), (4)');
+        $query = $connection->table('entries')->select($selected . ' as cursor_id')->where('id', '<', 3)
+            ->unionAll($connection->table('entries')->select('id as member_id')->where('id', '>=', 3));
+
+        $this->assertSame([2, 3], (clone $query)->forPageAfterId(2, 1, $column)->pluck('cursor_id')->all());
+        $this->assertSame([3, 2], (clone $query)->forPageBeforeId(2, 4, $column)->pluck('cursor_id')->all());
+    }
+
+    public function testDirectIdPagesResolveShadowedOrdersAfterTheProjectionIsComplete(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, code integer)');
+        $connection->unprepared('insert into entries values (1, 40), (2, 30), (3, 20), (4, 10)');
+        $query = $connection->table('entries')->forPageAfterId(2, 1, 'id');
+
+        $this->assertSame([30, 20], $query->get(['code as id'])->pluck('id')->all());
+        $query->forPageBeforeId(2, 4, 'id');
+        $this->assertSame([3, 2], $query->get(['code as id', 'id as original_id'])->pluck('original_id')->all());
+        $this->assertSame([20, 30], $connection->table('entries', 'source')->select('code as id')
+            ->forPageBeforeId(2, 4, 'id')->pluck('id')->all());
+    }
+
+    public function testUnionIdPagingRejectsAnUnselectedSourceHiddenByAnAlias(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Select the paging column under its own output name');
+        $connection->table('entries')->select('code as id')->where('id', '<', 3)
+            ->unionAll($connection->table('entries')->select('code as id')->where('id', '>=', 3))
+            ->forPageAfterId(2, 1, 'id')->get();
+    }
+
+    public function testUnionPagingDistinguishesQualifiedSourcesInJoinedProjections(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer)');
+        $connection->unprepared('create table owners (id integer)');
+        $connection->unprepared('insert into entries values (1), (2), (3), (4)');
+        $connection->unprepared('insert into owners values (101)');
+        $query = $connection->table('entries')->crossJoin('owners')
+            ->select('owners.id as owner_id', 'entries.id as cursor_id')->where('entries.id', '<', 3)
+            ->unionAll($connection->table('entries', 'archive')->crossJoin('owners as other')
+                ->select('other.id as owner_id', 'archive.id as cursor_id')->where('archive.id', '>=', 3));
+
+        $this->assertSame([2, 3], $query->forPageAfterId(2, 1, 'entries.id')->pluck('cursor_id')->all());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testUnselectedShadowedIdColumnsRequireQualificationWhenTheirSourceIsUnknown(bool $raw): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, code integer)');
+        $connection->unprepared('create table owners (owner_id integer)');
+        $connection->unprepared('insert into entries values (1, 40), (2, 30), (3, 20), (4, 10)');
+        $connection->unprepared('insert into owners values (1)');
+        $query = $connection->query()->select('code as id');
+        if ($raw) {
+            $query->fromRaw('entries');
+        } else {
+            $query->from('entries')->crossJoin('owners');
+        }
+
+        $this->assertSame([30, 20], (clone $query)->forPageAfterId(2, 1, 'entries.id')->pluck('id')->all());
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Qualify the paging column');
+        $query->forPageAfterId(2, 1, 'id')->get();
+    }
+
     public function testDirectKeysetPagesPreserveScopesLimitsAndCurrentBindings(): void
     {
         $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
@@ -180,25 +307,29 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $this->assertSame(3, $page->unionLimit);
     }
 
-    public function testCursorComparisonsFilterGroupedExpressionResults(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCursorComparisonsFilterGroupedExpressionResults(bool $shadowed): void
     {
         $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
         $connection->unprepared('create table events (tenant_id integer, amount integer)');
         $connection->unprepared('insert into events values (1, 2), (1, 3), (2, 5), (3, 7)');
-        $query = $connection->table('events')->select('tenant_id')->selectRaw('sum(amount) as total')
-            ->groupBy('tenant_id')->havingRaw('sum(amount) >= ?', [5])
-            ->orderBy('total')->orderBy('tenant_id')
+        $groupColumn = $shadowed ? 'total' : 'tenant_id';
+        $aggregateColumn = $shadowed ? 'tenant_id' : 'total';
+        $query = $connection->table('events')->select('tenant_id as ' . $groupColumn)->selectRaw('sum(amount) as ' . $aggregateColumn)
+            ->groupBy('events.tenant_id')->havingRaw('sum(amount) >= ?', [5])
+            ->orderBy($aggregateColumn)->orderBy($groupColumn)
             ->beforeQuery(static fn (Builder $query) => $query->orderByRaw('tenant_id + ?', [100]));
 
         $first = (clone $query)->cursorPaginate(1);
         $second = (clone $query)->cursorPaginate(1, cursor: $first->nextCursor());
         $third = (clone $query)->cursorPaginate(1, cursor: $second->nextCursor());
 
-        $this->assertSame([1], $first->pluck('tenant_id')->all());
-        $this->assertSame([2], $second->pluck('tenant_id')->all());
-        $this->assertSame([3], $third->pluck('tenant_id')->all());
-        $this->assertSame([1], (clone $query)->cursorPaginate(1, cursor: $second->previousCursor())->pluck('tenant_id')->all());
-        $this->assertSame([], (clone $query)->cursorPaginate(1, cursor: new Cursor(['total' => 7, 'tenant_id' => 3]))->items());
+        $this->assertSame([1], $first->pluck($groupColumn)->all());
+        $this->assertSame([2], $second->pluck($groupColumn)->all());
+        $this->assertSame([3], $third->pluck($groupColumn)->all());
+        $this->assertSame([1], (clone $query)->cursorPaginate(1, cursor: $second->previousCursor())->pluck($groupColumn)->all());
+        $this->assertSame([], (clone $query)->cursorPaginate(1, cursor: new Cursor([$aggregateColumn => 7, $groupColumn => 3]))->items());
     }
 
     public function testBinaryStringsCanBePagedUsingAnExplicitCursorAlias(): void

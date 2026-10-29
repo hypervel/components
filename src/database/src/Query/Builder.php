@@ -2797,7 +2797,7 @@ class Builder implements BuilderContract
             $lastId = BinaryParameter::fromStream($lastId);
         }
 
-        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column) : $column;
+        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column, source: true) : $column;
         if ($this->unions) {
             $this->unionOrders = $this->removeOrdersFor($this->unionOrders ?? [], $this->bindings['unionOrder'], $orderColumn);
         } else {
@@ -2831,7 +2831,7 @@ class Builder implements BuilderContract
             $lastId = BinaryParameter::fromStream($lastId);
         }
 
-        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column) : $column;
+        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column, source: true) : $column;
         if ($this->unions) {
             $this->unionOrders = $this->removeOrdersFor($this->unionOrders ?? [], $this->bindings['unionOrder'], $orderColumn);
         } else {
@@ -3363,7 +3363,7 @@ class Builder implements BuilderContract
             'union' => $union,
         ];
         if ($column !== null) {
-            $this->wheres[$index]['keysetColumn'] = $column;
+            $this->wheres[$index]['keysetSourceColumn'] = $column;
         }
         if ($union) {
             $this->hasUnionKeysetConditions = true;
@@ -3440,11 +3440,25 @@ class Builder implements BuilderContract
     protected function prepareForSelect(): static
     {
         $isolateSelect = $this->hasSelectKeysetConditions && $this->requiresKeysetIsolation(false);
-        if (! $isolateSelect && ! $this->hasUnionKeysetConditions) {
+        $orders = $this->orders;
+        // Keep logical source names for repeated ID calls; resolve aliases only
+        // after scopes and get() have completed the executable projection.
+        if (! $isolateSelect && $this->hasSelectKeysetConditions && $this->columns !== null && $this->columns !== ['*']) {
+            foreach ($orders ?? [] as $index => $order) {
+                if (isset($order['keyset']) && is_string($order['column'])) {
+                    $column = $this->resolveKeysetOrderColumn($order['column']);
+                    if ($column !== $order['column']) {
+                        $orders[$index]['column'] = $column;
+                    }
+                }
+            }
+        }
+        if (! $isolateSelect && ! $this->hasUnionKeysetConditions && $orders === $this->orders) {
             return $this;
         }
 
         $query = $this->clone();
+        $query->orders = $orders;
         $query->hasSelectKeysetConditions = $query->hasUnionKeysetConditions = false;
         $conditions = [];
         $query->wheres = $query->collectKeysetConditions($query->wheres, $conditions, $isolateSelect);
@@ -3467,7 +3481,7 @@ class Builder implements BuilderContract
                     array_push($pageBindings, ...array_slice($query->bindings['order'], $order['bindings']['offset'], $order['bindings']['count']));
                 }
                 if (isset($order['column']) && is_string($order['column'])) {
-                    $pageOrders[$index]['column'] = $this->getKeysetOutputColumn($order['column']);
+                    $pageOrders[$index]['column'] = $this->getKeysetOutputColumn($order['column'], source: isset($order['keyset']));
                 }
             }
             $query->isolateKeysetSelect(false);
@@ -3537,7 +3551,10 @@ class Builder implements BuilderContract
      */
     protected function normalizeKeysetColumns(array $where): array
     {
-        if (isset($where['keysetColumn'])) {
+        if (isset($where['keysetSourceColumn'])) {
+            $where['keysetColumn'] = $this->getKeysetOutputColumn($where['keysetSourceColumn'], source: true);
+            unset($where['keysetSourceColumn']);
+        } elseif (isset($where['keysetColumn'])) {
             $where['keysetColumn'] = $this->getKeysetOutputColumn($where['keysetColumn']);
         }
         if ($where['type'] === 'Nested') {
@@ -3572,16 +3589,79 @@ class Builder implements BuilderContract
     /**
      * Get the selected output name for a paging column.
      */
-    protected function getKeysetOutputColumn(string $parameter): string
+    protected function getKeysetOutputColumn(string $parameter, bool $source = false): string
     {
+        // ID methods name a WHERE source; cursors name ORDER BY outputs. An alias
+        // can shadow another source, so those two lookups need different precedence.
+        if ($source && ($output = $this->getKeysetSourceOutputColumn($parameter)) !== null) {
+            return $output;
+        }
+
+        $outputName = $source ? Str::afterLast($parameter, '.') : $parameter;
         foreach ($this->getColumns() as $column) {
-            [$original, $alias] = $this->getKeysetSelection($column);
-            if ($parameter === $original || $parameter === $alias) {
+            [, $alias] = $this->getKeysetSelection($column);
+            if ($alias === $outputName) {
+                if ($source) {
+                    throw new InvalidArgumentException("Cannot paginate the unselected source column [{$parameter}] through a shadowing alias. Select the paging column under its own output name.");
+                }
+
                 return $alias;
             }
         }
 
-        return Str::afterLast($parameter, '.');
+        return ($source ? null : $this->getKeysetSourceOutputColumn($parameter)) ?? Str::afterLast($parameter, '.');
+    }
+
+    /**
+     * Find the selected output that represents a paging source column.
+     */
+    protected function getKeysetSourceOutputColumn(string $column): ?string
+    {
+        foreach ($this->getColumns() as $selection) {
+            [$original, $alias] = $this->getKeysetSelection($selection);
+            if ($this->isSameKeysetSourceColumn($original, $column)) {
+                return $alias;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Compare source references without conflating two explicitly qualified columns.
+     */
+    protected function isSameKeysetSourceColumn(string $left, string $right): bool
+    {
+        return $left === $right || ((! str_contains($left, '.') || ! str_contains($right, '.'))
+            && Str::afterLast($left, '.') === Str::afterLast($right, '.'));
+    }
+
+    /**
+     * Keep an ID page ordered by its WHERE source when an output alias shadows it.
+     */
+    protected function resolveKeysetOrderColumn(string $column): string
+    {
+        if (str_contains($column, '.')) {
+            return $column;
+        }
+
+        foreach ($this->getColumns() as $selection) {
+            [$original, $alias] = $this->getKeysetSelection($selection);
+            if ($alias !== $column || $this->isSameKeysetSourceColumn($original, $column)) {
+                continue;
+            }
+
+            if (($output = $this->getKeysetSourceOutputColumn($column)) !== null) {
+                return $output;
+            }
+            if (! $this->joins && ($source = $this->getFromAlias()) !== null) {
+                return $source . '.' . $column;
+            }
+
+            throw new InvalidArgumentException("Qualify the paging column [{$column}] or select it under its own output name; an alias shadows its unresolved source.");
+        }
+
+        return $column;
     }
 
     /**
@@ -3624,8 +3704,8 @@ class Builder implements BuilderContract
                 if (! is_string($column) || $column === '*' || str_ends_with($column, '.*')) {
                     break;
                 }
-                [$original, $alias] = $this->getKeysetSelection($column);
-                if ($parameter === $alias || $parameter === $original) {
+                [, $alias] = $this->getKeysetSelection($column);
+                if ($parameter === $alias) {
                     $position = $index;
                     break;
                 }
