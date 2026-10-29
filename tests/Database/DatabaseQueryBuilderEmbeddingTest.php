@@ -92,11 +92,11 @@ class EmbeddingAwareQueryBuilder extends Builder
     public ?InvalidArgumentException $embeddingFailure = null;
 
     /**
-     * Extend embedding preparation while retaining callbacks and the timeout rule.
+     * Extend embedding validation while retaining the framework timeout rule.
      */
-    protected function prepareQueryForEmbedding(Builder $query): void
+    protected function ensureCanEmbedQuery(Builder $query): void
     {
-        parent::prepareQueryForEmbedding($query);
+        parent::ensureCanEmbedQuery($query);
 
         $this->validatedQueries[] = $query;
 

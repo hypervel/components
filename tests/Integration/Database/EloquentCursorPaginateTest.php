@@ -5,19 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
-use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
-use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
@@ -89,118 +86,6 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             ->cursorPaginate(1);
 
         $this->assertSame(['user_id'], $result->getOptions()['parameters']);
-    }
-
-    #[DataProvider('boundedUnionProvider')]
-    public function testPaginationPreservesBoundedUnionMembers(string $shape, array $firstIds, array $secondIds): void
-    {
-        for ($id = 1; $id <= 7; ++$id) {
-            TestPost::create(['id' => $id]);
-        }
-
-        $calls = 0;
-        $query = function () use ($shape, &$calls): QueryBuilder {
-            $bounded = DB::table('test_posts')->where('id', '<', 7)->orderByDesc('id')->limit(3);
-            $ordinary = DB::table('test_posts')->select('id as identifier')->where('id', 7);
-
-            $query = match ($shape) {
-                'root' => $bounded->unionAll($ordinary),
-                'member' => $ordinary->unionAll($bounded->select('id as identifier')),
-                'group' => $ordinary->unionAll(
-                    DB::table('test_posts')->select('id as identifier')->where('id', '<=', 3)
-                        ->unionAll(DB::table('test_posts')->select('id as identifier')->whereBetween('id', [4, 6]))
-                        ->orderByDesc('identifier')->offset(1)->limit(3)
-                ),
-            };
-
-            return $query->orderByDesc('identifier')->beforeQuery(function () use (&$calls): void {
-                ++$calls;
-            });
-        };
-
-        $first = $query()->cursorPaginate(2, ['id as identifier']);
-        $this->assertSame($firstIds, $first->pluck('identifier')->all());
-        $this->assertSame(1, $calls);
-
-        $second = $query()->cursorPaginate(2, ['id as identifier'], cursor: $first->nextCursor());
-        $this->assertSame($secondIds, $second->pluck('identifier')->all());
-        $this->assertSame(2, $calls);
-
-        $previous = $query()->cursorPaginate(2, ['id as identifier'], cursor: $second->previousCursor());
-        $this->assertSame($firstIds, $previous->pluck('identifier')->all());
-        $this->assertSame(3, $calls);
-
-        $after = $query()->cursorPaginate(2, ['id as identifier'], cursor: new Cursor(['identifier' => $secondIds[1]]));
-        $this->assertSame([], $after->items());
-        $this->assertSame(4, $calls);
-    }
-
-    /**
-     * Provide bounded primary selects, members and complete union groups.
-     */
-    public static function boundedUnionProvider(): array
-    {
-        return [
-            ['root', [7, 6], [5, 4]],
-            ['member', [7, 6], [5, 4]],
-            ['group', [7, 5], [4, 3]],
-        ];
-    }
-
-    public function testBoundedEloquentUnionKeepsScopesAndEagerLoads(): void
-    {
-        TestUser::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
-        TestPost::fillAndInsert([['user_id' => 1], ['user_id' => 3], ['user_id' => 4]]);
-
-        $scopeCalls = 0;
-        $query = function () use (&$scopeCalls): Builder {
-            return TestUser::with('posts')
-                ->withGlobalScope('visible', function (Builder $query) use (&$scopeCalls): void {
-                    ++$scopeCalls;
-                    $query->where('test_users.id', '>=', 2);
-                })
-                ->orderByDesc('id')->limit(2)
-                ->unionAll(TestUser::where('id', 1))
-                ->orderByDesc('id');
-        };
-
-        $first = $query()->cursorPaginate(2);
-        $this->assertSame([4, 3], $first->getCollection()->modelKeys());
-        $this->assertSame(1, $scopeCalls);
-
-        $second = $query()->cursorPaginate(2, cursor: $first->nextCursor());
-        $this->assertSame([1], $second->getCollection()->modelKeys());
-        $this->assertSame(2, $scopeCalls);
-        $this->assertTrue($second->items()[0]->relationLoaded('posts'));
-        $this->assertSame([1], $second->items()[0]->posts->pluck('user_id')->all());
-
-        $previous = $query()->cursorPaginate(2, cursor: $second->previousCursor());
-        $this->assertSame([4, 3], $previous->getCollection()->modelKeys());
-        $this->assertSame(3, $scopeCalls);
-    }
-
-    public function testBoundedUnionMemberKeepsItsImplicitProjection(): void
-    {
-        TestPost::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
-        $query = fn (): QueryBuilder => DB::table('test_posts')->where('id', '<=', 2)->orderByDesc('id')->limit(1)
-            ->unionAll(DB::table('test_posts', 'archive')->where('id', '>', 2)->orderByDesc('id')->limit(1))
-            ->orderByDesc('id');
-
-        $first = $query()->cursorPaginate(1, ['test_posts.*']);
-        $this->assertSame([4], $first->pluck('id')->all());
-
-        $second = $query()->cursorPaginate(1, ['test_posts.*'], cursor: $first->nextCursor());
-        $this->assertSame([2], $second->pluck('id')->all());
-    }
-
-    public function testOrdinaryCursorPaginationStillOwnsItsLimit(): void
-    {
-        TestPost::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
-
-        $page = DB::table('test_posts')->orderBy('id')->limit(1)
-            ->cursorPaginate(3, cursor: new Cursor(['id' => 1]));
-
-        $this->assertSame([2, 3, 4], $page->pluck('id')->all());
     }
 
     public function testPaginationWithDistinct(): void

@@ -3296,35 +3296,6 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $count);
     }
 
-    public function testGetCountForPaginationWithGroupedUnionLimitAndOffset(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->from('posts')->select('category')->groupBy('category')->unionAll($this->getBuilder()->from('videos')->select('category'))->limit(15)->offset(1);
-
-        $builder->getConnection()->expects('select')->with('select count(*) as "aggregate" from ((select "category" from "posts" group by "category") union all (select "category" from "videos")) as "aggregate_table"', [], true, [])->andReturn([['aggregate' => 1]]);
-        $builder->getProcessor()->expects('processSelect')->andReturnUsing(function ($builder, $results) {
-            return $results;
-        });
-
-        $count = $builder->getCountForPagination();
-        $this->assertEquals(1, $count);
-    }
-
-    public function testGetCountForPaginationWithGroupedUnionOrders(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->from('posts')->select('category')->groupBy('category')->unionAll($this->getBuilder()->from('videos')->select('category'))->orderBy('category')->orderByRaw('field(category, ?)', ['news']);
-
-        $builder->getConnection()->expects('select')->with('select count(*) as "aggregate" from ((select "category" from "posts" group by "category") union all (select "category" from "videos")) as "aggregate_table"', [], true, [])->andReturn([['aggregate' => 1]]);
-        $builder->getProcessor()->expects('processSelect')->andReturnUsing(function ($builder, $results) {
-            return $results;
-        });
-
-        $count = $builder->getCountForPagination();
-        $this->assertEquals(1, $count);
-        $this->assertSame(['news'], $builder->getRawBindings()['unionOrder']);
-    }
-
     public function testGroupLimitCompilationWithAndWithoutOffset(): void
     {
         $builder = $this->getSQLiteBuilder()
@@ -3603,27 +3574,6 @@ class DatabaseQueryBuilderTest extends TestCase
             $embedded,
             fn () => $outer->unionAll($embedded),
         );
-    }
-
-    public function testEmbeddedQueryRejectsTimeoutAddedByCallback(): void
-    {
-        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
-        $sql = $outer->toSql();
-        $embedded = $this->getMySqlBuilder()->from('members')->select('id')
-            ->beforeQuery(fn (Builder $query) => $query->timeout(2));
-
-        try {
-            $outer->whereIn('id', $embedded);
-            $this->fail('Expected the embedded query timeout to be rejected.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame(
-                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertSame($sql, $outer->toSql());
-        $this->assertSame([7], $outer->getBindings());
     }
 
     public function testExplainRejectsQueryTimeoutWithoutMutatingTheBuilder(): void
@@ -6218,41 +6168,6 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->exists();
     }
 
-    #[DataProvider('embeddedQueryCallbacksProvider')]
-    public function testEmbeddedQueryCallbacksRunBeforeBindingsAreCaptured(string $kind, string $sql): void
-    {
-        $calls = 0;
-        $embedded = $this->getBuilder()->select('id')->from('members')->beforeQuery(function (Builder $query) use (&$calls): void {
-            ++$calls;
-            $query->where('active', 1);
-        });
-        $outer = $this->getBuilder()->select('id')->from('users')->where('tenant_id', 7);
-
-        match ($kind) {
-            'union' => $outer->unionAll($embedded),
-            'exists' => $outer->whereExists($embedded),
-            'scalar' => $outer->where('id', '=', $embedded),
-            'parsed' => $outer->whereIn('id', $embedded),
-        };
-
-        $this->assertSame($sql, $outer->toSql());
-        $this->assertSame([7, 1], $outer->getBindings());
-        $this->assertSame(1, $calls);
-    }
-
-    /**
-     * Provide the supported query embedding forms.
-     */
-    public static function embeddedQueryCallbacksProvider(): array
-    {
-        return [
-            ['union', '(select "id" from "users" where "tenant_id" = ?) union all (select "id" from "members" where "active" = ?)'],
-            ['exists', 'select "id" from "users" where "tenant_id" = ? and exists (select "id" from "members" where "active" = ?)'],
-            ['scalar', 'select "id" from "users" where "tenant_id" = ? and "id" = (select "id" from "members" where "active" = ?)'],
-            ['parsed', 'select "id" from "users" where "tenant_id" = ? and "id" in (select "id" from "members" where "active" = ?)'],
-        ];
-    }
-
     public function testPostgresInsertGetId(): void
     {
         $builder = $this->getPostgresBuilder();
@@ -6907,7 +6822,7 @@ SQL, ['"John"'])->andReturn(1);
         $clone = (new ReflectionMethod($builder, 'cloneForPaginationCount'))->invoke($builder);
         $this->assertInstanceOf(DatabaseQueryBuilderWithCustomBindings::class, $clone);
         $this->assertSame(['tenant', true], $clone->getBindings());
-        $this->assertNull($clone->orders);
+        $this->assertSame([], $clone->orders);
         $this->assertNull($clone->limit);
         $this->assertNull($clone->offset);
 
@@ -7610,28 +7525,6 @@ SQL, ['"John"'])->andReturn(1);
         $builder->cursorPaginate($perPage, $columns, $cursorName, $cursor);
     }
 
-    public function testCustomKeysetIsolationKeepsSelectOrderingAndPageOrderingSeparate(): void
-    {
-        $connection = $this->getConnection();
-        $builder = new class($connection, new Grammar($connection), new Processor) extends Builder {
-            /**
-             * Require paging outside a custom SELECT clause.
-             */
-            protected function requiresKeysetIsolation(bool $limitSelectsRows): bool
-            {
-                return true;
-            }
-        };
-        $builder->from('events')->orderBy('id')->orderByRaw('id + ?', [7])
-            ->forPageBeforeId(2, 5);
-
-        $this->assertSame(
-            'select * from (select * from "events" order by "id" asc, id + ?) as "cursor_table" where "id" < ? order by "id" desc limit 2',
-            $builder->toSql()
-        );
-        $this->assertSame([7, 5], $builder->getBindings());
-    }
-
     public function testCursorPaginateWithDefaultArguments(): void
     {
         $perPage = 15;
@@ -7932,72 +7825,6 @@ SQL, ['"John"'])->andReturn(1);
         ]), $result);
     }
 
-    public function testCursorPaginateFiltersNestedUnionsAndRebuildsTheirBindings(): void
-    {
-        $builder = $this->getMockQueryBuilder(['get']);
-        $builder->select('id')->from('videos')->where('active', 1)
-            ->unionAll($this->getBuilder()->select('id')->from('news')->where('active', 2)
-                ->unionAll($this->getBuilder()->select('id')->from('archives')->where('active', 3)))
-            ->orderBy('id');
-
-        $builder->expects('get')->andReturnUsing(function () use ($builder): Collection {
-            $this->assertSame(
-                '(select "id" from "videos" where "active" = ? and ("id" > ?)) union all ((select "id" from "news" where "active" = ? and ("id" > ?)) union all (select "id" from "archives" where "active" = ? and ("id" > ?))) order by "id" asc limit 11',
-                $builder->toSql()
-            );
-            $this->assertSame([1, 2, 2, 2, 3, 2], $builder->getBindings());
-
-            return new Collection;
-        });
-
-        $builder->cursorPaginate(10, cursor: new Cursor(['id' => 2]));
-    }
-
-    public function testCursorPaginateWithUnionSelectAndJoinBindings(): void
-    {
-        $timestamp = now()->toDateTimeString();
-
-        $perPage = 16;
-        $columns = ['test'];
-        $cursorName = 'cursor-name';
-        $cursor = new Cursor(['created_at' => $timestamp]);
-        $builder = $this->getMockQueryBuilder(['get']);
-        $builder->select('id', 'created_at')->selectRaw('? as type', ['video'])->from('videos');
-        $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw('? as type', ['news'])->from('news')->join('authors', function (JoinClause $join): void {
-            $join->on('authors.id', '=', 'news.author_id')->where('authors.active', true);
-        }));
-        $builder->orderBy('created_at');
-
-        $path = 'http://foo.bar?cursor=' . $cursor->encode();
-
-        $results = collect([
-            ['id' => 1, 'created_at' => now(), 'type' => 'video'],
-            ['id' => 2, 'created_at' => now(), 'type' => 'news'],
-        ]);
-
-        $builder->expects('get')->andReturnUsing(function () use ($builder, $results, $timestamp): Collection {
-            $this->assertSame(
-                '(select "id", "created_at", ? as type from "videos" where ("created_at" > ?)) union (select "id", "created_at", ? as type from "news" inner join "authors" on "authors"."id" = "news"."author_id" and "authors"."active" = ? where ("created_at" > ?)) order by "created_at" asc limit 17',
-                $builder->toSql()
-            );
-            $this->assertEquals(['video', $timestamp, 'news', true, $timestamp], $builder->getBindings());
-
-            return $results;
-        });
-
-        Paginator::currentPathResolver(function () use ($path): string {
-            return $path;
-        });
-
-        $result = $builder->cursorPaginate($perPage, $columns, $cursorName, $cursor);
-
-        $this->assertEquals(new CursorPaginator($results, $perPage, $cursor, [
-            'path' => $path,
-            'cursorName' => $cursorName,
-            'parameters' => ['created_at'],
-        ]), $result);
-    }
-
     public function testCursorPaginateWithMultipleUnionsAndMultipleWheres(): void
     {
         $ts = now()->toDateTimeString();
@@ -8069,7 +7896,7 @@ SQL, ['"John"'])->andReturn(1);
 
         $builder->expects('get')->andReturnUsing(function () use ($builder, $results, $ts) {
             $this->assertSame(
-                '(select "id", "start_time" as "created_at", "type" from "videos" where "extra" = ? and ("id" > ? or ("id" = ? and ("start_time" < ? or ("start_time" = ? and ("type" > ?)))))) union (select "id", "created_at", "type" from "news" where "extra" = ? and ("id" > ? or ("id" = ? and ("created_at" < ? or ("created_at" = ? and ("type" > ?)))))) union (select "id", "created_at", "type" from "podcasts" where "extra" = ? and ("id" > ? or ("id" = ? and ("created_at" < ? or ("created_at" = ? and ("type" > ?)))))) order by "id" asc, "created_at" desc, "type" asc limit 17',
+                '(select "id", "start_time" as "created_at", "type" from "videos" where "extra" = ? and ("id" > ? or ("id" = ? and ("start_time" < ? or ("start_time" = ? and ("type" > ?)))))) union (select "id", "created_at", "type" from "news" where "extra" = ? and ("id" > ? or ("id" = ? and ("start_time" < ? or ("start_time" = ? and ("type" > ?)))))) union (select "id", "created_at", "type" from "podcasts" where "extra" = ? and ("id" > ? or ("id" = ? and ("start_time" < ? or ("start_time" = ? and ("type" > ?)))))) order by "id" asc, "created_at" desc, "type" asc limit 17',
                 $builder->toSql()
             );
             $this->assertEquals(['first', 1, 1, $ts, $ts, 'news'], $builder->bindings['where']);
@@ -8267,26 +8094,6 @@ SQL, ['"John"'])->andReturn(1);
             'cursorName' => $cursorName,
             'parameters' => ['created_at'],
         ]), $result);
-    }
-
-    public function testCursorPaginateWithUnionOrderExpressions(): void
-    {
-        $builder = $this->getMockQueryBuilder(['get']);
-        $builder->from('videos')->select('id')->selectRaw('(score * 2) as ranked');
-        $builder->union($this->getBuilder()->from('news')->select('id')->selectRaw('(score * 3) as ranked'));
-        $builder->orderBy('ranked')->orderBy('id');
-
-        $builder->expects('get')->andReturnUsing(function () use ($builder): Collection {
-            $this->assertSame(
-                '(select "id", (score * 2) as ranked from "videos" where ((score * 2) > ? or ((score * 2) = ? and ("id" > ?)))) union (select "id", (score * 3) as ranked from "news" where ((score * 3) > ? or ((score * 3) = ? and ("id" > ?)))) order by "ranked" asc, "id" asc limit 17',
-                $builder->toSql()
-            );
-            $this->assertSame([10, 10, 1, 10, 10, 1], $builder->getBindings());
-
-            return new Collection;
-        });
-
-        $builder->cursorPaginate(16, cursor: new Cursor(['ranked' => 10, 'id' => 1]));
     }
 
     public function testWhereExpression(): void
@@ -8872,30 +8679,6 @@ SQL, ['"John"'])->andReturn(1);
 
         $this->assertSame('select * from "users" order by "email" asc', $clone->toSql());
         $this->assertSame([], $clone->getBindings());
-    }
-
-    public function testCloneWithoutClearsNullablePropertiesAndResetsNonNullableProperties(): void
-    {
-        $connection = $this->getConnection();
-        $builder = new class($connection, new Grammar($connection), new Processor) extends Builder {
-            public ?int $limit = 10;
-        };
-        $builder->from('users')->select('id')->distinct()->where('active', true)->groupLimit(2, 'team_id');
-        $builder->aggregate = ['function' => 'count', 'columns' => ['*']];
-
-        $clone = $builder->cloneWithout(['columns', 'aggregate', 'groupLimit', 'limit', 'distinct', 'wheres'])
-            ->cloneWithoutBindings(['where']);
-
-        $this->assertSame('select * from "users"', $clone->toSql());
-        $this->assertSame([], $clone->getBindings());
-        $this->assertNull($clone->limit);
-        $this->assertNull($clone->columns);
-        $this->assertNull($clone->aggregate);
-        $this->assertNull($clone->groupLimit);
-        $this->assertFalse($clone->distinct);
-        $this->assertSame([], $clone->wheres);
-        $this->assertSame(10, $builder->limit);
-        $this->assertSame(['id'], $builder->columns);
     }
 
     public function testWhereVectorSimilarToOnPostgres(): void

@@ -32,7 +32,6 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -41,7 +40,6 @@ use InvalidArgumentException;
 use JsonException;
 use LogicException;
 use PDO;
-use ReflectionProperty;
 use RuntimeException;
 use SortDirection;
 use stdClass;
@@ -207,18 +205,6 @@ class Builder implements BuilderContract
      * The callbacks that should be invoked before the query is executed.
      */
     public array $beforeQueryCallbacks = [];
-
-    /**
-     * Indicates whether paging conditions need preparation after callbacks and scopes.
-     */
-    protected bool $hasKeysetConditions = false;
-
-    /**
-     * The SELECT ordering before paging changed the traversal direction.
-     *
-     * @var null|array{orders: array, bindings: array, retainedBindings: int, pageBindingCount: int}
-     */
-    protected ?array $keysetOrdering = null;
 
     /**
      * The callbacks that should be invoked after retrieving data from the database.
@@ -409,7 +395,7 @@ class Builder implements BuilderContract
         }
 
         if ($query instanceof self) {
-            $this->prepareQueryForEmbedding($query);
+            $this->ensureCanEmbedQuery($query);
 
             $query = $this->prependDatabaseNameIfCrossDatabaseQuery($query);
 
@@ -1863,7 +1849,7 @@ class Builder implements BuilderContract
             $query = $callback instanceof self ? $callback : $callback->toBase();
         }
 
-        $this->prepareQueryForEmbedding($query);
+        $this->ensureCanEmbedQuery($query);
 
         $this->wheres[] = [
             'type' => $type, 'column' => $column, 'operator' => $operator, 'query' => $query, 'boolean' => $boolean,
@@ -1940,7 +1926,7 @@ class Builder implements BuilderContract
      */
     public function addWhereExistsQuery(self $query, string $boolean = 'and', bool $not = false): static
     {
-        $this->prepareQueryForEmbedding($query);
+        $this->ensureCanEmbedQuery($query);
 
         $type = $not ? 'NotExists' : 'Exists';
 
@@ -2775,16 +2761,7 @@ class Builder implements BuilderContract
             $lastId = BinaryParameter::fromStream($lastId);
         }
 
-        $this->rememberKeysetOrdering();
-        $bindingOffset = count($this->bindings['where']);
-        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column) : $column;
-
-        if ($this->unions) {
-            $this->unionOrders = $this->removeOrdersFor($this->unionOrders ?? [], $this->bindings['unionOrder'], $orderColumn);
-        } else {
-            $this->orders = $this->removeExistingOrdersFor($column);
-            $this->keysetOrdering['retainedBindings'] = count($this->bindings['order']);
-        }
+        $this->orders = $this->removeExistingOrdersFor($column);
 
         if (is_null($lastId)) {
             $this->whereNotNull($column);
@@ -2792,14 +2769,8 @@ class Builder implements BuilderContract
             $this->where($column, '<', $lastId);
         }
 
-        $this->markKeysetCondition($bindingOffset, $column);
-        $this->orderBy($orderColumn, SortDirection::Descending)->limit($perPage);
-
-        if (! $this->unions) {
-            $this->orders[array_key_last($this->orders)]['keyset'] = true;
-        }
-
-        return $this;
+        return $this->orderBy($column, SortDirection::Descending)
+            ->limit($perPage);
     }
 
     /**
@@ -2813,16 +2784,7 @@ class Builder implements BuilderContract
             $lastId = BinaryParameter::fromStream($lastId);
         }
 
-        $this->rememberKeysetOrdering();
-        $bindingOffset = count($this->bindings['where']);
-        $orderColumn = $this->unions ? $this->getKeysetOutputColumn($column) : $column;
-
-        if ($this->unions) {
-            $this->unionOrders = $this->removeOrdersFor($this->unionOrders ?? [], $this->bindings['unionOrder'], $orderColumn);
-        } else {
-            $this->orders = $this->removeExistingOrdersFor($column);
-            $this->keysetOrdering['retainedBindings'] = count($this->bindings['order']);
-        }
+        $this->orders = $this->removeExistingOrdersFor($column);
 
         if (is_null($lastId)) {
             $this->whereNotNull($column);
@@ -2830,14 +2792,8 @@ class Builder implements BuilderContract
             $this->where($column, '>', $lastId);
         }
 
-        $this->markKeysetCondition($bindingOffset, $column);
-        $this->orderBy($orderColumn, SortDirection::Ascending)->limit($perPage);
-
-        if (! $this->unions) {
-            $this->orders[array_key_last($this->orders)]['keyset'] = true;
-        }
-
-        return $this;
+        return $this->orderBy($column, SortDirection::Ascending)
+            ->limit($perPage);
     }
 
     /**
@@ -2847,18 +2803,13 @@ class Builder implements BuilderContract
      */
     public function reorder(Closure|self|EloquentBuilder|Relation|ExpressionContract|string|null $column = null, SortDirection|string $direction = SortDirection::Ascending): static
     {
-        $this->keysetOrdering = null;
         $this->orders = null;
         $this->unionOrders = null;
         $this->bindings['order'] = [];
         $this->bindings['unionOrder'] = [];
 
         if ($column) {
-            $this->orderBy($column, $direction);
-        }
-
-        if ($this->hasKeysetConditions) {
-            $this->prepareCursorOrdering();
+            return $this->orderBy($column, $direction);
         }
 
         return $this;
@@ -2877,15 +2828,7 @@ class Builder implements BuilderContract
      */
     protected function removeExistingOrdersFor(string $column): array
     {
-        return $this->removeOrdersFor($this->orders ?? [], $this->bindings['order'], $column);
-    }
-
-    /**
-     * Remove matching orders from the ordering and bindings owned by a SELECT or union.
-     */
-    protected function removeOrdersFor(array $orders, array &$bindings, string $column): array
-    {
-        return (new Collection($orders))
+        return (new Collection($this->orders))
             ->reject(fn ($order) => isset($order['column']) && $order['column'] === $column)
             ->values()
             ->all();
@@ -2908,7 +2851,7 @@ class Builder implements BuilderContract
             $query = $query->toBase();
         }
 
-        $this->prepareQueryForEmbedding($query);
+        $this->ensureCanEmbedQuery($query);
 
         $this->unions[] = ['query' => $query, 'all' => $all];
 
@@ -2992,12 +2935,6 @@ class Builder implements BuilderContract
         }
 
         $this->beforeQueryCallbacks = [];
-
-        // Scopes and callbacks may add row-limiting clauses. Place paging predicates only
-        // after those clauses exist, without changing Eloquent's scope lifecycle.
-        if ($this->hasKeysetConditions) {
-            $this->completeKeysetPagination();
-        }
     }
 
     /**
@@ -3292,12 +3229,8 @@ class Builder implements BuilderContract
         };
 
         if ($shouldReverse) {
-            if (! empty($this->unionOrders)) {
-                // Keep the first SELECT's limit ordering; reverse only the union's page ordering.
-                $this->unionOrders = (new Collection($this->unionOrders))->map($reverseDirection)->toArray();
-            } else {
-                $this->orders = (new Collection($this->orders))->map($reverseDirection)->toArray();
-            }
+            $this->orders = (new Collection($this->orders))->map($reverseDirection)->toArray();
+            $this->unionOrders = (new Collection($this->unionOrders))->map($reverseDirection)->toArray();
         }
 
         $orders = ! empty($this->unionOrders) ? $this->unionOrders : $this->orders;
@@ -3305,369 +3238,6 @@ class Builder implements BuilderContract
         return (new Collection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
             ->values();
-    }
-
-    /**
-     * Preserve the SELECT's ordering before paging changes its traversal order.
-     */
-    protected function rememberKeysetOrdering(): void
-    {
-        if ($this->unions) {
-            return;
-        }
-
-        if ($this->keysetOrdering === null) {
-            $this->keysetOrdering = [
-                'orders' => $this->orders ?? [],
-                'bindings' => $this->bindings['order'],
-                'retainedBindings' => count($this->bindings['order']),
-                'pageBindingCount' => 0,
-            ];
-        } else {
-            foreach ($this->orders ?? [] as $order) {
-                if (! isset($order['keyset']) && ! isset($order['keysetOriginal'])) {
-                    $this->keysetOrdering['orders'][] = $order;
-                }
-            }
-
-            array_push($this->keysetOrdering['bindings'], ...array_slice(
-                $this->bindings['order'],
-                $this->keysetOrdering['retainedBindings']
-            ));
-            $this->keysetOrdering['retainedBindings'] = count($this->bindings['order']);
-        }
-
-        foreach ($this->orders ?? [] as $index => $order) {
-            if (! isset($order['keyset'])) {
-                $this->orders[$index]['keysetOriginal'] = true;
-            }
-        }
-    }
-
-    /**
-     * Retain the SELECT ordering for cursor pagination's traversal direction.
-     */
-    public function prepareCursorOrdering(): void
-    {
-        $this->rememberKeysetOrdering();
-
-        if (! $this->unions) {
-            $this->keysetOrdering['pageBindingCount'] = count($this->bindings['order']);
-            foreach ($this->orders ?? [] as $index => $order) {
-                $this->orders[$index]['keyset'] = true;
-            }
-        }
-    }
-
-    /**
-     * Record the paging predicate and the bindings it owns.
-     */
-    protected function markKeysetCondition(int $offset, ?string $column = null): void
-    {
-        $index = array_key_last($this->wheres);
-        $this->wheres[$index]['keyset'] = [
-            'offset' => $offset,
-            'count' => count($this->bindings['where']) - $offset,
-        ];
-
-        if ($column !== null) {
-            $this->wheres[$index]['keysetColumn'] = $column;
-        }
-
-        $this->hasKeysetConditions = true;
-    }
-
-    /**
-     * Add cursor pagination's internal predicates with their owned columns and bindings.
-     */
-    public function addCursorPaginationConditions(array $orders, array $bindings): static
-    {
-        $offset = count($this->bindings['where']);
-        $this->addCursorComparisons($this, $orders, $bindings, 0);
-        $this->markKeysetCondition($offset);
-
-        if (! $this->unions) {
-            foreach ($this->orders ?? [] as $index => $order) {
-                $this->orders[$index]['keyset'] = true;
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Add the ordered comparisons for a compound cursor.
-     */
-    protected function addCursorComparisons(self $owner, array $orders, array $bindings, int $index): void
-    {
-        ['column' => $parameter, 'direction' => $direction] = $orders[$index];
-        $column = $this->getOriginalColumnNameForCursorPagination($owner, $parameter);
-
-        if ($column !== $parameter && Str::contains($column, ['(', ')'])) {
-            $column = new Expression($column);
-        }
-
-        $this->where(function (self $query) use ($owner, $orders, $bindings, $index, $parameter, $direction, $column): void {
-            $query->where($column, $direction === 'asc' ? '>' : '<', $bindings[$parameter]);
-            $query->wheres[array_key_last($query->wheres)]['keysetColumn'] = $parameter;
-
-            if ($index < count($orders) - 1) {
-                $query->orWhere(function (self $query) use ($owner, $orders, $bindings, $index, $parameter, $column): void {
-                    $query->where($column, '=', $bindings[$parameter]);
-                    $query->wheres[array_key_last($query->wheres)]['keysetColumn'] = $parameter;
-                    $query->addCursorComparisons($owner, $orders, $bindings, $index + 1);
-                });
-            }
-        });
-    }
-
-    /**
-     * Determine whether paging must filter outside this SELECT's row limit.
-     */
-    protected function requiresKeysetIsolation(bool $limitSelectsRows): bool
-    {
-        return $limitSelectsRows && ($this->limit !== null || $this->offset !== null);
-    }
-
-    /**
-     * Place paging predicates outside bounded SELECTs and in every union member.
-     */
-    protected function completeKeysetPagination(): void
-    {
-        $this->hasKeysetConditions = false;
-        $limitSelectsRows = (bool) $this->unions;
-        $isolate = $this->requiresKeysetIsolation($limitSelectsRows);
-
-        if ($isolate) {
-            $this->rememberKeysetOrdering();
-        }
-        $conditions = [];
-        // Ordinary pages only retire their markers; they do not need normalized
-        // condition copies. Retaining markers would replay them if a union is added later.
-        $this->wheres = $this->collectKeysetConditions($this->wheres, $conditions, $isolate, $isolate || $limitSelectsRows);
-
-        if ($isolate) {
-            // Binding offsets are recorded when predicates are added, so scope grouping
-            // cannot make us remove a user's or a scope's bindings by mistake.
-            $ranges = array_column($conditions, 'range');
-            usort($ranges, static fn (array $left, array $right): int => $right['offset'] <=> $left['offset']);
-            foreach ($ranges as $range) {
-                array_splice($this->bindings['where'], $range['offset'], $range['count']);
-            }
-
-            $pageOrders = array_values(array_filter($this->orders ?? [], static fn (array $order): bool => isset($order['keyset'])));
-            foreach ($pageOrders as $index => $order) {
-                if (isset($order['column']) && is_string($order['column'])) {
-                    $pageOrders[$index]['column'] = $this->getKeysetOutputColumn($order['column']);
-                }
-            }
-            $pageBindings = array_slice($this->bindings['order'], 0, $this->keysetOrdering['pageBindingCount'] ?? 0);
-            $this->isolateKeysetSelect($limitSelectsRows);
-            $this->appendKeysetConditions($conditions);
-
-            if (! $limitSelectsRows) {
-                foreach ($pageOrders as $order) {
-                    $this->orders[] = $order;
-                }
-                $this->bindings['order'] = $pageBindings;
-            }
-        }
-
-        if ($this->unions) {
-            $this->bindings['union'] = [];
-
-            foreach ($this->unions as $index => $union) {
-                // Union members are shared by shallow builder clones. Paging one clone
-                // must not add its cursor to another query built from the same member.
-                $member = clone $union['query'];
-                $member->applyBeforeQueryCallbacks();
-                $member = $member->applyKeysetConditions($conditions);
-                $this->unions[$index]['query'] = $member;
-                $this->addBinding($member->getBindings(), 'union');
-            }
-        }
-
-        $this->keysetOrdering = null;
-        foreach ($this->orders ?? [] as $index => $order) {
-            unset($this->orders[$index]['keyset'], $this->orders[$index]['keysetOriginal']);
-        }
-    }
-
-    /**
-     * Collect owned predicates without changing nested groups shared with another clone.
-     */
-    protected function collectKeysetConditions(array $wheres, array &$conditions, bool $remove, bool $collect = true): array
-    {
-        foreach ($wheres as $index => $where) {
-            if (isset($where['keyset'])) {
-                $range = $where['keyset'];
-                unset($where['keyset']);
-                if ($collect) {
-                    $conditions[] = [
-                        'where' => $this->normalizeKeysetColumns($where),
-                        'bindings' => array_slice($this->bindings['where'], $range['offset'], $range['count']),
-                        'range' => $range,
-                    ];
-                }
-
-                if ($remove) {
-                    unset($wheres[$index]);
-                } else {
-                    $wheres[$index] = $where;
-                }
-            } elseif ($where['type'] === 'Nested') {
-                $nestedWheres = $this->collectKeysetConditions($where['query']->wheres, $conditions, $remove, $collect);
-                if ($remove && $nestedWheres === []) {
-                    unset($wheres[$index]);
-                } elseif ($nestedWheres !== $where['query']->wheres) {
-                    // Clear consumed markers without changing a group shared with another
-                    // clone. Otherwise a later page call would replay old union predicates.
-                    $where['query'] = clone $where['query'];
-                    $where['query']->wheres = $nestedWheres;
-                    $wheres[$index] = $where;
-                }
-            }
-        }
-
-        return $remove ? array_values($wheres) : $wheres;
-    }
-
-    /**
-     * Resolve paging columns to the output names shared by the union's SELECTs.
-     */
-    protected function normalizeKeysetColumns(array $where): array
-    {
-        if (isset($where['keysetColumn'])) {
-            $where['keysetColumn'] = $this->getKeysetOutputColumn($where['keysetColumn']);
-        }
-
-        if ($where['type'] === 'Nested') {
-            $where['query'] = clone $where['query'];
-            $where['query']->wheres = array_map($this->normalizeKeysetColumns(...), $where['query']->wheres);
-        }
-
-        return $where;
-    }
-
-    /**
-     * Get the selected output name for a paging column.
-     */
-    protected function getKeysetOutputColumn(string $parameter): string
-    {
-        foreach ($this->getColumns() as $column) {
-            if (($position = strripos($column, ' as ')) !== false) {
-                $original = substr($column, 0, $position);
-                $alias = substr($column, $position + 4);
-                $quotes = $this->grammar->wrap('');
-                if (str_starts_with($alias, $quotes[0]) && str_ends_with($alias, $quotes[-1])) {
-                    $alias = str_replace($quotes[-1] . $quotes[-1], $quotes[-1], substr($alias, 1, -1));
-                }
-                if ($parameter === $alias || $parameter === $original) {
-                    return $alias;
-                }
-            }
-        }
-
-        return Str::afterLast($parameter, '.');
-    }
-
-    /**
-     * Apply inherited paging predicates to this member and its nested unions.
-     */
-    protected function applyKeysetConditions(array $conditions): static
-    {
-        if ($this->unions && ($this->unionLimit !== null || $this->unionOffset !== null)) {
-            return $this->newQuery()->fromSub($this, 'cursor_table')->appendKeysetConditions($conditions);
-        }
-
-        if ($this->requiresKeysetIsolation(true)) {
-            $this->isolateKeysetSelect(true);
-        }
-
-        $this->appendKeysetConditions($conditions);
-
-        if ($this->unions) {
-            $this->bindings['union'] = [];
-            foreach ($this->unions as $index => $union) {
-                $member = clone $union['query'];
-                $member->applyBeforeQueryCallbacks();
-                $member = $member->applyKeysetConditions($conditions);
-                $this->unions[$index]['query'] = $member;
-                $this->addBinding($member->getBindings(), 'union');
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Append paging predicates using this SELECT's own source columns and expressions.
-     */
-    protected function appendKeysetConditions(array $conditions): static
-    {
-        foreach ($conditions as $condition) {
-            $this->wheres[] = $this->rebindKeysetColumns($condition['where']);
-            $this->addBinding($condition['bindings'], 'where');
-        }
-
-        return $this;
-    }
-
-    /**
-     * Resolve output names against this SELECT without rewriting user predicates.
-     */
-    protected function rebindKeysetColumns(array $where): array
-    {
-        if (isset($where['keysetColumn'])) {
-            $parameter = $where['keysetColumn'];
-            $column = $this->getOriginalColumnNameForCursorPagination($this, $parameter);
-            $where['column'] = $column !== $parameter && Str::contains($column, ['(', ')'])
-                ? new Expression($column)
-                : $column;
-            unset($where['keysetColumn']);
-        }
-
-        if ($where['type'] === 'Nested') {
-            $where['query'] = clone $where['query'];
-            $where['query']->wheres = array_map($this->rebindKeysetColumns(...), $where['query']->wheres);
-        }
-
-        return $where;
-    }
-
-    /**
-     * Move the completed SELECT into a derived table while retaining the page's clauses.
-     */
-    protected function isolateKeysetSelect(bool $limitSelectsRows): void
-    {
-        $aggregate = $this->aggregate;
-        $inner = $this->cloneWithout(['aggregate', 'unions', 'unionOrders', 'unionLimit', 'unionOffset', 'timeout'])
-            ->cloneWithoutBindings(['union', 'unionOrder']);
-        $inner->columns ??= ['*'];
-        $limit = $this->limit;
-        $offset = $this->offset;
-
-        if (! $limitSelectsRows) {
-            $inner->limit = $inner->offset = null;
-            $inner->orders = $this->keysetOrdering['orders'] ?? $inner->orders;
-            $inner->bindings['order'] = $this->keysetOrdering['bindings'] ?? $inner->bindings['order'];
-        }
-
-        $this->resetProperties([
-            'aggregate', 'columns', 'distinct', 'from', 'indexHint', 'joins', 'wheres', 'groups', 'havings',
-            'orders', 'limit', 'groupLimit', 'offset', 'lock',
-        ]);
-        foreach (['select', 'from', 'join', 'where', 'groupBy', 'having', 'order'] as $binding) {
-            $this->bindings[$binding] = [];
-        }
-        $this->columns = ['*'];
-        $this->aggregate = $aggregate;
-        $this->fromSub($inner, 'cursor_table');
-
-        if (! $limitSelectsRows) {
-            $this->limit = $limit;
-            $this->offset = $offset;
-        }
     }
 
     /**
@@ -3746,12 +3316,8 @@ class Builder implements BuilderContract
      */
     protected function cloneForPaginationCount(): static
     {
-        // A union's page bounds do not belong to its first SELECT. Removing that
-        // SELECT's own bounds would change the rows whose total we are counting.
-        return $this->cloneWithout($this->unions
-            ? ['unionOrders', 'unionLimit', 'unionOffset']
-            : ['orders', 'limit', 'offset'])
-            ->cloneWithoutBindings([$this->unions ? 'unionOrder' : 'order']);
+        return $this->cloneWithout(['orders', 'limit', 'offset'])
+            ->cloneWithoutBindings(['order']);
     }
 
     /**
@@ -4099,23 +3665,13 @@ class Builder implements BuilderContract
     {
         $this->aggregate = ['function' => $function, 'columns' => $columns];
 
-        if (! $this->shouldPreserveAggregateOrdering()) {
+        if (empty($this->groups)) {
             $this->orders = null;
 
             $this->bindings['order'] = [];
         }
 
         return $this;
-    }
-
-    /**
-     * Determine whether ordering selects rows retained by the aggregate's inner query.
-     */
-    protected function shouldPreserveAggregateOrdering(): bool
-    {
-        // An unbounded SELECT needs no sort for a count; a bounded union member
-        // needs its ordering to retain the same rows, particularly with UNION DISTINCT.
-        return (bool) $this->groups || ($this->unions && ($this->limit !== null || $this->offset !== null));
     }
 
     /**
@@ -4829,15 +4385,12 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Prepare the query for embedding in another statement.
+     * Ensure the query can be embedded in another statement.
      *
      * @throws InvalidArgumentException
      */
-    protected function prepareQueryForEmbedding(self $query): void
+    protected function ensureCanEmbedQuery(self $query): void
     {
-        // Embedded SQL and bindings must reflect the same completed query callbacks.
-        $query->applyBeforeQueryCallbacks();
-
         if ($query->timeout !== null) {
             throw new InvalidArgumentException(
                 'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.'
@@ -4858,24 +4411,11 @@ class Builder implements BuilderContract
      */
     public function cloneWithout(array $properties): static
     {
-        return tap($this->clone(), static fn (self $clone) => $clone->resetProperties($properties));
-    }
-
-    /**
-     * Clear query properties while retaining defaults required by non-nullable types.
-     */
-    protected function resetProperties(array $properties): void
-    {
-        foreach ($properties as $property) {
-            $reflection = new ReflectionProperty($this, $property);
-            $this->{$property} = ($reflection->getType()?->allowsNull() ?? true)
-                ? null
-                : $reflection->getDefaultValue();
-        }
-
-        if (in_array('wheres', $properties, true)) {
-            $this->hasKeysetConditions = false;
-        }
+        return tap($this->clone(), function ($clone) use ($properties) {
+            foreach ($properties as $property) {
+                $clone->{$property} = is_array($clone->{$property}) ? [] : null;
+            }
+        });
     }
 
     /**

@@ -1175,12 +1175,8 @@ class Builder implements BuilderContract
         };
 
         if ($shouldReverse) {
-            if (! empty($this->query->unionOrders)) {
-                // Keep the first SELECT's limit ordering; reverse only the union's page ordering.
-                $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
-            } else {
-                $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
-            }
+            $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
+            $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
         }
 
         $orders = ! empty($this->query->unionOrders) ? $this->query->unionOrders : $this->query->orders;
