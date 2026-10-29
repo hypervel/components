@@ -11,6 +11,7 @@ use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
@@ -18,7 +19,6 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
@@ -655,7 +655,32 @@ abstract class Queue
     protected function notifyBatchMembersOfFailure(array $members, Closure $notification): void
     {
         if (($exception = $this->notifyBatchMembers($members, $notification)) !== null) {
-            PoolErrorReporter::report($exception);
+            $this->reportSecondaryFailure($exception);
+        }
+    }
+
+    /**
+     * Report a failure that must not replace the primary error, without swallowing cancellation.
+     */
+    protected function reportSecondaryFailure(Throwable $exception): void
+    {
+        $reportingFailure = null;
+
+        try {
+            if ($this->container->has(ExceptionHandler::class)) {
+                $this->container->make(ExceptionHandler::class)->report($exception);
+
+                return;
+            }
+        } catch (Throwable $reportingFailure) {
+            if ($reportingFailure !== $exception && Coroutine::causedByCancellation($reportingFailure)) {
+                throw $reportingFailure;
+            }
+        }
+
+        try {
+            error_log((string) $exception . ($reportingFailure !== null && $reportingFailure !== $exception ? PHP_EOL . (string) $reportingFailure : ''));
+        } catch (Throwable) {
         }
     }
 
