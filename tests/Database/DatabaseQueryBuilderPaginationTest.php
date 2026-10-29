@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
@@ -20,6 +23,89 @@ use RuntimeException;
 
 class DatabaseQueryBuilderPaginationTest extends TestCase
 {
+    #[DataProvider('keysetIterators')]
+    public function testKeysetIterationVisitsEveryUnionRowOnce(string $method, bool $lazy, bool $descending): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table posts (id integer)');
+        $connection->unprepared('create table archives (archive_id integer)');
+        $connection->unprepared('insert into posts values (1), (2), (3)');
+        $connection->unprepared('insert into archives values (4), (5), (6)');
+        $member = $connection->table('archives')->select('archive_id as value');
+        $query = $connection->table('posts')->selectRaw('id as "value"')->unionAll($member);
+        $actual = [];
+
+        if ($lazy) {
+            $actual = $query->{$method}(2, 'id', 'value')->take(8)->pluck('value')->all();
+        } else {
+            $this->assertTrue($query->{$method}(2, function (Collection $rows) use (&$actual): bool {
+                array_push($actual, ...$rows->pluck('value')->all());
+
+                return count($actual) < 8;
+            }, 'id', 'value'));
+        }
+
+        $this->assertSame($descending ? [6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6], $actual);
+        $this->assertSame([], $member->wheres);
+        $this->assertSame([], $query->getBindings());
+    }
+
+    /**
+     * Exercise both shared iteration paths and traversal directions.
+     */
+    public static function keysetIterators(): iterable
+    {
+        yield 'chunks ascending' => ['chunkById', false, false];
+        yield 'chunks descending' => ['chunkByIdDesc', false, true];
+        yield 'lazy ascending' => ['lazyById', true, false];
+        yield 'lazy descending' => ['lazyByIdDesc', true, true];
+    }
+
+    public function testDirectKeysetPagesPreserveScopesLimitsAndCurrentBindings(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table posts (id integer)');
+        $connection->unprepared('create table archives (id integer)');
+        $connection->unprepared('insert into posts values (1), (2), (3)');
+        $connection->unprepared('insert into archives values (4), (5), (6)');
+        $model = new class extends Model {
+            protected ?string $table = 'posts';
+        };
+        $model::setConnectionResolver(m::mock(ConnectionResolverInterface::class, ['connection' => $connection]));
+        $query = (new EloquentBuilder($connection->query()))->setModel($model)
+            ->withGlobalScope('visible', static fn (EloquentBuilder $query): EloquentBuilder => $query->where('posts.id', '<', 3))
+            ->select('id')->orderByDesc('id')->limit(2)
+            ->unionAll($connection->table('archives')->select('id'))->orderBy('id');
+
+        $scoped = (clone $query)->forPageAfterId(2, 1)->limit(1);
+        $this->assertSame([2], $scoped->get()->modelKeys());
+        $unscoped = (clone $query)->forPageAfterId(2, 2)->withoutGlobalScope('visible')->limit(1);
+        $this->assertSame([3], $unscoped->get()->modelKeys());
+        $this->assertSame(2, (clone $query)->withoutGlobalScopes()->forPageAfterId(2, 2)->count());
+        $this->assertSame(4, (clone $query)->withoutGlobalScopes()->forPageAfterId(10, 2)->count());
+        $this->assertSame(4, (clone $query)->withoutGlobalScopes()->forPageAfterId(2, 2)
+            ->getQuery()->groupBy('id')->getCountForPagination());
+
+        $base = (clone $query)->withoutGlobalScopes()->getQuery();
+        $this->assertSame($base, $base->forPageAfterId(3, 1));
+        $this->assertSame($base, $base->forPageBeforeId(3, 5));
+        $base->setBindings([2, 5], 'where');
+        $this->assertSame([4, 3], $base->get()->pluck('id')->all());
+        $sql = $base->toSql();
+        $bindings = $base->getBindings();
+        $this->assertSame($sql, $base->toSql());
+        $this->assertSame($bindings, $base->getBindings());
+
+        $base->forPageAfterId(2, 3);
+        $this->assertSame([4], $base->get()->pluck('id')->all());
+        $this->assertSame([2, 5, 3], $base->getRawBindings()['union']);
+
+        $reused = $connection->table('posts')->forPageAfterId(1, 2);
+        $this->assertSame([3], $reused->get()->pluck('id')->all());
+        $reused->unionAll($connection->table('posts')->where('id', 1))->forPageAfterId(2, 0);
+        $this->assertSame([1, 3], $reused->get()->pluck('id')->all());
+    }
+
     public function testBinaryStringsCanBePagedUsingAnExplicitCursorAlias(): void
     {
         $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
