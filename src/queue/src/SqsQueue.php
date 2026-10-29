@@ -489,7 +489,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             }
 
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
-            // Only sender-fault entries below are provably rejected.
+            // Only sender-fault entries below are treated as rejected.
             try {
                 $result = $this->sqs->sendMessageBatch([
                     'QueueUrl' => $queueUrl,
@@ -527,7 +527,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $rejectedPaths = [];
 
                     foreach ($result['Failed'] as $rejected) {
-                        if (isset($overflow[$rejected['Id']]) && $this->isProvenRejection($rejected)) {
+                        if (isset($overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                             $rejectedPaths[] = $overflow[$rejected['Id']]['path'];
                         }
                     }
@@ -546,7 +546,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             );
 
             if ($exception !== null && $notificationFailure !== null) {
-                PoolErrorReporter::report($notificationFailure);
+                $this->reportSecondaryFailure($notificationFailure);
             }
 
             $exception ??= $notificationFailure;
@@ -618,7 +618,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         unset($entry);
                     }
 
-                    // SDK failures are ambiguous; only sender-fault rejects own safe cleanup.
+                    // SDK failures are ambiguous; only sender-fault rejects are cleaned up.
                     $result = $this->sqs->sendMessageBatch(['QueueUrl' => $queueUrl, 'Entries' => $chunk]);
                     $chunkIds = array_fill_keys(array_column($chunk, 'Id'), true);
 
@@ -633,7 +633,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                             $paths = [];
 
                             foreach ($result['Failed'] as $rejected) {
-                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']]) && $this->isProvenRejection($rejected)) {
+                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                                     $paths[] = $overflow[$rejected['Id']]['path'];
                                 }
                             }
@@ -681,13 +681,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
-     * Determine if a batch failure proves SQS never accepted the entry.
+     * Determine if a failed batch entry's overflow payload may be cleaned up.
      *
-     * SDK retries resend entries SQS may have already accepted, so a server fault
-     * on the final attempt is ambiguous. Sender faults reject the entry's own
-     * content, which every attempt would have been rejected for.
+     * Treat explicit sender-fault entries as rejected. SDK retries can make
+     * server-fault responses ambiguous, so those payloads are retained.
      */
-    protected function isProvenRejection(array $failure): bool
+    protected function isSenderFaultRejection(array $failure): bool
     {
         return ($failure['SenderFault'] ?? false) === true;
     }
@@ -852,7 +851,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if ($cancellation === null && Coroutine::causedByCancellation($exception)) {
                     $cancellation = $exception;
                 } else {
-                    PoolErrorReporter::report($exception);
+                    try {
+                        $this->reportSecondaryFailure($exception);
+                    } catch (Throwable $reportingCancellation) {
+                        $cancellation ??= $reportingCancellation;
+                    }
                 }
             }
         }
