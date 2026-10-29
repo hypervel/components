@@ -12,6 +12,7 @@ use Generator;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Events\QueryExecuted;
@@ -584,9 +585,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                         $callback
                     );
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $events = $this->events;
 
                 if ($events?->hasListeners(QueryFailed::class)) {
@@ -658,9 +661,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                             $this->latestReadWriteTypeRetrieved = $readWriteType;
                         }
                     }
-                } catch (CanceledException|StreamClosedException $exception) {
+                } catch (StreamClosedException $exception) {
                     throw $exception;
                 } catch (Exception $exception) {
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     ++$this->errorCount;
 
                     throw $this->newQueryException($query, $bindings, $exception);
@@ -677,9 +684,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
                     yield from $this->handleQueryException($exception, $query, $bindings, $execute);
                 }
-            } catch (CanceledException|StreamClosedException $exception) {
+            } catch (StreamClosedException $exception) {
                 throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $events = $this->events;
 
                 if ($events?->hasListeners(QueryFailed::class)) {
@@ -720,9 +731,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // If an exception occurs when attempting to run a query, we'll format the error
         // message to include the SQL and, unless masked, its bindings. This provides
         // more context for the developer than just the database's original error.
-        catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception $e) {
+        catch (Exception $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             ++$this->errorCount;
 
             throw $this->newQueryException($query, $bindings, $e);
@@ -985,7 +998,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             $this->resetTransactionState();
         } catch (Throwable $throwable) {
             if ($exception === null
-                || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
+                || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))
             ) {
                 $exception = $throwable;
             }

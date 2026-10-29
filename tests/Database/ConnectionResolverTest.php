@@ -18,8 +18,10 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -306,10 +308,15 @@ class ConnectionResolverTest extends TestCase
         $resolver->releaseConnections();
     }
 
-    public function testTerminalReleasePrioritizesTheFirstCancellationAndStillExhaustsConnections(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminalReleasePrioritizesTheFirstCancellationAndStillExhaustsConnections(bool $chained): void
     {
         $ordinaryFailure = new RuntimeException('First release failed.');
         $firstCancellation = new CanceledException('Second release was canceled.');
+        if ($chained) {
+            $firstCancellation = new RuntimeException('Release cleanup failed.', previous: $firstCancellation);
+        }
         $secondCancellation = new CanceledException('Third release was canceled.');
         $poolManager = m::mock(PoolManager::class);
         $resolver = $this->makeResolver('first', $poolManager);
@@ -335,7 +342,7 @@ class ConnectionResolverTest extends TestCase
         try {
             $resolver->releaseConnections();
             $this->fail('Expected release cancellation to propagate.');
-        } catch (CanceledException $throwable) {
+        } catch (Throwable $throwable) {
             $this->assertSame($firstCancellation, $throwable);
         }
 

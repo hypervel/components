@@ -774,10 +774,10 @@ class DatabaseConnectionTest extends TestCase
         }]);
     }
 
-    public function testRunMethodPreservesQueryCancellationWithoutRetryOrLogging(): void
+    #[DataProvider('cancellations')]
+    public function testRunMethodPreservesQueryCancellationWithoutRetryOrLogging(Throwable $cancellation): void
     {
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
-        $cancellation = new CanceledException('query canceled');
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection(['tryAgainIfCausedByLostConnection'], $pdo);
         $connection->expects($this->never())->method('tryAgainIfCausedByLostConnection');
@@ -788,12 +788,21 @@ class DatabaseConnectionTest extends TestCase
         try {
             $method->invokeArgs($connection, ['select 1', [], fn () => throw $cancellation]);
             $this->fail('Expected the query cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame(0, $connection->getErrorCount());
         $this->assertSame([], $connection->getQueryLog());
+    }
+
+    /**
+     * Supply direct cancellation and a cleanup exception carrying it.
+     */
+    public static function cancellations(): iterable
+    {
+        yield 'direct' => [new CanceledException('Operation canceled.')];
+        yield 'chained cleanup' => [new RuntimeException('Cleanup failed.', previous: new CanceledException('Operation canceled.'))];
     }
 
     public function testRunDispatchesQueryFailedWithTheFinalLogicalFailure(): void
@@ -1233,7 +1242,8 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame([], $connection->getQueryLog());
     }
 
-    public function testStreamingCancellationCleansUpWithoutWrappingOrEvents(): void
+    #[DataProvider('cancellations')]
+    public function testStreamingCancellationCleansUpWithoutWrappingOrEvents(Throwable $cancellation): void
     {
         $connection = new NeutralConnectionForTest;
         $connection->enableQueryLog();
@@ -1241,7 +1251,6 @@ class DatabaseConnectionTest extends TestCase
         $events->shouldNotReceive('hasListeners');
         $events->shouldNotReceive('dispatch');
         $connection->setEventDispatcher($events);
-        $cancellation = new CanceledException('stream canceled');
         $cleaned = false;
         $thrown = null;
 
@@ -1255,7 +1264,7 @@ class DatabaseConnectionTest extends TestCase
                     $cleaned = true;
                 }
             }));
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $thrown = $exception;
         }
 
@@ -1593,11 +1602,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testBeginPublicationCleanupPreservesCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testBeginPublicationCleanupPreservesCancellation(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $publicationFailure = new RuntimeException('manager begin failure');
-        $cancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1)->andThrow($publicationFailure);
         $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
@@ -1606,7 +1615,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->beginTransaction();
             $this->fail('Expected rollback cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1614,10 +1623,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testBeginPublicationCancellationRemainsPrimaryOverCleanupCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testBeginPublicationCancellationRemainsPrimaryOverCleanupCancellation(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
-        $cancellation = new CanceledException('manager begin canceled');
         $cleanupCancellation = new CanceledException('manager rollback canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1)->andThrow($cancellation);
@@ -1627,7 +1636,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->beginTransaction();
             $this->fail('Expected transaction publication cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1759,11 +1768,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testManagedTransactionRollbackCleanupPreservesCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testManagedTransactionRollbackCleanupPreservesCancellation(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $failure = new RuntimeException('transaction callback failure');
-        $cancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
@@ -1772,7 +1781,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): never => throw $failure);
             $this->fail('Expected rollback cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1780,10 +1789,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testManagedTransactionCancellationRemainsPrimaryOverRollbackCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testManagedTransactionCancellationRemainsPrimaryOverRollbackCancellation(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
-        $cancellation = new CanceledException('transaction callback canceled');
         $cleanupCancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
@@ -1793,12 +1802,41 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): never => throw $cancellation);
             $this->fail('Expected transaction callback cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame(0, $connection->transactionLevel());
         $this->assertFalse($connection->getPdo()->inTransaction());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationIsNotRetriedOrWrappedWhenItsCleanupErrorMentionsDeadlock(bool $nested): void
+    {
+        $connection = $this->getSqliteTransactionConnection();
+        $failure = new RuntimeException('Deadlock found when trying to get lock', previous: new CanceledException('Callback canceled.'));
+        $calls = 0;
+        if ($nested) {
+            $connection->beginTransaction();
+        }
+
+        try {
+            $connection->transaction(static function () use ($failure, &$calls): never {
+                ++$calls;
+                throw $failure;
+            }, attempts: 2);
+            $this->fail('Cancellation must stop the transaction without reclassification.');
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
+        } finally {
+            if ($nested) {
+                $connection->rollBack();
+            }
+        }
+
+        $this->assertSame(1, $calls);
+        $this->assertSame(0, $connection->transactionLevel());
     }
 
     public function testNestedDeadlockFailureRemainsPrimaryWhenRollbackCleanupFails(): void
@@ -1844,14 +1882,14 @@ class DatabaseConnectionTest extends TestCase
         $connection->rollBack();
     }
 
-    public function testNestedDeadlockRollbackCleanupPreservesCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testNestedDeadlockRollbackCleanupPreservesCancellation(Throwable $cancellation): void
     {
         $connection = new NeutralTransactionConnectionForTest(
             'analytics',
             '',
             ['name' => 'analytics', 'driver' => 'http']
         );
-        $cancellation = new CanceledException('nested rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->shouldReceive('begin')->twice();
         $manager->expects('rollback')->with('analytics', 1)->andThrow($cancellation);
@@ -1867,7 +1905,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): never => throw $failure);
             $this->fail('Expected nested rollback cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1935,10 +1973,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testManagedTransactionManagerCancellationSkipsCommittedEvent(): void
+    #[DataProvider('cancellations')]
+    public function testManagedTransactionManagerCancellationSkipsCommittedEvent(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
-        $cancellation = new CanceledException('manager commit canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('commit')->with('default', 1, 0)->andThrow($cancellation);
@@ -1952,7 +1990,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): null => null);
             $this->fail('Expected manager commit cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1960,11 +1998,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testManagedTransactionEventCancellationSupersedesManagerFailure(): void
+    #[DataProvider('cancellations')]
+    public function testManagedTransactionEventCancellationSupersedesManagerFailure(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $managerFailure = new RuntimeException('manager commit failure');
-        $cancellation = new CanceledException('committed event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('commit')->with('default', 1, 0)->andThrow($managerFailure);
@@ -1979,7 +2017,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): null => null);
             $this->fail('Expected committed event cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1987,10 +2025,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testExplicitCommitManagerCancellationSkipsCommittedEvent(): void
+    #[DataProvider('cancellations')]
+    public function testExplicitCommitManagerCancellationSkipsCommittedEvent(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
-        $cancellation = new CanceledException('manager commit canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('commit')->with('default', 1, 0)->andThrow($cancellation);
@@ -2004,7 +2042,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->commit();
             $this->fail('Expected manager commit cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2012,11 +2050,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testExplicitCommitEventCancellationSupersedesManagerFailure(): void
+    #[DataProvider('cancellations')]
+    public function testExplicitCommitEventCancellationSupersedesManagerFailure(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $managerFailure = new RuntimeException('manager commit failure');
-        $cancellation = new CanceledException('committed event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('commit')->with('default', 1, 0)->andThrow($managerFailure);
@@ -2031,7 +2069,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->commit();
             $this->fail('Expected committed event cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2075,9 +2113,9 @@ class DatabaseConnectionTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testLostConnectionCommitCleanupPreservesCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testLostConnectionCommitCleanupPreservesCancellation(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('lost connection cleanup canceled');
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'commit'])
             ->getMock();
@@ -2094,7 +2132,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->transaction(static fn (): null => null);
             $this->fail('Expected lost connection cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2102,9 +2140,9 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->getRawPdo());
     }
 
-    public function testCommitRollbackCleanupPreservesCancellationWithoutRetry(): void
+    #[DataProvider('cancellations')]
+    public function testCommitRollbackCleanupPreservesCancellationWithoutRetry(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('commit rollback cleanup canceled');
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'commit', 'inTransaction', 'rollBack'])
             ->getMock();
@@ -2126,7 +2164,7 @@ class DatabaseConnectionTest extends TestCase
                 ++$callbackCalls;
             }, 2);
             $this->fail('Expected commit rollback cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2193,10 +2231,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testExplicitRollbackManagerCancellationSkipsRolledBackEvent(): void
+    #[DataProvider('cancellations')]
+    public function testExplicitRollbackManagerCancellationSkipsRolledBackEvent(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
-        $cancellation = new CanceledException('manager rollback canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
@@ -2209,7 +2247,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->rollBack();
             $this->fail('Expected manager rollback cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2217,11 +2255,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testExplicitRollbackEventCancellationSupersedesManagerFailure(): void
+    #[DataProvider('cancellations')]
+    public function testExplicitRollbackEventCancellationSupersedesManagerFailure(Throwable $cancellation): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $managerFailure = new RuntimeException('manager rollback failure');
-        $cancellation = new CanceledException('rolled back event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->expects('begin')->with('default', 1);
         $manager->expects('rollback')->with('default', 0)->andThrow($managerFailure);
@@ -2235,7 +2273,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->rollBack();
             $this->fail('Expected rolled back event cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2267,9 +2305,9 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($connection->getPdo()->inTransaction());
     }
 
-    public function testLostConnectionRollbackCleanupPreservesCancellation(): void
+    #[DataProvider('cancellations')]
+    public function testLostConnectionRollbackCleanupPreservesCancellation(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('lost rollback cleanup canceled');
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'inTransaction', 'rollBack'])
             ->getMock();
@@ -2288,7 +2326,7 @@ class DatabaseConnectionTest extends TestCase
         try {
             $connection->rollBack();
             $this->fail('Expected lost rollback cleanup cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

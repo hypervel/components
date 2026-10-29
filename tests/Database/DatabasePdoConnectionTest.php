@@ -1109,14 +1109,18 @@ class DatabasePdoConnectionTest extends TestCase
         });
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testFailedSavepointCleanupPreservesErrorAndCancellationPriority(bool $cancel): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testFailedSavepointCleanupPreservesErrorAndCancellationPriority(bool $cancel, bool $callbackCancels): void
     {
         $failure = new PDOException('Savepoint rollback failed.');
         $cleanupFailure = $cancel
             ? new CanceledException('Disconnect canceled.')
             : new RuntimeException('Disconnect failed.');
+        if ($callbackCancels) {
+            $cleanupFailure = new RuntimeException('Rollback callback cleanup failed.', previous: $cleanupFailure);
+        }
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'exec', 'inTransaction', 'rollBack'])->getMock();
         $pdo->expects($this->once())->method('beginTransaction');
@@ -1128,12 +1132,18 @@ class DatabasePdoConnectionTest extends TestCase
             return 0;
         });
         $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException($cleanupFailure);
+        $pdo->expects($this->once())->method('rollBack')->willThrowException(
+            $callbackCancels ? new RuntimeException('Physical rollback failed.') : $cleanupFailure
+        );
         $connection = $this->getMockConnection([], $pdo);
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $connection->beginTransaction();
+
+        if ($callbackCancels) {
+            $connection->afterRollBack(static fn (): never => throw $cleanupFailure);
+        }
 
         try {
             $connection->rollBack(1);

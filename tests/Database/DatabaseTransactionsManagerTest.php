@@ -10,6 +10,7 @@ use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -574,11 +575,16 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testRollbackCallbacksFinishTheBoundedDrainAndPreserveCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRollbackCallbacksFinishTheBoundedDrainAndPreserveCancellation(bool $chained): void
     {
         $manager = new DatabaseTransactionsManager;
         $callbacks = [];
         $cancellation = new CanceledException;
+        if ($chained) {
+            $cancellation = new RuntimeException('Rollback cleanup failed.', previous: $cancellation);
+        }
 
         $manager->begin('default', 1);
         $manager->addCallbackForRollback(function () use (&$callbacks): void {
@@ -603,7 +609,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         try {
             $manager->rollback('default', 0);
             $this->fail('Expected rollback cancellation to escape.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -719,11 +725,16 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testCommitCancellationStopsTheCurrentAndRemainingTransactionRecords(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCommitCancellationStopsTheCurrentAndRemainingTransactionRecords(bool $chained): void
     {
         $manager = new DatabaseTransactionsManager;
         $callbacks = [];
         $cancellation = new CanceledException;
+        if ($chained) {
+            $cancellation = new RuntimeException('Commit cleanup failed.', previous: $cancellation);
+        }
 
         $manager->begin('default', 1);
         $manager->addCallback(function () use (&$callbacks): void {
@@ -747,7 +758,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         try {
             $manager->commit('default', 1, 0);
             $this->fail('Expected commit cancellation to escape.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

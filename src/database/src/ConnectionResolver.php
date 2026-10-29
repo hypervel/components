@@ -365,7 +365,7 @@ class ConnectionResolver implements ConnectionResolverInterface
                     $terminate($connection);
                 } catch (Throwable $throwable) {
                     if ($exception === null
-                        || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
+                        || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))
                     ) {
                         $exception = $throwable;
                     }

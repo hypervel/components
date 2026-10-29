@@ -39,6 +39,13 @@ The database capability, query-builder, queue middleware, validation, decimal-ca
 - Keep both traits' Laravel protected signatures and bare restoration bodies unchanged. Use the pooled operation only when a bound `db.resolver` is the testing resolver and the operation returns true. Custom resolvers and manager doubles retain the existing PDO/type-check/dispatcher path. Do not implicitly read test state during pool construction, add a registry, remigrate every test or substitute a file database for this fix.
 - Document that in-memory SQLite pools use one session and serialize queries; tests requiring simultaneous database sessions still need a file-backed or server database.
 
+### Cancellation through database callbacks
+
+- Recognize cancellation carried by a callback or cleanup exception through `Coroutine::causedByCancellation()`, preserving the original exception and foreign-cancellation ownership. Query execution and streaming must not wrap cancellation, retry it, count it as a query error or dispatch `QueryFailed`.
+- Stop commit callbacks on cancellation. Finish rollback callbacks while retaining cancellation ahead of ordinary failures. Apply the same rule through transaction manager/event notification and recovery boundaries, connection disconnect and retained-connection termination. Keep native-only PDO and join checks unchanged; do not add speculative cleanup machinery.
+- Never retry a canceled transaction or wrap its failure as a deadlock, even when its cleanup exception names a deadlock.
+- Extend existing cancellation tests with chained exceptions at query, transaction callback and cleanup boundaries. Preserve public signatures and ordinary-error behavior. Validate the framework and affected database consumers together.
+
 ## Verification
 
 - Reuse the existing database version/override/PDO-reset and queue-hook cases; add the additive builder grammar/unsupported-path checks and real multi-connection lock contention coverage.
