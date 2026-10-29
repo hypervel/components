@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vite-plus/test";
 import {
     active,
     optional,
@@ -22,21 +22,17 @@ test("treats null as an omission without dereferencing bound parameters", () => 
         "Missing required route parameter: user.",
     );
 
-    if (false) {
-        // @ts-expect-error Required route parameters cannot be null.
-        active.url(null);
-        // @ts-expect-error A null binding key does not omit its route parameter.
-        optional.url({ user: { id: null } });
-    }
+    // @ts-expect-error Required route parameters cannot be null.
+    expectTypeOf(active.url).toBeCallableWith(null);
+    // @ts-expect-error A null binding key does not omit its route parameter.
+    expectTypeOf(optional.url).toBeCallableWith({ user: { id: null } });
 });
 
 test("prefers casts before schema and PHPDoc binding evidence", () => {
     expect(price.url("12.50")).toBe("/users/price/12.50");
 
-    if (false) {
-        // @ts-expect-error Decimal casts are represented as strings.
-        price.url(12.5);
-    }
+    // @ts-expect-error Decimal casts are represented as strings.
+    expectTypeOf(price.url).toBeCallableWith(12.5);
 });
 
 test("uses field-specific PHPDoc primitive unions when schema evidence is unavailable", () => {

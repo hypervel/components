@@ -1964,7 +1964,7 @@ trait HasAttributes
     }
 
     /**
-     * Prepare binary-cast attributes for database binding.
+     * Wrap raw binary attribute bytes or streams for database binding.
      *
      * @param array<string, mixed> $attributes
      * @return array<string, mixed>
@@ -1979,17 +1979,33 @@ trait HasAttributes
             }
 
             if (is_resource($value)) {
-                $binary = stream_get_contents($value, offset: 0);
-                rewind($value);
-                $value = $binary;
-            }
-
-            if (is_string($value)) {
+                $attributes[$key] = BinaryParameter::fromStream($value);
+            } elseif (is_string($value)) {
                 $attributes[$key] = new BinaryParameter($value);
             }
         }
 
         return $attributes;
+    }
+
+    /**
+     * Encode a binary attribute's cast value, such as a UUID string, for database binding.
+     *
+     * Preserve explicit binary parameters and raw streams without encoding them again.
+     */
+    public function encodeBinaryAttributeForDatabase(string $key, mixed $value): mixed
+    {
+        if ($value instanceof BinaryParameter || ! $this->isBinaryCast($this->getCasts()[$key] ?? null)) {
+            return $value;
+        }
+
+        if (is_resource($value)) {
+            return BinaryParameter::fromStream($value);
+        }
+
+        $bytes = $this->resolveCasterClass($key)->set($this, $key, $value, $this->attributes)[$key];
+
+        return is_string($bytes) ? new BinaryParameter($bytes) : $bytes;
     }
 
     /**
@@ -2306,15 +2322,7 @@ trait HasAttributes
                 === $this->fromDateTime($original);
         }
         if ($this->hasCast($key, ['object', 'collection'])) {
-            $current = $this->fromJson($attribute);
-
-            try {
-                $original = $this->fromJson($original);
-            } catch (JsonException) {
-                return false;
-            }
-
-            return $current === $original;
+            return $this->jsonIsEquivalent($attribute, $original, $this->hasCast($key, ['object']));
         }
         if ($this->hasCast($key, ['real', 'float', 'double'])) {
             if ($original === null) {
@@ -2325,6 +2333,13 @@ trait HasAttributes
         }
         if ($this->isEncryptedCastable($key) && ! empty(static::currentEncrypter()->getPreviousKeys())) {
             return false;
+        }
+        if ($original !== null && $this->hasCast($key, ['encrypted:object', 'encrypted:collection'])) {
+            return $this->jsonIsEquivalent(
+                $this->fromEncryptedString($attribute),
+                $this->fromEncryptedString($original),
+                $this->hasCast($key, ['encrypted:object']),
+            );
         }
         if ($this->hasCast($key, static::$primitiveCastTypes)) {
             $current = $this->castAttribute($key, $attribute);
@@ -2372,6 +2387,23 @@ trait HasAttributes
 
         return is_numeric($attribute) && is_numeric($original)
             && strcmp((string) $attribute, (string) $original) === 0;
+    }
+
+    /**
+     * Compare JSON values using the structure exposed by their cast.
+     */
+    protected function jsonIsEquivalent(?string $attribute, ?string $original, bool $asObject): bool
+    {
+        $current = $this->fromJson($attribute, $asObject);
+
+        try {
+            $original = $this->fromJson($original, $asObject);
+        } catch (JsonException) {
+            return false;
+        }
+
+        // Object casts preserve nested objects versus arrays as well as scalar types.
+        return $asObject ? serialize($current) === serialize($original) : $current === $original;
     }
 
     /**

@@ -9,12 +9,15 @@ use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -42,9 +45,11 @@ use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 
 class QueueSqsQueueTest extends TestCase
 {
@@ -166,7 +171,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyPopsJobOffOfSqs(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerContract::class));
+        $queue->setContainer(new Container);
         $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->expects('receiveMessage')->with(['QueueUrl' => $this->queueUrl, 'MessageSystemAttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveMessageResponseModel);
@@ -177,7 +182,7 @@ class QueueSqsQueueTest extends TestCase
     public function testPopProperlyHandlesEmptyMessage(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
-        $queue->setContainer(m::mock(ContainerContract::class));
+        $queue->setContainer(new Container);
         $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
         $this->sqs->expects('receiveMessage')->with(['QueueUrl' => $this->queueUrl, 'MessageSystemAttributeNames' => ['ApproximateReceiveCount']])->andReturn($this->mockedReceiveEmptyMessageResponseModel);
         $result = $queue->pop($this->queueName);
@@ -1029,6 +1034,55 @@ class QueueSqsQueueTest extends TestCase
         ];
     }
 
+    #[TestWith(['finalizing'])]
+    #[TestWith(['queueing'])]
+    #[TestWith(['stored'])]
+    #[TestWith(['queued'])]
+    public function testPushCancellationStopsSubsequentLifecycleNotifications(string $phase): void
+    {
+        $container = new Container;
+        $events = new ConcreteEventDispatcher($container);
+        $container->instance('events', $events);
+        $cancellation = new RuntimeException('Listener cleanup failed.', previous: new CanceledException);
+        $notified = [];
+
+        foreach ([JobPayloadFinalizing::class => 'finalizing', JobQueueing::class => 'queueing', JobQueued::class => 'queued', JobQueueingFailed::class => 'failed'] as $eventClass => $name) {
+            $events->listen($eventClass, static function () use ($name, $phase, $cancellation, &$notified): void {
+                $notified[] = $name;
+                if ($name === $phase) {
+                    throw $cancellation;
+                }
+            });
+        }
+
+        $queue = m::mock(SqsQueue::class, [$this->sqs, $this->queueName, $this->prefix])
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+
+        if (in_array($phase, ['stored', 'queued'], true)) {
+            $this->sqs->expects('sendMessage')->andReturn($this->mockedSendMessageResponseModel);
+            $queue->expects('handlePayloadPushed')->andThrow(
+                $phase === 'stored' ? $cancellation : new RuntimeException('Earlier notification failed.'),
+            );
+        } else {
+            $this->sqs->shouldNotReceive('sendMessage');
+        }
+
+        try {
+            $queue->push('job');
+            $this->fail('Expected cancellation to escape dispatch.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(match ($phase) {
+            'finalizing' => ['finalizing'],
+            'queued' => ['finalizing', 'queueing', 'queued'],
+            default => ['finalizing', 'queueing'],
+        }, $notified);
+    }
+
     public function testPushRawStoresPayloadToCacheWhenExceedingThreshold(): void
     {
         $uuid = 'test-uuid';
@@ -1211,14 +1265,25 @@ class QueueSqsQueueTest extends TestCase
         ];
     }
 
-    public function testPushRawFailsBeforeSendingWhenOverflowStorageReturnsFalse(): void
+    #[TestWith([null])]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPushRawFailsBeforeSendingWhenOverflowStorageReturnsFalse(?bool $cleanupThrows): void
     {
         $payload = json_encode(['uuid' => 'failed-write'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'failed-write';
+        $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Delete cleanup failed.', previous: $cancellation);
+        }
 
         $store = m::mock(CacheRepository::class);
         $store->expects('put')->andReturnFalse();
-        $store->expects('forget')->with($path)->andReturnTrue();
+        if ($cleanupThrows === null) {
+            $store->expects('forget')->with($path)->andReturnTrue();
+        } else {
+            $store->expects('forget')->with($path)->andThrow($cancellation);
+        }
 
         $cache = m::mock(CacheFactory::class);
         $cache->expects('store')->with('database')->andReturn($store);
@@ -1236,21 +1301,44 @@ class QueueSqsQueueTest extends TestCase
 
         $this->sqs->shouldNotReceive('sendMessage');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIsOrContains('Unable to store the SQS overflow payload');
-
-        $queue->pushRaw($payload, $this->queueName);
+        try {
+            $queue->pushRaw($payload, $this->queueName);
+            $this->fail('Expected the overflow write or cleanup failure.');
+        } catch (Throwable $exception) {
+            if ($cleanupThrows === null) {
+                $this->assertInstanceOf(RuntimeException::class, $exception);
+                $this->assertStringContainsString('Unable to store the SQS overflow payload', $exception->getMessage());
+            } else {
+                $this->assertSame($cancellation, $exception);
+            }
+        }
     }
 
-    public function testPushRawPreservesCancellationAndCleansTheAttemptedOverflowPayload(): void
+    #[DataProvider('overflowCancellationProvider')]
+    public function testPushRawPreservesCancellationAndCleansTheAttemptedOverflowPayload(bool $writeCleanupThrows, ?bool $deleteCleanupThrows): void
     {
         $payload = json_encode(['uuid' => 'canceled-write'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'canceled-write';
         $cancellation = new CanceledException;
+        if ($writeCleanupThrows) {
+            $cancellation = new RuntimeException('write cleanup failed', previous: $cancellation);
+        }
+        $cleanupCancellation = new CanceledException;
+        if ($deleteCleanupThrows) {
+            $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
+        }
+
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->with($cleanupCancellation)->times($deleteCleanupThrows ? 1 : 0);
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         $store = m::mock(CacheRepository::class);
         $store->expects('put')->with($path, $payload)->andThrow($cancellation);
-        $store->expects('forget')->with($path)->andReturnTrue();
+        if ($deleteCleanupThrows === null) {
+            $store->expects('forget')->with($path)->andReturnTrue();
+        } else {
+            $store->expects('forget')->with($path)->andThrow($cleanupCancellation);
+        }
 
         $cache = m::mock(CacheFactory::class);
         $cache->expects('store')->with('database')->andReturn($store);
@@ -1271,9 +1359,23 @@ class QueueSqsQueueTest extends TestCase
         try {
             $queue->pushRaw($payload, $this->queueName);
             $this->fail('Expected the overflow write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
+    }
+
+    /**
+     * Provide native cancellations and errors thrown while cancellation unwinds.
+     */
+    public static function overflowCancellationProvider(): array
+    {
+        return [
+            'successful cleanup' => [false, null],
+            'native write and delete' => [false, false],
+            'chained write' => [true, false],
+            'chained delete' => [false, true],
+            'chained write and delete' => [true, true],
+        ];
     }
 
     public function testPushRawRetainsOverflowPayloadWhenSqsDeliveryIsAmbiguous(): void
@@ -1341,14 +1443,11 @@ class QueueSqsQueueTest extends TestCase
 
     public function testClearFlushesOverflowStoreWhenFlushOnClearEnabled(): void
     {
-        $store = m::mock(CacheStore::class);
-        $store->expects('flush')->andReturnTrue();
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->expects('getStore')->andReturn($store);
+        $store = new Repository(new ArrayStore);
+        $store->put('foo', 'bar');
 
         $cache = m::mock(CacheFactory::class);
-        $cache->expects('store')->with('database')->andReturn($repository);
+        $cache->expects('store')->with('database')->andReturn($store);
 
         $container = m::mock(ContainerContract::class);
         $container->expects('make')->with('cache')->andReturn($cache);
@@ -1371,6 +1470,8 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
 
         $this->assertSame(5, $queue->clear($this->queueName));
+
+        $this->assertNull($store->get('foo'));
     }
 
     public function testClearFailsWhenTheOverflowStoreCannotBeFlushed(): void
@@ -1462,14 +1563,11 @@ class QueueSqsQueueTest extends TestCase
 
     public function testClearForwardsConfiguredStoreNameToFactory(): void
     {
-        $store = m::mock(CacheStore::class);
-        $store->expects('flush')->andReturnTrue();
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->expects('getStore')->andReturn($store);
+        $store = new Repository(new ArrayStore);
+        $store->put('foo', 'bar');
 
         $cache = m::mock(CacheFactory::class);
-        $cache->expects('store')->with('redis')->andReturn($repository);
+        $cache->expects('store')->with('redis')->andReturn($store);
 
         $container = m::mock(ContainerContract::class);
         $container->expects('make')->with('cache')->andReturn($cache);
@@ -1492,6 +1590,8 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
 
         $this->assertSame(5, $queue->clear($this->queueName));
+
+        $this->assertNull($store->get('foo'));
     }
 
     public function testBulkRejectsDelayAttributeOnFifoBeforePayloadCreation(): void
@@ -1653,6 +1753,30 @@ class QueueSqsQueueTest extends TestCase
         $this->assertCount(2, $queueingEvents);
         $this->assertCount(2, $queuedEvents);
         $this->assertSame(['mid-0', 'mid-1'], array_map(fn (JobQueued $event): mixed => $event->id, array_values($queuedEvents)));
+    }
+
+    public function testBulkNormalizesEnumQueueNameInEvents(): void
+    {
+        $container = new Container;
+        $events = new ConcreteEventDispatcher($container);
+        $container->instance('events', $events);
+        $queues = [];
+
+        $events->listen([JobQueueing::class, JobQueued::class], function (JobQueueing|JobQueued $event) use (&$queues): void {
+            $queues[] = $event->queue;
+        });
+
+        $queue = new SqsQueue($this->sqs, $this->queueName, $this->prefix);
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+        $this->sqs->expects('sendMessageBatch')->andReturn(new Result([
+            'Successful' => [['Id' => '0', 'MessageId' => 'mid-0']],
+            'Failed' => [],
+        ]));
+
+        $queue->bulk(['a'], 'data', SqsQueueName::Emails);
+
+        $this->assertSame([$this->queueName, $this->queueName], $queues);
     }
 
     public function testBulkHonoursPerJobDelay(): void
@@ -1917,12 +2041,53 @@ class QueueSqsQueueTest extends TestCase
 
         $this->sqs->expects('sendMessageBatch')->andReturn(new Result([
             'Successful' => [['Id' => '0', 'MessageId' => 'accepted-id']],
-            'Failed' => [['Id' => '1', 'Code' => 'Rejected', 'Message' => 'invalid']],
+            'Failed' => [['Id' => '1', 'Code' => 'Rejected', 'Message' => 'invalid', 'SenderFault' => true]],
         ]));
 
         $this->expectException(SqsException::class);
 
         $queue->bulk(['a', 'b'], 'data', $this->queueName);
+    }
+
+    public function testBulkRetainsOverflowPointersForServerFaultRejections(): void
+    {
+        $payload = json_encode(['uuid' => 'ambiguous'], JSON_THROW_ON_ERROR);
+        $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'ambiguous';
+
+        $store = m::mock(CacheRepository::class);
+        $store->expects('put')->with($path, $payload)->andReturnTrue();
+        $store->shouldNotReceive('forget');
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->expects('store')->with('database')->andReturn($store);
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->once())->method('createPayload')->willReturn($payload);
+
+        // An SDK retry may have resent an entry SQS already accepted before the final server fault.
+        $this->sqs->expects('sendMessageBatch')->andReturn(new Result([
+            'Successful' => [],
+            'Failed' => [['Id' => '0', 'Code' => 'InternalError', 'Message' => 'failed', 'SenderFault' => false]],
+        ]));
+
+        $this->expectException(SqsException::class);
+
+        $queue->bulk(['a'], 'data', $this->queueName);
     }
 
     public function testBulkCleansEarlierWritesWhenAWriteFailsBeforeSending(): void
@@ -1993,7 +2158,8 @@ class QueueSqsQueueTest extends TestCase
         $this->assertSame($failed[0]->exception, $failed[10]->exception);
     }
 
-    public function testBulkPreservesWriteCancellationWhileDrainingAttemptedPointers(): void
+    #[DataProvider('overflowCancellationProvider')]
+    public function testBulkPreservesWriteCancellationWhileDrainingAttemptedPointers(bool $writeCleanupThrows, ?bool $deleteCleanupThrows): void
     {
         $firstPayload = json_encode(['uuid' => 'first'], JSON_THROW_ON_ERROR);
         $secondPayload = json_encode(['uuid' => 'second'], JSON_THROW_ON_ERROR);
@@ -2001,11 +2167,25 @@ class QueueSqsQueueTest extends TestCase
         $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'second';
         $cancellation = new CanceledException('write canceled');
         $cleanupCancellation = new CanceledException('cleanup canceled');
+        if ($writeCleanupThrows) {
+            $cancellation = new RuntimeException('write cleanup failed', previous: $cancellation);
+        }
+        if ($deleteCleanupThrows) {
+            $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
+        }
+
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->with($cleanupCancellation)->times($deleteCleanupThrows ? 1 : 0);
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         $store = m::mock(CacheRepository::class);
         $store->expects('put')->with($firstPath, $firstPayload)->ordered()->andReturnTrue();
         $store->expects('put')->with($secondPath, $secondPayload)->ordered()->andThrow($cancellation);
-        $store->expects('forget')->with($firstPath)->ordered()->andThrow($cleanupCancellation);
+        if ($deleteCleanupThrows === null) {
+            $store->expects('forget')->with($firstPath)->ordered()->andReturnTrue();
+        } else {
+            $store->expects('forget')->with($firstPath)->ordered()->andThrow($cleanupCancellation);
+        }
         $store->expects('forget')->with($secondPath)->ordered()->andReturnTrue();
 
         $cache = m::mock(CacheFactory::class);
@@ -2052,7 +2232,7 @@ class QueueSqsQueueTest extends TestCase
         try {
             $queue->bulk(['a', 'b'], 'data', $this->queueName);
             $this->fail('Expected the overflow write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2062,13 +2242,18 @@ class QueueSqsQueueTest extends TestCase
         );
     }
 
-    public function testBulkCleanupCancellationSupersedesAnOrdinaryWriteFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBulkCleanupCancellationSupersedesAnOrdinaryWriteFailure(bool $cleanupThrows): void
     {
         $firstPayload = json_encode(['uuid' => 'first'], JSON_THROW_ON_ERROR);
         $secondPayload = json_encode(['uuid' => 'second'], JSON_THROW_ON_ERROR);
         $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'first';
         $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'second';
         $cleanupCancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
+        }
 
         $store = m::mock(CacheRepository::class);
         $store->expects('put')->with($firstPath, $firstPayload)->ordered()->andReturnTrue();
@@ -2105,16 +2290,21 @@ class QueueSqsQueueTest extends TestCase
         try {
             $queue->bulk(['a', 'b'], 'data', $this->queueName);
             $this->fail('Expected cleanup cancellation to supersede the write failure.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
     }
 
-    public function testBulkRetainsPointersAndSuppressesFailureEventsWhenSqsDeliveryIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBulkRetainsPointersAndSuppressesFailureEventsWhenSqsDeliveryIsCanceled(bool $cleanupThrows): void
     {
         $payload = json_encode(['uuid' => 'canceled-batch'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'canceled-batch';
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('transport cleanup failed', previous: $cancellation);
+        }
 
         $store = m::mock(CacheRepository::class);
         $store->expects('put')->with($path, $payload)->andReturnTrue();
@@ -2161,7 +2351,7 @@ class QueueSqsQueueTest extends TestCase
         try {
             $queue->bulk(['a'], 'data', $this->queueName);
             $this->fail('Expected the SQS delivery cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -2619,4 +2809,9 @@ class QueueSqsQueueTest extends TestCase
 #[Delay(9)]
 class SqsBulkAttributeDelayJob
 {
+}
+
+enum SqsQueueName: string
+{
+    case Emails = 'emails';
 }

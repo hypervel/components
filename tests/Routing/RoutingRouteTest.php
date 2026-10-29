@@ -53,15 +53,6 @@ use UnexpectedValueException;
 
 class RoutingRouteTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        ResourceRegistrar::verbs(['create' => 'create', 'edit' => 'edit']);
-        ResourceRegistrar::setParameters();
-        ResourceRegistrar::singularParameters();
-
-        parent::tearDown();
-    }
-
     public function testBasicDispatchingOfRoutes(): void
     {
         $router = $this->getRouter();
@@ -99,12 +90,8 @@ class RoutingRouteTest extends TestCase
         $router->post('foo/bar', function () {
             return 'post hello';
         });
-        $router->query('foo/bar', function (): string {
-            return 'query hello';
-        });
         $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
         $this->assertSame('post hello', $router->dispatch(Request::create('foo/bar', 'POST'))->getContent());
-        $this->assertSame('query hello', $router->dispatch(Request::create('foo/bar', 'QUERY'))->getContent());
 
         $router = $this->getRouter();
         $router->get('foo/{bar}', function ($name) {
@@ -174,7 +161,6 @@ class RoutingRouteTest extends TestCase
             return 'hello';
         });
         $this->assertEmpty($router->dispatch(Request::create('foo/bar', 'HEAD'))->getContent());
-        $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'QUERY'))->getContent());
 
         $router = $this->getRouter();
         $router->get('foo/bar', function () {
@@ -557,6 +543,45 @@ class RoutingRouteTest extends TestCase
             },
         ]);
         $router->dispatch(Request::create('foo/bar/baz', 'GET'))->getContent();
+    }
+
+    public function testQueryRoutesAreDispatched(): void
+    {
+        $router = $this->getRouter();
+        $router->query('products/search', function () use ($router): mixed {
+            return $router->getCurrentRequest()->input('name');
+        });
+        $router->get('products/search', fn (): string => 'get');
+        $router->post('products/search', fn (): string => 'post');
+
+        $request = Request::create('products/search', 'QUERY', ['name' => 'taylor']);
+
+        $this->assertSame('taylor', $router->dispatch($request)->getContent());
+        $this->assertSame(['QUERY'], $router->getRoutes()->getRoutes()[0]->methods());
+        $this->assertSame('get', $router->dispatch(Request::create('products/search', 'GET'))->getContent());
+        $this->assertSame('post', $router->dispatch(Request::create('products/search', 'POST'))->getContent());
+    }
+
+    public function testQueryRoutesReceiveJsonBody(): void
+    {
+        $router = $this->getRouter();
+        $router->query('products/search', function () use ($router): mixed {
+            return $router->getCurrentRequest()->input('filters.name');
+        });
+
+        $request = Request::create('products/search', 'QUERY', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['filters' => ['name' => 'taylor']]));
+
+        $this->assertSame('taylor', $router->dispatch($request)->getContent());
+    }
+
+    public function testAnyRoutesRespondToQueryRequests(): void
+    {
+        $router = $this->getRouter();
+        $router->any('foo', function (): string {
+            return 'hello';
+        });
+
+        $this->assertSame('hello', $router->dispatch(Request::create('foo', 'QUERY'))->getContent());
     }
 
     public function testOptionsResponsesAreGeneratedByDefault(): void
@@ -2110,6 +2135,21 @@ class RoutingRouteTest extends TestCase
         $response = $router->dispatch(Request::create('foo/bar', 'GET'));
         $this->assertInstanceOf(Response::class, $response);
         $this->assertNotInstanceOf(JsonResponse::class, $response);
+    }
+
+    public function testRedirectResponseCanBeReturnedAsResponsable(): void
+    {
+        $router = $this->getRouter();
+        $router->get('foo/bar', function (): Responsable {
+            return new RedirectResponse('/destination', 303, ['X-Test' => 'value']);
+        });
+
+        $response = $router->dispatch(Request::create('foo/bar', 'GET'));
+
+        $this->assertInstanceOf(RedirectResponse::class, $response);
+        $this->assertSame(303, $response->getStatusCode());
+        $this->assertSame('/destination', $response->headers->get('Location'));
+        $this->assertSame('value', $response->headers->get('X-Test'));
     }
 
     public function testJsonResponseIsReturned(): void

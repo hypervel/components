@@ -1,29 +1,24 @@
 {
+    "name": "@hypervel/exception-renderer",
     "private": true,
     "type": "module",
-    "engines": {
-        "node": ">=22.19.0"
-    },
-    "devEngines": {
-        "packageManager": {
-            "name": "npm",
-            "version": ">=11.10.0"
-        }
-    },
     "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "watch": "vite build --watch"
+        "dev": "vp dev",
+        "build": "vp build",
+        "watch": "vp build --watch"
     },
     "dependencies": {
-        "alpinejs": "^3.14.9",
-        "shiki": "^3.13.0",
-        "tailwindcss": "^4.1.12",
+        "@shikijs/langs": "^3.23.0",
+        "@shikijs/themes": "^3.23.0",
+        "alpinejs": "catalog:",
+        "shiki": "^3.23.0",
+        "tailwindcss": "catalog:",
         "tippy.js": "^6.3.7",
         "tw-animate-css": "^1.3.7"
     },
     "devDependencies": {
-        "@tailwindcss/vite": "^4.3.3",
-        "vite": "^8.3.0"
+        "@tailwindcss/vite": "catalog:",
+        "vite": "catalog:",
+        "vite-plus": "catalog:"
     }
 }

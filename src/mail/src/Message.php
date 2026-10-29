@@ -190,7 +190,8 @@ class Message
                 return $this->ensureAddressIsSafe($address);
             })->all();
 
-            $this->message->{"{$type}"}(...$addresses);
+            // Spread a list: string keys become named arguments, which makes any later positional address fail.
+            $this->message->{"{$type}"}(...array_values($addresses));
         } else {
             $this->message->{"add{$type}"}($this->createAddress($address, (string) $name));
         }

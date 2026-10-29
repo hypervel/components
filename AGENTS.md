@@ -37,9 +37,11 @@ Key paths:
 | Path | Description |
 |------|-------------|
 | `src/docs/` | Hypervel documentation and the source for the `hypervel/docs` package. |
+| `src/framework/` | Composer metadata for `hypervel/framework`, the metapackage that installs the standard framework components. Published to its own read-only split repository. |
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
+| `skeletons/` | Application skeletons and starter kits, each published to its own read-only split repository. `hypervel/` is the base application skeleton; `react-starter-kit/` is the React starter kit. |
 | `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics). |
 | `docs/todo.md` | Tracked gaps and improvements worth doing. |
 
@@ -394,8 +396,13 @@ Decide where state lives before writing code:
 Classes that use static caching need a `flushState()` method for test cleanup — see "Static state and test cleanup" under Writing Tests.
 
 - **Release idle pooled connections before unrelated long waits** — Holding connections while waiting for external services or child coroutines can exhaust pools and limit concurrency. Release them at the appropriate shared boundary, preserving active operations and session ownership; consider reacquisition costs rather than adding release calls indiscriminately. For database sessions, reuse `ConnectionResolver::releaseIdleConnections()`, which preserves transactions and explicit pins. See `Mailer::sendSymfonyMessage()` and `ConcurrentImportRunner::wait()` for examples.
-- **Treat coroutine cancellation separately from errors** — Code that owns coroutine cancellation must pass `CanceledException` through unchanged and clean up the children or resources it owns. Add this only where cancellation can actually happen and mishandling it causes a real bug—not to every `catch (Throwable)`.
-- **Contain cancellation in direct engine coroutines** — A callback passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.
+
+### Coroutine cancellation
+
+- **Treat coroutine cancellation separately from errors** — Where cancellation needs different handling and the operation runs callbacks or listeners—including `releaseIdleConnections()`—use `Coroutine::causedByCancellation($exception)`. Cleanup errors can carry cancellation in their exception chain. Preserve the original exception, perform owned cleanup, and propagate cancellation instead of retrying or continuing normal work. Report genuine cleanup errors without swallowing cancellation. Add this only where cancellation can actually happen and mishandling it causes a real bug. Keep plain checks for native-only operations.
+- **Preserve cancellation ownership** — If shared work can safely be retried, allow another waiter to retry after its owner is canceled. Otherwise, share the failure behind `ForeignCancellationException`, or `ChildCancellationException` for an independently canceled child, preserving the original cause. The canceled owner propagates its own exception unchanged; waiters must not mistake it for their own cancellation.
+- **Contain cancellation in direct engine coroutines** — Callbacks passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.
+- **Test cancellation through cleanup** — When adding or changing cancellation-sensitive retry, child-management or shared-result handling, extend relevant regression tests with throwing cleanup during cancellation. Verify the resulting behavior, not just the exception type.
 
 ## When to Stop and Report
 
@@ -779,6 +786,7 @@ When porting Laravel packages, whether first-party or third-party, keep them as 
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
 - Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and applying the Configuration rules to ported config and its consumers
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
+- Formatting JavaScript, TypeScript, Vue and frontend CSS sources with the repository's Vite+ formatter configuration, preserving upstream logic, naming, structure and comments
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
 - Not porting upstream mechanisms that do not make sense in Hypervel's stateful Swoole architecture (for example Laravel's deferred service provider machinery, where the upstream optimization only matters in a per-request bootstrap model)

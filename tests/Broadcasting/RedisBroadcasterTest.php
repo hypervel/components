@@ -15,6 +15,7 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use Mockery\MockInterface;
 use RedisClusterException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -24,7 +25,7 @@ class RedisBroadcasterTest extends TestCase
 
     protected Container $container;
 
-    protected Redis&m\MockInterface $redis;
+    protected Redis&MockInterface $redis;
 
     /**
      * Set up the test environment.
@@ -385,14 +386,13 @@ class RedisBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
+        $request = Request::create('/', 'POST', ['channel_name' => $channel]);
 
         $user = m::mock('User');
         $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
         $user->shouldReceive('getAuthIdentifier')->andReturn(42);
 
-        $request->shouldReceive('user')->andReturn($user);
+        $request->setUserResolver(fn (): MockInterface => $user);
 
         return $request;
     }
@@ -402,11 +402,6 @@ class RedisBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithoutUserForChannel(string $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
-
-        $request->shouldReceive('user')->andReturn(null);
-
-        return $request;
+        return Request::create('/', 'POST', ['channel_name' => $channel]);
     }
 }

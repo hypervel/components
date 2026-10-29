@@ -20,6 +20,7 @@ Documentation: https://hypervel.org/docs/database
 - Laravel's `migrate:fresh` command wipes only its selected connection. Hypervel discovers the connection declared by each migration and wipes every resolved target before rebuilding the schema.
 - Laravel's deprecated database-inspection forwarding helpers are intentionally not ported. Extensions can call `ConnectionInterface::getDriverTitle()` and `threadCount()` directly.
 - Laravel's remaining directly deprecated Database compatibility forwarders are intentionally not ported. Use the current class-keyed factory resolver, schema blueprint and grammar APIs, and correctly named PostgreSQL truncation method instead.
+- Laravel's `ConnectionResolver` is a simple registry of connection instances. Hypervel's `ConnectionResolver` is the pooled resolver built by the container, so it has no array constructor or `addConnection()` method. Tests that inject existing connections can mock `ConnectionResolverInterface`, while tests that need real configured connections can use the Capsule manager.
 - Laravel's Capsule manager exposes a `setFetchMode()` method that writes configuration its connections do not read. Hypervel omits this ineffective connection-wide setter; use `Query\Builder::fetchUsing()` for each query that needs a custom row shape.
 - `make:migration` omits Laravel's deprecated `--fullpath` option and obsolete Composer constructor dependency because migration creation no longer dumps autoload files.
 - `Blueprint::dropForeign()` widens Laravel's method signature with an optional constraint name when columns are supplied, allowing explicitly named foreign keys to be dropped portably across SQLite and the server databases. Custom `Blueprint` subclasses that override this method must accept the optional second argument.
@@ -27,6 +28,6 @@ Documentation: https://hypervel.org/docs/database
 - Eloquent expression plucks use `Query\Builder::pluckWithColumn()` to retain the returned field name for casts and accessors. Custom query builders overriding `pluck()` must also override `pluckWithColumn()` to customize this path. String-based Eloquent plucks still call `pluck()`.
 - Eloquent's protected `refreshSavedAttributes()` method receives the raw attribute values each write stored, so configured attributes are refreshed from the row that write changed. Models that override this method must accept the `array $attributes` argument.
 - Eloquent `updateFrom()` maintains the model's `updated_at` timestamp, like `update()`. Laravel forwards this method without adding a timestamp.
-- `BelongsToMany` records pivot filters in an ordered `$pivotConstraints` list instead of Laravel's `$pivotWheres`, `$pivotWhereIns`, and `$pivotWhereNulls` properties. Relationship extensions should use the `wherePivot*` methods instead of accessing those arrays.
+- `BelongsToMany` records pivot filters in an ordered `$pivotConstraints` list instead of Laravel's `$pivotWheres`, `$pivotWhereIns`, `$pivotWhereNulls`, and `$pivotWhereBetweens` properties. Relationship extensions should use the `wherePivot*` methods instead of accessing those arrays.
 
 Ported from: https://github.com/laravel/framework

@@ -161,18 +161,6 @@ class ValidationUniqueRuleTest extends TestCase
         );
     }
 
-    public function testItNormalizesBooleanWhereValues(): void
-    {
-        $this->assertSame(
-            'unique:table,column,NULL,id,active,"0"',
-            (string) (new Unique('table', 'column'))->where('active', false),
-        );
-        $this->assertSame(
-            'unique:table,column,NULL,id,active,"!0"',
-            (string) (new Unique('table', 'column'))->whereNot('active', false),
-        );
-    }
-
     public function testItHandlesWhereWithSpecialValues(): void
     {
         $rule = new Unique('table', 'column');
@@ -194,6 +182,51 @@ class ValidationUniqueRuleTest extends TestCase
         $rule = new Unique('table', 'column');
         $rule->where('foo', 0);
         $this->assertSame('unique:table,column,NULL,id,foo,"0"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->where('foo', 0.13);
+        $this->assertSame('unique:table,column,NULL,id,foo,"0.13"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->where('foo', true);
+        $this->assertSame('unique:table,column,NULL,id,foo,"1"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->where('foo', false);
+        $this->assertSame('unique:table,column,NULL,id,foo,"0"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->whereNot('foo', true);
+        $this->assertSame('unique:table,column,NULL,id,foo,"!1"', (string) $rule);
+
+        $rule = new Unique('table', 'column');
+        $rule->whereNot('foo', false);
+        $this->assertSame('unique:table,column,NULL,id,foo,"!0"', (string) $rule);
+    }
+
+    public function testItValidatesUniqueRuleWithBooleanWhere(): void
+    {
+        EloquentModelStub::create(['id_column' => 1, 'type' => 'admin', 'active' => false]);
+        EloquentModelStub::create(['id_column' => 2, 'type' => 'admin', 'active' => true]);
+
+        $translator = $this->getArrayTranslator();
+        $validator = new Validator($translator, [], ['id_column' => (new Unique('table', 'id_column'))->where('active', false)]);
+        $validator->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $validator->setData(['id_column' => 1]);
+        $this->assertFalse($validator->passes());
+
+        $validator->setData(['id_column' => 2]);
+        $this->assertTrue($validator->passes());
+
+        $validator = new Validator($translator, [], ['id_column' => (new Unique('table', 'id_column'))->whereNot('active', false)]);
+        $validator->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $validator->setData(['id_column' => 1]);
+        $this->assertTrue($validator->passes());
+
+        $validator->setData(['id_column' => 2]);
+        $this->assertFalse($validator->passes());
     }
 
     public function testItValidatesUniqueRuleWithWhereInAndWhereNotIn(): void

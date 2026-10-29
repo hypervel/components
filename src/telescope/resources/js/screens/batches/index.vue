@@ -1,25 +1,17 @@
-<script type="text/ecmascript-6">
-import StylesMixin from './../../mixins/entriesStyles';
-
-export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
-</script>
-
 <template>
     <index-screen title="Batches" resource="batches" hide-search="true">
-        <tr slot="table-header">
-            <th scope="col">Batch</th>
-            <th scope="col">Status</th>
-            <th scope="col" class="text-right">Size</th>
-            <th scope="col" class="text-right">Completion</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Batch</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="text-end">Size</th>
+                <th scope="col" class="text-end">Completion</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>
                 <span :title="slotProps.entry.content.name">{{
                     truncate(slotProps.entry.content.name || slotProps.entry.content.id, 68)
@@ -50,10 +42,10 @@ export default {
                     Pending
                 </small>
             </td>
-            <td class="text-right text-muted">
+            <td class="text-end text-muted">
                 {{ slotProps.entry.content.totalJobs }}
             </td>
-            <td class="text-right text-muted">{{ slotProps.entry.content.progress }}%</td>
+            <td class="text-end text-muted">{{ slotProps.entry.content.progress }}%</td>
 
             <td
                 class="table-fit text-muted"

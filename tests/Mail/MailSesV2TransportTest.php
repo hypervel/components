@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Aws\Command;
+use Aws\Credentials\Credentials;
 use Aws\Exception\AwsException;
 use Aws\Result;
 use Aws\SesV2\SesV2Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
@@ -55,6 +58,22 @@ class MailSesV2TransportTest extends TestCase
         $this->assertSame('ses-v2', (string) $transport);
     }
 
+    public function testCallableCredentialsTakePrecedenceOverServiceKeys(): void
+    {
+        config(['services.ses' => [
+            'key' => 'base-key',
+            'secret' => 'base-secret',
+            'region' => 'us-east-1',
+        ]]);
+
+        $transport = (new MailManager($this->app))->createSymfonyTransport([
+            'transport' => 'ses-v2',
+            'credentials' => static fn (): PromiseInterface => Create::promiseFor(new Credentials('role-key', 'role-secret')),
+        ]);
+
+        $this->assertSame('role-key', $transport->ses()->getCredentials()->wait()->getAccessKeyId());
+    }
+
     public function testSend(): void
     {
         $message = new Email;
@@ -69,10 +88,7 @@ class MailSesV2TransportTest extends TestCase
         $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['Source'] === 'myself@example.com'
@@ -119,10 +135,7 @@ class MailSesV2TransportTest extends TestCase
         $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', 'my-tenant');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === 'my-tenant';
@@ -164,10 +177,7 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
 
         $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->expects('get')
-            ->with('MessageId')
-            ->andReturn('ses-message-id');
+        $sesResult = new Result(['MessageId' => 'ses-message-id']);
         $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);

@@ -26,9 +26,11 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
@@ -48,7 +50,6 @@ use Hypervel\Support\Traits\ReflectsClosures;
 use LogicException;
 use ReflectionClass;
 use ReflectionException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -504,14 +505,18 @@ class Dispatcher implements DispatcherContract
     {
         try {
             $result = $this->invokeListeners($event, $payload, $halt);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             try {
                 $this->invokeObservers($event, $payload);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
+            } catch (Throwable $observerException) {
+                if (Coroutine::causedByCancellation($observerException)) {
+                    throw $observerException;
+                }
+
                 // An observer failure must not replace the active listener failure.
             }
 
@@ -538,9 +543,11 @@ class Dispatcher implements DispatcherContract
         foreach ($this->getObservers($event) as $observer) {
             try {
                 $observer($event, $payload);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $firstException ??= $exception;
             }
         }
@@ -1058,6 +1065,7 @@ class Dispatcher implements DispatcherContract
             $job->shouldBeEncrypted = $listener instanceof ShouldBeEncrypted;
             $job->timeout = $this->getAttributeValue($listener, Timeout::class, 'timeout');
             $job->failOnTimeout = $this->getAttributeValue($listener, FailOnTimeout::class, 'failOnTimeout') ?? false;
+            $job->countCrashesAsExceptions = $this->getAttributeValue($listener, CountCrashesAsExceptions::class, 'countCrashesAsExceptions') ?? false;
             $job->deleteWhenMissingModels = $this->getAttributeValue($listener, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
             $job->tries = method_exists($listener, 'tries') ? $listener->tries(...$data) : $this->getAttributeValue($listener, Tries::class, 'tries');
             $job->messageGroup = method_exists($listener, 'messageGroup') ? $listener->messageGroup(...$data) : ($listener->messageGroup ?? null);

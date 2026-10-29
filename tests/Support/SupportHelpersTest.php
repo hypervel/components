@@ -23,12 +23,13 @@ use Hypervel\Tests\Support\Fixtures\StringBackedEnum;
 use Hypervel\Tests\TestCase;
 use IteratorAggregate;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 use Traversable;
 
 class SupportHelpersTest extends TestCase
@@ -65,8 +66,22 @@ class SupportHelpersTest extends TestCase
         $str = 'A \'quote\' is <b>bold</b>';
         $this->assertSame('A &#039;quote&#039; is &lt;b&gt;bold&lt;/b&gt;', e($str));
 
-        $html = m::mock(Htmlable::class);
-        $html->expects('toHtml')->andReturn($str);
+        $html = new class($str) implements Htmlable {
+            /**
+             * Create a new HTML string instance.
+             */
+            public function __construct(protected string $html)
+            {
+            }
+
+            /**
+             * Get content as a string of HTML.
+             */
+            public function toHtml(): string
+            {
+                return $this->html;
+            }
+        };
         $this->assertEquals($str, e($html));
     }
 
@@ -852,9 +867,8 @@ class SupportHelpersTest extends TestCase
             $object->id = 2;
         })->id);
 
-        $mock = m::mock();
-        $mock->expects('foo')->andReturn('bar');
-        $this->assertEquals($mock, tap($mock)->foo());
+        $collection = collect();
+        $this->assertSame($collection, tap($collection)->all());
     }
 
     public function testThrow(): void
@@ -1227,9 +1241,12 @@ class SupportHelpersTest extends TestCase
         Sleep::assertSequence([Sleep::usleep(100_500)]);
     }
 
-    public function testCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationIsNotRetriedOrPassedToRetryPolicy(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('operation cancelled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $attempts = 0;
         $policyCalled = false;
         $sleepCalled = false;
@@ -1237,10 +1254,10 @@ class SupportHelpersTest extends TestCase
         try {
             retry(
                 3,
-                function () use (&$attempts, $cancellation): never {
+                function () use (&$attempts, $failure): never {
                     ++$attempts;
 
-                    throw $cancellation;
+                    throw $failure;
                 },
                 function () use (&$sleepCalled): int {
                     $sleepCalled = true;
@@ -1254,8 +1271,8 @@ class SupportHelpersTest extends TestCase
                 },
             );
             $this->fail('Expected the operation cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame(1, $attempts);

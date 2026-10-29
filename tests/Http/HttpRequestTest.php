@@ -10,6 +10,7 @@ use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Routing\Route;
+use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store;
 use Hypervel\Support\CarbonImmutable as Carbon;
 use Hypervel\Support\Collection;
@@ -1612,7 +1613,9 @@ class HttpRequestTest extends TestCase
 
         $baseRequest = SymfonyRequest::create('/?boom=breeze', 'GET', ['foo' => ['bar' => 'baz']], [], $invalidFiles);
 
-        Request::createFromBase($baseRequest);
+        $request = Request::createFromBase($baseRequest);
+
+        $this->assertNull($request->file('file'));
     }
 
     public function testMultipleFileUploadWithEmptyValue(): void
@@ -1637,8 +1640,8 @@ class HttpRequestTest extends TestCase
     public function testOldMethodCallsSession(): void
     {
         $request = Request::create('/');
-        $session = m::mock(Store::class);
-        $session->expects('getOldInput')->with('foo', 'bar')->andReturn('boom');
+        $session = new Store('test', new NullSessionHandler);
+        $session->flashInput(['foo' => 'boom']);
         $request->setHypervelSession($session);
         $this->assertSame('boom', $request->old('foo', 'bar'));
     }
@@ -1646,8 +1649,7 @@ class HttpRequestTest extends TestCase
     public function testOldMethodCallsSessionWhenDefaultIsArray(): void
     {
         $request = Request::create('/');
-        $session = m::mock(Store::class);
-        $session->expects('getOldInput')->with('foo', ['bar'])->andReturn(['bar']);
+        $session = new Store('test', new NullSessionHandler);
         $request->setHypervelSession($session);
         $this->assertSame(['bar'], $request->old('foo', ['bar']));
     }
@@ -1655,10 +1657,9 @@ class HttpRequestTest extends TestCase
     public function testOldMethodCanGetDefaultValueFromModelByKey(): void
     {
         $request = Request::create('/');
-        $model = m::mock(Price::class);
-        $model->expects('getAttribute')->with('name')->andReturn('foobar');
-        $session = m::mock(Store::class);
-        $session->expects('getOldInput')->with('name', 'foobar')->andReturn('foobar');
+        $model = new Price;
+        $model->name = 'foobar';
+        $session = new Store('test', new NullSessionHandler);
         $request->setHypervelSession($session);
         $this->assertSame('foobar', $request->old('name', $model));
     }
@@ -1680,10 +1681,13 @@ class HttpRequestTest extends TestCase
     public function testFlushMethodCallsSession(): void
     {
         $request = Request::create('/');
-        $session = m::mock(Store::class);
-        $session->expects('flashInput');
+        $session = new Store('test', new NullSessionHandler);
+        $session->flashInput(['foo' => 'bar']);
+        $session->ageFlashData();
         $request->setHypervelSession($session);
         $request->flush();
+        $this->assertSame([], $session->getOldInput());
+        $this->assertContains('_old_input', $session->get('_flash.new', []));
     }
 
     public function testExpectsJson(): void
@@ -1967,7 +1971,7 @@ class HttpRequestTest extends TestCase
 
         $this->assertFalse($request->hasSession());
 
-        $session = m::mock(Store::class);
+        $session = new Store('test', new NullSessionHandler);
         $request->setHypervelSession($session);
 
         $this->assertTrue($request->hasSession());
@@ -1977,14 +1981,14 @@ class HttpRequestTest extends TestCase
     {
         $request = Request::create('/');
 
-        $hypervelSession = m::mock(Store::class);
+        $hypervelSession = new Store('test', new NullSessionHandler);
         $request->setHypervelSession($hypervelSession);
 
         $session = $request->getSession();
         $this->assertInstanceOf(SessionInterface::class, $session);
 
-        $hypervelSession->expects('start')->andReturn(true);
-        $session->start();
+        $this->assertTrue($session->start());
+        $this->assertTrue($hypervelSession->isStarted());
     }
 
     public function testGetSessionMethodWithoutHypervelSession(): void
@@ -2175,29 +2179,32 @@ class HttpRequestTest extends TestCase
 
     public function testHttpRequestFlashCallsSessionFlashInputWithInputData(): void
     {
-        $session = m::mock(Store::class);
-        $session->expects('flashInput')->with(['name' => 'Taylor', 'email' => 'foo']);
+        $session = new Store('test', new NullSessionHandler);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flash();
+        $this->assertSame(['name' => 'Taylor', 'email' => 'foo'], $session->getOldInput());
+        $this->assertContains('_old_input', $session->get('_flash.new', []));
     }
 
     public function testHttpRequestFlashOnlyCallsFlashWithProperParameters(): void
     {
-        $session = m::mock(Store::class);
-        $session->expects('flashInput')->with(['name' => 'Taylor']);
+        $session = new Store('test', new NullSessionHandler);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flashOnly(['name']);
+        $this->assertSame(['name' => 'Taylor'], $session->getOldInput());
+        $this->assertContains('_old_input', $session->get('_flash.new', []));
     }
 
     public function testHttpRequestFlashExceptCallsFlashWithProperParameters(): void
     {
-        $session = m::mock(Store::class);
-        $session->expects('flashInput')->with(['name' => 'Taylor']);
+        $session = new Store('test', new NullSessionHandler);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flashExcept(['email']);
+        $this->assertSame(['name' => 'Taylor'], $session->getOldInput());
+        $this->assertContains('_old_input', $session->get('_flash.new', []));
     }
 
     public function testGeneratingJsonRequestFromParentRequestUsesCorrectType(): void

@@ -109,6 +109,10 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Contracts\Pagination\Paginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->simplePaginate());
     assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->cursorPaginate(cursor: new Cursor(['id' => 1])));
 
+    assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Types\\Relations\\Tenant, 'pivot'>", $user->tenantRoles());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Types\Relations\Tenant}>', $user->tenantRoles()->getResults());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Types\Relations\Tenant}>', $user->tenantRoles()->get());
+
     assertType('Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Car, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->car());
     assertType('Hypervel\Types\Relations\Car|null', $user->car()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Car>', $user->car()->find([1]));
@@ -160,6 +164,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 
     assertType("Hypervel\\Database\\Eloquent\\Relations\\MorphToMany<Hypervel\\Types\\Relations\\Tag, Hypervel\\Types\\Relations\\Post, Hypervel\\Database\\Eloquent\\Relations\\MorphPivot, 'pivot'>", $post->tags());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{pivot: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->getResults());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{pivot: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->get());
 
     assertType('42', Relation::noConstraints(fn () => 42));
 }
@@ -295,6 +300,10 @@ class User extends Model
             'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, $this(Hypervel\Types\Relations\User)>',
             $this->through($this->mechanic())->has(fn ($mechanic) => $mechanic->parts()),
         );
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, $this(Hypervel\Types\Relations\User)>',
+            $this->through($this->mechanic())->has(fn ($mechanic) => $mechanic->morphMany(Part::class, 'partable')),
+        );
 
         return $hasManyThrough;
     }
@@ -335,6 +344,11 @@ class Post extends Model
         $morphMany = $this->morphMany(Comment::class, 'commentable');
         assertType('Hypervel\Database\Eloquent\Relations\MorphMany<Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>', $morphMany);
 
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Image, Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>',
+            $this->through($morphMany)->has(fn ($comment) => $comment->hasOne(Image::class)),
+        );
+
         return $morphMany;
     }
 
@@ -343,6 +357,11 @@ class Post extends Model
     {
         $comment = $this->comments()->one();
         assertType('Hypervel\Database\Eloquent\Relations\MorphOne<Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>', $comment);
+
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Image, Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>',
+            $this->through($comment)->has(fn ($comment) => $comment->hasOne(Image::class)),
+        );
 
         return $comment;
     }

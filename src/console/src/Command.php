@@ -24,7 +24,6 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -325,37 +324,33 @@ class Command extends SymfonyCommand
                             $this->normalizeExitCode($this->exitCode),
                         ));
                     }
-                } catch (CanceledException $cancellation) {
-                    if (! $exception instanceof CanceledException) {
-                        $exception = $cancellation;
-                    }
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
+                        $exception = $throwable;
+                    }
                 }
 
                 if ($commandMutex !== null) {
                     try {
                         $commandMutex->forget($this);
-                    } catch (CanceledException $cancellation) {
-                        if (! $exception instanceof CanceledException) {
-                            $exception = $cancellation;
-                        }
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
+                            $exception = $throwable;
+                        }
                     }
                 }
 
-                if ($runsInOwnCoroutine && ! $exception instanceof CanceledException) {
+                if ($runsInOwnCoroutine && ($exception === null || ! Coroutine::causedByCancellation($exception))) {
                     $container = Container::getInstance();
 
                     if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
                         try {
                             $container->make(DeferredCallbackCollection::class)
                                 ->invokeWhen(fn (DeferredCallback $callback): bool => ($exception === null && $this->normalizeExitCode($this->exitCode) === self::SUCCESS) || $callback->always);
-                        } catch (CanceledException $cancellation) {
-                            $exception = $cancellation;
                         } catch (Throwable $throwable) {
-                            $exception ??= $throwable;
+                            if ($exception === null || Coroutine::causedByCancellation($throwable)) {
+                                $exception = $throwable;
+                            }
                         }
                     }
                 }

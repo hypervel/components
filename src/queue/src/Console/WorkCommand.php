@@ -56,7 +56,7 @@ class WorkCommand extends Command
                             {--max-jobs=0 : The number of jobs to process before stopping}
                             {--max-time=0 : The maximum number of seconds the worker should run}
                             {--force : Force the worker to run even in maintenance mode}
-                            {--memory=128 : The memory limit in megabytes}
+                            {--memory=128 : The memory limit in megabytes, or as a percentage of the PHP memory limit}
                             {--sleep=3 : The number of seconds to sleep when no job is available}
                             {--rest=0 : The number of seconds to rest between jobs}
                             {--timeout=60 : The number of seconds a child process can run}
@@ -155,7 +155,7 @@ class WorkCommand extends Command
         return new WorkerOptions(
             name: (string) $this->option('name'),
             backoff: (int) max($this->option('backoff'), $this->option('delay')),
-            memory: (float) $this->option('memory'),
+            memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),
             maxTries: (int) $this->option('tries'),
@@ -202,11 +202,11 @@ class WorkCommand extends Command
         });
 
         $events->listen(WorkerQueuePaused::class, static function (WorkerQueuePaused $event): void {
-            static::currentCommand()?->writeQueueStatus($event->queue, 'paused');
+            static::currentCommand()?->writeQueueStatus($event->connectionName, $event->queue, 'paused');
         });
 
         $events->listen(WorkerQueueResumed::class, static function (WorkerQueueResumed $event): void {
-            static::currentCommand()?->writeQueueStatus($event->queue, 'resumed');
+            static::currentCommand()?->writeQueueStatus($event->connectionName, $event->queue, 'resumed');
         });
 
         $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
@@ -238,7 +238,7 @@ class WorkCommand extends Command
     /**
      * Write the status output for a paused or resumed queue.
      */
-    protected function writeQueueStatus(string $queue, string $status): void
+    protected function writeQueueStatus(string $connection, string $queue, string $status): void
     {
         if ($this->output->isQuiet() || $this->output->isSilent()) {
             return;
@@ -247,6 +247,7 @@ class WorkCommand extends Command
         if ($this->outputUsingJson()) {
             $this->output->writeln(json_encode([
                 'level' => 'warning',
+                'connection' => $connection,
                 'queue' => $queue,
                 'status' => $status,
                 'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
@@ -277,6 +278,8 @@ class WorkCommand extends Command
         if ($this->outputUsingJson()) {
             $this->output->writeln(json_encode([
                 'level' => $event->status === 0 ? 'info' : 'warning',
+                'connection' => $event->connectionName,
+                'queue' => $event->queue,
                 'status' => 'stopped',
                 'reason' => $event->reason->value,
                 'exit_code' => $event->status,

@@ -94,10 +94,10 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $grammar->expects('compileCreateDatabase')->andReturn('sql');
+        $grammar = new class($connection) extends Grammar {
+        };
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with('sql')->andReturnTrue();
+        $connection->expects('statement')->with($grammar->compileCreateDatabase('foo'))->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->createDatabase('foo'));
@@ -106,10 +106,10 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $grammar->expects('compileDropDatabaseIfExists')->andReturn('sql');
+        $grammar = new class($connection) extends Grammar {
+        };
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
-        $connection->expects('statement')->with('sql')->andReturnTrue();
+        $connection->expects('statement')->with($grammar->compileDropDatabaseIfExists('foo'))->andReturnTrue();
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
@@ -348,18 +348,79 @@ class DatabaseSchemaBuilderTest extends TestCase
         $this->assertFalse($builder->hasColumns('users', ['id', 'address']));
     }
 
+    #[DataProvider('columnNames')]
+    public function testColumnExistenceMatchesUnicodeWithoutCoercingNumericNames(string $column, bool $exists): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->expects('getSchemaGrammar')->andReturn(m::mock(Grammar::class));
+        $builder = m::mock(Builder::class . '[getColumnListing]', [$connection]);
+        $builder->expects('getColumnListing')->with('users')->twice()->andReturn(['Émail', '01']);
+
+        $this->assertSame($exists, $builder->hasColumn('users', $column));
+        $this->assertSame($exists, $builder->hasColumns('users', [$column]));
+    }
+
+    /**
+     * Provide column names and their expected existence.
+     */
+    public static function columnNames(): array
+    {
+        return [
+            ['émail', true],
+            ['01', true],
+            ['1', false],
+        ];
+    }
+
+    #[DataProvider('columnLookups')]
+    public function testColumnLookupPrefersExactNamesBeforeCaseInsensitiveMatches(string $column, int $index): void
+    {
+        $columns = [
+            ['name' => 'foo', 'type_name' => 'integer', 'type' => 'integer'],
+            ['name' => 'FOO', 'type_name' => 'varchar', 'type' => 'varchar(255)'],
+            ['name' => 'Émail', 'type_name' => 'text', 'type' => 'text'],
+        ];
+        $connection = m::mock(Connection::class);
+        $connection->expects('getSchemaGrammar')->andReturn(m::mock(Grammar::class));
+        $builder = m::mock(Builder::class . '[getColumns]', [$connection]);
+        $builder->expects('getColumns')->with('users')->times(3)->andReturn($columns);
+
+        $this->assertSame($columns[$index], $builder->getColumn('users', $column));
+        $this->assertSame($columns[$index]['type_name'], $builder->getColumnType('users', $column));
+        $this->assertSame($columns[$index]['type'], $builder->getColumnType('users', $column, true));
+    }
+
+    /**
+     * Provide exact and case-insensitive column lookups.
+     */
+    public static function columnLookups(): array
+    {
+        return [
+            ['foo', 0],
+            ['FOO', 1],
+            ['fOo', 0],
+            ['émail', 2],
+        ];
+    }
+
     public function testGetColumnTypeAddsPrefix(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(Grammar::class);
-        $processor = m::mock(Processor::class);
+        $grammar = new class($connection) extends Grammar {
+            /**
+             * Compile the query to determine the columns.
+             */
+            public function compileColumns(?string $schema, string $table): string
+            {
+                return "columns for {$table}";
+            }
+        };
+        $processor = new Processor;
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
-        $processor->expects('processColumns')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
         $builder = new Builder($connection);
         $connection->expects('getTablePrefix')->andReturn('prefix_');
-        $grammar->expects('compileColumns')->with(null, 'prefix_users')->andReturn('sql');
-        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
+        $connection->expects('selectFromWriteConnection')->with('columns for prefix_users')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
 
         $this->assertSame('integer', $builder->getColumnType('users', 'id'));
     }

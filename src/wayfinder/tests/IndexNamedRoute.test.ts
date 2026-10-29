@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import albums from "./.generated/routes/albums";
 import photos from "./.generated/routes/photos";
 

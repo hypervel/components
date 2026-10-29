@@ -944,7 +944,12 @@ class BelongsToMany extends Relation
         return $callback();
     }
 
-    public function getResults()
+    /**
+     * Get the results of the relationship.
+     *
+     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     */
+    public function getResults(): BaseCollection
     {
         return ! is_null($this->parent->{$this->parentKey})
             ? $this->get()
@@ -1052,6 +1057,15 @@ class BelongsToMany extends Relation
         Cursor|string|null $cursor = null,
     ): mixed {
         $this->query->addSelect($this->shouldSelect($columns));
+
+        $casts = [];
+
+        // Cursor parameters from the pivot must be encoded with the pivot's casts, not the related model's.
+        foreach ($this->newPivot()->getCasts() as $key => $cast) {
+            $casts[$this->qualifyPivotColumn($key)] = $cast;
+        }
+
+        $this->query->withCasts($casts);
 
         return tap($this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor), function ($paginator) {
             $this->hydratePivotRelation($paginator->items());

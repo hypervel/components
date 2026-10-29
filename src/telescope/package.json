@@ -1,37 +1,32 @@
 {
+    "name": "@hypervel/telescope",
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "watch": "vite build --watch"
-    },
-    "devEngines": {
-        "packageManager": {
-            "name": "npm",
-            "version": ">=11.10.0"
-        }
+        "build": "vp build",
+        "test": "vp test",
+        "test:watch": "vp test watch",
+        "watch": "vp build --watch"
     },
     "devDependencies": {
-        "@vitejs/plugin-vue2": "^2.3.3",
-        "@vue/test-utils": "^1.3.6",
-        "axios": "^1.20.0",
-        "bootstrap": "^4.5.0",
+        "@popperjs/core": "catalog:",
+        "@vitejs/plugin-vue": "catalog:",
+        "@vue/compiler-dom": "catalog:",
+        "@vue/server-renderer": "catalog:",
+        "@vue/test-utils": "catalog:",
+        "axios": "catalog:",
+        "bootstrap": "catalog:",
+        "copy-to-clipboard": "^3.3.3",
         "highlight.js": "^11.3.1",
-        "jquery": "^3.5",
-        "jsdom": "^30.1.2",
+        "jsdom": "catalog:",
         "lodash": "^4.18.1",
-        "moment": "^2.31.0",
-        "moment-timezone": "^0.5.45",
-        "popper.js": "^1.16",
-        "sass": "^1.74.1",
+        "moment-timezone": "catalog:",
+        "sass": "catalog:",
         "sql-formatter": "^15.6.2",
-        "vite": "^5.4.21",
-        "vitest": "^3.2.7",
-        "vue": "^2.7.16",
-        "vue-copy-to-clipboard": "^1.0.3",
-        "vue-json-pretty": "^1.6.2",
-        "vue-router": "^3.6.5"
+        "vite": "catalog:",
+        "vite-plus": "catalog:",
+        "vue": "catalog:",
+        "vue-json-pretty": "catalog:",
+        "vue-router": "catalog:"
     }
 }

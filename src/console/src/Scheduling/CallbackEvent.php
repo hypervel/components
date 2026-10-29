@@ -7,11 +7,11 @@ namespace Hypervel\Console\Scheduling;
 use DateTimeZone;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CallbackEvent extends Event
@@ -79,6 +79,10 @@ class CallbackEvent extends Event
             /** @var array{result: mixed, exception: ?Throwable} $state */
             $state = CoroutineContext::get($this->callbackContextKey());
 
+            if ($exception !== null && Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             if ($state['exception'] !== null) {
                 throw $state['exception'];
             }
@@ -127,10 +131,12 @@ class CallbackEvent extends Event
             ]);
 
             return $result === false ? 1 : 0;
-        } catch (CanceledException $e) {
-            // Cancellation must unwind the mutex without running failure callbacks.
-            throw $e;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                // Cancellation must unwind the mutex without running failure callbacks.
+                throw $e;
+            }
+
             CoroutineContext::set($this->callbackContextKey(), [
                 'result' => null,
                 'exception' => $e,

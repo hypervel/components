@@ -21,6 +21,7 @@ use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Console\Concerns\CreatesAnsweredOutputStyles;
 use Hypervel\Tests\Console\Fixtures\Commands\DefaultSwooleFlagsCommand;
 use Hypervel\Tests\Console\Fixtures\Commands\FooCommand;
 use Hypervel\Tests\Console\Fixtures\Commands\FooExceptionCommand;
@@ -35,10 +36,10 @@ use stdClass;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
-use Symfony\Component\Console\Question\ChoiceQuestion;
 
 enum CommandInputType: string
 {
@@ -47,6 +48,8 @@ enum CommandInputType: string
 
 class CommandTest extends TestCase
 {
+    use CreatesAnsweredOutputStyles;
+
     public function testHookFlags(): void
     {
         $command = new DefaultSwooleFlagsCommand('test:demo');
@@ -322,9 +325,9 @@ class CommandTest extends TestCase
 
         $input = new ArrayInput([]);
         $output = new NullOutput;
-        $outputStyle = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $outputStyle = new OutputStyle($input, $output);
         $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->andReturn($outputStyle);
-        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(m::mock(Factory::class));
+        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(new Factory($outputStyle));
         $application->shouldReceive('bound')->andReturn(false);
 
         $application->expects('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $application): void {
@@ -489,12 +492,8 @@ class CommandTest extends TestCase
 
     public function testTheInputSetterOverwrite(): void
     {
-        $input = m::mock(InputInterface::class);
-        $input->expects('hasArgument')->with('foo')->andReturn(false);
-        $input->expects('hasArgument')->with('0')->andReturn(true);
-
         $command = new CommandTestStubCommand;
-        $command->setInput($input);
+        $command->setInput(new ArrayInput([], new InputDefinition([new InputArgument('0')])));
 
         $this->assertFalse($command->hasArgument('foo'));
         $this->assertTrue($command->hasArgument(0));
@@ -564,28 +563,22 @@ class CommandTest extends TestCase
 
     public function testChoiceIsSingleSelectByDefault(): void
     {
-        $output = m::mock(OutputStyle::class);
-        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
-            return $question->isMultiselect() === false;
-        })->andReturn('yes');
-
         $command = new CommandTestStubCommand;
-        $command->setOutput($output);
+        $command->setOutput($this->outputStyleWithAnswer('yes'));
 
-        $command->choice('Do you need further help?', ['yes', 'no']);
+        $answer = $command->choice('Do you need further help?', ['yes', 'no']);
+
+        $this->assertSame('yes', $answer);
     }
 
     public function testChoiceWithMultiselect(): void
     {
-        $output = m::mock(OutputStyle::class);
-        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
-            return $question->isMultiselect() === true;
-        })->andReturn(['option-1']);
-
         $command = new CommandTestStubCommand;
-        $command->setOutput($output);
+        $command->setOutput($this->outputStyleWithAnswer('option-1,option-2'));
 
-        $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
+        $answer = $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
+
+        $this->assertSame(['option-1', 'option-2'], $answer);
     }
 
     public function testSignatureAttributeCanSetAliases(): void

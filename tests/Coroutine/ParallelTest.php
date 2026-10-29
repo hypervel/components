@@ -19,6 +19,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Coroutine\CanceledException;
@@ -238,17 +239,19 @@ class ParallelTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
-    public function testIndependentChildCancellationIsStoredAsAChildFailure(): void
+    #[DataProvider('cleanupFailures')]
+    public function testIndependentChildCancellationIsStoredAsAChildFailure(bool $cleanupThrows): void
     {
         $parallel = new Parallel;
         $childStarted = new Channel(1);
         $blocker = new Channel(1);
         $childCoroutineId = null;
         $childCancellation = null;
+        $cleanupException = new RuntimeException('Child cleanup failed.');
         $outcome = null;
         $runnerFailure = null;
 
-        $parallel->add(static function () use ($childStarted, $blocker, &$childCoroutineId, &$childCancellation): void {
+        $parallel->add(static function () use ($childStarted, $blocker, &$childCoroutineId, &$childCancellation, $cleanupThrows, $cleanupException): void {
             $childCoroutineId = Coroutine::id();
             $childStarted->push(true);
 
@@ -257,6 +260,12 @@ class ParallelTest extends TestCase
             } catch (CanceledException $exception) {
                 $childCancellation = $exception;
                 throw $exception;
+            } finally {
+                if ($cleanupThrows) {
+                    usleep(1000);
+
+                    throw $cleanupException;
+                }
             }
         }, 'canceled');
 
@@ -277,7 +286,16 @@ class ParallelTest extends TestCase
         $this->assertNull($runnerFailure);
         $this->assertInstanceOf(ChildCancellationException::class, $outcome);
         $this->assertSame('A child coroutine managed by Parallel was canceled while its owner remained active.', $outcome->getMessage());
-        $this->assertSame($childCancellation, $outcome->getPrevious());
+        $this->assertSame($cleanupThrows ? $cleanupException : $childCancellation, $outcome->getPrevious());
+        $this->assertFalse(Coroutine::causedByCancellation($outcome));
+    }
+
+    /**
+     * Exercise cancellation with and without a failing cleanup.
+     */
+    public static function cleanupFailures(): array
+    {
+        return ['normal cleanup' => [false], 'throwing cleanup' => [true]];
     }
 
     public function testOwnerCancellationCancelsEveryLiveChildAndEscapesExactly(): void

@@ -16,10 +16,10 @@ use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Jobs\SqsJob;
-use Hypervel\Queue\SqsQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -126,8 +126,6 @@ class QueueSqsJobTest extends TestCase
     public function testDeleteRemovesTheJobFromSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
-        $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
-        $queue->setContainer($this->mockedContainer);
         $job = $this->getJob();
         $job->getSqs()->expects('deleteMessage')->with(['QueueUrl' => $this->queueUrl, 'ReceiptHandle' => $this->mockedReceiptHandle]);
         $job->delete();
@@ -136,8 +134,6 @@ class QueueSqsJobTest extends TestCase
     public function testReleaseProperlyReleasesTheJobOntoSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
-        $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
-        $queue->setContainer($this->mockedContainer);
         $job = $this->getJob();
         $job->getSqs()->expects('changeMessageVisibility')->with(['QueueUrl' => $this->queueUrl, 'ReceiptHandle' => $this->mockedReceiptHandle, 'VisibilityTimeout' => $this->releaseDelay]);
         $job->release($this->releaseDelay);
@@ -439,9 +435,14 @@ class QueueSqsJobTest extends TestCase
         }
     }
 
-    public function testDeleteDoesNotStartOverflowCleanupAfterLeaseReleaseCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDeleteDoesNotStartOverflowCleanupAfterLeaseReleaseCancellation(bool $cleanupThrows): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+        if ($cleanupThrows) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
         [, $lease] = $this->lease(
             releaseCallback: static fn () => throw $releaseCancellation,
         );
@@ -555,10 +556,15 @@ class QueueSqsJobTest extends TestCase
         $this->assertSame("Unable to delete the SQS overflow payload [{$pointer}].", $cleanupFailure->getMessage());
     }
 
-    public function testOverflowCleanupCancellationSupersedesAnOrdinaryLeaseReleaseFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOverflowCleanupCancellationSupersedesAnOrdinaryLeaseReleaseFailure(bool $cleanupThrows): void
     {
         $releaseFailure = new Exception('release failed');
         $cleanupCancellation = new CanceledException('overflow cleanup canceled');
+        if ($cleanupThrows) {
+            $cleanupCancellation = new RuntimeException('Overflow cleanup failed.', previous: $cleanupCancellation);
+        }
         [, $lease] = $this->lease(
             releaseCallback: static fn () => throw $releaseFailure,
         );

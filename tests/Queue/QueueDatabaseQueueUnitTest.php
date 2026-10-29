@@ -11,6 +11,7 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -25,7 +26,9 @@ use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\CountCrashesAsExceptions;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -43,6 +46,7 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
@@ -51,6 +55,7 @@ use Mockery as m;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
@@ -153,14 +158,14 @@ class QueueDatabaseQueueUnitTest extends TestCase
     }
 
     #[DataProvider('reservationCleanupFailureProvider')]
-    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure): void
+    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure, bool $canceled): void
     {
         $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
         [$queue, $events] = $this->createFailingReservationQueue($failure);
         $queue->shouldReceive('causedByReservationQuery')->once()->andReturn(true);
         $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
 
-        if ($cleanupFailure instanceof CanceledException) {
+        if ($canceled) {
             $events->shouldReceive('dispatch')->never();
         } else {
             $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturn(false);
@@ -170,7 +175,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $queue->pop();
             $this->fail('Expected the reservation or cancellation failure.');
         } catch (Throwable $exception) {
-            $this->assertSame($cleanupFailure instanceof CanceledException ? $cleanupFailure : $failure, $exception);
+            $this->assertSame($canceled ? $cleanupFailure : $failure, $exception);
         }
     }
 
@@ -180,8 +185,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public static function reservationCleanupFailureProvider(): array
     {
         return [
-            'ordinary failure' => [new RuntimeException('Deletion failed.')],
-            'cancellation' => [new CanceledException('Deletion canceled.')],
+            'ordinary failure' => [new RuntimeException('Deletion failed.'), false],
+            'cancellation' => [new CanceledException('Deletion canceled.'), true],
+            'cleanup during cancellation' => [new RuntimeException('Deletion cleanup failed.', previous: new CanceledException), true],
         ];
     }
 
@@ -334,6 +340,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertSame('13', $payload['backoff']);
             $this->assertSame(11, $payload['maxExceptions']);
             $this->assertFalse($payload['failOnTimeout']);
+            $this->assertFalse($payload['countCrashesAsExceptions']);
 
             return 1;
         });
@@ -360,6 +367,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertSame('9', $payload['backoff']);
             $this->assertSame(3, $payload['maxExceptions']);
             $this->assertTrue($payload['failOnTimeout']);
+            $this->assertTrue($payload['countCrashesAsExceptions']);
 
             return 1;
         });
@@ -376,7 +384,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $job = new stdClass;
         $job->invalid = "\xc3\x28";
 
-        $queue = m::mock(Queue::class)->makePartial();
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -390,7 +398,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $queue = m::mock(Queue::class)->makePartial();
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -722,7 +730,129 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame($exception, $events[3]->exception);
     }
 
-    public function testBulkCancellationDoesNotRaiseFailureEvents(): void
+    #[TestWith(['success'])]
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['wrapped'])]
+    public function testBulkInsertFailureListenerErrorReporting(string $reporting): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $exception = new RuntimeException('Insert failed.');
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andThrow($exception);
+
+        $listener = new RuntimeException('Listener failed.');
+        $failed = [];
+        $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $dispatcher->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $report = $handler->expects('report')->with($listener);
+        $reportingFailure = match ($reporting) {
+            'ordinary' => new RuntimeException('Reporting failed.'),
+            'cancellation' => new CanceledException,
+            'wrapped' => new RuntimeException('Reporting cleanup failed.', previous: new CanceledException),
+            default => null,
+        };
+        if ($reportingFailure !== null) {
+            $report->andThrow($reportingFailure);
+        }
+        $container->instance(ExceptionHandler::class, $handler);
+        $directory = ParallelTesting::tempDir('QueueDatabaseQueueReportingTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($directory);
+        $files->makeDirectory($directory, recursive: true);
+        $errorLog = $directory . '/errors.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+
+        try {
+            try {
+                $queue->bulk(['first', 'second'], queue: 'emails');
+                $this->fail('Expected the bulk insert to fail.');
+            } catch (Throwable $actual) {
+                $this->assertSame(in_array($reporting, ['cancellation', 'wrapped'], true) ? $reportingFailure : $exception, $actual);
+            }
+
+            if ($reporting === 'ordinary') {
+                $contents = $files->get($errorLog);
+                $this->assertStringContainsString('Listener failed.', $contents);
+                $this->assertStringContainsString('Reporting failed.', $contents);
+            } else {
+                $this->assertFileDoesNotExist($errorLog);
+            }
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertSame(['first', 'second'], $failed);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOutboxSelectionCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    {
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'jobs', 'default');
+        $queue->setConnectionName('database');
+        $container = new Container;
+        $events = new Dispatcher($container);
+        $container->instance('events', $events);
+        $queue->setContainer($container);
+        $gate = $this->armCurrentCoroutineCancellation();
+        $cleanup = new RuntimeException('Transaction resolution cleanup failed.');
+        $container->bind('db.transactions', static function () use ($gate, $cleanup, $cleanupThrows): never {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+
+        try {
+            $queue->push((object) ['viaOutbox' => true]);
+            $this->fail('Expected cancellation to escape outbox selection.');
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+
+            $this->assertSame([], $failed);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBulkCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
     {
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -740,8 +870,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $gate = $this->armCurrentCoroutineCancellation();
-        $query->shouldReceive('insert')->once()->andReturnUsing(static function () use ($gate): never {
-            $gate->push(true);
+        $cleanup = new RuntimeException('Insert cleanup failed.');
+        $query->shouldReceive('insert')->once()->andReturnUsing(static function () use ($gate, $cleanup, $cleanupThrows): never {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
 
             throw new RuntimeException('Cancellation was not delivered.');
         });
@@ -757,11 +894,19 @@ class QueueDatabaseQueueUnitTest extends TestCase
         try {
             $queue->bulk(['first', 'second'], queue: 'emails');
             $this->fail('Expected cancellation to escape the bulk insert.');
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
             $this->assertSame([
                 JobQueueing::class,
                 JobQueueing::class,
             ], array_map(static fn (object $event): string => $event::class, $events));
+        } finally {
+            $gate->close();
         }
     }
 
@@ -904,8 +1049,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testBuildDatabaseRecordWithPayloadAtTheEnd(): void
     {
-        $queue = m::mock(DatabaseQueue::class);
-        $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
+        $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'table', 'default');
+        $class = new ReflectionClass(DatabaseQueue::class);
+        $record = $class->getMethod('buildDatabaseRecord')->invoke($queue, 'queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
     }
@@ -1059,7 +1205,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1074,7 +1220,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1091,7 +1237,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1108,7 +1254,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $database = m::mock(ConnectionInterface::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(new Container);
 
         $query = m::mock(Builder::class);
         $database->expects('table')->with('table')->andReturn($query);
@@ -1307,6 +1453,7 @@ class AfterCommitJob implements ShouldQueue
 }
 
 #[Backoff(9)]
+#[CountCrashesAsExceptions]
 #[FailOnTimeout]
 #[MaxExceptions(3)]
 #[Timeout(40)]
@@ -1319,6 +1466,8 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 {
     public int $backoff = 13;
 
+    public bool $countCrashesAsExceptions = false;
+
     public bool $failOnTimeout = false;
 
     public int $maxExceptions = 11;
@@ -1329,6 +1478,7 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 }
 
 #[Backoff(9)]
+#[CountCrashesAsExceptions]
 #[FailOnTimeout]
 #[MaxExceptions(3)]
 #[Timeout(40)]
@@ -1336,6 +1486,8 @@ class ChildJobWithPropertiesOverridingParentAttributes extends ParentJobWithAttr
 class JobWithAttributesAndDefaultProperties implements ShouldQueue
 {
     public int $backoff = 13;
+
+    public bool $countCrashesAsExceptions = false;
 
     public bool $failOnTimeout = false;
 

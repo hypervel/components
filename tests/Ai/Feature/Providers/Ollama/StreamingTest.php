@@ -14,6 +14,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
@@ -128,6 +129,38 @@ class StreamingTest extends TestCase
             ['function' => ['name' => 'FixedNumberGenerator', 'arguments' => ['second' => 'London']]],
         ], $assistant['tool_calls']);
         $this->assertCount(2, array_filter($body['messages'], fn (array $message): bool => $message['role'] === 'tool'));
+    }
+
+    public function testStreamingDoesNotExecuteToolCallsWhenDoneReasonIsLength(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunkWithToolCalls([
+                            $this->toolCallChunk('call_1', 'FixedNumberGenerator'),
+                        ], done: false),
+                        $this->chatChunk('', true, 'length', ['prompt_eval_count' => 10, 'eval_count' => 5]),
+                    ]),
+                    status: 200,
+                ),
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunk('The number is 72019'),
+                        $this->chatChunk('', true, 'stop'),
+                    ]),
+                    status: 200,
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $streamEnd = array_values(array_filter($events, fn (StreamEvent $e): bool => $e instanceof StreamEnd))[0];
+
+        Http::assertSentCount(1);
+        $this->assertSame(FinishReason::Length->value, $streamEnd->reason);
+        $this->assertSame([], array_filter($events, fn (StreamEvent $e): bool => $e instanceof ToolResult));
     }
 
     public function testStreamingErrorEventStopsStreamWithStringPayload(): void

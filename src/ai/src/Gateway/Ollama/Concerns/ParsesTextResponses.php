@@ -58,10 +58,17 @@ trait ParsesTextResponses
             );
         }, $rawToolCalls);
 
+        $finishReason = $this->extractFinishReason($data);
+
+        // Ollama reports stop alongside complete tool calls; a length stop truncated the response, so its calls must not run.
+        if ($finishReason === FinishReason::Stop && $mappedToolCalls !== []) {
+            $finishReason = FinishReason::ToolCalls;
+        }
+
         return new StepResponse(
             text: $text,
             toolCalls: $mappedToolCalls,
-            finishReason: filled($mappedToolCalls) ? FinishReason::ToolCalls : $this->extractFinishReason($data),
+            finishReason: $finishReason,
             usage: $this->extractUsage($data),
             meta: new Meta($provider->name(), $model),
             structured: $structured ? $this->decodeStructuredOutput($text) : null,

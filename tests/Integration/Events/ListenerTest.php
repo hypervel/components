@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Events\ListenerTest;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use RuntimeException;
 
 class ListenerTest extends TestCase
@@ -23,16 +22,14 @@ class ListenerTest extends TestCase
         parent::tearDown();
     }
 
-    public function testClassListenerRunsNormallyIfNoTransactions(): void
+    public function testClassListenerRunsImmediatelyInsideTransaction(): void
     {
-        $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->shouldNotReceive('addCallback');
-
-            return $transactionManager;
-        });
+        $manager = new DatabaseTransactionsManager;
+        $this->app->instance('db.transactions', $manager);
 
         Event::listen(ListenerTestEvent::class, ListenerTestListener::class);
+
+        $manager->begin('default', 1);
 
         Event::dispatch(new ListenerTestEvent);
 
@@ -41,18 +38,20 @@ class ListenerTest extends TestCase
 
     public function testClassListenerDoesntRunInsideTransaction(): void
     {
-        $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = m::mock(DatabaseTransactionsManager::class);
-            $transactionManager->expects('addCallback')->andReturn(null);
-
-            return $transactionManager;
-        });
+        $manager = new DatabaseTransactionsManager;
+        $this->app->instance('db.transactions', $manager);
 
         Event::listen(ListenerTestEvent::class, ListenerTestListenerAfterCommit::class);
+
+        $manager->begin('default', 1);
 
         Event::dispatch(new ListenerTestEvent);
 
         $this->assertFalse(ListenerTestListenerAfterCommit::$ran);
+
+        $manager->commit('default', 1, 0);
+
+        $this->assertTrue(ListenerTestListenerAfterCommit::$ran);
     }
 
     public function testAfterCommitListenersContinueAfterSiblingFailure(): void

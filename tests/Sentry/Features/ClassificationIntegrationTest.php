@@ -83,8 +83,11 @@ class ClassificationIntegrationTest extends TestCase
      */
     protected function setUp(): void
     {
+        $this->afterApplicationRefreshed(function (): void {
+            Http::preventStrayRequests();
+        });
+
         parent::setUp();
-        Http::preventStrayRequests();
     }
 
     public function testEvaluateSpanIsRecorded(): void

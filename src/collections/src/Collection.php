@@ -1440,7 +1440,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the first item in the collection but throw an exception if no matching items exist.
      *
-     * @param (callable(TValue, TKey): bool)|string $key
+     * @param null|(callable(TValue, TKey): bool)|string $key
      * @return TValue
      *
      * @throws ItemNotFoundException

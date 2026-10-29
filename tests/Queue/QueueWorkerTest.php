@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use ArrayObject;
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use ErrorException;
 use Exception;
+use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
@@ -21,20 +24,26 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\JobLifecycleCallbacks;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobInterrupted;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -52,15 +61,26 @@ use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\MaxAttemptsExceededException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Queue\WorkerStopReason;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\LimitResult;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Testing\Fakes\EventFake;
+use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -85,18 +105,46 @@ class QueueWorkerTest extends TestCase
 
     protected ContainerContract $container;
 
+    /** @var list<array{Channel, int}> */
+    protected array $registeredJobs = [];
+
+    private ?string $errorLogDirectory = null;
+
+    private string|false $previousErrorLog = false;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->events = m::spy(EventDispatcher::class);
-        $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
-        $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
-        $this->container = new Container;
+        $this->events = new EventFake(new EventsDispatcher);
+
+        Container::setInstance($this->container = new Container);
+
+        $this->exceptionHandler = new ExceptionHandlerFake(new Handler($this->container));
+
         $this->container->instance(EventDispatcher::class, $this->events);
         $this->container->instance(ExceptionHandlerContract::class, $this->exceptionHandler);
+    }
 
-        Container::setInstance($this->container);
+    /**
+     * End synthetic running-job coroutines even when an assertion fails.
+     */
+    protected function tearDownInCoroutine(): void
+    {
+        try {
+            foreach ($this->registeredJobs as [$gate, $coroutineId]) {
+                $gate->close();
+                Coroutine::join([$coroutineId], 1);
+            }
+        } finally {
+            if ($this->errorLogDirectory !== null) {
+                if ($this->previousErrorLog !== false) {
+                    ini_set('error_log', $this->previousErrorLog);
+                }
+
+                (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+            }
+        }
     }
 
     public function testJobCanBeFired(): void
@@ -104,16 +152,16 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job = new WorkerFakeJob]]);
         $worker->runNextJob('default', 'queue', new WorkerOptions);
         $this->assertTrue($job->fired);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopping::class))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) {
-            return $event instanceof JobProcessed && is_float($event->duration);
-        }))->once();
+        $this->events->assertDispatchedOnce(JobPopping::class);
+        $this->events->assertDispatchedOnce(JobPopped::class);
+        $this->events->assertDispatchedOnce(JobProcessing::class);
+        $this->events->assertDispatchedOnce(JobProcessed::class);
+        $this->events->assertDispatched(fn (JobProcessed $event): bool => is_float($event->duration));
     }
 
     public function testJobLifecycleEventsAreNotDispatchedWithoutListeners(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
         $job = new WorkerFakeJob(static function (WorkerFakeJob $job): void {
             $job->release(10);
@@ -131,6 +179,7 @@ class QueueWorkerTest extends TestCase
 
     public function testProcessingAndAttemptedEventsSurroundSuccessfulJobExecution(): void
     {
+        $this->spyEvents();
         $order = [];
         $attemptedEvent = null;
         $this->events->shouldReceive('dispatch')->times(3)->andReturnUsing(
@@ -160,6 +209,7 @@ class QueueWorkerTest extends TestCase
 
     public function testAttemptedEventRunsAfterThrownJobExecution(): void
     {
+        $this->spyEvents();
         $order = [];
         $attemptedEvent = null;
         $exception = new RuntimeException('Job failed.');
@@ -195,69 +245,109 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($attemptedEvent->successful());
     }
 
-    #[TestWith([true])]
-    #[TestWith([false])]
-    public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(bool $killOnTimeout): void
+    #[TestWith([true, false])]
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(bool $killOnTimeout, bool $cleanupThrows): void
     {
         Worker::$killOnTimeout = $killOnTimeout;
+        Worker::$pausable = false;
         $gate = $this->armCurrentCoroutineCancellation();
-        $job = new WorkerFakeJob(static function () use ($gate): never {
-            $gate->push(true);
-
-            throw new RuntimeException('Cancellation was not delivered.');
-        });
-        $worker = $this->getWorker('default', ['queue' => [$job]]);
-
-        try {
-            $worker->runNextJob('default', 'queue', new WorkerOptions);
-            $this->fail('Expected job cancellation to escape the worker.');
-        } catch (CanceledException) {
-            $this->assertTrue($job->fired);
-            $this->assertFalse($job->isDeleted());
-            $this->assertFalse($job->isReleased());
-            $this->assertFalse($job->hasFailed());
-            $this->assertSame([], $worker->runningJobsForTest());
-        }
-
-        $this->exceptionHandler->shouldNotHaveReceived('report');
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobExceptionOccurred::class)]);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
-    }
-
-    public function testCancellationDuringFailureObservationStopsReleaseAndCompletion(): void
-    {
-        $gate = $this->armCurrentCoroutineCancellation();
-        $this->events->shouldReceive('dispatch')
-            ->with(m::type(JobExceptionOccurred::class))
-            ->once()
-            ->andReturnUsing(static function () use ($gate): never {
+        $cleanupException = new RuntimeException('Job cleanup failed.');
+        $job = new WorkerFakeJob(static function () use ($gate, $cleanupThrows, $cleanupException): never {
+            try {
                 $gate->push(true);
 
                 throw new RuntimeException('Cancellation was not delivered.');
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanupException;
+                }
+            }
+        });
+        $job->payload = ['countCrashesAsExceptions' => true];
+        $job->maxExceptions = 2;
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $caught = null;
+        try {
+            $worker->runNextJob('default', 'queue', new WorkerOptions);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        if ($cleanupThrows) {
+            $this->assertSame($cleanupException, $caught);
+            $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+        } else {
+            $this->assertInstanceOf(CanceledException::class, $caught);
+        }
+        $this->assertTrue($job->fired);
+        $this->assertFalse($job->isDeleted());
+        $this->assertFalse($job->isReleased());
+        $this->assertFalse($job->hasFailed());
+        $this->assertSame([], $worker->runningJobsForTest());
+        $this->exceptionHandler->assertNothingReported();
+        $this->events->assertNotDispatched(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
+        $this->events->assertNotDispatched(JobAttempted::class);
+        $this->assertTrue($cache->get('job-processing:' . $job->uuid));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationDuringFailureObservationStopsReleaseAndCompletion(bool $cleanupThrows): void
+    {
+        $this->spyEvents();
+        $gate = $this->armCurrentCoroutineCancellation();
+        $cleanupException = new RuntimeException('Observer cleanup failed.');
+        $this->events->shouldReceive('dispatch')
+            ->with(m::type(JobExceptionOccurred::class))
+            ->once()
+            ->andReturnUsing(static function () use ($gate, $cleanupThrows, $cleanupException): never {
+                try {
+                    $gate->push(true);
+
+                    throw new RuntimeException('Cancellation was not delivered.');
+                } finally {
+                    if ($cleanupThrows) {
+                        Coroutine::sleep(0.001);
+                        throw $cleanupException;
+                    }
+                }
             });
         $job = new WorkerFakeJob(static function (): never {
             throw new RuntimeException('Job failed.');
         });
         $worker = $this->getWorker('default', ['queue' => [$job]]);
 
+        $caught = null;
         try {
             $worker->runNextJob('default', 'queue', new WorkerOptions(maxTries: 0));
-            $this->fail('Expected observer cancellation to escape the worker.');
-        } catch (CanceledException) {
-            $this->assertFalse($job->isDeleted());
-            $this->assertFalse($job->isReleased());
-            $this->assertFalse($job->hasFailed());
-            $this->assertSame([], $worker->runningJobsForTest());
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
-        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->assertFalse($job->isDeleted());
+        $this->assertFalse($job->isReleased());
+        $this->assertFalse($job->hasFailed());
+        $this->assertSame([], $worker->runningJobsForTest());
+        if ($cleanupThrows) {
+            $this->assertSame($cleanupException, $caught);
+            $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
+        } else {
+            $this->assertInstanceOf(CanceledException::class, $caught);
+        }
+        $this->exceptionHandler->assertNothingReported();
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
     }
 
     public function testInvalidPayloadTerminatesBeforeProcessingAndIsReportedOnce(): void
     {
+        $this->spyEvents();
+        $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
         $order = [];
         $attemptedEvent = null;
         $exception = new InvalidPayloadException('Invalid queue payload.', '{invalid');
@@ -306,13 +396,14 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', new WorkerOptions);
 
-        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->exceptionHandler->assertNothingReported();
         $this->assertTrue($job->hasFailed());
         $this->assertTrue($job->isDeleted());
     }
 
     public function testWorkerOptionsCoroutineContextIsScopedToJob(): void
     {
+        $this->spyEvents();
         CoroutineContext::set('queue.worker.test.previous', 'previous');
 
         $seen = [];
@@ -354,6 +445,7 @@ class QueueWorkerTest extends TestCase
 
     public function testDaemonLifecycleCallbacksRunInOwnedCoroutinesWithConfiguredContext(): void
     {
+        $this->spyEvents();
         $ownerCoroutineId = EngineCoroutine::id();
         $seen = [];
         $options = new WorkerOptions(stopWhenEmpty: true, memory: 1024);
@@ -438,15 +530,16 @@ class QueueWorkerTest extends TestCase
         $worker->runNextJob('default', 'queue', new WorkerOptions);
         $this->assertTrue($job->fired);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) {
-            return $event instanceof JobPopping
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(JobPopping::class);
+        $this->events->assertDispatched(JobPopping::class, function (JobPopping $event): bool {
+            return $event->connectionName === 'default'
                 && $event->queue === 'queue';
-        }))->once();
+        });
     }
 
     public function testJobPopEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->with(JobPopping::class)->andReturn(false);
         $this->events->shouldReceive('hasListeners')->with(JobPopped::class)->andReturn(false);
 
@@ -481,7 +574,7 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(0, $status);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
+        $this->events->assertDispatchedOnce(JobProcessing::class);
     }
 
     public function testDefaultPopWaiterIsUnbounded(): void
@@ -511,7 +604,7 @@ class QueueWorkerTest extends TestCase
         $worker->currentTime = 100;
         $options = new WorkerOptions(timeout: 5);
 
-        $jobId = $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $jobId = $this->registerRunningJob($worker, new WorkerContractOnlyJob, $options);
 
         $this->assertSame(105.0, $worker->runningJobExpiryForTest($jobId));
 
@@ -534,7 +627,7 @@ class QueueWorkerTest extends TestCase
         $options = new WorkerOptions(timeout: 5);
         $job = m::mock(WorkerContractOnlyJob::class)->makePartial();
         $job->shouldReceive('timeout')->andReturn($jobTimeout);
-        $worker->registerCoroutineJobForTest($job, $options);
+        $this->registerRunningJob($worker, $job, $options);
         $worker->startMonitorForTest($options);
         $worker->currentTime = 100 + $expectedTimeout;
 
@@ -545,24 +638,28 @@ class QueueWorkerTest extends TestCase
             $this->assertSame(Worker::EXIT_ERROR, $exception->status);
         }
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->reason === WorkerStopReason::TimedOut
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(
+            WorkerStopping::class,
+            static fn (WorkerStopping $event): bool => $event->reason === WorkerStopReason::TimedOut
                 && $event->connectionName === 'default'
                 && $event->queue === 'queue'
                 && $event->terminatesImmediately
-        ))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof JobTimedOut
-                && $event->job === $job
+        );
+        $this->events->assertDispatchedOnce(JobTimedOut::class);
+        $this->events->assertDispatched(
+            JobTimedOut::class,
+            static fn (JobTimedOut $event): bool => $event->job === $job
                 && $event->timeout === $expectedTimeout
-        ))->once();
+        );
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testNonKillingTimeoutUnwindsAndRetriesOnlyTheExpiredJob(bool $listenerThrows): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    public function testNonKillingTimeoutUnwindsAndRetriesOnlyTheExpiredJob(bool $listenerThrows, bool $catchCancellation): void
     {
+        $this->spyEvents();
         Worker::$killOnTimeout = false;
         Worker::$pausable = false;
         $timer = new QueueWorkerTimer;
@@ -570,19 +667,22 @@ class QueueWorkerTest extends TestCase
         $otherGate = new Channel(1);
         $unwound = false;
         $cancellation = null;
-        $expired = m::mock(WorkerFakeJob::class, [static function () use ($expiredGate, &$unwound, &$cancellation): void {
+        $expired = m::mock(WorkerFakeJob::class, [static function () use ($expiredGate, &$unwound, &$cancellation, $catchCancellation): void {
             try {
                 $expiredGate->pop();
             } catch (CanceledException $exception) {
                 $cancellation = $exception;
 
-                throw $exception;
+                if (! $catchCancellation) {
+                    throw $exception;
+                }
             } finally {
                 $unwound = true;
             }
         }])->makePartial();
         $expired->shouldReceive('timeout')->andReturn(5);
         $expired->maxExceptions = 2;
+        $expired->payload = ['countCrashesAsExceptions' => true];
         $expired->backoff = 7;
         $other = m::mock(WorkerFakeJob::class, [static fn (): mixed => $otherGate->pop()])->makePartial();
         $other->shouldReceive('timeout')->andReturn(0);
@@ -612,13 +712,14 @@ class QueueWorkerTest extends TestCase
             }
 
             Coroutine::join([$coroutines[0]], 5);
-            $this->assertSame($listenerThrows ? $listenerException : null, $monitorException);
+            $this->assertNull($monitorException);
             $this->assertTrue($unwound);
             $this->assertInstanceOf(CanceledException::class, $cancellation);
             $this->assertTrue($expired->released);
             $this->assertSame(7, $expired->releaseAfter);
             $this->assertFalse($expired->failed);
             $this->assertSame(1, $cache->get('job-exceptions:' . $expired->uuid));
+            $this->assertNull($cache->get('job-processing:' . $expired->uuid));
             $this->assertFalse($worker->shouldQuit);
             $this->assertFalse($worker->hasTimeoutJobsForTest());
             $this->assertCount(1, $worker->runningJobsForTest());
@@ -635,7 +736,11 @@ class QueueWorkerTest extends TestCase
                 static fn (object $event): bool => $event instanceof JobProcessed && $event->job === $other
             ))->once();
             $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerStopping::class)]);
-            $this->exceptionHandler->shouldHaveReceived('report')->with(m::type(TimeoutExceededException::class))->once();
+            $this->exceptionHandler->assertReportedCount($listenerThrows ? 2 : 1);
+            $this->exceptionHandler->assertReported(TimeoutExceededException::class);
+            if ($listenerThrows) {
+                $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $listenerException);
+            }
         } finally {
             $expiredGate->close();
             $otherGate->close();
@@ -643,8 +748,202 @@ class QueueWorkerTest extends TestCase
         }
     }
 
+    #[TestWith([false, 'normal'])]
+    #[TestWith([true, 'normal'])]
+    #[TestWith([true, 'original'])]
+    #[TestWith([true, 'ordinary'])]
+    #[TestWith([true, 'cancellation'])]
+    public function testNonKillingTimeoutHandlesCleanupAndReportingFailures(bool $reportExceptions, string $reportingMode): void
+    {
+        Worker::$killOnTimeout = false;
+        Worker::$reportJobExceptions = $reportExceptions;
+        Worker::$pausable = false;
+        $timer = new QueueWorkerTimer;
+        $gate = new Channel(1);
+        $cleanupException = new RuntimeException('Job cleanup failed.');
+        $reportingFailure = new RuntimeException('Reporting failed.');
+        $caught = null;
+        $errorLog = null;
+        if ($reportingMode !== 'normal') {
+            $errorLog = $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $report = $this->exceptionHandler->expects('report')->with($cleanupException);
+            if ($reportingMode === 'cancellation') {
+                $report->andReturnUsing(function () use ($reportingFailure): never {
+                    try {
+                        $this->armCurrentCoroutineCancellation()->push(true);
+
+                        throw new RuntimeException('Cancellation was not delivered.');
+                    } finally {
+                        throw $reportingFailure;
+                    }
+                });
+            } else {
+                $report->andThrow($reportingMode === 'original' ? $cleanupException : $reportingFailure);
+                $this->exceptionHandler->expects('report')->with(m::type(TimeoutExceededException::class));
+            }
+        }
+        $command = new class {
+            use InteractsWithQueue;
+        };
+        $limiter = m::mock(Limiter::class);
+        $limiter->expects('inspect')->with(m::type(Limit::class))->andReturn(new LimitResult(true, 10, 10, 0, 0));
+        $limiter->shouldNotReceive('consume', 'clear');
+        $rateLimiter = m::mock(RateLimiter::class);
+        $rateLimiter->expects('store')->with(null)->andReturn($limiter);
+        $this->container->instance(RateLimiter::class, $rateLimiter);
+        $job = m::mock(WorkerFakeJob::class, [static function () use ($command, $gate, $cleanupException): void {
+            (new ThrottlesExceptions)->handle($command, static function () use ($gate, $cleanupException): void {
+                try {
+                    $gate->pop(5);
+                } finally {
+                    Coroutine::sleep(0.001);
+                    throw $cleanupException;
+                }
+            });
+        }])->makePartial();
+        $command->setJob($job);
+        $job->shouldReceive('timeout')->andReturn(5);
+        $job->shouldFailOnTimeout = true;
+        $job->maxExceptions = 3;
+        $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer));
+        $worker->setCache(new Repository(new WorkerArrayStore));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions;
+        $worker->startMonitorForTest($options);
+        $coroutineId = Coroutine::create(static function () use ($worker, $options, &$caught): void {
+            try {
+                $worker->runNextJob('default', 'queue', $options);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+        });
+
+        try {
+            $worker->currentTime = 105;
+            $timer->fire(1);
+            Coroutine::join([$coroutineId], 5);
+
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            if ($reportingMode === 'cancellation') {
+                $this->assertSame($reportingFailure, $caught);
+                $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+                $this->assertFalse($job->failed);
+                $this->assertFalse($job->released);
+                $this->events->assertNotDispatched(JobAttempted::class);
+                $this->assertFileDoesNotExist($errorLog);
+
+                return;
+            }
+
+            $this->assertNull($caught);
+            $this->assertTrue($job->failed);
+            $this->assertFalse($job->released);
+            $this->assertInstanceOf(TimeoutExceededException::class, $job->failedWith);
+            $this->assertInstanceOf(CanceledException::class, $cleanupException->getPrevious());
+            $this->events->assertDispatchedOnce(JobTimedOut::class);
+            $this->events->assertDispatchedOnce(JobAttempted::class);
+            $this->events->assertDispatched(JobAttempted::class, static fn (JobAttempted $event): bool => ! $event->successful());
+            $this->events->assertNotDispatched(JobProcessed::class);
+            $this->assertFalse($worker->hasTimeoutJobsForTest());
+            $this->assertSame([], $worker->runningJobsForTest());
+            if ($reportingMode === 'normal') {
+                $this->exceptionHandler->assertReportedCount($reportExceptions ? 2 : 0);
+                if ($reportExceptions) {
+                    $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $cleanupException);
+                    $this->exceptionHandler->assertReported(TimeoutExceededException::class);
+                }
+            } else {
+                $contents = file_get_contents($errorLog);
+                $this->assertSame(1, substr_count($contents, 'Job cleanup failed.'));
+                if ($reportingMode === 'ordinary') {
+                    $this->assertStringContainsString('Reporting failed.', $contents);
+                }
+            }
+        } finally {
+            $gate->close();
+            Coroutine::join([$coroutineId], 5);
+        }
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testNonKillingTimeoutDoesNotInterruptPostExecutionListeners(bool $throws, bool $failOnTimeout): void
+    {
+        Worker::$killOnTimeout = false;
+        Worker::$pausable = false;
+        $events = new EventsDispatcher($this->container);
+        $this->events = $events;
+        $this->container->instance(EventDispatcher::class, $events);
+        $listenerStarted = new Channel(1);
+        $listenerGate = new Channel(1);
+        $listenerFinished = false;
+        $attempted = [];
+        $timedOut = [];
+        $failure = new RuntimeException('The job failed before its deadline.');
+        $events->listen($throws ? JobExceptionOccurred::class : JobProcessed::class, static function () use ($listenerStarted, $listenerGate, &$listenerFinished): void {
+            $listenerStarted->push(true);
+            $listenerGate->pop(5);
+            $listenerFinished = true;
+        });
+        $events->listen(JobAttempted::class, static function (JobAttempted $event) use (&$attempted): void {
+            $attempted[] = $event;
+        });
+        $events->listen(JobTimedOut::class, static function (JobTimedOut $event) use (&$timedOut): void {
+            $timedOut[] = $event;
+        });
+        $job = m::mock(WorkerFakeJob::class, [static function () use ($throws, $failure): void {
+            if ($throws) {
+                throw $failure;
+            }
+        }])->makePartial();
+        $job->shouldReceive('timeout')->andReturn(5);
+        $job->shouldFailOnTimeout = $failOnTimeout;
+        $job->attempts = 1;
+        $job->maxExceptions = 3;
+        $job->payload = ['countCrashesAsExceptions' => true];
+        $timer = new QueueWorkerTimer;
+        $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer));
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions(maxTries: 3, backoff: 7);
+        $worker->startMonitorForTest($options);
+        $coroutineId = Coroutine::create(static fn () => $worker->runNextJob('default', 'queue', $options));
+
+        try {
+            $this->assertTrue($listenerStarted->pop(1));
+            $worker->currentTime = 106;
+            $timer->fire(1);
+            $this->assertTrue(Coroutine::exists($coroutineId));
+            $this->assertFalse($listenerFinished);
+            $this->assertSame([], $timedOut);
+            $listenerGate->push(true);
+            Coroutine::join([$coroutineId], 5);
+
+            $this->assertTrue($listenerFinished);
+            $this->assertFalse($job->failed);
+            $this->assertSame($throws, $job->released);
+            $this->assertSame($throws ? 7 : null, $job->releaseAfter);
+            $this->assertSame($throws ? 1 : null, $cache->get('job-exceptions:' . $job->uuid));
+            $this->assertNull($cache->get('job-processing:' . $job->uuid));
+            $this->assertCount(1, $attempted);
+            $this->assertSame($throws ? $failure : null, $attempted[0]->exception);
+            $this->assertSame(! $throws, $attempted[0]->successful());
+            $this->assertSame([], $timedOut);
+            $this->exceptionHandler->assertReportedCount($throws ? 1 : 0);
+            if ($throws) {
+                $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $failure);
+            }
+        } finally {
+            $listenerGate->close();
+            Coroutine::join([$coroutineId], 5);
+        }
+    }
+
     public function testTimeoutScanDoesNotCancelCompletedCleanupOrTimeoutAnotherFinishedJob(): void
     {
+        $this->spyEvents();
         Worker::$killOnTimeout = false;
         $timer = new QueueWorkerTimer;
         $firstGate = new Channel(1);
@@ -652,13 +951,14 @@ class QueueWorkerTest extends TestCase
         $cleanupGate = new Channel(1);
         $cleanupStarted = false;
         $cleanupFinished = false;
-        $first = m::mock(WorkerFakeJob::class, [static function () use ($firstGate, $cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
+        $first = m::mock(WorkerFakeJob::class, [static function (WorkerFakeJob $job) use ($firstGate, $cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
             Coroutine::defer(static function () use ($cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
                 $cleanupStarted = true;
                 $cleanupGate->pop();
                 $cleanupFinished = true;
             });
             $firstGate->pop();
+            $job->delete();
         }])->makePartial();
         $first->shouldReceive('timeout')->andReturn(5);
         $second = m::mock(WorkerFakeJob::class, [static fn (): mixed => $secondGate->pop()])->makePartial();
@@ -667,12 +967,16 @@ class QueueWorkerTest extends TestCase
         $worker->currentTime = 100;
         $options = new WorkerOptions;
         $worker->startMonitorForTest($options);
-        $this->events->shouldReceive('dispatch')->with(m::type(JobTimedOut::class))->once()->andReturnUsing(
+        $interruptible = m::mock(Interruptible::class);
+        $interruptible->expects('interrupted')->with(SIGALRM)->andReturnUsing(
             static function () use ($firstGate, $secondGate): void {
                 $firstGate->push(true);
                 $secondGate->push(true);
             }
         );
+        $handler = m::mock(CallQueuedHandler::class);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
+        $first->resolvedJob = $handler;
         $coroutines = [];
 
         try {
@@ -702,7 +1006,7 @@ class QueueWorkerTest extends TestCase
                 static fn (object $event): bool => $event instanceof JobAttempted && $event->job === $second
                     && $event->successful()
             ))->once();
-            $this->exceptionHandler->shouldNotHaveReceived('report');
+            $this->exceptionHandler->assertNothingReported();
         } finally {
             $firstGate->close();
             $secondGate->close();
@@ -713,6 +1017,7 @@ class QueueWorkerTest extends TestCase
 
     public function testTimeoutMonitorRunsInAnOwnedCoroutineWithWorkerContextAndStoppingDetails(): void
     {
+        $this->spyEvents();
         $ownerCoroutineId = EngineCoroutine::id();
         $callbackCoroutineIds = [];
         $contextValues = [];
@@ -726,7 +1031,7 @@ class QueueWorkerTest extends TestCase
         $worker->currentTime = 100;
         $options = new WorkerOptions(timeout: 5, monitorInterval: 0);
         $options->coroutineContext = ['queue.worker.test' => 'configured'];
-        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $this->registerRunningJob($worker, new WorkerContractOnlyJob, $options);
         $worker->currentTime = 105;
 
         $this->events->shouldReceive('dispatch')->andReturnUsing(
@@ -762,12 +1067,13 @@ class QueueWorkerTest extends TestCase
 
     public function testTimeoutLifecycleEventsAreNotDispatchedWithoutListeners(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
         $timer = new QueueWorkerTimer;
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
         $worker->currentTime = 100;
         $options = new WorkerOptions(timeout: 5);
-        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $this->registerRunningJob($worker, new WorkerContractOnlyJob, $options);
         $worker->startMonitorForTest($options);
         $worker->currentTime = 105;
 
@@ -783,13 +1089,109 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch');
     }
 
+    #[TestWith(['failed callback', false])]
+    #[TestWith(['marker clear', false])]
+    #[TestWith(['failed callback', true])]
+    public function testTimeoutHandlingErrorsDoNotAbandonOtherAttempts(string $failurePhase, bool $reportingThrows): void
+    {
+        $this->container->instance('config', new ConfigRepository(['queue' => ['failed' => ['driver' => 'null']]]));
+        $this->events = new EventsDispatcher($this->container);
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $failedJobs = [];
+        $timedOutJobs = [];
+        $this->events->listen(JobFailed::class, static function (JobFailed $event) use (&$failedJobs): void {
+            $failedJobs[] = $event->job;
+        });
+        $this->events->listen(JobTimedOut::class, static function (JobTimedOut $event) use (&$timedOutJobs): void {
+            $timedOutJobs[] = $event->job;
+        });
+        $error = new RuntimeException('Timeout handling failed.');
+        $errorLog = null;
+        if ($reportingThrows) {
+            $errorLog = $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($error)->andThrow(new RuntimeException('Reporting failed.'));
+        }
+        $timer = new QueueWorkerTimer;
+        $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
+        $worker->currentTime = 100;
+        $cache = new Repository(new WorkerArrayStore);
+        $worker->setCache($cache);
+        if ($failurePhase === 'marker clear') {
+            $cache->setEventDispatcher($cacheEvents = new EventsDispatcher($this->container));
+            $cacheEvents->listen(ForgettingKey::class, static function (ForgettingKey $event) use ($error): void {
+                if ($event->key === 'job-processing:first') {
+                    throw $error;
+                }
+            });
+        }
+        $options = new WorkerOptions(maxTries: 0);
+        $jobs = [];
+        $coroutines = [];
+        $gates = [];
+        $unexpected = [];
+
+        try {
+            foreach (['first', 'second'] as $name) {
+                $gates[] = $gate = new Channel(1);
+                $job = m::mock(WorkerLifecycleJob::class, [
+                    $this->container, static fn (): mixed => $gate->pop(5), 5,
+                ])->makePartial();
+                $job->shouldReceive('uuid')->andReturn($name);
+                $job->shouldReceive('getResolvedJob')->andReturnNull();
+                $job->shouldReceive('shouldFailOnTimeout')->andReturn($name === 'second' || $failurePhase === 'failed callback');
+                if ($name === 'first' && $failurePhase === 'failed callback') {
+                    $job->shouldAllowMockingProtectedMethods()->expects('failed')->andThrow($error);
+                }
+                $jobs[] = $job;
+                $coroutines[] = Coroutine::create(static function () use ($worker, $job, $options, &$unexpected): void {
+                    try {
+                        $worker->process('default', $job, $options);
+                    } catch (CanceledException) {
+                        // The monitor owns these attempts after their bodies finish.
+                    } catch (Throwable $exception) {
+                        $unexpected[] = $exception;
+                    }
+                });
+            }
+            $worker->startMonitorForTest($options);
+            $worker->currentTime = 105;
+
+            try {
+                $timer->fire(1);
+                $this->fail('Expected termination on this monitor tick.');
+            } catch (WorkerKilledException $exception) {
+                $this->assertSame(Worker::EXIT_ERROR, $exception->status);
+            }
+
+            $this->assertSame([], $unexpected);
+            $this->assertSame($failurePhase === 'failed callback' ? $jobs : [$jobs[1]], $failedJobs);
+            $this->assertSame($jobs, $timedOutJobs);
+            $this->assertSame($failurePhase === 'marker clear', $cache->has('job-processing:first'));
+            $this->assertFalse($cache->has('job-processing:second'));
+            if ($reportingThrows) {
+                $contents = file_get_contents($errorLog);
+                $this->assertStringContainsString('Timeout handling failed.', $contents);
+                $this->assertStringContainsString('Reporting failed.', $contents);
+            } else {
+                $this->exceptionHandler->assertReportedCount(1);
+                $this->exceptionHandler->assertReported(static fn (RuntimeException $reported): bool => $reported === $error);
+            }
+        } finally {
+            foreach ($gates as $gate) {
+                $gate->close();
+            }
+            Coroutine::join($coroutines, 1);
+        }
+    }
+
     public function testTimeoutMonitorUsesTheConfiguredExitCode(): void
     {
         $timer = new QueueWorkerTimer;
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
         $worker->currentTime = 100;
         $options = new WorkerOptions(timeout: 5);
-        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $this->registerRunningJob($worker, new WorkerContractOnlyJob, $options);
         $worker->startMonitorForTest($options);
         $worker->currentTime = 105;
 
@@ -854,22 +1256,30 @@ class QueueWorkerTest extends TestCase
             $blocker->close();
         }
 
-        $this->exceptionHandler->shouldNotHaveReceived('report');
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobExceptionOccurred::class)]);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
+        $this->exceptionHandler->assertNothingReported();
+        $this->events->assertNotDispatched(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
+        $this->events->assertNotDispatched(JobAttempted::class);
     }
 
-    public function testCancellationDuringGracefulShutdownCancelsRunningJobs(): void
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    #[TestWith([true, false])]
+    public function testCancellationDuringGracefulShutdownCancelsRunningJobs(bool $cleanupThrows, bool $reportExceptions): void
     {
+        Worker::$reportJobExceptions = $reportExceptions;
         $cancelOwner = $this->armCurrentCoroutineCancellation();
         $blocker = new Channel(1);
         $jobUnwound = false;
-        $job = new WorkerFakeJob(static function () use ($blocker, &$jobUnwound): void {
+        $cleanupException = new RuntimeException('Job cleanup failed.');
+        $job = new WorkerFakeJob(static function () use ($blocker, &$jobUnwound, $cleanupThrows, $cleanupException): void {
             try {
                 $blocker->pop();
             } finally {
                 $jobUnwound = true;
+                if ($cleanupThrows) {
+                    throw $cleanupException;
+                }
             }
         });
         $worker = new ShutdownCancellationWorker(
@@ -887,10 +1297,14 @@ class QueueWorkerTest extends TestCase
             $blocker->close();
         }
 
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerStopping::class)]);
+        $this->exceptionHandler->assertReportedCount($cleanupThrows && $reportExceptions ? 1 : 0);
+        if ($cleanupThrows && $reportExceptions) {
+            $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $cleanupException);
+        }
+        $this->events->assertNotDispatched(WorkerStopping::class);
     }
 
-    public function testTimeoutMonitorUnlocksWhenScanningThrows(): void
+    public function testTimeoutMonitorScansAgainAfterAnEarlierScanThrows(): void
     {
         $timer = new QueueWorkerTimer;
         $worker = new MonitorFailureWorker(
@@ -905,10 +1319,8 @@ class QueueWorkerTest extends TestCase
             $this->assertSame('timeout scan failed', $exception->getMessage());
         }
 
-        $this->assertFalse($worker->monitorIsLockedForTest());
         $timer->fire(1);
         $this->assertSame(2, $worker->scanCount);
-        $this->assertFalse($worker->monitorIsLockedForTest());
     }
 
     public function testKillDoesNotWaitForUnrelatedActiveJobs(): void
@@ -924,10 +1336,11 @@ class QueueWorkerTest extends TestCase
         }
 
         $this->assertNull($worker->sleptFor);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->terminatesImmediately
-        ))->once();
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(
+            WorkerStopping::class,
+            static fn (WorkerStopping $event): bool => $event->terminatesImmediately
+        );
     }
 
     public function testWorkerCanWorkUntilQueueIsEmpty(): void
@@ -947,9 +1360,9 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(0, $status);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->twice();
+        $this->events->assertDispatchedTimes(JobProcessing::class, 2);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->twice();
+        $this->events->assertDispatchedTimes(JobProcessed::class, 2);
     }
 
     public function testWorkerStopsWhenQueueIsEmptyForConfiguredSeconds(): void
@@ -963,13 +1376,13 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertSame(6.0, $worker->currentTime);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerIdle::class))->twice();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->status === Worker::EXIT_SUCCESS
+        $this->events->assertDispatchedTimes(WorkerIdle::class, 2);
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event) use ($workerOptions): bool {
+            return $event->status === Worker::EXIT_SUCCESS
                 && $event->workerOptions === $workerOptions
-                && $event->reason === WorkerStopReason::QueueEmptyFor
-        ))->once();
+                && $event->reason === WorkerStopReason::QueueEmptyFor;
+        });
     }
 
     public function testWorkerResetsQueueEmptyTimerAfterProcessingJob(): void
@@ -987,13 +1400,13 @@ class QueueWorkerTest extends TestCase
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
         $this->assertSame(16.0, $worker->currentTime);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerIdle::class))->twice();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->status === Worker::EXIT_SUCCESS
+        $this->events->assertDispatchedTimes(WorkerIdle::class, 2);
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event) use ($workerOptions): bool {
+            return $event->status === Worker::EXIT_SUCCESS
                 && $event->workerOptions === $workerOptions
-                && $event->reason === WorkerStopReason::QueueEmptyFor
-        ))->once();
+                && $event->reason === WorkerStopReason::QueueEmptyFor;
+        });
     }
 
     public function testWorkerDoesNotStopForAnEmptyQueueWhileAJobIsRunning(): void
@@ -1020,12 +1433,6 @@ class QueueWorkerTest extends TestCase
     public function testWorkerWaitsForConcurrencySlotWithoutPollingDelay(): void
     {
         $jobCompleted = false;
-        $reported = null;
-        $this->exceptionHandler->shouldReceive('report')->andReturnUsing(
-            function (Throwable $exception) use (&$reported): void {
-                $reported = $exception;
-            },
-        );
         $job = new WorkerFakeJob(function () use (&$jobCompleted): void {
             Coroutine::sleep(0.001);
             $jobCompleted = true;
@@ -1040,25 +1447,65 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
-        $this->assertNull($reported, $reported?->getMessage() ?? 'Unexpected job failure.');
+        $this->exceptionHandler->assertNothingReported();
         $this->assertTrue($jobCompleted);
         $this->assertNull($worker->sleptFor);
     }
 
-    public function testTimeoutJobsUseMinimumWaitWhenPollingIsDisabled(): void
+    public function testTimeoutWaitsWithoutPollingAndWinsOverNormalShutdown(): void
     {
-        $worker = $this->getWorker('default', ['queue' => []]);
-        $worker->currentTime = 0;
-        $options = new WorkerOptions(timeout: 1, sleep: 0, maxTime: 1);
+        $timer = new QueueWorkerTimer;
+        $gate = new Channel(1);
+        $started = new Channel(1);
+        $job = m::mock(WorkerFakeJob::class, [static function () use ($gate, $started): void {
+            $started->push(true);
+            $gate->pop(5);
+        }])->makePartial();
+        $job->shouldReceive('timeout')->andReturn(1);
+        $worker = new class(...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer)) extends KillTestWorker {
+            /**
+             * Keep real yielding waits while recording the pending-timeout delay.
+             */
+            public function sleep(float|int $seconds): void
+            {
+                $this->sleptFor = $seconds;
+                Coroutine::sleep($seconds);
+            }
+        };
+        $worker->currentTime = 100;
+        $options = new WorkerOptions(timeout: 1, sleep: 0, maxTries: 1, maxJobs: 1);
+        $job->attempts = 1;
+        $daemonFinished = false;
+        $daemon = Coroutine::create(static function () use ($worker, $options, &$daemonFinished): void {
+            try {
+                $worker->daemon('default', 'queue', $options);
+                $daemonFinished = true;
+            } catch (CanceledException) {
+                // A real kill ends the process; this test cleans up its fake daemon.
+            }
+        });
 
-        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
-        $worker->currentTime = 1;
-        $worker->terminateTimeoutJobsForTest($options);
+        try {
+            $this->assertTrue($started->pop(1));
+            $worker->currentTime = 101;
 
-        $status = $worker->daemon('default', 'queue', $options);
+            try {
+                $timer->fire(1);
+                $this->fail('Expected timeout termination.');
+            } catch (WorkerKilledException $exception) {
+                $this->assertSame(Worker::EXIT_ERROR, $exception->status);
+            }
 
-        $this->assertSame(Worker::EXIT_SUCCESS, $status);
-        $this->assertSame(1, $worker->sleptFor);
+            $this->assertFalse($daemonFinished);
+            $this->assertSame(0.1, $worker->sleptFor);
+            $this->assertInstanceOf(TimeoutExceededException::class, $job->failedWith);
+            $this->events->assertDispatchedOnce(WorkerStopping::class);
+            $this->events->assertDispatched(WorkerStopping::class, static fn (WorkerStopping $event): bool => $event->reason === WorkerStopReason::TimedOut);
+        } finally {
+            $gate->close();
+            EngineCoroutine::cancelById($daemon, throwException: true);
+            Coroutine::join([$daemon], 1);
+        }
     }
 
     public function testDaemonStopsImmediatelyWhenQueueIsEmptyAtStartup(): void
@@ -1092,10 +1539,11 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertSame(16.0, $worker->currentTime);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->reason === WorkerStopReason::MaxTimeExceeded
-        ))->once();
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(
+            WorkerStopping::class,
+            static fn (WorkerStopping $event): bool => $event->reason === WorkerStopReason::MaxTimeExceeded
+        );
     }
 
     public function testWorkerStopsWhenMemoryExceeded(): void
@@ -1114,9 +1562,9 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($secondJob->fired);
         $this->assertSame(12, $status);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
+        $this->events->assertDispatchedOnce(JobProcessing::class);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+        $this->events->assertDispatchedOnce(JobProcessed::class);
     }
 
     public function testWorkerMemoryExceededWhenMemoryIsZero(): void
@@ -1135,6 +1583,34 @@ class QueueWorkerTest extends TestCase
     {
         $worker = new Worker(...$this->workerDependencies());
         $this->assertFalse($worker->memoryExceeded(-1));
+    }
+
+    public function testWorkerMemoryExceededWhenMemoryIsAPercentage(): void
+    {
+        $worker = new class(...$this->workerDependencies()) extends Worker {
+            /**
+             * Get the current memory usage in megabytes.
+             */
+            protected function currentMemoryUsage(): float
+            {
+                return 512;
+            }
+        };
+
+        $original = ini_set('memory_limit', '1G');
+
+        try {
+            $this->assertTrue($worker->memoryExceeded('50%'));
+            $this->assertFalse($worker->memoryExceeded('51%'));
+            $this->assertFalse($worker->memoryExceeded('512.5'));
+
+            ini_set('memory_limit', '-1');
+
+            $this->assertFalse($worker->memoryExceeded('50%'));
+            $this->assertTrue($worker->memoryExceeded(512));
+        } finally {
+            ini_set('memory_limit', $original);
+        }
     }
 
     public function testDaemonShouldRunSkipsLoopingEventWhenNoListenersAreRegistered(): void
@@ -1192,6 +1668,7 @@ class QueueWorkerTest extends TestCase
 
     public function testQueuePauseEventsTrackOnlyTheCurrentSelection(): void
     {
+        $this->spyEvents();
         $paused = ['emails'];
         $manager = m::mock(QueueManager::class);
         $manager->shouldReceive('connection')->with('first')->andReturn(
@@ -1241,6 +1718,7 @@ class QueueWorkerTest extends TestCase
 
     public function testPauseHistoryIsRetainedWithoutEventListeners(): void
     {
+        $this->spyEvents();
         $manager = m::mock(QueueManager::class);
         $manager->shouldReceive('connection')->with('default')->andReturn(
             new WorkerFakeConnection('default', ['queue' => []]),
@@ -1284,12 +1762,12 @@ class QueueWorkerTest extends TestCase
         $this->assertSame(Worker::EXIT_SUCCESS, $worker->daemon('default', 'queue', $options));
         $this->assertSame(Worker::EXIT_SUCCESS, $worker->daemon('default', 'queue', $options));
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerQueuePaused
-                && $event->connectionName === 'default'
+        $this->assertCount(2, $this->events->dispatched(
+            WorkerQueuePaused::class,
+            static fn (WorkerQueuePaused $event): bool => $event->connectionName === 'default'
                 && $event->queue === 'queue',
-        ))->twice();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerQueueResumed::class)]);
+        ));
+        $this->events->assertNotDispatched(WorkerQueueResumed::class);
     }
 
     public function testJobCanBeFiredBasedOnPriority(): void
@@ -1333,10 +1811,18 @@ class QueueWorkerTest extends TestCase
         ], $connection->pops);
     }
 
-    public function testExceptionIsReportedIfConnectionThrowsExceptionOnJobPop(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testExceptionIsReportedIfConnectionThrowsExceptionOnJobPop(bool $reportingThrows): void
     {
+        $e = new RuntimeException('Pop failed.');
+        if ($reportingThrows) {
+            $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($e)->andThrow(new RuntimeException('Reporting failed.'));
+        }
         $worker = new InsomniacWorker(
-            new WorkerFakeManager('default', new BrokenQueueConnection('default', $e = new RuntimeException)),
+            new WorkerFakeManager('default', new BrokenQueueConnection('default', $e)),
             $this->events,
             $this->exceptionHandler,
             function () {
@@ -1346,31 +1832,49 @@ class QueueWorkerTest extends TestCase
 
         $worker->runNextJob('default', 'queue', $this->workerOptions());
 
-        $this->exceptionHandler->shouldHaveReceived('report')->with($e);
+        if (! $reportingThrows) {
+            $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        }
     }
 
-    public function testCancellationDuringJobPopEscapesWithoutReportingOrSleeping(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationDuringJobPopEscapesWithoutReportingOrSleeping(bool $cleanupThrows): void
     {
         $gate = $this->armCurrentCoroutineCancellation();
         $worker = $this->getWorker('default', ['queue' => []]);
         $worker->setName('cancel-pop');
-        Worker::popUsing('cancel-pop', static function () use ($gate): never {
-            $gate->push(true);
+        $cleanupException = new RuntimeException('Pop cleanup failed.');
+        Worker::popUsing('cancel-pop', static function () use ($gate, $cleanupThrows, $cleanupException): never {
+            try {
+                $gate->push(true);
 
-            throw new RuntimeException('Cancellation was not delivered.');
+                throw new RuntimeException('Cancellation was not delivered.');
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanupException;
+                }
+            }
         });
 
+        $caught = null;
         try {
             $worker->runNextJob('default', 'queue', new WorkerOptions(sleep: 5));
-            $this->fail('Expected pop cancellation to escape the worker.');
-        } catch (CanceledException) {
-            $this->assertNull($worker->sleptFor);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         } finally {
             Worker::popUsing('cancel-pop', null);
         }
 
-        $this->exceptionHandler->shouldNotHaveReceived('report');
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobPopped::class)]);
+        if ($cleanupThrows) {
+            $this->assertSame($cleanupException, $caught);
+            $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+        } else {
+            $this->assertInstanceOf(CanceledException::class, $caught);
+        }
+        $this->assertNull($worker->sleptFor);
+        $this->exceptionHandler->assertNothingReported();
+        $this->events->assertNotDispatched(JobPopped::class);
     }
 
     public function testWorkerSleepsWhenQueueIsEmpty(): void
@@ -1393,9 +1897,94 @@ class QueueWorkerTest extends TestCase
 
         $this->assertEquals(10, $job->releaseAfter);
         $this->assertFalse($job->deleted);
-        $this->exceptionHandler->shouldHaveReceived('report')->with($e);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIndependentChildCancellationUsesNormalJobFailureHandling(bool $lastAttempt): void
+    {
+        $cleanupException = new RuntimeException('Child cleanup failed.');
+        $job = new WorkerFakeJob(static function () use ($cleanupException): void {
+            (new Waiter)->wait(static function () use ($cleanupException): void {
+                try {
+                    EngineCoroutine::cancelById(Coroutine::id(), throwException: true);
+                } finally {
+                    Coroutine::sleep(0.001);
+                    throw $cleanupException;
+                }
+            });
+        });
+        $job->attempts = 1;
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+
+        $worker->runNextJob('default', 'queue', new WorkerOptions(maxTries: $lastAttempt ? 1 : 3, backoff: 10));
+
+        $this->assertSame($lastAttempt, $job->failed);
+        $this->assertSame(! $lastAttempt, $job->released);
+        if ($lastAttempt) {
+            $this->assertInstanceOf(ChildCancellationException::class, $job->failedWith);
+            $this->assertSame($cleanupException, $job->failedWith->getPrevious());
+        } else {
+            $this->assertSame(10, $job->releaseAfter);
+        }
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertDispatchedOnce(JobAttempted::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
+        $this->exceptionHandler->assertReportedCount(1);
+        $this->exceptionHandler->assertReported(static fn (ChildCancellationException $exception): bool => $exception->getPrevious() === $cleanupException);
+    }
+
+    #[TestWith(['last attempt'])]
+    #[TestWith(['exception limit'])]
+    #[TestWith(['do not retry'])]
+    #[TestWith(['release error'])]
+    public function testReleasedAttemptReportsItsErrorWithoutAnotherOutcome(string $scenario): void
+    {
+        Worker::$pausable = false;
+        $exception = new RuntimeException('The attempt relinquished its reservation.');
+        $job = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job) use ($exception): never {
+            $job->release(30);
+
+            throw $exception;
+        });
+        $releases = 0;
+        $job->onReleased = static function () use (&$releases, $scenario, $exception): void {
+            ++$releases;
+
+            if ($scenario === 'release error') {
+                throw $exception;
+            }
+        };
+        if ($scenario === 'do not retry') {
+            $this->exceptionHandler = m::mock(ShouldntRetryExceptionHandler::class)->makePartial();
+            $this->exceptionHandler->expects('report')->with($exception);
+            $this->exceptionHandler->shouldNotReceive('shouldStopRetries');
+        }
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $cache = new Repository(new WorkerArrayStore);
+        $cache->put('job-exceptions:uuid', 2, 60);
+        $worker->setCache($cache);
+
+        $worker->runNextJob('default', 'queue', new WorkerOptions(
+            maxTries: $scenario === 'last attempt' ? 1 : 0,
+            backoff: 60,
+        ));
+
+        $this->assertSame(1, $releases);
+        $this->assertTrue($job->isReleased());
+        $this->assertFalse($job->hasFailed());
+        $this->assertFalse($job->isDeleted());
+        $this->assertSame(2, $cache->get('job-exceptions:uuid'));
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobReleasedAfterException::class);
+        $this->events->assertNotDispatched(JobFailed::class);
+        if ($scenario !== 'do not retry') {
+            $this->exceptionHandler->assertReportedCount(1);
+            $this->exceptionHandler->assertReported(static fn (RuntimeException $reported): bool => $reported === $exception);
+        }
     }
 
     public function testJobAttemptedEventIsDispatched(): void
@@ -1409,15 +1998,14 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', $this->workerOptions());
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobAttempted::class))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($job, $e) {
-            return $event instanceof JobAttempted
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(JobAttempted::class);
+        $this->events->assertDispatched(JobAttempted::class, function (JobAttempted $event) use ($job, $e): bool {
+            return $event->connectionName === 'default'
                 && $event->job === $job
                 && $event->exception === $e
                 && ! $event->successful()
                 && is_float($event->duration);
-        }))->once();
+        });
     }
 
     public function testJobIsFailedIfExceptionHandlerSaysItShouldntRetry(): void
@@ -1434,13 +2022,14 @@ class QueueWorkerTest extends TestCase
         $this->assertNull($job->releaseAfter);
         $this->assertTrue($job->deleted);
         $this->assertSame($exception, $job->failedWith);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof JobExceptionOccurred
-                && $event->job === $job
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertDispatched(
+            JobExceptionOccurred::class,
+            static fn (JobExceptionOccurred $event): bool => $event->job === $job
                 && $event->exception === $exception
                 && $event->job->hasFailed(),
-        ))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
+        );
+        $this->events->assertNotDispatched(JobReleasedAfterException::class);
     }
 
     public function testExceptionIsNotReportedIfReportJobExceptionsIsDisabled(): void
@@ -1455,8 +2044,8 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
 
-        $this->exceptionHandler->shouldNotHaveReceived('report');
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
+        $this->exceptionHandler->assertNothingReported();
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
     }
 
     public function testJobIsNotReleasedIfItHasExceededMaxAttempts(): void
@@ -1478,9 +2067,9 @@ class QueueWorkerTest extends TestCase
         $this->assertNull($job->releaseAfter);
         $this->assertTrue($job->deleted);
         $this->assertEquals($e, $job->failedWith);
-        $this->exceptionHandler->shouldHaveReceived('report')->with($e);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
     }
 
     public function testJobIsNotReleasedIfItHasExpired(): void
@@ -1508,9 +2097,9 @@ class QueueWorkerTest extends TestCase
         $this->assertNull($job->releaseAfter);
         $this->assertTrue($job->deleted);
         $this->assertEquals($e, $job->failedWith);
-        $this->exceptionHandler->shouldHaveReceived('report')->with($e);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->exceptionHandler->assertReported(fn (RuntimeException $reported): bool => $reported === $e);
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
     }
 
     public function testJobIsFailedIfItHasAlreadyExceededMaxAttempts(): void
@@ -1527,9 +2116,431 @@ class QueueWorkerTest extends TestCase
         $this->assertNull($job->releaseAfter);
         $this->assertTrue($job->deleted);
         $this->assertInstanceOf(MaxAttemptsExceededException::class, $job->failedWith);
-        $this->exceptionHandler->shouldHaveReceived('report')->with(m::type(MaxAttemptsExceededException::class));
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->exceptionHandler->assertReported(MaxAttemptsExceededException::class);
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
+    }
+
+    public function testCrashesAreNotCountedUnlessTheJobCountsCrashesAsExceptions(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $job = new WorkerFakeJob;
+        $job->uuid = 'uuid';
+        $job->maxExceptions = 1;
+
+        $cache->put('job-processing:uuid', true);
+        $worker->process('default', $job, $this->workerOptions());
+
+        $this->assertTrue($job->fired);
+        $this->assertFalse($job->hasFailed());
+        $this->assertNull($cache->get('job-exceptions:uuid'));
+    }
+
+    public function testJobIsFailedIfTheWorkerDiedWhileProcessingItAndItHasExceededMaxExceptions(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $first = new WorkerFakeJob;
+        $second = new WorkerFakeJob;
+        $first->uuid = $second->uuid = 'uuid';
+        $first->maxExceptions = $second->maxExceptions = 2;
+        $first->payload = $second->payload = ['countCrashesAsExceptions' => true];
+
+        // Simulate the worker dying during the previous attempt by leaving its marker behind...
+        $cache->put('job-processing:uuid', true);
+        $worker->process('default', $first, $this->workerOptions());
+
+        $this->assertTrue($first->fired);
+        $this->assertFalse($first->hasFailed());
+        $this->assertSame(1, $cache->get('job-exceptions:uuid'));
+
+        $cache->put('job-processing:uuid', true);
+
+        try {
+            $worker->process('default', $second, $this->workerOptions());
+        } catch (MaxAttemptsExceededException) {
+        }
+
+        $this->assertFalse($second->fired);
+        $this->assertInstanceOf(MaxAttemptsExceededException::class, $second->failedWith);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testAttemptsThatFinishDoNotLeaveTheirMarkerBehind(): void
+    {
+        $worker = $this->getWorker();
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+
+        $released = new WorkerFakeJob(static fn (WorkerFakeJob $job) => $job->release());
+        $thrown = new WorkerFakeJob(static fn () => throw new RuntimeException);
+        $released->uuid = $thrown->uuid = 'uuid';
+        $released->maxExceptions = $thrown->maxExceptions = 2;
+        $released->payload = $thrown->payload = ['countCrashesAsExceptions' => true];
+
+        $worker->process('default', $released, $this->workerOptions());
+
+        $this->assertNull($cache->get('job-exceptions:uuid'));
+        $this->assertNull($cache->get('job-processing:uuid'));
+
+        try {
+            $worker->process('default', $thrown, $this->workerOptions());
+        } catch (RuntimeException) {
+        }
+
+        $this->assertFalse($thrown->hasFailed());
+        $this->assertSame(1, $cache->get('job-exceptions:uuid'));
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    #[TestWith(['release'])]
+    #[TestWith(['exception'])]
+    #[TestWith(['fail'])]
+    #[TestWith(['fail-before-fire'])]
+    #[TestWith(['release-before-fire'])]
+    public function testHandoffsDoNotCountFalseCrashesOrClearTheNextAttemptsMarker(string $handoff): void
+    {
+        $this->events = new EventsDispatcher($this->container);
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $cache = new Repository(new WorkerArrayStore);
+        $worker = $this->getWorker()->setCache($cache);
+        $started = new Channel(1);
+        $finish = new Channel(1);
+        $nextCoroutine = null;
+        $failures = [];
+        $failure = new RuntimeException('Retry this attempt.');
+
+        $next = new WorkerLifecycleJob($this->container, static function () use ($started, $finish): void {
+            $started->push(true);
+            if (! $finish->pop(5)) {
+                throw new RuntimeException('The next attempt was not allowed to finish.');
+            }
+        });
+        $startNext = static function () use ($worker, $next, &$nextCoroutine, &$failures): void {
+            $nextCoroutine = Coroutine::create(static function () use ($worker, $next, &$failures): void {
+                try {
+                    $worker->process('default', $next, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+        };
+
+        $first = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job) use ($handoff, $failure): void {
+            if ($handoff === 'release-before-fire') {
+                return;
+            }
+
+            if ($handoff === 'fail-before-fire') {
+                throw new RuntimeException('The failed job must not run.');
+            }
+
+            if ($handoff === 'exception') {
+                throw $failure;
+            }
+
+            if ($handoff === 'fail') {
+                $job->fail($failure);
+            } else {
+                $job->release();
+            }
+        });
+        $first->onReleased = $startNext;
+        $this->events->listen(JobFailed::class, static function (JobFailed $event) use ($first, $startNext): void {
+            if ($event->job === $first) {
+                $startNext();
+            }
+        });
+        if (in_array($handoff, ['fail-before-fire', 'release-before-fire'], true)) {
+            $this->events->listen(JobProcessing::class, static function (JobProcessing $event) use ($first, $failure, $handoff): void {
+                if ($event->job === $first) {
+                    if ($handoff === 'fail-before-fire') {
+                        $event->job->fail($failure);
+                    } else {
+                        $event->job->release();
+                    }
+                }
+            });
+        }
+
+        try {
+            try {
+                $worker->process('default', $first, new WorkerOptions);
+                $this->assertNotSame('exception', $handoff);
+            } catch (RuntimeException $exception) {
+                $this->assertSame('exception', $handoff);
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertTrue($started->pop(5));
+            $this->assertSame($handoff === 'exception' ? 1 : null, $cache->get('job-exceptions:uuid'));
+            $this->assertTrue($cache->get('job-processing:uuid'));
+        } finally {
+            $finish->push(true, 1);
+            if ($nextCoroutine !== null) {
+                Coroutine::join([$nextCoroutine], 5);
+            }
+        }
+
+        $this->assertSame([], $failures);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testFailedMarkerCleanupDoesNotPreventTheWorkersReleaseRetry(): void
+    {
+        $this->events = new EventsDispatcher($this->container);
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $cache = new Repository(new WorkerArrayStore);
+        $cache->setEventDispatcher($this->events);
+        $worker = $this->getWorker()->setCache($cache);
+        $failure = new RuntimeException('Marker deletion failed.');
+        $forgetCalls = 0;
+        $failedEvents = [];
+
+        $this->events->listen(ForgettingKey::class, static function (ForgettingKey $event) use (&$forgetCalls, $failure): void {
+            if ($event->key === 'job-processing:uuid' && ++$forgetCalls === 1) {
+                throw $failure;
+            }
+        });
+        $this->events->listen(JobFailed::class, static function (JobFailed $event) use (&$failedEvents): void {
+            $failedEvents[] = $event;
+        });
+        $job = new WorkerLifecycleJob($this->container, static function (WorkerLifecycleJob $job): void {
+            $job->fail(new RuntimeException('Fail this job.'));
+        });
+
+        try {
+            $worker->process('default', $job, new WorkerOptions(maxTries: 0));
+            $this->fail('The cleanup exception must propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertFalse($job->hasFailed());
+        $this->assertTrue($job->isReleased());
+        $this->assertSame([], $failedEvents);
+        $this->assertSame(2, $forgetCalls);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    #[TestWith([false, 'release', null])]
+    #[TestWith([true, 'release', null])]
+    #[TestWith([false, 'delete', null])]
+    #[TestWith([true, 'delete', null])]
+    #[TestWith([false, 'release', true])]
+    #[TestWith([false, 'release', false])]
+    public function testTimeoutPoliciesWaitForTheInterruptionHandlerOutcome(bool $bodyThrows, string $outcome, ?bool $throwCancellation): void
+    {
+        Worker::$killOnTimeout = false;
+        Worker::$pausable = false;
+        $timer = new QueueWorkerTimer;
+        $bodyGate = new Channel(1);
+        $notificationGate = new Channel(1);
+        $bodyFailure = new RuntimeException('Body failed during notification.');
+        $caught = null;
+        $notificationStarted = false;
+        $job = m::mock(WorkerFakeJob::class, [static function () use ($bodyGate, $bodyThrows, $bodyFailure): void {
+            $bodyGate->pop();
+            if ($bodyThrows) {
+                throw $bodyFailure;
+            }
+        }])->makePartial();
+        $job->shouldReceive('timeout')->andReturn(5);
+        $job->shouldReceive($outcome)->once()->passthru();
+        $job->shouldNotReceive($outcome === 'release' ? 'delete' : 'release');
+        $job->shouldFailOnTimeout = true;
+        $job->maxExceptions = 2;
+        $interruptible = m::mock(Interruptible::class);
+        $interruptible->expects('interrupted')->with(SIGALRM)->andReturnUsing(
+            static function () use ($notificationGate, &$notificationStarted, $job, $outcome): void {
+                $notificationStarted = true;
+                $notificationGate->pop();
+                $job->{$outcome}();
+            }
+        );
+        $handler = m::mock(CallQueuedHandler::class);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
+        $job->resolvedJob = $handler;
+        $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer));
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions(maxTries: 0);
+        $worker->startMonitorForTest($options);
+        $bodyId = Coroutine::create(static function () use ($worker, $options, &$caught): void {
+            try {
+                $worker->runNextJob('default', 'queue', $options);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+        });
+        $worker->currentTime = 105;
+        $monitorId = Coroutine::create(static fn () => $timer->fire(1));
+
+        try {
+            $this->assertTrue($notificationStarted);
+            $bodyGate->push(true);
+            $this->assertTrue(Coroutine::exists($bodyId));
+            $this->assertFalse($job->isDeletedOrReleased());
+            $this->assertFalse($job->hasFailed());
+            $this->exceptionHandler->assertNothingReported();
+
+            if ($throwCancellation !== null) {
+                EngineCoroutine::cancelById($bodyId, throwException: $throwCancellation);
+                Coroutine::join([$bodyId], 5);
+                $this->assertInstanceOf(CanceledException::class, $caught);
+                $this->assertFalse($job->isDeletedOrReleased());
+                $this->assertFalse($job->hasFailed());
+                $this->events->assertNotDispatched(JobAttempted::class);
+            }
+
+            $notificationGate->push(true);
+            Coroutine::join([$bodyId, $monitorId], 5);
+            $this->assertSame($outcome === 'release', $job->isReleased());
+            $this->assertSame($outcome === 'delete', $job->isDeleted());
+            $this->assertFalse($job->hasFailed());
+            $this->assertNull($cache->get('job-exceptions:' . $job->uuid));
+            $this->events->assertNotDispatched(JobReleasedAfterException::class);
+            $this->events->assertNotDispatched(JobFailed::class);
+            $this->exceptionHandler->assertReportedCount($bodyThrows ? 2 : 0);
+            if ($bodyThrows) {
+                $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $bodyFailure);
+                $this->exceptionHandler->assertReported(TimeoutExceededException::class);
+            }
+            if ($throwCancellation === null) {
+                $this->assertNull($caught);
+            }
+        } finally {
+            $bodyGate->close();
+            $notificationGate->close();
+            Coroutine::join([$bodyId, $monitorId], 5);
+        }
+    }
+
+    public function testInterruptedReleaseSerializesMarkerCleanupWithTheFinishingBody(): void
+    {
+        Worker::$killOnTimeout = false;
+        $timer = new QueueWorkerTimer;
+        $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
+        $worker->currentTime = 100;
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+        $cache->setEventDispatcher($cacheEvents = new EventsDispatcher($this->container));
+        $forgetEntered = new Channel(1);
+        $allowForget = new Channel(1);
+        $releaseGate = new Channel(1);
+        $releaseStarted = new Channel(1);
+        $nextStarted = new Channel(1);
+        $nextFinish = new Channel(1);
+        $forgetCalls = 0;
+        $handedOff = false;
+        $monitorException = null;
+        $failures = [];
+        $coroutines = [];
+
+        $cacheEvents->listen(ForgettingKey::class, static function (ForgettingKey $event) use (&$forgetCalls, $forgetEntered, $allowForget): void {
+            if ($event->key !== 'job-processing:uuid' || ++$forgetCalls !== 1) {
+                return;
+            }
+
+            $forgetEntered->push(true);
+            if (! $allowForget->pop(5)) {
+                throw new RuntimeException('Marker deletion was not allowed to finish.');
+            }
+        });
+
+        $next = new WorkerLifecycleJob($this->container, static function () use ($nextStarted, $nextFinish): void {
+            $nextStarted->push(true);
+            if (! $nextFinish->pop(5)) {
+                throw new RuntimeException('The next attempt was not allowed to finish.');
+            }
+        });
+        $first = m::mock(WorkerLifecycleJob::class, [$this->container, static function () use ($releaseGate, $releaseStarted): void {
+            if (! $releaseGate->pop(5)) {
+                throw new RuntimeException('The first attempt was not allowed to release.');
+            }
+            $releaseStarted->push(true);
+        }, 5])->makePartial();
+        $interruptible = m::mock(Interruptible::class);
+        $interruptible->expects('interrupted')->with(SIGALRM)->andReturnUsing(static fn (): mixed => $first->release());
+        $handler = m::mock(CallQueuedHandler::class);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
+        $first->shouldReceive('getResolvedJob')->andReturn($handler);
+        $first->onReleased = static function () use (&$handedOff, &$coroutines, &$failures, $worker, $next): void {
+            $handedOff = true;
+            $coroutines[] = Coroutine::create(static function () use ($worker, $next, &$failures): void {
+                try {
+                    $worker->process('default', $next, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+        };
+        $worker->startMonitorForTest(new WorkerOptions(maxTries: 0));
+
+        try {
+            $coroutines[] = Coroutine::create(static function () use ($worker, $first, &$failures): void {
+                try {
+                    $worker->process('default', $first, new WorkerOptions);
+                } catch (Throwable $exception) {
+                    $failures[] = $exception;
+                }
+            });
+            $worker->currentTime = 105;
+            $coroutines[] = Coroutine::create(static function () use ($timer, &$monitorException): void {
+                try {
+                    $timer->fire(1);
+                } catch (Throwable $exception) {
+                    $monitorException = $exception;
+                }
+            });
+
+            $this->assertTrue($forgetEntered->pop(5));
+            $releaseGate->push(true);
+            $this->assertTrue($releaseStarted->pop(5));
+            $this->assertFalse($handedOff);
+            $allowForget->push(true);
+            $this->assertTrue($nextStarted->pop(5));
+            Coroutine::join(array_slice($coroutines, 0, 2), 5);
+
+            $this->assertTrue($handedOff);
+            $this->assertSame(1, $forgetCalls);
+            $this->assertNull($monitorException);
+            $this->assertNull($cache->get('job-exceptions:uuid'));
+            $this->assertTrue($cache->get('job-processing:uuid'));
+        } finally {
+            $releaseGate->push(true, 0.01);
+            $allowForget->push(true, 0.01);
+            $nextFinish->push(true, 0.01);
+            Coroutine::join($coroutines, 5);
+        }
+
+        $this->assertSame([], $failures);
+        $this->assertNull($cache->get('job-processing:uuid'));
+    }
+
+    public function testCrashCountingRejectsJobsWithoutLifecycleCallbacksBeforeExecution(): void
+    {
+        $job = m::mock(WorkerContractOnlyJob::class)->makePartial();
+        $job->shouldReceive('payload')->andReturn(['countCrashesAsExceptions' => true]);
+        $job->shouldReceive('uuid')->andReturn('unsupported');
+        $job->shouldReceive('maxExceptions')->andReturn(2);
+        $job->expects('fail')->with(m::on(static fn (Throwable $exception): bool => $exception instanceof LogicException
+            && str_contains($exception->getMessage(), JobLifecycleCallbacks::class)));
+        $job->shouldReceive('hasFailed')->andReturnTrue();
+        $job->shouldNotReceive('fire');
+        $job->shouldNotReceive('release');
+
+        $worker = $this->getWorker()->setCache($cache = new Repository(new WorkerArrayStore));
+
+        try {
+            $worker->process('default', $job, $this->workerOptions());
+            $this->fail('An unsupported job must fail before execution.');
+        } catch (LogicException $exception) {
+            $this->assertStringContainsString(JobLifecycleCallbacks::class, $exception->getMessage());
+        }
+
+        $this->assertNull($cache->get('job-processing:unsupported'));
     }
 
     public function testJobIsFailedIfItHasAlreadyExpired(): void
@@ -1552,9 +2563,9 @@ class QueueWorkerTest extends TestCase
         $this->assertNull($job->releaseAfter);
         $this->assertTrue($job->deleted);
         $this->assertInstanceOf(MaxAttemptsExceededException::class, $job->failedWith);
-        $this->exceptionHandler->shouldHaveReceived('report')->with(m::type(MaxAttemptsExceededException::class));
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->exceptionHandler->assertReported(MaxAttemptsExceededException::class);
+        $this->events->assertDispatchedOnce(JobExceptionOccurred::class);
+        $this->events->assertNotDispatched(JobProcessed::class);
     }
 
     public function testJobIsFailedWhenTheMaxExceptionsCounterReachesTheLimit(): void
@@ -1668,7 +2679,7 @@ class QueueWorkerTest extends TestCase
         $job->delete();
         $worker->runNextJob('default', 'queue', $this->workerOptions());
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+        $this->events->assertDispatchedOnce(JobProcessed::class);
         $this->assertFalse($job->hasFailed());
         $this->assertFalse($job->isReleased());
         $this->assertTrue($job->isDeleted());
@@ -1685,11 +2696,12 @@ class QueueWorkerTest extends TestCase
 
         $this->assertTrue($job->isReleased());
         $this->assertFalse($job->isDeleted());
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof JobReleased
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(JobReleased::class);
+        $this->events->assertDispatched(
+            JobReleased::class,
+            static fn (JobReleased $event): bool => $event->connectionName === 'default'
                 && $event->job === $job,
-        ))->once();
+        );
     }
 
     public function testWorkerPicksJobUsingCustomCallbacks(): void
@@ -1722,8 +2734,8 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($defaultJob->fired);
         $this->assertTrue($customJob->fired);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->twice();
-        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->events->assertDispatchedTimes(JobPopped::class, 2);
+        $this->exceptionHandler->assertNothingReported();
 
         Worker::popUsing('myworker', null);
     }
@@ -1768,25 +2780,57 @@ class QueueWorkerTest extends TestCase
 
     public function testWorkerCanBeKilledUsingCustomCallback(): void
     {
-        Worker::killUsing(function (int $status): never {
-            throw new RuntimeException("Killed with status [{$status}].");
-        });
+        $failure = new RuntimeException('The kill callback failed.');
+        $callbackStatus = null;
+        Worker::killUsing(function (int $status) use ($failure, &$callbackStatus): never {
+            $callbackStatus = $status;
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageIs('Killed with status [124].');
+            throw $failure;
+        });
 
         try {
             (new KillTestWorker(...$this->workerDependencies('default', ['queue' => []])))
                 ->kill('default', 'default', 124, new WorkerOptions, WorkerStopReason::TimedOut);
-        } finally {
-            Worker::killUsing(null);
-
-            $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event): bool {
-                return $event instanceof WorkerStopping
-                    && $event->status === 124
-                    && $event->reason === WorkerStopReason::TimedOut;
-            }))->once();
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(124, $exception->status);
         }
+
+        $this->assertSame(124, $callbackStatus);
+        $this->exceptionHandler->assertReported(static fn (RuntimeException $exception): bool => $exception === $failure);
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event): bool {
+            return $event->status === 124
+                && $event->reason === WorkerStopReason::TimedOut;
+        });
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStoppingListenerFailureCannotPreventTheKillCallbackOrTermination(bool $reportingThrows): void
+    {
+        $failure = new RuntimeException('The stopping listener failed.');
+        $this->spyEvents();
+        $this->events->shouldReceive('dispatch')->once()->with(m::type(WorkerStopping::class))->andThrow($failure);
+        $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $report = $this->exceptionHandler->shouldReceive('report')->once()->with($failure);
+        if ($reportingThrows) {
+            $this->captureErrorLog();
+            $report->andThrow(new RuntimeException('Reporting failed.'));
+        }
+
+        $callbackStatus = null;
+        Worker::killUsing(function (int $status) use (&$callbackStatus): void {
+            $callbackStatus = $status;
+        });
+
+        try {
+            (new KillTestWorker(...$this->workerDependencies()))
+                ->kill('default', 'queue', 124, new WorkerOptions, WorkerStopReason::TimedOut);
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(124, $exception->status);
+        }
+
+        $this->assertSame(124, $callbackStatus);
     }
 
     public function testWorkerStartingIsDispatched(): void
@@ -1804,7 +2848,7 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($firstJob->fired);
         $this->assertTrue($secondJob->fired);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerStarting::class))->once();
+        $this->events->assertDispatchedOnce(WorkerStarting::class);
     }
 
     public function testWorkerIdleIsDispatched(): void
@@ -1814,12 +2858,12 @@ class QueueWorkerTest extends TestCase
 
         $worker->daemon('default', 'queue', $workerOptions);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerIdle
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(WorkerIdle::class);
+        $this->events->assertDispatched(WorkerIdle::class, function (WorkerIdle $event) use ($workerOptions): bool {
+            return $event->connectionName === 'default'
                 && $event->queue === 'queue'
-                && $event->workerOptions === $workerOptions
-        ))->once();
+                && $event->workerOptions === $workerOptions;
+        });
     }
 
     public function testWorkerStoppingIsDispatched(): void
@@ -1837,9 +2881,9 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($firstJob->fired);
         $this->assertTrue($secondJob->fired);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
-            return $event instanceof WorkerStopping
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event) use ($workerOptions): bool {
+            return $event->connectionName === 'default'
                 && $event->queue === 'queue'
                 && $event->status === 0
                 && $event->workerOptions === $workerOptions
@@ -1848,12 +2892,17 @@ class QueueWorkerTest extends TestCase
                 && $event->lastJobProcessedAt !== null
                 && $event->memoryUsage > 0
                 && ! $event->terminatesImmediately;
-        }))->once();
+        });
     }
 
     #[DataProvider('lostDatabaseConnections')]
-    public function testWorkerStopsWithLostConnectionReason(Throwable $failure): void
+    public function testWorkerStopsWithLostConnectionReason(Throwable $failure, bool $reportingThrows = false): void
     {
+        if ($reportingThrows) {
+            $this->captureErrorLog();
+            $this->exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $this->exceptionHandler->expects('report')->with($failure)->andThrow(new RuntimeException('Reporting failed.'));
+        }
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
         $worker = $this->getWorker('default', ['queue' => [
             $job = new WorkerFakeJob(static fn (): never => throw $failure),
@@ -1864,20 +2913,21 @@ class QueueWorkerTest extends TestCase
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
         $this->assertTrue($worker->lostConnection);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->status === 0
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event) use ($workerOptions): bool {
+            return $event->status === 0
                 && $event->workerOptions === $workerOptions
-                && $event->reason === WorkerStopReason::LostConnection
-        ))->once();
+                && $event->reason === WorkerStopReason::LostConnection;
+        });
     }
 
     /**
-     * @return iterable<string, array{Throwable}>
+     * @return iterable<string, array{0: Throwable, 1?: bool}>
      */
     public static function lostDatabaseConnections(): iterable
     {
         yield 'query' => [self::queryException('select 1', [], 'server has gone away')];
+        yield 'query with failing reporter' => [self::queryException('select 1', [], 'server has gone away'), true];
         yield 'no reconnector' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'wrapped by the job' => [new RuntimeException('The import failed.', previous: self::queryException('select 1', [], 'server has gone away'))];
         yield 'wrapped driver failure' => [new QueryException('test', 'select 1', [], new RuntimeException('The driver failed.', previous: new PDOException('server has gone away')))];
@@ -1931,11 +2981,12 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($failing->fired);
         $this->assertTrue($next->fired);
         $this->assertFalse($worker->lostConnection);
-        $this->exceptionHandler->shouldHaveReceived('report')->with($failure);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->reason === WorkerStopReason::QueueEmpty
-        ))->once();
+        $this->exceptionHandler->assertReported(fn (QueryException $reported): bool => $reported === $failure);
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(
+            WorkerStopping::class,
+            static fn (WorkerStopping $event): bool => $event->reason === WorkerStopReason::QueueEmpty
+        );
     }
 
     /**
@@ -1977,12 +3028,12 @@ class QueueWorkerTest extends TestCase
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
         $this->assertFalse($worker->lostConnection);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof WorkerStopping
-                && $event->status === Worker::EXIT_SUCCESS
+        $this->events->assertDispatchedOnce(WorkerStopping::class);
+        $this->events->assertDispatched(WorkerStopping::class, function (WorkerStopping $event) use ($workerOptions): bool {
+            return $event->status === Worker::EXIT_SUCCESS
                 && $event->workerOptions === $workerOptions
-                && $event->reason === WorkerStopReason::QueueEmpty
-        ))->once();
+                && $event->reason === WorkerStopReason::QueueEmpty;
+        });
     }
 
     public function testWorkerInterruptionSignalDispatchesEventAndNotifiesRunningJobs(): void
@@ -2009,28 +3060,30 @@ class QueueWorkerTest extends TestCase
 
         $this->assertTrue($worker->shouldQuit);
         $this->assertSame([], $interruptible->signals);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerInterrupted::class)]);
+        $this->events->assertNotDispatched(WorkerInterrupted::class);
 
         $worker->drainPendingSignalsForTest();
 
         $this->assertSame([SIGTERM], $interruptible->signals);
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
-            return $event instanceof WorkerInterrupted
-                && $event->signal === SIGTERM
+        $this->events->assertDispatchedOnce(WorkerInterrupted::class);
+        $this->events->assertDispatched(WorkerInterrupted::class, function (WorkerInterrupted $event) use ($workerOptions): bool {
+            return $event->signal === SIGTERM
                 && $event->connectionName === 'default'
                 && $event->queue === 'queue'
                 && $event->workerOptions === $workerOptions;
-        }))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof JobInterrupted
-                && $event->connectionName === ''
+        });
+        $this->events->assertDispatchedOnce(JobInterrupted::class);
+        $this->events->assertDispatched(
+            JobInterrupted::class,
+            static fn (JobInterrupted $event): bool => $event->connectionName === ''
                 && $event->job === $job
                 && $event->signal === SIGTERM
-        ))->once();
+        );
     }
 
     public function testGracefulShutdownDrainsInterruptionBeforeWaitingForRunningJob(): void
     {
+        $this->spyEvents();
         $order = new ArrayObject;
         $releaseJob = new Channel(1);
         $options = new WorkerOptions(maxJobs: 1);
@@ -2087,6 +3140,7 @@ class QueueWorkerTest extends TestCase
 
     public function testSignalAndStopEventsAreNotDispatchedWithoutListeners(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
         $workerOptions = new WorkerOptions;
         $worker = $this->getWorker('default', ['queue' => []]);
@@ -2121,7 +3175,7 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame([SIGINT], $firstInterruptible->signals);
         $this->assertSame([SIGINT], $secondInterruptible->signals);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobInterrupted::class))->twice();
+        $this->events->assertDispatchedTimes(JobInterrupted::class, 2);
     }
 
     public function testJobInterruptedEventIsDispatchedForInterruptibleJobs(): void
@@ -2133,12 +3187,12 @@ class QueueWorkerTest extends TestCase
 
         $worker->notifyJobsOfSignalForTest(SIGTERM);
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(
-            static fn (object $event): bool => $event instanceof JobInterrupted
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(JobInterrupted::class);
+        $this->events->assertDispatched(JobInterrupted::class, function (JobInterrupted $event) use ($job): bool {
+            return $event->connectionName === 'default'
                 && $event->job === $job
-                && $event->signal === SIGTERM,
-        ))->once();
+                && $event->signal === SIGTERM;
+        });
     }
 
     public function testInterruptibleJobIsNotifiedWhenTheJobTimesOut(): void
@@ -2175,12 +3229,15 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => []]);
         $this->timeOutJob($worker, $this->workerJobWithRunningCommand($interruptible));
 
-        $this->exceptionHandler->shouldHaveReceived('report')->with($exception)->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->once();
+        $this->exceptionHandler->assertReportedCount(1);
+        $this->exceptionHandler->assertReported(fn (Exception $reported): bool => $reported === $exception);
+
+        $this->events->assertDispatchedOnce(JobTimedOut::class);
     }
 
     public function testJobInterruptedEventIsSkippedWithoutListenersButTheJobIsStillNotified(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
         $interruptible = new WorkerInterruptibleJob;
         $worker = $this->getWorker('default', ['queue' => []]);
@@ -2239,23 +3296,23 @@ class QueueWorkerTest extends TestCase
         $worker->handleResumeSignalForTest('default', 'queue', $workerOptions);
         $this->assertFalse($worker->paused);
 
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerPausing::class)]);
-        $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerResuming::class)]);
+        $this->events->assertNotDispatched(WorkerPausing::class);
+        $this->events->assertNotDispatched(WorkerResuming::class);
 
         $worker->drainPendingSignalsForTest();
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
-            return $event instanceof WorkerPausing
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(WorkerPausing::class);
+        $this->events->assertDispatched(WorkerPausing::class, function (WorkerPausing $event) use ($workerOptions): bool {
+            return $event->connectionName === 'default'
                 && $event->queue === 'queue'
                 && $event->workerOptions === $workerOptions;
-        }))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
-            return $event instanceof WorkerResuming
-                && $event->connectionName === 'default'
+        });
+        $this->events->assertDispatchedOnce(WorkerResuming::class);
+        $this->events->assertDispatched(WorkerResuming::class, function (WorkerResuming $event) use ($workerOptions): bool {
+            return $event->connectionName === 'default'
                 && $event->queue === 'queue'
                 && $event->workerOptions === $workerOptions;
-        }))->once();
+        });
     }
 
     public function testJobReleasedEvent(): void
@@ -2269,17 +3326,18 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
 
-        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($job, $e) {
-            return $event instanceof JobReleasedAfterException
-                && $event->connectionName === 'default'
+        $this->events->assertDispatchedOnce(JobReleasedAfterException::class);
+        $this->events->assertDispatched(JobReleasedAfterException::class, function (JobReleasedAfterException $event) use ($job, $e): bool {
+            return $event->connectionName === 'default'
                 && $event->job === $job
                 && $event->backoff === 10
                 && $event->exception === $e;
-        }))->once();
+        });
     }
 
     public function testFailureLifecycleEventsAreNotDispatchedWithoutListeners(): void
     {
+        $this->spyEvents();
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
         $exception = new RuntimeException;
         $job = new WorkerFakeJob(static function () use ($exception): never {
@@ -2331,6 +3389,29 @@ class QueueWorkerTest extends TestCase
     }
 
     /**
+     * Capture fallback diagnostics until this test's coroutine is cleaned up.
+     */
+    private function captureErrorLog(): string
+    {
+        $this->errorLogDirectory = ParallelTesting::tempDir('QueueWorkerTest');
+        (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+        mkdir($this->errorLogDirectory, 0777, true);
+        $path = $this->errorLogDirectory . '/php-error.log';
+        $this->previousErrorLog = ini_set('error_log', $path);
+
+        return $path;
+    }
+
+    /**
+     * Replace the event fake with a spy for tests that intercept dispatcher calls.
+     */
+    private function spyEvents(): void
+    {
+        $this->events = m::spy(EventDispatcher::class);
+        $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
+    }
+
+    /**
      * Create the query exception a connection throws for a driver error.
      */
     private static function queryException(string $sql, array $bindings, string $driverMessage): QueryException
@@ -2356,10 +3437,31 @@ class QueueWorkerTest extends TestCase
     {
         $options = $this->workerOptions();
         $worker->currentTime = 100;
-        $jobId = $worker->registerCoroutineJobForTest($job, $options);
+        $jobId = $this->registerRunningJob($worker, $job, $options);
         $worker->currentTime = $worker->runningJobExpiryForTest($jobId);
 
         $worker->terminateTimeoutJobsForTest($options);
+    }
+
+    /**
+     * Register a bounded child so timeout tests interrupt a job, not the test itself.
+     */
+    private function registerRunningJob(InsomniacWorker $worker, Job $job, WorkerOptions $options): string
+    {
+        $gate = new Channel(1);
+        $jobId = null;
+        $coroutineId = Coroutine::create(static function () use ($worker, $job, $options, $gate, &$jobId): void {
+            $jobId = $worker->registerCoroutineJobForTest($job, $options);
+
+            try {
+                $gate->pop(5);
+            } catch (CanceledException) {
+                // The test controls the monitor and inspects its outcome separately.
+            }
+        });
+        $this->registeredJobs[] = [$gate, $coroutineId];
+
+        return $jobId;
     }
 
     private function workerJobWithRunningCommand(object $command): WorkerFakeJob
@@ -2427,7 +3529,7 @@ class InsomniacWorker extends Worker
         return ! ($this->isDownForMaintenance)();
     }
 
-    public function memoryExceeded(float $memoryLimit): bool
+    public function memoryExceeded(float|string $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
     }
@@ -2611,11 +3713,6 @@ class MonitorFailureWorker extends InsomniacWorker
         string $queue = 'queue',
     ): void {
         $this->monitorTimeoutJobs($options, $connectionName, $queue);
-    }
-
-    public function monitorIsLockedForTest(): bool
-    {
-        return $this->monitorLocked;
     }
 
     protected function terminateTimeoutJobs(WorkerOptions $options): void
@@ -2924,8 +4021,57 @@ class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
     }
 }
 
-class WorkerFakeJob implements Job
+class WorkerLifecycleJob extends SyncJob
 {
+    public ?Closure $onReleased = null;
+
+    /**
+     * Create a job using the real lifecycle callback implementation.
+     */
+    public function __construct(ContainerContract $container, protected Closure $callback, int $timeout = 0)
+    {
+        parent::__construct($container, json_encode([
+            'uuid' => 'uuid',
+            'job' => self::class . '@handle',
+            'data' => [],
+            'maxExceptions' => 3,
+            'countCrashesAsExceptions' => true,
+            'timeout' => $timeout,
+        ], JSON_THROW_ON_ERROR), 'default', 'queue');
+    }
+
+    /**
+     * Run the attempt body.
+     */
+    public function fire(): void
+    {
+        ($this->callback)($this);
+    }
+
+    /**
+     * Simulate a backend handoff after the production release callbacks.
+     */
+    public function release(int $delay = 0): void
+    {
+        parent::release($delay);
+
+        $this->onReleased?->__invoke();
+    }
+
+    /**
+     * Finish the test handler's failure without resolving an application handler.
+     */
+    protected function failed(?Throwable $e): void
+    {
+    }
+}
+
+class WorkerFakeJob implements Job, JobLifecycleCallbacks
+{
+    protected array $beforeReleasingCallbacks = [];
+
+    protected array $beforeFailingCallbacks = [];
+
     public $id = '';
 
     public $fired = false;
@@ -2962,6 +4108,8 @@ class WorkerFakeJob implements Job
 
     public $rawBody = '';
 
+    public array $payload = [];
+
     public mixed $resolvedJob = null;
 
     public function __construct($callback = null)
@@ -2983,7 +4131,7 @@ class WorkerFakeJob implements Job
 
     public function payload(): array
     {
-        return [];
+        return $this->payload;
     }
 
     public function maxTries(): ?int
@@ -3028,9 +4176,33 @@ class WorkerFakeJob implements Job
 
     public function release($delay = 0): void
     {
+        foreach ($this->beforeReleasingCallbacks as $callback) {
+            $callback();
+        }
+
         $this->released = true;
 
         $this->releaseAfter = $delay;
+    }
+
+    /**
+     * Register a callback before release.
+     */
+    public function beforeReleasing(Closure $callback): static
+    {
+        $this->beforeReleasingCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Register a callback before failure.
+     */
+    public function beforeFailing(Closure $callback): static
+    {
+        $this->beforeFailingCallbacks[] = $callback;
+
+        return $this;
     }
 
     public function isReleased(): bool
@@ -3055,6 +4227,10 @@ class WorkerFakeJob implements Job
 
     public function fail($e = null): void
     {
+        foreach ($this->beforeFailingCallbacks as $callback) {
+            $callback();
+        }
+
         $this->markAsFailed();
 
         $this->delete();

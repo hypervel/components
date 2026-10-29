@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
@@ -18,7 +19,7 @@ class Coroutine
 {
     public const string DETACHED_CONTEXT_KEY = '__coroutine.detached';
 
-    protected static bool $enableReportException = true;
+    protected static bool $reportExceptions = true;
 
     /**
      * @var array<callable>
@@ -80,17 +81,6 @@ class Coroutine
      * @throws CoroutineDestroyedException When the coroutine has been destroyed
      */
     public static function parentId(?int $coroutineId = null): int
-    {
-        return Co::pid($coroutineId);
-    }
-
-    /**
-     * Alias of Coroutine::parentId().
-     *
-     * @throws RunningInNonCoroutineException When running in non-coroutine context
-     * @throws CoroutineDestroyedException When the coroutine has been destroyed
-     */
-    public static function pid(?int $coroutineId = null): int
     {
         return Co::pid($coroutineId);
     }
@@ -253,23 +243,32 @@ class Coroutine
     }
 
     /**
+     * Determine if the given exception was caused by cancellation, including errors raised during cleanup.
+     */
+    public static function causedByCancellation(Throwable $exception): bool
+    {
+        do {
+            if ($exception instanceof ForeignCancellationException) {
+                return false;
+            }
+
+            if ($exception instanceof CanceledException) {
+                return true;
+            }
+        } while (($exception = $exception->getPrevious()) !== null);
+
+        return false;
+    }
+
+    /**
      * Enable or disable exception reporting in coroutines.
      *
      * Boot-only. The flag persists in a static property for the worker lifetime
      * and applies to every coroutine spawned across the process.
      */
-    public static function enableReportException(bool $enableReportException): void
+    public static function reportExceptions(bool $report = true): void
     {
-        static::$enableReportException = $enableReportException;
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$enableReportException = true;
-        static::$afterCreatedCallbacks = [];
+        static::$reportExceptions = $report;
     }
 
     /**
@@ -283,7 +282,7 @@ class Coroutine
             throw $throwable;
         }
 
-        if (! static::$enableReportException) {
+        if (! static::$reportExceptions) {
             return;
         }
 
@@ -319,5 +318,14 @@ class Coroutine
             static::printLog($throwable);
         } catch (CanceledException) {
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$reportExceptions = true;
+        static::$afterCreatedCallbacks = [];
     }
 }

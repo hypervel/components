@@ -39,6 +39,7 @@ use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
@@ -190,20 +191,29 @@ class ScheduleRunCommandTest extends TestCase
         ];
     }
 
-    public function testCanceledCallbackReleasesItsMutexWithoutRunningFailureOrDeferredCallbacks(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCanceledCallbackReleasesItsMutexWithoutRunningFailureOrDeferredCallbacks(bool $cleanupThrows): void
     {
         $calls = [];
         $cancellation = new CanceledException('Task canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Task cleanup failed.') : null;
         $mutex = m::mock(EventMutex::class);
         $mutex->shouldReceive('exists')->once()->andReturnFalse();
         $mutex->shouldReceive('create')->once()->andReturnTrue();
         $mutex->shouldReceive('forget')->once();
-        $event = new CallbackEvent($mutex, function () use (&$calls, $cancellation): void {
+        $event = new CallbackEvent($mutex, function () use (&$calls, $cancellation, $cleanup): void {
             defer(function () use (&$calls): void {
                 $calls[] = 'always';
             })->always();
 
-            throw $cancellation;
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
         });
         $event->name('canceled')->withoutOverlapping()->onFailure(function () use (&$calls): void {
             $calls[] = 'failure';
@@ -214,7 +224,7 @@ class ScheduleRunCommandTest extends TestCase
             $this->invokeRunEvents($this->makeCommand(), [$event]);
             $this->fail('Expected the owned task to report cancellation.');
         } catch (ChildCancellationException $exception) {
-            $this->assertSame($cancellation, $exception->getPrevious());
+            $this->assertSame($cleanup ?? $cancellation, $exception->getPrevious());
         }
 
         $this->assertSame([], $calls);
@@ -250,13 +260,22 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame(['always'], $calls);
     }
 
-    public function testCancellationDuringDeferredWorkStopsTheRemainingCallbacks(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationDuringDeferredWorkStopsTheRemainingCallbacks(bool $cleanupThrows): void
     {
         $calls = [];
         $cancellation = new CanceledException('Deferred work canceled');
-        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $cancellation): void {
-            defer(function () use ($cancellation): void {
-                throw $cancellation;
+        $cleanup = $cleanupThrows ? new RuntimeException('Deferred cleanup failed.') : null;
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $cancellation, $cleanup): void {
+            defer(function () use ($cancellation, $cleanup): void {
+                try {
+                    throw $cancellation;
+                } finally {
+                    if ($cleanup !== null) {
+                        throw $cleanup;
+                    }
+                }
             });
             defer(function () use (&$calls): void {
                 $calls[] = 'always';
@@ -267,7 +286,43 @@ class ScheduleRunCommandTest extends TestCase
             $this->invokeRunEvents($this->makeCommand(), [$event]);
             $this->fail('Expected cancellation from deferred work.');
         } catch (ChildCancellationException $exception) {
-            $this->assertSame($cancellation, $exception->getPrevious());
+            $this->assertSame($cleanup ?? $cancellation, $exception->getPrevious());
+        }
+
+        $this->assertSame([], $calls);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDeferredCancellationSupersedesAnEarlierTaskFailure(bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('Deferred work canceled');
+        $cleanup = $cleanupThrows ? new RuntimeException('Deferred cleanup failed.') : null;
+        $calls = [];
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->dispatcher->listen(ScheduledTaskStarting::class, static function () use (&$calls, $cancellation, $cleanup): never {
+            defer(static function () use ($cancellation, $cleanup): never {
+                try {
+                    throw $cancellation;
+                } finally {
+                    if ($cleanup !== null) {
+                        throw $cleanup;
+                    }
+                }
+            })->always();
+            defer(static function () use (&$calls): void {
+                $calls[] = 'later callback';
+            })->always();
+
+            throw new RuntimeException('Starting listener failed.');
+        });
+        $event = new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true);
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [$event]);
+            $this->fail('Expected cancellation to supersede the task failure.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception->getPrevious());
         }
 
         $this->assertSame([], $calls);
@@ -442,6 +497,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         $command->setInput(new ArrayInput(['--whisper' => true], $command->getDefinition()));
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, Date::now());
         $this->captureOutput($command);
 
         (new ReflectionMethod($command, 'runOnce'))->invoke($command);
@@ -929,11 +985,11 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand($cache);
         $this->invokeRunEvents($command, [$callbackEvent]);
 
-        // A stale last check makes shouldStop() read the interrupt signal unless polling is disabled.
+        // A stale last check makes shouldInterrupt() read the interrupt signal unless polling is disabled.
         (new ReflectionProperty($command, 'lastChecked'))->setValue($command, CarbonImmutable::now()->subSeconds(5));
 
         $this->assertSame(1, $runCount);
-        $this->assertFalse((new ReflectionMethod($command, 'shouldStop'))->invoke($command));
+        $this->assertFalse((new ReflectionMethod($command, 'shouldInterrupt'))->invoke($command));
     }
 
     public function testNonRepeatableEventOnlyRunsOncePerMinute(): void
@@ -1008,6 +1064,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         $command->setInput(new ArrayInput([], $command->getDefinition()));
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, Date::now());
         $output = $this->captureOutput($command);
 
         (new ReflectionMethod($command, 'runOnce'))->invoke($command);
@@ -1182,7 +1239,6 @@ class ScheduleRunCommandTest extends TestCase
         $schedule = m::mock(Schedule::class);
         $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
         $cache = m::mock(Cache::class);
-        $cache->expects('forget')->with('hypervel:schedule:interrupt');
         $cache->shouldNotReceive('get');
         $command = $this->makeCommand($cache);
         $command->setInput(new ArrayInput([], $command->getDefinition()));
@@ -1315,30 +1371,6 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->assertCount(3, $this->dispatched);
         $this->assertSame($first, $this->dispatched[0]->task);
-    }
-
-    public function testRunOnceResetsThePreviousShutdownRequest(): void
-    {
-        $signal = null;
-        $this->captureTerminationSignal($signal);
-        $command = $this->makeCommand();
-        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
-        $signal(SIGTERM);
-        $ran = false;
-        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$ran): void {
-            $ran = true;
-        });
-        $schedule = m::mock(Schedule::class);
-        $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->with('hypervel:schedule:paused', false)->andReturnFalse();
-        $cache->shouldNotReceive('get')->with('hypervel:schedule:interrupt', false);
-        $command->setInput(new ArrayInput(['--once' => true], $command->getDefinition()));
-        $this->captureOutput($command);
-
-        $command->handle($schedule, $this->dispatcher, $cache, $this->handler);
-
-        $this->assertTrue($ran);
     }
 
     public function testSecondTerminationSignalReleasesMutexesBeforeTerminating(): void

@@ -134,7 +134,7 @@ class Listener
     /**
      * Run the given process.
      */
-    public function runProcess(Process $process, float $memory): void
+    public function runProcess(Process $process, float|string $memory): void
     {
         $process->run(function ($type, $line) {
             $this->handleWorkerOutput($type, $line);
@@ -161,9 +161,9 @@ class Listener
     /**
      * Determine if the memory limit has been exceeded.
      */
-    public function memoryExceeded(float $memoryLimit): bool
+    public function memoryExceeded(float|string $memoryLimit): bool
     {
-        return (memory_get_usage(true) / 1024 / 1024) >= $memoryLimit;
+        return (memory_get_usage(true) / 1024 / 1024) >= MemoryLimit::toMegabytes($memoryLimit);
     }
 
     /**

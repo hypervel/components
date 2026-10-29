@@ -21,11 +21,14 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Tests\Console\Fixtures\FakeCacheFactory;
+use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\Queue\Fixtures\JobToTestWithSchedule;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -61,7 +64,7 @@ class ScheduleTest extends TestCase
 {
     protected Container $container;
 
-    protected EventMutex&MockInterface $eventMutex;
+    protected EventMutex $eventMutex;
 
     protected MockInterface&SchedulingMutex $schedulingMutex;
 
@@ -71,7 +74,7 @@ class ScheduleTest extends TestCase
 
         $this->container = new Application;
         Container::setInstance($this->container);
-        $this->eventMutex = m::mock(EventMutex::class);
+        $this->eventMutex = new FakeEventMutex;
         $this->container->instance(EventMutex::class, $this->eventMutex);
         $this->schedulingMutex = m::mock(SchedulingMutex::class);
         $this->container->instance(SchedulingMutex::class, $this->schedulingMutex);
@@ -229,8 +232,11 @@ class ScheduleTest extends TestCase
         $this->assertSame('0 * * * *', $filteredEvents[2]->expression);
     }
 
-    public function testDueEventsAtUsesGivenTime(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDueEventsAtUsesGivenTime(bool $alwaysOnOneServer): void
     {
+        Schedule::alwaysOnOneServer($alwaysOnOneServer);
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
         $app->shouldReceive('environment')->andReturn('production');
@@ -242,7 +248,9 @@ class ScheduleTest extends TestCase
             $schedule->command('reports:generate')->dailyAt('13:00');
 
             self::assertCount(0, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
-            self::assertCount(1, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
+            $dueEvents = $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00'));
+            self::assertCount(1, $dueEvents);
+            self::assertSame($alwaysOnOneServer, $dueEvents->first()->onOneServer);
         } finally {
             CarbonImmutable::setTestNow();
         }
@@ -320,17 +328,15 @@ class ScheduleTest extends TestCase
 
     public function testMutexCanReceiveCustomStore(): void
     {
-        $eventMutex = m::mock(CacheEventMutex::class);
-        $eventMutex->shouldReceive('useStore')->once()->with('test');
-
-        $schedulingMutex = m::mock(CacheSchedulingMutex::class);
-        $schedulingMutex->shouldReceive('useStore')->once()->with('test');
-
-        $this->container->instance(EventMutex::class, $eventMutex);
-        $this->container->instance(SchedulingMutex::class, $schedulingMutex);
+        $cache = new FakeCacheFactory;
+        $this->container->instance(EventMutex::class, $eventMutex = new CacheEventMutex($cache));
+        $this->container->instance(SchedulingMutex::class, $schedulingMutex = new CacheSchedulingMutex($cache));
 
         $schedule = new Schedule;
         $schedule->useCache('test');
+
+        $this->assertSame('test', $eventMutex->store);
+        $this->assertSame('test', $schedulingMutex->store);
     }
 
     public function testServerShouldRunCachesMutexResultOnlyWithinSameMinute(): void
@@ -544,6 +550,34 @@ class ScheduleTest extends TestCase
         $this->assertSame([], $events[1]->attributes);
     }
 
+    public function testEventsDoNotRunOnOneServerByDefault(): void
+    {
+        $schedule = new Schedule;
+
+        $schedule->command('inspire')->everyMinute();
+
+        $this->assertFalse($schedule->events()[0]->onOneServer);
+    }
+
+    public function testEveryEventMayRunOnOneServer(): void
+    {
+        Schedule::alwaysOnOneServer();
+
+        $schedule = new Schedule;
+
+        $schedule->command('inspire')->everyMinute();
+        $schedule->job(JobToTestWithSchedule::class)->daily();
+        $schedule->call(fn () => null)->name('prune')->hourly();
+        $schedule->call(fn () => null)->hourly();
+
+        [$command, $job, $closure, $unnamedClosure] = $schedule->events();
+
+        $this->assertTrue($command->onOneServer);
+        $this->assertTrue($job->onOneServer);
+        $this->assertTrue($closure->onOneServer);
+        $this->assertFalse($unnamedClosure->onOneServer);
+    }
+
     public function testWithoutInterruptionPollingDisablesPauseAndInterruptChecks(): void
     {
         Schedule::withoutInterruptionPolling();
@@ -552,14 +586,16 @@ class ScheduleTest extends TestCase
         $this->assertFalse(Schedule::$interruptible);
     }
 
-    public function testFlushStateResetsPauseAndInterruptChecks(): void
+    public function testFlushStateResetsSchedulerDefaults(): void
     {
         Schedule::withoutInterruptionPolling();
+        Schedule::alwaysOnOneServer();
 
         Schedule::flushState();
 
         $this->assertTrue(Schedule::$pausable);
         $this->assertTrue(Schedule::$interruptible);
+        $this->assertFalse(Schedule::$alwaysOnOneServer);
     }
 }
 

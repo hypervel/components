@@ -24,6 +24,7 @@ use GuzzleHttp\UriTemplate\UriTemplate;
 use GuzzleHttp\Utils;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\Destinations\CurlCapabilities;
 use Hypervel\Http\Client\Destinations\DestinationPolicy;
@@ -49,7 +50,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use SensitiveParameter;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
@@ -164,6 +164,8 @@ class PendingRequest implements Transient
 
     /**
      * The number of times to try the request.
+     *
+     * @var array<int, float|int>|int
      */
     protected array|int $tries = 1;
 
@@ -1101,8 +1103,8 @@ class PendingRequest implements Transient
                 );
             } catch (TransferException $e) {
                 // Guzzle wraps failures raised by transport callbacks.
-                if ($e->getPrevious() instanceof CanceledException) {
-                    throw $e->getPrevious();
+                if (($previous = $e->getPrevious()) !== null && Coroutine::causedByCancellation($previous)) {
+                    throw $previous;
                 }
 
                 if (($response = $this->responseFromException($e)) !== null) {
@@ -1268,11 +1270,11 @@ class PendingRequest implements Transient
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
-                if ($e instanceof TransferException && $e->getPrevious() instanceof CanceledException) {
-                    throw $e->getPrevious();
+                if ($e instanceof TransferException && ($previous = $e->getPrevious()) !== null && Coroutine::causedByCancellation($previous)) {
+                    throw $previous;
                 }
 
-                if ($e instanceof CanceledException) {
+                if (Coroutine::causedByCancellation($e)) {
                     throw $e;
                 }
 
@@ -1339,9 +1341,11 @@ class PendingRequest implements Transient
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
             ) : true);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $exception;
         }
 
@@ -1357,9 +1361,11 @@ class PendingRequest implements Transient
             && ($this->throwIfCallback === null || call_user_func($this->throwIfCallback, $response))) {
             try {
                 $response->throw($this->throwCallback);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Exception $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 return $exception;
             }
         }

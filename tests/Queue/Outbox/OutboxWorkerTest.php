@@ -255,6 +255,22 @@ class OutboxWorkerTest extends TestCase
         $this->assertSame(Worker::EXIT_MEMORY_LIMIT, $this->worker()->run(null, new OutboxWorkerOptions(memory: 1)));
     }
 
+    public function testPercentageMemoryLimitControlsAdmission(): void
+    {
+        $originalLimit = ini_get('memory_limit');
+        ini_set('memory_limit', (string) (memory_get_usage(true) * 4));
+
+        try {
+            $worker = $this->worker();
+            $this->relay->expects('claim')->with('primary', 100)->andReturn([]);
+
+            $this->assertSame(Worker::EXIT_SUCCESS, $worker->run(null, new OutboxWorkerOptions(memory: '50%', once: true)));
+            $this->assertSame(Worker::EXIT_MEMORY_LIMIT, $this->worker()->run(null, new OutboxWorkerOptions(memory: '1%')));
+        } finally {
+            ini_set('memory_limit', $originalLimit);
+        }
+    }
+
     /**
      * Construct an isolated worker with observable dependencies and signal ownership.
      */

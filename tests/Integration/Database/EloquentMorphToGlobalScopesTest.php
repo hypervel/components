@@ -11,6 +11,8 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Database\Fixtures\Models\Comment;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use WeakReference;
 
 class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
 {
@@ -63,6 +65,39 @@ class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
 
         $this->assertNotNull($comments[0]->commentable);
         $this->assertNotNull($comments[1]->commentable);
+    }
+
+    #[DataProvider('softDeleteConstraints')]
+    public function testRelationIsReleasedWithoutGarbageCollectionAfterSoftDeleteConstraint(string $method): void
+    {
+        $comment = Comment::first();
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $relation = $comment->commentable()->{$method}();
+
+            $reference = WeakReference::create($relation);
+            unset($relation);
+
+            $this->assertNull($reference->get());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
+    }
+
+    /**
+     * Provide the soft delete constraints.
+     */
+    public static function softDeleteConstraints(): array
+    {
+        return [
+            'withTrashed' => ['withTrashed'],
+            'withoutTrashed' => ['withoutTrashed'],
+            'onlyTrashed' => ['onlyTrashed'],
+        ];
     }
 
     public function testLazyLoading(): void

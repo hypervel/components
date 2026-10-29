@@ -219,21 +219,22 @@ class BroadcastEventTest extends TestCase
     public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent(): void
     {
         $event = new class {
+            public ?Throwable $failedWith = null;
+
             /**
              * Handle a job failure.
              */
             public function failed(?Throwable $e = null): void
             {
-                $e->validateCall();
+                $this->failedWith = $e;
             }
         };
 
         $job = new BroadcastEvent($event);
 
-        $exception = m::mock(Exception::class);
-        $exception->expects('validateCall');
+        $job->failed($exception = new Exception);
 
-        $job->failed($exception);
+        $this->assertSame($exception, $event->failedWith);
     }
 
     public function testArrayBackoffIsReadFromTheUnderlyingEvent(): void

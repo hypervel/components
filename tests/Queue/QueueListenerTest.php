@@ -9,6 +9,7 @@ use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -61,12 +62,29 @@ class QueueListenerTest extends TestCase
         Sleep::assertSequence([Sleep::usleep(250_000)]);
     }
 
-    public function testMakeProcessCorrectlyFormatsCommandLine(): void
+    public function testListenerChecksPercentageMemoryLimits(): void
+    {
+        $listener = new Listener(__DIR__);
+        $originalLimit = ini_get('memory_limit');
+        ini_set('memory_limit', (string) (memory_get_usage(true) * 4));
+
+        try {
+            $this->assertFalse($listener->memoryExceeded('50%'));
+            $this->assertTrue($listener->memoryExceeded('1%'));
+        } finally {
+            ini_set('memory_limit', $originalLimit);
+        }
+    }
+
+    #[TestWith([2])]
+    #[TestWith(['60%'])]
+    #[TestWith([128.5])]
+    public function testMakeProcessCorrectlyFormatsCommandLine(float|string $memory): void
     {
         $listener = new Listener(__DIR__);
         $options = new ListenerOptions;
         $options->backoff = 1;
-        $options->memory = 2;
+        $options->memory = $memory;
         $options->timeout = 3;
         $process = $listener->makeProcess('connection', 'queue', $options);
         $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
@@ -75,7 +93,7 @@ class QueueListenerTest extends TestCase
         $this->assertInstanceOf(Process::class, $process);
         $this->assertSame(__DIR__, $process->getWorkingDirectory());
         $this->assertSame(3.0, $process->getTimeout());
-        $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape}", $process->getCommandLine());
+        $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory={$memory}{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape}", $process->getCommandLine());
     }
 
     public function testMakeProcessCorrectlyFormatsCommandLineWithAnEnvironmentSpecified(): void

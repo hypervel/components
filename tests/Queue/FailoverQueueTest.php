@@ -37,6 +37,7 @@ use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -91,7 +92,11 @@ class FailoverQueueTest extends TestCase
     public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
         $queue = m::mock(QueueManager::class);
-        $events = m::mock(DispatcherContract::class);
+        $events = new EventDispatcher;
+        $failedOver = [];
+        $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use (&$failedOver): void {
+            $failedOver[] = $event;
+        });
         $failover = new FailoverQueue($queue, $events, [
             $connection,
             'sync',
@@ -103,11 +108,6 @@ class FailoverQueueTest extends TestCase
         $sync = m::mock(SyncQueue::class);
         $queue->expects('connection')->with('sync')->andReturn($sync);
 
-        $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
-        $events->expects('dispatch')->with(m::on(
-            fn (QueueFailedOver $event): bool => $event->connectionName === $expectedName,
-        ));
-
         $redis->expects('push')->andReturnUsing(
             fn (): never => throw new Exception('error')
         );
@@ -115,6 +115,11 @@ class FailoverQueueTest extends TestCase
         $sync->expects('push');
 
         $failover->push('some-job');
+
+        $this->assertCount(1, $failedOver);
+        $this->assertSame($expectedName, $failedOver[0]->connectionName);
+        $this->assertSame('some-job', $failedOver[0]->command);
+        $this->assertSame('error', $failedOver[0]->exception->getMessage());
     }
 
     /**
@@ -150,12 +155,17 @@ class FailoverQueueTest extends TestCase
         $this->assertSame('job-id', $replacement->push('job'));
     }
 
-    public function testCancellationDoesNotFailOverOrEmitAnEvent(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationDoesNotFailOverOrEmitAnEvent(bool $cleanupThrows): void
     {
         $manager = m::mock(QueueManager::class);
         $events = m::mock(DispatcherContract::class);
         $primary = m::mock(Queue::class);
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Queue cleanup failed.', previous: $cancellation);
+        }
         $failover = new FailoverQueue($manager, $events, ['primary', 'secondary']);
 
         $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
@@ -166,18 +176,23 @@ class FailoverQueueTest extends TestCase
         try {
             $failover->push('job');
             $this->fail('Expected cancellation to escape the failover queue.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testCancellationAfterAnOrdinaryFailureRetainsFailureSuppressionState(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationAfterAnOrdinaryFailureRetainsFailureSuppressionState(bool $cleanupThrows): void
     {
         $events = new FailoverQueueFakeDispatcher;
         $manager = m::mock(QueueManager::class);
         $primary = m::mock(Queue::class);
         $secondary = m::mock(Queue::class);
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Queue cleanup failed.', previous: $cancellation);
+        }
         $secondaryAttempts = 0;
         $failover = new FailoverQueue($manager, $events, ['primary', 'secondary', 'tertiary']);
 
@@ -198,7 +213,7 @@ class FailoverQueueTest extends TestCase
         try {
             $failover->push('first');
             $this->fail('Expected cancellation to stop the first failover attempt.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

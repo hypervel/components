@@ -768,6 +768,8 @@ Custom filesystem contract implementations must also provide `fileExists()` and 
 
 S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
 
+If you override `FilesystemManager::formatS3Config()`, named credential providers remain configuration data there. Customize their resolution through `createS3Client()` instead.
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -808,6 +810,8 @@ Do not manually commit or roll back the transaction owned by a `DB::transaction(
 If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
+
+Laravel's `ConnectionResolver` can be built from an array of connection instances, but Hypervel's `ConnectionResolver` is the pooled resolver created by the container. Where package tests build Laravel's resolver directly, mock `ConnectionResolverInterface` to inject existing connections, or use the Capsule manager for real configured connections.
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
@@ -861,7 +865,9 @@ Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, 
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 
-With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
+Custom queue drivers whose job classes implement `Hypervel\Contracts\Queue\Job` directly must also implement `Hypervel\Contracts\Queue\JobLifecycleCallbacks` to run jobs that use `CountCrashesAsExceptions`; extending `Hypervel\Queue\Jobs\Job` provides it. See [counting worker crashes](/docs/{{version}}/queues#counting-worker-crashes) for the callback requirements.
+
+Timeouts unwind yielding job code with `Swoole\Coroutine\CanceledException`, starting its `catch` and `finally` blocks. Use `finally` for cleanup and rethrow cancellation from broad `catch (Exception)` or `catch (Throwable)` handlers. The worker gives canceled code a bounded wait; if the job is still unwinding when that wait ends, it terminates without waiting for cleanup or running the job's failure handling. `Worker::$killOnTimeout = false` instead waits for the job to unwind while other jobs continue. Failure callbacks receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts) for recovery behavior and limits.
 
 If you extend Horizon's `RedisQueue`, do not rely on `push()` calling your `pushRaw()` override. Override the protected `preparePayloadForPush()` method to prepare normal pushes, or `handlePayloadPushed()` to run code after Redis accepts the job. Direct calls to `pushRaw()` remain supported.
 

@@ -13,8 +13,10 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
@@ -44,12 +46,15 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
+use LogicException;
 use Mockery as m;
 use OutOfRangeException;
 use PHPUnit\Framework\AssertionFailedError;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LoggerTrait;
 use Psr\Log\LogLevel;
 use RuntimeException;
+use Stringable;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
@@ -98,13 +103,26 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler = new Handler($this->container);
     }
 
+    /**
+     * Bind a logger that records every log call.
+     */
+    protected function getRealLogger(): LoggerSpy
+    {
+        $this->container->instance(LoggerInterface::class, $logger = new LoggerSpy);
+
+        return $logger;
+    }
+
     public function testHandlerReportsExceptionAsContext(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->withArgs(['Exception message', m::hasKey('exception')]);
+        $logger = $this->getRealLogger();
 
         $this->handler->report(new RuntimeException('Exception message'));
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('Exception message', $logger->logs[0]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[0]['context']);
     }
 
     public function testHandlerNeverReportsCancellation(): void
@@ -241,15 +259,18 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testHandlerCallsContextMethodIfPresent(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->withArgs(['Exception message', m::subset(['foo' => 'bar'])]);
+        $logger = $this->getRealLogger();
 
         $exception = new ContextProvidingException('Exception message');
 
         $this->assertSame(['foo' => 'bar', 'exception' => $exception], $this->handler->contextForException($exception));
 
         $this->handler->report($exception);
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('Exception message', $logger->logs[0]['message']);
+        $this->assertSame('bar', $logger->logs[0]['context']['foo']);
     }
 
     public function testHandlerMergesInlineContextIntoLogContext(): void
@@ -334,21 +355,19 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testHandlerReportsExceptionWhenUnReportable(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->withArgs(['Exception message', m::hasKey('exception')]);
+        $logger = $this->getRealLogger();
 
         $this->handler->report(new UnReportableException('Exception message'));
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('Exception message', $logger->logs[0]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[0]['context']);
     }
 
     public function testHandlerReportsExceptionWithCustomLogLevel(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $this->container->instance(LoggerInterface::class, $logger);
-
-        $logger->expects('critical')->withArgs(['Critical message', m::hasKey('exception')]);
-        $logger->expects('error')->withArgs(['Error message', m::hasKey('exception')]);
-        $logger->expects('log')->withArgs(['custom', 'Custom message', m::hasKey('exception')]);
+        $logger = $this->getRealLogger();
 
         $this->handler->level(InvalidArgumentException::class, LogLevel::CRITICAL);
         $this->handler->level(OutOfRangeException::class, 'custom');
@@ -356,6 +375,20 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report(new InvalidArgumentException('Critical message'));
         $this->handler->report(new RuntimeException('Error message'));
         $this->handler->report(new OutOfRangeException('Custom message'));
+
+        $this->assertCount(3, $logger->logs);
+
+        $this->assertSame('critical', $logger->logs[0]['level']);
+        $this->assertSame('Critical message', $logger->logs[0]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[0]['context']);
+
+        $this->assertSame('error', $logger->logs[1]['level']);
+        $this->assertSame('Error message', $logger->logs[1]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[1]['context']);
+
+        $this->assertSame('custom', $logger->logs[2]['level']);
+        $this->assertSame('Custom message', $logger->logs[2]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[2]['context']);
     }
 
     public function testHandlerReportsExceptionWithInlineLogLevel(): void
@@ -520,15 +553,14 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testShouldReturnJson(): void
     {
-        $this->request->expects('expectsJson')->andReturn(true);
         $e = new Exception('My custom error message');
 
-        $request = $this->request;
+        $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
 
         $shouldReturnJson = (fn (): bool => $this->shouldReturnJson($request, $e))->call($this->handler);
         $this->assertTrue($shouldReturnJson);
 
-        $this->request->expects('expectsJson')->andReturn(false);
+        $request = Request::create('/');
 
         $shouldReturnJson = (fn (): bool => $this->shouldReturnJson($request, $e))->call($this->handler);
         $this->assertFalse($shouldReturnJson);
@@ -608,9 +640,10 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testReturnsJsonWithStackTraceWhenAjaxRequestAndDebugTrue(): void
     {
         $this->config->set('app.debug', true);
-        $this->request->expects('expectsJson')->andReturn(true);
 
-        $response = $this->handler->render($this->request, new Exception('My custom error message'))->getContent();
+        $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        $response = $this->handler->render($request, new Exception('My custom error message'))->getContent();
 
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
         $this->assertStringContainsString('"message": "My custom error message"', $response);
@@ -697,9 +730,10 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndExceptionMessageIsMasked(): void
     {
         $this->config->set('app.debug', false);
-        $this->request->expects('expectsJson')->andReturn(true);
 
-        $response = $this->handler->render($this->request, new Exception('This error message should not be visible'))->getContent();
+        $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        $response = $this->handler->render($request, new Exception('This error message should not be visible'))->getContent();
 
         $this->assertStringContainsString('"message": "Server Error"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -712,9 +746,10 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndHttpExceptionErrorIsShown(): void
     {
         $this->config->set('app.debug', false);
-        $this->request->expects('expectsJson')->andReturn(true);
 
-        $response = $this->handler->render($this->request, new HttpException(403, 'My custom error message'))->getContent();
+        $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        $response = $this->handler->render($request, new HttpException(403, 'My custom error message'))->getContent();
 
         $this->assertStringContainsString('"message": "My custom error message"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -727,9 +762,10 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testReturnsJsonWithoutStackTraceWhenAjaxRequestAndDebugFalseAndAccessDeniedHttpExceptionErrorIsShown(): void
     {
         $this->config->set('app.debug', false);
-        $this->request->expects('expectsJson')->andReturn(true);
 
-        $response = $this->handler->render($this->request, new AccessDeniedHttpException('My custom error message'))->getContent();
+        $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        $response = $this->handler->render($request, new AccessDeniedHttpException('My custom error message'))->getContent();
 
         $this->assertStringContainsString('"message": "My custom error message"', $response);
         $this->assertStringNotContainsString('<!DOCTYPE html>', $response);
@@ -768,7 +804,7 @@ class FoundationExceptionsHandlerTest extends TestCase
             return $redirector;
         });
 
-        $file = m::mock(UploadedFile::class);
+        $file = new UploadedFile(__FILE__, 'photo.jpg', null, null, true);
 
         $request = Request::create('/', 'POST', $argumentExpected, [], ['photo' => $file]);
 
@@ -781,6 +817,44 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->render($request, $validationException);
 
         $this->assertEquals($argumentExpected, $argumentActual);
+    }
+
+    public function testInvalidUsesErrorBagWhenStringAndFallsBackWhenNotString(): void
+    {
+        $errorBagActual = null;
+        CoroutineContext::set(Store::CONTEXT_KEY, m::mock(Store::class));
+
+        $this->container->singleton('redirect', function () use (&$errorBagActual): Redirector {
+            $redirector = m::mock(Redirector::class);
+            $responder = m::mock(RedirectResponse::class . '[withInput,withErrors]', ['/']);
+            $redirector->expects('to')->twice()->andReturn($responder);
+            $responder->expects('withInput')->twice()->andReturn($responder);
+            $responder->expects('withErrors')->twice()->with(
+                m::any(),
+                m::on(function (string $errorBag) use (&$errorBagActual): bool {
+                    $errorBagActual = $errorBag;
+
+                    return true;
+                })
+            )->andReturn($responder);
+
+            return $redirector;
+        });
+
+        $validator = m::mock(Validator::class);
+        $validator->expects('errors')->times(3)->andReturn(new MessageBag(['error' => 'My custom validation exception']));
+
+        $validationException = new ValidationException($validator);
+        $validationException->redirectTo = '/';
+        $validationException->errorBag = 'default_bag';
+
+        $request = Request::create('/', 'POST', ['_error_bag' => 'custom_bag']);
+        $this->handler->render($request, $validationException);
+        $this->assertSame('custom_bag', $errorBagActual);
+
+        $request = Request::create('/', 'POST', ['_error_bag' => ['invalid_array_bag']]);
+        $this->handler->render($request, $validationException);
+        $this->assertSame('default_bag', $errorBagActual);
     }
 
     public function testSuspiciousOperationReturns400WithoutReporting(): void
@@ -819,19 +893,19 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testMultipleRecordsFoundIsReported(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->withArgs(['2 records were found.', m::hasKey('exception')]);
+        $logger = $this->getRealLogger();
 
         $this->handler->report(new MultipleRecordsFoundException(2));
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('2 records were found.', $logger->logs[0]['message']);
+        $this->assertArrayHasKey('exception', $logger->logs[0]['context']);
     }
 
     public function testItReturnsSpecificErrorViewIfExists(): void
     {
-        $viewFactory = m::mock(ViewFactory::class);
-        $viewFactory->expects('exists')->with('errors::502')->andReturn(true);
-
-        $this->container->instance(ViewFactory::class, $viewFactory);
+        $this->container->instance(ViewFactory::class, new FakeErrorViewFactory(['errors::502']));
 
         $handler = new class($this->container) extends Handler {
             /**
@@ -848,11 +922,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testItReturnsFallbackErrorViewIfExists(): void
     {
-        $viewFactory = m::mock(ViewFactory::class);
-        $viewFactory->expects('exists')->with('errors::502')->andReturn(false);
-        $viewFactory->expects('exists')->with('errors::5xx')->andReturn(true);
-
-        $this->container->instance(ViewFactory::class, $viewFactory);
+        $this->container->instance(ViewFactory::class, new FakeErrorViewFactory(['errors::5xx']));
 
         $handler = new class($this->container) extends Handler {
             /**
@@ -869,11 +939,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testItReturnsNullIfNoErrorViewExists(): void
     {
-        $viewFactory = m::mock(ViewFactory::class);
-        $viewFactory->expects('exists')->with('errors::404')->andReturn(false);
-        $viewFactory->expects('exists')->with('errors::4xx')->andReturn(false);
-
-        $this->container->instance(ViewFactory::class, $viewFactory);
+        $this->container->instance(ViewFactory::class, new FakeErrorViewFactory([]));
 
         $handler = new class($this->container) extends Handler {
             /**
@@ -893,8 +959,16 @@ class FoundationExceptionsHandlerTest extends TestCase
      */
     private function executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(bool $debug): void
     {
-        $this->viewFactory->expects('exists')->with('errors::404')->andReturn(true);
-        $this->viewFactory->expects('make')->withAnyArgs()->andThrow(new Exception('Rendering this view throws an exception'));
+        $viewFactory = new FakeErrorViewFactory(
+            ['errors::404'],
+            new Exception('Rendering this view throws an exception')
+        );
+
+        $this->container->instance(ViewFactory::class, $viewFactory);
+        $this->container->instance(ResponseFactoryContract::class, new ResponseFactory(
+            $viewFactory,
+            m::mock(Redirector::class),
+        ));
 
         $this->config->set('app.debug', $debug);
 
@@ -922,12 +996,13 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         // When debug is false, the exception thrown while rendering the error view
         // should not bubble as this may trigger an infinite loop.
-
-        $logger = m::mock(LoggerInterface::class);
-        $logger->expects('error');
-        $this->container->instance(LoggerInterface::class, $logger);
+        $logger = $this->getRealLogger();
 
         $this->executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(false);
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('Rendering this view throws an exception', $logger->logs[0]['message']);
     }
 
     public function testItDoesNotCrashIfErrorViewThrowsWhileRenderingAndDebugTrue(): void
@@ -1514,7 +1589,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         $this->request->expects('expectsJson')->andReturn(false);
         $this->request->shouldReceive('input')->withNoArgs()->andReturn(['foo' => 'bar']);
-        $this->request->shouldReceive('input')->with('_error_bag', m::any())->andReturn('default');
+        $this->request->shouldReceive('input')->with('_error_bag')->andReturn('default');
 
         $session = m::mock(Store::class);
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
@@ -1673,6 +1748,114 @@ class ContextProvidingException extends Exception
         return [
             'foo' => 'bar',
         ];
+    }
+}
+
+class LoggerSpy implements LoggerInterface
+{
+    use LoggerTrait;
+
+    public array $logs = [];
+
+    /**
+     * Record the log call.
+     */
+    public function log(mixed $level, Stringable|string $message, array $context = []): void
+    {
+        $this->logs[] = [
+            'level' => $level,
+            'message' => $message,
+            'context' => $context,
+        ];
+    }
+}
+
+class FakeErrorViewFactory implements ViewFactory
+{
+    /**
+     * Create a factory that knows the given views.
+     */
+    public function __construct(protected array $views = [], protected ?Exception $makeThrows = null)
+    {
+    }
+
+    /**
+     * Determine if the given view exists.
+     */
+    public function exists(string $view): bool
+    {
+        return in_array($view, $this->views, true);
+    }
+
+    /**
+     * Fail to render the given view file.
+     */
+    public function file(string $path, Arrayable|array $data = [], array $mergeData = []): View
+    {
+        throw new LogicException("View file [{$path}] cannot be rendered.");
+    }
+
+    /**
+     * Fail to render the given view.
+     */
+    public function make(string $view, Arrayable|array $data = [], array $mergeData = []): View
+    {
+        throw $this->makeThrows ?? new LogicException("View [{$view}] cannot be rendered.");
+    }
+
+    /**
+     * Fail to render the first existing view.
+     */
+    public function first(array $views, Arrayable|array $data = [], array $mergeData = []): View
+    {
+        throw new LogicException('Views cannot be rendered.');
+    }
+
+    /**
+     * Ignore shared data.
+     */
+    public function share(array|string $key, mixed $value = null): mixed
+    {
+        return null;
+    }
+
+    /**
+     * Ignore the view composer.
+     */
+    public function composer(array|string $views, Closure|string $callback): array
+    {
+        return [];
+    }
+
+    /**
+     * Ignore the view creator.
+     */
+    public function creator(array|string $views, Closure|string $callback): array
+    {
+        return [];
+    }
+
+    /**
+     * Ignore the namespace hints.
+     */
+    public function addNamespace(string $namespace, array|string $hints): static
+    {
+        return $this;
+    }
+
+    /**
+     * Ignore the replacement namespace hints.
+     */
+    public function replaceNamespace(string $namespace, array|string $hints): static
+    {
+        return $this;
+    }
+
+    /**
+     * Ignore finder cache flushes.
+     */
+    public function flushFinderCache(): void
+    {
     }
 }
 

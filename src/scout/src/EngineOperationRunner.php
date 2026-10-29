@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class EngineOperationRunner
@@ -60,9 +60,11 @@ class EngineOperationRunner
             }
 
             $result = $callback();
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $operationException = $throwable;
         }
 
@@ -71,9 +73,11 @@ class EngineOperationRunner
         foreach ($startedObservers as [$observer, $token]) {
             try {
                 $observer->finished($operation, $token, $operationException);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $observerException ??= $throwable;
             }
         }

@@ -7,7 +7,7 @@ namespace Hypervel\Ai\Tools\Filesystem;
 use Hypervel\Ai\Attributes\Strict;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 #[Strict]
@@ -43,9 +43,11 @@ class GetFileUrl extends FilesystemTool
                 ? $disk->temporaryUrl($path, now()->addMinutes($minutes))
                 // @phpstan-ignore method.notFound
                 : $disk->url($path);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             return "Unable to generate a URL for [{$path}]: {$throwable->getMessage()}";
         }
     }

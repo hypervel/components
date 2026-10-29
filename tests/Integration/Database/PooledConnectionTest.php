@@ -33,6 +33,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -1133,15 +1134,18 @@ class PooledConnectionTest extends DatabaseTestCase
         $pool->close();
     }
 
-    public function testReleaseListenerCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReleaseListenerCancellationStillReturnsTheConnectionAndEscapesExactly(bool $cleanupThrows): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.events', [
             ConnectionReleasing::class,
         ]);
         $cancellation = new CanceledException('Release listener was canceled.');
+        $failure = $cleanupThrows ? new RuntimeException('Release listener cleanup failed.', previous: $cancellation) : $cancellation;
         $this->app->make(Dispatcher::class)->listen(
             ConnectionReleasing::class,
-            static fn () => throw $cancellation
+            static fn () => throw $failure
         );
         $pool = new DatabasePool($this->app, 'pool_test');
 
@@ -1151,8 +1155,8 @@ class PooledConnectionTest extends DatabaseTestCase
         try {
             $pooledConnection->release();
             $this->fail('Expected release listener cancellation to propagate.');
-        } catch (CanceledException $throwable) {
-            $this->assertSame($cancellation, $throwable);
+        } catch (Throwable $throwable) {
+            $this->assertSame($failure, $throwable);
         }
 
         $this->assertTrue($this->isInvalid($pooledConnection));

@@ -10,7 +10,6 @@ use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
@@ -26,6 +25,7 @@ use Mockery as m;
 use Psr\Log\LoggerInterface;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 enum StringEnum: string
 {
@@ -201,27 +201,27 @@ class FoundationHelpersTest extends TestCase
 
     public function testCache(): void
     {
-        $cache = m::mock(CacheManager::class);
-        $this->app->instance('cache', $cache);
+        $this->freezeTime();
 
         // cache() returns the CacheManager
         $this->assertInstanceOf(CacheManager::class, cache());
 
         // cache(['foo' => 'bar'], 1) puts
-        $cache->expects('put')->withArgs(['foo', 'bar', 'ttl' => 1]);
         cache(['foo' => 'bar'], 1);
+        $this->assertSame('bar', $this->app->make('cache')->get('foo'));
 
         // cache('foo') gets
-        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo'));
 
         // cache('foo', null) gets with null default
-        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo', null));
 
         // cache('baz', 'default') gets with default
-        $cache->expects('get')->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
+
+        // cache(['foo' => 'bar'], 1) expires after one second
+        $this->travel(1)->second();
+        $this->assertNull(cache('foo'));
     }
 
     public function testSessionAcceptsEnumKeys(): void
@@ -284,11 +284,9 @@ class FoundationHelpersTest extends TestCase
 
     public function testEvents(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $this->app->instance('events', $dispatcher);
+        $this->app->make('events')->listen('a', fn (string $payload): ?string => $payload === 'b' ? 'foo' : null);
 
-        $dispatcher->expects('dispatch')->with('test.event', ['payload'], false)->andReturn('foo');
-        $this->assertSame('foo', event('test.event', ['payload'], false));
+        $this->assertSame('foo', event('a', 'b', true));
     }
 
     public function testEventHelperReturnsArrayForNormalDispatch(): void
@@ -373,12 +371,11 @@ class FoundationHelpersTest extends TestCase
     {
         try {
             abort(400, 'Bad request', ['X-FOO' => 'BAR']);
-
-            $this->fail('abort function must throw HttpException when receiving code as integer.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
-            $this->assertSame(400, $exception->getStatusCode());
-            $this->assertSame('Bad request', $exception->getMessage());
-            $this->assertSame('BAR', $exception->getHeaders()['X-FOO']);
+            $this->fail('abort() should throw an HttpException.');
+        } catch (HttpException $e) {
+            $this->assertSame(400, $e->getStatusCode());
+            $this->assertSame('Bad request', $e->getMessage());
+            $this->assertSame(['X-FOO' => 'BAR'], $e->getHeaders());
         }
     }
 

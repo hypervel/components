@@ -1,5 +1,8 @@
-import { describe, expect, test } from "vitest";
-import { index, show } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/SearchController";
+import { describe, expect, test } from "vite-plus/test";
+import {
+    index,
+    show,
+} from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/SearchController";
 import search from "./.generated/routes/search";
 
 describe("query only route", () => {

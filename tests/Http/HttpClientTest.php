@@ -31,6 +31,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Events\ConnectionFailed as ConnectionFailedEvent;
@@ -52,6 +53,7 @@ use Hypervel\Support\Json;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
@@ -710,6 +712,28 @@ class HttpClientTest extends TestCase
         $this->factory->assertSent(function (Request $request): bool {
             return $request->url() === 'https://hypervel.com/docs';
         });
+    }
+
+    public function testUrlsWithBracesAreNotExpandedWithoutUrlParameters(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('https://api.test/posts?where={"status":"open"}');
+        $this->factory->get('https://api.test/files/{draft}.txt');
+        $this->factory->get('https://example.test/search?q={foo}');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://api.test/posts?where=%7B%22status%22:%22open%22%7D'
+                && $request['where'] === '{"status":"open"}';
+        });
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://api.test/files/%7Bdraft%7D.txt';
+        });
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->url() === 'https://example.test/search?q=%7Bfoo%7D'
+        );
     }
 
     public function testUrlsWithTemplateExpressionsAreStillExpanded(): void
@@ -4379,11 +4403,7 @@ class HttpClientTest extends TestCase
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4393,15 +4413,13 @@ class HttpClientTest extends TestCase
         $factory->post('https://example.com');
         $factory->patch('https://example.com');
         $factory->delete('https://example.com');
+        $events->assertDispatchedTimes(RequestSending::class, 5);
+        $events->assertDispatchedTimes(ResponseReceived::class, 5);
     }
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSentAsync(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4411,16 +4429,14 @@ class HttpClientTest extends TestCase
         $factory->async()->post('https://example.com')->wait();
         $factory->async()->patch('https://example.com')->wait();
         $factory->async()->delete('https://example.com')->wait();
+        $events->assertDispatchedTimes(RequestSending::class, 5);
+        $events->assertDispatchedTimes(ResponseReceived::class, 5);
     }
 
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredForEveryRetry(): void
     {
         Sleep::fake();
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->times(2)->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->times(2)->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake([
@@ -4432,6 +4448,8 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->failed());
 
         $factory->assertSentCount(2);
+        $events->assertDispatchedTimes(RequestSending::class, 2);
+        $events->assertDispatchedTimes(ResponseReceived::class, 2);
     }
 
     public function testTheTransferStatsAreCalledSafelyWhenFakingTheRequest(): void
@@ -4454,6 +4472,36 @@ class HttpClientTest extends TestCase
         $this->assertSame('https://example.com', (string) $effectiveUri);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPendingRequestIsReleasedWithoutGarbageCollectionAfterThrow(bool $withoutFactory): void
+    {
+        $body = str_repeat('x', 1024);
+        $this->factory->fake(['https://example.com' => $this->factory::response($body)]);
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $pendingRequest = $withoutFactory
+                ? (new PendingRequest)
+                    ->throwUnless(static fn (Response $response): bool => false)
+                    ->stub(static fn (): PromiseInterface => Factory::response($body))
+                : $this->factory->throw();
+            $response = $pendingRequest->get('https://example.com');
+
+            $this->assertSame($body, $response->body());
+
+            $reference = WeakReference::create($pendingRequest);
+            unset($pendingRequest);
+
+            $this->assertNull($reference->get());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
+    }
+
     public function testTransferStatsArePresentWhenFakingAnAsyncRequestUsingAPromiseResponse(): void
     {
         $this->factory->fake(['https://example.com' => $this->factory::response()]);
@@ -4466,11 +4514,7 @@ class HttpClientTest extends TestCase
 
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->with(m::type(ResponseReceived::class));
+        $events = new EventFake(new EventDispatcher);
 
         $factory = new Factory($events);
         $factory->fake(['example.com' => $factory::response('foo', 200)]);
@@ -4479,6 +4523,21 @@ class HttpClientTest extends TestCase
         $clonedClient = clone $client;
 
         $clonedClient->get('https://example.com');
+        $events->assertDispatchedTimes(RequestSending::class, 1);
+        $events->assertDispatchedTimes(ResponseReceived::class, 1);
+    }
+
+    public function testRequestEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(false);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $factory = new Factory($events);
+        $factory->fake();
+
+        $factory->get('https://example.com');
     }
 
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
@@ -4579,16 +4638,19 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testSynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('request canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $attempts = 0;
         $policyCalled = false;
 
-        $this->factory->fake(function () use (&$attempts, $cancellation) {
+        $this->factory->fake(function () use (&$attempts, $failure) {
             ++$attempts;
 
-            return Create::rejectionFor($cancellation);
+            return Create::rejectionFor($failure);
         });
 
         try {
@@ -4600,8 +4662,8 @@ class HttpClientTest extends TestCase
                 })
                 ->get('http://foo.com/get');
             $this->fail('Expected the request cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame(1, $attempts);
@@ -4609,16 +4671,19 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testAsynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAsynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('request canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $attempts = 0;
         $policyCalled = false;
 
-        $this->factory->fake(function () use (&$attempts, $cancellation) {
+        $this->factory->fake(function () use (&$attempts, $failure) {
             ++$attempts;
 
-            return Create::rejectionFor($cancellation);
+            return Create::rejectionFor($failure);
         });
 
         $promise = $this->factory
@@ -4633,8 +4698,8 @@ class HttpClientTest extends TestCase
         try {
             $promise->wait();
             $this->fail('Expected the asynchronous request cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame(1, $attempts);
@@ -4642,48 +4707,89 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testAsynchronousRetryCallbackCancellationRejectsPromise(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAsynchronousRetryCallbackCancellationRejectsPromise(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('retry callback canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $this->factory->fake([
             '*' => $this->factory::response(['error'], 500),
         ]);
 
         $promise = $this->factory
             ->async()
-            ->retry(3, when: fn () => throw $cancellation)
+            ->retry(3, when: fn () => throw $failure)
             ->get('http://foo.com/get');
 
         try {
             $promise->wait();
             $this->fail('Expected the retry callback cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->factory->assertSentCount(1);
     }
 
-    public function testAsynchronousThrowCallbackCancellationRejectsPromise(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAsynchronousThrowCallbackCancellationRejectsPromise(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('throw callback canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $this->factory->fake([
             '*' => $this->factory::response(['error'], 500),
         ]);
 
         $promise = $this->factory
             ->async()
-            ->throw(fn () => throw $cancellation)
+            ->throw(fn () => throw $failure)
             ->get('http://foo.com/get');
 
         try {
             $promise->wait();
             $this->fail('Expected the throw callback cancellation to be thrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->factory->assertSentCount(1);
+    }
+
+    #[TestWith([false, 200])]
+    #[TestWith([false, 500])]
+    #[TestWith([true, 200])]
+    #[TestWith([true, 500])]
+    public function testResponseBearingTransportFailurePreservesChainedCancellation(bool $async, int $status): void
+    {
+        $failure = new RuntimeException('Sink cleanup failed.', previous: new CanceledException('Request canceled.'));
+        $attempts = 0;
+        $policyCalled = false;
+        $sink = m::mock(StreamInterface::class);
+        $sink->shouldReceive('isWritable')->andReturnTrue();
+        $sink->shouldReceive('write')->andReturnUsing(function () use (&$attempts, $failure): never {
+            ++$attempts;
+
+            throw $failure;
+        });
+        $this->factory->fake(['*' => $this->factory::response('Response body', $status)]);
+        $request = $this->factory->withOptions(['sink' => $sink])->retry(2, 0, function () use (&$policyCalled): bool {
+            $policyCalled = true;
+
+            return true;
+        });
+        $caught = null;
+
+        try {
+            $async ? $request->async()->get('https://example.com')->wait() : $request->get('https://example.com');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame(1, $attempts);
+        $this->assertFalse($policyCalled);
     }
 
     public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessary(): void
@@ -5936,31 +6042,6 @@ class HttpClientTest extends TestCase
         $this->factory->maxRedirects(1)->get('https://1.example.com');
     }
 
-    public function testPendingRequestsAreFreedOnceUnset(): void
-    {
-        $garbageCollectionEnabled = gc_enabled();
-        gc_disable();
-
-        try {
-            $request = (new PendingRequest)
-                ->throwUnless(static fn (Response $response): bool => false)
-                ->stub(static fn (): PromiseInterface => Factory::response('ok'));
-
-            $reference = WeakReference::create($request);
-            $response = $request->post('http://localhost/memory-test');
-
-            $this->assertSame('ok', $response->body());
-
-            unset($request, $response);
-
-            $this->assertNull($reference->get());
-        } finally {
-            if ($garbageCollectionEnabled) {
-                gc_enable();
-            }
-        }
-    }
-
     public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void
     {
         $this->factory->fake([
@@ -6950,17 +7031,6 @@ class HttpClientTest extends TestCase
 
         $this->factory->assertSent(
             fn (Request $request): bool => $request->url() === 'https://hypervel.org/v1/blog/release'
-        );
-    }
-
-    public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void
-    {
-        $this->factory->fake();
-
-        $this->factory->get('https://example.test/search?q={foo}');
-
-        $this->factory->assertSent(
-            fn (Request $request) => $request->url() === 'https://example.test/search?q=%7Bfoo%7D'
         );
     }
 

@@ -20,12 +20,15 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheFailoverStoreTest extends TestCase
 {
@@ -48,7 +51,7 @@ class CacheFailoverStoreTest extends TestCase
         $cache->expects('store')->with('store-a')->andReturn(new Repository($storeA));
         $cache->expects('store')->with('store-b')->andReturn(new Repository($storeB));
 
-        $failover = new FailoverStore($cache, m::mock(Dispatcher::class), ['store-a', 'store-b']);
+        $failover = new FailoverStore($cache, new EventDispatcher, ['store-a', 'store-b']);
 
         $result = $failover->flushLocks();
 
@@ -307,9 +310,14 @@ class CacheFailoverStoreTest extends TestCase
         $store->flushLocks();
     }
 
-    public function testFlushLocksStopsAtCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFlushLocksStopsAtCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('flush canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Lock cleanup failed.', previous: $cancellation);
+        }
         $first = $this->lockStore();
         $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
         $first->shouldReceive('flushLocks')->once()->andThrow($cancellation);
@@ -324,14 +332,19 @@ class CacheFailoverStoreTest extends TestCase
         try {
             $store->flushLocks();
             $this->fail('Flushing the lock stores was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testFirstSuccessOperationDoesNotFailOverAfterCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFirstSuccessOperationDoesNotFailOverAfterCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('read canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Read cleanup failed.', previous: $cancellation);
+        }
         $first = m::mock(Store::class);
         $first->shouldReceive('get')->once()->with('key')->andThrow(new RuntimeException('first failure'));
         $second = m::mock(Store::class);
@@ -354,16 +367,21 @@ class CacheFailoverStoreTest extends TestCase
         try {
             $store->get('key');
             $this->fail('Reading from the failover store was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame(['first'], $failedStores);
     }
 
-    public function testEveryStoreOperationDoesNotContinueAfterCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEveryStoreOperationDoesNotContinueAfterCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forget canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Forget cleanup failed.', previous: $cancellation);
+        }
         $first = m::mock(Store::class);
         $first->shouldReceive('forget')->once()->with('key')->andReturnTrue();
         $second = m::mock(Store::class);
@@ -379,7 +397,7 @@ class CacheFailoverStoreTest extends TestCase
         try {
             $store->forget('key');
             $this->fail('Forgetting from every failover store was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -641,7 +659,7 @@ class CacheFailoverStoreTest extends TestCase
 
         return new FailoverStore(
             $cache,
-            $events ?? m::mock(Dispatcher::class),
+            $events ?? new EventDispatcher,
             $storeNames ?? array_keys($stores),
             $failoverStoreName,
         );

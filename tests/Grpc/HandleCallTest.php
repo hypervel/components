@@ -15,6 +15,7 @@ use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\MessageSerializer;
 use Hypervel\Grpc\Server\CallContextStore;
+use Hypervel\Grpc\Server\ExceptionMapper;
 use Hypervel\Grpc\Server\GrpcStreamedResponse;
 use Hypervel\Grpc\Server\Middleware\HandleCall;
 use Hypervel\Grpc\Server\ResponseFactory;
@@ -24,14 +25,29 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class HandleCallTest extends TestCase
 {
+    private ExceptionMapper $exceptions;
+
+    /**
+     * Set up the exception mapper.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->exceptions = m::mock(ExceptionMapper::class);
+    }
+
     public function testDecodesTheRequestAndScopesItsCallContext(): void
     {
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, new Timer, 1024, Compression::Gzip);
+        $handler = new HandleCall($contexts, new Timer, $this->exceptions, 1024, Compression::Gzip);
         $message = (new Any)->setTypeUrl('testing.Request')->setValue('payload');
         $request = $this->request($message, server: [
             'REMOTE_ADDR' => '2001:db8::1',
@@ -68,7 +84,7 @@ class HandleCallTest extends TestCase
     public function testDecodesGzipRequestMessages(): void
     {
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, new Timer, 1024, Compression::Identity);
+        $handler = new HandleCall($contexts, new Timer, $this->exceptions, 1024, Compression::Identity);
         $message = (new Any)->setValue(str_repeat('compressible', 20));
         $request = $this->request($message, Compression::Gzip, [
             'HTTP_GRPC_ENCODING' => 'gzip',
@@ -89,7 +105,7 @@ class HandleCallTest extends TestCase
             'multiple' => $this->body(new GPBEmpty) . $this->body(new GPBEmpty),
         ] as $case => $body) {
             $contexts = new CallContextStore;
-            $handler = new HandleCall($contexts, new Timer, 1024, Compression::Identity);
+            $handler = new HandleCall($contexts, new Timer, $this->exceptions, 1024, Compression::Identity);
             $request = $this->request(new GPBEmpty, body: $body);
 
             try {
@@ -106,7 +122,7 @@ class HandleCallTest extends TestCase
 
     public function testRejectsUnsupportedRequestCompression(): void
     {
-        $handler = new HandleCall(new CallContextStore, new Timer, 1024, Compression::Identity);
+        $handler = new HandleCall(new CallContextStore, new Timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: [
             'HTTP_GRPC_ENCODING' => 'snappy',
         ]);
@@ -139,7 +155,7 @@ class HandleCallTest extends TestCase
                 'The grpc-previous-rpc-attempts request header is too large.',
             ],
         ] as $case => [$name, $value, $message]) {
-            $handler = new HandleCall(new CallContextStore, new Timer, 1024, Compression::Identity);
+            $handler = new HandleCall(new CallContextStore, new Timer, $this->exceptions, 1024, Compression::Identity);
             $request = $this->request(new GPBEmpty, server: [$name => $value]);
 
             try {
@@ -160,7 +176,7 @@ class HandleCallTest extends TestCase
             ->andReturn(41);
         $timer->shouldReceive('clear')->once()->with(41);
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, $timer, 1024, Compression::Identity);
+        $handler = new HandleCall($contexts, $timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '1S']);
 
         $result = $handler->handle($request, function () use ($contexts): string {
@@ -180,7 +196,7 @@ class HandleCallTest extends TestCase
         $timer->shouldReceive('after')->once()->andThrow($failure);
         $timer->shouldNotReceive('clear');
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, $timer, 1024, Compression::Identity);
+        $handler = new HandleCall($contexts, $timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '1S']);
 
         try {
@@ -199,7 +215,7 @@ class HandleCallTest extends TestCase
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->andReturn(42);
         $timer->shouldReceive('clear')->once()->with(42);
-        $handler = new HandleCall(new CallContextStore, $timer, 1024, Compression::Identity);
+        $handler = new HandleCall(new CallContextStore, $timer, $this->exceptions, 1024, Compression::Identity);
         // Setup counts against the deadline, so leave headroom under suite load while the service work still outlasts it.
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '100m']);
 
@@ -213,20 +229,58 @@ class HandleCallTest extends TestCase
         $this->assertSame(StatusCode::DeadlineExceeded, $result->status()->code());
     }
 
-    public function testRethrowsCancellationThatWasNotCausedByItsDeadline(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDeadlineCancellationReportsCleanupFailuresAndKeepsDeadlineStatus(bool $cleanupThrows): void
+    {
+        $cleanupException = new RuntimeException('Service cleanup failed.');
+        if ($cleanupThrows) {
+            $this->exceptions->shouldReceive('report')->once()->with($cleanupException);
+        } else {
+            $this->exceptions->shouldNotReceive('report');
+        }
+        $handler = new HandleCall(new CallContextStore, new Timer, $this->exceptions, 1024, Compression::Identity);
+        $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '100m']);
+        $cancellation = null;
+
+        $result = $handler->handle($request, static function () use ($cleanupThrows, $cleanupException, &$cancellation): void {
+            try {
+                usleep(300_000);
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+
+                throw $exception;
+            } finally {
+                if ($cleanupThrows) {
+                    usleep(1000);
+
+                    throw $cleanupException;
+                }
+            }
+        });
+
+        $this->assertInstanceOf(CanceledException::class, $cancellation);
+        $this->assertInstanceOf(RpcException::class, $result);
+        $this->assertSame(StatusCode::DeadlineExceeded, $result->status()->code());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRethrowsCancellationThatWasNotCausedByItsDeadline(bool $cleanupThrows): void
     {
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, new Timer, 1024, Compression::Identity);
+        $handler = new HandleCall($contexts, new Timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty);
         $cancellation = new CanceledException;
+        $failure = $cleanupThrows ? new RuntimeException('Service cleanup failed.', previous: $cancellation) : $cancellation;
 
         try {
-            $handler->handle($request, static function () use ($cancellation): never {
-                throw $cancellation;
+            $handler->handle($request, static function () use ($failure): never {
+                throw $failure;
             });
             $this->fail('Expected unrelated cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->expectException(LogicException::class);
@@ -236,7 +290,7 @@ class HandleCallTest extends TestCase
     public function testTransfersCleanupToAStreamedResponse(): void
     {
         $contexts = new CallContextStore;
-        $handler = new HandleCall($contexts, new Timer, 1024, Compression::Identity);
+        $handler = new HandleCall($contexts, new Timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty);
         $response = new GrpcStreamedResponse(
             ['frame'],

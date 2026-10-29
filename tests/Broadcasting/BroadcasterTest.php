@@ -147,6 +147,9 @@ class BroadcasterTest extends TestCase
         });
 
         $this->broadcaster->channel('somethingelse', DummyBroadcastingChannel::class);
+
+        $this->assertSame([], $this->broadcaster->retrieveChannelOptions('something'));
+        $this->assertSame([], $this->broadcaster->retrieveChannelOptions('somethingelse'));
     }
 
     public function testNotFoundThrowsHttpException(): void
@@ -162,13 +165,8 @@ class BroadcasterTest extends TestCase
     {
         $this->broadcaster->channel('somechannel', function (): void {
         });
-    }
 
-    public function testCanRegisterChannelsWithOptions(): void
-    {
-        $options = ['a' => ['b', 'c']];
-        $this->broadcaster->channel('somechannel', function (): void {
-        }, $options);
+        $this->assertSame([], $this->broadcaster->retrieveChannelOptions('somechannel'));
     }
 
     public function testCanRetrieveChannelsOptions(): void
@@ -840,7 +838,7 @@ class DummyUser implements Authenticatable
     /**
      * Set the remember token for the user.
      */
-    public function setRememberToken(string $value): void
+    public function setRememberToken(?string $value): void
     {
     }
 

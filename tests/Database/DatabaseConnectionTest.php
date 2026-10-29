@@ -25,7 +25,6 @@ use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\PostgresConnection;
-use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\QueryException;
@@ -34,6 +33,8 @@ use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Database\StreamClosedException;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -436,7 +437,7 @@ class DatabaseConnectionTest extends TestCase
     public function testSettingDefaultCallsGetDefaultGrammar(): void
     {
         $connection = $this->getMockConnection(['getDefaultQueryGrammar']);
-        $mock = m::mock(Grammar::class);
+        $mock = new Grammar($connection);
         $connection->expects($this->once())->method('getDefaultQueryGrammar')->willReturn($mock);
         $connection->useDefaultQueryGrammar();
         $this->assertEquals($mock, $connection->getQueryGrammar());
@@ -445,7 +446,7 @@ class DatabaseConnectionTest extends TestCase
     public function testSettingDefaultCallsGetDefaultPostProcessor(): void
     {
         $connection = $this->getMockConnection(['getDefaultPostProcessor']);
-        $mock = m::mock(Processor::class);
+        $mock = new Processor;
         $connection->expects($this->once())->method('getDefaultPostProcessor')->willReturn($mock);
         $connection->useDefaultPostProcessor();
         $this->assertEquals($mock, $connection->getPostProcessor());
@@ -581,22 +582,20 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(TransactionBeginning::class));
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->beginTransaction();
+        $events->assertDispatchedOnce(TransactionBeginning::class);
     }
 
     public function testCommittedFiresEventsIfSet(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(TransactionCommitted::class));
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->commit();
+        $events->assertDispatchedOnce(TransactionCommitted::class);
     }
 
     public function testCommittingFiresEventsIfSet(): void
@@ -604,13 +603,11 @@ class DatabaseConnectionTest extends TestCase
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
         $connection->beginTransaction();
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(true);
-        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(TransactionCommitting::class));
-        $events->expects('dispatch')->with(m::type(TransactionCommitted::class));
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->commit();
+        $events->assertDispatchedOnce(TransactionCommitting::class);
+        $events->assertDispatchedOnce(TransactionCommitted::class);
     }
 
     public function testRollBackedFiresEventsIfSet(): void
@@ -618,11 +615,10 @@ class DatabaseConnectionTest extends TestCase
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
         $connection->beginTransaction();
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(TransactionRolledBack::class));
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->rollBack();
+        $events->assertDispatchedOnce(TransactionRolledBack::class);
     }
 
     public function testBeganTransactionSkipsDispatchWhenNoListenersAreRegistered(): void
@@ -640,10 +636,10 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $events = m::mock(Dispatcher::class);
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
-        $events->shouldNotReceive('dispatch');
         $connection->rollBack();
+        $events->assertNothingDispatched();
     }
 
     public function testTransactionMethodRunsSuccessfully(): void
@@ -1510,16 +1506,6 @@ class DatabaseConnectionTest extends TestCase
         }]);
     }
 
-    public function testFromCreatesNewQueryBuilder(): void
-    {
-        $conn = $this->getMockConnection();
-        $conn->setQueryGrammar(m::mock(Grammar::class));
-        $conn->setPostProcessor(m::mock(Processor::class));
-        $builder = $conn->table('users');
-        $this->assertInstanceOf(BaseBuilder::class, $builder);
-        $this->assertSame('users', $builder->from);
-    }
-
     public function testTableNormalizesIntegerBackedEnumName(): void
     {
         $connection = $this->getMockConnection();
@@ -1548,11 +1534,10 @@ class DatabaseConnectionTest extends TestCase
     {
         $connection = $this->getMockConnection();
         $connection->logQuery('foo', [], time());
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(QueryExecuted::class));
+        $events = new EventFake(new EventsDispatcher);
         $connection->setEventDispatcher($events);
         $connection->logQuery('foo', [], null);
+        $events->assertDispatchedOnce(QueryExecuted::class);
     }
 
     public function testLogQuerySkipsDispatchWhenNoListenersAreRegistered(): void

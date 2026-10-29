@@ -11,6 +11,7 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -27,7 +28,6 @@ use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -426,13 +426,17 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
             }
 
             $result = true;
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            throw $this->notifyBatchMembers(
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            $this->notifyBatchMembersOfFailure(
                 $jobs,
                 fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
-            ) ?? $exception;
+            );
+
+            throw $exception;
         }
 
         foreach ($jobs as $job) {
@@ -500,9 +504,11 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
             }
 
             $this->insertDatabaseRows($connection, $this->table, $rows);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return new OutboxBatchResult(failure: $exception);
         }
 
@@ -590,9 +596,11 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
                         $this->connectionName,
                         $queue
                     ))->fail($exception);
-                } catch (CanceledException $cancellation) {
-                    throw $cancellation;
-                } catch (Throwable) {
+                } catch (Throwable $cleanupException) {
+                    if (Coroutine::causedByCancellation($cleanupException)) {
+                        throw $cleanupException;
+                    }
+
                     // Preserve the original reservation failure if failing the job also fails.
                 }
             }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue\Outbox;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Events\Dispatcher;
@@ -22,7 +23,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisOutboxPublicationTest extends TestCase
 {
@@ -56,15 +60,30 @@ class RedisOutboxPublicationTest extends TestCase
         return [[false], [true]];
     }
 
-    public function testLaterDestinationFailurePreservesEarlierConfirmation(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['cleanup'])]
+    public function testLaterDestinationFailurePreservesEarlierConfirmation(string $failureType): void
     {
         [$queue, $connection] = $this->queue();
-        $failure = new RuntimeException('Redis connection lost.');
+        $failure = match ($failureType) {
+            'cancellation' => new CanceledException,
+            'cleanup' => new RuntimeException('Redis cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('Redis connection lost.'),
+        };
         $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:first')->andReturn(1);
         $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:second')->andThrow($failure);
 
-        $result = $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second'), $this->message(3, 'third')]);
+        try {
+            $result = $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second'), $this->message(3, 'third')]);
+        } catch (Throwable $exception) {
+            $this->assertNotSame('ordinary', $failureType);
+            $this->assertSame($failure, $exception);
 
+            return;
+        }
+
+        $this->assertSame('ordinary', $failureType, 'Cancellation must propagate instead of returning a batch result.');
         $this->assertSame([1], $result->accepted);
         $this->assertSame($failure, $result->failure);
     }
@@ -80,7 +99,7 @@ class RedisOutboxPublicationTest extends TestCase
         $this->assertInstanceOf(RuntimeException::class, $result->failure);
     }
 
-    public function testHorizonStampsPublicationAndDrainsAcceptedNotificationsBeforeStopping(): void
+    public function testHorizonStampsPublicationAndKeepsPublishingAfterObserverFailures(): void
     {
         CarbonImmutable::setTestNow('2040-01-01 12:00:00');
         [$queue, $connection, $events] = $this->queue(horizon: true);
@@ -97,16 +116,19 @@ class RedisOutboxPublicationTest extends TestCase
         });
         $events->listen(JobQueued::class, fn () => $this->fail('Horizon relay must not emit JobQueued.'));
         $stored = [];
-        $connection->expects('evalWithShaCache')->andReturnUsing(function (string $script, array $keys, array $arguments) use (&$stored): int {
-            $stored = [$arguments[1], $arguments[3]];
+        $connection->expects('evalWithShaCache')->twice()->andReturnUsing(function (string $script, array $keys, array $arguments) use (&$stored): int {
+            for ($index = 1; $index < count($arguments); $index += 2) {
+                $stored[] = $arguments[$index];
+            }
 
-            return 2;
+            return intdiv(count($arguments), 2);
         });
 
         $result = $queue->publishOutboxMessages($messages);
 
-        $this->assertSame([1, 2], $result->accepted);
+        $this->assertSame([1, 2, 3], $result->accepted);
         $this->assertSame($failure, $result->failure);
+        $this->assertCount(3, $stored);
         $this->assertSame($stored, $pending);
         $this->assertSame($stored, $pushed);
 
@@ -116,6 +138,41 @@ class RedisOutboxPublicationTest extends TestCase
             $this->assertArrayHasKey('pushedAt', $decoded);
             unset($decoded['pushedAt']);
             $this->assertSame($original, $decoded);
+        }
+    }
+
+    public function testObserverCancellationStopsPublishingLaterDestinations(): void
+    {
+        [$queue, $connection, $events] = $this->queue(horizon: true);
+        $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
+        $events->listen(JobPushed::class, static fn () => throw $cancellation);
+        $connection->expects('evalWithShaCache')->once()->andReturn(1);
+
+        try {
+            $queue->publishOutboxMessages([$this->message(1), $this->message(2, 'other')]);
+            $this->fail('Expected observer cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCancellationDuringObserverFailureReportingPropagates(): void
+    {
+        [$queue, $connection, $events] = $this->queue(horizon: true);
+        $observerFailure = new RuntimeException('Observer failed.');
+        $events->listen(JobPushed::class, static fn () => throw $observerFailure);
+        $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:first')->andReturn(1);
+        $connection->expects('evalWithShaCache')->withArgs(fn (string $script, array $keys): bool => $keys[0] === 'queues:second')->andThrow(new RuntimeException('Redis unavailable.'));
+        $cancellation = new RuntimeException('Reporting cleanup failed.', previous: new CanceledException);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($observerFailure)->andThrow($cancellation);
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->publishOutboxMessages([$this->message(1, 'first'), $this->message(2, 'second')]);
+            $this->fail('Expected reporting cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 

@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from 'lodash';
 import axios from 'axios';
 import sfdump from './sfdump';
@@ -21,81 +21,84 @@ export default {
         };
     },
 
-
     /**
      * Prepare the component.
      */
     mounted() {
-        document.title = "Dumps - Telescope";
+        document.title = 'Dumps - Telescope';
 
         this.initDumperJs();
 
         this.loadEntries();
-
     },
 
-
     /**
-     * Clean after the component is destroyed.
+     * Clean up before the component is unmounted.
      */
-    destroyed() {
+    beforeUnmount() {
         this.requestController.abort();
         clearTimeout(this.newEntriesTimeout);
     },
 
-
     methods: {
-        loadEntries(){
-            const {signal} = this.requestController;
+        loadEntries() {
+            const { signal } = this.requestController;
 
-            return axios.post(Telescope.basePath + '/telescope-api/dumps', null, {signal}).then(response => {
-                if (signal.aborted) return;
+            return axios
+                .post(Telescope.basePath + '/telescope-api/dumps', null, { signal })
+                .then((response) => {
+                    if (signal.aborted) return;
 
-                this.ready = true;
-                this.dump = response.data.dump;
-                this.entries = response.data.entries;
-                this.recordingStatus = response.data.status;
+                    this.ready = true;
+                    this.dump = response.data.dump;
+                    this.entries = response.data.entries;
+                    this.recordingStatus = response.data.status;
 
-                this.$nextTick(() => this.triggerDumps());
+                    this.$nextTick(() => this.triggerDumps());
 
-                this.checkForNewEntries();
-            }).catch(error => {
-                if (signal.aborted) return;
+                    this.checkForNewEntries();
+                })
+                .catch((error) => {
+                    if (signal.aborted) return;
 
-                this.ready = true;
+                    this.ready = true;
 
-                if (this.mayRetry(error, signal)) this.checkForNewEntries();
-            });
+                    if (this.mayRetry(error, signal)) this.checkForNewEntries();
+                });
         },
-
 
         /**
          * Keep checking if there are new entries.
          */
-        checkForNewEntries(){
-            const {signal} = this.requestController;
+        checkForNewEntries() {
+            const { signal } = this.requestController;
 
             clearTimeout(this.newEntriesTimeout);
 
             this.newEntriesTimeout = setTimeout(() => {
-                axios.post(Telescope.basePath + '/telescope-api/dumps?take=1', null, {signal}).then(response => {
-                    if (signal.aborted) return;
+                axios
+                    .post(Telescope.basePath + '/telescope-api/dumps?take=1', null, { signal })
+                    .then((response) => {
+                        if (signal.aborted) return;
 
-                    this.recordingStatus = response.data.status;
+                        this.recordingStatus = response.data.status;
 
-                    if (response.data.entries.length && !this.entries.length) {
-                        this.loadEntries();
-                    } else if (response.data.entries.length && _.first(response.data.entries).id !== _.first(this.entries).id) {
-                        this.loadEntries();
-                    } else {
-                        this.checkForNewEntries();
-                    }
-                }).catch(error => {
-                    if (this.mayRetry(error, signal)) this.checkForNewEntries();
-                });
+                        if (response.data.entries.length && !this.entries.length) {
+                            this.loadEntries();
+                        } else if (
+                            response.data.entries.length &&
+                            _.first(response.data.entries).id !== _.first(this.entries).id
+                        ) {
+                            this.loadEntries();
+                        } else {
+                            this.checkForNewEntries();
+                        }
+                    })
+                    .catch((error) => {
+                        if (this.mayRetry(error, signal)) this.checkForNewEntries();
+                    });
             }, this.newEntriesTimer);
         },
-
 
         /**
          * Initialize the VarDumper JS functions.
@@ -104,16 +107,15 @@ export default {
             this.sfDump = sfdump(document);
         },
 
-
         /**
          * Trigger the Sfdump() for every newly dumped <pre> tag.
          */
         triggerDumps() {
             const divs = this.$refs.dumps;
 
-            if (! divs) return;
+            if (!divs) return;
 
-            divs.forEach(el => {
+            divs.forEach((el) => {
                 const id = el.children[0].id;
 
                 if (this.triggered.includes(id)) return;
@@ -121,9 +123,9 @@ export default {
                 this.sfDump(id);
                 this.triggered.push(id);
             });
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -139,16 +141,16 @@ export default {
                     d="M45 0C20.1 0 0 20.1 0 45s20.1 45 45 45 45-20.1 45-45S69.9 0 45 0zM45 74.5c-3.6 0-6.5-2.9-6.5-6.5s2.9-6.5 6.5-6.5 6.5 2.9 6.5 6.5S48.6 74.5 45 74.5zM52.1 23.9l-2.5 29.6c0 2.5-2.1 4.6-4.6 4.6 -2.5 0-4.6-2.1-4.6-4.6l-2.5-29.6c-0.1-0.4-0.1-0.7-0.1-1.1 0-4 3.2-7.2 7.2-7.2 4 0 7.2 3.2 7.2 7.2C52.2 23.1 52.2 23.5 52.1 23.9z"
                 ></path>
             </svg>
-            <span class="ml-1" v-if="recordingStatus == 'disabled'">Telescope is currently disabled.</span>
-            <span class="ml-1" v-if="recordingStatus == 'paused'">Telescope recording is paused.</span>
-            <span class="ml-1" v-if="recordingStatus == 'off'">This watcher is turned off.</span>
-            <span class="ml-1" v-if="recordingStatus == 'wrong-cache'"
+            <span class="ms-1" v-if="recordingStatus == 'disabled'">Telescope is currently disabled.</span>
+            <span class="ms-1" v-if="recordingStatus == 'paused'">Telescope recording is paused.</span>
+            <span class="ms-1" v-if="recordingStatus == 'off'">This watcher is turned off.</span>
+            <span class="ms-1" v-if="recordingStatus == 'wrong-cache'"
                 >The 'array' cache cannot be used. Please use a persistent cache.</span
             >
         </p>
 
         <div v-if="!ready" class="d-flex align-items-center justify-content-center card-bg-secondary p-5 bottom-radius">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin mr-2 fill-text-color">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin me-2 fill-text-color">
                 <path
                     d="M12 10a2 2 0 0 1-3.41 1.41A2 2 0 0 1 10 8V0a9.97 9.97 0 0 1 10 10h-8zm7.9 1.41A10 10 0 1 1 8.59.1v2.03a8 8 0 1 0 9.29 9.29h2.02zm-4.07 0a6 6 0 1 1-7.25-7.25v2.1a3.99 3.99 0 0 0-1.4 6.57 4 4 0 0 0 6.56-1.42h2.1z"
                 ></path>
@@ -210,7 +212,7 @@ export default {
                             Command: {{ entry.content.entry_point_description }}
                         </router-link>
 
-                        <span class="text-white text-monospace" style="font-size: 12px">{{
+                        <span class="text-white font-monospace" style="font-size: 12px">{{
                             timeAgo(entry.created_at)
                         }}</span>
                     </div>

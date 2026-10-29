@@ -1,15 +1,16 @@
-<script type="text/ecmascript-6">
+<script>
 import _ from 'lodash';
 import axios from 'axios';
 
 export default {
     props: {
-        resource: {required: true},
-        title: {required: true},
-        id: {required: true},
-        entryPoint: {default: false},
+        resource: { required: true },
+        title: { required: true },
+        id: { required: true },
+        entryPoint: { default: false },
     },
 
+    emits: ['ready'],
 
     /**
      * The component's data.
@@ -27,46 +28,40 @@ export default {
         };
     },
 
-
     watch: {
         id() {
-            this.prepareEntry()
-        }
+            this.prepareEntry();
+        },
     },
-
 
     /**
      * Prepare the component.
      */
     mounted() {
-        this.prepareEntry()
+        this.prepareEntry();
     },
 
-
     /**
-     * Clean after the component is destroyed.
+     * Clean up before the component is unmounted.
      */
-    destroyed() {
+    beforeUnmount() {
         this.requestController.abort();
         clearTimeout(this.updateEntryTimeout);
     },
 
-
     computed: {
         job() {
-            return _.find(this.batch, {type: 'job'})
+            return _.find(this.batch, { type: 'job' });
         },
 
         request() {
-            return _.find(this.batch, {type: 'request'})
+            return _.find(this.batch, { type: 'request' });
         },
-
 
         command() {
-            return _.find(this.batch, {type: 'command'})
+            return _.find(this.batch, { type: 'command' });
         },
     },
-
 
     methods: {
         prepareEntry() {
@@ -74,7 +69,7 @@ export default {
             this.requestController = new AbortController();
             clearTimeout(this.updateEntryTimeout);
 
-            document.title = this.title + " - Telescope";
+            document.title = this.title + ' - Telescope';
             this.ready = false;
 
             // The component is reused when the route ID changes, so a failed load must not leave the previous entry on screen.
@@ -85,12 +80,12 @@ export default {
 
             if (this.unwatchReady) this.unwatchReady();
 
-            const unwatch = this.unwatchReady = this.$watch('ready', newVal => {
+            const unwatch = (this.unwatchReady = this.$watch('ready', (newVal) => {
                 if (newVal) {
                     this.$emit('ready');
                     unwatch();
                 }
-            });
+            }));
 
             this.loadEntry((response) => {
                 this.entry = response.data.entry;
@@ -105,31 +100,32 @@ export default {
             });
         },
 
+        loadEntry(after, polling = false) {
+            const { signal } = this.requestController;
 
-        loadEntry(after, polling = false){
-            const {signal} = this.requestController;
+            return axios
+                .get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, { signal })
+                .then((response) => {
+                    if (signal.aborted) return;
 
-            return axios.get(Telescope.basePath + '/telescope-api/' + this.resource + '/' + this.id, {signal}).then(response => {
-                if (signal.aborted) return;
+                    if (_.isFunction(after)) {
+                        after(response);
+                    }
+                })
+                .catch((error) => {
+                    if (signal.aborted) return;
 
-                if (_.isFunction(after)) {
-                    after(response);
-                }
-            }).catch(error => {
-                if (signal.aborted) return;
+                    this.ready = true;
 
-                this.ready = true;
-
-                // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
-                if (polling && this.mayRetry(error, signal)) this.updateEntry();
-            })
+                    // A failed first load shows the not found card; only polling a loaded entry retries or reports that it stopped.
+                    if (polling && this.mayRetry(error, signal)) this.updateEntry();
+                });
         },
-
 
         /**
          * Update the existing entry if needed.
          */
-        updateEntry(){
+        updateEntry() {
             if (this.resource != 'jobs') return;
             if (!this.entry || this.entry.content.status !== 'pending') return;
 
@@ -146,9 +142,9 @@ export default {
                     this.updateEntry();
                 }, true);
             }, this.updateEntryTimer);
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -162,7 +158,7 @@ export default {
                 v-if="!ready"
                 class="d-flex align-items-center justify-content-center card-bg-secondary p-5 bottom-radius"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin mr-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="icon spin me-2">
                     <path
                         d="M12 10a2 2 0 0 1-3.41 1.41A2 2 0 0 1 10 8V0a9.97 9.97 0 0 1 10 10h-8zm7.9 1.41A10 10 0 1 1 8.59.1v2.03a8 8 0 1 0 9.29 9.29h2.02zm-4.07 0a6 6 0 1 1-7.25-7.25v2.1a3.99 3.99 0 0 0-1.4 6.57 4 4 0 0 0 6.56-1.42h2.1z"
                     ></path>
@@ -248,9 +244,9 @@ export default {
                                     :key="tag"
                                     :to="{
                                         name: resource,
-                                        query: { tag: tag },
+                                        query: { tag: tag, exact_tag: 1 },
                                     }"
-                                    class="badge badge-info mr-1"
+                                    class="badge badge-info me-1"
                                 >
                                     {{ tag }}
                                 </router-link>
@@ -270,37 +266,39 @@ export default {
             </div>
 
             <table class="table mb-0 card-bg-secondary table-borderless">
-                <tr>
-                    <td class="table-fit text-muted">ID</td>
+                <tbody>
+                    <tr>
+                        <td class="table-fit text-muted">ID</td>
 
-                    <td>
-                        {{ entry.content.user.id }}
-                    </td>
-                </tr>
+                        <td>
+                            {{ entry.content.user.id }}
+                        </td>
+                    </tr>
 
-                <tr v-if="entry.content.user.name">
-                    <td class="table-fit text-muted align-middle">Name</td>
+                    <tr v-if="entry.content.user.name">
+                        <td class="table-fit text-muted align-middle">Name</td>
 
-                    <td class="align-middle">
-                        <img
-                            :src="entry.content.user.avatar"
-                            :alt="entry.content.user.name"
-                            class="mr-2 rounded-circle"
-                            height="40"
-                            width="40"
-                            v-if="entry.content.user.avatar"
-                        />
-                        {{ entry.content.user.name }}
-                    </td>
-                </tr>
+                        <td class="align-middle">
+                            <img
+                                :src="entry.content.user.avatar"
+                                :alt="entry.content.user.name"
+                                class="me-2 rounded-circle"
+                                height="40"
+                                width="40"
+                                v-if="entry.content.user.avatar"
+                            />
+                            {{ entry.content.user.name }}
+                        </td>
+                    </tr>
 
-                <tr v-if="entry.content.user.email">
-                    <td class="table-fit text-muted">Email Address</td>
+                    <tr v-if="entry.content.user.email">
+                        <td class="table-fit text-muted">Email Address</td>
 
-                    <td>
-                        {{ entry.content.user.email }}
-                    </td>
-                </tr>
+                        <td>
+                            {{ entry.content.user.email }}
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
 

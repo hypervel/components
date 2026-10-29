@@ -604,14 +604,6 @@ class TestInlineViewComponentWithContainerDependenciesAndProps extends Component
     }
 }
 
-class TestInlineViewComponentWithoutDependencies extends Component
-{
-    public function render(): ViewContract|Htmlable|Closure|string
-    {
-        return 'alert';
-    }
-}
-
 class TestStatefulInlineComponent extends Component
 {
     public static int $constructed = 0;

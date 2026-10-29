@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import axios from 'axios';
 import ExceptionCodePreview from './../../components/ExceptionCodePreview.vue';
 import Stacktrace from './../../components/Stacktrace.vue';
@@ -6,42 +6,42 @@ import Stacktrace from './../../components/Stacktrace.vue';
 export default {
     components: {
         'code-preview': ExceptionCodePreview,
-        'stack-trace': Stacktrace
+        'stack-trace': Stacktrace,
     },
 
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'message'
+            currentTab: 'message',
         };
     },
 
     methods: {
         hasContext() {
-            return this.entry.content.hasOwnProperty('context')
-                && this.entry.content.context !== null;
+            return this.entry.content.hasOwnProperty('context') && this.entry.content.context !== null;
         },
 
         markExceptionAsResolved(entry) {
             this.alertConfirm('Are you sure you want to mark this exception as resolved?', () => {
+                axios
+                    .put(Telescope.basePath + '/telescope-api/exceptions/' + entry.id, {
+                        resolved_at: 'now',
+                    })
+                    .then((response) => {
+                        if (this.$route.params.id !== entry.id) return;
 
-                axios.put(Telescope.basePath + '/telescope-api/exceptions/' + entry.id, {
-                    'resolved_at': 'now',
-                }).then(response => {
-                    if (this.$route.params.id !== entry.id) return;
-
-                    this.entry = response.data.entry;
-                })
+                        this.entry = response.data.entry;
+                    });
             });
         },
-    }
-}
+    },
+};
 </script>
 
 <template>
     <preview-screen title="Exception Details" resource="exceptions" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Type</td>
                 <td>
@@ -85,7 +85,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps" class="mt-5">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -158,7 +158,11 @@ export default {
                         </copy-clipboard>
                     </div>
 
-                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'extra'" v-if="slotProps.entry.content.extra">
+                    <div
+                        class="code-bg p-4 mb-0 text-white"
+                        v-show="currentTab == 'extra'"
+                        v-if="slotProps.entry.content.extra"
+                    >
                         <copy-clipboard :data="slotProps.entry.content.extra">
                             <vue-json-pretty :data="slotProps.entry.content.extra"></vue-json-pretty>
                         </copy-clipboard>
@@ -167,8 +171,6 @@ export default {
                     <stack-trace :trace="slotProps.entry.content.trace" v-show="currentTab == 'trace'"></stack-trace>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

@@ -21,6 +21,7 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\CarbonImmutable;
@@ -31,7 +32,6 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -90,9 +90,9 @@ class ScheduleRunCommand extends Command
     protected bool $eventsRan = false;
 
     /**
-     * Check if scheduler should stop.
+     * Whether this schedule run has been interrupted.
      */
-    protected bool $shouldStop = false;
+    protected bool $interrupted = false;
 
     /**
      * Whether a termination signal has requested shutdown.
@@ -100,7 +100,7 @@ class ScheduleRunCommand extends Command
     protected bool $shouldQuit = false;
 
     /**
-     * Last time the stopped state was checked.
+     * Last time the interruption state was checked.
      */
     protected ?CarbonInterface $lastChecked = null;
 
@@ -147,7 +147,7 @@ class ScheduleRunCommand extends Command
         Cache $cache,
         ExceptionHandler $handler,
     ): void {
-        $this->shouldQuit = false;
+        $this->startedAt = Date::now();
 
         $this->schedule = $schedule;
         $this->dispatcher = $dispatcher;
@@ -168,15 +168,13 @@ class ScheduleRunCommand extends Command
         $this->listenForSignals();
 
         try {
-            $this->clearShouldStop();
-
             $noEventsAlerted = false;
-            while (! $this->shouldQuit && ! $this->shouldStop()) {
-                $startedAt = Date::now();
+            while (! $this->shouldQuit && ! $this->shouldInterrupt()) {
+                $now = Date::now();
 
                 $this->runEvents(
-                    $this->schedule->dueEventsAt($this->hypervel, $startedAt),
-                    $startedAt
+                    $this->schedule->dueEventsAt($this->hypervel, $now),
+                    $now
                 );
 
                 if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
@@ -215,13 +213,7 @@ class ScheduleRunCommand extends Command
      */
     protected function runOnce(): void
     {
-        $this->startedAt = Date::now();
-
         $events = $this->schedule->dueEventsAt($this->hypervel, $this->startedAt);
-
-        if ($events->contains->isRepeatable()) {
-            $this->clearShouldStop();
-        }
 
         // The finite --once path runs inside Waiter; signal-wait coroutines keep
         // that scheduler coroutine alive, so mutex signal cleanup is long-run only.
@@ -250,7 +242,7 @@ class ScheduleRunCommand extends Command
             $paused = $this->isPaused();
 
             foreach ($events as $event) {
-                if ($this->shouldStop()) {
+                if ($this->shouldInterrupt()) {
                     return;
                 }
 
@@ -361,15 +353,15 @@ class ScheduleRunCommand extends Command
 
         // Nested commands leave deferred work to this boundary. Drain after
         // task listeners so callbacks cannot run early.
-        if (! $exception instanceof CanceledException) {
+        if ($exception === null || ! Coroutine::causedByCancellation($exception)) {
             try {
                 $this->invokeDeferredCallbacks(
                     $exception === null && ! CoroutineContext::get(self::TASK_FAILED_CONTEXT_KEY, false)
                 );
-            } catch (CanceledException $cancellation) {
-                $exception = $cancellation;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || Coroutine::causedByCancellation($throwable)) {
+                    $exception = $throwable;
+                }
             }
         }
 
@@ -521,9 +513,11 @@ class ScheduleRunCommand extends Command
                     "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
                 );
             }
-        } catch (CanceledException $e) {
-            throw $e;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $failed = true;
             // runEvent reports ordinary failures instead of throwing them to
             // runTask; keep that outcome local to this task's deferred work.
@@ -584,7 +578,7 @@ class ScheduleRunCommand extends Command
     /**
      * Determine if the schedule run should be interrupted.
      */
-    protected function shouldStop(): bool
+    protected function shouldInterrupt(): bool
     {
         if (! Schedule::$interruptible) {
             return false;
@@ -594,23 +588,14 @@ class ScheduleRunCommand extends Command
             $this->lastChecked = Date::now();
         }
 
-        if ($this->shouldStop || abs($this->lastChecked->diffInSeconds()) < 1) {
-            return $this->shouldStop;
+        // The loop and repeating events check more often; avoid a cache round trip on every check.
+        if ($this->interrupted || abs($this->lastChecked->diffInSeconds()) < 1) {
+            return $this->interrupted;
         }
 
         $this->lastChecked = Date::now();
 
-        return $this->shouldStop = (bool) $this->cache->get('hypervel:schedule:interrupt', false);
-    }
-
-    /**
-     * Clear the interrupt cache.
-     */
-    protected function clearShouldStop(): void
-    {
-        $this->cache->forget('hypervel:schedule:interrupt');
-
-        $this->shouldStop = false;
+        return $this->interrupted = $this->schedule->hasBeenInterruptedSince($this->startedAt);
     }
 
     /**

@@ -41,7 +41,7 @@ class LimiterConnectionReleaseTest extends TestCase
                 $redis->shouldReceive('withConnection')->twice()->andReturn(false, 'waiting0');
                 $limiter = new ConcurrencyLimiter($redis, 'waiting', 1, 10);
             } else {
-                $redis->shouldReceive('withConnection')->twice()->andReturn([0, time() + 10, 0], [1, time() + 10, 0]);
+                $redis->shouldReceive('withConnection')->twice()->andReturn([0, time() + 10, '2'], [1, time() + 10, 1]);
                 $limiter = new DurationLimiter($redis, 'waiting', 1, 10);
             }
 

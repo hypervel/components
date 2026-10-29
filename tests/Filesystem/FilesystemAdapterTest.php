@@ -16,6 +16,7 @@ use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -24,6 +25,7 @@ use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Json;
+use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
@@ -223,6 +225,18 @@ class FilesystemAdapterTest extends TestCase
         $response = $files->download('Hello%World.txt', 'Hello%World.txt');
         $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame('attachment; filename=HelloWorld.txt; filename*=utf-8\'\'Hello%25World.txt', $response->headers->get('Content-Disposition'));
+    }
+
+    public function testDownloadFilenameWithoutAsciiEquivalent(): void
+    {
+        $this->setRequestContext();
+
+        $this->filesystem->write('file.txt', 'Hello World');
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $response = $files->download('file.txt', '請求書');
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertSame('attachment; filename=___; filename*=utf-8\'\'%E8%AB%8B%E6%B1%82%E6%9B%B8', $response->headers->get('Content-Disposition'));
     }
 
     public function testExists(): void
@@ -1331,15 +1345,7 @@ class FilesystemAdapterTest extends TestCase
     {
         $container = Container::getInstance();
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-
-        $exceptionHandler->expects('report')
-            ->andReturnUsing(function (UnableToReadFile $exception): void {
-                $this->assertStringContainsString(
-                    'Unable to read file from location: foo.txt.',
-                    $exception->getMessage(),
-                );
-            });
+        $exceptionHandler = new ExceptionHandlerFake(new Handler($container));
 
         $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
@@ -1352,21 +1358,15 @@ class FilesystemAdapterTest extends TestCase
         } catch (UnableToReadFile) {
             $this->fail('Exception was thrown.');
         }
+
+        $exceptionHandler->assertReported(fn (UnableToReadFile $exception): bool => str_contains($exception->getMessage(), 'Unable to read file from location: foo.txt.'));
     }
 
     public function testReportExceptionsForReadStream(): void
     {
         $container = Container::getInstance();
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-
-        $exceptionHandler->expects('report')
-            ->andReturnUsing(function (UnableToReadFile $exception): void {
-                $this->assertStringContainsString(
-                    'Unable to read file from location: foo.txt.',
-                    $exception->getMessage(),
-                );
-            });
+        $exceptionHandler = new ExceptionHandlerFake(new Handler($container));
 
         $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
@@ -1379,6 +1379,8 @@ class FilesystemAdapterTest extends TestCase
         } catch (UnableToReadFile) {
             $this->fail('Exception was thrown.');
         }
+
+        $exceptionHandler->assertReported(fn (UnableToReadFile $exception): bool => str_contains($exception->getMessage(), 'Unable to read file from location: foo.txt.'));
     }
 
     public function testReportExceptionsForPut(): void
@@ -1394,15 +1396,7 @@ class FilesystemAdapterTest extends TestCase
 
             $container = Container::getInstance();
 
-            $exceptionHandler = m::mock(ExceptionHandler::class);
-
-            $exceptionHandler->expects('report')
-                ->andReturnUsing(function (UnableToWriteFile $exception): void {
-                    $this->assertStringContainsString(
-                        'Unable to write file at location: foo.txt.',
-                        $exception->getMessage(),
-                    );
-                });
+            $exceptionHandler = new ExceptionHandlerFake(new Handler($container));
 
             $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
                 return $exceptionHandler;
@@ -1416,21 +1410,15 @@ class FilesystemAdapterTest extends TestCase
         } finally {
             chmod($this->tempDir . '/foo.txt', 0600);
         }
+
+        $exceptionHandler->assertReported(fn (UnableToWriteFile $exception): bool => str_contains($exception->getMessage(), 'Unable to write file at location: foo.txt.'));
     }
 
     public function testReportExceptionsForMimeType(): void
     {
         $container = Container::getInstance();
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-
-        $exceptionHandler->expects('report')
-            ->andReturnUsing(function (UnableToRetrieveMetadata $exception): void {
-                $this->assertStringContainsString(
-                    'Unable to retrieve the mime_type for file at location: unknown.mime-type.',
-                    $exception->getMessage(),
-                );
-            });
+        $exceptionHandler = new ExceptionHandlerFake(new Handler($container));
 
         $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
@@ -1445,6 +1433,8 @@ class FilesystemAdapterTest extends TestCase
         } catch (UnableToRetrieveMetadata) {
             $this->fail('Exception was thrown.');
         }
+
+        $exceptionHandler->assertReported(fn (UnableToRetrieveMetadata $exception): bool => str_contains($exception->getMessage(), 'Unable to retrieve the mime_type for file at location: unknown.mime-type.'));
     }
 
     public function testGetAllFiles(): void

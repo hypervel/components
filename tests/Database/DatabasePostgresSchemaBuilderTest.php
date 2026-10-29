@@ -16,12 +16,12 @@ class DatabasePostgresSchemaBuilderTest extends TestCase
     public function testHasTable(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(PostgresGrammar::class);
+        $grammar = new PostgresGrammar($connection);
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $builder = new PostgresBuilder($connection);
-        $grammar->expects('compileTableExists')->times(2)->andReturn('sql');
         $connection->expects('getTablePrefix')->times(2)->andReturn('prefix_');
-        $connection->expects('selectFromWriteConnection')->times(2)->with('sql')->andReturn([['exists' => 1]]);
+        $connection->expects('selectFromWriteConnection')->with($grammar->compileTableExists(null, 'prefix_table'))->andReturn([['exists' => 1]]);
+        $connection->expects('selectFromWriteConnection')->with($grammar->compileTableExists('public', 'prefix_table'))->andReturn([['exists' => 1]]);
 
         $this->assertTrue($builder->hasTable('table'));
         $this->assertTrue($builder->hasTable('public.table'));
@@ -30,15 +30,15 @@ class DatabasePostgresSchemaBuilderTest extends TestCase
     public function testGetColumnListing(): void
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(PostgresGrammar::class);
-        $processor = m::mock(PostgresProcessor::class);
+        $grammar = new PostgresGrammar($connection);
+        $connection->shouldReceive('getServerVersion')->andReturn('12.0.0');
+        $processor = new PostgresProcessor;
         $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $connection->expects('getPostProcessor')->andReturn($processor);
-        $grammar->expects('compileColumns')->with(null, 'prefix_table')->andReturn('sql');
-        $processor->expects('processColumns')->andReturn([['name' => 'column']]);
         $builder = new PostgresBuilder($connection);
         $connection->expects('getTablePrefix')->andReturn('prefix_');
-        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'column']]);
+        $connection->expects('selectFromWriteConnection')->with($grammar->compileColumns(null, 'prefix_table'))
+            ->andReturn([(object) ['name' => 'column', 'type_name' => 'int4', 'type' => 'integer', 'collation' => null, 'nullable' => 'YES', 'default' => null, 'comment' => null, 'generated' => null]]);
 
         $this->assertSame(['column'], $builder->getColumnListing('table'));
     }

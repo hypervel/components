@@ -10,6 +10,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Events\Dispatchable;
@@ -23,7 +24,7 @@ use Hypervel\Tests\Events\Fixtures\StringDispatchedInterfaceEvent;
 use Hypervel\Tests\Events\Fixtures\UnlistenedEvent;
 use Hypervel\Tests\Events\Fixtures\UnlistenedStringEvent;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -1218,13 +1219,16 @@ class EventsDispatcherTest extends TestCase
         $this->assertTrue($observerInvoked);
     }
 
-    public function testListenerCancellationSkipsObservers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testListenerCancellationSkipsObservers(bool $cleanupThrows): void
     {
         $dispatcher = new Dispatcher;
         $cancellation = new CanceledException('canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $observerInvoked = false;
 
-        $dispatcher->listen('foo', fn () => throw $cancellation);
+        $dispatcher->listen('foo', fn () => throw $failure);
         $dispatcher->observe('foo', function () use (&$observerInvoked): void {
             $observerInvoked = true;
         });
@@ -1232,17 +1236,20 @@ class EventsDispatcherTest extends TestCase
         try {
             $dispatcher->dispatch('foo');
             $this->fail('Expected listener cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Exception $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertFalse($observerInvoked);
     }
 
-    public function testObserverCancellationSupersedesEarlierFailuresAndStopsLaterObservers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testObserverCancellationSupersedesEarlierFailuresAndStopsLaterObservers(bool $cleanupThrows): void
     {
         $dispatcher = new Dispatcher;
         $cancellation = new CanceledException('canceled');
+        $failure = $cleanupThrows ? new RuntimeException('Cleanup failed.', previous: $cancellation) : $cancellation;
         $order = [];
 
         $dispatcher->listen('foo', function () use (&$order): void {
@@ -1255,10 +1262,10 @@ class EventsDispatcherTest extends TestCase
 
             throw new RuntimeException('observer failed');
         });
-        $dispatcher->observe('foo', function () use (&$order, $cancellation): void {
+        $dispatcher->observe('foo', function () use (&$order, $failure): void {
             $order[] = 'cancelling observer';
 
-            throw $cancellation;
+            throw $failure;
         });
         $dispatcher->observe('foo', function () use (&$order): void {
             $order[] = 'later observer';
@@ -1267,11 +1274,36 @@ class EventsDispatcherTest extends TestCase
         try {
             $dispatcher->dispatch('foo');
             $this->fail('Expected observer cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Exception $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame(['listener', 'first observer', 'cancelling observer'], $order);
+    }
+
+    public function testIndependentChildCancellationKeepsOrdinaryObserverFailureRules(): void
+    {
+        $dispatcher = new Dispatcher;
+        $listenerFailure = new ChildCancellationException(previous: new CanceledException);
+        $observerFailure = new ChildCancellationException(previous: new CanceledException);
+        $order = [];
+        $dispatcher->listen('foo', static fn () => throw $listenerFailure);
+        $dispatcher->observe('foo', static function () use (&$order, $observerFailure): never {
+            $order[] = 'first';
+            throw $observerFailure;
+        });
+        $dispatcher->observe('foo', static function () use (&$order): void {
+            $order[] = 'second';
+        });
+
+        try {
+            $dispatcher->dispatch('foo');
+            $this->fail('Expected the original listener failure.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($listenerFailure, $exception);
+        }
+
+        $this->assertSame(['first', 'second'], $order);
     }
 
     public function testLaterObserverRunsWhenEarlierObserverThrows(): void
@@ -1507,23 +1539,23 @@ class EventsDispatcherTest extends TestCase
 
     public function testEventDispatchesUsingNamedArguments(): void
     {
-        $events = m::mock(Dispatcher::class);
+        $events = new Dispatcher;
         Container::getInstance()->instance('events', $events);
 
-        $events->expects('dispatch')
-            ->with(m::on(function (mixed $event): bool {
-                $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $event);
-                $this->assertSame('first-value', $event->first);
-                $this->assertSame('second-value', $event->second);
+        $captured = null;
+        $events->listen(DispatchableNamedArgumentsEvent::class, function (DispatchableNamedArgumentsEvent $event) use (&$captured): string {
+            $captured = $event;
 
-                return true;
-            }))
-            ->andReturn(['dispatched']);
+            return 'dispatched';
+        });
 
         $this->assertSame(
             ['dispatched'],
             DispatchableNamedArgumentsEvent::dispatch(second: 'second-value', first: 'first-value')
         );
+        $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $captured);
+        $this->assertSame('first-value', $captured->first);
+        $this->assertSame('second-value', $captured->second);
     }
 
     public function testClosureListenerRejectsAnUntypedFirstParameterInsteadOfUsingALaterType(): void

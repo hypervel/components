@@ -1,11 +1,8 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-
+    mixins: [StylesMixin],
 
     data() {
         return {
@@ -17,14 +14,14 @@ export default {
     methods: {
         formatExpiration(expiration) {
             return expiration + ' seconds';
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
     <preview-screen title="Cache Details" resource="cache" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Action</td>
                 <td>
@@ -49,16 +46,18 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
-            <div class="card mt-5 overflow-hidden" v-if="slotProps.entry.content.value">
+        <template #after-attributes-card="slotProps">
+            <div class="card mt-5 overflow-hidden" v-if="'value' in slotProps.entry.content">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
                         <a class="nav-link active">Value</a>
                     </li>
                 </ul>
 
-                <pre class="code-bg p-4 mb-0 text-white">{{ slotProps.entry.content.value }}</pre>
+                <pre class="code-bg p-4 mb-0 text-white">{{
+                    slotProps.entry.content.value === null ? 'null' : slotProps.entry.content.value
+                }}</pre>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

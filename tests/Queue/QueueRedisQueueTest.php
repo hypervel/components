@@ -8,6 +8,7 @@ use DateInterval;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Contracts\Redis\Factory as Redis;
@@ -33,8 +34,11 @@ use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 
 class QueueRedisQueueTest extends TestCase
 {
@@ -158,6 +162,79 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer(new Container);
 
         $this->assertNull($queue->bulk(['first', 'second']));
+    }
+
+    public function testBulkRedisFailureIsNotReplacedByAFailingFailureListener(): void
+    {
+        $exception = new RuntimeException('Redis unavailable.');
+        $connection = $this->mockRedisProxyWithShaCache();
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('evalWithShaCache')->andThrow($exception);
+        $redis = m::mock(Redis::class);
+        $redis->expects('connection')->with('default')->andReturn($connection);
+
+        Container::setInstance($container = new Container);
+        $events = new EventDispatcher($container);
+        $container->instance('events', $events);
+        $queue = new RedisQueue($redis, 'default', 'default');
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+
+        $listener = new RuntimeException('Listener failed.');
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->bulk(['first', 'second']);
+            $this->fail('Expected the Redis failure to be rethrown.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertSame(['first', 'second'], $failed);
+    }
+
+    #[TestWith(['push', false])]
+    #[TestWith(['push', true])]
+    #[TestWith(['bulk', false])]
+    #[TestWith(['bulk', true])]
+    public function testCancellationDoesNotRaiseFailureEvents(string $method, bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Redis cleanup failed.', previous: $cancellation);
+        }
+        $connection = $this->mockRedisProxyWithShaCache();
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('evalWithShaCache')->andThrow($cancellation);
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('connection')->with('default')->andReturn($connection);
+
+        Container::setInstance($container = new Container);
+        $events = new EventDispatcher($container);
+        $container->instance('events', $events);
+        $queue = new RedisQueue($redis, 'default', 'default');
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+        $failed = 0;
+        $events->listen(JobQueueingFailed::class, static function () use (&$failed): void {
+            ++$failed;
+        });
+
+        try {
+            $method === 'bulk' ? $queue->bulk(['first', 'second']) : $queue->push('first');
+            $this->fail('Expected the cancellation to propagate.');
+        } catch (Throwable $actual) {
+            $this->assertSame($cancellation, $actual);
+        }
+
+        $this->assertSame(0, $failed);
     }
 
     public function testEmptyBulkDoesNotResolveRedis(): void
@@ -796,7 +873,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis, 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer(m::spy(Container::class)->makePartial());
+        $queue->setContainer(new Container);
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);

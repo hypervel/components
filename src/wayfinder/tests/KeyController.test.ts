@@ -1,4 +1,4 @@
-import { expect, it, test } from "vitest";
+import { expect, it, test } from "vite-plus/test";
 import {
     edit,
     external,
@@ -29,9 +29,7 @@ test("route parameters use backend-equivalent encoding", () => {
     expect(show.url("report?v2#final%2F.pdf")).toBe(
         "/keys/report%3Fv2%23final%252F.pdf",
     );
-    expect(show.url("report{draft}.pdf")).toBe(
-        "/keys/report%7Bdraft%7D.pdf",
-    );
+    expect(show.url("report{draft}.pdf")).toBe("/keys/report%7Bdraft%7D.pdf");
 });
 
 test("route parameters preserve JavaScript replacement-token values", () => {

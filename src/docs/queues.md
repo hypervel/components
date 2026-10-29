@@ -166,7 +166,7 @@ Configure a connection pool inside its queue connection definition:
 
 Hypervel uses a complete `key` and `secret` pair when both are configured, including the optional `token` as a temporary AWS session credential. When both static values are null, the AWS SDK's default credential chain is used. Configure both static values together.
 
-The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
+The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If your configuration contains objects or closures, set `pool.fingerprint` because these values cannot form an automatic pool identity. String callables and static-method arrays can form an automatic identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
 
 Calls to the same custom credential provider run one at a time, including when it is shared with S3 or SES. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants.
 
@@ -1965,6 +1965,9 @@ In this example, the job is released for ten seconds if the application is unabl
 
 `MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
 
+<a name="counting-worker-crashes"></a>
+#### Counting Worker Crashes
+
 By default, an attempt that ends because the worker process crashed or was killed, such as when it runs out of memory, does not count towards the job's maximum number of exceptions. If you would like these attempts to count as an exception, you may add the `CountCrashesAsExceptions` attribute to your job class:
 
 ```php
@@ -1981,7 +1984,17 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-When this attribute is present, the worker stores a marker in your application's cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception.
+When this attribute is present, the worker stores a marker in the cache while the job is processing. If the marker still exists when the job is next attempted, the previous attempt is counted as an exception. By default, workers use your default cache store, which must be shared by your workers and keep its data when they restart. Markers expire after 24 hours; an expired or removed marker cannot identify an interrupted attempt.
+
+You may also use this attribute on queued listeners, mailables, and notifications, or set their public `$countCrashesAsExceptions` property to `true`. A maximum exception count must be configured for crash counting to take effect.
+
+When a worker processes jobs concurrently, a crash or a [timeout that stops the worker](#worker-timeouts) (the default) can interrupt several jobs. Each interrupted attempt with this setting counts towards its own exception limit; an already-counted timeout is not counted again.
+
+The worker clears the marker before releasing a job or recording it as failed, so immediate retries are not mistaken for crashes. A worker death between clearing the marker and completing that handoff cannot be detected by the marker.
+
+Custom queue drivers whose job objects extend `Hypervel\Queue\Jobs\Job` inherit the required cleanup callbacks. Their `release()` method must call `parent::release()` before making the job available again, and any `fail()` override must preserve the parent's callback ordering before recording or publishing a failure.
+
+If your job objects implement `Hypervel\Contracts\Queue\Job` directly, they must also implement `Hypervel\Contracts\Queue\JobLifecycleCallbacks` to support crash counting. Run the registered `beforeReleasing` callbacks before making a job available again, and the `beforeFailing` callbacks before publishing a failure. If a callback throws, let the exception propagate without completing the release or failure. A job requesting crash counting without this capability fails before execution; jobs that do not request it are unaffected.
 
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
@@ -2025,7 +2038,7 @@ php artisan queue:work --timeout=30
 
 If the job exceeds its maximum attempts by continually timing out, it will be marked as failed.
 
-Hypervel checks for timed out jobs using a coroutine timer. You may configure how often the worker checks running jobs using the `--monitor-interval` option:
+Hypervel checks for timed out jobs using a coroutine timer. With PCNTL enabled, the worker can also recover when PHP code blocks that timer. See [worker timeouts](#worker-timeouts) for cancellation and recovery behavior. You may configure how often the worker checks running jobs using the `--monitor-interval` option:
 
 ```shell
 php artisan queue:work --monitor-interval=1
@@ -2051,7 +2064,7 @@ class ProcessPodcast implements ShouldQueue
 Sometimes, IO blocking processes such as sockets or outgoing HTTP connections may not respect your specified timeout. Therefore, when using these features, you should always attempt to specify a timeout using their APIs as well. For example, when using [Guzzle](https://docs.guzzlephp.org), you should always specify a connection and request timeout value.
 
 > [!WARNING]
-> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The `--timeout` option has no effect when the `queue:work` command is invoked with the `--once` option. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension is recommended so workers can respond to process signals gracefully.
+> A job's "timeout" value should always be less than its ["retry after"](#job-expiration) value, allowing time for detection and cleanup. Otherwise, the job may be re-attempted before it has actually finished executing or timed out. The `--timeout` option has no effect when the `queue:work` command is invoked with the `--once` option. The [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension enables graceful process signals and timeout recovery when PHP code blocks the event loop.
 
 <a name="failing-on-timeout"></a>
 #### Failing on Timeout
@@ -2074,7 +2087,7 @@ class ProcessPodcast implements ShouldQueue
 ```
 
 > [!NOTE]
-> By default, when a job times out, it consumes one attempt and is released back to the queue (if retries are allowed). However, if you configure the job to fail on timeout, it will not be retried, regardless of the value set for tries.
+> A timeout consumes an attempt. By default, a job that remains reserved becomes available again after its reservation expires. `FailOnTimeout` marks the job as failed instead, regardless of the remaining attempts. If the worker must terminate before it can safely run failure handling, the reservation recovers normally; see [worker timeouts](#worker-timeouts).
 
 <a name="sqs-fifo-and-fair-queues"></a>
 ### SQS FIFO and Fair Queues
@@ -2303,6 +2316,8 @@ $this->release(10);
 
 $this->release(now()->plus(seconds: 10));
 ```
+
+After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.
 
 <a name="manually-failing-a-job"></a>
 #### Manually Failing a Job
@@ -2827,6 +2842,8 @@ The command also reports worker stop reasons, such as reaching the memory limit.
 php artisan queue:work --json
 ```
 
+The JSON output includes connection and queue names when queues pause or resume and when workers stop.
+
 Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment). In addition, remember that any static state created or modified by your application will not be automatically reset between jobs. Request or job specific state should be stored in `CoroutineContext` instead of static properties or mutable singletons.
 
 Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker when you want to reload your updated code or reset the application state; however, this command is significantly less efficient than the `queue:work` command:
@@ -2932,6 +2949,14 @@ php artisan queue:work --force
 
 <a name="resource-considerations"></a>
 #### Resource Considerations
+
+The `--memory` option specifies the memory limit in megabytes at which the worker should exit. By default, this limit is 128 megabytes. You may also specify a percentage of PHP's configured `memory_limit`:
+
+```shell
+php artisan queue:work --memory=60%
+```
+
+The `queue:listen` command also accepts memory limits in megabytes or as a percentage. Percentage-based limits require a finite PHP `memory_limit`. If PHP's memory limit is unlimited (`-1`), use a limit in megabytes instead. A process monitor such as [Supervisor](#supervisor-configuration) can automatically restart the worker after it exits.
 
 Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, after [image manipulation](/docs/{{version}}/images), release references to image objects when you no longer need them. Do not retain them in static properties or singleton services between jobs.
 
@@ -3068,7 +3093,13 @@ Hypervel monitors running jobs using a coroutine timer. The `--monitor-interval`
 php artisan queue:work --monitor-interval=1
 ```
 
-By default, a timeout stops the worker process, including its other running jobs. To cancel only the timed-out job, set the following property during application boot:
+By default, a timeout stops the worker process, including its other running jobs. The worker stops accepting new jobs, notifies the timed-out job's [`Interruptible` handler](#reacting-to-worker-signals), and cancels its coroutine with `Swoole\Coroutine\CanceledException`. It waits up to `max(1, monitorInterval) + 1` seconds (two seconds by default) for the canceled code to finish before applying the job's failure settings. While the event loop remains responsive, yielding failure callbacks may then run to completion; this cancellation wait does not limit the job's `failed` method.
+
+Use `finally` for cleanup and rethrow cancellation if caught. `CanceledException` extends `Exception`, so a broad `catch (Exception)` also catches it. If job code catches cancellation and completes, releases, or fails the attempt during cleanup, the worker preserves that outcome. If the coroutine remains active after the wait, the worker terminates without running failure handling concurrently with it. A remaining reservation becomes available again normally, but `FailOnTimeout`, ordinary exception counting, and failure callbacks cannot run on that path.
+
+When PHP code blocks the event loop, the PCNTL alarm suspends the blocking coroutine so the timeout monitor can run failure handling before terminating the worker. Recovery, including the job's `failed` method, has `max(1, monitorInterval) + 1` seconds to finish (two seconds by default). A second alarm terminates the process when that deadline expires, even if recovery blocks again. Native calls that block signal handling cannot be interrupted this way. Other jobs interrupted by process termination recover through their queue reservations.
+
+To cancel only the timed-out job and keep the worker running, set the following property during application boot:
 
 ```php
 use Hypervel\Queue\Worker;
@@ -3076,10 +3107,10 @@ use Hypervel\Queue\Worker;
 Worker::$killOnTimeout = false;
 ```
 
-In this mode, the job receives a `Swoole\Coroutine\CanceledException`, allowing its `finally` blocks to release resources. The worker then handles the timeout using the job's normal retry, backoff, and failure settings, reporting a `Hypervel\Queue\TimeoutExceededException`. Other jobs continue running. Do not swallow cancellation: a job that continues running keeps its concurrency slot. Cancellation requires the job to yield; CPU-bound code cannot be interrupted by the coroutine timer.
+In this mode, the job also receives `Swoole\Coroutine\CanceledException`. Once its code unwinds, the worker handles the timeout using the job's normal retry, backoff, and failure settings, including `FailOnTimeout`, and reports a `Hypervel\Queue\TimeoutExceededException`. Other jobs continue running. Once job execution finishes, the worker's failure handling and completion listeners finish without further timeout cancellation. A job that swallows cancellation and continues running keeps its concurrency slot. This mode does not use the PCNTL recovery alarm: cancellation requires the job to yield, so CPU-bound code cannot be interrupted by the coroutine timer.
 
 > [!WARNING]
-> The `--timeout` value should always be at least several seconds shorter than your `retry_after` configuration value. This will ensure that a worker processing a frozen job is always terminated before the job is retried. If your `--timeout` option is longer than your `retry_after` configuration value, your jobs may be processed twice.
+> Keep `--timeout` comfortably shorter than `retry_after`, with room for the monitor interval, cancellation, and failure cleanup. A timeout is not a guarantee that cleanup or process termination finishes before the reservation expires. Jobs may be delivered again after a worker stops, so make jobs safe to retry and set timeouts on external calls as well.
 
 <a name="pausing-and-resuming-queue-workers"></a>
 ### Pausing and Resuming Queue Workers
@@ -3403,6 +3434,12 @@ To return the failed jobs as JSON, pass the `--json` option:
 
 ```shell
 php artisan queue:failed --json
+```
+
+To list failed jobs for a specific queue, use the `--queue` option:
+
+```shell
+php artisan queue:failed --queue=emails
 ```
 
 The `queue:failed` command will list the job ID, connection, queue, failure time, and other information about the job. The job ID may be used to retry the failed job. For instance, to retry a failed job that has an ID of `ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece`, issue the following command:
@@ -3783,6 +3820,16 @@ Queue::assertClosurePushed(function (CallQueuedClosure $job) {
 });
 ```
 
+Alternatively, you may pass an array of expected property values as the second argument to `assertPushed` or `assertNotPushed`, or as the third argument to `assertPushedOn`:
+
+```php
+Queue::assertPushed(ShipOrder::class, ['order' => $order]);
+
+Queue::assertPushedOn('shipping', ShipOrder::class, ['order' => $order]);
+```
+
+All specified properties must match. Values are compared using strict equality, while Eloquent models are compared using their `is` method. The `Bus` facade's `assertDispatched`, `assertNotDispatched`, `assertDispatchedSync`, and `assertDispatchedAfterResponse` methods also accept an array of expected property values as their second argument.
+
 <a name="testing-bus-dispatches"></a>
 ### Testing Bus Dispatches
 
@@ -4089,7 +4136,7 @@ class AppServiceProvider extends ServiceProvider
 
 The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run. It is `null` when the worker skips the job because it was already deleted, such as by a `JobProcessing` listener.
 
-Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. This event is not dispatched when coroutine cancellation interrupts the attempt, including when the exception was caused by cancellation. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
@@ -4133,7 +4180,7 @@ When an interrupting signal is delivered to running jobs, Hypervel dispatches a 
 
 Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
 
-When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual.
+When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual. Exceptions from stopping listeners or the callback are reported and do not prevent termination. During [blocked-loop recovery](#worker-timeouts), emergency termination can occur before stopping listeners or the callback finish.
 
 <a name="credits"></a>
 ## Credits

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -46,12 +47,8 @@ class SupportTestingEventFakeTest extends TestCase
 
     public function testAssertListening(): void
     {
-        $listener = ListenerStub::class;
-
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('getListeners')->andReturn([function ($event, $payload) use ($listener) {
-            return $listener(...array_values($payload));
-        }]);
+        $dispatcher = new EventDispatcher;
+        $dispatcher->listen(EventStub::class, ListenerStub::class);
 
         $fake = new EventFake($dispatcher);
 
@@ -103,6 +100,21 @@ class SupportTestingEventFakeTest extends TestCase
         $this->fake->assertDispatchedTimes(EventStub::class, 2);
     }
 
+    public function testAssertDispatchedWithArrayOfProperties(): void
+    {
+        $this->fake->dispatch(new EventWithPropertiesStub('pending'));
+
+        $this->fake->assertDispatched(EventWithPropertiesStub::class, ['status' => 'pending']);
+        $this->fake->assertNotDispatched(EventWithPropertiesStub::class, ['status' => 'complete']);
+    }
+
+    public function testPropertyMapsDoNotMatchStringEvents(): void
+    {
+        $this->fake->dispatch(EventWithPropertiesStub::class);
+
+        $this->fake->assertNotDispatched(EventWithPropertiesStub::class, ['status' => null]);
+    }
+
     public function testAssertNotDispatched(): void
     {
         $this->fake->assertNotDispatched(EventStub::class);
@@ -133,8 +145,11 @@ class SupportTestingEventFakeTest extends TestCase
 
     public function testAssertDispatchedWithIgnore(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('dispatch');
+        $dispatcher = new EventDispatcher;
+        $passedThrough = [];
+        $dispatcher->listen('*', function (string $event, array $payload) use (&$passedThrough): void {
+            $passedThrough[] = $event;
+        });
 
         $fake = new EventFake($dispatcher, [
             'Foo',
@@ -150,6 +165,7 @@ class SupportTestingEventFakeTest extends TestCase
         $fake->assertDispatched('Foo');
         $fake->assertDispatched('Bar');
         $fake->assertNotDispatched('Baz');
+        $this->assertSame(['Baz'], $passedThrough);
     }
 
     public function testAssertNothingDispatched(): void
@@ -174,4 +190,14 @@ class EventStub
 
 class ListenerStub
 {
+}
+
+class EventWithPropertiesStub
+{
+    /**
+     * Create an event with the given status.
+     */
+    public function __construct(public string $status)
+    {
+    }
 }

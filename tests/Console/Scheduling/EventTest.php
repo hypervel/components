@@ -21,9 +21,12 @@ use Hypervel\Mail\Message;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -140,26 +143,26 @@ class EventTest extends TestCase
 
     public function testDaysOfMonthMethod(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $event->daysOfMonth(1, 15);
         $this->assertSame('0 0 1,15 * *', $event->getExpression());
 
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
         $event->daysOfMonth([1, 10, 20, 30]);
         $this->assertSame('0 0 1,10,20,30 * *', $event->getExpression());
     }
 
     public function testEventDoesNotRunWhenPausedByDefault(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $this->assertFalse($event->runsWhenPaused());
     }
 
     public function testEventRunsWhenMarkedAsEvenWhenPaused(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
         $event->evenWhenPaused();
 
         $this->assertTrue($event->runsWhenPaused());
@@ -176,8 +179,7 @@ class EventTest extends TestCase
     public function testRunIndicatesWhenSkippedBecauseOverlapping(): void
     {
         $beforeCallbackCalled = false;
-        $eventMutex = m::mock(EventMutex::class);
-        $event = new class($eventMutex, 'php -i') extends Event {
+        $event = new class(new FakeEventMutex, 'php -i') extends Event {
             public bool $executed = false;
 
             /**
@@ -191,7 +193,6 @@ class EventTest extends TestCase
             }
         };
 
-        $eventMutex->expects('create')->with($event)->andReturnFalse();
         $event->withoutOverlapping();
         $event->before(function () use (&$beforeCallbackCalled): void {
             $beforeCallbackCalled = true;
@@ -337,6 +338,52 @@ class EventTest extends TestCase
             $this->fail('The after callback exception was not thrown.');
         } catch (RuntimeException $exception) {
             $this->assertSame('after callback failed', $exception->getMessage());
+        }
+
+        $event->releaseMutexOnTerminationSignal();
+    }
+
+    #[TestWith(['start', false])]
+    #[TestWith(['start', true])]
+    #[TestWith(['after', false])]
+    #[TestWith(['after', true])]
+    #[TestWith(['output', false])]
+    #[TestWith(['output', true])]
+    public function testCancellationDuringCleanupSupersedesAnEarlierFailure(string $failurePhase, bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('Cleanup canceled.');
+        $cleanup = $cleanupThrows ? new RuntimeException('Cleanup failed.') : null;
+        $cancel = static function () use ($cancellation, $cleanup): never {
+            try {
+                throw $cancellation;
+            } finally {
+                if ($cleanup !== null) {
+                    throw $cleanup;
+                }
+            }
+        };
+        $mutex = m::mock(EventMutex::class);
+        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $event = new EventTestExecutableEvent($mutex);
+        $event->withoutOverlapping();
+
+        if ($failurePhase === 'output') {
+            $event->sendOutputTo('test.log')->after($cancel);
+            $filesystem = m::mock(Filesystem::class);
+            $filesystem->shouldReceive('isFile')->once()->with('test.log')->andReturnTrue();
+            $filesystem->shouldReceive('put')->once()->with('test.log', 'output')->andReturnFalse();
+            $this->container->instance(Filesystem::class, $filesystem);
+            $mutex->shouldReceive('forget')->once();
+        } else {
+            $event->{$failurePhase === 'start' ? 'before' : 'after'}(static fn () => throw new RuntimeException('Earlier failure.'));
+            $mutex->shouldReceive('forget')->once()->andReturnUsing($cancel);
+        }
+
+        try {
+            $event->run($this->container);
+            $this->fail('Expected cancellation to supersede the earlier failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
         }
 
         $event->releaseMutexOnTerminationSignal();
@@ -551,6 +598,49 @@ class EventTest extends TestCase
         $this->assertFalse($event->hasRetainedProcess());
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOutputCancellationReleasesTheMutexAndProcessWithoutRunningAfterCallbacks(bool $cleanupThrows): void
+    {
+        $cancellation = new CanceledException('Output write canceled.');
+        $cleanup = $cleanupThrows ? new RuntimeException('Output cleanup failed.') : null;
+        $afterCalled = false;
+        $process = m::mock(Process::class);
+        $process->shouldReceive('getOutput')->once()->andReturn('process output');
+        $mutex = m::mock(EventMutex::class);
+        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $mutex->shouldReceive('forget')->once();
+        $event = new EventTestProcessEvent($mutex, $process);
+        $event->withoutOverlapping()->sendOutputTo('test.log');
+        $event->after(static function () use (&$afterCalled): void {
+            $afterCalled = true;
+        });
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('put')->once()->with('test.log', 'process output')->andReturnUsing(
+            static function () use ($cancellation, $cleanup): never {
+                try {
+                    throw $cancellation;
+                } finally {
+                    if ($cleanup !== null) {
+                        throw $cleanup;
+                    }
+                }
+            }
+        );
+        $this->container->instance(Filesystem::class, $filesystem);
+
+        try {
+            $event->run($this->container);
+            $this->fail('Expected output cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanup ?? $cancellation, $exception);
+        }
+
+        $this->assertFalse($afterCalled);
+        $this->assertFalse($event->hasRetainedProcess());
+        $event->releaseMutexOnTerminationSignal();
+    }
+
     public function testProcessIsReleasedAfterAfterCallbackFailure(): void
     {
         $event = new EventTestProcessEvent(m::mock(EventMutex::class), m::mock(Process::class));
@@ -568,7 +658,7 @@ class EventTest extends TestCase
 
     public function testNextRunDate(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
         $event->dailyAt('10:15');
 
         $this->assertSame('10:15:00', $event->nextRunDate()->toTimeString());
@@ -576,7 +666,7 @@ class EventTest extends TestCase
 
     public function testCustomMutexName(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
         $event->description('Fancy command description');
 
         $this->assertSame(
@@ -595,7 +685,7 @@ class EventTest extends TestCase
     {
         $beforeEvent = null;
         $afterEvent = null;
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $event->before(function (Event $event) use (&$beforeEvent): void {
             $beforeEvent = $event;
@@ -615,7 +705,7 @@ class EventTest extends TestCase
     {
         $filterEvent = null;
         $rejectEvent = null;
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $event->when(function (Event $event) use (&$filterEvent): bool {
             $filterEvent = $event;
@@ -637,7 +727,7 @@ class EventTest extends TestCase
     {
         $beforeEvent = null;
         $filterEvent = null;
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $event->before(function (Event $scheduledEvent) use (&$beforeEvent): void {
             $beforeEvent = $scheduledEvent;
@@ -659,7 +749,7 @@ class EventTest extends TestCase
     {
         $value = new Stringable('injected-string');
         $received = null;
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $this->container->instance(Stringable::class, $value);
         $event->before(function (Stringable $string) use (&$received): void {
@@ -675,7 +765,7 @@ class EventTest extends TestCase
     {
         $filter = new EventTestInvokableFilter(true);
         $reject = new EventTestInvokableFilter(false);
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(new FakeEventMutex, 'php -i');
 
         $event->when($filter);
         $event->skip($reject);
@@ -769,7 +859,7 @@ class EventTest extends TestCase
         $app->expects('environment')->times(3)->andReturn('production');
         $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertTrue($event->isDue($app));
         $this->assertTrue($event->skip(function (): bool {
@@ -779,30 +869,30 @@ class EventTest extends TestCase
             return true;
         })->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertFalse($event->environments('local')->isDue($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertFalse($event->when(function (): bool {
             return false;
         })->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertFalse($event->when(false)->filtersPass($app));
 
         // chained rules should be commutative
-        $eventA = new Event(m::mock(EventMutex::class), 'php foo');
-        $eventB = new Event(m::mock(EventMutex::class), 'php foo');
+        $eventA = new Event(new FakeEventMutex, 'php foo');
+        $eventB = new Event(new FakeEventMutex, 'php foo');
         $this->assertEquals(
             $eventA->daily()->hourly()->getExpression(),
             $eventB->hourly()->daily()->getExpression()
         );
 
-        $eventA = new Event(m::mock(EventMutex::class), 'php foo');
-        $eventB = new Event(m::mock(EventMutex::class), 'php foo');
+        $eventA = new Event(new FakeEventMutex, 'php foo');
+        $eventB = new Event(new FakeEventMutex, 'php foo');
         $this->assertEquals(
             $eventA->weekdays()->hourly()->getExpression(),
             $eventB->hourly()->weekdays()->getExpression()
@@ -816,11 +906,11 @@ class EventTest extends TestCase
         $app->expects('environment')->times(2)->andReturn('production');
         CarbonImmutable::setTestNow(CarbonImmutable::create(2015, 1, 1, 0, 0, 0));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * 4', $event->thursdays()->getExpression());
         $this->assertTrue($event->isDue($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('0 19 * * 3', $event->wednesdays()->at('19:00')->timezone('EST')->getExpression());
         $this->assertTrue($event->isDue($app));
     }
@@ -855,27 +945,26 @@ class EventTest extends TestCase
 
     public function testTimeBetweenChecks(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
+        $app = $this->container;
 
         CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->between('8:00', '10:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->between('9:00', '9:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->between('23:00', '10:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->between('8:00', '6:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->between('10:00', '11:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->between('10:00', '8:00')->filtersPass($app));
     }
 
@@ -898,53 +987,51 @@ class EventTest extends TestCase
 
     public function testTimeBetweenChecksTimezoneCallOrder(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
+        $app = $this->container;
 
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2024-07-01 09:00:00', 'UTC'));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->timezone('Europe/Rome')->between('10:00', '12:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->between('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->timezone('Europe/Rome')->unlessBetween('10:00', '12:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
     }
 
     public function testTimeUnlessBetweenChecks(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
+        $app = $this->container;
 
         CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('8:00', '10:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('9:00', '9:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('23:00', '10:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('8:00', '6:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->unlessBetween('10:00', '11:00')->filtersPass($app));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(new FakeEventMutex, 'php foo', 'UTC');
         $this->assertTrue($event->unlessBetween('10:00', '8:00')->filtersPass($app));
     }
 
     public function testEnvironmentsWithEnums(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(new FakeEventMutex, 'php foo');
 
         $event->environments(ScheduledEventTestEnvironment::Production);
         $this->assertSame(['production'], $event->environments);

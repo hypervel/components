@@ -12,7 +12,6 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\Saloon\Exceptions\InvalidPoolItemException;
 use Hypervel\Saloon\Exceptions\PoolException;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -217,28 +216,29 @@ class Pool
                     try {
                         // Throwable responses are failures, so the exception handler receives every failed request.
                         $response = $this->connector->send($request)->throw();
-                    } catch (CanceledException $exception) {
-                        $failures[$inputPosition] = [$key, new ChildCancellationException(
-                            'A child coroutine running a Saloon pool request was canceled while its owner remained active.',
-                            previous: $exception,
-                        )];
-
-                        return;
                     } catch (Throwable $exception) {
+                        if (Coroutine::causedByCancellation($exception)) {
+                            $failures[$inputPosition] = [$key, new ChildCancellationException(
+                                'A child coroutine running a Saloon pool request was canceled while its owner remained active.',
+                                previous: $exception,
+                            )];
+
+                            return;
+                        }
+
                         if ($this->exceptionHandler === null) {
                             $failures[$inputPosition] = [$key, $exception];
                         } else {
                             try {
                                 ($this->exceptionHandler)($exception, $key);
-                            } catch (CanceledException $callbackException) {
-                                $failures[$inputPosition] = [$key, $exception];
-                                $callbackFailures[$inputPosition] = [$key, new ChildCancellationException(
-                                    'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
-                                    previous: $callbackException,
-                                )];
                             } catch (Throwable $callbackException) {
                                 $failures[$inputPosition] = [$key, $exception];
-                                $callbackFailures[$inputPosition] = [$key, $callbackException];
+                                $callbackFailures[$inputPosition] = [$key, Coroutine::causedByCancellation($callbackException)
+                                    ? new ChildCancellationException(
+                                        'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
+                                        previous: $callbackException,
+                                    )
+                                    : $callbackException];
                             }
                         }
 
@@ -251,30 +251,35 @@ class Pool
 
                     try {
                         $this->responseHandler?->__invoke($response, $key);
-                    } catch (CanceledException $callbackException) {
-                        $callbackFailures[$inputPosition] = [$key, new ChildCancellationException(
-                            'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
-                            previous: $callbackException,
-                        )];
                     } catch (Throwable $callbackException) {
-                        $callbackFailures[$inputPosition] = [$key, $callbackException];
+                        $callbackFailures[$inputPosition] = [$key, Coroutine::causedByCancellation($callbackException)
+                            ? new ChildCancellationException(
+                                'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
+                                previous: $callbackException,
+                            )
+                            : $callbackException];
                     }
                 });
             }
-        } catch (CanceledException $exception) {
-            $concurrent->cancel();
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                $concurrent->cancel();
+
+                throw $exception;
+            }
+
             $orchestrationFailure = $exception;
         }
 
         try {
             ConnectionResolver::releaseIdleConnections();
-        } catch (CanceledException $exception) {
-            $concurrent->cancel();
-
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                $concurrent->cancel();
+
+                throw $exception;
+            }
+
             $orchestrationFailure ??= $exception;
         }
 

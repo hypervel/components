@@ -2338,6 +2338,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->getCreatedAtColumn(),
             $this->getUpdatedAtColumn(),
             ...$this->uniqueIds(),
+            ...$this->refreshes,
             'hypervel_through_key',
         ]));
 

@@ -108,31 +108,49 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    public function testTooManyAttemptsReportsFreshWindowMetadataWithoutCreatingAKey(): void
+    public function testTooManyAttemptsReportsCorrectly(): void
     {
         $redis = $this->redis();
-        $limiter = new DurationLimiter($redis, 'fresh-key', 2, 60);
+        $limiter = new DurationLimiter($redis, 'too-many-key', 2, 60);
         $before = time();
 
+        // Initially, should not have too many attempts
         $this->assertFalse($limiter->tooManyAttempts());
         $this->assertGreaterThanOrEqual($before + 60, $limiter->decaysAt);
         $this->assertLessThanOrEqual(time() + 60, $limiter->decaysAt);
         $this->assertSame(2, $limiter->remaining);
-        $this->assertSame(0, $redis->exists('fresh-key'));
-    }
+        $this->assertSame(0, $redis->exists('too-many-key'));
 
-    public function testTooManyAttemptsReportsOccupiedWindowMetadata(): void
-    {
-        $redis = $this->redis();
-        $limiter = new DurationLimiter($redis, 'occupied-key', 2, 60);
-
+        // Use up the available slots
         $this->assertTrue($limiter->acquire());
         $this->assertTrue($limiter->acquire());
 
+        // Now, too many attempts within the same window
         $this->assertTrue($limiter->tooManyAttempts());
         $this->assertGreaterThan(time(), $limiter->decaysAt);
         $this->assertSame(0, $limiter->remaining);
-        $this->assertSame('2', $redis->hget('occupied-key', 'count'));
+        $this->assertSame('2', $redis->hget('too-many-key', 'count'));
+
+        // After decay window, attempts should be allowed again
+        $redis->hset('too-many-key', 'end', time() - 1);
+        $this->assertFalse($limiter->tooManyAttempts());
+    }
+
+    public function testRemainingAttemptsStayExactWithLargeLimits(): void
+    {
+        $limiter = new DurationLimiter($this->redis(), 'large-limit-key', PHP_INT_MAX, 60);
+
+        $this->assertFalse($limiter->tooManyAttempts());
+        $this->assertSame(PHP_INT_MAX, $limiter->remaining);
+
+        $this->assertTrue($limiter->acquire());
+        $this->assertSame(PHP_INT_MAX - 1, $limiter->remaining);
+
+        $this->assertFalse($limiter->tooManyAttempts());
+        $this->assertSame(PHP_INT_MAX - 1, $limiter->remaining);
+
+        $this->assertTrue($limiter->acquire());
+        $this->assertSame(PHP_INT_MAX - 2, $limiter->remaining);
     }
 
     public function testTooManyAttemptsClampsOverLimitRemainingCount(): void

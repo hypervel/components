@@ -31,7 +31,7 @@ trait Testing
      */
     protected function reloadApplication(): void
     {
-        $this->tearDown();
-        $this->setUp();
+        $this->tearDownTheTestbenchEnvironment();
+        $this->setUpTheTestbenchEnvironment();
     }
 }

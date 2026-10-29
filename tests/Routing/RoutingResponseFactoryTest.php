@@ -1,0 +1,245 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Routing;
+
+use Generator;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Http\IterableStreamedResponse;
+use Hypervel\Http\StreamedEvent;
+use Hypervel\Routing\Redirector;
+use Hypervel\Routing\ResponseFactory;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
+
+class RoutingResponseFactoryTest extends TestCase
+{
+    // PHPUnit's output capture runs outside the test coroutine.
+    protected bool $runTestsInCoroutine = false;
+
+    public function testStreamDownloadFilenameWithoutAsciiEquivalent(): void
+    {
+        $response = $this->factory()->streamDownload(fn (): null => null, '請求書');
+
+        $this->assertSame('attachment; filename=___; filename*=utf-8\'\'%E8%AB%8B%E6%B1%82%E6%9B%B8', $response->headers->get('content-disposition'));
+    }
+
+    public function testStreamRetainsGeneratorChunksLazily(): void
+    {
+        $iterations = 0;
+        $response = $this->factory()->stream(function () use (&$iterations) {
+            ++$iterations;
+
+            yield 'first';
+            yield 'second';
+        });
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertSame('no', $response->headers->get('X-Accel-Buffering'));
+        $this->assertSame(0, $iterations);
+        $chunks = [];
+
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame(['first', 'second'], $chunks);
+        $this->assertSame(1, $iterations);
+    }
+
+    public function testStreamSupportsArrayGeneratorCallables(): void
+    {
+        $source = new ResponseFactoryGeneratorSource;
+        $response = $this->factory()->stream([$source, 'generate']);
+        $chunks = [];
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame(['array'], $chunks);
+    }
+
+    public function testStreamSupportsInvokableGeneratorCallables(): void
+    {
+        $response = $this->factory()->stream(new ResponseFactoryGeneratorSource);
+        $chunks = [];
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame(['invokable'], $chunks);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamKeepsOrdinaryCallbacksOnSymfonyResponse(bool $setCallbackLater): void
+    {
+        $callback = static function (): void {
+            echo 'callback';
+        };
+        $response = $this->factory()->stream($setCallbackLater ? null : $callback);
+
+        if ($setCallbackLater) {
+            $response->setCallback($callback);
+        }
+
+        $this->assertInstanceOf(StreamedResponse::class, $response);
+        $this->assertNotInstanceOf(IterableStreamedResponse::class, $response);
+        $this->expectOutputString('callback');
+        $response->sendContent();
+    }
+
+    public function testEventStreamStopsProducingAfterAFailedWrite(): void
+    {
+        $produced = 0;
+        $response = $this->factory()->eventStream(function () use (&$produced) {
+            ++$produced;
+            yield 'first';
+            ++$produced;
+            yield 'second';
+        });
+        $chunks = [];
+
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return false;
+        }));
+        $this->assertSame(["event: update\ndata: first\n\n"], $chunks);
+        $this->assertSame(1, $produced);
+    }
+
+    public function testEventStreamYieldsCompleteMessageAndTerminalEventChunks(): void
+    {
+        $response = $this->factory()->eventStream(
+            static function () {
+                yield 'first';
+                yield new StreamedEvent('custom', ['value' => true]);
+            },
+            endStreamWith: new StreamedEvent('complete', ['finished' => true]),
+        );
+        $chunks = [];
+
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame([
+            "event: update\ndata: first\n\n",
+            "event: custom\ndata: {\"value\":true}\n\n",
+            "event: complete\ndata: {\"finished\":true}\n\n",
+        ], $chunks);
+    }
+
+    public function testEventStreamPrefixesEveryMultilineDataField(): void
+    {
+        $response = $this->factory()->eventStream(
+            static function () {
+                yield "first\r\nsecond\rthird\nfourth";
+            },
+            endStreamWith: null,
+        );
+        $chunks = [];
+
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame([
+            "event: update\ndata: first\ndata: second\ndata: third\ndata: fourth\n\n",
+        ], $chunks);
+    }
+
+    #[DataProvider('streamingFactoryMethods')]
+    public function testStreamingFactoriesPassCancellationThroughWithoutReportingOrWrapping(string $method, bool $cleanupThrows): void
+    {
+        $failure = new CanceledException('response canceled');
+        $cleanup = new RuntimeException('cleanup failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        Container::getInstance()->instance(ExceptionHandler::class, $handler);
+        $operation = static function () use ($failure, $cleanup, $cleanupThrows): never {
+            try {
+                throw $failure;
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
+        };
+        $callback = $method === 'eventStream'
+            ? static function () use ($operation): iterable {
+                yield 'first';
+                $operation();
+            }
+        : $operation;
+        $response = $this->factory()->{$method}($callback);
+        $this->expectOutputString($method === 'eventStream' ? "event: update\ndata: first\n\n" : '');
+        $caught = null;
+
+        try {
+            $response->sendContent();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cleanupThrows ? $cleanup : $failure, $caught);
+
+        if ($cleanupThrows) {
+            $this->assertSame($failure, $cleanup->getPrevious());
+        }
+    }
+
+    /**
+     * Provide response factories that handle producer exceptions.
+     */
+    public static function streamingFactoryMethods(): array
+    {
+        return [
+            'event stream' => ['eventStream', false],
+            'event stream cleanup' => ['eventStream', true],
+            'download' => ['streamDownload', false],
+            'download cleanup' => ['streamDownload', true],
+        ];
+    }
+
+    private function factory(): ResponseFactory
+    {
+        return new ResponseFactory(
+            m::mock(ViewFactory::class),
+            m::mock(Redirector::class),
+        );
+    }
+}
+
+class ResponseFactoryGeneratorSource
+{
+    public function generate(): Generator
+    {
+        yield 'array';
+    }
+
+    public function __invoke(): Generator
+    {
+        yield 'invokable';
+    }
+}

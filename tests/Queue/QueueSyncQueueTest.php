@@ -16,6 +16,7 @@ use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -33,8 +34,10 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class QueueSyncQueueTest extends TestCase
 {
@@ -152,12 +155,11 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcher::class);
-        $events->expects('hasListeners')->with(JobProcessing::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobFailed::class)->andReturnTrue();
-        $events->expects('hasListeners')->with(JobAttempted::class)->andReturnTrue();
-        $events->expects('dispatch')->times(4);
+        $events = new EventsDispatcher($container);
+        $dispatched = [];
+        $events->listen('Hypervel\Queue\Events\*', function (string $event) use (&$dispatched): void {
+            $dispatched[] = $event;
+        });
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
@@ -167,6 +169,13 @@ class QueueSyncQueueTest extends TestCase
         } catch (Exception) {
             $this->assertTrue($_SERVER['__sync.failed']);
         }
+
+        $this->assertSame([
+            JobProcessing::class,
+            JobExceptionOccurred::class,
+            JobFailed::class,
+            JobAttempted::class,
+        ], $dispatched);
     }
 
     public function testDurationIsPassedToJobEvents(): void
@@ -258,11 +267,15 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
-    public function testCancellationEscapesWithoutFailedOrCompletionEvents(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationEscapesWithoutFailedOrCompletionEvents(bool $cleanupThrows): void
     {
         CancelingSyncQueueTestHandler::reset();
         $gate = $this->armCurrentCoroutineCancellation();
         CancelingSyncQueueTestHandler::$gate = $gate;
+        $cleanupException = $cleanupThrows ? new RuntimeException('Sync job cleanup failed.') : null;
+        CancelingSyncQueueTestHandler::$cleanupException = $cleanupException;
         $dispatched = [];
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
@@ -282,11 +295,53 @@ class QueueSyncQueueTest extends TestCase
         try {
             $sync->push(CancelingSyncQueueTestHandler::class);
             $this->fail('Expected cancellation to escape the sync queue.');
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanupException, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
             $this->assertSame([JobProcessing::class], $dispatched);
             $this->assertFalse(CancelingSyncQueueTestHandler::$failed);
         } finally {
             CancelingSyncQueueTestHandler::reset();
+        }
+    }
+
+    public function testWrappedCancellationDuringFailureObservationSkipsFailureAndCompletion(): void
+    {
+        $cleanupException = new RuntimeException('Failure observer cleanup failed.');
+        $gate = $this->armCurrentCoroutineCancellation();
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobProcessing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldNotReceive('hasListeners')->with(JobAttempted::class);
+        $events->expects('dispatch')->with(m::type(JobExceptionOccurred::class))->andReturnUsing(static function () use ($gate, $cleanupException): never {
+            try {
+                $gate->push(true);
+                throw new RuntimeException('Cancellation was not delivered.');
+            } finally {
+                Coroutine::sleep(0.001);
+                throw $cleanupException;
+            }
+        });
+        $container = $this->getContainer();
+        $container->instance('events', $events);
+        $job = m::mock(SyncJob::class);
+        $job->expects('fire')->andThrow(new RuntimeException('Job failed.'));
+        $job->shouldNotReceive('fail');
+        $sync = m::mock(SyncQueue::class)->makePartial()->shouldAllowMockingProtectedMethods();
+        $sync->shouldReceive('resolveJob')->andReturn($job);
+        $sync->setConnectionName('sync');
+        $sync->setContainer($container);
+
+        try {
+            $sync->pushRaw('{}');
+            $this->fail('Expected the cleanup error to escape.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($cleanupException, $exception);
+            $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
         }
     }
 
@@ -463,8 +518,9 @@ class QueueSyncQueueTest extends TestCase
         $coroutineId = EngineCoroutine::id();
 
         EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
-            $gate->pop();
-            EngineCoroutine::cancelById($coroutineId, throwException: true);
+            if ($gate->pop(5)) {
+                EngineCoroutine::cancelById($coroutineId, throwException: true);
+            }
         });
 
         return $gate;
@@ -546,6 +602,8 @@ class CancelingSyncQueueTestHandler
 {
     public static ?Channel $gate = null;
 
+    public static ?RuntimeException $cleanupException = null;
+
     public static bool $failed = false;
 
     /**
@@ -553,9 +611,16 @@ class CancelingSyncQueueTestHandler
      */
     public function fire(): never
     {
-        static::$gate?->push(true);
+        try {
+            static::$gate?->push(true);
 
-        throw new RuntimeException('Cancellation was not delivered.');
+            throw new RuntimeException('Cancellation was not delivered.');
+        } finally {
+            if (static::$cleanupException !== null) {
+                Coroutine::sleep(0.001);
+                throw static::$cleanupException;
+            }
+        }
     }
 
     /**
@@ -572,6 +637,7 @@ class CancelingSyncQueueTestHandler
     public static function reset(): void
     {
         static::$gate = null;
+        static::$cleanupException = null;
         static::$failed = false;
     }
 }

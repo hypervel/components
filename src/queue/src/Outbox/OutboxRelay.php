@@ -9,6 +9,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -16,7 +17,6 @@ use Hypervel\Queue\Events\OutboxBatchDeliveryFailed;
 use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OutboxRelay
@@ -67,15 +67,23 @@ class OutboxRelay
             $result = $this->inFreshCoroutine(function () use ($connection, $group): OutboxBatchResult {
                 try {
                     $queue = $this->queues->connection($connection);
-
-                    return $queue instanceof PublishesOutboxMessages
+                    $result = $queue instanceof PublishesOutboxMessages
                         ? $queue->publishOutboxMessages($group)
                         : $this->publishOutboxMessagesSequentially($queue, $group);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
-                    return new OutboxBatchResult(failure: $exception);
+                    if ($this->shouldStopDelivery($exception)) {
+                        throw $exception;
+                    }
+
+                    $result = new OutboxBatchResult(failure: $exception);
                 }
+
+                // Drivers and the sequential fallback may return cancellation, including a canceled child's, as a result failure.
+                if ($result->failure !== null && $this->shouldStopDelivery($result->failure)) {
+                    throw $result->failure;
+                }
+
+                return $result;
             });
             $duration = (hrtime(true) - $startedAt) / 1_000_000_000;
             $result = $this->validateResult($group, $result);
@@ -86,9 +94,11 @@ class OutboxRelay
                     }
 
                     return null;
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($this->shouldStopDelivery($exception)) {
+                        throw $exception;
+                    }
+
                     return $exception;
                 }
             });
@@ -103,6 +113,14 @@ class OutboxRelay
         }
 
         return $successful;
+    }
+
+    /**
+     * Determine whether cancellation requires delivery to stop.
+     */
+    protected function shouldStopDelivery(Throwable $exception): bool
+    {
+        return $exception instanceof ChildCancellationException || Coroutine::causedByCancellation($exception);
     }
 
     /**
@@ -185,9 +203,11 @@ class OutboxRelay
 
                 try {
                     $this->events->dispatch($event);
-                } catch (CanceledException|ChildCancellationException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if ($this->shouldStopDelivery($exception)) {
+                        throw $exception;
+                    }
+
                     $listenerFailure = $exception;
                 }
             }

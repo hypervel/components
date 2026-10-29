@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import InvokablePlusController, {
     InvokablePlusControllerForm2,
 } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/InvokablePlusController";

@@ -40,6 +40,7 @@ use ReflectionProperty;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
 
 class Mailable implements MailableContract, Renderable
 {
@@ -50,7 +51,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The locale of the message.
      */
-    public string $locale = '';
+    public ?string $locale = null;
 
     /**
      * The person the message is from.
@@ -85,22 +86,22 @@ class Mailable implements MailableContract, Renderable
     /**
      * The Markdown template for the message (if applicable).
      */
-    public string $markdown;
+    public ?string $markdown = null;
 
     /**
      * The HTML to use for the message.
      */
-    protected string $html;
+    protected ?string $html = null;
 
     /**
      * The view to use for the message.
      */
-    public string $view;
+    public ?string $view = null;
 
     /**
      * The plain text view to use for the message.
      */
-    public string $textView;
+    public ?string $textView = null;
 
     /**
      * The view data for the message.
@@ -543,7 +544,7 @@ class Mailable implements MailableContract, Renderable
      *
      * @return $this
      */
-    public function locale(string $locale): static
+    public function locale(?string $locale): static
     {
         $this->locale = $locale;
 
@@ -559,7 +560,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function priority(int $level = 3): static
     {
-        $this->callbacks[] = function ($message) use ($level) {
+        $this->callbacks[] = static function (Email $message) use ($level): void {
             $message->priority($level);
         };
 
@@ -1496,7 +1497,7 @@ class Mailable implements MailableContract, Renderable
 
         $headers = $this->headers();
 
-        $this->withSymfonyMessage(function ($message) use ($headers) {
+        $this->withSymfonyMessage(static function (Email $message) use ($headers): void {
             if ($headers->messageId) {
                 $message->getHeaders()->addIdHeader('Message-Id', $headers->messageId);
             }

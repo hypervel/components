@@ -1,4 +1,5 @@
 @import 'syntaxhighlight';
+$enable-dark-mode: false;
 @import 'bootstrap';
 
 body {
@@ -67,7 +68,9 @@ svg.icon {
 }
 
 .card {
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    box-shadow:
+        0 4px 6px -1px rgb(0 0 0 / 0.1),
+        0 2px 4px -2px rgb(0 0 0 / 0.1);
     border: none;
 
     .bottom-radius {
@@ -333,20 +336,6 @@ button:hover {
             }
         }
     }
-}
-
-.list-enter-active:not(.dontanimate) {
-    transition: background 1s linear;
-}
-
-.list-enter:not(.dontanimate),
-.list-leave-to:not(.dontanimate) {
-    background: $new-entries-bg;
-}
-
-.code-bg .list-enter:not(.dontanimate),
-.code-bg .list-leave-to:not(.dontanimate) {
-    background: $new-code-entries-bg;
 }
 
 .card table {

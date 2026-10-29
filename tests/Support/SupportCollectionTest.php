@@ -1402,8 +1402,8 @@ class SupportCollectionTest extends TestCase
         $this->assertEquals([['v' => 1]], $c->whereBetween('v', [-1, 1])->all());
         $this->assertEquals([['v' => 3], ['v' => '3']], $c->whereBetween('v', [3, 3])->values()->all());
         $this->assertSame(
-            [['v' => 2], ['v' => 3], ['v' => '3'], ['v' => 4]],
-            $c->whereBetween('v', new Collection([2, 4]))->values()->all()
+            [['v' => 2], ['v' => 3], ['v' => '3']],
+            $c->whereBetween('v', new Collection([2, 3]))->values()->all()
         );
         $this->assertSame(
             [['v' => 2], ['v' => 3], ['v' => '3'], ['v' => 4]],
@@ -1419,7 +1419,7 @@ class SupportCollectionTest extends TestCase
         $this->assertEquals([['v' => 1]], $c->whereNotBetween('v', [2, 4])->values()->all());
         $this->assertEquals([['v' => 2], ['v' => 3], ['v' => 3], ['v' => 4]], $c->whereNotBetween('v', [-1, 1])->values()->all());
         $this->assertEquals([['v' => 1], ['v' => '2'], ['v' => '4']], $c->whereNotBetween('v', [3, 3])->values()->all());
-        $this->assertSame([['v' => 1]], $c->whereNotBetween('v', new Collection([2, 4]))->values()->all());
+        $this->assertSame([['v' => 1], ['v' => 4]], $c->whereNotBetween('v', new Collection([2, 3]))->values()->all());
         $this->assertSame([['v' => 1]], $c->whereNotBetween('v', LazyCollection::range(2, 4, 2)->getIterator())->values()->all());
     }
 
@@ -1457,6 +1457,13 @@ class SupportCollectionTest extends TestCase
         // Nested arrays containing collections containing arrays are flattened
         $c = new $collection([['#foo', new $collection(['#bar', ['#zap']])], ['#baz']]);
         $this->assertEquals(['#foo', '#bar', '#zap', '#baz'], $c->flatten()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testFlattenWithMixedCollectionTypes(string $collection): void
+    {
+        $c = new $collection([new Collection(['#foo', new LazyCollection(['#bar'])]), new LazyCollection(['#baz', new Collection(['#zap'])])]);
+        $this->assertSame(['#foo', '#bar', '#baz', '#zap'], $c->flatten()->all());
 
         $c = new $collection([new LazyCollection(['#foo', ['#bar']]), ['#baz']]);
         $this->assertSame(['#foo', '#bar', '#baz'], $c->flatten()->all());
@@ -2016,9 +2023,13 @@ class SupportCollectionTest extends TestCase
     {
         $data = new $collection([new $collection([1, 2, 3]), new $collection([4, 5, 6])]);
         $this->assertEquals([1, 2, 3, 4, 5, 6], $data->collapse()->all());
+    }
 
-        $data = new $collection([new LazyCollection([1, 2, 3]), [4, 5, 6]]);
-        $this->assertSame([1, 2, 3, 4, 5, 6], $data->collapse()->all());
+    #[DataProvider('collectionClassProvider')]
+    public function testCollapseWithMixedCollectionTypes(string $collection): void
+    {
+        $data = new $collection([new Collection([1, 2]), new LazyCollection([3, 4]), [5]]);
+        $this->assertSame([1, 2, 3, 4, 5], $data->collapse()->all());
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -2037,6 +2048,13 @@ class SupportCollectionTest extends TestCase
     {
         $data = new $collection([new $collection(['a' => '1a', 'b' => '1b']), new $collection(['b' => '2b', 'c' => '2c']), 'drop']);
         $this->assertEquals(['a' => '1a', 'b' => '2b', 'c' => '2c'], $data->collapseWithKeys()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testCollapseWithKeysWithMixedCollectionTypes(string $collection): void
+    {
+        $data = new $collection([new Collection(['a' => 1, 'b' => 2]), new LazyCollection(['b' => 3, 'c' => 4])]);
+        $this->assertSame(['a' => 1, 'b' => 3, 'c' => 4], $data->collapseWithKeys()->all());
 
         $data = new $collection([new LazyCollection(['a' => '1a', 'b' => '1b']), ['b' => '2b', 'c' => '2c'], 'drop']);
         $this->assertSame(['a' => '1a', 'b' => '2b', 'c' => '2c'], $data->collapseWithKeys()->all());

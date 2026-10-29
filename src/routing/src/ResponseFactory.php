@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Routing\ResponseFactory as FactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
@@ -19,7 +20,6 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionFunction;
 use SplFileInfo;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -93,6 +93,16 @@ class ResponseFactory implements FactoryContract
     }
 
     /**
+     * Create a new Markdown response instance.
+     */
+    public function markdown(string $content = '', int $status = 200, array $headers = []): Response
+    {
+        return $this->make($content, $status, array_merge($headers, [
+            'Content-Type' => 'text/markdown',
+        ]));
+    }
+
+    /**
      * Create a new event stream response.
      *
      * @return IterableStreamedResponse
@@ -109,9 +119,11 @@ class ResponseFactory implements FactoryContract
                 if (filled($endStreamWith)) {
                     yield $this->formatStreamedEvent($endStreamWith);
                 }
-            } catch (CanceledException $e) {
-                throw $e;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 report($e);
             }
         }, 200, array_merge($headers, [
@@ -191,9 +203,11 @@ class ResponseFactory implements FactoryContract
         $withWrappedException = function () use ($callback) {
             try {
                 $callback();
-            } catch (CanceledException $e) {
-                throw $e;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 throw new StreamedResponseException($e);
             }
         };
@@ -230,7 +244,9 @@ class ResponseFactory implements FactoryContract
      */
     protected function fallbackName(string $name): string
     {
-        return str_replace('%', '', Str::ascii($name));
+        $fallback = str_replace('%', '', Str::ascii($name));
+
+        return $fallback !== '' ? $fallback : str_repeat('_', mb_strlen($name));
     }
 
     /**

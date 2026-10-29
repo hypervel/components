@@ -14,6 +14,7 @@ use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Concerns\BuildsWhereDateClauses;
 use Hypervel\Database\Concerns\ExplainsQueries;
@@ -2752,9 +2753,15 @@ class Builder implements BuilderContract
 
     /**
      * Constrain the query to the previous "page" of results before a given ID.
+     *
+     * @param null|BinaryParameter|int|resource|string $lastId
      */
-    public function forPageBeforeId(int $perPage = 15, string|int|null $lastId = 0, string $column = 'id'): static
+    public function forPageBeforeId(int $perPage = 15, mixed $lastId = 0, string $column = 'id'): static
     {
+        if (is_resource($lastId)) {
+            $lastId = BinaryParameter::fromStream($lastId);
+        }
+
         $this->orders = $this->removeExistingOrdersFor($column);
 
         if (is_null($lastId)) {
@@ -2769,9 +2776,15 @@ class Builder implements BuilderContract
 
     /**
      * Constrain the query to the next "page" of results after a given ID.
+     *
+     * @param null|BinaryParameter|int|resource|string $lastId
      */
-    public function forPageAfterId(int $perPage = 15, string|int|null $lastId = 0, string $column = 'id'): static
+    public function forPageAfterId(int $perPage = 15, mixed $lastId = 0, string $column = 'id'): static
     {
+        if (is_resource($lastId)) {
+            $lastId = BinaryParameter::fromStream($lastId);
+        }
+
         $this->orders = $this->removeExistingOrdersFor($column);
 
         if (is_null($lastId)) {

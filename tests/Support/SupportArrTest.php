@@ -13,7 +13,9 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\Json;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
+use Hypervel\Tests\Support\Concerns\CountsEnumerations;
 use Hypervel\Tests\Support\Fixtures\TestArrayableObject;
 use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestEnum;
@@ -32,6 +34,8 @@ use WeakMap;
 
 class SupportArrTest extends TestCase
 {
+    use CountsEnumerations;
+
     public function testAccessible(): void
     {
         $this->assertTrue(Arr::accessible([]));
@@ -138,6 +142,10 @@ class SupportArrTest extends TestCase
         $collection = collect(['baz', 'boom']);
         $mixedArray = [[1], [2], [3], ['foo', 'bar'], $collection];
         $this->assertEquals([1, 2, 3, 'foo', 'bar', 'baz', 'boom'], Arr::collapse($mixedArray));
+
+        // Case including lazy collections
+        $mixedArray = [[1], new LazyCollection([2, 3]), collect([4])];
+        $this->assertEquals([1, 2, 3, 4], Arr::collapse($mixedArray));
     }
 
     public function testCrossJoin(): void
@@ -464,15 +472,11 @@ class SupportArrTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testFirstPreservesDuplicateIteratorKeysAndStopsAtTheFirstMatch(): void
+    public function testFirstIsLazy(): void
     {
-        $values = static function (): iterable {
-            yield 'duplicate' => 1;
-            yield 'other' => 2;
-            yield 'duplicate' => 3;
-        };
-
-        $this->assertSame(1, Arr::first($values(), static fn (int $value): bool => $value === 1));
+        $this->assertEnumerates(2, function (LazyCollection $collection): void {
+            Arr::first($collection, fn (int $value): bool => $value === 2);
+        });
 
         $shortCircuit = static function (): iterable {
             yield 'first' => 1;
@@ -481,6 +485,24 @@ class SupportArrTest extends TestCase
         };
 
         $this->assertSame(1, Arr::first($shortCircuit(), static fn (int $value): bool => $value === 1));
+    }
+
+    public function testFirstWorksWithYieldFrom(): void
+    {
+        $products = (function (): iterable {
+            yield from ['Laptop', 'Monitor'];
+            yield from ['Keyboard', 'Mouse'];
+        })();
+
+        $this->assertSame('Laptop', Arr::first($products, fn (string $product): bool => $product === 'Laptop'));
+
+        $values = static function (): iterable {
+            yield 'duplicate' => 1;
+            yield 'other' => 2;
+            yield 'duplicate' => 3;
+        };
+
+        $this->assertSame(1, Arr::first($values(), static fn (int $value): bool => $value === 1));
     }
 
     public function testJoin(): void
@@ -640,6 +662,12 @@ class SupportArrTest extends TestCase
         // Nested arrays containing arrays containing arrays are flattened
         $array = [['#foo', new Collection(['#bar', ['#zap']])], ['#baz']];
         $this->assertEquals(['#foo', '#bar', '#zap', '#baz'], Arr::flatten($array));
+    }
+
+    public function testFlattenWithLazyCollections(): void
+    {
+        $array = [new LazyCollection(['#foo', ['#bar']]), ['#baz', new LazyCollection(['#zap'])]];
+        $this->assertEquals(['#foo', '#bar', '#baz', '#zap'], Arr::flatten($array));
     }
 
     public function testFlattenWithDepth(): void

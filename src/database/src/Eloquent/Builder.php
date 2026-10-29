@@ -1187,6 +1187,17 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Get a cursor parameter for database binding.
+     */
+    protected function getCursorParameterBinding(Cursor $cursor, string $parameter): mixed
+    {
+        // Reverse the cast that produced the readable cursor, preserving qualified pivot casts.
+        $key = $this->getPagingAttribute($this->model, $parameter);
+
+        return $this->model->encodeBinaryAttributeForDatabase($key, $cursor->parameter($parameter));
+    }
+
+    /**
      * Save a new model and return the instance.
      *
      * @return TModel
@@ -1216,7 +1227,7 @@ class Builder implements BuilderContract
     public function forceCreate(array $attributes): Model
     {
         return $this->model::unguarded(function () use ($attributes) {
-            return $this->newModelInstance()->create($attributes);
+            return $this->create($attributes);
         });
     }
 
@@ -1673,7 +1684,7 @@ class Builder implements BuilderContract
         if ($callback instanceof Closure) {
             $eagerLoad = $this->parseWithRelations([$relations => $callback]);
         } else {
-            $eagerLoad = $this->parseWithRelations(is_string($relations) ? func_get_args() : $relations);
+            $eagerLoad = $this->parseWithRelations(is_string($relations) ? array_filter(func_get_args()) : $relations);
         }
 
         $this->eagerLoad = array_merge($this->eagerLoad, $eagerLoad);

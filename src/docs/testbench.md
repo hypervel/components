@@ -934,6 +934,19 @@ PHP);
 
 The `defineCacheRoutes` method writes a temporary route file into the runtime skeleton, runs `route:cache`, reloads the application, and removes the generated files during teardown.
 
+Reloading creates a new application without running your test's `setUp` method again. If the reloaded application also needs setup from that method, register it with `afterApplicationRefreshed` before calling `parent::setUp()`. These callbacks run before the test case's traits are set up, and again each time the application is reloaded:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+protected function setUp(): void
+{
+    $this->afterApplicationRefreshed(fn () => Http::preventStrayRequests());
+
+    parent::setUp();
+}
+```
+
 If you need to define routes through the same temporary route-file mechanism without route caching, use `defineStashRoutes`:
 
 ```php
