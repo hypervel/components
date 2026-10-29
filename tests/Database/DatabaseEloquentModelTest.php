@@ -61,10 +61,12 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Encryption\Encrypter as ConcreteEncrypter;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\InteractsWithTime;
@@ -2010,10 +2012,14 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame(['settings' => '{"theme":"dark","locale":"en"}'], $model->getDirty());
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testMutatorsReplaceCachedClassCastValues(bool $legacy): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function testMutatorsReplaceCachedClassCastValues(bool $legacy, bool $encrypted): void
     {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+
         if ($legacy) {
             $model = new class extends Model {
                 protected array $casts = ['settings' => AsArrayObject::class];
@@ -2023,7 +2029,11 @@ class DatabaseEloquentModelTest extends TestCase
                  */
                 public function setSettingsAttribute(array $value): void
                 {
-                    $this->attributes['settings'] = json_encode($value);
+                    $this->attributes['settings'] = $this->getCasts()['settings'] === AsEncryptedArrayObject::class
+                        ? Crypt::encryptString(json_encode($value))
+                        : json_encode($value);
+                    $this->attributes['selected_theme'] = $this->settings['theme'];
+                    $this->settings['locale'] = 'fr';
                 }
             };
         } else {
@@ -2035,19 +2045,126 @@ class DatabaseEloquentModelTest extends TestCase
                  */
                 protected function settings(): Attribute
                 {
-                    return Attribute::set(fn (array $value): string|false => json_encode($value));
+                    return Attribute::set(fn (array $value): string|false => $this->getCasts()['settings'] === AsEncryptedArrayObject::class
+                        ? Crypt::encryptString(json_encode($value))
+                        : json_encode($value));
                 }
             };
         }
 
-        $model->setRawAttributes(['settings' => '{"theme":"light"}'], true);
+        $model->mergeCasts(['settings' => $encrypted ? AsEncryptedArrayObject::class : AsArrayObject::class]);
+        $model->setRawAttributes(['settings' => $encrypted ? Crypt::encryptString('{"theme":"light"}') : '{"theme":"light"}'], true);
 
         $this->assertSame('light', $model->settings['theme']);
 
         $model->settings = ['theme' => 'dark'];
 
         $this->assertSame('dark', $model->settings['theme']);
-        $this->assertSame(['settings' => '{"theme":"dark"}'], $model->getDirty());
+        if ($legacy) {
+            $this->assertSame('dark', $model->selected_theme);
+            $this->assertSame('fr', $model->settings['locale']);
+        }
+
+        $stored = $model->getDirty()['settings'];
+        $this->assertSame(
+            $legacy ? '{"theme":"dark","locale":"fr"}' : '{"theme":"dark"}',
+            $encrypted ? Crypt::decryptString($stored) : $stored
+        );
+    }
+
+    #[TestWith([LegacySettingsMutationModel::class, false, false])]
+    #[TestWith([LegacySettingsMutationModel::class, true, false])]
+    #[TestWith([LegacySettingsMutationModel::class, false, true])]
+    #[TestWith([LegacySettingsMutationModel::class, true, true])]
+    #[TestWith([AttributeSettingsMutationModel::class, false, false])]
+    #[TestWith([AttributeSettingsMutationModel::class, true, false])]
+    #[TestWith([AttributeSettingsMutationModel::class, false, true])]
+    #[TestWith([AttributeSettingsMutationModel::class, true, true])]
+    public function testMutatorsKeepInPlaceClassCastEdits(string $modelClass, bool $encrypted, bool $readFirst): void
+    {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+        $model = new $modelClass;
+        $model->mergeCasts(['settings' => $encrypted ? AsEncryptedArrayObject::class : AsArrayObject::class]);
+        $model->setRawAttributes(['settings' => $encrypted ? Crypt::encryptString('{"theme":"light"}') : '{"theme":"light"}'], true);
+        $held = $readFirst ? $model->settings : null;
+
+        $model->settings = ['theme' => 'dark'];
+
+        $this->assertSame('dark', $model->settings['theme']);
+        $this->assertSame(7, $model->settings_updated_by);
+        if ($readFirst) {
+            $this->assertSame($held, $model->settings);
+            $held['locale'] = 'fr';
+        }
+
+        $stored = $model->getDirty()['settings'];
+        $this->assertSame(
+            $readFirst ? '{"theme":"dark","locale":"fr"}' : '{"theme":"dark"}',
+            $encrypted ? Crypt::decryptString($stored) : $stored
+        );
+    }
+
+    public function testReplacingOneBackingColumnKeepsOtherClassCastEdits(): void
+    {
+        $model = (new ModelStub)->mergeCasts(['address' => Address::class]);
+        $model->setRawAttributes(['address_line_one' => 'First', 'address_line_two' => 'Second'], true);
+        $address = $model->address;
+        $address->lineTwo = 'Unsaved';
+        $model->address_line_one = 'Replacement';
+
+        $this->assertSame('Replacement', $model->address->lineOne);
+        $this->assertSame('Unsaved', $model->address->lineTwo);
+        $this->assertSame(['address_line_one' => 'Replacement', 'address_line_two' => 'Unsaved'], $model->getDirty());
+    }
+
+    public function testRawAttributeReplacementDoesNotWriteBackCachedObjects(): void
+    {
+        $model = (new ModelStub)->mergeCasts(['settings' => AsArrayObject::class]);
+        $model->setRawAttributes(['settings' => '{"theme":"light"}'], true);
+        $model->settings['theme'] = 'unsaved';
+
+        $model->setRawAttributes(['settings' => '{"theme":"dark"}'], true);
+
+        $this->assertSame('dark', $model->settings['theme']);
+        $this->assertSame('{"theme":"dark"}', $model->getRawOriginal('settings'));
+        $this->assertSame([], $model->getDirty());
+    }
+
+    public function testCasterWritesToOtherAttributesSurviveAssignmentAndWriteback(): void
+    {
+        $model = (new ModelStub)->mergeCasts(['settings' => AuditedSettingsCast::class]);
+        $settings = new Fluent(['theme' => 'dark']);
+        $model->settings = $settings;
+
+        $this->assertSame('dark', $model->settings_theme);
+        $settings->theme = 'light';
+        $this->assertSame(['settings_theme' => 'light', 'settings' => '{"theme":"light"}'], $model->getAttributes());
+    }
+
+    public function testAttributeSetterWritesToOtherAttributesSurviveAssignmentAndWriteback(): void
+    {
+        $model = new class extends Model {
+            /**
+             * Get and set the settings attribute.
+             */
+            protected function settings(): Attribute
+            {
+                return Attribute::make(
+                    get: fn (string $value): Fluent => new Fluent(json_decode($value, true)),
+                    set: function (Fluent $value): string|false {
+                        $this->attributes['settings_theme'] = $value->theme;
+
+                        return json_encode($value);
+                    },
+                );
+            }
+        };
+        $settings = new Fluent(['theme' => 'dark']);
+        $model->settings = $settings;
+
+        $this->assertSame('dark', $model->settings_theme);
+        $settings->theme = 'light';
+        $this->assertSame(['settings_theme' => 'light', 'settings' => '{"theme":"light"}'], $model->getAttributes());
     }
 
     public function testSetOnlyMutatorDoesNotOverwriteChangesToClassCastObjects(): void
@@ -5628,6 +5745,55 @@ class CastingStub extends Model
     protected function serializeDate(DateTimeInterface $date): string
     {
         return $date->format('Y-m-d H:i:s');
+    }
+}
+
+class LegacySettingsMutationModel extends Model
+{
+    /**
+     * Update the existing settings and record their author.
+     */
+    public function setSettingsAttribute(array $value): void
+    {
+        $this->settings['theme'] = $value['theme'];
+        $this->attributes['settings_updated_by'] = 7;
+    }
+}
+
+class AttributeSettingsMutationModel extends Model
+{
+    /**
+     * Update the existing settings and record their author.
+     */
+    protected function settings(): Attribute
+    {
+        return Attribute::set(function (array $value): array {
+            $this->settings['theme'] = $value['theme'];
+            $this->attributes['settings_updated_by'] = 7;
+
+            return [];
+        });
+    }
+}
+
+class AuditedSettingsCast implements CastsAttributes
+{
+    /**
+     * Return the stored settings.
+     */
+    public function get(Model $model, string $key, mixed $value, array $attributes): Fluent
+    {
+        return new Fluent(json_decode($value, true));
+    }
+
+    /**
+     * Store the settings and update their indexed theme.
+     */
+    public function set(Model $model, string $key, mixed $value, array $attributes): string|false
+    {
+        $model->settings_theme = $value->theme;
+
+        return json_encode($value);
     }
 }
 

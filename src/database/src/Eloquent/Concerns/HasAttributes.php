@@ -105,6 +105,13 @@ trait HasAttributes
     protected array $classCastCache = [];
 
     /**
+     * The stored attributes each cached class cast was created from or last wrote.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    protected array $classCastStoredValues = [];
+
+    /**
      * The attributes that have been cast using "Attribute" return type mutators.
      */
     protected array $attributeCastCache = [];
@@ -903,9 +910,12 @@ trait HasAttributes
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
             || $objectCachingDisabled) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;
+            // The first writeback identifies the cast's backing columns. Until then,
+            // retain the values it read without invoking its setter a second time.
+            $this->classCastStoredValues[$key] = $this->attributes;
         }
 
         return $value;
@@ -1153,8 +1163,9 @@ trait HasAttributes
 
         $result = $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
 
-        // The setter may read and cache this attribute before replacing its stored value.
-        unset($this->classCastCache[$key], $this->attributeCastCache[$key]);
+        // A legacy setter can refresh stored data after reading a cached accessor.
+        // Class casts reconcile their own writes so in-place mutations survive.
+        unset($this->attributeCastCache[$key]);
 
         return $result;
     }
@@ -1172,15 +1183,10 @@ trait HasAttributes
             $this->attributes[$key] = $value;
         };
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $this->normalizeCastClassResponse(
-                $key,
-                $callback($value, $this->attributes)
-            )
-        );
-
-        unset($this->classCastCache[$key]);
+        // Read attributes after the callback so its other writes and cast
+        // synchronizations are not replaced by an earlier argument snapshot.
+        $attributes = $this->normalizeCastClassResponse($key, $callback($value, $this->attributes));
+        $this->attributes = array_merge($this->attributes, $attributes);
 
         // Setter-only inputs must not overwrite later changes to objects returned by class casts.
         if ($attribute->get && ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching))) {
@@ -1223,7 +1229,7 @@ trait HasAttributes
         };
 
         if ($this->isClassCastable($key)) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         }
 
         unset($this->attributeCastCache[$key]);
@@ -1238,15 +1244,9 @@ trait HasAttributes
     {
         $caster = $this->resolveCasterClass($key);
 
-        $this->attributes = array_replace(
-            $this->attributes,
-            $this->normalizeCastClassResponse($key, $caster->set(
-                $this,
-                $key,
-                $value,
-                $this->attributes
-            ))
-        );
+        // A caster can update other attributes while producing its stored values.
+        $attributes = $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes));
+        $this->attributes = array_replace($this->attributes, $attributes);
 
         // A custom caster may read the accessor while preparing the new stored value.
         unset($this->attributeCastCache[$key]);
@@ -1254,9 +1254,10 @@ trait HasAttributes
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
             || ($caster->withoutObjectCaching ?? false)) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;
+            $this->classCastStoredValues[$key] = $attributes;
         }
     }
 
@@ -1899,12 +1900,29 @@ trait HasAttributes
         $value = $this->classCastCache[$key];
         $caster = $this->resolveCasterClass($key);
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $caster instanceof CastsInboundAttributes
-                ? [$key => $value]
-                : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes))
-        );
+        $attributes = $caster instanceof CastsInboundAttributes
+            ? [$key => $value]
+            : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes));
+
+        $replaced = false;
+
+        // Replaced backing values take precedence over the cached object's edits.
+        // Keep its edits to other columns; unrelated attributes can change independently,
+        // including encrypted casts that are written back during reads.
+        foreach ($attributes as $column => $attribute) {
+            if (($this->attributes[$column] ?? null) !== ($this->classCastStoredValues[$key][$column] ?? null)) {
+                unset($attributes[$column]);
+                $replaced = true;
+            }
+        }
+
+        $this->attributes = array_merge($this->attributes, $attributes);
+
+        if ($replaced) {
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
+        } else {
+            $this->classCastStoredValues[$key] = $attributes;
+        }
     }
 
     /**
@@ -1937,13 +1955,9 @@ trait HasAttributes
             $this->attributes[$key] = $value;
         };
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $this->normalizeCastClassResponse(
-                $key,
-                $callback($value, $this->attributes)
-            )
-        );
+        // Preserve writes performed by the setter before merging its returned values.
+        $attributes = $this->normalizeCastClassResponse($key, $callback($value, $this->attributes));
+        $this->attributes = array_merge($this->attributes, $attributes);
     }
 
     /**
@@ -2035,12 +2049,14 @@ trait HasAttributes
     {
         $this->attributes = $attributes;
 
+        // Synchronizing original values must not write back objects from the old row.
+        $this->classCastCache = [];
+        $this->classCastStoredValues = [];
+        $this->attributeCastCache = [];
+
         if ($sync) {
             $this->syncOriginal();
         }
-
-        $this->classCastCache = [];
-        $this->attributeCastCache = [];
 
         return $this;
     }
@@ -2212,6 +2228,7 @@ trait HasAttributes
         [$this->attributes, $this->changes, $this->previous] = [$this->original, [], []];
 
         $this->classCastCache = [];
+        $this->classCastStoredValues = [];
         $this->attributeCastCache = [];
 
         return $this;
