@@ -1938,7 +1938,7 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Adds a where condition using row values.
+     * Add a where condition using row values.
      *
      * @throws InvalidArgumentException
      */
@@ -1946,6 +1946,10 @@ class Builder implements BuilderContract
     {
         if (count($columns) !== count($values)) {
             throw new InvalidArgumentException('The number of columns must match the number of values');
+        }
+
+        if ($this->invalidOperator($operator)) {
+            throw new InvalidArgumentException('Invalid operator passed to whereRowValues method.');
         }
 
         $type = 'RowValues';

@@ -3086,7 +3086,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->attributes[$offset],
             $this->relations[$offset],
             $this->attributeCastCache[$offset],
-            $this->classCastCache[$offset]
+            $this->attributeCastStoredValues[$offset],
+            $this->classCastCache[$offset],
+            $this->classCastStoredValues[$offset]
         );
     }
 
@@ -3173,7 +3175,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->mergeAttributesFromCachedCasts();
 
         $this->classCastCache = [];
+        $this->classCastStoredValues = [];
         $this->attributeCastCache = [];
+        $this->attributeCastStoredValues = [];
         $this->flushCastCaches();
         $this->relationAutoloadCallback = null;
         $this->relationAutoloadContext = null;

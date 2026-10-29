@@ -18,6 +18,7 @@ use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Fluent;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 class EloquentModelEncryptedCastingTest extends DatabaseTestCase
@@ -344,6 +345,66 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $this->assertNull($subject->fresh()->secret_array);
     }
 
+    public function testAsEncryptedArrayObjectJsonAttributeIsCastable(): void
+    {
+        $this->encrypter->allows('encryptString')
+            ->with('{"key1":"value1"}')
+            ->andReturn('encrypted-secret-array-string-1');
+        $this->encrypter->allows('decryptString')
+            ->with('encrypted-secret-array-string-1')
+            ->andReturn('{"key1":"value1"}');
+        $this->encrypter->allows('encryptString')
+            ->with('{"key1":"value1","key2":"value2"}')
+            ->andReturn('encrypted-secret-array-string-2');
+        $this->encrypter->allows('decryptString')
+            ->with('encrypted-secret-array-string-2')
+            ->andReturn('{"key1":"value1","key2":"value2"}');
+
+        $subject = new EncryptedCast;
+
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+
+        $subject->secret_array = ['key1' => 'value1'];
+        $subject->fill(['secret_array->key2' => 'value2']);
+        $subject->save();
+
+        $this->assertSame(['key1' => 'value1', 'key2' => 'value2'], $subject->secret_array->getArrayCopy());
+        $this->assertDatabaseHas('encrypted_casts', [
+            'id' => $subject->id,
+            'secret_array' => 'encrypted-secret-array-string-2',
+        ]);
+    }
+
+    public function testAsEncryptedCollectionJsonAttributeIsCastable(): void
+    {
+        $this->encrypter->allows('encryptString')
+            ->with('{"key1":"value1"}')
+            ->andReturn('encrypted-secret-collection-string-1');
+        $this->encrypter->allows('decryptString')
+            ->with('encrypted-secret-collection-string-1')
+            ->andReturn('{"key1":"value1"}');
+        $this->encrypter->allows('encryptString')
+            ->with('{"key1":"value1","key2":"value2"}')
+            ->andReturn('encrypted-secret-collection-string-2');
+        $this->encrypter->allows('decryptString')
+            ->with('encrypted-secret-collection-string-2')
+            ->andReturn('{"key1":"value1","key2":"value2"}');
+
+        $subject = new EncryptedCast;
+
+        $subject->mergeCasts(['secret_collection' => AsEncryptedCollection::class]);
+
+        $subject->secret_collection = new Collection(['key1' => 'value1']);
+        $subject->fill(['secret_collection->key2' => 'value2']);
+        $subject->save();
+
+        $this->assertSame(['key1' => 'value1', 'key2' => 'value2'], $subject->secret_collection->all());
+        $this->assertDatabaseHas('encrypted_casts', [
+            'id' => $subject->id,
+            'secret_collection' => 'encrypted-secret-collection-string-2',
+        ]);
+    }
+
     /**
      * @param class-string<EncryptedCast> $model
      */
@@ -463,6 +524,33 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             'object' => ['secret_object'],
             'collection' => ['secret_collection'],
         ];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEncryptedClassCastDirtyCheckingUsesItsOwnEncrypter(bool $rotatingKey): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        $encrypter->previousKeys($rotatingKey ? [str_repeat('c', 16)] : []);
+        Crypt::swap($encrypter);
+        Model::encryptUsing(new RealEncrypter(str_repeat('b', 16)));
+
+        $subject = new EncryptedCast;
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+        $subject->secret_array = ['key1' => 'value1'];
+        $subject->save();
+
+        $subject->secret_array = ['key1' => 'value1'];
+
+        $this->assertSame($rotatingKey, $subject->isDirty('secret_array'));
+
+        $subject->fill(['secret_array->key2' => 'value2']);
+        $subject->save();
+
+        $this->assertSame(
+            '{"key1":"value1","key2":"value2"}',
+            $encrypter->decryptString($subject->fresh()->getRawOriginal('secret_array')),
+        );
     }
 
     public function testCustomEncrypterCanBeSpecified(): void
