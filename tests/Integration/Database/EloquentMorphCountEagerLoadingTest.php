@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Database\Fixtures\Models\Comment;
@@ -69,6 +70,21 @@ class EloquentMorphCountEagerLoadingTest extends DatabaseTestCase
         $this->assertTrue($comments[0]->relationLoaded('commentable'));
         $this->assertEquals(2, $comments[0]->commentable->likes_count);
         $this->assertTrue($comments[1]->relationLoaded('commentable'));
+        $this->assertNull($comments[1]->commentable->views_count);
+    }
+
+    public function testWithMorphCountLoadingWithMorphMap(): void
+    {
+        Relation::morphMap(['post' => Post::class]);
+
+        $comments = Comment::query()
+            ->with(['commentable' => function (MorphTo $morphTo): void {
+                $morphTo->morphWithCount(['post' => ['likes']]);
+            }])
+            ->orderBy('id')
+            ->get();
+
+        $this->assertEquals(2, $comments[0]->commentable->likes_count);
         $this->assertNull($comments[1]->commentable->views_count);
     }
 

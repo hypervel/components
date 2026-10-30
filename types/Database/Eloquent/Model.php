@@ -6,6 +6,7 @@ namespace Hypervel\Types\Model;
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\HasCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -55,6 +56,9 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
     assertType('Hypervel\Types\Model\Articles<(int|string), Hypervel\Types\Model\Article>', $article->newCollection([new Article]));
     assertType('Hypervel\Types\Model\Comments', $comment->newCollection([new Comment]));
 
+    assertType('User', $user->load(['posts' => fn ($query) => $query]));
+    assertType('User', $user->loadMorph('parentable', ['post' => ['comments' => fn ($query) => $query]]));
+    assertType('User', $user->loadCount(['posts' => fn (Builder $query) => $query->where('published', true)]));
     assertType('User', $user->loadAggregate('posts', $expression, 'sum'));
     assertType('User', $user->loadMax('posts', $expression));
     assertType('User', $user->loadMin('posts', $expression));

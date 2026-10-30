@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentMorphCountLazyEagerLoadingTest;
 
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Database\Fixtures\Models\Comment;
@@ -51,5 +52,20 @@ class EloquentMorphCountLazyEagerLoadingTest extends DatabaseTestCase
 
         $this->assertTrue($comment->relationLoaded('commentable'));
         $this->assertEquals(2, $comment->commentable->likes_count);
+    }
+
+    public function testLazyEagerLoadingWithMorphMap(): void
+    {
+        Relation::morphMap(['post' => Post::class]);
+
+        $comment = Comment::first();
+        $comment->loadMorphCount('commentable', ['post' => ['likes']]);
+
+        $this->assertEquals(2, $comment->commentable->likes_count);
+
+        $comments = Comment::all();
+        $comments->loadMorphCount('commentable', ['post' => ['likes']]);
+
+        $this->assertEquals(2, $comments[0]->commentable->likes_count);
     }
 }

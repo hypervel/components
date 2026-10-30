@@ -1548,6 +1548,8 @@ $alias = $post->getMorphClass();
 $class = Relation::getMorphedModel($alias);
 ```
 
+Registered aliases may also be used instead of class names as the keys passed to `constrain`, `morphWith`, `morphWithCount`, `loadMorph`, and `loadMorphCount`. For example, `$comments->loadMorph('commentable', ['post' => ['author']])` loads the `author` relationship for the mapped post models.
+
 > [!WARNING]
 > When adding a "morph map" to your existing application, every morphable `*_type` column value in your database that still contains a fully-qualified class will need to be converted to its "map" name.
 
