@@ -5,6 +5,7 @@ Support for Hypervel
 
 ## Differences From Laravel
 
+- Facades cache non-scoped services for the worker lifetime, including `bind()` bindings. Use `scoped()` for request or job state, or disable facade caching for fresh resolutions. See [facade lifetimes](https://hypervel.org/docs/facades#how-facades-work).
 - `all([])` on `Fluent`, `ValidatedInput`, and `UriQueryString` returns an empty array. Use `all()` to retrieve every field.
 - Laravel's deferred service-provider metadata APIs are intentionally omitted. Hypervel registers providers once for a long-lived worker, so the per-request bootstrap optimization those APIs support does not apply.
 - Node package-manager detection walks from the current directory to the filesystem root, so applications inside a workspace use the nearest ancestor lockfile. Within each directory, detection prefers Bun, pnpm, Yarn, then npm.

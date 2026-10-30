@@ -1628,6 +1628,9 @@ class ContainerTest extends TestCase
         $container = new Container;
 
         $this->assertTrue($container->isScoped(ContainerScopedAttribute::class));
+
+        $container->alias(ContainerScopedAttribute::class, 'scoped.alias');
+        $this->assertTrue($container->isScoped('scoped.alias'));
     }
 
     public function testExecutionScopedConstructorAttributeUsesTheExistingScopedLifetime(): void

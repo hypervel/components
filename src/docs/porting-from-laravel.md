@@ -431,6 +431,8 @@ Container lifecycles are adapted for Swoole:
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
 
+Facades cache non-scoped services for the worker lifetime, including `bind()` bindings; use `scoped()` for request or job state, or disable the facade's cache for a fresh resolution on every call. See [how facades work](/docs/{{version}}/facades#how-facades-work).
+
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 
 On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
@@ -868,6 +870,8 @@ Laravel's Memcached, APC / APCu, DynamoDB, and generic cache-backed session conf
 ### Queues
 
 Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, `sync`, `background`, `deferred`, and `null`. The `background` and `deferred` drivers run work inside the current worker process and are not durable external queues.
+
+Remove assignments to `Worker::$flushStickyConnections`: daemon jobs already have independent [sticky routing state](/docs/{{version}}/database#the-sticky-option). If a job must read from the writer regardless of its own writes, use an explicit `::write` connection. The worker constructor also omits Laravel's `$resetScope` callback; move custom per-job setup or cleanup into [job events](/docs/{{version}}/queues#job-events), or [job middleware](/docs/{{version}}/queues#job-middleware) for specific jobs, instead of a worker-wide reset.
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 

@@ -363,6 +363,11 @@ class Container implements ContainerContract
      */
     public function isScoped(string $abstract): bool
     {
+        // Internal resolution usually supplies an already canonical name.
+        if (isset($this->aliases[$abstract])) {
+            $abstract = $this->getAlias($abstract);
+        }
+
         if (isset($this->scopedInstances[$abstract])) {
             return true;
         }

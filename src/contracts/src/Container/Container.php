@@ -77,6 +77,11 @@ interface Container extends ContainerInterface
     public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
+     * Determine if a given abstract is a scoped binding.
+     */
+    public function isScoped(string $abstract): bool;
+
+    /**
      * "Extend" an abstract type in the container.
      *
      * @throws InvalidArgumentException

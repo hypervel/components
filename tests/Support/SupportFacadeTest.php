@@ -12,6 +12,8 @@ use Mockery as m;
 use Mockery\MockInterface;
 use stdClass;
 
+use function Hypervel\Coroutine\parallel;
+
 class SupportFacadeTest extends TestCase
 {
     protected function setUp(): void
@@ -202,6 +204,37 @@ class SupportFacadeTest extends TestCase
         FacadeStub::setFacadeApplication($app);
 
         $this->assertFalse(FacadeStub::isFake());
+    }
+
+    public function testScopedFacadeResolvesWithinEachCoroutine(): void
+    {
+        $app = new Container;
+        $app->scoped('foo', static fn (): stdClass => new stdClass);
+        FacadeStub::setFacadeApplication($app);
+
+        $resolve = function (): object {
+            $instance = FacadeStub::getFacadeRoot();
+            usleep(1000);
+            $this->assertSame($instance, FacadeStub::getFacadeRoot());
+
+            return $instance;
+        };
+
+        [$first, $second] = parallel([$resolve, $resolve]);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testCachedFacadeResolvesOnce(): void
+    {
+        $app = new CountingApplicationStub;
+        $app->setInstances(['foo' => new stdClass]);
+        FacadeStub::setFacadeApplication($app);
+
+        FacadeStub::getFacadeRoot();
+        FacadeStub::getFacadeRoot();
+
+        $this->assertSame(1, $app->makeCount);
     }
 
     public function testUncachedFacadeResolvesEachTime(): void

@@ -44,12 +44,11 @@ abstract class Facade
      * instead of caching in $resolvedInstance. Useful for stateful services
      * like Pipeline where each usage needs a fresh instance.
      *
-     * Important: for $cached = false to produce fresh instances, the
-     * underlying class must be explicitly bound with bind(), not singleton().
-     * Our container auto-singletons unbound classes, so an unbound class
-     * would still return the same instance from the container regardless
-     * of this setting. This differs from Laravel where unbound classes
-     * always resolve fresh.
+     * Scoped bindings always resolve through the container, preserving the
+     * current coroutine's instance. When caching is enabled, other bindings
+     * keep their first resolved instance for the worker lifetime.
+     * The container's lifetime still applies: disabling this cache does not
+     * make singletons or auto-singletons fresh.
      */
     protected static bool $cached = true;
 
@@ -238,11 +237,14 @@ abstract class Facade
         }
 
         if (static::$app) {
-            if (static::$cached) {
-                return static::$resolvedInstance[$name] = static::$app->make($name);
+            $instance = static::$app->make($name);
+
+            // Scoped services belong to one coroutine, so the worker-wide cache must not keep them.
+            if (static::$cached && ! static::$app->isScoped($name)) {
+                static::$resolvedInstance[$name] = $instance;
             }
 
-            return static::$app->make($name);
+            return $instance;
         }
 
         return null;

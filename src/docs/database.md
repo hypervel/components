@@ -245,6 +245,8 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 
 The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
+A long-running queue worker gives each job its own coroutine, so one job's writes do not send later jobs' reads to the write connection.
+
 <a name="connection-pooling"></a>
 ### Connection Pooling
 
