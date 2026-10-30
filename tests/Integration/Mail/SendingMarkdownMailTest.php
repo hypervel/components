@@ -116,7 +116,7 @@ class SendingMarkdownMailTest extends TestCase
         $raw = $email->toString();
         $this->assertStringContainsString('Content-Type: application/x-php;', $raw);
         $this->assertStringContainsString(pathinfo($textFilename[1], PATHINFO_FILENAME), $raw);
-        $this->assertStringContainsString('Content-ID: <', $raw);
+        $this->assertStringContainsString("Content-ID: <{$contentId[1]}>", $raw);
     }
 
     public function testEmbedData(): void
