@@ -119,5 +119,52 @@ TABLE, false);
             'Visit <span>https://hypervel.org/docs</span> to browse the documentation',
             '<em>Hi</em> Visit &lt;span&gt;https://hypervel.org/docs&lt;/span&gt; to browse the documentation',
         ];
+
+        yield ['\[Hypervel](https://hypervel.org)', '<em>Hi</em> [Hypervel](https://hypervel.org)'];
+
+        yield ['!\[Hypervel](https://hypervel.org)', '<em>Hi</em> ![Hypervel](https://hypervel.org)'];
+    }
+
+    #[WithMigration]
+    #[DataProvider('markdownEncodedLinkTextTemplateDataProvider')]
+    public function testItCanAssertMarkdownEncodedStringUsingTemplateWithLinkText(string $given, string $expected): void
+    {
+        $user = UserFactory::new()->create([
+            'name' => $given,
+        ]);
+
+        $mailable = new class($user) extends Mailable {
+            public ?string $theme = 'taylor';
+
+            /**
+             * Create the mailable for the given user.
+             */
+            public function __construct(public User $user)
+            {
+            }
+
+            /**
+             * Build the mailable.
+             */
+            public function build(): static
+            {
+                return $this->markdown('link-with-template');
+            }
+        };
+
+        $mailable->assertSeeInHtml($expected, false);
+        $mailable->assertDontSeeInHtml('https://example.com"', false);
+    }
+
+    /**
+     * Provide user text that must stay inside the template's link.
+     */
+    public static function markdownEncodedLinkTextTemplateDataProvider(): iterable
+    {
+        yield ['Taylor', '<a href="https://hypervel.org">Taylor</a>'];
+
+        yield ['Taylor](https://example.com)', '<a href="https://hypervel.org">Taylor](https://example.com)</a>'];
+
+        yield ['Taylor\](https://example.com)', '<a href="https://hypervel.org">Taylor](https://example.com)</a>'];
     }
 }

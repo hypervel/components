@@ -77,12 +77,14 @@ class Markdown
                 return EncodedHtmlString::withEncoding(
                     function ($value) {
                         $replacements = [
+                            '\\' => '\\\\',
                             '[' => '\[',
+                            ']' => '\]',
                             '<' => '&lt;',
                             '>' => '&gt;',
                         ];
 
-                        return str_replace(array_keys($replacements), array_values($replacements), $value);
+                        return strtr($value, $replacements);
                     },
                     $render
                 );
@@ -99,8 +101,12 @@ class Markdown
                 : 'mail::themes.' . $theme;
         }
 
+        $contents = static::$withSecuredEncoding === true
+            ? strtr($contents, ['\\\\' => '\\', '\[' => '[', '\]' => ']'])
+            : str_replace('\[', '[', $contents);
+
         return new HtmlString(($inliner ?: new CssToInlineStyles)->convert(
-            str_replace('\[', '[', $contents),
+            $contents,
             $viewFactory->make($theme, $data)->render()
         ));
     }
@@ -131,11 +137,12 @@ class Markdown
         return new HtmlString(EncodedHtmlString::withEncoding(
             function ($value) {
                 $replacements = [
+                    '\\' => '\\\\',
                     '[' => '\[',
                     '<' => '\<',
                 ];
 
-                $html = str_replace(array_keys($replacements), array_values($replacements), $value);
+                $html = strtr($value, $replacements);
 
                 return static::converter([
                     'html_input' => 'escape',

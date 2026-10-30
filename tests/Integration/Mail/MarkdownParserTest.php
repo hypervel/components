@@ -71,6 +71,13 @@ class MarkdownParserTest extends TestCase
             '<p>Visit &lt;span&gt;https://hypervel.org/docs&lt;/span&gt; to browse the documentation</p>',
         ];
 
+        yield [new EncodedHtmlString('\[Hypervel](https://hypervel.org)'), '<p>\[Hypervel](https://hypervel.org)</p>'];
+
+        yield [
+            new EncodedHtmlString('!\[Welcome to Hypervel](https://hypervel.org/assets/img/welcome/background.svg)'),
+            '<p>!\[Welcome to Hypervel](https://hypervel.org/assets/img/welcome/background.svg)</p>',
+        ];
+
         yield [
             new EncodedHtmlString(new HtmlString('Visit <span>https://hypervel.org/docs</span> to browse the documentation')),
             '<p>Visit <span>https://hypervel.org/docs</span> to browse the documentation</p>',
