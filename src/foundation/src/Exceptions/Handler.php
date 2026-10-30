@@ -480,23 +480,26 @@ class Handler implements ExceptionHandlerContract
         // Cancellation unwinds through multiple reporting boundaries. Suppress duplicates
         // using the original exception because mappers may create new wrappers each time.
         $original = $e;
-        $deduplicate = $this->withoutDuplicates || Coroutine::causedByCancellation($e);
+        $canceled = Coroutine::causedByCancellation($e);
 
-        if ($deduplicate && $this->hasReportedException($original)) {
+        if (($this->withoutDuplicates || $canceled) && $this->reportedExceptionMap()->offsetExists($original)) {
             return;
         }
 
         $e = $this->mapException($e);
 
         if ($this->shouldntReport($e)) {
+            // Rejected cleanup failures must not redraw sampling or consume limits at each boundary.
+            if ($canceled) {
+                $this->reportedExceptionMap()[$original] = false;
+            }
+
             return;
         }
 
-        // Keep the accepted decision for observers, including deferred Telescope batch filters.
-        $this->reportedException($original);
-
+        // reportThrowable() records the mapped exception; retain a distinct original for later boundaries.
         if ($e !== $original) {
-            $this->reportedException($e);
+            $this->reportedException($original);
         }
 
         $this->reportThrowable($e, $context, $level);
@@ -512,6 +515,8 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportThrowable(Throwable $e, array $context = [], ?string $level = null): void
     {
+        $this->reportedException($e);
+
         if (Reflector::isCallable($reportCallable = [$e, 'report'])
             && $this->container->call($reportCallable) !== false
         ) {
@@ -599,11 +604,15 @@ class Handler implements ExceptionHandlerContract
      */
     protected function hasReportedException(Throwable $e): bool
     {
-        return $this->reportedExceptionMap()->offsetExists($e);
+        return ($this->reportedExceptionMap()[$e] ?? false) === true;
     }
 
     /**
-     * Get the reported exception map for the current request.
+     * Get the reporting decisions for the current request.
+     *
+     * True records an accepted exception; false records a rejected cancellation chain.
+     *
+     * @return WeakMap<Throwable, bool>
      */
     protected function reportedExceptionMap(): WeakMap
     {
@@ -622,8 +631,8 @@ class Handler implements ExceptionHandlerContract
      */
     public function shouldReport(Throwable $e): bool
     {
-        // Log observers must not sample or consume a rate limit again for an admitted report.
-        return $this->hasReportedException($e) || ! $this->shouldntReport($e);
+        // Later checks must not sample or consume a rate limit again after a reporting decision.
+        return $this->reportedExceptionMap()[$e] ?? ! $this->shouldntReport($e);
     }
 
     /**
@@ -632,6 +641,10 @@ class Handler implements ExceptionHandlerContract
     protected function shouldntReport(Throwable $e): bool
     {
         if ($e instanceof CanceledException) {
+            return true;
+        }
+
+        if ($this->withoutDuplicates && $this->hasReportedException($e)) {
             return true;
         }
 

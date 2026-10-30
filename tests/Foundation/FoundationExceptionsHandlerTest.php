@@ -1217,6 +1217,24 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertTrue($this->handler->shouldReport($one));
     }
 
+    public function testItDedupesExceptionsMappedToTheSameCause(): void
+    {
+        $reported = [];
+        $this->handler->map(RuntimeException::class, static fn (RuntimeException $exception): Throwable => $exception->getPrevious());
+        $this->handler->reportable(function (Throwable $exception) use (&$reported): false {
+            $reported[] = $exception;
+
+            return false;
+        });
+        $this->handler->dontReportDuplicates();
+        $cause = new Exception('shared cause');
+
+        $this->handler->report(new RuntimeException('first wrapper', 0, $cause));
+        $this->handler->report(new RuntimeException('second wrapper', 0, $cause));
+
+        $this->assertSame([$cause], $reported);
+    }
+
     public function testItDedupesByObjectIdentityNotEquality(): void
     {
         $reported = [];

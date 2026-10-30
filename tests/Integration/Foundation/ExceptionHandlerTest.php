@@ -23,6 +23,7 @@ use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Lottery;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -52,13 +53,22 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testCancellationCleanupIsReportedOnceAcrossMiddlewareAndKernel(bool $mapped): void
+    #[TestWith([false, true], 'accepted')]
+    #[TestWith([true, true], 'accepted and mapped')]
+    #[TestWith([true, false], 'rejected and mapped')]
+    public function testCancellationCleanupIsReportedOnceAcrossMiddlewareAndKernel(bool $mapped, bool $accepted): void
     {
         $failure = new RuntimeException('cleanup failed', 0, new CanceledException('canceled'));
         $handler = $this->app->make(ExceptionHandler::class);
         $reported = [];
+        $policyEvaluations = 0;
+
+        Lottery::forceResultWithSequence([$accepted, ! $accepted], static fn (): bool => ! $accepted);
+        $handler->throttleUsing(function (Throwable $exception) use (&$policyEvaluations): Lottery {
+            ++$policyEvaluations;
+
+            return Lottery::odds(1, 1000);
+        });
 
         if ($mapped) {
             $handler->map(RuntimeException::class, static fn (RuntimeException $exception): Exception => new Exception('mapped cleanup', 0, $exception));
@@ -83,9 +93,13 @@ class ExceptionHandlerTest extends TestCase
         // The native server also reports the escaping exception before containing it.
         $handler->report($failure);
 
-        $this->assertCount(1, $reported);
-        $this->assertSame($failure, $mapped ? $reported[0]->getPrevious() : $reported[0]);
-        $this->assertTrue($handler->shouldReport($failure));
+        $this->assertSame($accepted, $handler->shouldReport($failure));
+        $this->assertSame(1, $policyEvaluations);
+        $this->assertCount((int) $accepted, $reported);
+
+        if ($accepted) {
+            $this->assertSame($failure, $mapped ? $reported[0]->getPrevious() : $reported[0]);
+        }
     }
 
     public function testItDoesntReportExceptionsWithShouldntReportInterface(): void
