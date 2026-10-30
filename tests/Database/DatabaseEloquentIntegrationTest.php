@@ -1978,6 +1978,24 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals($friend->id, $results->first()->pivot->friend_id);
     }
 
+    public function testCursorDoesNotCreateExtraModelInstancesForEachRecord(): void
+    {
+        User::insert([
+            ['email' => 'taylorotwell@gmail.com'],
+            ['email' => 'abigailotwell@gmail.com'],
+            ['email' => 'foo@gmail.com'],
+        ]);
+
+        $query = UserWithInstanceCount::query();
+
+        UserWithInstanceCount::$instances = 0;
+
+        $models = $query->cursor()->all();
+
+        $this->assertCount(3, $models);
+        $this->assertSame(4, UserWithInstanceCount::$instances);
+    }
+
     public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
@@ -3240,6 +3258,21 @@ class User extends Eloquent
     public function achievements()
     {
         return $this->belongsToMany(Achievement::class);
+    }
+}
+
+class UserWithInstanceCount extends User
+{
+    public static int $instances = 0;
+
+    /**
+     * Count model instances created while consuming the cursor.
+     */
+    public function __construct(array $attributes = [])
+    {
+        ++static::$instances;
+
+        parent::__construct($attributes);
     }
 }
 

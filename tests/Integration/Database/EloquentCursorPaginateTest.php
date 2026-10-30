@@ -106,6 +106,35 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertEquals(1.5, array_first($page->items()[0]->getAttributes()));
     }
 
+    #[TestWith([false], 'single select')]
+    #[TestWith([true], 'union members')]
+    public function testCursorBoundaryAppliesToAllOrWhereBranches(bool $union): void
+    {
+        TestPost::fillAndInsert([[], [], [], [], []]);
+        $query = function () use ($union): QueryBuilder {
+            $query = DB::table('test_posts')->select('id')->where('id', 1);
+
+            if ($union) {
+                $query->orWhere('id', 3)->unionAll(
+                    DB::table('test_posts')->select('id')->where('id', 4)->orWhere('id', 5)
+                );
+            } else {
+                $query->orWhere('id', '>=', 3);
+            }
+
+            return $query->orderBy('id');
+        };
+
+        $first = $query()->cursorPaginate(2);
+        $second = $query()->cursorPaginate(2, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(2, cursor: $second->previousCursor());
+
+        $this->assertSame([1, 3], $first->pluck('id')->all());
+        $this->assertSame([4, 5], $second->pluck('id')->all());
+        $this->assertSame([1, 3], $previous->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
+    }
+
     public function testPaginationWithUnion(): void
     {
         TestPost::fillAndInsert([
@@ -497,14 +526,22 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             ]);
         }
 
-        $relation = fn (): BelongsToMany => $user->favoritePosts()
-            ->using(CursorBinaryPivot::class)
-            ->withPivot('position')
-            ->orderBy('test_post_user.position');
+        $scopeCalls = 0;
+        $relation = function () use ($user, &$scopeCalls): BelongsToMany {
+            return $user->favoritePosts()
+                ->using(CursorBinaryPivot::class)
+                ->withPivot('position')
+                ->withGlobalScope('visible', function (Builder $builder) use (&$scopeCalls): void {
+                    ++$scopeCalls;
+                    $builder->whereNotNull('test_posts.id');
+                })
+                ->orderBy('test_post_user.position');
+        };
         $first = $relation()->cursorPaginate(2);
         $next = $relation()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
 
         $this->assertSame([3], $next->pluck('id')->all());
+        $this->assertSame(2, $scopeCalls);
     }
 
     public function testRelationsAcceptCursorObjects(): void

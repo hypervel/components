@@ -1038,10 +1038,14 @@ class Builder implements BuilderContract
      */
     public function cursor(): LazyCollection
     {
-        return $this->applyScopes()->query->cursor()->map(function ($record) {
-            $model = $this->newModelInstance()->newFromBuilder($record);
+        $builder = $this->applyScopes();
+        // Scopes can replace the model when adding query-time casts.
+        $instance = $builder->newModelInstance();
 
-            return $this->applyAfterQueryCallbacks($this->newModelInstance()->newCollection([$model]))->first();
+        return $builder->query->cursor()->map(function ($record) use ($instance) {
+            $model = $instance->newFromBuilder($record);
+
+            return $this->applyAfterQueryCallbacks($instance->newCollection([$model]))->first();
         })->reject(fn ($model) => is_null($model));
     }
 
@@ -1062,28 +1066,31 @@ class Builder implements BuilderContract
      */
     public function pluck(Expression|string $column, ?string $key = null): BaseCollection
     {
+        $builder = $this->applyScopes();
+        $model = $builder->getModel();
+
         if ($column instanceof Expression) {
             // Casts and accessors use the returned field name, which cannot be
             // recovered from the values alone or reliably inferred from raw SQL.
-            [$results, $column] = $this->toBase()->pluckWithColumn($column, $key);
+            [$results, $column] = $builder->query->pluckWithColumn($column, $key);
         } else {
-            $results = $this->toBase()->pluck($column, $key);
+            $results = $builder->query->pluck($column, $key);
 
-            $column = Str::after($column, "{$this->model->getTable()}.");
+            $column = Str::after($column, "{$model->getTable()}.");
         }
 
         // If the model has a mutator for the requested column, we will spin through
         // the results and mutate the values so that the mutated version of these
         // columns are returned as you would expect from these Eloquent models.
-        if (is_null($column) || (! $this->model->hasAnyGetMutator($column)
-            && ! $this->model->hasCast($column)
-            && ! in_array($column, $this->model->getDates()))) {
+        if (is_null($column) || (! $model->hasAnyGetMutator($column)
+            && ! $model->hasCast($column)
+            && ! in_array($column, $model->getDates()))) {
             return $this->applyAfterQueryCallbacks($results);
         }
 
         return $this->applyAfterQueryCallbacks(
-            $results->map(function ($value) use ($column) {
-                return $this->model->newFromBuilder([$column => $value])->{$column};
+            $results->map(function ($value) use ($column, $model) {
+                return $model->newFromBuilder([$column => $value])->{$column};
             })
         );
     }
@@ -1192,6 +1199,21 @@ class Builder implements BuilderContract
         return (new BaseCollection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
             ->values();
+    }
+
+    /**
+     * Get the builder that owns cursor binding and page execution.
+     */
+    protected function getBuilderForCursorPage(): static
+    {
+        $builder = $this->applyScopes();
+
+        // Scope-added casts must encode the cursor and hydrate the page together.
+        // Avoid a second scope pass in get(), preserving its original callback ownership.
+        $builder->scopes = [];
+        $builder->afterQueryCallbacks = $this->afterQueryCallbacks;
+
+        return $builder;
     }
 
     /**

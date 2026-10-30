@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -287,6 +288,32 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
         $this->assertSame([$ids[0], $ids[1]], $previous->pluck('id')->all());
     }
 
+    public function testCursorPaginationUsesBinaryCastsAddedByGlobalScopes(): void
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+        ];
+
+        foreach ($ids as $id) {
+            AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
+        }
+
+        $query = fn () => ScopedAsBinaryPrimaryKeyModel::query()->withGlobalScope('binary-id', function (Builder $builder): void {
+            $builder->withCasts(['id' => AsBinary::uuid()]);
+        });
+
+        $first = $query()->cursorPaginate(1);
+        $nextQuery = $query();
+        $second = $nextQuery->cursorPaginate(1, cursor: $first->nextCursor()->encode());
+
+        $this->assertSame([$ids[0]], $first->pluck('id')->all());
+        $this->assertSame([$ids[1]], $second->pluck('id')->all());
+        $this->assertSame([$ids[1]], $nextQuery->get()->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
+        $this->assertSame([$ids[0]], $query()->cursorPaginate(1, cursor: $second->previousCursor()->encode())->pluck('id')->all());
+    }
+
     public function testCompoundCursorPaginationPreservesBinaryEqualityAcrossUnions(): void
     {
         foreach ([1, 2, 3] as $id) {
@@ -463,6 +490,17 @@ class AsBinaryPrimaryKeyModel extends Model
         return [
             'id' => AsBinary::uuid(),
         ];
+    }
+}
+
+class ScopedAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    /**
+     * Leave cast selection to the query's global scope.
+     */
+    protected function casts(): array
+    {
+        return [];
     }
 }
 

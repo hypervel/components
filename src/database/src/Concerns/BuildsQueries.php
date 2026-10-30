@@ -508,6 +508,8 @@ trait BuildsQueries
         }
 
         $orders = $this->ensureOrderForCursorPagination(! is_null($cursor) && $cursor->pointsToPreviousItems());
+        $this->limit($perPage + 1);
+        $builder = $this;
 
         if (! is_null($cursor)) {
             $query = $this instanceof Builder ? $this->getQuery() : $this;
@@ -525,6 +527,7 @@ trait BuildsQueries
                 $query->columns = $originalColumns;
             }
 
+            $builder = $this->getBuilderForCursorPage();
             $comparisons = [];
             $bindings = [];
             foreach ($orders as $order) {
@@ -533,21 +536,33 @@ trait BuildsQueries
                 $order['original'] = $original !== $column && Str::contains($original, ['(', ')'])
                     ? new Expression($original) : $original;
                 $comparisons[] = $order;
-                $bindings[$column] = $this->getCursorParameterBinding($cursor, $column);
+                $bindings[$column] = $builder->getCursorParameterBinding($cursor, $column);
             }
 
             // Members are resolved by their output positions during SELECT preparation;
             // keep their select/join bindings and never rewrite a shared union builder.
             $query->addCursorPaginationConditions($comparisons, $bindings);
+
+            $pageQuery = $builder instanceof Builder ? $builder->getQuery() : $builder;
+            if ($pageQuery !== $query) {
+                // Keep the caller's page conditions as well as the scoped execution copy's.
+                $pageQuery->addCursorPaginationConditions($comparisons, $bindings);
+            }
         }
 
-        $this->limit($perPage + 1);
-
-        return $this->cursorPaginator($this->get($columns), $perPage, $cursor, [
+        return $this->cursorPaginator($builder->get($columns), $perPage, $cursor, [
             'path' => Paginator::resolveCurrentPath(),
             'cursorName' => $cursorName,
             'parameters' => $orders->pluck('column')->toArray(),
         ]);
+    }
+
+    /**
+     * Get the builder that owns cursor binding and page execution.
+     */
+    protected function getBuilderForCursorPage(): static
+    {
+        return $this;
     }
 
     /**
@@ -565,15 +580,15 @@ trait BuildsQueries
      */
     protected function getOriginalColumnNameForCursorPagination(QueryBuilder|Builder $builder, string $parameter): string
     {
-        $columns = $builder instanceof Builder ? $builder->getQuery()->getColumns() : $builder->getColumns();
+        $query = $builder instanceof Builder ? $builder->getQuery() : $builder;
 
-        foreach ($columns as $column) {
+        foreach ($query->getColumns() as $column) {
             if (($position = strripos($column, ' as ')) !== false) {
                 $original = substr($column, 0, $position);
 
                 $alias = substr($column, $position + 4);
 
-                if ($parameter === $alias || $builder->getGrammar()->wrap($parameter) === $alias) {
+                if ($parameter === $alias || $query->getGrammar()->wrap($parameter) === $alias) {
                     return $original;
                 }
             }

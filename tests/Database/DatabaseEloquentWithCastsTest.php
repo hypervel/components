@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Database;
 use Carbon\CarbonInterface;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
@@ -100,6 +102,32 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $default = Time::query()->first();
         $this->assertInstanceOf(CarbonInterface::class, $default->time);
         $this->assertTrue($default->hasCast('time', 'datetime'));
+    }
+
+    public function testGlobalScopeCastsApplyToHydrationAndPlucks(): void
+    {
+        Time::query()->insert(['time' => '07:30']);
+
+        $query = Time::query()->withGlobalScope('time', function (EloquentBuilder $builder): void {
+            $builder->withCasts(['time' => 'string']);
+        });
+
+        $this->assertSame('07:30', $query->get()->first()->time);
+        $this->assertSame('07:30', $query->cursor()->first()->time);
+        $this->assertSame('07:30', $query->pluck('time')->first());
+        $this->assertSame('07:30', $query->pluck(new Expression('time'))->first());
+    }
+
+    public function testRelationshipCastsApplyToNewRelatedModelsWithoutChangingTheOriginalRelation(): void
+    {
+        Time::query()->insert(['id' => 1, 'time' => '07:30']);
+        $relation = Time::find(1)->hasMany(Time::class, 'id');
+        $castRelation = (clone $relation)->withCasts(['time' => 'string']);
+
+        $this->assertSame($castRelation->getQuery()->getModel(), $castRelation->getRelated());
+        $this->assertSame('08:30', $castRelation->make(['time' => '08:30'])->time);
+        $this->assertSame('09:30', $castRelation->firstOrNew(['time' => '09:30'])->time);
+        $this->assertInstanceOf(CarbonInterface::class, $relation->make(['time' => '08:30'])->time);
     }
 
     public function testThrowsExceptionIfCastableAttributeWasNotRetrievedAndPreventMissingAttributesIsEnabled(): void

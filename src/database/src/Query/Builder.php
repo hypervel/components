@@ -3397,6 +3397,7 @@ class Builder implements BuilderContract
      */
     public function addCursorPaginationConditions(array $orders, array $bindings): static
     {
+        $this->groupOrWheresForKeyset();
         $offset = count($this->bindings['where']);
         $this->addCursorComparisons($orders, $bindings, 0);
         $this->markKeysetCondition($offset);
@@ -3404,6 +3405,18 @@ class Builder implements BuilderContract
             || array_any($orders, static fn (array $order): bool => $order['original'] instanceof ExpressionContract);
 
         return $this;
+    }
+
+    /**
+     * Keep existing "or" conditions from bypassing the page boundary.
+     */
+    protected function groupOrWheresForKeyset(): void
+    {
+        if (array_any($this->wheres, static fn (array $where): bool => str_contains($where['boolean'], 'or'))) {
+            $existing = $this->forNestedWhere();
+            $existing->wheres = $this->wheres;
+            $this->wheres = [['type' => 'Nested', 'query' => $existing, 'boolean' => 'and']];
+        }
     }
 
     /**
@@ -3771,6 +3784,8 @@ class Builder implements BuilderContract
      */
     protected function appendKeysetConditions(array $conditions, array $mapping = [], bool $output = false): static
     {
+        $this->groupOrWheresForKeyset();
+
         foreach ($conditions as $condition) {
             $this->wheres[] = $this->rebindKeysetColumns($condition['where'], $mapping, $output);
             $this->addBinding($condition['bindings'], 'where');
