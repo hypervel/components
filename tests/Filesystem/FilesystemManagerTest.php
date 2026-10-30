@@ -358,6 +358,7 @@ class FilesystemManagerTest extends TestCase
 
         $this->assertNotSame($local, $filesystem->disk($key));
 
+        // An uncached integer-backed name must also reach the string-only config lookup.
         $filesystem->forgetDisk($key);
         $filesystem->purge($name);
     }
