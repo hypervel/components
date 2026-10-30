@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Outbox;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
@@ -142,31 +143,27 @@ class DatabaseOutboxRepository
      */
     protected function claimWithSkipLocked(ConnectionInterface $connection, int $limit, int $now, int $expiresAt, string $token): array
     {
+        // Moving claimed rows to a future deadline can deadlock on the due-index gap.
         return $connection->transaction(function () use ($connection, $limit, $now, $expiresAt, $token): array {
-            $rows = $this->query($connection)
+            // Keep the locking read covered by the due index. Fetching payloads
+            // here can choose a filesort that locks rows beyond the batch limit.
+            $candidates = $this->query($connection)
                 ->where('available_at', '<=', $now)
                 ->orderBy('available_at')->orderBy('id')
                 ->limit($limit)->lockForUpdate()->skipLocked()
-                ->get()->all();
+                ->pluck('available_at', 'id')->all();
 
-            if ($rows === []) {
+            if ($candidates === []) {
                 return [];
             }
 
-            $this->query($connection)->whereIn('id', array_column($rows, 'id'))->increment('attempts', 1, [
+            $this->whereIds($this->query($connection), array_keys($candidates))->increment('attempts', 1, [
                 'lease_token' => $token,
                 'available_at' => $expiresAt,
             ]);
 
-            foreach ($rows as $row) {
-                $row->eligible_at = $row->available_at;
-                $row->available_at = $expiresAt;
-                $row->lease_token = $token;
-                ++$row->attempts;
-            }
-
-            return $rows;
-        });
+            return $this->getClaimedRows($connection, $candidates, $token);
+        }, attempts: 3);
     }
 
     /**
@@ -186,11 +183,22 @@ class DatabaseOutboxRepository
         }
 
         $ids = array_keys($candidates);
-        $this->query($connection)
-            ->whereIn('id', $ids)->where('available_at', '<=', $now)
+        $this->whereIds($this->query($connection), $ids)->where('available_at', '<=', $now)
             ->increment('attempts', 1, ['lease_token' => $token, 'available_at' => $expiresAt]);
 
-        $rows = $this->query($connection)->whereIn('id', $ids)->where('lease_token', $token)->get()->all();
+        return $this->getClaimedRows($connection, $candidates, $token);
+    }
+
+    /**
+     * Read the rows owned by this claim with their original eligibility.
+     *
+     * @param array<int, int> $candidates
+     * @return list<object>
+     */
+    protected function getClaimedRows(ConnectionInterface $connection, array $candidates, string $token): array
+    {
+        $rows = $this->whereIds($this->query($connection), array_keys($candidates))
+            ->where('lease_token', $token)->get()->all();
 
         foreach ($rows as $row) {
             $row->eligible_at = $candidates[$row->id];
@@ -215,13 +223,15 @@ class DatabaseOutboxRepository
             $settled = 0;
             $maxBindings = $this->maxBindings($connection);
 
+            // Keep the lease predicate: besides fencing stale relays, it
+            // avoids an ID-only covering scan despite the primary-index hint.
             foreach (array_chunk($result->accepted, $maxBindings - 1) as $ids) {
-                $settled += $this->query($connection)->where('lease_token', $token)->whereIn('id', $ids)->delete();
+                $settled += $this->whereIds($this->query($connection)->where('lease_token', $token), $ids)->delete();
             }
 
             foreach (array_chunk($result->deferred, $maxBindings - 2) as $ids) {
                 $grammar = $connection->getQueryGrammar();
-                $settled += $this->query($connection)->where('lease_token', $token)->whereIn('id', $ids)->update([
+                $settled += $this->whereIds($this->query($connection)->where('lease_token', $token), $ids)->update([
                     'lease_token' => null,
                     'available_at' => new Expression($grammar->wrap('deliver_at')),
                     'attempts' => new Expression($grammar->wrap('attempts') . ' - 1'),
@@ -247,23 +257,24 @@ class DatabaseOutboxRepository
         $deadlines = array_map(static fn (int $delay): int => $now + random_int(max(1, (int) ceil($delay / 2)), $delay), self::RETRY_DELAYS);
         $error = mb_substr($error, 0, 4096);
         $grammar = $connection->getQueryGrammar();
-        $table = $grammar->wrapTable($this->table);
         $attempts = $grammar->wrap('attempts');
         $cases = [];
 
-        foreach (array_keys($deadlines) as $index) {
-            $cases[] = $index === count($deadlines) - 1 ? 'ELSE ?' : 'WHEN ' . $attempts . ' <= ' . ($index + 1) . ' THEN ?';
+        // Only internally generated integers enter this expression; error
+        // text, lease tokens and IDs remain bound by the query builder.
+        foreach ($deadlines as $index => $deadline) {
+            $cases[] = $index === count($deadlines) - 1 ? "ELSE {$deadline}" : 'WHEN ' . $attempts . ' <= ' . ($index + 1) . " THEN {$deadline}";
         }
 
         $case = 'CASE ' . implode(' ', $cases) . ' END';
         $affected = 0;
 
-        foreach (array_chunk($ids, $this->maxBindings($connection) - count($deadlines) - 2) as $chunk) {
-            $parameters = implode(', ', array_fill(0, count($chunk), '?'));
-            $affected += $connection->update(
-                "UPDATE {$table} SET available_at = {$case}, lease_token = NULL, last_error = ? WHERE lease_token = ? AND id IN ({$parameters})",
-                [...$deadlines, $error, $token, ...$chunk],
-            );
+        foreach (array_chunk($ids, $this->maxBindings($connection) - 3) as $chunk) {
+            $affected += $this->whereIds($this->query($connection)->where('lease_token', $token), $chunk)->update([
+                'available_at' => new Expression($case),
+                'lease_token' => null,
+                'last_error' => $error,
+            ]);
         }
 
         return $affected;
@@ -355,7 +366,7 @@ class DatabaseOutboxRepository
                 break;
             }
 
-            $affected += $this->retryable($connection, $now)->whereIn('id', $ids)->update([
+            $affected += $this->whereIds($this->retryable($connection, $now), $ids)->update([
                 'available_at' => $now,
                 'lease_token' => null,
                 'last_error' => null,
@@ -391,6 +402,22 @@ class DatabaseOutboxRepository
         return $query->where(static function (Builder $query) use ($now): void {
             $query->whereNull('lease_token')->orWhere('available_at', '<=', $now);
         });
+    }
+
+    /**
+     * Restrict a query to selected IDs using InnoDB's primary index.
+     *
+     * @param list<int> $ids
+     */
+    protected function whereIds(Builder $query, array $ids): Builder
+    {
+        // An InnoDB scan can deadlock after disjoint SKIP LOCKED claims, or
+        // prevent settlement after messages have already been published.
+        if ($query->getConnection() instanceof MySqlConnection) {
+            $query->forceIndex('PRIMARY');
+        }
+
+        return $query->whereIn('id', $ids);
     }
 
     /**

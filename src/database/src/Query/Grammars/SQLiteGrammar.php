@@ -224,15 +224,22 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile an update statement without joins into SQL.
-     *
-     * A forced index applies to the updated table, as SQLite's "indexed by"
-     * clause allows.
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
+        return parent::compileUpdateWithoutJoins($query, $this->compileTableWithIndexHint($query, $table), $columns, $where);
+    }
+
+    /**
+     * Compile a plain write target with its requested forced index.
+     */
+    protected function compileTableWithIndexHint(Builder $query, string $table): string
+    {
+        // Unlike Laravel, plain writes honor forced indexes. Joined and
+        // limited writes already apply their hint in the selection subquery.
         $hint = $query->indexHint === null ? '' : $this->compileIndexHint($query, $query->indexHint);
 
-        return parent::compileUpdateWithoutJoins($query, $hint === '' ? $table : "{$table} {$hint}", $columns, $where);
+        return $hint === '' ? $table : "{$table} {$hint}";
     }
 
     /**
@@ -362,6 +369,14 @@ class SQLiteGrammar extends Grammar
         }
 
         return parent::compileDelete($query);
+    }
+
+    /**
+     * Compile a plain delete with its requested forced index.
+     */
+    protected function compileDeleteWithoutJoins(Builder $query, string $table, string $where): string
+    {
+        return parent::compileDeleteWithoutJoins($query, $this->compileTableWithIndexHint($query, $table), $where);
     }
 
     /**

@@ -12,12 +12,13 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Coroutine\parallel;
 
-class UpdateIndexHintTest extends DatabaseTestCase
+class WriteIndexHintTest extends DatabaseTestCase
 {
-    private const string CONNECTION_NAME = 'update_index_hint_test';
+    private const string CONNECTION_NAME = 'write_index_hint_test';
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -68,35 +69,76 @@ class UpdateIndexHintTest extends DatabaseTestCase
         }
     }
 
-    public function testAnUpdateForcingAnIndexThatDoesNotExistFails(): void
+    public function testDeletesTakeIndexHints(): void
+    {
+        $hints = match ($this->driver) {
+            'pgsql' => [null],
+            'sqlite' => ['forceIndex'],
+            default => ['useIndex', 'forceIndex', 'ignoreIndex'],
+        };
+
+        foreach ($hints as $index => $hint) {
+            $first = $index * 2 + 1;
+            $query = DB::table('hinted_posts as target');
+            $deleted = ($hint === null ? $query : $query->{$hint}('hinted_posts_title_index'))
+                ->whereIn('target.title', ["post {$first}", 'post ' . ($first + 1)])->delete();
+
+            $this->assertSame(2, $deleted);
+            $this->assertSame(0, DB::table('hinted_posts')->whereIn('id', [$first, $first + 1])->count());
+        }
+
+        $this->assertSame(30 - count($hints) * 2, DB::table('hinted_posts')->count());
+
+        DB::table('hinted_posts')->where('id', 28)->update(['votes' => 1]);
+        $joined = DB::table('hinted_posts as target')
+            ->join('hinted_posts as matches', 'target.id', '=', 'matches.id')
+            ->where('matches.votes', 0)->whereIn('target.id', [27, 28]);
+        if ($this->driver !== 'pgsql') {
+            $joined->forceIndex('hinted_posts_title_index');
+        }
+        $this->assertSame(1, $joined->delete());
+        $this->assertSame([28 => 1], DB::table('hinted_posts')->whereIn('id', [27, 28])->pluck('votes', 'id')->all());
+    }
+
+    #[TestWith(['update'])]
+    #[TestWith(['delete'])]
+    public function testAWriteForcingAnIndexThatDoesNotExistFails(string $operation): void
     {
         $this->skipIfDriver('pgsql');
 
         try {
-            DB::table('hinted_posts')->forceIndex('hinted_posts_missing_index')->where('id', 1)->update(['votes' => 1]);
+            $query = DB::table('hinted_posts')->forceIndex('hinted_posts_missing_index')->where('id', 1);
+            $operation === 'update' ? $query->update(['votes' => 1]) : $query->delete();
 
-            $this->fail('The update ran without its index hint.');
+            $this->fail('The write ran without its index hint.');
         } catch (QueryException $exception) {
             $this->assertStringContainsString('hinted_posts_missing_index', $exception->getMessage());
         }
 
         $this->assertSame(0, (int) DB::table('hinted_posts')->sum('votes'));
+        $this->assertSame(30, DB::table('hinted_posts')->count());
     }
 
-    public function testAnUpdateForcingThePrimaryKeyLocksOnlyTheRowsItNames(): void
+    #[TestWith(['update'])]
+    #[TestWith(['delete'])]
+    public function testAWriteForcingThePrimaryKeyLocksOnlyTheRowsItNames(string $operation): void
     {
         if (! in_array($this->driver, ['mysql', 'mariadb'], true)) {
             $this->markTestSkipped('InnoDB locks the rows a statement reads; other databases are not affected.');
         }
 
+        if ($operation === 'delete') {
+            DB::table('hinted_posts')->where('id', 1)->update(['votes' => 1]);
+        }
+
         $holderPool = new DatabasePool($this->app, self::CONNECTION_NAME);
         $contenderPool = new DatabasePool($this->app, self::CONNECTION_NAME);
-        $updated = new Channel(1);
+        $written = new Channel(1);
         $released = new Channel(1);
 
         try {
             [$count, $free] = parallel([
-                function () use ($holderPool, $updated, $released): int {
+                function () use ($holderPool, $written, $released, $operation): int {
                     /** @var PooledConnection $pooledConnection */
                     $pooledConnection = $holderPool->borrow();
                     $connection = $pooledConnection->getConnection();
@@ -104,8 +146,11 @@ class UpdateIndexHintTest extends DatabaseTestCase
                     try {
                         $connection->beginTransaction();
                         // Most of a small table, which both servers otherwise read whole, locking every row.
-                        $count = $connection->table('hinted_posts')->forceIndex('primary')->whereIn('id', range(1, 20))->update(['votes' => 1]);
-                        $updated->push(true);
+                        $query = $connection->table('hinted_posts')->forceIndex('primary')->whereIn('id', range(1, 20));
+                        // Deletes retain their real eligibility condition. An ID-only
+                        // delete can still choose a covering scan despite the hint.
+                        $count = $operation === 'update' ? $query->update(['votes' => 1]) : $query->where('votes', 0)->delete();
+                        $written->push(true);
                         $released->pop(5);
                         $connection->commit();
 
@@ -118,8 +163,8 @@ class UpdateIndexHintTest extends DatabaseTestCase
                         $pooledConnection->release();
                     }
                 },
-                function () use ($contenderPool, $updated, $released): ?int {
-                    $updated->pop(5);
+                function () use ($contenderPool, $written, $released): ?int {
+                    $written->pop(5);
 
                     /** @var PooledConnection $pooledConnection */
                     $pooledConnection = $contenderPool->borrow();
@@ -138,8 +183,10 @@ class UpdateIndexHintTest extends DatabaseTestCase
             $contenderPool->close();
         }
 
-        $this->assertSame(20, $count);
+        $this->assertSame($operation === 'update' ? 20 : 19, $count);
         $this->assertSame(30, $free);
-        $this->assertSame(20, (int) DB::table('hinted_posts')->sum('votes'));
+        $this->assertSame($operation === 'update' ? 20 : 1, (int) DB::table('hinted_posts')->sum('votes'));
+        $this->assertSame($operation === 'update' ? 30 : 11, DB::table('hinted_posts')->count());
+        $this->assertSame(1, DB::table('hinted_posts')->where('id', 1)->value('votes'));
     }
 }

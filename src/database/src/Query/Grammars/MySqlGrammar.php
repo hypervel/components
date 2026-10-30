@@ -467,7 +467,7 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
-        $sql = parent::compileUpdateWithoutJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
+        $sql = parent::compileUpdateWithoutJoins($query, $this->compileTableWithIndexHint($query, $table), $columns, $where);
 
         if (! empty($query->orders)) {
             $sql .= ' ' . $this->compileOrders($query, $query->orders);
@@ -485,14 +485,16 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateWithJoins(Builder $query, string $table, string $columns, string $where): string
     {
-        return parent::compileUpdateWithJoins($query, $this->compileUpdatedTable($query, $table), $columns, $where);
+        return parent::compileUpdateWithJoins($query, $this->compileTableWithIndexHint($query, $table), $columns, $where);
     }
 
     /**
-     * Compile the table an update statement changes, with the query's index hint.
+     * Compile a write target with the query's index hint.
      */
-    protected function compileUpdatedTable(Builder $query, string $table): string
+    protected function compileTableWithIndexHint(Builder $query, string $table): string
     {
+        // Unlike Laravel, writes honor requested indexes: a scan can lock
+        // unrelated rows even when the predicate names only specific IDs.
         return $query->indexHint === null ? $table : $table . ' ' . $this->compileIndexHint($query, $query->indexHint);
     }
 
@@ -533,6 +535,12 @@ class MySqlGrammar extends Grammar
      */
     protected function compileDeleteWithoutJoins(Builder $query, string $table, string $where): string
     {
+        // MySQL and older MariaDB versions accept DELETE hints only in the
+        // multi-table form, which cannot preserve single-table ORDER BY/LIMIT.
+        if ($query->indexHint !== null && empty($query->orders) && ! isset($query->limit)) {
+            return $this->compileDeleteWithIndexHint($query, $table, $where);
+        }
+
         $sql = parent::compileDeleteWithoutJoins($query, $table, $where);
 
         // When using MySQL, delete statements may contain order by statements and limits
@@ -557,7 +565,9 @@ class MySqlGrammar extends Grammar
      */
     protected function compileDeleteWithJoins(Builder $query, string $table, string $where): string
     {
-        $sql = parent::compileDeleteWithJoins($query, $table, $where);
+        $sql = $query->indexHint === null
+            ? parent::compileDeleteWithJoins($query, $table, $where)
+            : $this->compileDeleteWithIndexHint($query, $table, $where);
 
         if (! empty($query->orders)) {
             $sql .= ' ' . $this->compileOrders($query, $query->orders);
@@ -568,6 +578,18 @@ class MySqlGrammar extends Grammar
         }
 
         return $sql;
+    }
+
+    /**
+     * Compile a hinted delete with its target separate from the table reference.
+     */
+    protected function compileDeleteWithIndexHint(Builder $query, string $table, string $where): string
+    {
+        $alias = Str::afterLast($table, ' as ');
+        $table = $this->compileTableWithIndexHint($query, $table);
+        $joins = isset($query->joins) ? ' ' . $this->compileJoins($query, $query->joins) : '';
+
+        return "delete {$alias} from {$table}{$joins} {$where}";
     }
 
     /**

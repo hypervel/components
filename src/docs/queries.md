@@ -403,7 +403,21 @@ DB::table('orders')
     ->update(['status' => 'shipped']);
 ```
 
-SQLite treats a forced index as a requirement rather than a preference: a query fails if the index does not exist, or if SQLite cannot use it for the query, such as a partial index whose condition the query's constraints do not imply.
+MySQL and MariaDB also apply index hints to deletes without an `orderBy` or `limit`, and to joined deletes. Ordered or limited deletes without joins ignore the hint because the supported delete syntax cannot combine them. SQLite applies `forceIndex` to plain deletes; joined writes and writes with a limit or offset apply it to their selection subquery.
+
+For example, to delete expired orders on MySQL or MariaDB:
+
+```php
+DB::table('orders')
+    ->forceIndex('primary')
+    ->whereIn('id', $orderIds)
+    ->where('status', 'expired')
+    ->delete();
+```
+
+An index hint does not guarantee that a query locks only matching rows. MySQL and MariaDB can still scan when a delete or locking read uses only the primary key. Keep the query's actual ownership and eligibility conditions, and check its execution plan when lock scope matters.
+
+On MySQL, MariaDB, and SQLite, an applied hint naming an index that does not exist raises a database error. SQLite also fails when it cannot use a forced index for the query, such as a partial index whose condition the query's constraints do not imply.
 
 <a name="raw-expressions"></a>
 ## Raw Expressions
