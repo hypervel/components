@@ -1648,6 +1648,7 @@ class RedisConnectionTest extends TestCase
             'non-idempotent write' => [new RedisException('Connection lost'), 'incr', ['foo'], false],
             'write with options' => [new RedisException('Connection lost'), 'set', ['foo', 'bar', ['ex' => 60]], false],
             'cluster response error' => [new RedisClusterException('Error processing response from Redis node!'), 'get', ['foo'], false],
+            'no reachable cluster node' => [new RedisClusterException("Can't communicate with any node in the cluster"), 'get', ['foo'], false],
         ];
     }
 
