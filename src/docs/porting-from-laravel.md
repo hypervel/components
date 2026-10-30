@@ -32,6 +32,7 @@
     - [MCP](#mcp)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
+    - [Notifications](#notifications)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
@@ -416,6 +417,8 @@ Hypervel follows Laravel's named container APIs, but intentionally does not supp
 
 Use `get()` and `has()` instead when working through the PSR-11 container interface. Hypervel does not expose arbitrary binding removal; `forgetInstance()` clears a temporary instance so the original binding can resolve again.
 
+Custom containers must implement Hypervel's full `Container` contract or extend `Hypervel\Container\Container`; Laravel's container contract alone does not provide the lifetime operations Hypervel uses.
+
 Container lifecycles are adapted for Swoole:
 
 | Need | Method |
@@ -596,6 +599,11 @@ Custom OAuth authenticators must implement `getScopes(): ?array`. Overrides of e
 For Pusher and Reverb, replace Guzzle's `max_host_connections` and `max_total_connections` client options with bounded coroutine concurrency or rate limiting. The default client rejects these options because their shared transport cannot be driven safely by concurrent coroutines. See [Pusher broadcasting](/docs/{{version}}/broadcasting#pusher-manual-installation).
 
 Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoole and does not use FrankenPHP's in-process `mercure_publish()` integration. See [Mercure broadcasting](/docs/{{version}}/broadcasting#mercure).
+
+<a name="notifications"></a>
+### Notifications
+
+`Notification::locale()` called during initial application boot sets a worker default that persists across sends. Laravel consumes that locale on the first send. For a one-send override, call it when sending the notification, after application boot. See [notification locales](/docs/{{version}}/notifications#localizing-notifications).
 
 <a name="jsonapi-resources"></a>
 ### JSON:API Resources
