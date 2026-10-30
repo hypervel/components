@@ -230,13 +230,16 @@ class Kernel implements KernelContract
 
         if ($cancellation === null && $this->commandStartedAt !== null) {
             try {
+                // Resolving config runs application callbacks, whose cleanup can wrap cancellation.
                 $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
 
             if ($cancellation === null) {

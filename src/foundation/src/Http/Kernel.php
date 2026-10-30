@@ -329,13 +329,7 @@ class Kernel implements KernelContract
             }
         }
 
-        try {
-            CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-        } catch (CanceledException $throwable) {
-            $cancellation ??= $throwable;
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
-        }
+        CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
 
         if ($cancellation !== null) {
             throw $cancellation;
