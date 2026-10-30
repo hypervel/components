@@ -10,8 +10,10 @@ use Closure;
 use Exception;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -360,7 +362,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @param array<class-string, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -374,7 +376,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param array<class-string, array<int, string>> $relations
+     * @param array<class-string, array<array-key, array|(callable(Builder<*>): mixed)|string>|string> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static

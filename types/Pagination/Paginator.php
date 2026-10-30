@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
@@ -9,7 +10,7 @@ use Hypervel\Support\Collection;
 
 use function PHPStan\Testing\assertType;
 
-$items = [new Post, new Post, new Post];
+$items = new EloquentCollection([new Post, new Post, new Post]);
 
 /** @var Paginator<int, Post> $paginator */
 $paginator = new Paginator($items, 1, 1);
@@ -19,6 +20,14 @@ assertType('ArrayIterator<int, Post>', $paginator->getIterator());
 
 assertType('string|null', $paginator->fragment());
 assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->fragment('foo'));
+assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorph('parentable', [Post::class => ['comments' => function ($relation) {
+    assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+}]]));
+assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorphCount('parentable', [Post::class => ['comments' => function ($query) {
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
+}]]));
+assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorph('parentable', [Post::class => 'comments']));
+assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorphCount('parentable', [Post::class => 'comments']));
 
 $paginator->each(function ($post) {
     assertType('Post', $post);
@@ -57,6 +66,14 @@ assertType('ArrayIterator<int, Post>', $cursorPaginator->getIterator());
 
 assertType('string|null', $cursorPaginator->fragment());
 assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->fragment('foo'));
+assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorph('parentable', [Post::class => ['comments' => function ($relation) {
+    assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+}]]));
+assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorphCount('parentable', [Post::class => ['comments' => function ($query) {
+    assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
+}]]));
+assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorph('parentable', [Post::class => 'comments']));
+assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorphCount('parentable', [Post::class => 'comments']));
 
 $cursorPaginator->each(function ($post) {
     assertType('Post', $post);

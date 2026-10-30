@@ -127,7 +127,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of aggregations over relationship's column onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      *
      * @throws MissingAttributeException
      */
@@ -189,7 +189,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadCount(array|string $relations): static
     {
@@ -199,7 +199,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's max column values onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadMax(array|string $relations, Expression|string $column): static
     {
@@ -209,7 +209,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's min column values onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadMin(array|string $relations, Expression|string $column): static
     {
@@ -219,7 +219,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's column summations onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadSum(array|string $relations, Expression|string $column): static
     {
@@ -229,7 +229,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's average column values onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
     {
@@ -239,7 +239,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of related existences onto the collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Builder<*>): mixed)|string>|string  $relations
      */
     public function loadExists(array|string $relations): static
     {
@@ -347,7 +347,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>  $relations
+     * @param  array<class-string, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string>  $relations
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -362,7 +362,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>  $relations
+     * @param  array<class-string, array<array-key, array|(callable(Builder<*>): mixed)|string>|string>  $relations
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -485,7 +485,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Reload a fresh model instance from the database for all the entities.
      *
-     * @param array<array-key, string>|string $with
+     * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $with
      *
      * @throws MissingAttributeException
      */

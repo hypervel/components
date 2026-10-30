@@ -6,9 +6,11 @@ namespace Hypervel\Types\Model;
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\HasCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Notifications\DatabaseNotification;
 use User;
 
@@ -41,6 +43,39 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
 
     assertType('Hypervel\Database\Eloquent\Builder<User>', User::query());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->newQuery());
+    assertType('Hypervel\Database\Eloquent\Builder<User>', User::with(['posts' => function ($relation) {
+        assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+    }]));
+    assertType('User', $user->load(['posts' => function ($relation) {
+        assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+    }]));
+    assertType('User', $user->loadMissing(['posts' => function ($relation) {
+        assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+    }]));
+    assertType('User|null', $user->fresh(['posts' => function ($relation) {
+        assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+    }]));
+    assertType('User', $user->load(['posts' => ['comments' => fn ($relation) => $relation]]));
+    assertType('User', $user->loadMorph('parentable', [Post::class => ['comments' => function ($relation) {
+        assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
+    }]]));
+    assertType('User', $user->loadMorph('parentable', [Post::class => 'comments']));
+
+    $constraint = new class {
+        /**
+         * Constrain eager loading through an invokable object.
+         *
+         * @param Relation<*, *, *> $relation
+         */
+        public function __invoke(Relation $relation): void
+        {
+            $relation->where('active', true);
+        }
+    };
+    assertType('Hypervel\Database\Eloquent\Builder<User>', User::with(['posts' => $constraint]));
+    assertType('Hypervel\Database\Eloquent\Builder<User>', $user->newQuery()->withOnly(['posts' => $constraint]));
+    assertType('User', $user->load(['posts' => $constraint]));
+    assertType('User', $user->loadMissing(['posts' => $constraint]));
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->withTrashed());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->onlyTrashed());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->withoutTrashed());
@@ -65,6 +100,25 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
     assertType('User', $user->loadMorphMin('parentable', [Post::class => ['comments']], $expression));
     assertType('User', $user->loadMorphSum('parentable', [Post::class => ['comments']], $expression));
     assertType('User', $user->loadMorphAvg('parentable', [Post::class => ['comments']], $expression));
+    assertType('User', $user->loadCount(['posts' => function ($query) {
+        assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
+    }]));
+    assertType('User', $user->loadMorphCount('parentable', [Post::class => ['comments' => function ($query) {
+        assertType('Hypervel\Database\Eloquent\Builder<*>', $query);
+    }]]));
+    $aggregate = static fn (Builder $query): Builder => $query->where('active', true);
+    assertType('User', $user->loadAggregate(['posts' => $aggregate], $expression, 'sum'));
+    assertType('User', $user->loadMax(['posts' => $aggregate], $expression));
+    assertType('User', $user->loadMin(['posts' => $aggregate], $expression));
+    assertType('User', $user->loadSum(['posts' => $aggregate], $expression));
+    assertType('User', $user->loadAvg(['posts' => $aggregate], $expression));
+    assertType('User', $user->loadExists(['posts' => $aggregate]));
+    assertType('User', $user->loadMorphAggregate('parentable', [Post::class => ['comments' => $aggregate]], $expression, 'sum'));
+    assertType('User', $user->loadMorphMax('parentable', [Post::class => ['comments' => $aggregate]], $expression));
+    assertType('User', $user->loadMorphMin('parentable', [Post::class => ['comments' => $aggregate]], $expression));
+    assertType('User', $user->loadMorphSum('parentable', [Post::class => ['comments' => $aggregate]], $expression));
+    assertType('User', $user->loadMorphAvg('parentable', [Post::class => ['comments' => $aggregate]], $expression));
+    assertType('User', $user->loadMorphCount('parentable', [Post::class => 'comments']));
 
     assertType('bool', $user->restore());
     assertType('User', $user->restoreOrCreate());

@@ -1676,7 +1676,7 @@ class Builder implements BuilderContract
     /**
      * Specify relationships that should be eager loaded.
      *
-     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
      * @param  (Closure(Relation<*,*,*>): mixed)|string|null  $callback
      */
     public function with(array|string $relations, Closure|string|null $callback = null): static
@@ -1707,7 +1707,7 @@ class Builder implements BuilderContract
     /**
      * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
      *
-     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
      */
     public function withOnly(array|string $relations): static
     {

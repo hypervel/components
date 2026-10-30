@@ -19,6 +19,12 @@ All changes below are implemented and verified; merging remains. Record further 
 - Let `UseEloquentBuilder` accept `class-string<Builder<*>>`, matching the existing builder property and factory return type. The attribute accepts builders bound to a particular model; `Builder<Model>` incorrectly excludes them because the model parameter is invariant. Align the resolved-class cache and resolver return annotation with the same boundary. Runtime construction and public signatures remain unchanged.
 - Cover the attribute with a model-bounded generic builder and `HasBuilder`, including a model subclass and a terminal query result in the type fixtures.
 
+### Constrained relationship-loading types
+
+- Correct model loading annotations to accept keyed constraints and nested relation specifications already supported at runtime, including model and collection `fresh()` and both paginator morph-loader families. Eager callbacks receive `Relation`; aggregate callbacks receive the related Eloquent `Builder`. Align the forwarding methods without changing native signatures or execution.
+- Morph loaders take a class-keyed map whose values are relation specifications or strings. Adapt the existing collection morph type fixtures to that supported outer shape, preserving their inner cases. Keep aggregate input arrays broad; this correction does not add nested aggregate relationship support or change existing failure behavior.
+- Extend existing model and collection type fixtures to verify constrained inputs, callback types and fluent returns. Keep the separate `Builder::with()` callback parameter's native `Closure` type; its array form supports callable constraints. Reuse existing aggregate callback runtime tests rather than adding duplicate cases. Run source and fixture analysis and affected database tests.
+
 ### Raw attribute replacement
 
 - Clear both Eloquent cast-value caches before `setRawAttributes()` optionally calls `syncOriginal()`. Synchronization reads attributes through the cached casts; clearing afterwards lets stale objects overwrite the replacement values and marks those wrong values clean. Preserve the signature and unsynchronized replacement behavior, and explain the intentional ordering difference beside the code.
