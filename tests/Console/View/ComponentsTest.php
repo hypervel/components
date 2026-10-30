@@ -93,6 +93,9 @@ class ComponentsTest extends TestCase
         $this->assertSame($expected, (new EnsureRelativePaths)($message));
     }
 
+    /**
+     * Return messages and their expected relative paths.
+     */
     public static function relativePathMessages(): array
     {
         return [
