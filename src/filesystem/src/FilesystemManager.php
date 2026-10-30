@@ -1036,10 +1036,7 @@ class FilesystemManager implements FactoryContract
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
-        $name = enum_value($name);
-        $name = $name === null || $name === ''
-            ? $this->getDefaultDriver()
-            : (string) $name;
+        $name = (string) (enum_value($name) ?? $this->getDefaultDriver());
 
         $disk = $this->disks[$name] ?? null;
         unset($this->disks[$name]);

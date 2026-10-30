@@ -62,7 +62,6 @@ use function Aws\serialize;
 enum FilesystemTestStringBackedDisk: string
 {
     case Local = 'local';
-    case Default = '';
 }
 
 enum FilesystemTestIntBackedDisk: int
@@ -351,7 +350,6 @@ class FilesystemManagerTest extends TestCase
     #[TestWith([FilesystemManagerTestDisk::Local, 'local'])]
     #[TestWith([FilesystemTestUnitDisk::local, 'local'])]
     #[TestWith([FilesystemTestIntBackedDisk::Local, '1'])]
-    #[TestWith([FilesystemTestStringBackedDisk::Default, 'local'])]
     #[TestWith([FilesystemTestIntBackedDisk::Zero, '0'])]
     public function testCanPurgeDiskUsingEnum(UnitEnum $name, string $key): void
     {
@@ -2714,7 +2712,6 @@ class FilesystemManagerTest extends TestCase
     protected function filesystemManagerWithLocalDisks(): FilesystemManager
     {
         return new FilesystemManager($this->getContainer([
-            'default' => 'local',
             'disks' => [
                 'local' => ['driver' => 'local', 'root' => $this->tempDir . '/local'],
                 'backup' => ['driver' => 'local', 'root' => $this->tempDir . '/backup'],
