@@ -15,6 +15,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use ReflectionClass;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -333,7 +334,7 @@ class ScheduleListCommand extends Command
 
             return sprintf(
                 '%s:%s',
-                str_replace($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''),
+                Str::replaceStart($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''),
                 $function->getStartLine()
             );
         }

@@ -7,10 +7,12 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleListCommandTest;
 use Hypervel\Console\Command;
 use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 
 class ScheduleListCommandTest extends TestCase
 {
@@ -126,6 +128,33 @@ class ScheduleListCommandTest extends TestCase
         $this->assertStringContainsString('ScheduleListCommandTest.php', $data[8]['command']);
 
         $this->assertSame('echo hello', $data[9]['command']);
+    }
+
+    public function testClosureLocationRemovesOnlyTheLeadingApplicationDirectory(): void
+    {
+        $root = ParallelTesting::tempDir('ScheduleListPaths');
+        $base = $root . '/app';
+        $path = $base . '/nested' . $base . '/task.php';
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $originalBasePath = $this->app->basePath();
+
+        try {
+            $files->ensureDirectoryExists(dirname($path));
+            $files->put($path, '<?php return static fn () => null;');
+            $this->schedule->call(require $path)->everyMinute();
+            $this->app->setBasePath($base);
+
+            $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+
+            $this->assertSame(
+                'Closure at: nested' . $base . '/task.php:1',
+                json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)[0]['command'],
+            );
+        } finally {
+            $this->app->setBasePath($originalBasePath);
+            $files->deleteDirectory($root);
+        }
     }
 
     public function testDisplayScheduleAsJsonPreservesShellCommands(): void

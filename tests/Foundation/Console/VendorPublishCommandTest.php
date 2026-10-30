@@ -64,6 +64,36 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileEquals($source, $dest);
     }
 
+    public function testPublishedAndSkippedPathsRemoveOnlyTheLeadingApplicationDirectory(): void
+    {
+        $source = $this->sourceDir . '/nested' . $this->sourceDir . '/config.php';
+        $destination = $this->destDir . '/nested' . $this->sourceDir . '/config.php';
+        $this->filesystem->ensureDirectoryExists(dirname($source));
+        $this->filesystem->put($source, '<?php return [];');
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
+        $originalBasePath = $this->app->basePath();
+
+        try {
+            $this->app->setBasePath($this->sourceDir);
+            $tester = $this->commandTester($this->filesystem);
+
+            $this->assertSame(0, $tester->execute(['--provider' => TestPublishProvider::class]));
+            $this->assertStringContainsString(
+                'Copying file [nested' . $this->sourceDir . '/config.php] to [' . $destination . ']',
+                $tester->getDisplay(),
+            );
+
+            $this->assertSame(0, $tester->execute(['--provider' => TestPublishProvider::class]));
+            $this->assertStringContainsString('File [' . $destination . '] already exists', $tester->getDisplay());
+
+            $this->filesystem->delete($destination);
+            $this->assertSame(0, $tester->execute(['--provider' => TestPublishProvider::class, '--existing' => true]));
+            $this->assertStringContainsString('File [' . $destination . '] does not exist', $tester->getDisplay());
+        } finally {
+            $this->app->setBasePath($originalBasePath);
+        }
+    }
+
     public function testPublishesDirectory(): void
     {
         $sourceSubDir = $this->sourceDir . '/views';
