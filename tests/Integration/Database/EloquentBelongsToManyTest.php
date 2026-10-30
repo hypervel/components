@@ -43,6 +43,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             $table->increments('id');
             $table->string('name');
             $table->string('type')->nullable();
+            $table->integer('count')->default(0);
             $table->timestamps();
         });
 
@@ -819,6 +820,36 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame('wavez', $tag->fresh()->name);
         $this->assertSame('wavez', $postTag->name);
         $this->assertTrue($tag->is($post->tags()->first()));
+    }
+
+    public function testIncrementOrCreateMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+
+        $this->assertTrue($tag1->is($tag2));
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertFalse($tag2->wasRecentlyCreated);
+        $this->assertEquals(2, $tag2->fresh()->count);
+        $this->assertTrue($tag1->is($post->tags()->first()));
+        $this->assertCount(1, $post->tags()->get());
+    }
+
+    public function testIncrementOrCreateMethodWithExtra(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'featured']);
+
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertSame('featured', $tag1->fresh()->type);
+
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'pinned']);
+
+        $this->assertSame('pinned', $tag2->fresh()->type);
+        $this->assertEquals(2, $tag2->fresh()->count);
     }
 
     public function testUpdateOrCreateMethodCreate(): void
@@ -2018,7 +2049,7 @@ class Tag extends Model
 
     public bool $timestamps = true;
 
-    protected array $fillable = ['name', 'type'];
+    protected array $fillable = ['name', 'type', 'count'];
 
     public function posts()
     {

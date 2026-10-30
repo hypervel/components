@@ -2543,6 +2543,18 @@ $user->posts()->createManyQuietly([
 
 You may also use the `findOrNew`, `firstOrNew`, `firstOrCreate`, and `updateOrCreate` methods to [create and update models on relationships](/docs/{{version}}/eloquent#upserts).
 
+The `incrementOrCreate` method creates a related record with the given default value, or increments the column if a matching record already exists. Any extra attributes are applied when creating or incrementing the record:
+
+```php
+$post->views()->incrementOrCreate(
+    ['date' => today()->toDateString()],
+    column: 'count',
+    default: 1,
+    step: 1,
+    extra: ['last_viewed_at' => now()],
+);
+```
+
 > [!NOTE]
 > Before using the `create` method, be sure to review the [mass assignment](/docs/{{version}}/eloquent#mass-assignment) documentation.
 
