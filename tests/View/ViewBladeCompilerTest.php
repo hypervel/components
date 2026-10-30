@@ -104,6 +104,17 @@ class ViewBladeCompilerTest extends TestCase
         $this->assertEquals(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', $compiler->getCompiledPath('foo'));
     }
 
+    public function testRelativeCompiledPathsPreserveExternalViewIdentity(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__, '/app');
+        $relocated = new BladeCompiler($this->getFiles(), __DIR__, '/another/app/');
+        $internal = $compiler->getCompiledPath('/app/views/page.blade.php');
+
+        $this->assertSame($internal, $relocated->getCompiledPath('/another/app/views/page.blade.php'));
+        $this->assertNotSame($internal, $compiler->getCompiledPath('/shared/app/views/page.blade.php'));
+        $this->assertNotSame($internal, $compiler->getCompiledPath('/views/page.blade.php'));
+    }
+
     public function testCompileCompilesFileAndReturnsContents(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);

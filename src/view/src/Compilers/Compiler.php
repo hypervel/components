@@ -31,7 +31,12 @@ abstract class Compiler
      */
     public function getCompiledPath(string $path): string
     {
-        return $this->cachePath . '/' . hash('xxh128', 'v3' . Str::after($path, $this->basePath)) . '.' . $this->compiledExtension;
+        // Only a leading base directory is relative; external views retain their full identity.
+        $identity = $this->basePath === ''
+            ? $path
+            : Str::replaceStart(rtrim($this->basePath, '/\\') . DIRECTORY_SEPARATOR, '', $path);
+
+        return $this->cachePath . '/' . hash('xxh128', 'v3' . $identity) . '.' . $this->compiledExtension;
     }
 
     /**
