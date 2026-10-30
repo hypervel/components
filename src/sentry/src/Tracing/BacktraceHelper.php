@@ -92,7 +92,8 @@ class BacktraceHelper
             return null;
         }
 
-        preg_match('/PATH (?<originalPath>.*?) ENDPATH/', $viewFileContents, $matches);
+        // The compiler writes the footer last; a template can contain the same text.
+        preg_match('/.*\/\*\*PATH (?<originalPath>.*) ENDPATH/s', $viewFileContents, $matches);
 
         // No path comment found in the file
         if (empty($matches['originalPath'])) {

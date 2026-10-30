@@ -220,16 +220,16 @@ class FoundationServiceProviderTest extends TestCase
 
         try {
             $this->app->setBasePath($root . '/app');
-            $filesystem->ensureDirectoryExists($directory . '/compiled');
-            symlink($directory . '/compiled', $directory . '/linked');
-            config(['view.compiled' => $directory . '/linked']);
+            $filesystem->ensureDirectoryExists($directory);
+            symlink($directory, $directory . '/linked');
+            config(['view.compiled' => $directory . '/linked/compiled']);
             $this->app->forgetInstance('blade.compiler');
             $this->app->make('view.engine.resolver')->forget('blade');
 
             $_SERVER['VAR_DUMPER_FORMAT'] = 'html';
             (new FoundationServiceProvider($this->app))->registerDumper();
             $path = $directory . '/example.blade.php';
-            $filesystem->put($path, "@dump('example value')");
+            $filesystem->put($path, "/**PATH /another/view.blade.php ENDPATH**/ @dump('example value')");
 
             $output = $this->app->make('view')->file($path)->render();
 

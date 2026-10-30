@@ -96,7 +96,8 @@ class BladeMapper
         // so read the source path recorded in the compiled file's footer.
         $contents = @file_get_contents($compiledPath);
 
-        if ($contents === false || ! preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches)) {
+        // The compiler writes the footer last; a template can contain the same text.
+        if ($contents === false || ! preg_match('/.*\/\*\*PATH\s(.*)\sENDPATH/s', $contents, $matches)) {
             return null;
         }
 

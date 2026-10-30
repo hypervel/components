@@ -153,7 +153,8 @@ class RenderBladeFilesTest extends TestCase
         $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $path = $directory . '/failing.blade.php';
-        $files->put($path, "First line\n{{ missing_blade_mapping_test_function() }}");
+        $files->put($directory . '/other.blade.php', 'Another view');
+        $files->put($path, "/**PATH {$directory}/other.blade.php ENDPATH**/\n{{ missing_blade_mapping_test_function() }}");
 
         try {
             if ($symlinkedCache) {

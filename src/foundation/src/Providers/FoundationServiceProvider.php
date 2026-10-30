@@ -267,9 +267,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $basePath = $this->app->basePath();
 
-        // Frames contain resolved paths, even when the configured cache directory is a symlink.
         $compiledViewPath = $this->config->string('view.compiled');
-        $compiledViewPath = realpath($compiledViewPath) ?: $compiledViewPath;
 
         $formatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;

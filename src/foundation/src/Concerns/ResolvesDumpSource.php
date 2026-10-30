@@ -103,7 +103,10 @@ trait ResolvesDumpSource
         }
 
         // The compiler can use an extension other than .php; the footer identifies the source.
-        return str_starts_with($file, rtrim($this->compiledViewPath, '/\\') . DIRECTORY_SEPARATOR);
+        // Frames contain resolved paths, and the compiler may create a symlinked directory after boot.
+        $directory = realpath($this->compiledViewPath) ?: $this->compiledViewPath;
+
+        return str_starts_with($file, rtrim($directory, '/\\') . DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -117,7 +120,8 @@ trait ResolvesDumpSource
             return $file;
         }
 
-        preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches);
+        // The compiler writes the footer last; a template can contain the same text.
+        preg_match('/.*\/\*\*PATH\s(.*)\sENDPATH/s', $contents, $matches);
 
         if (isset($matches[1])) {
             $file = $matches[1];

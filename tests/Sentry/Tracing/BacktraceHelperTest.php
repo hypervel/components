@@ -60,12 +60,12 @@ class BacktraceHelperTest extends TestCase
 
             Container::getInstance()->instance('config', new Repository(['view' => ['compiled' => $compiledDirectory]]));
             $compiledPath = $directory . '/compiled/example.cache';
-            $filesystem->put($compiledPath, '/**PATH ' . $directory . '/resources/views/example.blade.php ENDPATH**/');
+            $filesystem->put($compiledPath, '/**PATH /another/view.blade.php ENDPATH**/ /**PATH ' . $directory . '/resources/views/MY PATH example.blade.php ENDPATH**/');
             $options = new Options(['dsn' => null, 'prefixes' => [$directory]]);
             $helper = new BacktraceHelper($options, new RepresentationSerializer($options));
             $frame = new Frame(null, '/compiled/example.cache', 1, absoluteFilePath: $compiledPath);
 
-            $this->assertSame('/resources/views/example.blade.php', $helper->getOriginalViewPathForFrameOfCompiledViewPath($frame));
+            $this->assertSame('/resources/views/MY PATH example.blade.php', $helper->getOriginalViewPathForFrameOfCompiledViewPath($frame));
         } finally {
             $filesystem->deleteDirectory($directory);
         }
