@@ -83,26 +83,22 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertSame($time1->id, $time2->id);
     }
 
-    public function testWithCastsDoesNotLeakAcrossQueries(): void
+    public function testWithCastsOnClonedQueryDoesNotAffectOriginalQuery(): void
     {
         Time::query()->insert(['time' => '07:30']);
 
-        $scoped = Time::query()->withCasts(['time' => 'string'])->first();
+        $query = Time::query();
+        $scoped = $query->clone()->withCasts(['time' => 'string'])->first();
         $this->assertIsString($scoped->time);
         $this->assertSame('07:30', $scoped->time);
+        $this->assertFalse($scoped->hasCast('time', 'datetime'));
+
+        $original = $query->first();
+        $this->assertInstanceOf(CarbonInterface::class, $original->time);
+        $this->assertTrue($original->hasCast('time', 'datetime'));
 
         $default = Time::query()->first();
         $this->assertInstanceOf(CarbonInterface::class, $default->time);
-    }
-
-    public function testWithCastsDoesNotLeakPredicateCacheAcrossQueries(): void
-    {
-        Time::query()->insert(['time' => '07:30']);
-
-        $scoped = Time::query()->withCasts(['time' => 'string'])->first();
-        $this->assertFalse($scoped->hasCast('time', 'datetime'));
-
-        $default = Time::query()->first();
         $this->assertTrue($default->hasCast('time', 'datetime'));
     }
 

@@ -1899,7 +1899,7 @@ class Builder implements BuilderContract
      */
     public function withCasts(array $casts): static
     {
-        $this->model->mergeCasts($casts);
+        $this->model = (clone $this->model)->mergeCasts($casts);
 
         return $this;
     }
