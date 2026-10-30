@@ -12,10 +12,12 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Throwable;
 
 class KernelTerminateTest extends TestCase
 {
@@ -354,10 +356,13 @@ class KernelTerminateTest extends TestCase
         $this->assertNull($kernel->commandStartedAt());
     }
 
-    public function testEventCancellationStopsLaterTerminationStagesAndClearsTheCommandStartTime(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEventCancellationStopsLaterTerminationStagesAndClearsTheCommandStartTime(bool $throwingCleanup): void
     {
         $calls = [];
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);
         $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $cancellation): void {
@@ -380,7 +385,7 @@ class KernelTerminateTest extends TestCase
         try {
             $kernel->terminate($input, 0);
             $this->fail('Expected console termination to preserve cancellation.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -388,11 +393,14 @@ class KernelTerminateTest extends TestCase
         $this->assertNull($kernel->commandStartedAt());
     }
 
-    public function testDurationCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDurationCancellationSupersedesAnEarlierOrdinaryTerminationFailure(bool $throwingCleanup): void
     {
         $calls = [];
         $eventFailure = new RuntimeException('event failed');
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);
         $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $eventFailure): void {
@@ -417,7 +425,7 @@ class KernelTerminateTest extends TestCase
         try {
             $kernel->terminate($input, 0);
             $this->fail('Expected duration cancellation to supersede the earlier failure.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

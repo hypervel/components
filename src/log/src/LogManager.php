@@ -10,6 +10,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Log\ContextLogProcessor;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Log\Context\ResolvedContextLogProcessor;
 use Hypervel\Log\Handlers\FingersCrossedHandler;
 use Hypervel\Log\Handlers\RotatingFileHandler;
@@ -37,7 +38,6 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use RuntimeException;
 use Stringable;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -169,9 +169,11 @@ class LogManager implements LoggerInterface
             }
 
             return $logger;
-        } catch (CanceledException $e) {
-            throw $e;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
                 $logger->emergency('Unable to create configured logger. Using emergency logger.', [
                     'exception' => $e,

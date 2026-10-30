@@ -477,10 +477,26 @@ class Handler implements ExceptionHandlerContract
             return;
         }
 
+        // Cancellation unwinds through multiple reporting boundaries. Suppress duplicates
+        // using the original exception because mappers may create new wrappers each time.
+        $original = $e;
+        $deduplicate = $this->withoutDuplicates || Coroutine::causedByCancellation($e);
+
+        if ($deduplicate && $this->hasReportedException($original)) {
+            return;
+        }
+
         $e = $this->mapException($e);
 
         if ($this->shouldntReport($e)) {
             return;
+        }
+
+        // Keep the accepted decision for observers, including deferred Telescope batch filters.
+        $this->reportedException($original);
+
+        if ($e !== $original) {
+            $this->reportedException($e);
         }
 
         $this->reportThrowable($e, $context, $level);
@@ -496,10 +512,6 @@ class Handler implements ExceptionHandlerContract
      */
     protected function reportThrowable(Throwable $e, array $context = [], ?string $level = null): void
     {
-        if ($this->withoutDuplicates) {
-            $this->reportedException($e);
-        }
-
         if (Reflector::isCallable($reportCallable = [$e, 'report'])
             && $this->container->call($reportCallable) !== false
         ) {
@@ -518,9 +530,11 @@ class Handler implements ExceptionHandlerContract
 
         try {
             $logger = $this->newLogger();
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             throw $e;
         }
 
@@ -608,7 +622,8 @@ class Handler implements ExceptionHandlerContract
      */
     public function shouldReport(Throwable $e): bool
     {
-        return ! $this->shouldntReport($e);
+        // Log observers must not sample or consume a rate limit again for an admitted report.
+        return $this->hasReportedException($e) || ! $this->shouldntReport($e);
     }
 
     /**
@@ -617,10 +632,6 @@ class Handler implements ExceptionHandlerContract
     protected function shouldntReport(Throwable $e): bool
     {
         if ($e instanceof CanceledException) {
-            return true;
-        }
-
-        if ($this->withoutDuplicates && $this->hasReportedException($e)) {
             return true;
         }
 
@@ -780,9 +791,11 @@ class Handler implements ExceptionHandlerContract
             return array_filter([
                 'userId' => Auth::id(),
             ]);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return [];
         }
     }
@@ -809,7 +822,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function render(Request $request, Throwable $e): SymfonyResponse
     {
-        if ($e instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($e)) {
             throw $e;
         }
 
@@ -1115,9 +1128,11 @@ class Handler implements ExceptionHandlerContract
             }
 
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         }
     }
@@ -1160,9 +1175,11 @@ class Handler implements ExceptionHandlerContract
                     $e->getStatusCode(),
                     $e->getHeaders()
                 );
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $t) {
+                if (Coroutine::causedByCancellation($t)) {
+                    throw $t;
+                }
+
                 config()->boolean('app.debug') && throw $t;
 
                 $this->report($t);
@@ -1256,7 +1273,7 @@ class Handler implements ExceptionHandlerContract
      */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
-        if ($e instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($e)) {
             throw $e;
         }
 

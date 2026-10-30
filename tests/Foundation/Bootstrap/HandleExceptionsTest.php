@@ -113,9 +113,12 @@ class HandleExceptionsTest extends TestCase
         )));
     }
 
-    public function testDeprecationLoggingPreservesCancellationDuringLoggerResolution(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDeprecationLoggingPreservesCancellationDuringLoggerResolution(bool $throwingCleanup): void
     {
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $this->app->bind(LogManager::class, fn () => throw $cancellation);
 
         try {
@@ -126,7 +129,7 @@ class HandleExceptionsTest extends TestCase
             );
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -554,9 +557,12 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testDeprecationLoggingPreservesCancellationDuringChannelCreation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDeprecationLoggingPreservesCancellationDuringChannelCreation(bool $throwingCleanup): void
     {
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $logger = new LogManager($this->app);
         $logger->extend('canceling', static fn (): never => throw $cancellation);
         $this->config->set('logging.channels.deprecations', ['driver' => 'canceling']);
@@ -566,7 +572,7 @@ class HandleExceptionsTest extends TestCase
             $this->handleExceptions()->handleDeprecationError('Deprecated behavior', __FILE__, __LINE__);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }

@@ -12,6 +12,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Foundation\Http\Events\RequestHandled;
 use Hypervel\Http\Request;
@@ -260,29 +261,35 @@ class Kernel implements KernelContract
             if ($events->hasListeners(Terminating::class)) {
                 $events->dispatch(new Terminating);
             }
-        } catch (CanceledException $throwable) {
-            $cancellation = $throwable;
         } catch (Throwable $throwable) {
-            $exception = $throwable;
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+            } else {
+                $exception = $throwable;
+            }
         }
 
         if ($cancellation === null) {
             try {
                 $this->terminateMiddleware($request, $response);
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         if ($cancellation === null) {
             try {
                 $this->app->terminate();
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
@@ -304,17 +311,21 @@ class Kernel implements KernelContract
                             if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
                                 $handler($requestStartedAt, $request, $response);
                             }
-                        } catch (CanceledException $throwable) {
-                            throw $throwable;
                         } catch (Throwable $throwable) {
+                            if (Coroutine::causedByCancellation($throwable)) {
+                                throw $throwable;
+                            }
+
                             $exception ??= $throwable;
                         }
                     }
                 }
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
@@ -378,9 +389,11 @@ class Kernel implements KernelContract
                 if ($terminable) {
                     $instance->terminate($request, $response);
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

@@ -50,6 +50,8 @@ use LogicException;
 use Mockery as m;
 use OutOfRangeException;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LoggerTrait;
 use Psr\Log\LogLevel;
@@ -113,11 +115,13 @@ class FoundationExceptionsHandlerTest extends TestCase
         return $logger;
     }
 
-    public function testHandlerReportsExceptionAsContext(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testHandlerReportsExceptionAsContext(bool $throwingCleanup): void
     {
         $logger = $this->getRealLogger();
 
-        $this->handler->report(new RuntimeException('Exception message'));
+        $this->handler->report(new RuntimeException('Exception message', 0, $throwingCleanup ? new CanceledException : null));
 
         $this->assertCount(1, $logger->logs);
         $this->assertSame('error', $logger->logs[0]['level']);
@@ -136,24 +140,24 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report($cancellation);
     }
 
-    public function testHandlerPreservesCancellationFromLoggerResolution(): void
+    #[DataProvider('cancellations')]
+    public function testHandlerPreservesCancellationFromLoggerResolution(Throwable $cancellation): void
     {
         $failure = new RuntimeException('failed');
-        $cancellation = new CanceledException('canceled');
         $this->container->bind(LoggerInterface::class, fn () => throw $cancellation);
 
         try {
             $this->handler->report($failure);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testHandlerPreservesCancellationFromDefaultContext(): void
+    #[DataProvider('cancellations')]
+    public function testHandlerPreservesCancellationFromDefaultContext(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('canceled');
         $auth = m::mock();
         $auth->expects('id')->andThrow($cancellation);
         $this->container->instance('auth', $auth);
@@ -171,7 +175,7 @@ class FoundationExceptionsHandlerTest extends TestCase
             $handler->defaultContext();
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         } finally {
             Auth::clearResolvedInstance();
@@ -179,23 +183,22 @@ class FoundationExceptionsHandlerTest extends TestCase
         }
     }
 
-    public function testHandlerPreservesCancellationDuringRendering(): void
+    #[DataProvider('cancellations')]
+    public function testHandlerPreservesCancellationDuringRendering(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('canceled');
-
         try {
             $this->handler->render(Request::create('/'), $cancellation);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testHandlerPreservesCancellationFromCustomRenderer(): void
+    #[DataProvider('cancellations')]
+    public function testHandlerPreservesCancellationFromCustomRenderer(Throwable $cancellation): void
     {
         $failure = new RuntimeException('failed');
-        $cancellation = new CanceledException('canceled');
         $renderer = m::mock(ExceptionRenderer::class);
         $renderer->expects('render')->with($failure)->andThrow($cancellation);
         $this->container->instance(ExceptionRenderer::class, $renderer);
@@ -205,20 +208,19 @@ class FoundationExceptionsHandlerTest extends TestCase
             $this->handler->render(Request::create('/'), $failure);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testHandlerPreservesCancellationDuringConsoleRendering(): void
+    #[DataProvider('cancellations')]
+    public function testHandlerPreservesCancellationDuringConsoleRendering(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('canceled');
-
         try {
             $this->handler->renderForConsole(new BufferedOutput, $cancellation);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -1014,9 +1016,9 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(true);
     }
 
-    public function testErrorViewCancellationEscapesWithoutReportingOrFallback(): void
+    #[DataProvider('cancellations')]
+    public function testErrorViewCancellationEscapesWithoutReportingOrFallback(Throwable $cancellation): void
     {
-        $cancellation = new CanceledException('canceled');
         $this->viewFactory->expects('exists')->with('errors::404')->andReturnTrue();
         $this->viewFactory->expects('make')->andThrow($cancellation);
         $handler = new class($this->container) extends Handler {
@@ -1041,11 +1043,22 @@ class FoundationExceptionsHandlerTest extends TestCase
             $handler->renderHttpExceptionForTest(new HttpException(404));
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertFalse($handler->reported);
+    }
+
+    /**
+     * Provide direct cancellation and cancellation carried by throwing cleanup.
+     */
+    public static function cancellations(): array
+    {
+        return [
+            'direct' => [new CanceledException('canceled')],
+            'cleanup' => [new RuntimeException('cleanup failed', 0, new CanceledException('canceled'))],
+        ];
     }
 
     public function testAssertExceptionIsThrown(): void
@@ -1178,10 +1191,15 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertSame($reported, [$one, $one, $two]);
     }
 
-    public function testItCanDedupeExceptions(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testItCanDedupeExceptions(bool $mapped): void
     {
         $reported = [];
-        $e = new RuntimeException('foo');
+        if ($mapped) {
+            $this->handler->map(RuntimeException::class, static fn (RuntimeException $exception): Exception => new Exception('mapped', 0, $exception));
+        }
+
         $this->handler->reportable(function (Throwable $e) use (&$reported) {
             $reported[] = $e;
 
@@ -1193,7 +1211,10 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report($one);
         $this->handler->report($two = new RuntimeException('foo'));
 
-        $this->assertSame($reported, [$one, $two]);
+        $this->assertSame([$one, $two], $mapped
+            ? array_map(static fn (Throwable $exception): Throwable => $exception->getPrevious(), $reported)
+            : $reported);
+        $this->assertTrue($this->handler->shouldReport($one));
     }
 
     public function testItDedupesByObjectIdentityNotEquality(): void

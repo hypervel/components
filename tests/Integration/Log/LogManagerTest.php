@@ -30,11 +30,14 @@ use Monolog\Processor\MemoryUsageProcessor;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Processor\UidProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LoggerTrait;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class LogManagerTest extends TestCase
 {
@@ -385,6 +388,31 @@ class LogManagerTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame('Emergency logger was created.', $exception->getMessage());
         }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testChannelCreationPreservesCancellationWithoutEmergencyFallback(bool $throwingCleanup): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
+        $manager = new class($this->app) extends LogManager {
+            protected function createEmergencyLogger(): LoggerInterface
+            {
+                throw new RuntimeException('Emergency logger was created.');
+            }
+        };
+        config(['logging.channels.canceling' => ['driver' => 'canceling']]);
+        $manager->extend('canceling', static fn (): never => throw $cancellation);
+
+        try {
+            $manager->channel('canceling');
+            $this->fail('The cancellation was not preserved.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([], $manager->getChannels());
     }
 
     public function testLogManagerCreateSingleDriverWithConfiguredFormatter(): void

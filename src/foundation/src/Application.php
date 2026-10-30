@@ -17,6 +17,7 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Configuration\ApplicationBuilder;
@@ -33,7 +34,6 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -1234,8 +1234,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             try {
                 $this->call($callback);
             } catch (Throwable $throwable) {
-                // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
-                if ($throwable instanceof CanceledException) {
+                if (Coroutine::causedByCancellation($throwable)) {
                     throw $throwable;
                 }
 
