@@ -734,6 +734,20 @@ class BelongsToMany extends Relation
     }
 
     /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
+    {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
+            if (! $instance->wasRecentlyCreated) {
+                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+            }
+        });
+    }
+
+    /**
      * Find a related model by its primary key.
      *
      * @return (
@@ -1144,6 +1158,27 @@ class BelongsToMany extends Relation
                 }
             }
         });
+    }
+
+    /**
+     * Run a map over each item while chunking.
+     *
+     * @template TReturn
+     *
+     * @param callable(object{pivot: TPivotModel}&TRelatedModel): TReturn $callback
+     * @return BaseCollection<int, TReturn>
+     */
+    public function chunkMap(callable $callback, int $count = 1000): BaseCollection
+    {
+        $collection = new BaseCollection;
+
+        $this->chunk($count, function (BaseCollection $items) use ($collection, $callback): void {
+            $items->each(function (mixed $item) use ($collection, $callback): void {
+                $collection->push($callback($item));
+            });
+        });
+
+        return $collection;
     }
 
     /**

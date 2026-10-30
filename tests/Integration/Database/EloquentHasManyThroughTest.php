@@ -48,8 +48,23 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
             $table->id();
             $table->foreignId('user_id');
             $table->string('title')->unique();
+            $table->string('slug')->nullable();
+            $table->integer('views')->default(0);
             $table->timestamps();
         });
+    }
+
+    public function testEagerLoadingSpecificColumns(): void
+    {
+        $user = User::create(['name' => Str::random()]);
+        $team = Team::create(['owner_id' => $user->id]);
+        $mate = User::create(['name' => 'John', 'team_id' => $team->id]);
+
+        $user = User::with('teamMates:id,name')->find($user->id);
+
+        $this->assertCount(1, $user->teamMates);
+        $this->assertSame($mate->id, $user->teamMates[0]->id);
+        $this->assertSame('John', $user->teamMates[0]->name);
     }
 
     public function testBasicCreateAndRetrieve(): void
@@ -273,6 +288,26 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('adam', $mate->slug);
     }
 
+    public function testFirstOrCreateWithColumnThatAlsoExistsOnIntermediateTable(): void
+    {
+        $team = Team::create();
+        $user = $team->members()->create(['name' => 'Taylor', 'slug' => 'taylor']);
+        $article = Article::create(['user_id' => $user->id, 'title' => 'Hypervel', 'slug' => 'hypervel']);
+
+        $this->assertTrue($article->is($team->articles()->firstOrNew(['slug' => 'hypervel'])));
+        $this->assertTrue($article->is($team->articles()->firstOrCreate(['slug' => 'hypervel'])));
+
+        $updated = $team->articles()->updateOrCreate(['slug' => 'hypervel'], ['views' => 5]);
+
+        $this->assertTrue($article->is($updated));
+        $this->assertEquals(5, $article->fresh()->views);
+
+        $created = $team->articles()->firstOrCreate(['slug' => 'eloquent'], ['user_id' => $user->id, 'title' => 'Eloquent']);
+
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertSame('eloquent', $created->fresh()->slug);
+    }
+
     public function testFirstOrCreateRegressionIssue(): void
     {
         $team1 = Team::create();
@@ -424,6 +459,23 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('john-doe', $john->fresh()->slug);
         // $jane should not be updated, because it belongs to a different user altogether.
         $this->assertSame('jane-slug', $jane->fresh()->slug);
+    }
+
+    public function testIncrementOrCreateIncrementsTheRelatedModel(): void
+    {
+        $team = Team::create();
+
+        $jane = User::create(['name' => 'Jane']);
+        $john = User::create(['name' => 'John', 'team_id' => $team->id]);
+
+        $johnsArticle = Article::create(['user_id' => $john->id, 'title' => 'foo']);
+        $janesArticle = Article::create(['user_id' => $jane->id, 'title' => 'bar']);
+
+        $article = $team->articles()->incrementOrCreate(['title' => 'foo'], 'views');
+
+        $this->assertTrue($article->is($johnsArticle));
+        $this->assertEquals(1, $johnsArticle->fresh()->views);
+        $this->assertEquals(0, $janesArticle->fresh()->views);
     }
 
     public function testCanReplicateModelLoadedThroughHasManyThrough(): void

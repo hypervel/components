@@ -17,6 +17,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
@@ -207,31 +208,38 @@ class Kernel implements KernelContract
             if ($this->events->hasListeners(Terminating::class)) {
                 $this->events->dispatch(new Terminating);
             }
-        } catch (CanceledException $throwable) {
-            $cancellation = $throwable;
         } catch (Throwable $throwable) {
-            $exception = $throwable;
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+            } else {
+                $exception = $throwable;
+            }
         }
 
         if ($cancellation === null) {
             try {
                 $this->app->terminate();
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         if ($cancellation === null && $this->commandStartedAt !== null) {
             try {
+                // Resolving config runs application callbacks, whose cleanup can wrap cancellation.
                 $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
-            } catch (CanceledException $throwable) {
-                $cancellation = $throwable;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
 
             if ($cancellation === null) {
@@ -242,11 +250,13 @@ class Kernel implements KernelContract
                         if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
                             $handler($this->commandStartedAt, $input, $status);
                         }
-                    } catch (CanceledException $throwable) {
-                        $cancellation = $throwable;
-
-                        break;
                     } catch (Throwable $throwable) {
+                        if (Coroutine::causedByCancellation($throwable)) {
+                            $cancellation = $throwable;
+
+                            break;
+                        }
+
                         $exception ??= $throwable;
                     }
                 }

@@ -8,12 +8,14 @@ use BadMethodCallException;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Database\Eloquent\SupportsPartialRelations;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
@@ -755,7 +757,7 @@ class Builder implements BuilderContract
      */
     public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
     {
-        return tap($this->firstOrCreate($attributes, [$column => $default]), function ($instance) use ($column, $step, $extra) {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function ($instance) use ($column, $step, $extra) {
             if (! $instance->wasRecentlyCreated) {
                 $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
             }
@@ -1840,6 +1842,8 @@ class Builder implements BuilderContract
         return [explode(':', $name)[0], static function ($query) use ($name) {
             $query->select(array_map(static function ($column) use ($query) {
                 return $query instanceof BelongsToMany
+                    || $query instanceof HasOneOrManyThrough
+                    || ($query instanceof SupportsPartialRelations && $query->isOneOfMany())
                     ? $query->getRelated()->qualifyColumn($column)
                     : $column;
             }, explode(',', explode(':', $name)[1])));

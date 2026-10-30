@@ -60,7 +60,7 @@ class ViewWatcher extends Watcher
     {
         $path = $view->getPath();
 
-        if (Str::startsWith($path, base_path())) {
+        if (Str::startsWith($path, base_path() . DIRECTORY_SEPARATOR)) {
             $path = substr($path, strlen(base_path()));
         }
 

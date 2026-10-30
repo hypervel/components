@@ -12,10 +12,12 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Throwable;
 
 class KernelTerminateTest extends TestCase
 {
@@ -354,10 +356,13 @@ class KernelTerminateTest extends TestCase
         $this->assertNull($kernel->commandStartedAt());
     }
 
-    public function testEventCancellationStopsLaterTerminationStagesAndClearsTheCommandStartTime(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEventCancellationStopsLaterTerminationStagesAndClearsTheCommandStartTime(bool $throwingCleanup): void
     {
         $calls = [];
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);
         $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $cancellation): void {
@@ -380,7 +385,7 @@ class KernelTerminateTest extends TestCase
         try {
             $kernel->terminate($input, 0);
             $this->fail('Expected console termination to preserve cancellation.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -388,11 +393,14 @@ class KernelTerminateTest extends TestCase
         $this->assertNull($kernel->commandStartedAt());
     }
 
-    public function testDurationCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDurationCancellationSupersedesAnEarlierOrdinaryTerminationFailure(bool $throwingCleanup): void
     {
         $calls = [];
         $eventFailure = new RuntimeException('event failed');
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);
         $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $eventFailure): void {
@@ -417,11 +425,53 @@ class KernelTerminateTest extends TestCase
         try {
             $kernel->terminate($input, 0);
             $this->fail('Expected duration cancellation to supersede the earlier failure.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame(['event', 'cancelling duration'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
+    }
+
+    public function testTimezoneResolutionCancellationSupersedesAnEarlierTerminationFailure(): void
+    {
+        $cancellation = new RuntimeException('cleanup failed', 0, new CanceledException('canceled'));
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $this->app->make(Dispatcher::class)->listen(Terminating::class, function (): void {
+            throw new RuntimeException('event failed');
+        });
+        $called = false;
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$called): void {
+            $called = true;
+        });
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+
+        // Earlier termination stages also resolve config; target the timezone lookup.
+        $armed = false;
+        $this->app->terminating(function () use (&$armed): void {
+            $armed = true;
+        });
+        $this->app->beforeResolving('config', function () use (&$armed, $cancellation): void {
+            if ($armed) {
+                $armed = false;
+
+                throw $cancellation;
+            }
+        });
+
+        try {
+            $kernel->terminate($input, 0);
+            $this->fail('Expected timezone resolution cancellation to supersede the earlier failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($called);
         $this->assertNull($kernel->commandStartedAt());
     }
 

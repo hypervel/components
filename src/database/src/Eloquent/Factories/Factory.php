@@ -359,7 +359,7 @@ abstract class Factory
     {
         Model::unguarded(function () use ($model) {
             $this->has->each(function ($has) use ($model) {
-                $has->recycle($this->recycle)->createFor($model);
+                $has->createFor($model);
             });
         });
     }
@@ -536,7 +536,7 @@ abstract class Factory
     protected function parentResolvers(): array
     {
         return $this->for
-            ->map(fn (BelongsToRelationship $for) => $for->recycle($this->recycle)->attributesFor($this->newModel()))
+            ->map(fn (BelongsToRelationship $for) => $for->attributesFor($this->newModel()))
             ->collapse()
             ->all();
     }
@@ -598,7 +598,7 @@ abstract class Factory
     public function prependState(callable|array $state): static
     {
         return $this->newInstance([
-            'states' => $this->states->prepend(
+            'states' => (new Collection($this->states))->prepend(
                 is_callable($state) ? $state : fn () => $state,
             ),
         ]);
@@ -641,11 +641,17 @@ abstract class Factory
      */
     public function has(self $factory, ?string $relationship = null): static
     {
+        $definition = new Relationship(
+            $factory,
+            $relationship ?? $this->guessRelationship($factory->modelName())
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
         return $this->newInstance([
-            'has' => $this->has->concat([new Relationship(
-                $factory,
-                $relationship ?? $this->guessRelationship($factory->modelName())
-            )]),
+            'has' => $this->has->concat([$definition]),
         ]);
     }
 
@@ -674,17 +680,21 @@ abstract class Factory
             $pivot = new Sequence(...$pivot);
         }
 
-        return $this->newInstance([
-            'has' => $this->has->concat([new BelongsToManyRelationship(
-                $factory,
-                $pivot,
-                $relationship ?? StrCache::camel(StrCache::plural(class_basename(
-                    $factory instanceof Factory
-                        ? $factory->modelName()
-                        : Collection::wrap($factory)->first()
-                )))
-            )]),
-        ]);
+        $definition = new BelongsToManyRelationship(
+            $factory,
+            $pivot,
+            $relationship ?? StrCache::camel(StrCache::plural(class_basename(
+                $factory instanceof Factory
+                    ? $factory->modelName()
+                    : Collection::wrap($factory)->first()
+            )))
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
+        return $this->newInstance(['has' => $this->has->concat([$definition])]);
     }
 
     /**
@@ -692,12 +702,18 @@ abstract class Factory
      */
     public function for(self|Model $factory, ?string $relationship = null): static
     {
-        return $this->newInstance(['for' => $this->for->concat([new BelongsToRelationship(
+        $definition = new BelongsToRelationship(
             $factory,
             $relationship ?? StrCache::camel(class_basename(
                 $factory instanceof Factory ? $factory->modelName() : $factory
             ))
-        )])]);
+        );
+
+        if ($this->recycle->isNotEmpty()) {
+            $definition = $definition->recycle($this->recycle);
+        }
+
+        return $this->newInstance(['for' => $this->for->concat([$definition])]);
     }
 
     /**
@@ -705,14 +721,21 @@ abstract class Factory
      */
     public function recycle(Model|Collection|array $model): static
     {
+        $models = Collection::wrap($model instanceof Model ? func_get_args() : $model)->flatten();
+
+        if ($models->isEmpty()) {
+            return $this->newInstance();
+        }
+
         // Group provided models by the type and merge them into existing recycle collection
+        $recycle = $this->recycle->flatten()->merge($models)->groupBy(fn ($model) => get_class($model));
+
+        // Recycle relationship copies when configured, not per model: counted groups
+        // share one parent without leaking it or repeatedly merging the same candidates.
         return $this->newInstance([
-            'recycle' => $this->recycle
-                ->flatten()
-                ->merge(
-                    Collection::wrap($model instanceof Model ? func_get_args() : $model)
-                        ->flatten()
-                )->groupBy(fn ($model) => get_class($model)),
+            'recycle' => $recycle,
+            'for' => $this->for->map(fn (BelongsToRelationship $relationship): BelongsToRelationship => $relationship->recycle($models)),
+            'has' => $this->has->map(fn (BelongsToManyRelationship|Relationship $relationship): BelongsToManyRelationship|Relationship => $relationship->recycle($models)),
         ]);
     }
 

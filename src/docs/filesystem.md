@@ -451,6 +451,14 @@ If your application interacts with multiple disks, you may use the `disk` method
 Storage::disk('s3')->put('avatars/1', $content);
 ```
 
+You may also use enums for disk names. Backed enums use their value, while unit enums use their case name:
+
+```php
+Storage::disk(Disk::S3)->put('avatars/1', $content);
+```
+
+The `set`, `forgetDisk`, and `purge` methods also accept enums. The `forgetDisk` method accepts an array of disk names or enums as well.
+
 <a name="on-demand-disks"></a>
 ### On-Demand Disks
 

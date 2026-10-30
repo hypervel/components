@@ -55,6 +55,7 @@ use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use UnitEnum;
 
 use function Aws\serialize;
 
@@ -66,6 +67,7 @@ enum FilesystemTestStringBackedDisk: string
 enum FilesystemTestIntBackedDisk: int
 {
     case Local = 1;
+    case Zero = 0;
 }
 
 enum FilesystemTestUnitDisk
@@ -319,6 +321,48 @@ class FilesystemManagerTest extends TestCase
             'url' => 'my-custom-url',
             'visibility' => 'public',
         ]));
+    }
+
+    public function testCanSetDiskUsingEnum(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $filesystem->set(FilesystemManagerTestDisk::Local, $disk = m::mock(Filesystem::class));
+
+        $this->assertSame($disk, $filesystem->disk('local'));
+    }
+
+    public function testCanForgetDiskUsingEnum(): void
+    {
+        $filesystem = $this->filesystemManagerWithLocalDisks();
+        $filesystem->set('local', $local = m::mock(Filesystem::class));
+        $filesystem->set('backup', $backup = m::mock(Filesystem::class));
+
+        $filesystem->forgetDisk(FilesystemManagerTestDisk::Local);
+
+        $this->assertNotSame($local, $filesystem->disk('local'));
+        $this->assertSame($backup, $filesystem->disk('backup'));
+
+        $filesystem->forgetDisk([FilesystemManagerTestDisk::Backup]);
+
+        $this->assertNotSame($backup, $filesystem->disk('backup'));
+    }
+
+    #[TestWith([FilesystemManagerTestDisk::Local, 'local'])]
+    #[TestWith([FilesystemTestUnitDisk::local, 'local'])]
+    #[TestWith([FilesystemTestIntBackedDisk::Local, '1'])]
+    #[TestWith([FilesystemTestIntBackedDisk::Zero, '0'])]
+    public function testCanPurgeDiskUsingEnum(UnitEnum $name, string $key): void
+    {
+        $filesystem = $this->filesystemManagerWithLocalDisks();
+        $filesystem->set($key, $local = m::mock(Filesystem::class));
+
+        $filesystem->purge($name);
+
+        $this->assertNotSame($local, $filesystem->disk($key));
+
+        // An uncached integer-backed name must also reach the string-only config lookup.
+        $filesystem->forgetDisk($key);
+        $filesystem->purge($name);
     }
 
     public function testCanBuildLocalDisksThatLazilyCreateTheirRootDirectory(): void
@@ -2662,6 +2706,21 @@ class FilesystemManagerTest extends TestCase
         ]));
     }
 
+    /**
+     * Create a filesystem manager with isolated local disks.
+     */
+    protected function filesystemManagerWithLocalDisks(): FilesystemManager
+    {
+        return new FilesystemManager($this->getContainer([
+            'disks' => [
+                'local' => ['driver' => 'local', 'root' => $this->tempDir . '/local'],
+                'backup' => ['driver' => 'local', 'root' => $this->tempDir . '/backup'],
+                '1' => ['driver' => 'local', 'root' => $this->tempDir . '/integer'],
+                '0' => ['driver' => 'local', 'root' => $this->tempDir . '/zero'],
+            ],
+        ]));
+    }
+
     protected function getContainer(array $config = []): Container
     {
         $config = new Repository(['filesystems' => $config]);
@@ -2733,4 +2792,10 @@ class InspectableFilesystemManager extends FilesystemManager
     {
         return static::s3ArgumentNames();
     }
+}
+
+enum FilesystemManagerTestDisk: string
+{
+    case Local = 'local';
+    case Backup = 'backup';
 }

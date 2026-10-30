@@ -253,6 +253,17 @@ class HtmlDumperTest extends TestCase
             $resolveSourceHref()
         );
 
+        $this->assertSame(
+            'phpstorm://open?file=/my-work-directory-shared/example.blade.php&line=10',
+            (fn () => $this->resolveSourceHref('/my-work-directory-shared/example.blade.php', 10))->call($dumper),
+        );
+
+        $this->config->set('app.editor', ['name' => 'phpstorm', 'base_path' => '/my-docker-work-directory/']);
+        $this->assertSame(
+            'phpstorm://open?file=/my-docker-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
+        );
+
         // A literal false disables base-path replacement.
         $this->config->set('app.editor', ['name' => 'phpstorm', 'base_path' => false]);
         $this->assertSame(

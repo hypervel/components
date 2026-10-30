@@ -68,7 +68,12 @@ trait ResolvesSourceHref
         $basePath = $editor['base_path'] ?? false;
 
         if ($basePath !== false) {
-            $file = Str::replaceStart($this->basePath, $basePath, $file);
+            // Remap application files without rewriting neighboring directories that share its name.
+            $file = Str::replaceStart(
+                $this->basePath . DIRECTORY_SEPARATOR,
+                rtrim($basePath, '/\\') . DIRECTORY_SEPARATOR,
+                $file,
+            );
         }
 
         return str_replace(

@@ -55,6 +55,24 @@ class ViewWatcherTest extends FeatureTestCase
         $this->assertSame(['name'], $entry->content['data']);
     }
 
+    public function testViewWatcherKeepsExternalPathsWithMatchingApplicationPrefix(): void
+    {
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($this->viewDir . '/app-other');
+        $path = $this->viewDir . '/app-other/example.blade.php';
+        $files->put($path, 'External view');
+        $originalBasePath = $this->app->basePath();
+
+        try {
+            $this->app->setBasePath($this->viewDir . '/app');
+            $this->app->make(Factory::class)->file($path)->render();
+        } finally {
+            $this->app->setBasePath($originalBasePath);
+        }
+
+        $this->assertSame($path, $this->loadTelescopeEntries()->first()->content['path']);
+    }
+
     public function testViewWatcherCapturesViewsWithoutComposers(): void
     {
         file_put_contents($this->viewDir . '/simple.blade.php', 'No composers here');

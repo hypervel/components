@@ -19,8 +19,10 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -584,7 +586,9 @@ class KernelTest extends TestCase
         $this->assertNull($kernel->requestStartedAt());
     }
 
-    public function testTerminationCancellationStopsLaterStagesAndClearsTheRequestStartTime(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminationCancellationStopsLaterStagesAndClearsTheRequestStartTime(bool $throwingCleanup): void
     {
         $called = [];
         $app = new Application;
@@ -598,6 +602,7 @@ class KernelTest extends TestCase
         $request = Request::create('/');
         $response = $kernel->handle($request);
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
 
         $events->listen(function (Terminating $event) use (&$called, $cancellation): void {
             $called[] = 'event';
@@ -625,7 +630,7 @@ class KernelTest extends TestCase
         try {
             $kernel->terminate($request, $response);
             $this->fail('Expected request termination to preserve cancellation.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -633,7 +638,9 @@ class KernelTest extends TestCase
         $this->assertNull($kernel->requestStartedAt());
     }
 
-    public function testMiddlewareCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testMiddlewareCancellationSupersedesAnEarlierOrdinaryTerminationFailure(bool $throwingCleanup): void
     {
         $called = [];
         $app = new Application;
@@ -647,6 +654,7 @@ class KernelTest extends TestCase
         $request = Request::create('/');
         $response = $kernel->handle($request);
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
 
         $events->listen(function (Terminating $event) use (&$called): void {
             $called[] = 'event';
@@ -654,7 +662,7 @@ class KernelTest extends TestCase
             throw new RuntimeException('event failed');
         });
         $app->instance('cancelling-middleware', new class($called, $cancellation) {
-            public function __construct(private array &$called, private CanceledException $cancellation)
+            public function __construct(private array &$called, private Throwable $cancellation)
             {
             }
 
@@ -683,7 +691,7 @@ class KernelTest extends TestCase
         try {
             $kernel->terminate($request, $response);
             $this->fail('Expected middleware cancellation to supersede the earlier failure.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -691,7 +699,9 @@ class KernelTest extends TestCase
         $this->assertNull($kernel->requestStartedAt());
     }
 
-    public function testDurationHandlerCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDurationHandlerCancellationSupersedesAnEarlierOrdinaryTerminationFailure(bool $throwingCleanup): void
     {
         $called = [];
         $app = new Application;
@@ -705,6 +715,7 @@ class KernelTest extends TestCase
         $request = Request::create('/');
         $response = $kernel->handle($request);
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
 
         $events->listen(function (Terminating $event) use (&$called): void {
             $called[] = 'event';
@@ -723,7 +734,7 @@ class KernelTest extends TestCase
         try {
             $kernel->terminate($request, $response);
             $this->fail('Expected duration handler cancellation to supersede the earlier failure.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

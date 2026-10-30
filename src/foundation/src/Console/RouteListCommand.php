@@ -242,7 +242,7 @@ class RouteListCommand extends Command
         return str_replace(
             '\\',
             '/',
-            ltrim(Str::after($path, base_path()), DIRECTORY_SEPARATOR)
+            Str::replaceStart(base_path() . DIRECTORY_SEPARATOR, '', $path)
         ) . ':' . $reflection->getStartLine();
     }
 
@@ -268,7 +268,7 @@ class RouteListCommand extends Command
             return false;
         }
 
-        return is_string($path) && str_starts_with($path, base_path('vendor'));
+        return is_string($path) && str_starts_with($path, base_path('vendor') . DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -457,7 +457,7 @@ class RouteListCommand extends Command
             ? (new ReflectionClass($actionClass))->getFilename()
             : false;
 
-        if (is_string($path) && str_starts_with($path, base_path('vendor'))) {
+        if (is_string($path) && str_starts_with($path, base_path('vendor') . DIRECTORY_SEPARATOR)) {
             $actionCollection = (new Stringable($action))->explode('\\');
 
             return $name . $actionCollection->take(2)->implode('\\') . '   ' . $actionCollection->last();

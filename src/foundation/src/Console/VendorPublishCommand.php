@@ -254,14 +254,14 @@ class VendorPublishCommand extends Command
             if ($this->option('existing')) {
                 $this->components->twoColumnDetail(sprintf(
                     'File [%s] does not exist',
-                    str_replace(base_path() . '/', '', $to),
+                    Str::replaceStart(base_path() . '/', '', $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             } else {
                 $resolvedTo = realpath($to);
 
                 $this->components->twoColumnDetail(sprintf(
                     'File [%s] already exists',
-                    str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to),
+                    Str::replaceStart(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             }
         }
@@ -444,8 +444,8 @@ class VendorPublishCommand extends Command
         $resolvedFrom = realpath($from);
         $resolvedTo = realpath($to);
 
-        $from = str_replace(base_path() . '/', '', is_string($resolvedFrom) ? $resolvedFrom : $from);
-        $to = str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to);
+        $from = Str::replaceStart(base_path() . '/', '', is_string($resolvedFrom) ? $resolvedFrom : $from);
+        $to = Str::replaceStart(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to);
 
         $this->components->task(sprintf(
             'Copying %s [%s] to [%s]',

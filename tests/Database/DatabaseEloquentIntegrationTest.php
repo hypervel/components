@@ -1965,6 +1965,19 @@ class DatabaseEloquentIntegrationTest extends TestCase
         });
     }
 
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkMapRequest(): void
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $results = User::first()->friends()->chunkMap(fn (User $result): User => $result, 2);
+
+        $this->assertCount(1, $results);
+        $this->assertSame('abigailotwell@gmail.com', $results->first()->email);
+        $this->assertEquals($user->id, $results->first()->pivot->user_id);
+        $this->assertEquals($friend->id, $results->first()->pivot->friend_id);
+    }
+
     public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);

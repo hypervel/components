@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\EloquentCollectionLoadMissingTest;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -47,6 +49,21 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         Schema::create('post_sub_sub_relations', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('post_sub_relation_id');
+        });
+
+        Schema::create('videos', function (Blueprint $table) {
+            $table->increments('id');
+        });
+
+        Schema::create('images', function (Blueprint $table) {
+            $table->increments('id');
+            $table->morphs('imageable');
+            $table->string('name');
+        });
+
+        Schema::create('activities', function (Blueprint $table) {
+            $table->increments('id');
+            $table->morphs('subject');
         });
 
         User::create();
@@ -221,6 +238,25 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
         $this->assertInstanceOf(PostSubSubRelation::class, $user->posts[1]->postRelation->postSubRelations[0]->postSubSubRelations[0]);
     }
 
+    public function testLoadMissingWithNestedRelationOnMorphToOfDifferentTypes(): void
+    {
+        $post = Post::find(1);
+        $video = Video::create();
+
+        $post->images()->create(['name' => 'post image']);
+        $video->images()->create(['name' => 'video image']);
+
+        Activity::create(['subject_type' => Post::class, 'subject_id' => $post->id]);
+        Activity::create(['subject_type' => Video::class, 'subject_id' => $video->id]);
+
+        $activities = Activity::get();
+
+        $activities->loadMissing('subject.images');
+
+        $this->assertEquals(['post image'], $activities[0]->subject->images->pluck('name')->all());
+        $this->assertEquals(['video image'], $activities[1]->subject->images->pluck('name')->all());
+    }
+
     public function testLoadMissingWithMultipleNestedArraysCombinedWithDotNotation(): void
     {
         $users = User::get();
@@ -280,6 +316,16 @@ class Post extends Model
     {
         return $this->hasOne(PostRelation::class);
     }
+
+    /**
+     * Get the post's images.
+     *
+     * @return MorphMany<Image, $this>
+     */
+    public function images(): MorphMany
+    {
+        return $this->morphMany(Image::class, 'imageable');
+    }
 }
 
 class PostRelation extends Model
@@ -329,5 +375,46 @@ class User extends Model
     public function posts()
     {
         return $this->hasMany(Post::class);
+    }
+}
+
+class Video extends Model
+{
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the video's images.
+     *
+     * @return MorphMany<Image, $this>
+     */
+    public function images(): MorphMany
+    {
+        return $this->morphMany(Image::class, 'imageable');
+    }
+}
+
+class Image extends Model
+{
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+}
+
+class Activity extends Model
+{
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the activity's subject.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function subject(): MorphTo
+    {
+        return $this->morphTo();
     }
 }

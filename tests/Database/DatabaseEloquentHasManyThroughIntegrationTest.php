@@ -203,6 +203,24 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail($model ? (new Post)->forceFill(['id' => 1]) : 1);
     }
 
+    public function testFindOrNewReturnsTheRelatedModel(): void
+    {
+        $this->seedData();
+        $this->seedDataExtended();
+        $country = Country::find(2);
+
+        $post = $country->posts()->findOrNew(5);
+
+        $this->assertTrue($post->exists);
+        $this->assertSame(5, $post->id);
+        $this->assertSame('Example2 title1', $post->title);
+
+        $post = $country->posts()->findOrNew(1);
+
+        $this->assertFalse($post->exists);
+        $this->assertInstanceOf(Post::class, $post);
+    }
+
     public function testFindOrFailWithManyThrowsAnException(): void
     {
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
@@ -391,6 +409,24 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
                 'hypervel_through_key',
             ], array_keys($post->getAttributes()));
         });
+    }
+
+    public function testChunkMapReturnsCorrectModels(): void
+    {
+        $this->seedData();
+        $this->seedDataExtended();
+        $country = Country::find(2);
+
+        $posts = $country->posts()->chunkMap(fn (Post $post): array => [$post->id, $post->title], 2);
+
+        $this->assertEquals([
+            [3, 'Example1 title1'],
+            [4, 'Example1 title2'],
+            [5, 'Example2 title1'],
+            [6, 'Example2 title2'],
+            [7, 'Example3 title1'],
+            [8, 'Example3 title2'],
+        ], $posts->all());
     }
 
     public function testChunkById(): void

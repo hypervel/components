@@ -78,14 +78,15 @@ trait ResolvesDumpSource
             return null;
         }
 
-        $relativeFile = $file;
-
         if ($this->isCompiledViewFile($file)) {
             $file = $this->getOriginalFileForCompiledView($file);
             $line = null;
         }
 
-        if (str_starts_with($file, $this->basePath)) {
+        // External views keep their original path rather than the compiled filename.
+        $relativeFile = $file;
+
+        if (str_starts_with($file, $this->basePath . DIRECTORY_SEPARATOR)) {
             $relativeFile = substr($file, strlen($this->basePath) + 1);
         }
 
@@ -101,7 +102,11 @@ trait ResolvesDumpSource
             return false;
         }
 
-        return str_starts_with($file, $this->compiledViewPath) && str_ends_with($file, '.php');
+        // The compiler can use an extension other than .php; the footer identifies the source.
+        // Frames contain resolved paths, and the compiler may create a symlinked directory after boot.
+        $directory = realpath($this->compiledViewPath) ?: $this->compiledViewPath;
+
+        return str_starts_with($file, rtrim($directory, '/\\') . DIRECTORY_SEPARATOR);
     }
 
     /**
@@ -115,7 +120,8 @@ trait ResolvesDumpSource
             return $file;
         }
 
-        preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches);
+        // The compiler writes the footer last; a template can contain the same text.
+        preg_match('/.*\/\*\*PATH\s(.*)\sENDPATH/s', $contents, $matches);
 
         if (isset($matches[1])) {
             $file = $matches[1];
