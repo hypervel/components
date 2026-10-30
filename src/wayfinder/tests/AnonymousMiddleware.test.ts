@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { show } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/AnonymousMiddlewareController";
 
 test("will allow for closure middleware", () => {

@@ -1,5 +1,4 @@
-<script type="text/ecmascript-6">
-
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 import ExceptionCodePreview from './../../components/ExceptionCodePreview.vue';
 import Stacktrace from './../../components/Stacktrace.vue';
@@ -7,26 +6,24 @@ import Stacktrace from './../../components/Stacktrace.vue';
 export default {
     components: {
         'code-preview': ExceptionCodePreview,
-        'stack-trace': Stacktrace
+        'stack-trace': Stacktrace,
     },
 
-    mixins: [
-        StylesMixin,
-    ],
+    mixins: [StylesMixin],
 
     data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'data'
+            currentTab: 'data',
         };
-    }
-}
+    },
+};
 </script>
 
 <template>
     <preview-screen title="Job Details" resource="jobs" :id="$route.params.id" entry-point="true">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Status</td>
                 <td>
@@ -89,7 +86,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -147,7 +144,11 @@ export default {
                             <vue-json-pretty :data="slotProps.entry.content.data"></vue-json-pretty>
                         </copy-clipboard>
                     </div>
-                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'context'" v-if="slotProps.entry.content.context">
+                    <div
+                        class="code-bg p-4 mb-0 text-white"
+                        v-show="currentTab == 'context'"
+                        v-if="slotProps.entry.content.context"
+                    >
                         <copy-clipboard :data="slotProps.entry.content.context">
                             <vue-json-pretty :data="slotProps.entry.content.context"></vue-json-pretty>
                         </copy-clipboard>
@@ -156,8 +157,7 @@ export default {
                         class="code-bg p-4 mb-0 text-white"
                         v-if="slotProps.entry.content.exception"
                         v-show="currentTab == 'exception'"
-                        >{{ slotProps.entry.content.exception.message }}</pre
-                    >
+                        >{{ slotProps.entry.content.exception.message }}</pre>
                     <stack-trace
                         :trace="slotProps.entry.content.exception.trace"
                         v-if="slotProps.entry.content.exception"
@@ -175,8 +175,6 @@ export default {
 
             <!-- Additional Information -->
             <related-entries :entry="entry" :batch="batch"> </related-entries>
-        </div>
+        </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

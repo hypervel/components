@@ -66,8 +66,17 @@ export default {
                     ...grouped,
                     [entry[key]]: [...(grouped[entry[key]] || []), entry],
                 }),
-                {}
+                {},
             );
+        },
+
+        /**
+         * Show an error message.
+         */
+        alertError(message) {
+            this.$root.alert.type = 'error';
+            this.$root.alert.autoClose = false;
+            this.$root.alert.message = message;
         },
     },
 };

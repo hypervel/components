@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import SharedUriController from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/SharedUriController";
 
 it("keys routes sharing a URI by verb", () => {
@@ -18,11 +18,13 @@ it("keys routes sharing a URI by verb", () => {
         method: "post",
     });
 
-    expect(SharedUriController["put|patch /shared-uri/{name}"].url("test")).toBe(
-        "/shared-uri/test",
+    expect(
+        SharedUriController["put|patch /shared-uri/{name}"].url("test"),
+    ).toBe("/shared-uri/test");
+    expect(SharedUriController["put|patch /shared-uri/{name}"]("test")).toEqual(
+        {
+            url: "/shared-uri/test",
+            method: "put",
+        },
     );
-    expect(SharedUriController["put|patch /shared-uri/{name}"]("test")).toEqual({
-        url: "/shared-uri/test",
-        method: "put",
-    });
 });

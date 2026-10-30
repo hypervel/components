@@ -11,7 +11,7 @@ class WorkerOptions
      *
      * @param string $name the name of the worker
      * @param int|int[] $backoff
-     * @param float $memory the maximum amount of RAM in megabytes the worker may consume
+     * @param float|string $memory the maximum RAM in megabytes or a percentage of PHP's memory limit
      * @param int $timeout the maximum number of seconds a child worker may run
      * @param float $sleep the number of seconds to wait in between polling the queue
      * @param int $maxTries the maximum number of times a job may be attempted
@@ -28,7 +28,7 @@ class WorkerOptions
     public function __construct(
         public string $name = 'default',
         public array|int $backoff = 0,
-        public float $memory = 128,
+        public float|string $memory = 128,
         public int $timeout = 60,
         public float $sleep = 3,
         public int $maxTries = 1,

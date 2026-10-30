@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
 use Hypervel\Database\Eloquent\Relations\HasOneThrough;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphOneOrMany;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -52,22 +53,22 @@ class PendingHasThroughRelationship
      *
      * @template TRelatedModel of Model
      *
-     * @param (callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|HasOne<TRelatedModel, TIntermediateModel>|MorphOneOrMany<TRelatedModel, TIntermediateModel, *>))|string $callback
+     * @param (callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|HasOne<TRelatedModel, TIntermediateModel>|MorphMany<TRelatedModel, TIntermediateModel>|MorphOneOrMany<TRelatedModel, TIntermediateModel, *>))|string $callback
      * @return (
      *     $callback is string
      *     ? HasManyThrough<Model, TIntermediateModel, TDeclaringModel>|HasOneThrough<Model, TIntermediateModel, TDeclaringModel>
      *     : (
-     *         TLocalRelationship is HasMany<TIntermediateModel, TDeclaringModel>
+     *         TLocalRelationship is HasMany<TIntermediateModel, TDeclaringModel>|MorphMany<TIntermediateModel, TDeclaringModel>
      *         ? HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      *         : (
-     *              $callback is callable(TIntermediateModel): HasMany<TRelatedModel, TIntermediateModel>
+     *              $callback is callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|MorphMany<TRelatedModel, TIntermediateModel>)
      *              ? HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      *              : HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      *         )
      *     )
      * )
      */
-    public function has(callable|string $callback): mixed
+    public function has(callable|string $callback): HasManyThrough|HasOneThrough
     {
         if (is_string($callback)) {
             $callback = fn () => $this->localRelationship->getRelated()->{$callback}();
@@ -75,7 +76,8 @@ class PendingHasThroughRelationship
 
         $distantRelation = $callback($this->localRelationship->getRelated());
 
-        if ($distantRelation instanceof HasMany || $this->localRelationship instanceof HasMany) {
+        if ($distantRelation instanceof HasMany || $distantRelation instanceof MorphMany
+            || $this->localRelationship instanceof HasMany || $this->localRelationship instanceof MorphMany) {
             $returnedRelation = $this->rootModel->hasManyThrough(
                 $distantRelation->getRelatedClass(),
                 $this->localRelationship->getRelatedClass(),
@@ -96,7 +98,11 @@ class PendingHasThroughRelationship
         }
 
         if ($this->localRelationship instanceof MorphOneOrMany) {
-            $returnedRelation->where($this->localRelationship->getQualifiedMorphType(), $this->localRelationship->getMorphClass());
+            $returnedRelation->whereMorphClass($this->localRelationship->getQualifiedMorphType(), $this->localRelationship->getMorphClass());
+        }
+
+        if ($distantRelation instanceof MorphOneOrMany) {
+            $returnedRelation->whereMorphClass($distantRelation->getQualifiedMorphType(), $distantRelation->getMorphClass());
         }
 
         return $returnedRelation;

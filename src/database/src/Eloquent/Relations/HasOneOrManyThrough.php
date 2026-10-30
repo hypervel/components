@@ -71,6 +71,13 @@ abstract class HasOneOrManyThrough extends Relation
     protected string $secondLocalKey;
 
     /**
+     * Morph identities that also constrain one-of-many subqueries.
+     *
+     * @var array<string, string>
+     */
+    protected array $morphConstraints = [];
+
+    /**
      * Create a new has many through relationship instance.
      *
      * @param Builder<TRelatedModel> $query
@@ -103,6 +110,19 @@ abstract class HasOneOrManyThrough extends Relation
 
             $query->where($this->getQualifiedFirstKeyName(), '=', $localValue);
         }
+    }
+
+    /**
+     * Constrain the relationship to records of the given morph class.
+     *
+     * @return $this
+     */
+    public function whereMorphClass(string $column, string $morphClass): static
+    {
+        $this->morphConstraints[$column] = $morphClass;
+        $this->query->where($column, $morphClass);
+
+        return $this;
     }
 
     /**

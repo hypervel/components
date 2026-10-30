@@ -768,6 +768,8 @@ Custom filesystem contract implementations must also provide `fileExists()` and 
 
 S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
 
+If you override `FilesystemManager::formatS3Config()`, named credential providers remain configuration data there. Customize their resolution through `createS3Client()` instead.
+
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
 Rename any configured disk called `ondemand`; Hypervel reserves that name for [on-demand disk fakes](/docs/{{version}}/filesystem#on-demand-disks).
@@ -787,6 +789,8 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
+Hypervel requires a newer MariaDB version than Laravel. Check the [supported database versions](/docs/{{version}}/database#introduction) and upgrade older servers before porting.
+
 Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
 
 Custom non-PDO drivers that relied on generic exception messages for recovery must provide an explicit detector policy. Extend the default detectors and bind them to the existing contracts to preserve recovery for built-in drivers; see [detecting database failures](/docs/{{version}}/database#detecting-database-failures).
@@ -796,6 +800,10 @@ MySQL and MariaDB connection configs must specify `strict` or `modes`; they cann
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
+
+For cursor or ID-based pagination across unions, select plain columns in corresponding positions, or use `fromSub` to paginate the combined output. Hypervel rejects projections whose correspondence cannot be established, including computed paging columns. Union members use positional mapping instead of the protected `getOriginalColumnNameForCursorPagination` override; root queries retain that override. See [paginating unions](/docs/{{version}}/queries#paginating-unions).
+
+For ID-based paging with joins or raw sources, qualify an unselected paging column if another output uses its name. Hypervel rejects that ambiguous form instead of sorting by the wrong column. Alternatively, select the source under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`; see [chunking results](/docs/{{version}}/queries#chunking-results).
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 

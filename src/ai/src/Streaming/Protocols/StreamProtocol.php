@@ -7,8 +7,8 @@ namespace Hypervel\Ai\Streaming\Protocols;
 use Generator;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Responses\StreamableAgentResponse;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\IterableStreamedResponse;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -54,9 +54,11 @@ abstract class StreamProtocol
                 foreach ($this->parts($response) as $part) {
                     yield $this->encode($part);
                 }
-            } catch (CanceledException $e) {
-                throw $e;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 $this->exception = $e;
 
                 // A stream error exception carries a provider error the stream already surfaced, so only report anything else...

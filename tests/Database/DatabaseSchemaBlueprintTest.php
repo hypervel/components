@@ -27,6 +27,7 @@ use LogicException;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
@@ -533,30 +534,22 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $blueprint->toSql());
     }
 
-    public function testNativeRenameColumnOnLegacyMariaDB(): void
+    // REMOVED: legacy MariaDB CHANGE COLUMN reconstruction below the 10.11 minimum.
+    #[TestWith(['MariaDb'])]
+    #[TestWith(['MySql'])]
+    public function testNativeRenameColumnOnMariaDb(string $driver): void
     {
-        $connection = $this->getConnection('MariaDb');
+        $connection = $this->getConnection($driver);
         $connection->shouldReceive('isMaria')->andReturn(true);
-        $connection->shouldReceive('getServerVersion')->andReturn('10.1.35');
-        $connection->getSchemaBuilder()->shouldReceive('getColumns')->andReturn([
-            ['name' => 'name', 'type' => 'varchar(255)', 'type_name' => 'varchar', 'nullable' => true, 'collation' => 'utf8mb4_unicode_ci', 'default' => 'foo', 'comment' => null, 'auto_increment' => false, 'generation' => null],
-            ['name' => 'id', 'type' => 'bigint unsigned', 'type_name' => 'bigint', 'nullable' => false, 'collation' => null, 'default' => null, 'comment' => 'lorem ipsum', 'auto_increment' => true, 'generation' => null],
-            ['name' => 'generated', 'type' => 'int', 'type_name' => 'int', 'nullable' => false, 'collation' => null, 'default' => null, 'comment' => null, 'auto_increment' => false, 'generation' => ['type' => 'stored', 'expression' => 'expression']],
-            ['name' => 'foo', 'type' => 'int', 'type_name' => 'int', 'nullable' => true, 'collation' => null, 'default' => 'NULL', 'comment' => null, 'auto_increment' => false, 'generation' => null],
-        ]);
+        $connection->shouldNotReceive('getServerVersion');
+        $connection->getSchemaBuilder()->shouldNotReceive('getColumns');
 
         $blueprint = new Blueprint($connection, 'users', function ($table) {
             $table->renameColumn('name', 'title');
-            $table->renameColumn('id', 'key');
-            $table->renameColumn('generated', 'new_generated');
-            $table->renameColumn('foo', 'bar');
         });
 
         $this->assertEquals([
-            "alter table `users` change `name` `title` varchar(255) collate 'utf8mb4_unicode_ci' null default 'foo'",
-            "alter table `users` change `id` `key` bigint unsigned not null auto_increment comment 'lorem ipsum'",
-            'alter table `users` change `generated` `new_generated` int as (expression) stored not null',
-            'alter table `users` change `foo` `bar` int null default NULL',
+            'alter table `users` rename column `name` to `title`',
         ], $blueprint->toSql());
     }
 
@@ -1025,7 +1018,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         }
 
         if ($grammar === 'MySql') {
-            $connection->shouldReceive('isMaria')->andReturn(false);
+            $connection->shouldReceive('isMaria')->andReturn(false)->byDefault();
         }
 
         if ($connection instanceof MySqlConnection) {

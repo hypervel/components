@@ -6,16 +6,19 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 
@@ -204,6 +207,114 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
 
             $this->assertSame($name, AsBinaryFactoryPrimaryKeyModel::query()->whereKey($key)->sole()->name);
         }
+    }
+
+    #[TestWith(['chunkById', false])]
+    #[TestWith(['chunkByIdDesc', true])]
+    #[TestWith(['lazyById', false])]
+    #[TestWith(['lazyByIdDesc', true])]
+    public function testBinaryPrimaryKeysCanBePaged(string $method, bool $descending): void
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+            '00000000-0000-0000-0000-000000000003',
+        ];
+
+        foreach ($ids as $id) {
+            AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
+        }
+
+        $query = AsBinaryPrimaryKeyModel::query();
+        $actual = [];
+
+        if (str_starts_with($method, 'lazy')) {
+            $actual = $query->{$method}(2)->take(4)->pluck('id')->all();
+        } else {
+            $query->{$method}(2, function (Collection $models) use (&$actual): bool {
+                array_push($actual, ...$models->pluck('id')->all());
+
+                return count($actual) < 4;
+            });
+        }
+
+        $this->assertSame($descending ? array_reverse($ids) : $ids, $actual);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testBinaryPrimaryKeysCanBeCursorPaginatedInBothDirections(bool $aliased): void
+    {
+        $ids = [
+            '00000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-000000000002',
+            '00000000-0000-0000-0000-000000000003',
+        ];
+
+        foreach ($ids as $id) {
+            AsBinaryPrimaryKeyModel::create(['id' => $id, 'name' => $id]);
+        }
+
+        if (! $aliased) {
+            $bytes = Uuid::fromString($ids[1])->toBinary();
+            $stream = fopen('php://memory', 'w+');
+
+            try {
+                fwrite($stream, $bytes);
+                rewind($stream);
+
+                foreach ([new BinaryParameter($bytes), $stream] as $parameter) {
+                    $explicit = AsBinaryPrimaryKeyModel::query()->orderBy('id')
+                        ->cursorPaginate(2, cursor: new Cursor(['id' => $parameter]));
+
+                    $this->assertSame([$ids[2]], $explicit->pluck('id')->all());
+                }
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        $query = fn () => $aliased
+            ? AsBinaryPrimaryKeyModel::query()->from('binary_primary_keys as identifiers')->orderBy('identifiers.id')
+            : AsBinaryPrimaryKeyModel::query();
+        $first = $query()->cursorPaginate(2);
+        $next = $query()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
+
+        $this->assertSame([$ids[2]], $next->pluck('id')->all());
+
+        $previous = $query()->cursorPaginate(2, cursor: $next->previousCursor()->encode());
+
+        $this->assertSame([$ids[0], $ids[1]], $previous->pluck('id')->all());
+    }
+
+    public function testCompoundCursorPaginationPreservesBinaryEqualityAcrossUnions(): void
+    {
+        foreach ([1, 2, 3] as $id) {
+            AsBinaryIdentifierModel::create([
+                'uuid' => '00000000-0000-0000-0000-00000000000' . $id,
+                'ulid' => $id < 3 ? '00000000000000000000000001' : '00000000000000000000000002',
+            ]);
+        }
+
+        $actual = [];
+        $cursor = null;
+
+        for ($page = 0; $page < 4; ++$page) {
+            $query = AsBinaryIdentifierModel::query()->where('id', 1)
+                ->unionAll(AsBinaryIdentifierModel::query()->where('id', 2))
+                ->unionAll(AsBinaryIdentifierModel::query()->where('id', 3))
+                ->orderBy('ulid')
+                ->orderBy('id');
+            $results = $query->cursorPaginate(1, cursor: $cursor);
+            array_push($actual, ...$results->pluck('id')->all());
+            $cursor = $results->nextCursor()?->encode();
+
+            if ($cursor === null) {
+                break;
+            }
+        }
+
+        $this->assertSame([1, 2, 3], $actual);
     }
 
     public function testBinaryPrimaryKeysPreserveBindingIntentAcrossModelOperations(): void

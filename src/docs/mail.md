@@ -215,7 +215,7 @@ To utilize AWS [temporary credentials](https://docs.aws.amazon.com/IAM/latest/Us
 ],
 ```
 
-If you supply a callable `credentials` provider instead of static keys, calls to that provider run one at a time, including when it is shared with SQS or S3. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants. For pooled mailers, configure `pool.fingerprint` as described under [transport pooling](#transport-pooling).
+If you supply a callable `credentials` provider, it takes precedence over `key` and `secret`. Calls to that provider run one at a time, including when it is shared with SQS or S3. Hypervel does not cache provider results. If your provider fetches the same credentials remotely for every caller, wrap it with the AWS SDK's `CredentialProvider::memoize()` to reuse them until they need refreshing. Do not share a memoized provider between callers that need different credentials, such as different tenants. For pooled mailers, configuration containing objects or closures requires `pool.fingerprint`, as described under [transport pooling](#transport-pooling). String callables and static-method arrays can form an automatic pool identity.
 
 To interact with SES's [subscription management features](https://docs.aws.amazon.com/ses/latest/dg/sending-email-subscription-management.html), you may return the `X-Ses-List-Management-Options` header in the array returned by the [headers](#headers) method of a mail message:
 

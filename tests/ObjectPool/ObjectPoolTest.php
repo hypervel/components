@@ -12,11 +12,13 @@ use Hypervel\Coroutine\PoolChannel;
 use Hypervel\Engine\Channel;
 use Hypervel\ObjectPool\Exceptions\PoolClosedException;
 use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
+use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -50,10 +52,23 @@ class ObjectPoolTest extends TestCase
         $this->assertEqualsCanonicalizing($objects, $destroyed);
     }
 
-    public function testCloseDrainsEveryIdleObjectBeforeRethrowingTheFirstCancellation(): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function testCloseDrainsEveryIdleObjectBeforeRethrowingTheFirstCancellation(bool $firstCleanupThrows, bool $secondCleanupThrows): void
     {
         $firstCancellation = new CanceledException('first cleanup canceled');
         $secondCancellation = new CanceledException('second cleanup canceled');
+        if ($firstCleanupThrows) {
+            $firstCancellation = new RuntimeException('First cleanup failed.', previous: $firstCancellation);
+        }
+        if ($secondCleanupThrows) {
+            $secondCancellation = new RuntimeException('Second cleanup failed.', previous: $secondCancellation);
+        }
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->with($secondCancellation)->times($secondCleanupThrows ? 1 : 0);
+        $this->container()->instance(ExceptionHandler::class, $handler);
         $destroyed = [];
         $pool = $this->pool(
             ['max_objects' => 2],
@@ -72,7 +87,7 @@ class ObjectPoolTest extends TestCase
         try {
             $pool->close();
             $this->fail('Expected idle cleanup cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($firstCancellation, $exception);
         }
 
@@ -752,9 +767,19 @@ class ObjectPoolTest extends TestCase
         $this->assertSame(0, $pool->getIdleCount());
     }
 
-    public function testDestroyCancellationEscapesAfterReleasingPoolCapacity(): void
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function testDestroyCancellationEscapesAfterReleasingPoolCapacity(bool $cleanupThrows, bool $releaseFails): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Destroy cleanup failed.', previous: $cancellation);
+        }
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->container()->instance(ExceptionHandler::class, $handler);
         $pool = $this->pool(
             destroyCallback: static function () use ($cancellation): never {
                 throw $cancellation;
@@ -763,9 +788,13 @@ class ObjectPoolTest extends TestCase
         $object = $pool->borrow();
 
         try {
-            $pool->discard($object);
+            if ($releaseFails) {
+                (new Lease($pool, $object, static fn () => throw new RuntimeException('Reset failed.')))->release();
+            } else {
+                $pool->discard($object);
+            }
             $this->fail('Expected object destruction cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

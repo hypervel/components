@@ -1,23 +1,23 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
-}
+    mixins: [StylesMixin],
+};
 </script>
 
 <template>
     <index-screen title="Jobs" resource="jobs" show-all-family="true">
-        <tr slot="table-header">
-            <th scope="col">Job</th>
-            <th scope="col">Status</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Job</th>
+                <th scope="col">Status</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td>
                 <span :title="slotProps.entry.content.name">{{ truncate(slotProps.entry.content.name, 68) }}</span
                 ><br />

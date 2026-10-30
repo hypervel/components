@@ -199,9 +199,7 @@ class MySqlConnection extends PdoConnection
                 : true;
         }
 
-        $minimumVersion = $isMaria ? '10.6.0' : '8.0.1';
-
-        return version_compare($version, $minimumVersion, '>=')
+        return $isMaria || version_compare($version, '8.0.1', '>=')
             ? 'FOR UPDATE SKIP LOCKED'
             : true;
     }

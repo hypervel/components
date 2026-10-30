@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Outbox;
 
+use Hypervel\Queue\MemoryLimit;
 use InvalidArgumentException;
 
 readonly class OutboxWorkerOptions
@@ -17,7 +18,7 @@ readonly class OutboxWorkerOptions
         public int $concurrency = 1,
         public int $maxJobs = 0,
         public int $maxTime = 0,
-        public float $memory = 128,
+        public float|string $memory = 128,
         public bool $stopWhenEmpty = false,
         public bool $once = false,
     ) {
@@ -29,7 +30,7 @@ readonly class OutboxWorkerOptions
             throw new InvalidArgumentException('Outbox sleep and concurrency must be greater than zero.');
         }
 
-        if ($maxJobs < 0 || $maxTime < 0 || $memory <= 0) {
+        if ($maxJobs < 0 || $maxTime < 0 || MemoryLimit::toMegabytes($memory) <= 0) {
             throw new InvalidArgumentException('Outbox job and time limits must be non-negative, and memory must be greater than zero.');
         }
     }

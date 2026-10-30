@@ -110,11 +110,13 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
             // Dispatch through the Kernel (global middleware → Router → response)
             $response = $this->kernel->handle($request);
-        } catch (CanceledException $throwable) {
-            $cancellation = $throwable;
         } catch (Throwable $throwable) {
-            $exception = $throwable;
-            $response = new SymfonyResponse('Internal Server Error', 500);
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+            } else {
+                $exception = $throwable;
+                $response = new SymfonyResponse('Internal Server Error', 500);
+            }
         } finally {
             if (isset($request) && $cancellation === null) {
                 try {
@@ -126,10 +128,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
                             server: $this->serverName
                         ));
                     }
-                } catch (CanceledException $throwable) {
-                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $cancellation = $throwable;
+                    } else {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 
@@ -145,10 +149,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
                         protocol: is_string($protocol) ? $protocol : 'HTTP/1.1',
                         request: $request ?? null,
                     );
-                } catch (CanceledException $throwable) {
-                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $cancellation = $throwable;
+                    } else {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 
@@ -162,10 +168,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
                             server: $this->serverName
                         ));
                     }
-                } catch (CanceledException $throwable) {
-                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $cancellation = $throwable;
+                    } else {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 
@@ -173,10 +181,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
             if (isset($request) && $response !== null && $cancellation === null) {
                 try {
                     $this->kernel->terminate($request, $response);
-                } catch (CanceledException $throwable) {
-                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $cancellation = $throwable;
+                    } else {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 
@@ -190,10 +200,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
                             server: $this->serverName
                         )));
                     }
-                } catch (CanceledException $throwable) {
-                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $cancellation = $throwable;
+                    } else {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 

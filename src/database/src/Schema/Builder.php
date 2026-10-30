@@ -11,6 +11,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Schema\Grammars\Grammar;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
@@ -260,8 +261,9 @@ class Builder
     public function hasColumn(string $table, string $column): bool
     {
         return in_array(
-            strtolower($column),
-            array_map(strtolower(...), $this->getColumnListing($table))
+            Str::lower($column),
+            array_map(Str::lower(...), $this->getColumnListing($table)),
+            true
         );
     }
 
@@ -272,11 +274,11 @@ class Builder
      */
     public function hasColumns(string $table, array $columns): bool
     {
-        $tableColumns = array_map(strtolower(...), $this->getColumnListing($table));
+        $tableColumns = array_map(Str::lower(...), $this->getColumnListing($table));
 
         // Keep this loop to avoid an extra callback per item.
         foreach ($columns as $column) {
-            if (! in_array(strtolower($column), $tableColumns)) {
+            if (! in_array(Str::lower($column), $tableColumns, true)) {
                 return false;
             }
         }
@@ -331,12 +333,10 @@ class Builder
      */
     public function getColumnType(string $table, string $column, bool $fullDefinition = false): string
     {
-        $columns = $this->getColumns($table);
+        $value = $this->getColumn($table, $column);
 
-        foreach ($columns as $value) {
-            if (strtolower($value['name']) === strtolower($column)) {
-                return $fullDefinition ? $value['type'] : $value['type_name'];
-            }
+        if ($value !== []) {
+            return $fullDefinition ? $value['type'] : $value['type_name'];
         }
 
         throw new InvalidArgumentException("There is no column with name '{$column}' on table '{$table}'.");
@@ -350,6 +350,30 @@ class Builder
     public function getColumnListing(string $table): array
     {
         return array_column($this->getColumns($table), 'name');
+    }
+
+    /**
+     * Get the column for a given table.
+     *
+     * @return array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}|array{}
+     */
+    public function getColumn(string $table, string $column): array
+    {
+        $lowercaseColumn = Str::lower($column);
+        $match = [];
+
+        foreach ($this->getColumns($table) as $value) {
+            if ($value['name'] === $column) {
+                return $value;
+            }
+
+            // Keep the first case-insensitive match unless an exact name appears later.
+            if ($match === [] && Str::lower($value['name']) === $lowercaseColumn) {
+                $match = $value;
+            }
+        }
+
+        return $match;
     }
 
     /**

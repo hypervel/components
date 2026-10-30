@@ -60,4 +60,18 @@ class ThrottleRequestsRedisStoreTest extends TestCase
         $this->get('/')->assertTooManyRequests();
         $this->get('/?missing=yes')->assertTooManyRequests();
     }
+
+    public function testItReturnsRemainingAttemptsHeaderWhenResponseIsNotCounted(): void
+    {
+        $manager = $this->app->make(RateLimiter::class);
+        $manager->for('throttle-not-found', fn () => Limit::perMinute(5)
+            ->after(fn (Response $response): bool => $response->getStatusCode() === 404), store: 'redis');
+
+        Route::get('/', fn (): string => 'ok')->middleware(ThrottleRequests::using('throttle-not-found'));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Limit', 5)
+            ->assertHeader('X-RateLimit-Remaining', 5);
+    }
 }

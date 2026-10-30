@@ -3,11 +3,14 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "test": "vitest run",
-        "test:cached": "WAYFINDER_CACHE_ROUTES=1 vitest run",
+        "test": "vp test",
+        "test:cached": "WAYFINDER_CACHE_ROUTES=1 vp test",
         "typecheck": "php tests/generate.php tests/.generated && tsc --noEmit --project tsconfig.json"
     },
     "devDependencies": {
-        "happy-dom": "^20.14.5"
+        "@types/node": "catalog:",
+        "happy-dom": "^21.0.4",
+        "typescript": "catalog:",
+        "vite-plus": "catalog:"
     }
 }

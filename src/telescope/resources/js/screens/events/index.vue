@@ -1,24 +1,22 @@
-<script type="text/ecmascript-6">
-export default {}
-</script>
-
 <template>
     <index-screen title="Events" resource="events">
-        <tr slot="table-header">
-            <th scope="col">Name</th>
-            <th scope="col" class="text-right">Listeners</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col" class="text-end">Listeners</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td :title="slotProps.entry.content.name">
                 {{ truncate(slotProps.entry.content.name, 80) }}
 
-                <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.broadcast"> Broadcast </span>
+                <span class="badge badge-secondary ms-2" v-if="slotProps.entry.content.broadcast"> Broadcast </span>
             </td>
 
-            <td class="table-fit text-right text-muted">
+            <td class="table-fit text-end text-muted">
                 {{ slotProps.entry.content.listeners.length }}
             </td>
 

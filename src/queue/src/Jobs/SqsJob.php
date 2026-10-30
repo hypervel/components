@@ -8,10 +8,10 @@ use Aws\Sqs\SqsClient;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Support\Arr;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SqsJob extends Job
@@ -79,17 +79,21 @@ class SqsJob extends Job
 
         try {
             $this->releasePoolLease();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $releaseException = $exception;
         }
 
         try {
             $this->deleteOverflowPayload();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $cleanupException) {
+            if (Coroutine::causedByCancellation($cleanupException)) {
+                throw $cleanupException;
+            }
+
             if ($releaseException !== null) {
                 PoolErrorReporter::report($cleanupException);
 

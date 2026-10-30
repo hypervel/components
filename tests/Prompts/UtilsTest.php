@@ -92,7 +92,7 @@ class UtilsTest extends TestCase
     {
         yield 'unclosed named style' => ['<info>Ready'];
         yield 'unclosed inline style' => ['<fg=red>Ready'];
-        yield 'named styles are case-sensitive' => ['<INFO>Ready</INFO>'];
+        yield 'named styles are case-insensitive' => ['<INFO>Ready</Info>'];
         yield 'inline styles are case-insensitive' => ['<FG=RED>Ready</>'];
         yield 'escaped opening tag' => ['\<info>Ready'];
         yield 'escaped inline value' => ['<href=https://example.com/a\>b>Ready'];

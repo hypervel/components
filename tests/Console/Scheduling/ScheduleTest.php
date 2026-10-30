@@ -28,6 +28,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -231,8 +232,11 @@ class ScheduleTest extends TestCase
         $this->assertSame('0 * * * *', $filteredEvents[2]->expression);
     }
 
-    public function testDueEventsAtUsesGivenTime(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDueEventsAtUsesGivenTime(bool $alwaysOnOneServer): void
     {
+        Schedule::alwaysOnOneServer($alwaysOnOneServer);
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
         $app->shouldReceive('environment')->andReturn('production');
@@ -244,7 +248,9 @@ class ScheduleTest extends TestCase
             $schedule->command('reports:generate')->dailyAt('13:00');
 
             self::assertCount(0, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
-            self::assertCount(1, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
+            $dueEvents = $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00'));
+            self::assertCount(1, $dueEvents);
+            self::assertSame($alwaysOnOneServer, $dueEvents->first()->onOneServer);
         } finally {
             CarbonImmutable::setTestNow();
         }
@@ -544,6 +550,34 @@ class ScheduleTest extends TestCase
         $this->assertSame([], $events[1]->attributes);
     }
 
+    public function testEventsDoNotRunOnOneServerByDefault(): void
+    {
+        $schedule = new Schedule;
+
+        $schedule->command('inspire')->everyMinute();
+
+        $this->assertFalse($schedule->events()[0]->onOneServer);
+    }
+
+    public function testEveryEventMayRunOnOneServer(): void
+    {
+        Schedule::alwaysOnOneServer();
+
+        $schedule = new Schedule;
+
+        $schedule->command('inspire')->everyMinute();
+        $schedule->job(JobToTestWithSchedule::class)->daily();
+        $schedule->call(fn () => null)->name('prune')->hourly();
+        $schedule->call(fn () => null)->hourly();
+
+        [$command, $job, $closure, $unnamedClosure] = $schedule->events();
+
+        $this->assertTrue($command->onOneServer);
+        $this->assertTrue($job->onOneServer);
+        $this->assertTrue($closure->onOneServer);
+        $this->assertFalse($unnamedClosure->onOneServer);
+    }
+
     public function testWithoutInterruptionPollingDisablesPauseAndInterruptChecks(): void
     {
         Schedule::withoutInterruptionPolling();
@@ -552,14 +586,16 @@ class ScheduleTest extends TestCase
         $this->assertFalse(Schedule::$interruptible);
     }
 
-    public function testFlushStateResetsPauseAndInterruptChecks(): void
+    public function testFlushStateResetsSchedulerDefaults(): void
     {
         Schedule::withoutInterruptionPolling();
+        Schedule::alwaysOnOneServer();
 
         Schedule::flushState();
 
         $this->assertTrue(Schedule::$pausable);
         $this->assertTrue(Schedule::$interruptible);
+        $this->assertFalse(Schedule::$alwaysOnOneServer);
     }
 }
 

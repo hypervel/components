@@ -6,29 +6,14 @@ namespace Hypervel\Database\Schema\Grammars;
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Fluent;
-use Override;
 
 class MariaDbGrammar extends MySqlGrammar
 {
-    #[Override]
-    public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
-    {
-        if (version_compare($this->connection->getServerVersion(), '10.5.2', '<')) {
-            return $this->compileLegacyRenameColumn($blueprint, $command);
-        }
-
-        return parent::compileRenameColumn($blueprint, $command);
-    }
-
     /**
      * Create the column definition for a uuid type.
      */
     protected function typeUuid(Fluent $column): string
     {
-        if (version_compare($this->connection->getServerVersion(), '10.7.0', '<')) {
-            return 'char(36)';
-        }
-
         return 'uuid';
     }
 

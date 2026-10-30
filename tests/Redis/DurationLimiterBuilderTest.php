@@ -77,7 +77,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() Lua script returns success
-        $this->expectEvaluation($redis, [1, time() + 60, 4]);
+        $this->expectEvaluation($redis, [1, time() + 60, 1]);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0);
@@ -93,7 +93,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
-        $this->expectEvaluation($redis, [0, time() + 60, 0]);
+        $this->expectEvaluation($redis, [0, time() + 60, '6']);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0)->sleep(1);
@@ -117,7 +117,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
-        $this->expectEvaluation($redis, [0, time() + 60, 0]);
+        $this->expectEvaluation($redis, [0, time() + 60, '6']);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0)->sleep(1);

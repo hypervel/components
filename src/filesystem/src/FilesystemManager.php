@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
+use Aws\Credentials\CredentialProvider;
 use Aws\Middleware;
 use Aws\S3\S3Client;
 use Closure;
@@ -386,7 +387,8 @@ class FilesystemManager implements FactoryContract
             $config['root'],
             $visibility,
             $config['lock'] ?? LOCK_EX,
-            $links
+            $links,
+            lazyRootCreation: $config['lazy_root_creation'] ?? false,
         );
 
         return (new LocalFilesystemAdapter(
@@ -561,11 +563,30 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an S3 client from normalized client config.
+     *
+     * @throws InvalidArgumentException
      */
     protected function createS3Client(array $clientConfig): S3Client
     {
-        if (is_callable($clientConfig['credentials'] ?? null)) {
-            $clientConfig['credentials'] = new SerializedCredentialProvider($clientConfig['credentials']);
+        $credentials = $clientConfig['credentials'] ?? null;
+        $provider = $this->s3CredentialProvider($credentials);
+
+        if (is_callable($provider)) {
+            $provider = new SerializedCredentialProvider($provider);
+        } elseif (is_string($provider)) {
+            $options = is_array($credentials) ? Arr::except($credentials, ['provider']) : [];
+
+            $provider = CredentialProvider::memoize(match ($provider) {
+                'ecs' => CredentialProvider::ecsCredentials($options),
+                'instance' => CredentialProvider::instanceProfile($options),
+                default => throw new InvalidArgumentException(
+                    "Invalid credential provider [{$provider}]."
+                ),
+            });
+        }
+
+        if ($provider) {
+            $clientConfig['credentials'] = $provider;
         }
 
         $client = new S3Client($clientConfig);
@@ -612,7 +633,12 @@ class FilesystemManager implements FactoryContract
             'version' => 'latest',
         ];
 
-        if (! empty($config['key']) && ! empty($config['secret'])) {
+        $provider = $this->s3CredentialProvider($config['credentials'] ?? null);
+
+        // Named providers stay as data for pool identity; createS3Client() resolves them per client.
+        if ($provider && (! is_string($provider) || is_callable($provider))) {
+            $config['credentials'] = $provider;
+        } elseif (! $provider && ! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
 
             if (! empty($config['token'])) {
@@ -621,6 +647,16 @@ class FilesystemManager implements FactoryContract
         }
 
         return Arr::except($config, ['token']);
+    }
+
+    /**
+     * Get the provider described by an S3 credentials value.
+     */
+    protected function s3CredentialProvider(mixed $credentials): mixed
+    {
+        return is_callable($credentials)
+            ? $credentials
+            : (is_array($credentials) ? ($credentials['provider'] ?? null) : $credentials);
     }
 
     /**

@@ -55,10 +55,7 @@ export default function Chat() {
 
             conversationId.current = data.conversation_id;
 
-            setMessages((prev) => [
-                ...prev,
-                { id: crypto.randomUUID(), role: 'assistant', content: data.text },
-            ]);
+            setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: data.text }]);
         } catch (error) {
             setMessages((prev) => [
                 ...prev,
@@ -84,10 +81,7 @@ export default function Chat() {
                             )}
 
                             {messages.map((message, index) => (
-                                <MessageScrollerItem
-                                    key={message.id}
-                                    scrollAnchor={index === messages.length - 1}
-                                >
+                                <MessageScrollerItem key={message.id} scrollAnchor={index === messages.length - 1}>
                                     <Message align={message.role === 'user' ? 'end' : 'start'}>
                                         <MessageContent>
                                             <Bubble

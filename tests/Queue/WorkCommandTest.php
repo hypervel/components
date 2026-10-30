@@ -101,6 +101,19 @@ class WorkCommandTest extends TestCase
         $this->assertSame(0.25, $options->rest);
     }
 
+    public function testPercentageMemoryLimitIsKept(): void
+    {
+        $command = new WorkCommandOutputStub(
+            $this->app,
+            $this->app->make('config'),
+            m::mock(Worker::class),
+            $this->app->make('cache'),
+        );
+        $command->setInput(new ArrayInput(['--memory' => '50%'], $command->getDefinition()));
+
+        $this->assertSame('50%', $command->workerOptions()->memory);
+    }
+
     #[DataProvider('queueStatusOutputProvider')]
     public function testQueueStatusOutputUsesTheCurrentCommand(bool $json, bool $decorated, string $queue): void
     {

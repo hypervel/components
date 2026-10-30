@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Aws\Result;
+use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
@@ -15,10 +16,13 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusContract;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventsContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
@@ -31,6 +35,8 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SqsBatchLifecycleTest extends TestCase
 {
@@ -94,9 +100,41 @@ class SqsBatchLifecycleTest extends TestCase
         $this->assertSame([$exception, $exception, $exception], array_column($failed, 'exception'));
     }
 
-    public function testFailureNotificationsDrainAndRetainThePrimaryAttemptError(): void
+    #[TestWith([JobPayloadFinalizing::class])]
+    #[TestWith([JobQueueing::class])]
+    public function testPreparationCancellationDoesNotNotifyOutstandingMembers(string $eventClass): void
     {
         [$queue, $client, $events] = $this->queue();
+        $cleanup = new RuntimeException('Preparation cleanup failed.');
+        $gate = $this->armCurrentCoroutineCancellation();
+        $events->listen($eventClass, static function () use ($gate, $cleanup): never {
+            try {
+                $gate->push(true);
+            } finally {
+                throw $cleanup;
+            }
+        });
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+        $client->shouldNotReceive('sendMessageBatch');
+
+        try {
+            $queue->bulk(['first', 'second']);
+            $this->fail('Expected preparation cancellation.');
+        } catch (Throwable $caught) {
+            $this->assertSame($cleanup, $caught);
+            $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+            $this->assertSame([], $failed);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    public function testFailureNotificationsDrainAndRetainThePrimaryAttemptError(): void
+    {
+        [$queue, $client, $events, $container] = $this->queue();
         $primary = new RuntimeException('Transport failed.');
         $listener = new RuntimeException('Listener failed.');
         $client->expects('sendMessageBatch')->andThrow($primary);
@@ -105,19 +143,69 @@ class SqsBatchLifecycleTest extends TestCase
             $failed[] = $event;
         });
         $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
 
         try {
             $queue->bulk(['first', 'second']);
-            $this->fail('The failure listener should throw.');
+            $this->fail('The primary attempt error should be rethrown.');
         } catch (RuntimeException $caught) {
-            $this->assertSame($listener, $caught);
+            $this->assertSame($primary, $caught);
         }
 
         $this->assertSame(['first', 'second'], array_column($failed, 'job'));
         $this->assertSame([$primary, $primary], array_column($failed, 'exception'));
     }
 
-    public function testSuccessListenerFailurePreservesAcceptedEntriesAndCleansExplicitRejects(): void
+    #[TestWith([JobQueued::class])]
+    #[TestWith([JobQueueingFailed::class])]
+    public function testNotificationCancellationStopsAfterAnEarlierOrdinaryFailure(string $eventClass): void
+    {
+        [$queue, $client, $events] = $this->queue();
+        if ($eventClass === JobQueued::class) {
+            $client->expects('sendMessageBatch')->andReturn(new Result([
+                'Successful' => [
+                    ['Id' => '0', 'MessageId' => 'first'],
+                    ['Id' => '1', 'MessageId' => 'second'],
+                    ['Id' => '2', 'MessageId' => 'third'],
+                ],
+            ]));
+        } else {
+            $client->expects('sendMessageBatch')->andThrow(new RuntimeException('Transport failed.'));
+        }
+        $cleanup = new RuntimeException('Notification cleanup failed.');
+        $gate = $this->armCurrentCoroutineCancellation();
+        $notified = [];
+        $events->listen($eventClass, static function (JobQueued|JobQueueingFailed $event) use ($gate, $cleanup, &$notified): void {
+            $notified[] = $event->job;
+            if ($event->job === 'first') {
+                throw new RuntimeException('First listener failed.');
+            }
+            if ($event->job === 'second') {
+                try {
+                    $gate->push(true);
+                } finally {
+                    throw $cleanup;
+                }
+            }
+        });
+
+        try {
+            $queue->bulk(['first', 'second', 'third']);
+            $this->fail('Expected notification cancellation.');
+        } catch (Throwable $caught) {
+            $this->assertSame($cleanup, $caught);
+            $this->assertInstanceOf(CanceledException::class, $caught->getPrevious());
+            $this->assertSame(['first', 'second'], $notified);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSuccessListenerFailurePreservesAcceptedEntriesAndCleansExplicitRejects(bool $failureListenerCanceled): void
     {
         [$queue, $client, $events, $container] = $this->queue(['enabled' => true, 'always' => true, 'store' => 'overflow']);
         $store = new Repository(new WorkerArrayStore);
@@ -130,33 +218,136 @@ class SqsBatchLifecycleTest extends TestCase
 
             return new Result([
                 'Successful' => array_map(static fn (int $id): array => ['Id' => (string) $id, 'MessageId' => 'accepted-' . $id], range(0, 8)),
-                'Failed' => [['Id' => '9', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected']],
+                'Failed' => [['Id' => '9', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected', 'SenderFault' => true]],
             ]);
         });
         $queued = $failed = [];
         $listener = new RuntimeException('Monitoring failed.');
+        $cancellation = new RuntimeException('Failure listener cleanup failed.', previous: new CanceledException);
         $events->listen(JobQueued::class, static function (JobQueued $event) use (&$queued): void {
             $queued[] = $event->job;
         });
         $events->listen(JobQueued::class, static fn () => throw $listener);
-        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed, $failureListenerCanceled, $cancellation): void {
             $failed[] = $event->job;
+            if ($failureListenerCanceled) {
+                throw $cancellation;
+            }
         });
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $container->instance(ExceptionHandler::class, $handler);
 
         try {
             $queue->bulk(array_map('strval', range(1, 11)));
-            $this->fail('The monitoring failure should be rethrown.');
-        } catch (RuntimeException $caught) {
-            $this->assertSame($listener, $caught);
+            $this->fail('The rejection should be rethrown.');
+        } catch (Throwable $caught) {
+            if ($failureListenerCanceled) {
+                $this->assertSame($cancellation, $caught);
+            } else {
+                $this->assertInstanceOf(SqsException::class, $caught);
+                $this->assertSame('InvalidParameterValue', $caught->getAwsErrorCode());
+            }
         }
 
         $this->assertSame(array_map('strval', range(1, 9)), $queued);
-        $this->assertSame(['10', '11'], $failed);
+        $this->assertSame($failureListenerCanceled ? ['10'] : ['10', '11'], $failed);
         $this->assertFalse($store->has($paths[9]));
 
         foreach (array_slice($paths, 0, 9) as $path) {
             $this->assertTrue($store->has($path));
         }
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function testCancellationDuringReportingDoesNotNotifyOutstandingMembers(bool $cleanupThrows, bool $overflowCleanup): void
+    {
+        [$queue, $client, $events, $container] = $this->queue(['enabled' => $overflowCleanup, 'always' => true, 'store' => 'overflow']);
+        $client->expects('sendMessageBatch')->andReturn(new Result([
+            'Successful' => [['Id' => '0', 'MessageId' => 'accepted']],
+            'Failed' => [
+                ['Id' => '1', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected', 'SenderFault' => true],
+                ['Id' => '2', 'Code' => 'InvalidParameterValue', 'Message' => 'Rejected', 'SenderFault' => true],
+            ],
+        ]));
+        $reportedFailure = new RuntimeException($overflowCleanup ? 'Overflow deletion failed.' : 'Queued listener failed.');
+        $deleted = [];
+        if ($overflowCleanup) {
+            $store = m::mock(Cache::class);
+            $store->expects('put')->times(3)->andReturnTrue();
+            $store->expects('forget')->twice()->andReturnUsing(static function (string $path) use (&$deleted, $reportedFailure): bool {
+                $deleted[] = $path;
+                if (count($deleted) === 1) {
+                    throw $reportedFailure;
+                }
+
+                return true;
+            });
+            $cache = m::mock(CacheFactory::class);
+            $cache->expects('store')->with('overflow')->andReturn($store);
+            $container->instance('cache', $cache);
+        }
+        $queued = [];
+        $events->listen(JobQueued::class, static function (JobQueued $event) use (&$queued, $overflowCleanup, $reportedFailure): void {
+            $queued[] = $event->job;
+            if (! $overflowCleanup) {
+                throw $reportedFailure;
+            }
+        });
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+        $gate = $this->armCurrentCoroutineCancellation();
+        $cleanup = new RuntimeException('Reporting cleanup failed.');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($reportedFailure)->andReturnUsing(static function () use ($gate, $cleanup, $cleanupThrows): void {
+            try {
+                $gate->push(true);
+            } finally {
+                if ($cleanupThrows) {
+                    throw $cleanup;
+                }
+            }
+        });
+        $container->instance(ExceptionHandler::class, $handler);
+
+        try {
+            $queue->bulk(['first', 'second', 'third']);
+            $this->fail('Expected reporting cancellation to propagate.');
+        } catch (Throwable $exception) {
+            if ($cleanupThrows) {
+                $this->assertSame($cleanup, $exception);
+                $this->assertInstanceOf(CanceledException::class, $exception->getPrevious());
+            } else {
+                $this->assertInstanceOf(CanceledException::class, $exception);
+            }
+            $this->assertSame([], $failed);
+            $this->assertSame($overflowCleanup ? [] : ['first'], $queued);
+            $this->assertCount($overflowCleanup ? 2 : 0, $deleted);
+        } finally {
+            $gate->close();
+        }
+    }
+
+    /**
+     * Arm cancellation at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            if ($gate->pop(5)) {
+                EngineCoroutine::cancelById($coroutineId, throwException: true);
+            }
+        });
+
+        return $gate;
     }
 
     /**

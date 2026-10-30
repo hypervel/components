@@ -21,6 +21,7 @@ use RuntimeException;
 
 class BusFake implements Fake, QueueingDispatcher
 {
+    use MatchesProperties;
     use ReflectsClosures;
 
     /**
@@ -89,8 +90,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Assert if a job was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertDispatched(Closure|string $command, callable|int|null $callback = null): void
+    public function assertDispatched(Closure|string $command, callable|array|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -145,8 +148,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Determine if a job was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertNotDispatched(Closure|string $command, ?callable $callback = null): void
+    public function assertNotDispatched(Closure|string $command, callable|array|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -174,8 +179,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Assert if a job was explicitly dispatched synchronously based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertDispatchedSync(Closure|string $command, callable|int|null $callback = null): void
+    public function assertDispatchedSync(Closure|string $command, callable|array|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -218,8 +225,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Determine if a job was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertNotDispatchedSync(Closure|string $command, ?callable $callback = null): void
+    public function assertNotDispatchedSync(Closure|string $command, callable|array|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -234,8 +243,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Assert if a job was dispatched after the response was sent based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertDispatchedAfterResponse(Closure|string $command, callable|int|null $callback = null): void
+    public function assertDispatchedAfterResponse(Closure|string $command, callable|array|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -278,8 +289,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Determine if a job was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertNotDispatchedAfterResponse(Closure|string $command, ?callable $callback = null): void
+    public function assertNotDispatchedAfterResponse(Closure|string $command, callable|array|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -352,8 +365,10 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Assert if a job was dispatched with an empty chain based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertDispatchedWithoutChain(Closure|string $command, ?callable $callback = null): void
+    public function assertDispatchedWithoutChain(Closure|string $command, callable|array|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -370,9 +385,11 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Assert if a job was dispatched with chained jobs based on a truth-test callback.
      *
+     * @param null|array<string, mixed>|callable $callback
+     *
      * @throws RuntimeException
      */
-    protected function assertDispatchedWithChainOfObjects(string $command, array $expectedChain, ?callable $callback): void
+    protected function assertDispatchedWithChainOfObjects(string $command, array $expectedChain, callable|array|null $callback): void
     {
         $chain = $expectedChain;
 
@@ -479,42 +496,48 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Get all of the jobs matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function dispatched(string $command, ?callable $callback = null): Collection
+    public function dispatched(string $command, callable|array|null $callback = null): Collection
     {
         if (! $this->hasDispatched($command)) {
             return new Collection;
         }
 
-        $callback = $callback ?: fn () => true;
+        $callback = $this->resolveTruthTest($callback) ?: fn () => true;
 
         return (new Collection($this->commands[$command]))->filter(fn ($command) => $callback($command));
     }
 
     /**
      * Get all of the jobs dispatched synchronously matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function dispatchedSync(string $command, ?callable $callback = null): Collection
+    public function dispatchedSync(string $command, callable|array|null $callback = null): Collection
     {
         if (! $this->hasDispatchedSync($command)) {
             return new Collection;
         }
 
-        $callback = $callback ?: fn () => true;
+        $callback = $this->resolveTruthTest($callback) ?: fn () => true;
 
         return (new Collection($this->commandsSync[$command]))->filter(fn ($command) => $callback($command));
     }
 
     /**
      * Get all of the jobs dispatched after the response was sent matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function dispatchedAfterResponse(string $command, ?callable $callback = null): Collection
+    public function dispatchedAfterResponse(string $command, callable|array|null $callback = null): Collection
     {
         if (! $this->hasDispatchedAfterResponse($command)) {
             return new Collection;
         }
 
-        $callback = $callback ?: fn () => true;
+        $callback = $this->resolveTruthTest($callback) ?: fn () => true;
 
         return (new Collection($this->commandsAfterResponse[$command]))->filter(fn ($command) => $callback($command));
     }

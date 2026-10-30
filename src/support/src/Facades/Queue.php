@@ -72,17 +72,17 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allDelayedJobs()
  * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allPendingJobs()
  * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> allReservedJobs()
- * @method static void assertClosureNotPushed(callable|null $callback = null)
- * @method static void assertClosurePushed(callable|int|null $callback = null)
+ * @method static void assertClosureNotPushed(null|array<string, mixed>|callable $callback = null)
+ * @method static void assertClosurePushed(null|array<string, mixed>|callable|int $callback = null)
  * @method static void assertCount(int $expectedCount)
  * @method static void assertNothingPushed()
- * @method static void assertNotPushed(\Closure|string $job, callable|null $callback = null)
- * @method static void assertPushed(\Closure|string $job, callable|int|null $callback = null)
- * @method static void assertPushedOn(\UnitEnum|string|null $queue, \Closure|string $job, callable|null $callback = null)
+ * @method static void assertNotPushed(\Closure|string $job, null|array<string, mixed>|callable $callback = null)
+ * @method static void assertPushed(\Closure|string $job, null|array<string, mixed>|callable|int $callback = null)
+ * @method static void assertPushedOn(\UnitEnum|string|null $queue, \Closure|string $job, null|array<string, mixed>|callable $callback = null)
  * @method static void assertPushedOnce(string $job)
  * @method static void assertPushedTimes(string $job, int $times = 1)
- * @method static void assertPushedWithChain(string $job, array $expectedChain = [], callable|null $callback = null)
- * @method static void assertPushedWithoutChain(string $job, callable|null $callback = null)
+ * @method static void assertPushedWithChain(string $job, array $expectedChain = [], null|array<string, mixed>|callable $callback = null)
+ * @method static void assertPushedWithoutChain(string $job, null|array<string, mixed>|callable $callback = null)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake beforePushing(callable $callback)
  * @method static void clearReserved()
  * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> delayedJobs(\UnitEnum|string|null $queue = null)
@@ -90,7 +90,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static bool hasPushed(string $job)
  * @method static \Hypervel\Support\Collection listenersPushed(string $listenerClass, callable|null $callback = null)
  * @method static \Hypervel\Support\Collection<int, \Hypervel\Queue\Jobs\InspectedJob> pendingJobs(\UnitEnum|string|null $queue = null)
- * @method static \Hypervel\Support\Collection pushed(string $job, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection pushed(string $job, null|array<string, mixed>|callable $callback = null)
  * @method static array pushedJobs()
  * @method static \Hypervel\Support\Collection<int, mixed> pushedRaw(null|\Closure $callback = null)
  * @method static array<int, mixed> rawPushes()
@@ -153,12 +153,16 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        static::fake($jobsToFake);
+        $fake = static::fake($jobsToFake);
 
         try {
             return $callable();
         } finally {
-            static::swap($originalQueueManager);
+            try {
+                static::releaseScopedFakeLocks($fake);
+            } finally {
+                static::swap($originalQueueManager);
+            }
         }
     }
 
@@ -169,12 +173,31 @@ class Queue extends Facade
     {
         $originalQueueManager = static::getFacadeRoot();
 
-        static::fakeExcept($jobsToAllow);
+        $fake = static::fakeExcept($jobsToAllow);
 
         try {
             return $callable();
         } finally {
-            static::swap($originalQueueManager);
+            try {
+                static::releaseScopedFakeLocks($fake);
+            } finally {
+                static::swap($originalQueueManager);
+            }
+        }
+    }
+
+    /**
+     * Release the dispatch locks owned by a scoped fake and its replacement.
+     */
+    protected static function releaseScopedFakeLocks(QueueFake $fake): void
+    {
+        $fake->releaseUniqueJobLocks();
+
+        // A fake installed inside the callback owns dispatches made after it replaced this one.
+        $active = static::getFacadeRoot();
+
+        if ($active instanceof QueueFake && $active !== $fake) {
+            $active->releaseUniqueJobLocks();
         }
     }
 

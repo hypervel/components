@@ -64,6 +64,8 @@ class MorphPivot extends Pivot
             return 0;
         }
 
+        $this->touchOwners();
+
         $query = $this->getDeleteQuery();
 
         $query->where($this->morphType, $this->morphClass);

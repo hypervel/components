@@ -8,9 +8,22 @@ use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ListenCommandTest extends TestCase
 {
+    #[TestWith(['60%'])]
+    #[TestWith(['128.5'])]
+    public function testMemoryLimitIsPassedToTheListenerUnchanged(string $memory): void
+    {
+        $listener = m::mock(Listener::class);
+        $listener->allows('setOutputHandler');
+        $listener->expects('listen')->withArgs(static fn (?string $connection, string $queue, ListenerOptions $options): bool => $options->memory === $memory);
+        $this->app->instance(Listener::class, $listener);
+
+        $this->artisan('queue:listen', ['--memory' => $memory])->assertSuccessful();
+    }
+
     public function testFractionalSleepAndRestSecondsAreKept(): void
     {
         $listener = m::mock(Listener::class);

@@ -6,8 +6,8 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Lease
@@ -53,21 +53,14 @@ class Lease
             if ($this->releaseCallback !== null) {
                 ($this->releaseCallback)($this->object);
             }
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->pool->discard($this->object);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                PoolErrorReporter::report($exception);
-            }
-
-            throw $cancellation;
         } catch (Throwable $exception) {
             try {
                 $this->pool->discard($this->object);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $discardException) {
+                if (Coroutine::causedByCancellation($discardException) && ! Coroutine::causedByCancellation($exception)) {
+                    throw $discardException;
+                }
+
                 PoolErrorReporter::report($discardException);
             }
 
@@ -97,9 +90,11 @@ class Lease
     {
         try {
             $this->release();
-        } catch (CanceledException $cancellation) {
-            throw $failure instanceof CanceledException ? $failure : $cancellation;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception) && ! Coroutine::causedByCancellation($failure)) {
+                throw $exception;
+            }
+
             PoolErrorReporter::report($exception);
         }
 
@@ -113,9 +108,11 @@ class Lease
     {
         try {
             $this->discard();
-        } catch (CanceledException $cancellation) {
-            throw $failure instanceof CanceledException ? $failure : $cancellation;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception) && ! Coroutine::causedByCancellation($failure)) {
+                throw $exception;
+            }
+
             PoolErrorReporter::report($exception);
         }
 

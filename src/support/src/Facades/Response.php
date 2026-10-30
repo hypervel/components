@@ -17,6 +17,7 @@ use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
  * @method static \Hypervel\Http\JsonResponse jsonp(string $callback, mixed $data = [], int $status = 200, array $headers = [], int $options = 0)
  * @method static void macro(string $name, callable|object $macro)
  * @method static \Hypervel\Http\Response make(mixed $content = '', int $status = 200, array $headers = [])
+ * @method static \Hypervel\Http\Response markdown(string $content = '', int $status = 200, array $headers = [])
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static \Hypervel\Http\Response noContent(int $status = 204, array $headers = [])
  * @method static \Hypervel\Http\RedirectResponse redirectGuest(string $path, int $status = 302, array $headers = [], bool|null $secure = null)

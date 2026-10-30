@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue\Outbox;
 
 use Aws\Sqs\SqsClient;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
@@ -32,7 +33,10 @@ use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use UnitEnum;
 
 class OutboxDispatchTest extends TestCase
@@ -200,6 +204,58 @@ class OutboxDispatchTest extends TestCase
         }
 
         $this->assertSame($jobs, $failed);
+        $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
+    public function testBulkFailureIsNotReplacedByAFailingFailureListener(): void
+    {
+        $queue = $this->queue();
+        $failure = new RuntimeException('Finalization failed');
+        $listener = new RuntimeException('Listener failed');
+        $failed = [];
+        $this->app->make('events')->listen(JobPayloadFinalizing::class, static fn () => throw $failure);
+        $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event->job;
+        });
+        $this->app->make('events')->listen(JobQueueingFailed::class, static fn () => throw $listener);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listener);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
+
+        try {
+            $queue->bulk($jobs);
+            $this->fail('Expected finalization to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($jobs, $failed);
+        $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStagingCancellationDoesNotNotifyFailureOrStoreJobs(bool $bulk): void
+    {
+        $queue = $this->queue();
+        $cancellation = new RuntimeException('Finalization cleanup failed.', previous: new CanceledException);
+        $events = $this->app->make('events');
+        $events->listen(JobPayloadFinalizing::class, static fn () => throw $cancellation);
+        $failed = [];
+        $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+        $job = (new OutboxDispatchJob)->viaOutbox();
+
+        try {
+            $bulk ? $queue->bulk([$job, clone $job]) : $queue->push($job);
+            $this->fail('Expected staging cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([], $failed);
         $this->assertSame(0, DB::table('job_outbox')->count());
     }
 

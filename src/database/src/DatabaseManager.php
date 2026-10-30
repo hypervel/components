@@ -571,8 +571,12 @@ class DatabaseManager implements ConnectionResolverInterface
      * worker are not affected. A null value clears the override and
      * getDefaultConnection() falls back to config('database.default').
      */
-    public function setDefaultConnection(?string $name): void
+    public function setDefaultConnection(UnitEnum|string|null $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         if ($name === null) {
             CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
         } else {

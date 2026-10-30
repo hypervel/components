@@ -44,6 +44,11 @@ interface ResponseFactory
     public function jsonp(string $callback, mixed $data = [], int $status = 200, array $headers = [], int $options = 0): JsonResponse;
 
     /**
+     * Create a new Markdown response instance.
+     */
+    public function markdown(string $content = '', int $status = 200, array $headers = []): Response;
+
+    /**
      * Create a new event stream response.
      *
      * @return IterableStreamedResponse
@@ -53,7 +58,7 @@ interface ResponseFactory
     /**
      * Create a new streamed response instance.
      */
-    public function stream(callable $callback, int $status = 200, array $headers = []): StreamedResponse;
+    public function stream(?callable $callback, int $status = 200, array $headers = []): StreamedResponse;
 
     /**
      * Create a new streamed JSON response instance.

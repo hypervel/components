@@ -1058,6 +1058,15 @@ class BelongsToMany extends Relation
     ): mixed {
         $this->query->addSelect($this->shouldSelect($columns));
 
+        $casts = [];
+
+        // Cursor parameters from the pivot must be encoded with the pivot's casts, not the related model's.
+        foreach ($this->newPivot()->getCasts() as $key => $cast) {
+            $casts[$this->qualifyPivotColumn($key)] = $cast;
+        }
+
+        $this->query->withCasts($casts);
+
         return tap($this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor), function ($paginator) {
             $this->hydratePivotRelation($paginator->items());
         });

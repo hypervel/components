@@ -502,7 +502,7 @@ class MailManager implements FactoryContract
      */
     protected function addSesCredentials(array $config): array
     {
-        if (! empty($config['key']) && ! empty($config['secret'])) {
+        if (! is_callable($config['credentials'] ?? null) && ! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
 
             if (! empty($config['token'])) {

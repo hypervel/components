@@ -112,6 +112,46 @@ class DatabaseEloquentWithAttributesTest extends TestCase
         $this->assertSame(WithAttributesEnum::Internal, $model->type);
     }
 
+    public function testForceCreateAddsAttributesViaDb(): void
+    {
+        $this->bootTable();
+
+        WithAttributesModel::query()
+            ->withAttributes([
+                'is_admin' => 1,
+                'type' => WithAttributesEnum::Internal,
+            ])
+            ->forceCreate(['first_name' => 'FIRST', 'last_name' => 'LAST']);
+
+        $model = WithAttributesModel::first();
+
+        $this->assertTrue($model->is_admin);
+        $this->assertSame(WithAttributesEnum::Internal, $model->type);
+    }
+
+    public function testForceCreateAppliesPendingAttributeMutatorsOnce(): void
+    {
+        $this->bootTable();
+        $stream = fopen('php://memory', 'w+');
+
+        try {
+            fwrite($stream, 'first');
+            rewind($stream);
+
+            $model = WithAttributesStreamModel::query()
+                ->withAttributes(['first_name' => $stream])
+                ->forceCreate([
+                    'last_name' => 'last',
+                    'is_admin' => false,
+                    'type' => WithAttributesEnum::Internal,
+                ]);
+
+            $this->assertSame('first', $model->fresh()->getRawOriginal('first_name'));
+        } finally {
+            fclose($stream);
+        }
+    }
+
     protected function bootTable(): void
     {
         $this->schema()->create((new WithAttributesModel)->getTable(), function ($table) {
@@ -155,6 +195,19 @@ class WithAttributesModel extends Model
             get: fn (string $value) => ucfirst($value),
             set: fn (string $value) => strtolower($value),
         );
+    }
+}
+
+class WithAttributesStreamModel extends WithAttributesModel
+{
+    protected ?string $table = 'with_attributes_models';
+
+    /**
+     * Read the pending name from its stream.
+     */
+    public function setFirstNameAttribute(mixed $value): void
+    {
+        $this->attributes['first_name'] = stream_get_contents($value);
     }
 }
 

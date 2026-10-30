@@ -139,11 +139,24 @@ class LeaseTest extends TestCase
     public function testReleaseCallbackPreservesCancellationPrecedence(
         bool $callbackIsCancellation,
         bool $expectCallbackFailure,
+        bool $callbackCleanupThrows = false,
+        bool $discardCleanupThrows = false,
     ): void {
         $callbackFailure = $callbackIsCancellation
             ? new CanceledException('reset canceled')
             : new RuntimeException('reset failed');
         $discardCancellation = new CanceledException('discard canceled');
+        if ($callbackCleanupThrows) {
+            $callbackFailure = new RuntimeException('reset cleanup failed', previous: $callbackFailure);
+        }
+        if ($discardCleanupThrows) {
+            $discardCancellation = new RuntimeException('discard cleanup failed', previous: $discardCancellation);
+        }
+        $handler = m::mock(ExceptionHandler::class);
+        $expectation = $handler->shouldReceive('report')->with($discardCancellation);
+        $expectCallbackFailure && $discardCleanupThrows ? $expectation->once() : $expectation->never();
+        $this->container()->instance(ExceptionHandler::class, $handler);
+
         $pool = new ContractOnlyObjectPool;
         $pool->discardException = $discardCancellation;
         $lease = new Lease($pool, new stdClass, function () use ($callbackFailure): never {
@@ -153,7 +166,7 @@ class LeaseTest extends TestCase
         try {
             $lease->release();
             $this->fail('Expected lease release to fail.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame(
                 $expectCallbackFailure ? $callbackFailure : $discardCancellation,
                 $exception,
@@ -166,6 +179,9 @@ class LeaseTest extends TestCase
         return [
             'ordinary callback failure' => [false, false],
             'canceled callback' => [true, true],
+            'chained callback cancellation' => [true, true, true],
+            'chained discard cancellation' => [false, false, false, true],
+            'both cancellations chained' => [true, true, true, true],
         ];
     }
 
@@ -240,6 +256,8 @@ class LeaseTest extends TestCase
         bool $primaryIsCancellation,
         bool $cleanupIsCancellation,
         bool $expectPrimary,
+        bool $primaryCleanupThrows = false,
+        bool $cleanupThrowsAgain = false,
     ): void {
         $container = $this->container();
         $primary = $primaryIsCancellation
@@ -248,9 +266,15 @@ class LeaseTest extends TestCase
         $cleanup = $cleanupIsCancellation
             ? new CanceledException('cleanup canceled')
             : new RuntimeException('cleanup failed');
+        if ($primaryCleanupThrows) {
+            $primary = new RuntimeException('operation cleanup failed', previous: $primary);
+        }
+        if ($cleanupThrowsAgain) {
+            $cleanup = new RuntimeException('finalizer cleanup failed', previous: $cleanup);
+        }
         $handler = m::mock(ExceptionHandler::class);
         $expectation = $handler->shouldReceive('report')->with($cleanup);
-        $cleanupIsCancellation ? $expectation->never() : $expectation->once();
+        $expectPrimary && ! $cleanup instanceof CanceledException ? $expectation->once() : $expectation->never();
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = new ContractOnlyObjectPool;
@@ -275,6 +299,9 @@ class LeaseTest extends TestCase
             $cases["{$method}: canceled primary and ordinary cleanup"] = [$method, true, false, true];
             $cases["{$method}: ordinary primary and canceled cleanup"] = [$method, false, true, false];
             $cases["{$method}: canceled primary and cleanup"] = [$method, true, true, true];
+            $cases["{$method}: chained primary and native cleanup cancellation"] = [$method, true, true, true, true];
+            $cases["{$method}: ordinary primary and chained cleanup cancellation"] = [$method, false, true, false, false, true];
+            $cases["{$method}: both cancellations chained"] = [$method, true, true, true, true, true];
         }
 
         return $cases;

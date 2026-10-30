@@ -9,13 +9,10 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
-use Hypervel\Bus\UniqueLock;
-use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
@@ -33,9 +30,11 @@ use function Hypervel\Support\enum_value;
 
 /**
  * @phpstan-type RawPushType array{payload: string, queue: ?string, options: array<array-key, mixed>}
+ * @phpstan-import-type LockSnapshot from DispatchLockContext
  */
 class QueueFake extends QueueManager implements Fake, Queue
 {
+    use MatchesProperties;
     use ReadsQueueAttributes;
     use ReflectsClosures;
 
@@ -67,9 +66,11 @@ class QueueFake extends QueueManager implements Fake, Queue
     protected array $rawPushes = [];
 
     /**
-     * All of the unique jobs that were pushed.
+     * The dispatch locks owned by faked jobs.
+     *
+     * @var list<LockSnapshot>
      */
-    protected array $uniqueJobs = [];
+    protected array $dispatchLocks = [];
 
     /**
      * All of the jobs that have been marked as reserved.
@@ -119,8 +120,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertPushed(Closure|string $job, callable|int|null $callback = null): void
+    public function assertPushed(Closure|string $job, callable|array|int|null $callback = null): void
     {
         if ($job instanceof Closure) {
             [$job, $callback] = [$this->firstClosureParameterType($job), $job];
@@ -165,17 +168,21 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
     public function assertPushedOn(
         UnitEnum|string|null $queue,
         Closure|string $job,
-        ?callable $callback = null,
+        callable|array|null $callback = null,
     ): void {
         $queue = $this->normalizeQueue($queue);
 
         if ($job instanceof Closure) {
             [$job, $callback] = [$this->firstClosureParameterType($job), $job];
         }
+
+        $callback = $this->resolveTruthTest($callback);
 
         $this->assertPushed($job, function ($job, $pushedQueue) use ($callback, $queue) {
             if ($pushedQueue !== $queue) {
@@ -188,8 +195,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed with chained jobs based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertPushedWithChain(string $job, array $expectedChain = [], ?callable $callback = null): void
+    public function assertPushedWithChain(string $job, array $expectedChain = [], callable|array|null $callback = null): void
     {
         PHPUnit::assertTrue(
             $this->pushed($job, $callback)->isNotEmpty(),
@@ -208,8 +217,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed with an empty chain based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertPushedWithoutChain(string $job, ?callable $callback = null): void
+    public function assertPushedWithoutChain(string $job, callable|array|null $callback = null): void
     {
         PHPUnit::assertTrue(
             $this->pushed($job, $callback)->isNotEmpty(),
@@ -221,8 +232,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed with chained jobs based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    protected function assertPushedWithChainOfObjects(string $job, array $expectedChain, ?callable $callback): void
+    protected function assertPushedWithChainOfObjects(string $job, array $expectedChain, callable|array|null $callback): void
     {
         $chain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
 
@@ -234,8 +247,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a job was pushed with chained jobs based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    protected function assertPushedWithChainOfClasses(string $job, array $expectedChain, ?callable $callback): void
+    protected function assertPushedWithChainOfClasses(string $job, array $expectedChain, callable|array|null $callback): void
     {
         $matching = $this->pushed($job, $callback)->contains(function (object $pushedJob) use ($expectedChain): bool {
             return (new Collection($pushedJob->chained))->map(function (string $job): string {
@@ -251,16 +266,20 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Assert if a closure was pushed based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertClosurePushed(callable|int|null $callback = null): void
+    public function assertClosurePushed(callable|array|int|null $callback = null): void
     {
         $this->assertPushed(CallQueuedClosure::class, $callback);
     }
 
     /**
      * Assert that a closure was not pushed based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertClosureNotPushed(?callable $callback = null): void
+    public function assertClosureNotPushed(callable|array|null $callback = null): void
     {
         $this->assertNotPushed(CallQueuedClosure::class, $callback);
     }
@@ -275,8 +294,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Determine if a job was pushed based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertNotPushed(Closure|string $job, ?callable $callback = null): void
+    public function assertNotPushed(Closure|string $job, callable|array|null $callback = null): void
     {
         if ($job instanceof Closure) {
             [$job, $callback] = [$this->firstClosureParameterType($job), $job];
@@ -315,14 +336,16 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get all of the jobs matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function pushed(string $job, ?callable $callback = null): Collection
+    public function pushed(string $job, callable|array|null $callback = null): Collection
     {
         if (! $this->hasPushed($job)) {
             return new Collection;
         }
 
-        $callback = $callback ?: fn () => true;
+        $callback = $this->resolveTruthTest($callback) ?: fn () => true;
 
         return (new Collection($this->jobs[$job]))->filter(
             fn ($data) => $callback($data['job'], $data['queue'], $data['data'])
@@ -598,11 +621,12 @@ class QueueFake extends QueueManager implements Fake, Queue
                 'delay' => $delay,
             ];
 
-            if ($job instanceof ShouldBeUnique) {
-                $this->uniqueJobs[] = $job;
-            }
-
             if (is_object($job)) {
+                // Retain acquired ownership; reconstructing locks from jobs can release another dispatch's lock.
+                if (($snapshot = DispatchLockContext::snapshot($job)) !== null) {
+                    $this->dispatchLocks[] = $snapshot;
+                }
+
                 DispatchLockContext::accept($job);
             }
 
@@ -785,17 +809,15 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
-     * Release the locks for all unique jobs that were pushed.
+     * Release the dispatch locks owned by faked jobs.
      */
     public function releaseUniqueJobLocks(): void
     {
-        $lock = new UniqueLock($this->app->make(Cache::class));
-
-        foreach ($this->uniqueJobs as $job) {
-            $lock->release($job);
+        foreach ($this->dispatchLocks as $snapshot) {
+            DispatchLockContext::releaseSnapshot($snapshot);
         }
 
-        $this->uniqueJobs = [];
+        $this->dispatchLocks = [];
     }
 
     /**

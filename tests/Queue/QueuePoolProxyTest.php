@@ -34,6 +34,7 @@ use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -456,10 +457,15 @@ class QueuePoolProxyTest extends TestCase
         ];
     }
 
-    public function testAttachmentRecoveryCancellationSupersedesTheAttachmentFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAttachmentRecoveryCancellationSupersedesTheAttachmentFailure(bool $cleanupThrows): void
     {
         $attachmentException = new Exception('stats failed');
         $recoveryCancellation = new CanceledException('release canceled');
+        if ($cleanupThrows) {
+            $recoveryCancellation = new RuntimeException('Recovery cleanup failed.', previous: $recoveryCancellation);
+        }
         $pheanstalk = m::mock(implode(',', [
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
@@ -493,9 +499,14 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(0, $pool->getManagedCount());
     }
 
-    public function testAttachmentCancellationDoesNotStartBackendRecovery(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testAttachmentCancellationDoesNotStartBackendRecovery(bool $cleanupThrows): void
     {
         $attachmentCancellation = new CanceledException('stats canceled');
+        if ($cleanupThrows) {
+            $attachmentCancellation = new RuntimeException('Attachment cleanup failed.', previous: $attachmentCancellation);
+        }
         $pheanstalk = m::mock(implode(',', [
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,

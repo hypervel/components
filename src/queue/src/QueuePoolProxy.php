@@ -12,6 +12,7 @@ use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
@@ -298,14 +299,18 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 
             try {
                 return $job->withPoolLease($lease);
-            } catch (CanceledException $attachmentCancellation) {
-                $lease->discardAfterFailure($attachmentCancellation);
             } catch (Throwable $attachmentException) {
+                if (Coroutine::causedByCancellation($attachmentException)) {
+                    $lease->discardAfterFailure($attachmentException);
+                }
+
                 try {
                     $job->release(0);
-                } catch (CanceledException $recoveryCancellation) {
-                    $lease->discardAfterFailure($recoveryCancellation);
                 } catch (Throwable $recoveryException) {
+                    if (Coroutine::causedByCancellation($recoveryException)) {
+                        $lease->discardAfterFailure($recoveryException);
+                    }
+
                     PoolErrorReporter::report($recoveryException);
 
                     $lease->discardAfterFailure($attachmentException);

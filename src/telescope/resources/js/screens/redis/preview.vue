@@ -1,17 +1,17 @@
-<script type="text/ecmascript-6">
+<script>
 export default {
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
         };
     },
-}
+};
 </script>
 
 <template>
     <preview-screen title="Redis Command Details" resource="redis" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Connection</td>
                 <td>
@@ -25,7 +25,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -35,6 +35,6 @@ export default {
 
                 <pre class="code-bg p-4 mb-0 text-white">{{ slotProps.entry.content.command }}</pre>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

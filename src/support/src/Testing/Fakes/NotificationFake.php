@@ -21,6 +21,7 @@ use UnitEnum;
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory
 {
     use Macroable;
+    use MatchesProperties;
     use ReflectsClosures;
 
     /**
@@ -41,9 +42,11 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     /**
      * Assert if a notification was sent on-demand based on a truth-test callback.
      *
+     * @param null|array<string, mixed>|callable $callback
+     *
      * @throws Exception
      */
-    public function assertSentOnDemand(Closure|string $notification, ?callable $callback = null): void
+    public function assertSentOnDemand(Closure|string $notification, callable|array|null $callback = null): void
     {
         $this->assertSentTo(new AnonymousNotifiable, $notification, $callback);
     }
@@ -51,9 +54,11 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     /**
      * Assert if a notification was sent based on a truth-test callback.
      *
+     * @param null|array<string, mixed>|callable|int $callback
+     *
      * @throws Exception
      */
-    public function assertSentTo(mixed $notifiable, Closure|string $notification, callable|int|null $callback = null): void
+    public function assertSentTo(mixed $notifiable, Closure|string $notification, callable|array|int|null $callback = null): void
     {
         if (is_array($notifiable) || $notifiable instanceof Collection) {
             if (count($notifiable) === 0) {
@@ -123,9 +128,11 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     /**
      * Determine if a notification was sent based on a truth-test callback.
      *
+     * @param null|array<string, mixed>|callable $callback
+     *
      * @throws Exception
      */
-    public function assertNotSentTo(mixed $notifiable, Closure|string $notification, ?callable $callback = null): void
+    public function assertNotSentTo(mixed $notifiable, Closure|string $notification, callable|array|null $callback = null): void
     {
         if (is_array($notifiable) || $notifiable instanceof Collection) {
             if (count($notifiable) === 0) {
@@ -226,14 +233,16 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
 
     /**
      * Get all of the notifications matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function sent(mixed $notifiable, string $notification, ?callable $callback = null): Collection
+    public function sent(mixed $notifiable, string $notification, callable|array|null $callback = null): Collection
     {
         if (! $this->hasSent($notifiable, $notification)) {
             return new Collection;
         }
 
-        $callback = $callback ?: fn () => true;
+        $callback = $this->resolveTruthTest($callback) ?: fn () => true;
 
         $notifications = new Collection($this->notificationsFor($notifiable, $notification));
 

@@ -308,6 +308,34 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->collection()->match(Request::create('/foo'));
     }
 
+    #[TestWith(['account', 'account'])]
+    #[TestWith(['secure/{resource}', 'secure/report'])]
+    public function testMatchingRespectsHttpsOnlyRoutes(string $uri, string $path): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', $uri, ['https', 'uses' => 'FooController@index', 'as' => 'account']));
+
+        $routes = $this->collection();
+
+        $this->assertSame('account', $routes->match(Request::create('https://localhost/' . $path))->getName());
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $routes->match(Request::create('http://localhost/' . $path));
+    }
+
+    public function testMatchingRespectsHttpOnlyRoutes(): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', 'account', ['http', 'uses' => 'FooController@index', 'as' => 'account']));
+
+        $routes = $this->collection();
+
+        $this->assertSame('account', $routes->match(Request::create('http://localhost/account'))->getName());
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $routes->match(Request::create('https://localhost/account'));
+    }
+
     public function testMatchingThrowsMethodNotAllowedHttpExceptionWhenMethodIsNotAllowed(): void
     {
         $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
@@ -538,46 +566,6 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->parameters());
         $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->originalParameters());
-    }
-
-    public function testCompiledMatchHonorsHttpsOnlyRoute(): void
-    {
-        $this->routeCollection->add(
-            $this->newRoute('GET', '/secure/{resource}', [
-                'uses' => 'FooController@index',
-                'as' => 'secure',
-                'https',
-            ])
-        );
-
-        $this->assertSame(
-            'secure',
-            $this->collection()->match(Request::create('https://example.com/secure/report'))->getName()
-        );
-
-        $this->expectException(NotFoundHttpException::class);
-
-        $this->collection()->match(Request::create('http://example.com/secure/report'));
-    }
-
-    public function testCompiledMatchHonorsHttpOnlyRoute(): void
-    {
-        $this->routeCollection->add(
-            $this->newRoute('GET', '/insecure', [
-                'uses' => 'FooController@index',
-                'as' => 'insecure',
-                'http',
-            ])
-        );
-
-        $this->assertSame(
-            'insecure',
-            $this->collection()->match(Request::create('http://example.com/insecure'))->getName()
-        );
-
-        $this->expectException(NotFoundHttpException::class);
-
-        $this->collection()->match(Request::create('https://example.com/insecure'));
     }
 
     public function testCompiledConditionReceivesCompleteRequestContext(): void
@@ -815,6 +803,53 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         // Access to request path info before matching route
         $request->getPathInfo();
+
+        $this->assertSame('foo', $this->collection()->match($request)->getName());
+    }
+
+    public function testMatchingRootUriWhenServedFromSubdirectory(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/', ['uses' => 'FooController@index', 'as' => 'foo'])
+        );
+
+        $request = Request::create('http://example.com/app/', 'GET', [], [], [], [
+            'SCRIPT_NAME' => '/app/index.php',
+            'PHP_SELF' => '/app/index.php',
+            'SCRIPT_FILENAME' => '/var/www/public/index.php',
+        ]);
+
+        $this->assertSame('foo', $this->collection()->match($request)->getName());
+    }
+
+    public function testMatchingRootUriWithRepeatedSlashes(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/', ['uses' => 'FooController@index', 'as' => 'foo'])
+        );
+
+        $this->assertSame('foo', $this->collection()->match(Request::create('http://example.com//'))->getName());
+
+        $request = Request::create('http://example.com/app//', 'GET', [], [], [], [
+            'SCRIPT_NAME' => '/app/index.php',
+            'PHP_SELF' => '/app/index.php',
+            'SCRIPT_FILENAME' => '/var/www/public/index.php',
+        ]);
+
+        $this->assertSame('foo', $this->collection()->match($request)->getName());
+    }
+
+    public function testMatchingUriWhenServedFromSubdirectory(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', 'foo/bar', ['uses' => 'FooController@index', 'as' => 'foo'])
+        );
+
+        $request = Request::create('http://example.com/app/foo/bar/', 'GET', [], [], [], [
+            'SCRIPT_NAME' => '/app/index.php',
+            'PHP_SELF' => '/app/index.php',
+            'SCRIPT_FILENAME' => '/var/www/public/index.php',
+        ]);
 
         $this->assertSame('foo', $this->collection()->match($request)->getName());
     }

@@ -17,6 +17,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class DatabaseOutboxPublicationTest extends TestCase
 {
@@ -54,6 +58,30 @@ class DatabaseOutboxPublicationTest extends TestCase
 
         $this->assertSame([], $result->accepted);
         $this->assertInstanceOf(QueryException::class, $result->failure);
+        $this->assertSame(0, $database->table('jobs')->count());
+        $this->assertSame(0, $database->transactionLevel());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationIsNotReturnedAsAPublicationFailure(bool $cleanupThrows): void
+    {
+        [$queue, $database] = $this->queue();
+        $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Insert cleanup failed.', previous: $cancellation);
+        }
+        $database->beforeExecuting(static fn () => throw $cancellation);
+
+        try {
+            $queue->publishOutboxMessages([$this->message(1, 'orders')]);
+            $this->fail('Expected publication cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        } finally {
+            $database->clearBeforeExecutingCallbacks();
+        }
+
         $this->assertSame(0, $database->table('jobs')->count());
         $this->assertSame(0, $database->transactionLevel());
     }

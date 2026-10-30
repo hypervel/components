@@ -19,6 +19,11 @@ class EntryQueryOptions
     public ?string $tag = null;
 
     /**
+     * Whether the tag should be matched literally instead of as a search expression.
+     */
+    public bool $exactTag = false;
+
+    /**
      * The family hash that must belong to retrieved entries.
      */
     public ?string $familyHash = null;
@@ -48,6 +53,7 @@ class EntryQueryOptions
             ->uuids($request->uuids) // @phpstan-ignore property.notFound
             ->beforeSequence($request->before) // @phpstan-ignore property.notFound
             ->tag($request->tag) // @phpstan-ignore property.notFound
+            ->exactTag($request->boolean('exact_tag'))
             ->familyHash($request->family_hash) // @phpstan-ignore property.notFound
             ->limit((int) ($request->take ?? 50));
     }
@@ -96,6 +102,16 @@ class EntryQueryOptions
     public function tag(?string $tag): static
     {
         $this->tag = $tag === '' ? null : $tag;
+
+        return $this;
+    }
+
+    /**
+     * Match the tag literally instead of as a search expression.
+     */
+    public function exactTag(bool $exactTag = true): static
+    {
+        $this->exactTag = $exactTag;
 
         return $this;
     }

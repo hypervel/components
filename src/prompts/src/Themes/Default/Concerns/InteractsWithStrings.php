@@ -49,7 +49,7 @@ trait InteractsWithStrings
 
         // Scrollbar input is raw application text, not output from the ANSI parser.
         $line = Utils::sanitizeTerminalFormatting($line);
-        $pattern = '/(?<grapheme>\X)(?<suffix>(?:' . Utils::TERMINAL_FORMATTING_PATTERN . '|<\/(?:info|comment|question|error)>|<\/>)*)$/u';
+        $pattern = '/(?<grapheme>\X)(?<suffix>(?:' . Utils::TERMINAL_FORMATTING_PATTERN . '|<\/(?i:info|comment|question|error)>|<\/>)*)$/u';
 
         if (preg_match($pattern, $line, $matches, PREG_OFFSET_CAPTURE) !== 1) {
             return $line;

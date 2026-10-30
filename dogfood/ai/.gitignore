@@ -4,3 +4,4 @@
 /workbench/node_modules/
 /workbench/public/
 /workbench/database/*.sqlite*
+/workbench/storage/framework/hypervel.pid

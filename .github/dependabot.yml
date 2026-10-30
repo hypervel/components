@@ -1,5 +1,26 @@
 version: 2
 updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      vite-plus:
+        patterns:
+          - "vite-plus"
+          - "vite"
+          - "@voidzero-dev/vite-plus-core"
+          - "vitest"
+          - "@vitest/*"
+  - package-ecosystem: "npm"
+    directory: "/skeletons/hypervel"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    versioning-strategy: "increase-if-necessary"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -324,8 +324,11 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $login1 = $user->latest_login()->create();
         $login2 = $user->latest_login()->create();
 
-        $this->assertFalse($user->latest_login()->is($login1));
-        $this->assertTrue($user->latest_login()->is($login2));
+        $relation = $user->latest_login();
+
+        $this->assertFalse($relation->is($login1));
+        $this->assertTrue($relation->is($login2));
+        $this->assertSame($login2->id, $relation->first()->id);
     }
 
     public function testIsNotMethod(): void

@@ -68,6 +68,23 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Arrange binding groups in the order used by a select statement.
+     */
+    public function prepareBindingsForSelect(Builder $query): array
+    {
+        $bindings = $query->getRawBindings();
+
+        if (isset($query->groupLimit)) {
+            // Window ordering is emitted in the projection, before WHERE bindings.
+            // Keep the logical groups intact for callers that copy individual clauses.
+            $bindings['select'] = array_merge($bindings['select'], $bindings['order']);
+            $bindings['order'] = [];
+        }
+
+        return $bindings;
+    }
+
+    /**
      * Compile a select query without statement-level decoration.
      *
      * Embedded fragments are assembled by their builder's grammar because connection-owned details
@@ -84,6 +101,10 @@ class Grammar extends BaseGrammar
         // different syntax. This primarily supports limits on eager loads using
         // Eloquent. We'll also set the columns if they have not been defined.
         if (isset($query->groupLimit)) {
+            // Group-limit compilers adjust columns, offset and ordering. Compiling
+            // SQL must not consume those values on a reusable or embedded builder.
+            $query = clone $query;
+
             if (is_null($query->columns)) {
                 $query->columns = ['*'];
             }
@@ -919,11 +940,6 @@ class Grammar extends BaseGrammar
      */
     protected function compileGroupLimit(Builder $query): string
     {
-        $selectBindings = array_merge($query->getRawBindings()['select'], $query->getRawBindings()['order']);
-
-        $query->setBindings($selectBindings, 'select');
-        $query->setBindings([], 'order');
-
         $limit = (int) $query->groupLimit['value'];
         $offset = $query->offset;
 

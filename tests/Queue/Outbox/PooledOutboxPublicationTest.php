@@ -16,8 +16,10 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PooledOutboxPublicationTest extends TestCase
 {
@@ -65,10 +67,15 @@ class PooledOutboxPublicationTest extends TestCase
         }
     }
 
-    public function testCancellationReleasesTheBorrowedTransportAndRemainsCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationReleasesTheBorrowedTransportAndRemainsCancellation(bool $cleanupThrows): void
     {
         $queue = m::mock(SyncQueue::class)->makePartial();
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Transport cleanup failed.', previous: $cancellation);
+        }
         $queue->expects('pushRaw')->andThrow($cancellation);
         $released = 0;
         $pools = new PoolManager;
@@ -78,7 +85,7 @@ class PooledOutboxPublicationTest extends TestCase
             try {
                 $proxy->publishOutboxMessages([$this->message(1)]);
                 $this->fail('Expected publication to remain cancelled.');
-            } catch (CanceledException $exception) {
+            } catch (Throwable $exception) {
                 $this->assertSame($cancellation, $exception);
             }
 

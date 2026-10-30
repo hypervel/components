@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { options } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/NavigationItemController";
 
 test("does not shadow a generated method named options", () => {

@@ -1,4 +1,4 @@
-<script type="text/ecmascript-6">
+<script>
 import hljs from 'highlight.js/lib/core';
 import sql from 'highlight.js/lib/languages/sql';
 import { format, supportedDialects } from 'sql-formatter';
@@ -15,7 +15,9 @@ export default {
     methods: {
         highlightQuery() {
             this.$nextTick(() => {
-                hljs.highlightElement(this.$refs.querycode);
+                if (this.$refs.querycode) {
+                    hljs.highlightElement(this.$refs.querycode);
+                }
             });
         },
 
@@ -48,13 +50,13 @@ export default {
         },
 
         // REMOVED: queryLanguage(); without JSON commands, every query highlights as SQL.
-    }
-}
+    },
+};
 </script>
 
 <template>
     <preview-screen title="Query Details" resource="queries" :id="$route.params.id" v-on:ready="highlightQuery()">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Connection</td>
                 <td>
@@ -79,7 +81,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -88,10 +90,12 @@ export default {
                 </ul>
                 <div class="code-bg p-4 mb-0 text-white">
                     <copy-clipboard :data="formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver)">
-                        <pre class="code-bg text-white language-sql" ref="querycode">{{ formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver) }}</pre>
+                        <pre class="code-bg text-white language-sql" ref="querycode">{{
+                            formatQuery(slotProps.entry.content.sql, slotProps.entry.content.driver)
+                        }}</pre>
                     </copy-clipboard>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

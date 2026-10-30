@@ -8,6 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\InvalidPayloadException;
@@ -15,7 +16,6 @@ use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Support\Str;
 use JsonException;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait StagesOutboxJobs
@@ -104,9 +104,11 @@ trait StagesOutboxJobs
             $row = $this->prepareOutboxRow($job, $payload, $queue, $delay);
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
             $dispatcher->store($connection, [$row], [$job]);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;
@@ -186,14 +188,16 @@ trait StagesOutboxJobs
                     throw $failure;
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            $failure = $this->notifyBatchMembers($prepared, function (array $member) use ($queue, $exception): void {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            $this->notifyBatchMembersOfFailure($prepared, function (array $member) use ($queue, $exception): void {
                 $this->raiseJobQueueingFailedEvent($queue, $member['job'], $member['payload'], $member['delay'], $exception);
             });
 
-            throw $failure ?? $exception;
+            throw $exception;
         }
 
         return array_values($direct);

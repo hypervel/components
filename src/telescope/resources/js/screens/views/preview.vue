@@ -1,26 +1,22 @@
-<script type="text/ecmascript-6">
-import _ from 'lodash';
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
 
 export default {
-    mixins: [
-        StylesMixin,
-    ],
+    mixins: [StylesMixin],
 
-
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'data'
+            currentTab: 'data',
         };
     },
-}
+};
 </script>
 
 <template>
     <preview-screen title="View Action" resource="views" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">View</td>
                 <td>
@@ -36,7 +32,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5" v-if="slotProps.entry.content.data">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -90,6 +86,6 @@ export default {
                     </table>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>

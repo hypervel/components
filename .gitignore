@@ -20,8 +20,9 @@
 /dogfood/testbench-package/.phpunit.cache/
 /dogfood/testbench-package/composer.lock
 /dogfood/testbench-package/vendor/
-/node_modules
-/src/*/node_modules
+node_modules/
+.vite/
+.vite-plus/
 /src/wayfinder/tests/.generated
 /coverage
 *.tsbuildinfo

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Aws\Credentials\CredentialProvider;
 use Aws\Credentials\Credentials;
+use Closure;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\Promise;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -24,9 +25,18 @@ use function Hypervel\Coroutine\parallel;
 
 class AwsCredentialConsumerTest extends TestCase
 {
-    #[DataProvider('consumers')]
-    public function testPooledConsumersSerializeSharedProvidersWithoutSharingCallerCredentials(string $consumer): void
+    protected function tearDown(): void
     {
+        AwsCredentialConsumerTestProvider::$callback = null;
+
+        parent::tearDown();
+    }
+
+    #[DataProvider('consumers')]
+    public function testPooledConsumersSerializeSharedProvidersWithoutSharingCallerCredentials(
+        string $consumer,
+        string $providerForm,
+    ): void {
         $active = 0;
         $maximumActive = 0;
         $authorization = [];
@@ -40,6 +50,13 @@ class AwsCredentialConsumerTest extends TestCase
             });
 
             return $promise;
+        };
+        AwsCredentialConsumerTestProvider::$callback = $provider;
+        $provider = match ($providerForm) {
+            'string' => AwsCredentialConsumerTestProvider::class . '::resolve',
+            'array' => [AwsCredentialConsumerTestProvider::class, 'resolve'],
+            'nested string' => ['provider' => AwsCredentialConsumerTestProvider::class . '::resolve'],
+            default => $provider,
         };
         $configuration = [
             'region' => 'us-east-1',
@@ -125,7 +142,17 @@ class AwsCredentialConsumerTest extends TestCase
      */
     public static function consumers(): array
     {
-        return ['SQS' => ['sqs'], 'S3' => ['s3'], 'SES v2' => ['ses']];
+        $cases = [];
+
+        foreach (['sqs', 's3', 'ses'] as $consumer) {
+            foreach (['closure', 'string', 'array'] as $providerForm) {
+                $cases["{$consumer} {$providerForm}"] = [$consumer, $providerForm];
+            }
+        }
+
+        $cases['sqs nested string'] = ['sqs', 'nested string'];
+
+        return $cases;
     }
 
     #[DataProvider('credentialExpirations')]
@@ -178,5 +205,18 @@ class AwsCredentialConsumerTest extends TestCase
     public static function credentialExpirations(): array
     {
         return ['cached' => [3600], 'refreshing' => [30]];
+    }
+}
+
+class AwsCredentialConsumerTestProvider
+{
+    public static ?Closure $callback = null;
+
+    /**
+     * Resolve credentials through the current test's shared provider.
+     */
+    public static function resolve(): PromiseInterface
+    {
+        return (self::$callback)();
     }
 }

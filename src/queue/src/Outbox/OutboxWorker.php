@@ -10,6 +10,7 @@ use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Queue\MemoryLimit;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Sleep;
 use InvalidArgumentException;
@@ -70,7 +71,7 @@ class OutboxWorker
             $sourceCount = count($databases);
 
             while (! $quit && $taskFailure === null) {
-                if (memory_get_usage(true) / 1024 / 1024 >= $options->memory) {
+                if (memory_get_usage(true) / 1024 / 1024 >= MemoryLimit::toMegabytes($options->memory)) {
                     $status = Worker::EXIT_MEMORY_LIMIT;
                     break;
                 }

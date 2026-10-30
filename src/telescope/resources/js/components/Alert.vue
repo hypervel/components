@@ -1,33 +1,24 @@
-<script type="text/ecmascript-6">
-import $ from 'jquery';
+<script>
+import { Modal } from 'bootstrap';
 
 export default {
     props: ['type', 'message', 'autoClose', 'confirmationProceed', 'confirmationCancel'],
 
-    data(){
+    data() {
         return {
             timeout: null,
-            anotherModalOpened: $('body').hasClass('modal-open')
-        }
+            alertModal: null,
+            anotherModalOpened: document.body.classList.contains('modal-open'),
+        };
     },
 
-
     mounted() {
-        $('#alertModal').modal({
+        this.alertModal = Modal.getOrCreateInstance(this.$el, {
             backdrop: 'static',
         });
 
-        $('#alertModal').on('hidden.bs.modal', e => {
-            this.$root.alert.type = null;
-            this.$root.alert.autoClose = false;
-            this.$root.alert.message = '';
-            this.$root.alert.confirmationProceed = null;
-            this.$root.alert.confirmationCancel = null;
-
-            if (this.anotherModalOpened) {
-                $('body').addClass('modal-open');
-            }
-        });
+        this.$el.addEventListener('hidden.bs.modal', this.hidden);
+        this.alertModal.show();
 
         if (this.autoClose) {
             this.timeout = setTimeout(() => {
@@ -36,40 +27,59 @@ export default {
         }
     },
 
+    beforeUnmount() {
+        clearTimeout(this.timeout);
+        this.alertModal.hide();
+        this.$el.removeEventListener('hidden.bs.modal', this.hidden);
+        this.alertModal.dispose();
+    },
 
     methods: {
         /**
-         * Close the modal.
+         * Clear the alert after closing the modal.
          */
-        close(){
-            clearTimeout(this.timeout);
+        hidden() {
+            this.$root.alert.type = null;
+            this.$root.alert.autoClose = false;
+            this.$root.alert.message = '';
+            this.$root.alert.confirmationProceed = null;
+            this.$root.alert.confirmationCancel = null;
 
-            $('#alertModal').modal('hide');
+            if (this.anotherModalOpened) {
+                document.body.classList.add('modal-open');
+            }
         },
 
+        /**
+         * Close the modal.
+         */
+        close() {
+            clearTimeout(this.timeout);
+
+            this.alertModal.hide();
+        },
 
         /**
          * Confirm and close the modal.
          */
-        confirm(){
+        confirm() {
             this.confirmationProceed();
 
             this.close();
         },
 
-
         /**
          * Cancel and close the modal.
          */
-        cancel(){
+        cancel() {
             if (this.confirmationCancel) {
                 this.confirmationCancel();
             }
 
             this.close();
-        }
-    }
-}
+        },
+    },
+};
 </script>
 
 <template>
@@ -77,7 +87,7 @@ export default {
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-body">
-                    <p class="m-0 py-4">{{ message }}</p>
+                    <p class="m-0 py-4" id="alertModalLabel">{{ message }}</p>
                 </div>
 
                 <div class="modal-footer justify-content-start flex-row-reverse">

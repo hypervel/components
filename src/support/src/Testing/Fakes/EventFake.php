@@ -20,6 +20,7 @@ use ReflectionFunction;
 class EventFake implements Fake, DispatcherContract
 {
     use ForwardsCalls;
+    use MatchesProperties;
     use ReflectsClosures;
 
     /**
@@ -113,8 +114,10 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Assert if an event was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable|int $callback
      */
-    public function assertDispatched(Closure|string $event, callable|int|null $callback = null): void
+    public function assertDispatched(Closure|string $event, callable|array|int|null $callback = null): void
     {
         if ($event instanceof Closure) {
             [$event, $callback] = [$this->firstClosureParameterType($event), $event];
@@ -159,8 +162,10 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Determine if an event was dispatched based on a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function assertNotDispatched(Closure|string $event, ?callable $callback = null): void
+    public function assertNotDispatched(Closure|string $event, callable|array|null $callback = null): void
     {
         if ($event instanceof Closure) {
             [$event, $callback] = [$this->firstClosureParameterType($event), $event];
@@ -198,14 +203,16 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Get all of the events matching a truth-test callback.
+     *
+     * @param null|array<string, mixed>|callable $callback
      */
-    public function dispatched(string $event, ?callable $callback = null): Collection
+    public function dispatched(string $event, callable|array|null $callback = null): Collection
     {
         if (! $this->hasDispatched($event)) {
             return new Collection;
         }
 
-        $callback = $callback ?: function () {
+        $callback = $this->resolveTruthTest($callback) ?: function () {
             return true;
         };
 

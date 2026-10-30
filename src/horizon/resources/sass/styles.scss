@@ -56,9 +56,6 @@ $card-border-radius: $border-radius-lg;
 
 $code-bg: #292d3e;
 
-$new-entries-bg: $violet-50;
-$new-code-entries-bg: $gray-600;
-
 $control-action-icon-color: $gray-300;
 $control-action-icon-hover: $violet-600;
 
@@ -90,14 +87,14 @@ $grid-breakpoints: (
     sm: 2px,
     md: 8px,
     lg: 9px,
-    xl: 10px
+    xl: 10px,
 ) !default;
 
 $container-max-widths: (
     sm: 1137px,
     md: 1138px,
     lg: 1139px,
-    xl: 1140px
+    xl: 1140px,
 ) !default;
 
 @import 'base';

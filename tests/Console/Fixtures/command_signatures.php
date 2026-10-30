@@ -119,19 +119,6 @@ return [
     // REMOVED: schedule:finish; coroutine tasks finish directly through Event::finish().
     \Hypervel\Console\Commands\ScheduleInterruptCommand::class => [
         'name' => 'schedule:interrupt',
-        'options' => [
-            [
-                'name' => 'minutes',
-                'shortcut' => null,
-                'negatable' => false,
-                'valueRequired' => false,
-                'valueOptional' => true,
-                'isArray' => false,
-                'acceptValue' => true,
-                'default' => '1',
-                'description' => 'TTL in minutes for the interrupt signal (minimum 1)',
-            ],
-        ],
     ],
     \Hypervel\Console\Commands\ScheduleListCommand::class => [
         'name' => 'schedule:list',
@@ -3605,7 +3592,7 @@ return [
                 'isArray' => false,
                 'acceptValue' => true,
                 'default' => '128',
-                'description' => 'The memory limit in megabytes',
+                'description' => 'The memory limit in megabytes, or as a percentage of the PHP memory limit',
             ],
             [
                 'name' => 'queue',
@@ -4031,7 +4018,7 @@ return [
                 'isArray' => false,
                 'acceptValue' => true,
                 'default' => '128',
-                'description' => 'The memory limit in megabytes',
+                'description' => 'The memory limit in megabytes, or as a percentage of the PHP memory limit',
             ],
             [
                 'name' => 'sleep',

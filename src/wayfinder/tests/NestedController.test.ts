@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import nested from "./.generated/routes/nested";
 
 it("can handle conflicting nested route names", () => {

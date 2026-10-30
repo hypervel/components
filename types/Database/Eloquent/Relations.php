@@ -300,6 +300,10 @@ class User extends Model
             'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, $this(Hypervel\Types\Relations\User)>',
             $this->through($this->mechanic())->has(fn ($mechanic) => $mechanic->parts()),
         );
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, $this(Hypervel\Types\Relations\User)>',
+            $this->through($this->mechanic())->has(fn ($mechanic) => $mechanic->morphMany(Part::class, 'partable')),
+        );
 
         return $hasManyThrough;
     }
@@ -340,6 +344,11 @@ class Post extends Model
         $morphMany = $this->morphMany(Comment::class, 'commentable');
         assertType('Hypervel\Database\Eloquent\Relations\MorphMany<Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>', $morphMany);
 
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Image, Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>',
+            $this->through($morphMany)->has(fn ($comment) => $comment->hasOne(Image::class)),
+        );
+
         return $morphMany;
     }
 
@@ -348,6 +357,11 @@ class Post extends Model
     {
         $comment = $this->comments()->one();
         assertType('Hypervel\Database\Eloquent\Relations\MorphOne<Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>', $comment);
+
+        assertType(
+            'Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Image, Hypervel\Types\Relations\Comment, $this(Hypervel\Types\Relations\Post)>',
+            $this->through($comment)->has(fn ($comment) => $comment->hasOne(Image::class)),
+        );
 
         return $comment;
     }

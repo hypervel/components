@@ -55,6 +55,21 @@ class RelayCommandTest extends TestCase
         $this->assertSame(0, Artisan::call('queue:relay'));
     }
 
+    public function testPercentageMemoryLimitIsPassedToTheWorkerUnchanged(): void
+    {
+        $originalLimit = ini_get('memory_limit');
+        ini_set('memory_limit', (string) (memory_get_usage(true) * 4));
+        $worker = m::mock(OutboxWorker::class);
+        $worker->expects('run')->with(null, m::on(fn (OutboxWorkerOptions $options): bool => $options->memory === '60%'))->andReturn(0);
+        $this->app->instance(OutboxWorker::class, $worker);
+
+        try {
+            $this->assertSame(0, Artisan::call('queue:relay', ['--memory' => '60%']));
+        } finally {
+            ini_set('memory_limit', $originalLimit);
+        }
+    }
+
     #[DataProvider('invalidOptions')]
     public function testInvalidOptionsFailBeforeTheWorkerStarts(array $options): void
     {
@@ -75,6 +90,8 @@ class RelayCommandTest extends TestCase
             'hot-loop sleep' => [['--sleep' => 0]],
             'no capacity' => [['--concurrency' => 0]],
             'negative maximum' => [['--max-jobs' => -1]],
+            'zero memory' => [['--memory' => 0]],
+            'zero percentage' => [['--memory' => '0%']],
         ];
     }
 }

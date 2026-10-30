@@ -9,7 +9,15 @@ export type QueryParams = {
         | QueryParams;
 };
 
-type Method = "get" | "post" | "put" | "delete" | "patch" | "head" | "options" | "query";
+type Method =
+    | "get"
+    | "post"
+    | "put"
+    | "delete"
+    | "patch"
+    | "head"
+    | "options"
+    | "query";
 type UrlDefaults = Record<string, unknown>;
 
 let urlDefaults: () => UrlDefaults = () => ({});
@@ -65,8 +73,7 @@ export const formatRouteParameter = (
 
     const encoded = encodeURIComponent(getValue(value)).replace(
         /['()]/g,
-        (character) =>
-            `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+        (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
     );
 
     return encoded.replace(
@@ -190,11 +197,7 @@ export const validateParameters = (
     const missing = optional.filter((key) => {
         const value = args?.[key];
 
-        return (
-            value === undefined ||
-            value === null ||
-            value === ""
-        );
+        return value === undefined || value === null || value === "";
     });
     const expectedMissing = optional.slice(missing.length * -1);
 

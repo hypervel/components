@@ -21,10 +21,7 @@
 
     const pendingRequests = new Map();
     const handlers = {};
-    const queuedNotifications = queuedHandlerNames.reduce(function (
-        queue,
-        name,
-    ) {
+    const queuedNotifications = queuedHandlerNames.reduce(function (queue, name) {
         queue[name] = [];
 
         return queue;
@@ -98,7 +95,7 @@
         if (typeof data === "string") {
             try {
                 return JSON.parse(data);
-            } catch (error) {
+            } catch {
                 return null;
             }
         }
@@ -111,9 +108,7 @@
     }
 
     function isObject(value) {
-        return (
-            value !== null && typeof value === "object" && !Array.isArray(value)
-        );
+        return value !== null && typeof value === "object" && !Array.isArray(value);
     }
 
     function normalizeParams(value, key) {
@@ -137,10 +132,7 @@
             const nextStyles = update.styles || {};
 
             next.styles = mergeObjects(currentStyles, nextStyles);
-            next.styles.variables = mergeObjects(
-                currentStyles.variables,
-                nextStyles.variables,
-            );
+            next.styles.variables = mergeObjects(currentStyles.variables, nextStyles.variables);
             next.styles.css = mergeObjects(currentStyles.css, nextStyles.css);
         }
 
@@ -268,20 +260,14 @@
             respondWithError(
                 id,
                 errorCodes.internalError,
-                error instanceof Error
-                    ? error.message
-                    : "Unknown teardown error",
+                error instanceof Error ? error.message : "Unknown teardown error",
             );
         }
     }
 
     async function handleCallTool(id, params) {
         if (!handlers.oncalltool) {
-            respondWithError(
-                id,
-                errorCodes.methodNotFound,
-                "No tool handler registered.",
-            );
+            respondWithError(id, errorCodes.methodNotFound, "No tool handler registered.");
             return;
         }
 
@@ -298,17 +284,12 @@
 
     async function handleListTools(id, params) {
         try {
-            respond(
-                id,
-                (await handlers.onlisttools?.(params)) ?? { tools: [] },
-            );
+            respond(id, (await handlers.onlisttools?.(params)) ?? { tools: [] });
         } catch (error) {
             respondWithError(
                 id,
                 errorCodes.internalError,
-                error instanceof Error
-                    ? error.message
-                    : "Unknown list tools error",
+                error instanceof Error ? error.message : "Unknown list tools error",
             );
         }
     }
@@ -338,17 +319,17 @@
     }
 
     const requestHandlers = {
-        "ping": function (message) {
+        ping: function (message) {
             respond(message.id, {});
         },
         "ui/resource-teardown": function (message) {
-            handleTeardown(message.id);
+            void handleTeardown(message.id);
         },
         "tools/call": function (message) {
-            handleCallTool(message.id, message.params);
+            void handleCallTool(message.id, message.params);
         },
         "tools/list": function (message) {
-            handleListTools(message.id, message.params);
+            void handleListTools(message.id, message.params);
         },
     };
 
@@ -358,11 +339,7 @@
         if (handler) {
             handler(message);
         } else {
-            respondWithError(
-                message.id,
-                errorCodes.methodNotFound,
-                "Method not found: " + message.method,
-            );
+            respondWithError(message.id, errorCodes.methodNotFound, "Method not found: " + message.method);
         }
     }
 
@@ -424,12 +401,7 @@
         }
 
         function listResources(cursorOrParams) {
-            return request(
-                "resources/list",
-                cursorOrParams
-                    ? normalizeParams(cursorOrParams, "cursor")
-                    : undefined,
-            );
+            return request("resources/list", cursorOrParams ? normalizeParams(cursorOrParams, "cursor") : undefined);
         }
 
         function readResource(uriOrParams) {
@@ -438,8 +410,7 @@
 
         function sendMessage(messageOrContent, role) {
             const params =
-                isObject(messageOrContent) &&
-                ("content" in messageOrContent || "role" in messageOrContent)
+                isObject(messageOrContent) && ("content" in messageOrContent || "role" in messageOrContent)
                     ? {
                           role: messageOrContent.role || "user",
                           content: messageOrContent.content,
@@ -466,10 +437,7 @@
         }
 
         function requestDisplayMode(modeOrParams) {
-            return request(
-                "ui/request-display-mode",
-                normalizeParams(modeOrParams, "mode"),
-            );
+            return request("ui/request-display-mode", normalizeParams(modeOrParams, "mode"));
         }
 
         function updateModelContext(params) {

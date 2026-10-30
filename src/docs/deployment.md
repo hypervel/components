@@ -56,6 +56,8 @@ The Hypervel framework has a few system requirements. Hypervel ships with its ow
 <a name="server-configuration"></a>
 ## Server Configuration
 
+Hypervel supports direct TLS termination, but for internet-facing production deployments, we recommend terminating TLS at a dedicated reverse proxy or load balancer.
+
 <a name="nginx"></a>
 ### Nginx
 

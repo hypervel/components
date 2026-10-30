@@ -4,22 +4,38 @@
     "type": "module",
     "packageManager": "pnpm@12.10.1+sha512.ba40a37eb1a370d60fea8c4cf1d364c13bcccef518e98ad2bcee954f539d38da37458e58261a3fa55e06523450ea0ffff9f497b135be41f2c15c1642bacace6c",
     "engines": {
-        "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+        "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+    },
+    "devEngines": {
+        "runtime": {
+            "name": "node",
+            "version": "^24.15.0",
+            "onFail": "ignore"
+        }
     },
     "scripts": {
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:mcp": "vitest run --project mcp",
+        "check": "php src/wayfinder/tests/generate.php src/wayfinder/tests/.generated && vp check",
+        "check:fix": "php src/wayfinder/tests/generate.php src/wayfinder/tests/.generated && vp check --fix",
+        "test": "vp test",
+        "test:watch": "vp test watch",
+        "test:mcp": "vp test --project mcp",
+        "test:horizon": "vp test --project horizon",
+        "test:telescope": "vp test --project telescope",
         "minify:mcp": "terser src/mcp/resources/js/mcp-sdk.js --compress --mangle --output src/mcp/resources/js/mcp-sdk.min.js",
-        "test:wayfinder": "pnpm --dir src/wayfinder test",
-        "test:wayfinder:cached": "pnpm --dir src/wayfinder test:cached",
-        "typecheck:wayfinder": "pnpm --dir src/wayfinder typecheck"
+        "test:wayfinder": "vp test --project wayfinder",
+        "test:wayfinder:cached": "vp run @hypervel/wayfinder#test:cached",
+        "typecheck:wayfinder": "vp run @hypervel/wayfinder#typecheck",
+        "build": "vp run --filter @hypervel/horizon --filter @hypervel/telescope --filter @hypervel/exception-renderer --filter @hypervel/workbench --filter @hypervel/ai-workbench build && vp run minify:mcp",
+        "build:horizon": "vp run @hypervel/horizon#build",
+        "build:telescope": "vp run @hypervel/telescope#build",
+        "build:exception-renderer": "vp run @hypervel/exception-renderer#build",
+        "build:workbench": "vp run @hypervel/workbench#build",
+        "build:ai-workbench": "vp run @hypervel/ai-workbench#build"
     },
     "devDependencies": {
-        "@types/node": "^22.20.5",
+        "@types/node": "catalog:",
         "terser": "5.51.2",
-        "typescript": "^7.0.2",
-        "vite": "^8.3.3",
-        "vitest": "^5.0.3"
+        "typescript": "catalog:",
+        "vite-plus": "catalog:"
     }
 }

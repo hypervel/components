@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Aws\Command;
+use Aws\Credentials\Credentials;
 use Aws\Exception\AwsException;
 use Aws\Result;
 use Aws\SesV2\SesV2Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
@@ -53,6 +56,22 @@ class MailSesV2TransportTest extends TestCase
         $this->assertSame('us-east-1', $ses->getRegion());
 
         $this->assertSame('ses-v2', (string) $transport);
+    }
+
+    public function testCallableCredentialsTakePrecedenceOverServiceKeys(): void
+    {
+        config(['services.ses' => [
+            'key' => 'base-key',
+            'secret' => 'base-secret',
+            'region' => 'us-east-1',
+        ]]);
+
+        $transport = (new MailManager($this->app))->createSymfonyTransport([
+            'transport' => 'ses-v2',
+            'credentials' => static fn (): PromiseInterface => Create::promiseFor(new Credentials('role-key', 'role-secret')),
+        ]);
+
+        $this->assertSame('role-key', $transport->ses()->getCredentials()->wait()->getAccessKeyId());
     }
 
     public function testSend(): void

@@ -1,17 +1,15 @@
-<script type="text/ecmascript-6">
-export default {}
-</script>
-
 <template>
     <index-screen title="Reverb" resource="reverb">
-        <tr slot="table-header">
-            <th scope="col">Event</th>
-            <th scope="col">Details</th>
-            <th scope="col">Happened</th>
-            <th scope="col"></th>
-        </tr>
+        <template #table-header>
+            <tr>
+                <th scope="col">Event</th>
+                <th scope="col">Details</th>
+                <th scope="col">Happened</th>
+                <th scope="col"></th>
+            </tr>
+        </template>
 
-        <template slot="row" slot-scope="slotProps">
+        <template #row="slotProps">
             <td class="table-fit">
                 <span class="badge badge-info">
                     {{ slotProps.entry.content.event }}

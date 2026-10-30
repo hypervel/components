@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue\Outbox;
 
+use Aws\CommandInterface;
+use Aws\MockHandler;
 use Aws\Result;
 use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
@@ -18,7 +20,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SqsOutboxPublicationTest extends TestCase
 {
@@ -61,11 +66,18 @@ class SqsOutboxPublicationTest extends TestCase
         return [[null, false, null], [0, false, 0], [-30, false, 0], [30, false, 30], [1000, false, 900], [0, true, null]];
     }
 
-    public function testBatchSizeLimitsAndLaterSdkFailureRetainEarlierConfirmation(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['cleanup'])]
+    public function testBatchSizeLimitsAndLaterSdkFailureRetainEarlierConfirmation(string $failureType): void
     {
         $client = m::mock(SqsClient::class);
         $queue = new SqsQueue($client, 'orders');
-        $failure = new RuntimeException('SDK retries exhausted.');
+        $failure = match ($failureType) {
+            'cancellation' => new CanceledException,
+            'cleanup' => new RuntimeException('SDK cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('SDK retries exhausted.'),
+        };
         $calls = 0;
         $client->expects('sendMessageBatch')->twice()->andReturnUsing(function (array $arguments) use (&$calls, $failure): Result {
             if (++$calls === 2) {
@@ -78,8 +90,16 @@ class SqsOutboxPublicationTest extends TestCase
             return new Result(['Successful' => array_map(static fn (array $entry): array => ['Id' => $entry['Id'], 'MessageId' => 'sqs-' . $entry['Id']], $arguments['Entries'])]);
         });
 
-        $result = $queue->publishOutboxMessages(array_map(fn (int $id): OutboxMessage => $this->message($id), range(1, 11)));
+        try {
+            $result = $queue->publishOutboxMessages(array_map(fn (int $id): OutboxMessage => $this->message($id), range(1, 11)));
+        } catch (Throwable $exception) {
+            $this->assertNotSame('ordinary', $failureType);
+            $this->assertSame($failure, $exception);
 
+            return;
+        }
+
+        $this->assertSame('ordinary', $failureType, 'Cancellation must propagate instead of returning a batch result.');
         $this->assertSame(range(1, 10), $result->accepted);
         $this->assertSame($failure, $result->failure);
     }
@@ -158,6 +178,45 @@ class SqsOutboxPublicationTest extends TestCase
         $this->assertSame($first->payload, $store->get($paths[0]));
         $this->assertFalse($store->has($paths[1]));
         $this->assertSame($accepted->payload, $store->get($paths[2]));
+    }
+
+    public function testServerFaultAfterAnSdkRetryRetainsThePayloadAnEarlierAttemptMayReference(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $store = new Repository(new WorkerArrayStore);
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->with(null)->andReturn($store);
+        $container->instance('cache', $cache);
+        $paths = [];
+        $handler = new MockHandler;
+        $handler->append(
+            function (CommandInterface $command) use (&$paths): SqsException {
+                $paths[] = json_decode($command['Entries'][0]['MessageBody'], true)['@pointer'];
+
+                return new SqsException('Connection reset after SQS accepted the message.', $command, ['connection_error' => true]);
+            },
+            function (CommandInterface $command) use (&$paths): Result {
+                $paths[] = json_decode($command['Entries'][0]['MessageBody'], true)['@pointer'];
+
+                return new Result([
+                    'Successful' => [],
+                    'Failed' => [['Id' => '1', 'Code' => 'InternalError', 'Message' => 'Internal error', 'SenderFault' => false]],
+                ]);
+            },
+        );
+        $client = new SqsClient(['region' => 'us-east-1', 'version' => 'latest', 'credentials' => false, 'handler' => $handler]);
+        $queue = new SqsQueue($client, 'orders.fifo', overflowStorage: ['enabled' => true, 'always' => true]);
+        $queue->setContainer($container);
+        $message = $this->message(1, 'orders.fifo');
+
+        $result = $queue->publishOutboxMessages([$message]);
+
+        $this->assertSame([], $result->accepted);
+        $this->assertInstanceOf(SqsException::class, $result->failure);
+        $this->assertCount(2, $paths);
+        $this->assertSame($paths[0], $paths[1]);
+        $this->assertSame($message->payload, $store->get($paths[0]));
     }
 
     /**

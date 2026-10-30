@@ -154,13 +154,13 @@ jobs:
           DB_PASSWORD: password
         run: bin/run-database-tests.sh mysql
 
-  mariadb_10:
+  mariadb_1011:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     services:
       mariadb:
-        image: mariadb:10
+        image: mariadb:10.11
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -178,7 +178,7 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: MariaDB 10 (PHP ${{ matrix.php }})
+    name: MariaDB 10.11 (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code

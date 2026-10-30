@@ -34,7 +34,7 @@ Almost every modern web application interacts with a database. Hypervel makes in
 
 <div class="content-list" markdown="1">
 
-- MariaDB 10.3+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
+- MariaDB 10.11+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
 - MySQL 5.7+ ([Version Policy](https://en.wikipedia.org/wiki/MySQL#Release_history))
 - PostgreSQL 10.0+ ([Version Policy](https://www.postgresql.org/support/versioning/))
 - SQLite 3.32.0+
@@ -528,7 +528,9 @@ Both execution methods construct database errors through the protected `newQuery
 
 Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
 
-Query builders with statement-level options may override the protected `Query\Builder::ensureCanEmbedQuery` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member; call the parent to preserve the built-in rejection of embedded timeouts.
+Query builders with statement-level options may override the protected `Query\Builder::prepareQueryForEmbedding` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member. Call the parent first, validate the returned query, and return it so callback preparation and the built-in rejection of embedded timeouts are preserved.
+
+Custom query execution methods should run `applyBeforeQueryCallbacks()`, then call the protected `prepareForSelect()` method and use the returned builder for both SQL and bindings. It preserves the caller's query while preparing pagination around bounded union members. Drivers with additional row-selection clauses can override `requiresKeysetIsolation()` and `isolateKeysetSelect()` to retain those clauses inside the selected page and request options outside it. When those clauses depend on ordering, call `restoreKeysetOrdering()` on the inner query to preserve which rows they select. `getRawBindings()` describes the caller's clauses; `getBindings()` returns parameters in the order required by the prepared SQL.
 
 Custom Eloquent builders may override the public `ensureCanCreateOrFirst(): void` method to reject helpers that depend on unique-constraint recovery. Both `firstOrCreate` and `createOrFirst` call it before reading or writing, including their relationship forms; `updateOrCreate` and `incrementOrCreate` reach it through those helpers. Helpers delegate to each other, so validation may run more than once per operation; keep overrides side-effect-free. Relationships use the related model's builder, even when the parent uses another driver. The default method imposes no restriction, and ordinary `create`, `save`, and `firstOrNew` are unchanged.
 
@@ -748,6 +750,26 @@ $device = Device::query()->find(new BinaryParameter($uuidBytes));
 ```
 
 The wrapper only expresses binding intent. It does not encode or validate the value, and ordinary text strings should not be wrapped.
+
+When using `chunkById` or `lazyById` with binary strings returned by the query builder, use an `afterQuery` callback to provide a binary cursor. Pass its name as the cursor alias so the original column remains unchanged:
+
+```php
+use Hypervel\Database\BinaryParameter;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
+
+DB::table('files')->afterQuery(function (Collection $rows) {
+    foreach ($rows as $row) {
+        $row->cursor = is_resource($row->hash)
+            ? BinaryParameter::fromStream($row->hash)
+            : new BinaryParameter($row->hash);
+    }
+})->chunkById(100, function (Collection $files) {
+    // Process the files...
+}, 'hash', 'cursor');
+```
+
+Hypervel cannot distinguish an unwrapped binary string from text. Eloquent attributes using the `AsBinary` cast and binary streams returned by PostgreSQL are handled automatically.
 
 <a name="running-an-insert-statement"></a>
 #### Running an Insert Statement
@@ -1069,6 +1091,12 @@ $types = Schema::getTypes();
 $columns = Schema::getColumns('users');
 $indexes = Schema::getIndexes('users');
 $foreignKeys = Schema::getForeignKeys('users');
+```
+
+To inspect a single column, use the `getColumn` method. An exact column name takes precedence over a case-insensitive match, and an empty array is returned if the column does not exist:
+
+```php
+$column = Schema::getColumn('users', 'email');
 ```
 
 If you would like to inspect a database connection that is not your application's default connection, you may use the `connection` method:

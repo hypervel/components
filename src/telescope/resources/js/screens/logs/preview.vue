@@ -1,33 +1,22 @@
-<script type="text/ecmascript-6">
+<script>
 import StylesMixin from './../../mixins/entriesStyles';
-import ExceptionCodePreview from './../../components/ExceptionCodePreview.vue';
-import Stacktrace from './../../components/Stacktrace.vue';
 
 export default {
-    components: {
-        'code-preview': ExceptionCodePreview,
-        'stack-trace': Stacktrace
-    },
+    mixins: [StylesMixin],
 
-
-    mixins: [
-        StylesMixin,
-    ],
-
-
-    data(){
+    data() {
         return {
             entry: null,
             batch: [],
-            currentTab: 'message'
+            currentTab: 'message',
         };
     },
-}
+};
 </script>
 
 <template>
     <preview-screen title="Log Details" resource="logs" :id="$route.params.id">
-        <template slot="table-parameters" slot-scope="slotProps">
+        <template #table-parameters="slotProps">
             <tr>
                 <td class="table-fit text-muted">Level</td>
                 <td>
@@ -38,7 +27,7 @@ export default {
             </tr>
         </template>
 
-        <div slot="after-attributes-card" slot-scope="slotProps" class="mt-5">
+        <template #after-attributes-card="slotProps">
             <div class="card mt-5 overflow-hidden">
                 <ul class="nav nav-pills">
                     <li class="nav-item">
@@ -85,15 +74,17 @@ export default {
                     </div>
 
                     <!-- Extra (Context facade data) -->
-                    <div class="code-bg p-4 mb-0 text-white" v-show="currentTab == 'extra'" v-if="slotProps.entry.content.extra">
+                    <div
+                        class="code-bg p-4 mb-0 text-white"
+                        v-show="currentTab == 'extra'"
+                        v-if="slotProps.entry.content.extra"
+                    >
                         <copy-clipboard :data="slotProps.entry.content.extra">
                             <vue-json-pretty :data="slotProps.entry.content.extra"></vue-json-pretty>
                         </copy-clipboard>
                     </div>
                 </div>
             </div>
-        </div>
+        </template>
     </preview-screen>
 </template>
-
-<style scoped></style>

@@ -1,32 +1,30 @@
 {
-    "name": "hypervel-horizon",
+    "name": "@hypervel/horizon",
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "watch": "vite build --watch"
-    },
-    "devEngines": {
-        "packageManager": {
-            "name": "npm",
-            "version": ">=11.10.0"
-        }
+        "build": "vp build",
+        "watch": "vp build --watch",
+        "test": "vp test"
     },
     "devDependencies": {
-        "@vitejs/plugin-vue": "^5.1.3",
-        "axios": "^1.20.0",
-        "bootstrap": "~5.1.3",
+        "@popperjs/core": "catalog:",
+        "@vitejs/plugin-vue": "catalog:",
+        "@vue/compiler-dom": "catalog:",
+        "@vue/server-renderer": "catalog:",
+        "@vue/test-utils": "catalog:",
+        "axios": "catalog:",
+        "bootstrap": "catalog:",
         "chart.js": "^2.9.4",
-        "highlight.js": "^10.7.3",
-        "md5": "^2.3.0",
+        "jsdom": "catalog:",
         "moment": "^2.31.0",
-        "moment-timezone": "^0.5.45",
+        "moment-timezone": "catalog:",
         "phpunserialize": "^1.3.0",
-        "sass": "^1.105.0",
-        "sql-formatter": "^4.0.2",
-        "vite": "^5.4.21",
-        "vue": "^3.5.43",
-        "vue-json-pretty": "^2.4.0",
-        "vue-router": "^4.4.4"
+        "sass": "catalog:",
+        "vite": "catalog:",
+        "vite-plus": "catalog:",
+        "vue": "catalog:",
+        "vue-json-pretty": "catalog:",
+        "vue-router": "catalog:"
     }
 }

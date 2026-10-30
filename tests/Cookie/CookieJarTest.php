@@ -539,8 +539,12 @@ class CookieJarTest extends TestCase
     #[TestWith([CookieJarTestNameIntEnum::Zero])]
     public function testIntegerBackedEnumZeroHasTheSameCreationValidityAsStringZero(CookieJarTestNameIntEnum|string $name): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        try {
+            new Cookie('0', 'value');
+        } catch (InvalidArgumentException) {
+            $this->expectException(InvalidArgumentException::class);
+        }
 
-        (new CookieJar)->make($name, 'value');
+        $this->assertSame('0', (new CookieJar)->make($name, 'value')->getName());
     }
 }

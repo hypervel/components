@@ -13,6 +13,7 @@
     - [No Content Responses](#no-content-responses)
     - [View Responses](#view-responses)
     - [JSON Responses](#json-responses)
+    - [Markdown Responses](#markdown-responses)
     - [File Downloads](#file-downloads)
     - [File Responses](#file-responses)
 - [Streamed Responses](#streamed-responses)
@@ -407,6 +408,21 @@ return response()->jsonp($callback, [
     'name' => 'Abigail',
     'state' => 'CA',
 ]);
+```
+
+<a name="markdown-responses"></a>
+### Markdown Responses
+
+The `markdown` method may be used to return Markdown content with the `Content-Type` header set to `text/markdown`:
+
+```php
+return response()->markdown("# Hello\n\nWorld");
+```
+
+You may pass a custom HTTP status code and an array of additional headers as the second and third arguments:
+
+```php
+return response()->markdown('# Not Found', 404, ['X-Custom-Header' => 'Value']);
 ```
 
 <a name="file-downloads"></a>

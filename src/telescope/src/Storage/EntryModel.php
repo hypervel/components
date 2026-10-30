@@ -8,7 +8,6 @@ use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Collection;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 
 /**
@@ -119,13 +118,14 @@ class EntryModel extends Model
     protected function whereTag(Builder $query, EntryQueryOptions $options): static
     {
         if ($options->tag !== null) {
-            $tags = Collection::make(explode(',', $options->tag))->map(fn ($tag) => trim($tag));
+            // Stored tags can contain commas, so generated links need literal matching.
+            $tags = $options->exactTag
+                ? [$options->tag]
+                : array_map('trim', explode(',', $options->tag));
 
             $query->whereIn('uuid', function ($query) use ($tags) {
                 $query->select('entry_uuid')->from('telescope_entries_tags')
-                    ->whereIn('entry_uuid', function ($query) use ($tags) {
-                        $query->select('entry_uuid')->from('telescope_entries_tags')->whereIn('tag', $tags->all());
-                    });
+                    ->whereIn('tag', $tags);
             });
         }
 

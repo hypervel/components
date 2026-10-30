@@ -203,6 +203,23 @@ class DebouncedJobTest extends QueueTestCase
         Queue::assertPushed(DebouncedTestJob::class);
     }
 
+    public function testScopedQueueFakeReleasesDebounceState(): void
+    {
+        $job = new DebouncedWithMaxWaitJob('entity-1');
+        $cache = $this->app->get(Cache::class);
+        $key = DebounceLock::getKey($job);
+
+        Queue::fakeFor(function () use ($job, $cache, $key): void {
+            dispatch($job);
+
+            $this->assertTrue($cache->has($key));
+            $this->assertTrue($cache->has($key . ':first_dispatched_at'));
+        });
+
+        $this->assertNull($cache->get($key));
+        $this->assertNull($cache->get($key . ':first_dispatched_at'));
+    }
+
     public function testBusFakeRetainsDebounceMaximumWaitState(): void
     {
         Bus::fake();

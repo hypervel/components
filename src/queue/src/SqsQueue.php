@@ -16,6 +16,7 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Jobs\SqsJob;
@@ -26,7 +27,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -257,15 +257,16 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
 
             try {
                 $this->storeOverflowPayload($store, $path, $overflowPayload);
-            } catch (CanceledException $cancellation) {
+            } catch (Throwable $exception) {
                 try {
                     $this->cleanupOverflowPayloads($store, [$path]);
-                } catch (CanceledException) {
-                }
+                } catch (Throwable $cleanupException) {
+                    if (! Coroutine::causedByCancellation($exception)) {
+                        throw $cleanupException;
+                    }
 
-                throw $cancellation;
-            } catch (Throwable $exception) {
-                $this->cleanupOverflowPayloads($store, [$path]);
+                    PoolErrorReporter::report($cleanupException);
+                }
 
                 throw $exception;
             }
@@ -455,9 +456,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             $queueUrl = $this->getQueue($queue);
             $store = $overflow === [] ? null : $this->overflowStore();
             $chunks = $this->chunkBatchEntries($entries);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
             throw $exception;
@@ -475,24 +478,28 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if ($store !== null) {
                     $this->storeBatchOverflowPayloads($chunk, $overflow, $store);
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
             }
 
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
-            // Only explicit per-entry failures below are provably rejected.
+            // Only sender-fault entries below are treated as rejected.
             try {
                 $result = $this->sqs->sendMessageBatch([
                     'QueueUrl' => $queueUrl,
                     'Entries' => $chunk,
                 ]);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
@@ -520,7 +527,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $rejectedPaths = [];
 
                     foreach ($result['Failed'] as $rejected) {
-                        if (isset($overflow[$rejected['Id']])) {
+                        if (isset($overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                             $rejectedPaths[] = $overflow[$rejected['Id']]['path'];
                         }
                     }
@@ -537,21 +544,20 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
                 },
             );
+
+            if ($exception !== null && $notificationFailure !== null) {
+                $this->reportSecondaryFailure($notificationFailure);
+            }
+
             $exception ??= $notificationFailure;
 
             if ($exception === null) {
                 continue;
             }
 
-            try {
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable $throwable) {
-                $notificationFailure ??= $throwable;
-            }
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
-            throw $notificationFailure ?? $exception;
+            throw $exception;
         }
     }
 
@@ -612,7 +618,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         unset($entry);
                     }
 
-                    // SDK failures are ambiguous; only explicit rejects own safe cleanup.
+                    // SDK failures are ambiguous; only sender-fault rejects are cleaned up.
                     $result = $this->sqs->sendMessageBatch(['QueueUrl' => $queueUrl, 'Entries' => $chunk]);
                     $chunkIds = array_fill_keys(array_column($chunk, 'Id'), true);
 
@@ -627,7 +633,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                             $paths = [];
 
                             foreach ($result['Failed'] as $rejected) {
-                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']])) {
+                                if (isset($chunkIds[$rejected['Id']], $overflow[$rejected['Id']]) && $this->isSenderFaultRejection($rejected)) {
                                     $paths[] = $overflow[$rejected['Id']]['path'];
                                 }
                             }
@@ -639,9 +645,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     }
                 }
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return new OutboxBatchResult($accepted, failure: $exception);
         }
 
@@ -673,6 +681,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
+     * Determine if a failed batch entry's overflow payload may be cleaned up.
+     *
+     * Treat explicit sender-fault entries as rejected. SDK retries can make
+     * server-fault responses ambiguous, so those payloads are retained.
+     */
+    protected function isSenderFaultRejection(array $failure): bool
+    {
+        return ($failure['SenderFault'] ?? false) === true;
+    }
+
+    /**
      * Raise queueing-failed events for every outstanding message.
      */
     protected function raiseBatchFailedEvents(
@@ -681,17 +700,13 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
         ?string $queue,
         Throwable $exception,
     ): void {
-        $notificationFailure = $this->notifyBatchMembers(
+        $this->notifyBatchMembersOfFailure(
             array_keys($outstandingMessageIds),
             function (int $id) use ($messages, $queue, $exception): void {
                 $message = $messages[$id];
                 $this->raiseJobQueueingFailedEvent($queue, $message['job'], $message['payload'], $message['delay'], $exception);
             },
         );
-
-        if ($notificationFailure !== null) {
-            throw $notificationFailure;
-        }
     }
 
     /**
@@ -801,18 +816,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 $paths[] = $payload['path'];
                 $this->storeOverflowPayload($store, $payload['path'], $payload['payload']);
             }
-        } catch (CanceledException $cancellation) {
+        } catch (Throwable $exception) {
             if ($paths !== []) {
                 try {
                     $this->cleanupOverflowPayloads($store, $paths);
-                } catch (CanceledException) {
-                }
-            }
+                } catch (Throwable $cleanupException) {
+                    if (! Coroutine::causedByCancellation($exception)) {
+                        throw $cleanupException;
+                    }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
-            if ($paths !== []) {
-                $this->cleanupOverflowPayloads($store, $paths);
+                    PoolErrorReporter::report($cleanupException);
+                }
             }
 
             throw $exception;
@@ -833,10 +847,16 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 if (! $store->forget($path)) {
                     throw new RuntimeException("Unable to delete the SQS overflow payload [{$path}].");
                 }
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
             } catch (Throwable $exception) {
-                PoolErrorReporter::report($exception);
+                if ($cancellation === null && Coroutine::causedByCancellation($exception)) {
+                    $cancellation = $exception;
+                } else {
+                    try {
+                        $this->reportSecondaryFailure($exception);
+                    } catch (Throwable $reportingCancellation) {
+                        $cancellation ??= $reportingCancellation;
+                    }
+                }
             }
         }
 

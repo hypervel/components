@@ -1585,6 +1585,34 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($worker->memoryExceeded(-1));
     }
 
+    public function testWorkerMemoryExceededWhenMemoryIsAPercentage(): void
+    {
+        $worker = new class(...$this->workerDependencies()) extends Worker {
+            /**
+             * Get the current memory usage in megabytes.
+             */
+            protected function currentMemoryUsage(): float
+            {
+                return 512;
+            }
+        };
+
+        $original = ini_set('memory_limit', '1G');
+
+        try {
+            $this->assertTrue($worker->memoryExceeded('50%'));
+            $this->assertFalse($worker->memoryExceeded('51%'));
+            $this->assertFalse($worker->memoryExceeded('512.5'));
+
+            ini_set('memory_limit', '-1');
+
+            $this->assertFalse($worker->memoryExceeded('50%'));
+            $this->assertTrue($worker->memoryExceeded(512));
+        } finally {
+            ini_set('memory_limit', $original);
+        }
+    }
+
     public function testDaemonShouldRunSkipsLoopingEventWhenNoListenersAreRegistered(): void
     {
         $events = m::mock(EventDispatcher::class);
@@ -3501,7 +3529,7 @@ class InsomniacWorker extends Worker
         return ! ($this->isDownForMaintenance)();
     }
 
-    public function memoryExceeded(float $memoryLimit): bool
+    public function memoryExceeded(float|string $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
     }

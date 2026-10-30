@@ -27,7 +27,7 @@ class HasManyThrough extends HasOneOrManyThrough
      */
     public function one(): HasOneThrough
     {
-        return HasOneThrough::noConstraints(fn () => new HasOneThrough(
+        $relation = HasOneThrough::noConstraints(fn () => new HasOneThrough(
             tap($this->getQuery(), fn (Builder $query) => $query->getQuery()->joins = []),
             $this->farParent,
             $this->throughParent,
@@ -36,6 +36,10 @@ class HasManyThrough extends HasOneOrManyThrough
             $this->getLocalKeyName(),
             $this->getSecondLocalKeyName(),
         ));
+
+        $relation->morphConstraints = $this->morphConstraints;
+
+        return $relation;
     }
 
     public function initRelation(array $models, string $relation): array

@@ -1546,7 +1546,11 @@ class Route
             $this->wheres,
             ['utf8' => true],
             $this->getDomain() ?: '',
-            $this->httpOnly() ? ['http'] : ($this->httpsOnly() ? ['https'] : []),
+            match (true) {
+                $this->httpOnly() => ['http'],
+                $this->secure() => ['https'],
+                default => [],
+            },
             $this->methods
         );
     }

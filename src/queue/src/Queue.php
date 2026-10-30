@@ -11,10 +11,12 @@ use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
@@ -441,9 +443,11 @@ abstract class Queue
     {
         try {
             $stageViaOutbox = $this->shouldStageViaOutbox($job);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;
@@ -558,9 +562,11 @@ abstract class Queue
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
             $storedPayload = $this->preparePayloadForPush($job, $payload, $queue);
             $jobId = $callback($this, $storedPayload, $queue, $delay);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 
             throw $exception;
@@ -571,17 +577,21 @@ abstract class Queue
 
         try {
             $this->handlePayloadPushed($storedPayload, $queue);
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception = $throwable;
         }
 
         try {
             $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception ??= $throwable;
         }
 
@@ -622,15 +632,56 @@ abstract class Queue
             foreach ($notifications as $notification) {
                 try {
                     $notification($member);
-                } catch (CanceledException $cancellation) {
-                    throw $cancellation;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $exception ??= $throwable;
                 }
             }
         }
 
         return $exception;
+    }
+
+    /**
+     * Notify every batch member of a failure, reporting listener errors so they cannot replace it.
+     *
+     * @template TMember
+     * @param array<array-key, TMember> $members
+     * @param Closure(TMember): void $notification
+     */
+    protected function notifyBatchMembersOfFailure(array $members, Closure $notification): void
+    {
+        if (($exception = $this->notifyBatchMembers($members, $notification)) !== null) {
+            $this->reportSecondaryFailure($exception);
+        }
+    }
+
+    /**
+     * Report a failure that must not replace the primary error, without swallowing cancellation.
+     */
+    protected function reportSecondaryFailure(Throwable $exception): void
+    {
+        $reportingFailure = null;
+
+        try {
+            if ($this->container->has(ExceptionHandler::class)) {
+                $this->container->make(ExceptionHandler::class)->report($exception);
+
+                return;
+            }
+        } catch (Throwable $reportingFailure) {
+            if ($reportingFailure !== $exception && Coroutine::causedByCancellation($reportingFailure)) {
+                throw $reportingFailure;
+            }
+        }
+
+        try {
+            error_log((string) $exception . ($reportingFailure !== null && $reportingFailure !== $exception ? PHP_EOL . (string) $reportingFailure : ''));
+        } catch (Throwable) {
+        }
     }
 
     /**
@@ -777,6 +828,11 @@ abstract class Queue
      */
     protected function raiseJobQueueingFailedEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay, Throwable $exception): void
     {
+        // Cancellation is not a queueing failure; wrapped cancellation skips the event like a bare one.
+        if (Coroutine::causedByCancellation($exception)) {
+            return;
+        }
+
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');

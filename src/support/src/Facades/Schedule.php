@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
 
 /**
+ * @method static void alwaysOnOneServer(bool $value = true)
  * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|array|string $callback, array $parameters = [])
  * @method static \Hypervel\Console\Scheduling\Event command(\Symfony\Component\Console\Command\Command|string $command, array $parameters = [])
  * @method static string compileArrayInput(string|int $key, array $value)
@@ -18,6 +19,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static void flushMacros()
  * @method static void flushState()
  * @method static void group(\Closure $events)
+ * @method static bool hasBeenInterruptedSince(\DateTimeInterface $time)
  * @method static bool hasMacro(string $name)
  * @method static \Hypervel\Console\Scheduling\CallbackEvent job(object|string $job, \UnitEnum|string|null $queue = null, \UnitEnum|string|null $connection = null)
  * @method static void macro(string $name, callable|object $macro)
