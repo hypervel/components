@@ -299,6 +299,8 @@ trait QueriesRelationships
             );
         });
 
+        $relation->replayMacros($belongsTo->getQuery());
+
         $belongsTo->getQuery()->mergeConstraintsFrom($relation->getQuery());
 
         // @phpstan-ignore return.type (TModel IS TDeclaringModel in this context)
