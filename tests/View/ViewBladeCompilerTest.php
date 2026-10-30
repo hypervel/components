@@ -113,6 +113,7 @@ class ViewBladeCompilerTest extends TestCase
         $this->assertSame($internal, $relocated->getCompiledPath('/another/app/views/page.blade.php'));
         $this->assertNotSame($internal, $compiler->getCompiledPath('/shared/app/views/page.blade.php'));
         $this->assertNotSame($internal, $compiler->getCompiledPath('/views/page.blade.php'));
+        $this->assertNotSame($internal, $compiler->getCompiledPath('views/page.blade.php'));
     }
 
     public function testCompileCompilesFileAndReturnsContents(): void

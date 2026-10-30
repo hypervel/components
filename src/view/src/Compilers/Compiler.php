@@ -31,10 +31,11 @@ abstract class Compiler
      */
     public function getCompiledPath(string $path): string
     {
-        // Only a leading base directory is relative; external views retain their full identity.
+        // A null byte cannot occur in a real path, so relative in-app identities
+        // cannot collide with external views, including relative file paths.
         $identity = $this->basePath === ''
             ? $path
-            : Str::replaceStart(rtrim($this->basePath, '/\\') . DIRECTORY_SEPARATOR, '', $path);
+            : Str::replaceStart(rtrim($this->basePath, '/\\') . DIRECTORY_SEPARATOR, "\0", $path);
 
         return $this->cachePath . '/' . hash('xxh128', 'v3' . $identity) . '.' . $this->compiledExtension;
     }
