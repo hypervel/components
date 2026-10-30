@@ -78,6 +78,13 @@ class MarkdownParserTest extends TestCase
             '<p>!\[Welcome to Hypervel](https://hypervel.org/assets/img/welcome/background.svg)</p>',
         ];
 
+        yield 'literal punctuation in code' => [
+            new EncodedHtmlString('`[x] \\\server <b>`'),
+            '<p><code>[x] \\\server &lt;b&gt;</code></p>',
+        ];
+
+        yield 'numeric interpolation' => [new EncodedHtmlString(42), '<p>42</p>'];
+
         yield [
             new EncodedHtmlString(new HtmlString('Visit <span>https://hypervel.org/docs</span> to browse the documentation')),
             '<p>Visit <span>https://hypervel.org/docs</span> to browse the documentation</p>',

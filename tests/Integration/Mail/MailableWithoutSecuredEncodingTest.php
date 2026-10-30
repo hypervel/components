@@ -12,6 +12,7 @@ use Hypervel\Mail\Markdown;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\DomCrawler\Crawler;
 
 class MailableWithoutSecuredEncodingTest extends MailableTestCase
 {
@@ -119,5 +120,17 @@ TABLE, false);
             'Visit <span>https://hypervel.org/docs</span> to browse the documentation',
             '<em>Hi</em> Visit &lt;span&gt;https://hypervel.org/docs&lt;/span&gt; to browse the documentation',
         ];
+    }
+
+    public function testLiteralCodeEscapesArePreservedWithoutSecuredEncoding(): void
+    {
+        $html = $this->app->make(Markdown::class)->render('message-with-punctuation', [
+            'value' => 'ordinary text',
+            'punctuation' => '[x]',
+            'host' => 'safe',
+            'number' => 42,
+        ])->toHtml();
+
+        $this->assertSame('literal \[ and \] and \\\ and &#91; and &lt;', (new Crawler($html))->filter('code')->first()->text());
     }
 }

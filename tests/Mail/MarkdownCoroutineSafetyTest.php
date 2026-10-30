@@ -245,7 +245,7 @@ class MarkdownCoroutineSafetyTest extends TestCase
 
     protected function encodingMarker(): string
     {
-        return (new EncodedHtmlString('['))->toHtml() === '\['
+        return (new EncodedHtmlString('['))->toHtml() !== '['
             ? 'scoped'
             : 'default';
     }
