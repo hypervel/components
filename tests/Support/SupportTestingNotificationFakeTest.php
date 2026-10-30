@@ -15,7 +15,10 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Tests\Notifications\Fixtures\NotificationStub;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
+
+use function Hypervel\Coroutine\parallel;
 
 class SupportTestingNotificationFakeTest extends TestCase
 {
@@ -267,6 +270,30 @@ class SupportTestingNotificationFakeTest extends TestCase
         $notifications = $this->fake->sentNotifications()[UserStub::class][''][NotificationStub::class];
 
         $this->assertSame(['fr', null], array_column($notifications, 'locale'));
+    }
+
+    #[TestWith([false], 'fresh context')]
+    #[TestWith([true], 'copied context')]
+    public function testLocaleOverridesAreConsumedOnlyInTheSendingCoroutine(bool $copyContext): void
+    {
+        $this->fake->locale('fr');
+
+        parallel([
+            function (): void {
+                $this->fake->locale('de');
+                usleep(5000);
+                $this->fake->send($this->user, new NotificationStub);
+            },
+            fn () => $this->fake->send($this->user, new NotificationStub),
+        ], copyContext: $copyContext);
+
+        $this->assertSame('fr', $this->fake->locale);
+        $this->fake->send($this->user, new NotificationStub);
+        $this->fake->send($this->user, new NotificationStub);
+
+        $notifications = $this->fake->sentNotifications()[UserStub::class][''][NotificationStub::class];
+
+        $this->assertSame([$copyContext ? 'fr' : null, 'de', 'fr', null], array_column($notifications, 'locale'));
     }
 
     public function testAssertSentToWhenNotifiableHasFalsyShouldSend(): void

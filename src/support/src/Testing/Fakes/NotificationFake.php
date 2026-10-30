@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Exception;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Contracts\Notifications\Factory as NotificationFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -17,12 +18,18 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use UnitEnum;
+use WeakMap;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory
 {
     use Macroable;
     use MatchesProperties;
     use ReflectsClosures;
+
+    /**
+     * Context key for one-send locale overrides owned by individual fakes.
+     */
+    protected const string LOCALES_CONTEXT_KEY = '__notifications.fake_locales';
 
     /**
      * All of the notifications that have been sent.
@@ -32,7 +39,28 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     /**
      * Locale used when sending notifications.
      */
-    public ?string $locale = null;
+    public ?string $locale {
+        get {
+            /** @var null|WeakMap<self, string> $locales */
+            $locales = CoroutineContext::get(self::LOCALES_CONTEXT_KEY);
+
+            return $locales[$this] ?? null;
+        }
+        set {
+            /** @var null|WeakMap<self, string> $current */
+            $current = CoroutineContext::get(self::LOCALES_CONTEXT_KEY);
+            // Copied coroutine contexts share objects until a writer replaces them.
+            $locales = $current === null ? new WeakMap : clone $current;
+
+            if ($value === null) {
+                unset($locales[$this]);
+            } else {
+                $locales[$this] = $value;
+            }
+
+            CoroutineContext::set(self::LOCALES_CONTEXT_KEY, $locales);
+        }
+    }
 
     /**
      * Indicates if notifications should be serialized and restored when pushed to the queue.
