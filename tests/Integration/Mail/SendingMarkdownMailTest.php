@@ -10,7 +10,6 @@ use Hypervel\Mail\Mailables\Content;
 use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Mail\Markdown;
 use Hypervel\Support\Facades\Mail;
-use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Mime\Email;
 
@@ -96,23 +95,28 @@ class SendingMarkdownMailTest extends TestCase
         $mailable->assertSeeInText('Embed content: ');
         $mailable->assertDontSeeInText('Embed content: cid:');
 
-        $email = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage()->toString();
+        /** @var Email $email */
+        $email = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
 
-        $cid = rtrim(explode(' cid:', (new Stringable($email))->explode("\r\n")
-            ->filter(fn (string $line): bool => str_contains($line, ' content: cid:'))
-            ->first())[1], '=');
+        // The longer HTML filename may be folded or encoded in MIME headers.
+        $this->assertSame(1, preg_match('/Embed file: ([^\s<]+)/', $email->getHtmlBody(), $filename));
+        $this->assertSame(1, preg_match('/Embed content: cid:([^\s<]+)/', $email->getHtmlBody(), $contentId));
+        $this->assertSame(1, preg_match('/Embed file: ([^\s<]+)/', $email->getTextBody(), $textFilename));
+        $this->assertCount(1, $attachments = $email->getAttachments());
+        $attachment = $attachments[0];
 
-        $filename = explode('Embed file: ', (new Stringable($email))->explode("\r\n")
-            ->filter(fn (string $line): bool => str_contains($line, ' file:'))
-            ->first())[1];
+        $this->assertSame($filename[1], $attachment->getFilename());
+        $this->assertSame($contentId[1], $attachment->getContentId());
+        $this->assertSame('inline', $attachment->getDisposition());
+        $this->assertSame('application', $attachment->getMediaType());
+        $this->assertSame('x-php', $attachment->getMediaSubtype());
+        $this->assertSame('base64', $attachment->getPreparedHeaders()->get('Content-Transfer-Encoding')->getBodyAsString());
+        $this->assertStringStartsWith(pathinfo($textFilename[1], PATHINFO_FILENAME) . '_', $filename[1]);
 
-        $this->assertStringContainsString(<<<EOT
-        Content-Type: application/x-php; name={$filename}\r
-        Content-Transfer-Encoding: base64\r
-        Content-Disposition: inline; name={$filename};\r
-         filename={$filename}\r
-        Content-ID: <{$cid}>\r
-        EOT, $email);
+        $raw = $email->toString();
+        $this->assertStringContainsString('Content-Type: application/x-php;', $raw);
+        $this->assertStringContainsString(pathinfo($textFilename[1], PATHINFO_FILENAME), $raw);
+        $this->assertStringContainsString('Content-ID: <', $raw);
     }
 
     public function testEmbedData(): void

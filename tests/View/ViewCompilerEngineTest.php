@@ -131,7 +131,7 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->expects('getCompiledPath')
-            ->times(3)
+            ->twice()
             ->with($path)
             ->andReturn($compiled);
 
@@ -171,7 +171,7 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->expects('getCompiledPath')
-            ->times(3)
+            ->twice()
             ->with($path)
             ->andReturn($compiled);
 
@@ -213,7 +213,7 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->expects('getCompiledPath')
-            ->times(3)
+            ->twice()
             ->with($path)
             ->andReturn($compiled);
 
@@ -305,6 +305,27 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->get($path);
         $engine->get($path);
+    }
+
+    public function testEachCompiledVariantHasItsOwnFreshnessCheck(): void
+    {
+        $path = '/views/example.blade.php';
+        $files = m::mock(Filesystem::class);
+        $engine = $this->getEngine($files);
+
+        $engine->getCompiler()->expects('getCompiledPath')->twice()->with($path)
+            ->andReturn('/compiled/default.php', '/compiled/custom.php');
+        $engine->getCompiler()->expects('isExpired')->twice()->with($path)->andReturn(false, true);
+        $engine->getCompiler()->expects('compile')->with($path);
+        $files->expects('getRequire')->with('/compiled/default.php', [])->andReturnUsing(static function (): void {
+            echo 'default';
+        });
+        $files->expects('getRequire')->with('/compiled/custom.php', [])->andReturnUsing(static function (): void {
+            echo 'custom';
+        });
+
+        $this->assertSame('default', $engine->get($path));
+        $this->assertSame('custom', $engine->get($path));
     }
 
     public function testCompiledPathIsPoppedAfterSuccessfulRender(): void
