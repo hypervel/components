@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\SupportFacadeTest;
 
+use Closure;
+use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Container;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 use function Hypervel\Coroutine\parallel;
@@ -206,10 +210,11 @@ class SupportFacadeTest extends TestCase
         $this->assertFalse(FacadeStub::isFake());
     }
 
-    public function testScopedFacadeResolvesWithinEachCoroutine(): void
+    #[DataProvider('scopedBindings')]
+    public function testScopedFacadeResolvesWithinEachCoroutine(Closure $register): void
     {
         $app = new Container;
-        $app->scoped('foo', static fn (): stdClass => new stdClass);
+        $register($app);
         FacadeStub::setFacadeApplication($app);
 
         $resolve = function (): object {
@@ -223,6 +228,63 @@ class SupportFacadeTest extends TestCase
         [$first, $second] = parallel([$resolve, $resolve]);
 
         $this->assertNotSame($first, $second);
+
+        $app->bind('foo', static fn (): stdClass => new stdClass);
+        FacadeStub::clearResolvedInstance();
+
+        $this->assertSame(FacadeStub::getFacadeRoot(), FacadeStub::getFacadeRoot());
+    }
+
+    /**
+     * Provide bindings that resolve to scoped services.
+     */
+    public static function scopedBindings(): iterable
+    {
+        yield 'direct' => [static function (Container $app): void {
+            $app->scoped('foo', static fn (): stdClass => new stdClass);
+        }];
+
+        yield 'concrete delegate' => [static function (Container $app): void {
+            $app->scoped(stdClass::class);
+            $app->bind('foo', stdClass::class);
+        }];
+
+        yield 'contract delegate' => [static function (Container $app): void {
+            $app->scoped(ScopedServiceContract::class, ScopedService::class);
+            $app->bind('foo', ScopedServiceContract::class);
+        }];
+
+        yield 'attribute delegate' => [static function (Container $app): void {
+            $app->bind('foo', ScopedService::class);
+        }];
+
+        yield 'factory delegate' => [static function (Container $app): void {
+            $app->scoped(stdClass::class);
+            $app->bind('foo', static fn (Container $container): stdClass => $container->make(stdClass::class));
+        }];
+    }
+
+    public function testFacadeKeepsReplicatedScopedObjectsInTheirCopiedContexts(): void
+    {
+        $app = new Container;
+        $app->scoped(ReplicatedService::class);
+        $app->bind('foo', ReplicatedService::class);
+        FacadeStub::setFacadeApplication($app);
+        $parent = $app->make(ReplicatedService::class);
+
+        [$first, $second] = parallel([
+            fn () => FacadeStub::getFacadeRoot(),
+            fn () => FacadeStub::getFacadeRoot(),
+        ], copyContext: true);
+
+        $this->assertNotSame($parent, $first);
+        $this->assertNotSame($first, $second);
+        $this->assertSame($parent, FacadeStub::getFacadeRoot());
+
+        $app->bind('foo', static fn (): stdClass => new stdClass);
+        Facade::clearResolvedInstances();
+
+        $this->assertSame(FacadeStub::getFacadeRoot(), FacadeStub::getFacadeRoot());
     }
 
     public function testCachedFacadeResolvesOnce(): void
@@ -259,6 +321,26 @@ class FacadeStub extends Facade
     protected static function getFacadeAccessor(): string
     {
         return 'foo';
+    }
+}
+
+interface ScopedServiceContract
+{
+}
+
+#[Scoped]
+class ScopedService implements ScopedServiceContract
+{
+}
+
+class ReplicatedService implements ReplicableContext
+{
+    /**
+     * Copy the scoped service for a child coroutine.
+     */
+    public function replicate(): static
+    {
+        return clone $this;
     }
 }
 

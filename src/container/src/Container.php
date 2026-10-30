@@ -390,6 +390,24 @@ class Container implements ContainerContract
     }
 
     /**
+     * Determine if the object is a resolved scoped instance in this coroutine.
+     */
+    public function isScopedInstance(mixed $instance): bool
+    {
+        if (! is_object($instance)) {
+            return false;
+        }
+
+        foreach ($this->scopedInstances as $abstract => $_) {
+            if (CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract) === $instance) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Determine if a scoped binding has already been resolved in this coroutine.
      *
      * Scoped instances live in coroutine-local context, so this is false at the

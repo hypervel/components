@@ -38,6 +38,13 @@ abstract class Facade
     protected static array $resolvedInstance;
 
     /**
+     * Accessors whose resolved objects belong to a coroutine scope.
+     *
+     * @var array<string, true>
+     */
+    protected static array $scopedAccessors = [];
+
+    /**
      * Indicates if the resolved instance should be cached.
      *
      * When false, the facade resolves from the container on every access
@@ -239,8 +246,15 @@ abstract class Facade
         if (static::$app) {
             $instance = static::$app->make($name);
 
-            // Scoped services belong to one coroutine, so the worker-wide cache must not keep them.
-            if (static::$cached && ! static::$app->isScoped($name)) {
+            if (! static::$cached || isset(static::$scopedAccessors[$name]) || static::$app->isScoped($name)) {
+                return $instance;
+            }
+
+            // A transient factory can return a scoped service. Remember its lifetime
+            // so later calls neither retain the object nor repeat the scoped-store scan.
+            if (static::$app->isScopedInstance($instance)) {
+                static::$scopedAccessors[$name] = true;
+            } else {
                 static::$resolvedInstance[$name] = $instance;
             }
 
@@ -258,7 +272,9 @@ abstract class Facade
      */
     public static function clearResolvedInstance(?string $name = null): void
     {
-        unset(static::$resolvedInstance[$name ?? static::getFacadeAccessor()]);
+        $name ??= static::getFacadeAccessor();
+
+        unset(static::$resolvedInstance[$name], static::$scopedAccessors[$name]);
     }
 
     /**
@@ -270,6 +286,7 @@ abstract class Facade
     public static function clearResolvedInstances(): void
     {
         static::$resolvedInstance = [];
+        static::$scopedAccessors = [];
     }
 
     /**
