@@ -23,6 +23,7 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -32,6 +33,7 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 
 class DatabaseEloquentFactoryTest extends TestCase
@@ -359,6 +361,19 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertArrayNotHasKey('__test.user.creating', $_SERVER);
 
         unset($_SERVER['__test.user.making']);
+    }
+
+    public function testPrependingStatePreservesExplicitStateAndTheOriginalFactory(): void
+    {
+        $factory = UserFactory::new()->state(['name' => 'explicit']);
+
+        $derived = $factory->prependState(['name' => 'prepended', 'options' => 'derived'])->make();
+        $original = $factory->make();
+
+        $this->assertSame('explicit', $derived->name);
+        $this->assertSame('derived', $derived->options);
+        $this->assertSame('explicit', $original->name);
+        $this->assertNull($original->options);
     }
 
     public function testHasManyRelationship(): void
@@ -998,6 +1013,70 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(3, Post::count());
     }
 
+    public function testRecycledModelsDoNotLeakIntoLaterCallsOnTheSameFactory(): void
+    {
+        Factory::guessFactoryNamesUsing(function (string $model): string {
+            return $model . 'Factory';
+        });
+
+        $user = UserFactory::new()->create();
+
+        $factory = PostFactory::new()
+            ->has(CommentFactory::new()->count(2), 'comments');
+
+        $factory->recycle($user)->create();
+        $post = $factory->create();
+
+        $this->assertCount(2, $post->comments);
+        $this->assertNotContains($user->id, $post->comments->pluck('user_id'));
+    }
+
+    public function testRecyclingKeepsParentAndChildDefinitionsOnTheDerivedFactory(): void
+    {
+        $first = UserFactory::new()->create();
+        $second = UserFactory::new()->create();
+        $factory = PostFactory::new()
+            ->for(UserFactory::new(), 'user')
+            ->has(CommentFactory::new()->count(2), 'comments')
+            ->count(2);
+
+        foreach ([$first, $second] as $user) {
+            $posts = $factory->recycle($user)->create();
+
+            $this->assertSame([$user->id, $user->id], $posts->pluck('user_id')->all());
+            foreach ($posts as $post) {
+                $this->assertSame([$user->id, $user->id], $post->comments->pluck('user_id')->all());
+            }
+        }
+
+        $posts = $factory->create();
+        $userIds = $posts->pluck('user_id')
+            ->merge($posts->flatMap(fn (Post $post): Collection => $post->comments)->pluck('user_id'));
+
+        $this->assertNotContains($first->id, $userIds);
+        $this->assertNotContains($second->id, $userIds);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedFactoriesShareTheirExplicitParentAcrossTheGroup(bool $recycle): void
+    {
+        $factory = PostFactory::new()->count(3)->has(
+            CommentFactory::new()->count(2)->for(UserFactory::new(), 'user'),
+            'comments'
+        );
+
+        if ($recycle) {
+            $factory = $factory->recycle(RoleFactory::new()->create());
+        }
+
+        $posts = $factory->create();
+        $comments = $posts->flatMap(fn (Post $post): Collection => $post->comments);
+
+        $this->assertCount(6, $comments);
+        $this->assertCount(1, $comments->pluck('user_id')->unique());
+    }
+
     public function testNoModelsCanBeProvidedToRecycle(): void
     {
         Factory::guessFactoryNamesUsing(function ($model) {
@@ -1539,6 +1618,16 @@ class Comment extends Eloquent
     public function commentable()
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Get the comment's author.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
 

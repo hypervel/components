@@ -70,15 +70,16 @@ class BelongsToRelationship
 
     /**
      * Specify the model instances to always use when creating relationships.
-     *
-     * @return $this
      */
     public function recycle(Collection $recycle): static
     {
+        $relationship = clone $this;
+
         if ($this->factory instanceof Factory) {
-            $this->factory = $this->factory->recycle($recycle);
+            $relationship->factory = $this->factory->recycle($recycle);
+            $relationship->resolved = null;
         }
 
-        return $this;
+        return $relationship;
     }
 }
