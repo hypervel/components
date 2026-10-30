@@ -101,7 +101,8 @@ trait ResolvesDumpSource
             return false;
         }
 
-        return str_starts_with($file, $this->compiledViewPath) && str_ends_with($file, '.php');
+        // The compiler can use an extension other than .php; the footer identifies the source.
+        return str_starts_with($file, rtrim($this->compiledViewPath, '/\\') . DIRECTORY_SEPARATOR);
     }
 
     /**

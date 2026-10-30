@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer\Mappers;
 
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\View\Compilers\BladeCompiler;
-use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 use Throwable;
 
@@ -86,33 +84,19 @@ class BladeMapper
      */
     public function findCompiledView(string $compiledPath): ?string
     {
-        return once(fn () => $this->getKnownPaths())[$compiledPath] ?? null;
-    }
-
-    /**
-     * Get the list of known paths from the compiler engine.
-     *
-     * In Hypervel, compiled paths are stored in coroutine Context (not an instance
-     * property) because the CompilerEngine is a process-global singleton in Swoole.
-     *
-     * @return array<string, string>
-     */
-    protected function getKnownPaths(): array
-    {
-        $lastCompiled = CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []);
-
-        $knownPaths = [];
-        foreach ($lastCompiled as $lastCompiledPath) {
-            $compiledPath = $this->bladeCompiler->getCompiledPath($lastCompiledPath);
-            $compiledPath = realpath($compiledPath);
-            $originalPath = realpath($lastCompiledPath);
-
-            if (is_string($compiledPath) && is_string($originalPath)) {
-                $knownPaths[$compiledPath] = $originalPath;
-            }
+        if (! str_starts_with($compiledPath, rtrim(config()->string('view.compiled'), '/\\') . DIRECTORY_SEPARATOR)) {
+            return null;
         }
 
-        return $knownPaths;
+        // Rendering has unwound by now and the active echo format may differ,
+        // so read the source path recorded in the compiled file's footer.
+        $contents = @file_get_contents($compiledPath);
+
+        if ($contents === false || ! preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches)) {
+            return null;
+        }
+
+        return is_file($matches[1]) ? $matches[1] : null;
     }
 
     /**
@@ -161,9 +145,11 @@ class BladeMapper
             $value = $this->bladeCompiler->compileString($value);
 
             return $this->trimEmptyLines($value);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             report($e);
 
             return $value;
