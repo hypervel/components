@@ -78,14 +78,15 @@ trait ResolvesDumpSource
             return null;
         }
 
-        $relativeFile = $file;
-
         if ($this->isCompiledViewFile($file)) {
             $file = $this->getOriginalFileForCompiledView($file);
             $line = null;
         }
 
-        if (str_starts_with($file, $this->basePath)) {
+        // External views keep their original path rather than the compiled filename.
+        $relativeFile = $file;
+
+        if (str_starts_with($file, $this->basePath . DIRECTORY_SEPARATOR)) {
             $relativeFile = substr($file, strlen($this->basePath) + 1);
         }
 

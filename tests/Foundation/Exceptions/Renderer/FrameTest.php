@@ -74,6 +74,11 @@ class FrameTest extends TestCase
             '/path/to/your-app',
             '/other/path/app/Http/Controllers/UserController.php',
         ];
+        yield 'base directory repeated inside the path' => [
+            ['file' => '/app/modules/app/File.php', 'line' => 10],
+            '/app',
+            'modules/app/File.php',
+        ];
     }
 
     // REMOVED: test_it_normalizes_file_path_on_windows - Swoole doesn't run on Windows
@@ -105,6 +110,16 @@ class FrameTest extends TestCase
             ['file' => '/other/path/file.php', 'line' => 10],
             '/path/to/your-app',
             true,
+        ];
+        yield 'outside base path with matching prefix' => [
+            ['file' => '/path/to/your-app-other/file.php', 'line' => 10],
+            '/path/to/your-app',
+            true,
+        ];
+        yield 'application directory with vendor prefix' => [
+            ['file' => '/path/to/your-app/vendor-tools/file.php', 'line' => 10],
+            '/path/to/your-app',
+            false,
         ];
         yield 'vendor in filename' => [
             ['file' => '/path/to/your-app/app/vendorfile.php', 'line' => 10],

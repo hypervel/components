@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Exceptions\Renderer;
 
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Concerns\ResolvesSourceHref;
+use Hypervel\Support\Str;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 use function Hypervel\Filesystem\join_paths;
@@ -76,7 +77,7 @@ class Frame
         return match (true) {
             ! isset($this->frame['file']) => '[internal function]',
             ! is_string($this->frame['file']) => '[unknown file]',
-            default => str_replace($this->basePath . DIRECTORY_SEPARATOR, '', $this->frame['file']),
+            default => Str::replaceStart($this->basePath . DIRECTORY_SEPARATOR, '', $this->frame['file']),
         };
     }
 
@@ -160,8 +161,9 @@ class Frame
         // A generated AOP proxy runs its source file's code, so the source decides where the frame comes from.
         $file = GenerateProxies::proxySources()[$this->frame['file']] ?? $this->frame['file'];
 
-        return ! str_starts_with($file, $this->basePath)
-            || str_starts_with($file, join_paths($this->basePath, 'vendor'));
+        // Match complete directories so sibling names do not change a frame's classification.
+        return ! str_starts_with($file, $this->basePath . DIRECTORY_SEPARATOR)
+            || str_starts_with($file, join_paths($this->basePath, 'vendor') . DIRECTORY_SEPARATOR);
     }
 
     /**

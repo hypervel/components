@@ -143,9 +143,10 @@ class RenderBladeFilesTest extends TestCase
         }
     }
 
-    #[TestWith([false])]
-    #[TestWith([true])]
-    public function testBladeMapperFindsTheSourceAfterRenderingHasUnwound(bool $customFormat): void
+    #[TestWith([false, false], 'default echo format')]
+    #[TestWith([true, false], 'custom echo format')]
+    #[TestWith([true, true], 'custom echo format with symlinked cache')]
+    public function testBladeMapperFindsTheSourceAfterRenderingHasUnwound(bool $customFormat, bool $symlinkedCache): void
     {
         $files = new Filesystem;
         $directory = ParallelTesting::tempDir('RenderBladeFilesTest');
@@ -155,6 +156,14 @@ class RenderBladeFilesTest extends TestCase
         $files->put($path, "First line\n{{ missing_blade_mapping_test_function() }}");
 
         try {
+            if ($symlinkedCache) {
+                $files->ensureDirectoryExists($directory . '/compiled');
+                symlink($directory . '/compiled', $directory . '/linked');
+                config(['view.compiled' => $directory . '/linked']);
+                $this->app->forgetInstance('blade.compiler');
+                $this->app->make('view.engine.resolver')->forget('blade');
+            }
+
             $compiler = $this->app->make('blade.compiler');
             $render = fn (): string => $this->app->make('view')->file($path)->render();
 

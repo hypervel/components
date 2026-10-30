@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Providers;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\DevCommands;
@@ -19,7 +20,9 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
 use ReflectionFunction;
@@ -197,5 +200,53 @@ class FoundationServiceProviderTest extends TestCase
             'blank' => ['', CliDumper::class],
             'unknown' => ['unknown', CliDumper::class],
         ];
+    }
+
+    #[TestWith([false], 'view inside the application')]
+    #[TestWith([true], 'view outside the application with a matching path prefix')]
+    public function testDumperResolvesBladeSourceFromSymlinkedCompiledDirectory(bool $outsideApplication): void
+    {
+        $filesystem = new Filesystem;
+        $root = ParallelTesting::tempDir('FoundationDumperSource');
+        $originalBasePath = $this->app->basePath();
+        $directory = $outsideApplication
+            ? $root . '/app-dump-sources'
+            : $root . '/app/storage/framework/dump-sources';
+        $filesystem->deleteDirectory($root);
+        $originalFormatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
+        $originalFormat = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+        unset($_SERVER['VAR_DUMPER_FORMAT']);
+        $originalHandler = VarDumper::setHandler(null);
+
+        try {
+            $this->app->setBasePath($root . '/app');
+            $filesystem->ensureDirectoryExists($directory . '/compiled');
+            symlink($directory . '/compiled', $directory . '/linked');
+            config(['view.compiled' => $directory . '/linked']);
+            $this->app->forgetInstance('blade.compiler');
+            $this->app->make('view.engine.resolver')->forget('blade');
+
+            $_SERVER['VAR_DUMPER_FORMAT'] = 'html';
+            (new FoundationServiceProvider($this->app))->registerDumper();
+            $path = $directory . '/example.blade.php';
+            $filesystem->put($path, "@dump('example value')");
+
+            $output = $this->app->make('view')->file($path)->render();
+
+            $this->assertStringContainsString(
+                $outsideApplication ? $path : 'storage/framework/dump-sources/example.blade.php',
+                $output,
+            );
+        } finally {
+            unset($_SERVER['VAR_DUMPER_FORMAT']);
+            VarDumper::setHandler($originalHandler);
+
+            if ($originalFormatExists) {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $originalFormat;
+            }
+
+            $this->app->setBasePath($originalBasePath);
+            $filesystem->deleteDirectory($root);
+        }
     }
 }

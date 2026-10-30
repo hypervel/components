@@ -84,7 +84,11 @@ class BladeMapper
      */
     public function findCompiledView(string $compiledPath): ?string
     {
-        if (! str_starts_with($compiledPath, rtrim(config()->string('view.compiled'), '/\\') . DIRECTORY_SEPARATOR)) {
+        // Frames contain resolved paths, even when the configured cache directory is a symlink.
+        $directory = config()->string('view.compiled');
+        $directory = realpath($directory) ?: $directory;
+
+        if (! str_starts_with($compiledPath, rtrim($directory, '/\\') . DIRECTORY_SEPARATOR)) {
             return null;
         }
 
