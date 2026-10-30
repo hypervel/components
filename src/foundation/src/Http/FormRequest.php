@@ -19,6 +19,7 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Concerns\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
+use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
@@ -266,6 +267,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     protected function validateNoUnknownFields(Validator $validator): void
     {
         $input = $this->isJson() ? $this->json()->all() : $this->request->all();
+
+        $input = Arr::except($input, ['_token', '_method']);
 
         UnknownFields::validate($validator, $input, $this->unfilteredValidationRules);
     }
