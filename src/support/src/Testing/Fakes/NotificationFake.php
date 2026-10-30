@@ -280,6 +280,9 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function sendNow(mixed $notifiables, mixed $notification, ?array $channels = null): void
     {
+        $locale = $this->locale;
+        $this->locale = null;
+
         if (! $notifiables instanceof Collection && ! is_array($notifiables)) {
             $notifiables = [$notifiables];
         }
@@ -308,7 +311,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
                     : $notification,
                 'channels' => $notifiableChannels,
                 'notifiable' => $notifiable,
-                'locale' => $notification->locale ?? $this->locale ?? value(function () use ($notifiable) {
+                'locale' => $notification->locale ?? $locale ?? value(function () use ($notifiable) {
                     if ($notifiable instanceof HasLocalePreference) {
                         return $notifiable->preferredLocale();
                     }

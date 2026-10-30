@@ -259,6 +259,16 @@ class SupportTestingNotificationFakeTest extends TestCase
         });
     }
 
+    public function testLocaleIsNotUsedForLaterNotifications(): void
+    {
+        $this->fake->locale('fr')->send($this->user, new NotificationStub);
+        $this->fake->send($this->user, new NotificationStub);
+
+        $notifications = $this->fake->sentNotifications()[UserStub::class][''][NotificationStub::class];
+
+        $this->assertSame(['fr', null], array_column($notifications, 'locale'));
+    }
+
     public function testAssertSentToWhenNotifiableHasFalsyShouldSend(): void
     {
         $user = new LocalizedUserStub;

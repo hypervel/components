@@ -1731,7 +1731,7 @@ Notification::locale('es')->send(
 );
 ```
 
-Calling `Notification::locale` from a service provider's `register` or `boot` method configures the default locale for later executions. Calls made after the application has booted apply only to the current execution.
+Calling `Notification::locale` from a service provider's `register` or `boot` method configures the default locale for later executions. Calls made after the application has booted apply only to the next `send` or `sendNow` call in the current execution. Later sends return to the boot default. Both the boot default and a per-send override take precedence over a notifiable's preferred locale.
 
 <a name="user-preferred-locales"></a>
 #### User Preferred Locales

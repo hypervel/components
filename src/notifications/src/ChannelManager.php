@@ -25,13 +25,16 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     use Macroable;
     use ResolvesQueueRoutes;
 
+    // Laravel's cached $notificationSender is intentionally omitted: overlapping
+    // sends must not change one another's locale.
+
     /**
      * Context key for the per-request default channel override.
      */
     protected const string DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
 
     /**
-     * Context key for the per-request default locale override.
+     * Context key for the next send's locale override.
      */
     protected const string DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
 
@@ -41,7 +44,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     protected string $defaultChannel = 'mail';
 
     /**
-     * The locale used when sending notifications.
+     * The default notification locale configured during boot.
      */
     protected ?string $locale = null;
 
@@ -50,12 +53,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function send(mixed $notifiables, mixed $notification): void
     {
-        (new NotificationSender(
-            $this,
-            $this->container->make(BusDispatcherContract::class),
-            $this->container->make(EventDispatcher::class),
-            $this->getLocale()
-        ))->send($notifiables, $notification);
+        $this->resolveNotificationSender()->send($notifiables, $notification);
     }
 
     /**
@@ -63,12 +61,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function sendNow(mixed $notifiables, mixed $notification, ?array $channels = null): void
     {
-        (new NotificationSender(
-            $this,
-            $this->container->make(BusDispatcherContract::class),
-            $this->container->make(EventDispatcher::class),
-            $this->getLocale()
-        ))->sendNow($notifiables, $notification, $channels);
+        $this->resolveNotificationSender()->sendNow($notifiables, $notification, $channels);
     }
 
     /**
@@ -127,6 +120,23 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
 
             throw $e;
         }
+    }
+
+    /**
+     * Resolve the notification sender instance.
+     */
+    protected function resolveNotificationSender(): NotificationSender
+    {
+        $sender = (new NotificationSender(
+            $this,
+            $this->container->make(BusDispatcherContract::class),
+            $this->container->make(EventDispatcher::class),
+        ))->locale($this->getLocale());
+
+        // Consume the execution override without changing the worker's boot default.
+        CoroutineContext::forget(self::DEFAULT_LOCALE_CONTEXT_KEY);
+
+        return $sender;
     }
 
     /**
