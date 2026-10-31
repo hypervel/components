@@ -6,6 +6,7 @@ namespace Hypervel\Http\Resources\JsonApi;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\AnonymousResourceCollection as BaseAnonymousResourceCollection;
@@ -28,7 +29,7 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
     public function with(Request $request): array
     {
         $request = $this->resolveJsonApiRequestFrom($request);
-        $included = $this->includedResources ??= JsonApiResource::resolveIncludedResources($this->collection, $request);
+        $included = $this->resolveIncludedResources($request);
 
         return [
             ...($included !== [] || $request->has('include')) ? ['included' => $included] : [],
@@ -44,11 +45,45 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
     #[Override]
     public function toAttributes(Request $request): array|Arrayable|JsonSerializable
     {
-        JsonApiResource::prepareResourceRelationships($this->collection, $this->resolveJsonApiRequestFrom($request));
+        if ($this->includedResources === null) {
+            $this->loadMissingRequestedRelationships($request);
+        }
 
         return $this->collection
             ->map(fn ($resource) => $resource->resolveResourceData($request))
             ->all();
+    }
+
+    /**
+     * Load the requested relationships for all of the resources at once.
+     */
+    protected function loadMissingRequestedRelationships(Request $request): void
+    {
+        $request = $this->resolveJsonApiRequestFrom($request);
+        $resource = $this->collection->first();
+
+        // Honor custom loading before the default batch can populate those relationships.
+        if ($resource instanceof JsonApiResource && ! $resource->usesDefaultRelationshipLoading()) {
+            $resource->loadMissingRequestedRelationshipsOn(
+                $request,
+                $this->collection->pluck('resource')->whereInstanceOf(Model::class)
+            );
+        }
+
+        JsonApiResource::prepareResourceRelationships($this->collection, $request);
+    }
+
+    /**
+     * Load the requested relationships and resolve the included resources.
+     */
+    protected function resolveIncludedResources(JsonApiRequest $request): array
+    {
+        if ($this->includedResources === null) {
+            $this->loadMissingRequestedRelationships($request);
+            $this->includedResources = JsonApiResource::resolveIncludedResources($this->collection, $request);
+        }
+
+        return $this->includedResources;
     }
 
     /**
@@ -69,7 +104,7 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
         $request = $this->resolveJsonApiRequestFrom($request);
 
         // Merge duplicate linkage before the primary collection is serialized.
-        $this->includedResources ??= JsonApiResource::resolveIncludedResources($this->collection, $request);
+        $this->resolveIncludedResources($request);
 
         return parent::toResponse($request);
     }

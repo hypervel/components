@@ -6,6 +6,7 @@ namespace Hypervel\Http\Resources\JsonApi\Concerns;
 
 use Generator;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
@@ -22,6 +23,7 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use JsonSerializable;
+use ReflectionMethod;
 use RuntimeException;
 use WeakMap;
 
@@ -60,6 +62,13 @@ trait ResolvesJsonApiElements
      * Cached loaded relationship identifiers.
      */
     protected array $loadedRelationshipIdentifiers = [];
+
+    /**
+     * Whether each resource class uses the default relationship loader.
+     *
+     * @var array<class-string, bool>
+     */
+    protected static array $loadsRelationshipsByDefault = [];
 
     /**
      * The maximum relationship depth.
@@ -164,14 +173,14 @@ trait ResolvesJsonApiElements
         if ($data instanceof Arrayable) {
             $data = $data->toArray();
         } elseif ($data instanceof JsonSerializable) {
-            $data = $data->jsonSerialize();
+            $data = (new Collection($data->jsonSerialize()))->all();
         }
 
         $usesSparseFieldset = $this->usesRequestQueryString && $request->hasSparseFieldset($resourceType);
 
         $sparseFieldset = $usesSparseFieldset ? $request->sparseFields($resourceType) : [];
 
-        $data = (new Collection($data))
+        $data = (new Collection($this->filter($data)))
             ->mapWithKeys(fn ($value, $key) => is_int($key) ? [$value => $this->resource->{$value}] : [$key => $value])
             ->when($usesSparseFieldset, fn ($attributes) => $attributes->only($sparseFieldset))
             ->transform(fn ($value) => value($value, $request))
@@ -255,6 +264,11 @@ trait ResolvesJsonApiElements
                 return;
             }
 
+            // Default loading stays batched across parents in prepareResourceRelationships().
+            if (! empty($requestedRelationships) && ! $this->usesDefaultRelationshipLoading()) {
+                $this->loadMissingRequestedRelationships($request, $relatedModels, $resourceClass, $requestedRelationships);
+            }
+
             $relationship = $resource->{$relationName}();
 
             $isUnique = ! $relationship instanceof BelongsToMany;
@@ -318,6 +332,82 @@ trait ResolvesJsonApiElements
                 ];
             }
         )];
+    }
+
+    /**
+     * Load the requested relationships that are missing on the given models at once.
+     *
+     * @internal
+     */
+    public function loadMissingRequestedRelationshipsOn(JsonApiRequest $request, Collection $models): void
+    {
+        $requestedRelationships = (new Collection($this->requestedResourceRelationships($request)))
+            ->flatMap(fn ($relationship) => [
+                $relationship,
+                ...array_map(fn ($nested) => $relationship . '.' . $nested, $this->requestedResourceRelationships($request, $relationship)),
+            ])
+            ->all();
+
+        if (! empty($requestedRelationships)) {
+            $this->loadMissingRequestedRelationships($request, $models, static::class, $requestedRelationships);
+        }
+    }
+
+    /**
+     * Load the requested relationships that are missing on the given related models.
+     */
+    protected function loadMissingRequestedRelationships(
+        JsonApiRequest $request,
+        Collection $relatedModels,
+        ?string $resourceClass,
+        array $requestedRelationships
+    ): void {
+        // Eager loading uses the first model's class and connection for the whole group.
+        $relatedModels->groupBy(fn ($relatedModel) => serialize([$relatedModel::class, $relatedModel->getConnectionName()]))->each(function ($relatedModels) use ($request, $resourceClass, $requestedRelationships) {
+            $relatedResource = rescue(fn () => $relatedModels->first()->toResource($resourceClass), report: false);
+
+            if (! $relatedResource instanceof JsonApiResource) {
+                return;
+            }
+
+            $relatedModels = new EloquentCollection($relatedModels->all());
+
+            $resourceRelationships = (new Collection($relatedResource->toRelationships($request)))
+                ->map(fn ($value, $key) => is_int($key) ? new RelationResolver($value) : new RelationResolver($key, $value))
+                ->keyBy(fn ($relationResolver) => $relationResolver->relationName)
+                ->only(array_map(fn ($relationship) => explode('.', $relationship, 2)[0], $requestedRelationships));
+
+            $relatedModels->loadMissing($resourceRelationships->keys()->all());
+
+            foreach ($resourceRelationships as $relationName => $relationResolver) {
+                $nestedRelationships = (new Collection($requestedRelationships))
+                    ->filter(fn ($relationship) => str_starts_with($relationship, $relationName . '.'))
+                    ->map(fn ($relationship) => substr($relationship, strlen($relationName) + 1))
+                    ->values()
+                    ->all();
+
+                if (empty($nestedRelationships)) {
+                    continue;
+                }
+
+                $this->loadMissingRequestedRelationships(
+                    $request,
+                    $relatedModels->toBase()->map->getRelation($relationName)->flatten(1)->filter(),
+                    $relationResolver->resourceClass(),
+                    $nestedRelationships,
+                );
+            }
+        });
+    }
+
+    /**
+     * Determine whether the resource uses the framework's default relationship loader.
+     *
+     * @internal
+     */
+    public function usesDefaultRelationshipLoading(): bool
+    {
+        return static::$loadsRelationshipsByDefault[static::class] ??= (new ReflectionMethod(static::class, 'loadMissingRequestedRelationships'))->class === self::class;
     }
 
     /**
