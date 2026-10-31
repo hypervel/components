@@ -2814,7 +2814,7 @@ class Builder implements BuilderContract
         $this->markKeysetCondition($bindingOffset, $column);
         $this->orderBy($orderColumn, SortDirection::Descending)->limit($perPage);
         $property = $this->unions ? 'unionOrders' : 'orders';
-        $this->{$property}[array_key_last($this->{$property})]['keyset'] = true;
+        $this->{$property}[array_key_last($this->{$property})]['keyset'] = $column;
 
         return $this;
     }
@@ -2847,7 +2847,7 @@ class Builder implements BuilderContract
         $this->markKeysetCondition($bindingOffset, $column);
         $this->orderBy($orderColumn, SortDirection::Ascending)->limit($perPage);
         $property = $this->unions ? 'unionOrders' : 'orders';
-        $this->{$property}[array_key_last($this->{$property})]['keyset'] = true;
+        $this->{$property}[array_key_last($this->{$property})]['keyset'] = $column;
 
         return $this;
     }
@@ -3412,7 +3412,8 @@ class Builder implements BuilderContract
         // A bounded iteration cannot silently replace the set a scope's new order chooses.
         foreach ($source->{$property} as $order) {
             if (isset($order['keysetLimited'])) {
-                $this->ensureLimitedIterationOrdersById($order['column'], $order['direction'] === 'desc');
+                // The marker retains the WHERE source; a union's order names its output.
+                $this->ensureLimitedIterationOrdersById($order['keyset'], $order['direction'] === 'desc');
             }
         }
 

@@ -265,6 +265,40 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         yield 'filtering only' => ['filter', false, false, false];
     }
 
+    #[TestWith([false, false], 'ascending alias')]
+    #[TestWith([true, false], 'descending alias')]
+    #[TestWith([false, true], 'opposite direction')]
+    public function testLimitedUnionIdIterationValidatesTheSourceOfAScopedAlias(bool $descending, bool $conflicting): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 6)));
+
+        foreach ($descending ? ['chunkByIdDesc', 'lazyByIdDesc'] : ['chunkById', 'lazyById'] as $method) {
+            $query = TestPost::query()->select('id as record_id')->where('id', '<=', 3)
+                ->unionAll(TestPost::query()->select('id as record_id')->where('id', '>', 3))
+                ->limit(3)->withGlobalScope('sort', fn (Builder $builder) => $builder->reorder('record_id', $descending || $conflicting ? 'desc' : 'asc'));
+            $ids = [];
+
+            try {
+                if (str_starts_with($method, 'lazy')) {
+                    $query->{$method}(1, 'id', 'record_id')->each(function (TestPost $post) use (&$ids): void {
+                        $ids[] = $post->record_id;
+                    });
+                } else {
+                    $query->{$method}(1, function ($rows) use (&$ids): void {
+                        array_push($ids, ...$rows->pluck('record_id')->all());
+                    }, 'id', 'record_id');
+                }
+
+                $this->assertFalse($conflicting, 'A conflicting scope order must fail before processing rows.');
+                $this->assertSame($descending ? [6, 5, 4] : [1, 2, 3], $ids);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertTrue($conflicting);
+                $this->assertStringContainsString('fromSub()', $exception->getMessage());
+                $this->assertSame([], $ids);
+            }
+        }
+    }
+
     public function testCursorPaginationKeepsItsCompoundOrderWhenAScopeReplacesIt(): void
     {
         TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
