@@ -55,9 +55,9 @@ class CacheEventMutex implements EventMutex, CacheAware
         $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            return ! $store
+            return $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
-                ->get(fn () => true);
+                ->isLocked();
         }
 
         return $repository->has($event->mutexName());

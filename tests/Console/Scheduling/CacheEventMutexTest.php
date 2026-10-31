@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use Hypervel\Cache\ArrayLock;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StorageStore;
@@ -124,6 +125,38 @@ class CacheEventMutexTest extends TestCase
 
         $this->assertTrue($this->cacheMutex->exists($this->event));
     }
+
+    public function testCheckingForOverlapDoesNotAcquireLockWithLockProvider(): void
+    {
+        $store = new class extends ArrayStore {
+            public int $acquisitions = 0;
+
+            /**
+             * Get a lock instance.
+             */
+            public function lock(string $name, int $seconds = 0, ?string $owner = null): ArrayLock
+            {
+                return new class($this, $name, $seconds, $owner) extends ArrayLock {
+                    /**
+                     * Attempt to acquire the lock.
+                     */
+                    public function acquire(): bool
+                    {
+                        ++$this->store->acquisitions;
+
+                        return parent::acquire();
+                    }
+                };
+            }
+        };
+
+        $this->cacheFactory->repository = new Repository($store);
+
+        $this->assertFalse($this->cacheMutex->exists($this->event));
+        $this->assertSame(0, $store->acquisitions);
+    }
+
+    // REMOVED: Locks without isLocked() cannot implement Hypervel's Lock contract.
 
     public function testResetOverlapWithLockProvider(): void
     {
