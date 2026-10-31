@@ -1082,12 +1082,14 @@ class Str
             $replace = iterator_to_array($replace);
         }
 
+        // Indexing avoids repeatedly renumbering large binding lists while formatting query errors.
+        $replace = array_values($replace);
         $segments = explode($search, $subject);
 
         $result = array_shift($segments);
 
-        foreach ($segments as $segment) {
-            $result .= self::toStringOr(array_shift($replace) ?? $search, $search) . $segment;
+        foreach ($segments as $index => $segment) {
+            $result .= self::toStringOr($replace[$index] ?? $search, $search) . $segment;
         }
 
         return $result;
