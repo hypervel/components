@@ -14,14 +14,18 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Bus;
@@ -35,6 +39,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use UnitEnum;
 
 #[WithMigration]
 #[WithMigration('cache')]
@@ -464,6 +469,60 @@ class UniqueJobTest extends QueueTestCase
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
+    public function testRolledBackQueuedListenerReleasesItsUniqueLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        config()->set('cache.default', 'array');
+
+        Event::listen(UniqueTestEvent::class, UniqueTestAfterCommitListener::class);
+
+        $size = Queue::size();
+
+        try {
+            DB::transaction(function (): never {
+                event(new UniqueTestEvent);
+
+                throw new Exception('Rollback.');
+            });
+        } catch (Exception) {
+        }
+
+        event(new UniqueTestEvent);
+
+        $this->assertSame($size + 1, Queue::size());
+    }
+
+    public function testLockIsReleasedWhenPushingToTheQueueFails(): void
+    {
+        Queue::extend('failing', fn () => new class implements ConnectorInterface {
+            /**
+             * Establish a queue connection.
+             */
+            public function connect(array $config): QueueContract
+            {
+                return new class extends NullQueue {
+                    /**
+                     * Push a new job onto the queue.
+                     */
+                    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): never
+                    {
+                        throw new RuntimeException('Queue unavailable.');
+                    }
+                };
+            }
+        });
+
+        config()->set('queue.connections.failing', ['driver' => 'failing']);
+
+        try {
+            dispatch(new UniqueTestJob)->onConnection('failing');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get());
+    }
+
     /**
      * Get the unique lock key for the given job.
      */
@@ -717,6 +776,16 @@ class UniqueTestAfterCommitJob implements ShouldQueue, ShouldBeUnique
 
 class UniqueTestEvent
 {
+}
+
+class UniqueTestAfterCommitListener implements ShouldQueueAfterCommit, ShouldBeUnique
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(UniqueTestEvent $event): void
+    {
+    }
 }
 
 class UniqueTestListener implements ShouldQueue, ShouldBeUnique
