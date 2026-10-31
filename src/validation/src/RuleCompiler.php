@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Rules\Exists;
@@ -159,11 +160,13 @@ final class RuleCompiler
             return;
         }
 
+        // Cached base plans own plain values, never a caller's mutable builder.
+        // Subclass plans keep the original object for their validation hooks.
         self::appendDelegatedCheck(
             $plan,
             ruleName: $ruleName,
             parameters: $parameters,
-            originalRule: $rule,
+            originalRule: $rule instanceof ParameterizedRule ? [$ruleName, ...$parameters] : $rule,
         );
     }
 

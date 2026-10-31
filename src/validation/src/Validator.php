@@ -1736,7 +1736,7 @@ class Validator implements ValidatorContract
     /**
      * Add conditions to a given field based on a Closure.
      */
-    public function sometimes(array|string $attribute, array|string $rules, callable $callback): static
+    public function sometimes(array|string $attribute, array|object|string $rules, callable $callback): static
     {
         $payload = new Fluent($this->data);
 

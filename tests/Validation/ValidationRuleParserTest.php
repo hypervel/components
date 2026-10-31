@@ -4,17 +4,46 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\NestedRules;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationRuleParserTest extends TestCase
 {
+    public function testParameterizedRulesAreNotStringified(): void
+    {
+        $rule = new class implements ParameterizedRule {
+            /**
+             * Get the rule name followed by its parameters.
+             */
+            public function toArray(): array
+            {
+                return ['accepted_if', 'other', 'foo\",bar'];
+            }
+
+            /**
+             * Reject serialization to verify the structured parsing path.
+             */
+            public function __toString(): string
+            {
+                throw new LogicException('This rule must not be stringified.');
+            }
+        };
+
+        $parser = new ValidationRuleParser([]);
+
+        $this->assertSame(['field' => [$rule]], $parser->explode(['field' => $rule])->rules);
+        $this->assertSame(['field' => [$rule]], $parser->explode(['field' => [$rule]])->rules);
+        $this->assertSame(['AcceptedIf', ['other', 'foo\",bar']], ValidationRuleParser::parse($rule));
+    }
+
     public function testConditionalRulesAreProperlyExpandedAndFiltered(): void
     {
         $isAdmin = true;
