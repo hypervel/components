@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Database\DatabaseEloquentMorphOneOfManyTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentMorphOneOfManyTest extends TestCase
@@ -42,6 +45,11 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
             $table->string('state');
             $table->string('type')->nullable();
         });
+
+        $this->schema()->create('comments', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->nullableMorphs('commentable');
+        });
     }
 
     /**
@@ -51,6 +59,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
     {
         $this->schema()->drop('products');
         $this->schema()->drop('states');
+        $this->schema()->drop('comments');
 
         parent::tearDown();
     }
@@ -105,6 +114,18 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
 
         $this->assertNotNull($state);
         $this->assertSame(Product::class, $product->current_state->stateful_type);
+    }
+
+    public function testExistenceQueriesOnSelfReferencingRelation(): void
+    {
+        $first = Comment::create();
+        $second = Comment::create();
+        $first->replies()->create();
+        Comment::create(['commentable_id' => $second->id, 'commentable_type' => Product::class]);
+
+        $this->assertEquals([$first->id], Comment::has('latestReply')->pluck('id')->all());
+        $this->assertEquals([1, 0, 0, 0], Comment::withCount('latestReply')->pluck('latest_reply_count')->all());
+        $this->assertEquals([2, 3, 4], Comment::doesntHave('latestReply')->pluck('id')->all());
     }
 
     public function testExists(): void
@@ -256,4 +277,29 @@ class State extends Eloquent
     public bool $timestamps = false;
 
     protected array $fillable = ['state', 'type'];
+}
+
+class Comment extends Eloquent
+{
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comment's replies.
+     */
+    public function replies(): MorphMany
+    {
+        return $this->morphMany(self::class, 'commentable');
+    }
+
+    /**
+     * Get the latest reply.
+     */
+    public function latestReply(): MorphOne
+    {
+        return $this->morphOne(self::class, 'commentable')->latestOfMany();
+    }
 }

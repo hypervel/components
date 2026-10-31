@@ -7,7 +7,10 @@ namespace Hypervel\Tests\Database\DatabaseEloquentHasOneOfManyTest;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -59,6 +62,11 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             $table->dateTime('published_at');
             $table->foreignId('user_id');
         });
+
+        $this->schema()->create('comments', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->foreignId('parent_id')->nullable();
+        });
     }
 
     /**
@@ -70,6 +78,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->schema()->drop('logins');
         $this->schema()->drop('states');
         $this->schema()->drop('prices');
+        $this->schema()->drop('comments');
 
         parent::tearDown();
     }
@@ -296,6 +305,18 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         })->exists();
 
         $this->assertFalse($found);
+    }
+
+    public function testExistenceQueriesOnSelfReferencingRelation(): void
+    {
+        $first = Comment::create();
+        $second = Comment::create();
+        $first->replies()->create();
+        $second->replies()->create();
+
+        $this->assertEquals([$first->id, $second->id], Comment::has('latestReply')->pluck('id')->all());
+        $this->assertEquals([1, 1, 0, 0], Comment::withCount('latestReply')->pluck('latest_reply_count')->all());
+        $this->assertEquals([3, 4], Comment::doesntHave('latestReply')->pluck('id')->all());
     }
 
     public function testHasCount(): void
@@ -713,4 +734,29 @@ class Price extends Eloquent
     protected array $fillable = ['published_at'];
 
     protected array $casts = ['published_at' => 'datetime'];
+}
+
+class Comment extends Eloquent
+{
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comment's replies.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Get the latest reply.
+     */
+    public function latestReply(): HasOne
+    {
+        return $this->hasOne(self::class, 'parent_id')->latestOfMany();
+    }
 }
