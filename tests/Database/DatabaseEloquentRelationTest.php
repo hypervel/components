@@ -13,8 +13,10 @@ use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\TestCase;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentRelationTest extends TestCase
 {
@@ -44,6 +46,75 @@ class DatabaseEloquentRelationTest extends TestCase
         $relation->touch();
 
         $this->assertSame('2023-01-01 00:00:00', $this->updatedAt($connection, 'table'));
+    }
+
+    #[DataProvider('relatedKeyUpdateCases')]
+    public function testRelatedKeyUpdatesRespectBindingLimitsWithoutReapplyingScopes(int $keyCount, int $expectedUpdates, ?int $limit, ?int $offset, array $expectedKeys): void
+    {
+        $connection = new class(new PDO('sqlite::memory:')) extends SQLiteConnection {
+            /**
+             * Exercise the statement boundary with a small fixture.
+             */
+            protected function resolveMaxBindings(): int
+            {
+                return 4;
+            }
+        };
+        $connection->statement('create table "table" (id integer primary key, foreign_key integer, updated_at text)');
+        $connection->statement('insert into "table" (id, foreign_key) values (1, 1), (2, 1), (3, 1), (4, 2)');
+        $model = new NoTouchingModelStub;
+        $scopeCalls = 0;
+        $query = (new Builder($connection->query()))->setModel($model)->withGlobalScope('tenant', function (Builder $query) use (&$scopeCalls, $limit, $offset): void {
+            ++$scopeCalls;
+            $query->where('foreign_key', 1);
+
+            if ($limit !== null) {
+                $query->orderByDesc('id')->limit($limit);
+            }
+
+            if ($offset !== null) {
+                $query->offset($offset);
+            }
+        });
+        $relation = new class($query, $model) extends RelationStub {
+            public array $keys = [];
+
+            /**
+             * Touch the selected related models through the shared update path.
+             */
+            public function touch(): void
+            {
+                $this->updateRelatedKeys($this->query, 'table.id', new BaseCollection($this->keys), [
+                    'updated_at' => $this->related->freshTimestampString(),
+                ]);
+            }
+        };
+        $relation->keys = range(1, $keyCount);
+        $connection->enableQueryLog();
+
+        $relation->touch();
+
+        $this->assertSame(1, $scopeCalls);
+        $this->assertCount($expectedUpdates, $connection->getQueryLog());
+        if ($limit === null && $offset === null) {
+            foreach ($connection->getQueryLog() as $query) {
+                $this->assertLessThanOrEqual(4, count($query['bindings']));
+            }
+        }
+        $this->assertSame($expectedKeys, $connection->table('table')->whereNotNull('updated_at')->orderBy('id')->pluck('id')->all());
+    }
+
+    /**
+     * Provide statement boundaries and scoped selections that cannot be split.
+     */
+    public static function relatedKeyUpdateCases(): array
+    {
+        return [
+            'fits one statement' => [2, 1, null, null, [1, 2]],
+            'splits unbounded selection' => [4, 2, null, null, [1, 2, 3]],
+            'retains global limit' => [4, 1, 1, null, [3]],
+            'retains global offset' => [4, 1, 1, 1, [2]],
+        ];
     }
 
     public function testCanDisableParentTouchingForAllModels(): void

@@ -12,11 +12,13 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -34,6 +36,26 @@ class CacheDatabaseLockTest extends TestCase
         }))->andReturn(true);
 
         $this->assertTrue($lock->acquire());
+    }
+
+    public function testOwnershipAndLifetimeReadTheWriterInsteadOfAStaleReplica(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
+        $writer = new PDO('sqlite::memory:');
+        $reader = new PDO('sqlite::memory:');
+        foreach ([$writer, $reader] as $pdo) {
+            $pdo->exec('create table cache_locks (key text primary key, owner text, expiration integer)');
+        }
+        $writer->exec("insert into cache_locks values ('key', 'fresh', 1060)");
+        $reader->exec("insert into cache_locks values ('key', 'stale', 1010)");
+        $connection = new SQLiteConnection($writer, ':memory:');
+        $connection->setReadPdo($reader);
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->andReturn($connection);
+        $lock = new DatabaseLock($resolver, null, 'key', 'cache_locks', 60, 'fresh', null);
+
+        $this->assertTrue($lock->isOwnedByCurrentProcess());
+        $this->assertSame(60.0, $lock->getRemainingLifetime());
     }
 
     public function testFractionalSecondAcquireAndRefreshNeverExpireBeforeRequestedDeadline(): void
@@ -464,6 +486,7 @@ class CacheDatabaseLockTest extends TestCase
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $table = m::mock(Builder::class);
+        $table->shouldReceive('useWritePdo')->andReturnSelf()->byDefault();
 
         $resolver->shouldReceive('connection')->with($connectionName)->andReturn($connection);
         $connection->shouldReceive('getDriverName')->andReturn($driver);

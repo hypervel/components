@@ -93,7 +93,7 @@ All of your application's event broadcasting configuration is stored in the `con
 Once you have enabled event broadcasting, you're ready to learn more about [defining broadcast events](#defining-broadcast-events) and [listening for events](#listening-for-events). If you're using Hypervel's React [starter kit](/docs/{{version}}/starter-kits), you may listen for events using Echo's [useEcho hook](#using-react-or-vue).
 
 > [!NOTE]
-> Before broadcasting any events, you should first configure and run a [queue worker](/docs/{{version}}/queues). All event broadcasting is done via queued jobs so that the response time of your application is not seriously affected by events being broadcast.
+> Before broadcasting queued events, you should first configure and run a [queue worker](/docs/{{version}}/queues). Events targeting only Mercure connections may [broadcast synchronously](#mercure-synchronous-broadcasting) without a worker; mixed connections and events selecting outbox delivery still use the queue.
 
 <a name="server-side-installation"></a>
 ## Server Side Installation
@@ -280,6 +280,19 @@ MERCURE_ENCRYPTION_KEY=<your-base64-encoded-encryption-key>
 Mercure publishing uses pooled HTTP clients so concurrent coroutines do not share an active connection. Network waits yield to other coroutines. You may set Symfony HTTP client options through the connection's `client_options` array and bound concurrent publishing through its [pool configuration](/docs/{{version}}/pools#object-pool-options). Configure the connection during worker boot, not per request.
 
 Finally, you are ready to install and configure [Laravel Echo](#client-side-installation), which will receive the broadcast events on the client-side.
+
+<a name="mercure-synchronous-broadcasting"></a>
+#### Synchronous Broadcasting
+
+When every connection selected by an event uses Mercure with `async` disabled, the event broadcasts without a queue worker. Events implementing `Hypervel\Contracts\Broadcasting\ShouldBeUnique` retain their uniqueness lock until publishing finishes. Setting the event's `afterCommit` property to `true` delays publishing until the transaction commits and discards the broadcast on rollback.
+
+Events selecting outbox delivery through `ShouldQueueViaOutbox` or `viaOutbox` use your [queue](#broadcast-queue). An explicit `ShouldBroadcastNow` declaration continues to request immediate delivery.
+
+Publishing an update is fast, since the hub dispatches it to subscribers asynchronously. To queue ordinary Mercure events too, set the `MERCURE_ASYNC` environment variable to `true`:
+
+```ini
+MERCURE_ASYNC=true
+```
 
 <a name="client-side-installation"></a>
 ## Client Side Installation
@@ -946,6 +959,8 @@ public function broadcastQueue(): string
 
 If you would like all of your broadcast events to use the same queue without customizing each event class, you may [route the `ShouldBroadcast` contract to a queue](/docs/{{version}}/queues#queue-routing) instead.
 
+Broadcast events implementing `Hypervel\Contracts\Broadcasting\ShouldBeUnique` also support the `Hypervel\Queue\Attributes\UniqueFor` attribute to configure the lock's lifetime in seconds, just like [unique jobs](/docs/{{version}}/queues#unique-jobs).
+
 If you would like to broadcast your event using the `sync` queue instead of the default queue driver, you can implement the `ShouldBroadcastNow` interface instead of `ShouldBroadcast`:
 
 ```php
@@ -997,6 +1012,8 @@ class ServerCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
     use SerializesModels;
 }
 ```
+
+The queue connection's `after_commit` option does not apply to synchronous Mercure publishing; use `ShouldDispatchAfterCommit` or set the event's `afterCommit` property to `true` to wait for commit without requiring a queue worker.
 
 > [!NOTE]
 > To learn more about working around these issues, please review the documentation regarding [queued jobs and database transactions](/docs/{{version}}/queues#jobs-and-database-transactions).

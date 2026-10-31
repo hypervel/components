@@ -95,6 +95,20 @@ class LockableFile
     }
 
     /**
+     * Determine whether the open file has been unlinked.
+     */
+    public function wasDeleted(): bool
+    {
+        $stat = @fstat($this->handle);
+
+        if ($stat === false) {
+            throw new RuntimeException("Unable to determine the link count of file at path [{$this->path}].");
+        }
+
+        return $stat['nlink'] === 0;
+    }
+
+    /**
      * Write to the file.
      */
     public function write(string $contents): static

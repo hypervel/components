@@ -68,17 +68,37 @@ LUA;
     {
         return <<<'LUA'
 local stored = 0
+local buffered = 0
+local payloads = {}
+local notifications = {}
+
+local function flush()
+    if buffered > 0 then
+        redis.call('rpush', KEYS[1], unpack(payloads, 1, buffered))
+        redis.call('rpush', KEYS[2], unpack(notifications, 1, buffered))
+        stored = stored + buffered
+        buffered = 0
+    end
+end
 
 for i = 1, #ARGV, 2 do
     if ARGV[i] == 'i' then
-        redis.call('rpush', KEYS[1], ARGV[i + 1])
-        redis.call('rpush', KEYS[2], 1)
-    else
-        redis.call('zadd', KEYS[3], ARGV[i], ARGV[i + 1])
-    end
+        buffered = buffered + 1
+        payloads[buffered] = ARGV[i + 1]
+        notifications[buffered] = 1
 
-    stored = stored + 1
+        if buffered == 100 then
+            flush()
+        end
+    else
+        -- Preserve earlier jobs and their notifications if a later write fails.
+        flush()
+        redis.call('zadd', KEYS[3], ARGV[i], ARGV[i + 1])
+        stored = stored + 1
+    end
 end
+
+flush()
 
 return stored
 LUA;

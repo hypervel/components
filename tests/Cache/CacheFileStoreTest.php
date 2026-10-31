@@ -5,22 +5,28 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use __PHP_Incomplete_Class;
+use Closure;
 use Exception;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SerializableClassPolicy;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\MockObject\MockObject;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Process\Process;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -56,6 +62,105 @@ class CacheFileStoreTest extends TestCase
         $store = new FileStore($this->filesystem, $this->tempDir);
         $value = $store->get('foo');
         $this->assertNull($value);
+    }
+
+    public function testLockInspectionDoesNotDeleteAReplacementOwner(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        $files = new class extends Filesystem {
+            public ?Closure $afterRead = null;
+
+            /**
+             * Allow another owner to acquire after the shared read completes.
+             */
+            public function get(string $path, bool $lock = false): string
+            {
+                $contents = parent::get($path, $lock);
+
+                if ($callback = $this->afterRead) {
+                    $this->afterRead = null;
+                    $callback();
+                }
+
+                return $contents;
+            }
+        };
+        $store = new FileStore($files, $this->tempDir);
+        $first = $store->lock('key', 1, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        Sleep::for(2)->seconds();
+        $files->afterRead = function () use ($second): void {
+            $this->assertTrue($second->acquire());
+        };
+
+        $this->assertFalse($first->isLocked());
+        $this->assertTrue($second->isOwnedByCurrentProcess());
+    }
+
+    public function testLockReleaseKeepsOwnershipUntilDeletion(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        $files = new class extends Filesystem {
+            public ?Closure $beforeDelete = null;
+
+            /**
+             * Attempt takeover after ownership verification but before deletion.
+             */
+            public function delete(array|string $paths): bool
+            {
+                if ($callback = $this->beforeDelete) {
+                    $this->beforeDelete = null;
+                    $callback();
+                }
+
+                return parent::delete($paths);
+            }
+        };
+        $store = new FileStore($files, $this->tempDir);
+        $first = $store->lock('key', 1, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        $files->beforeDelete = function () use ($second): void {
+            Sleep::for(2)->seconds();
+            $this->assertFalse($second->acquire());
+        };
+
+        $this->assertTrue($first->release());
+        $this->assertSame([], $files->allFiles($this->tempDir));
+        $this->assertTrue($second->acquire());
+        $this->assertFalse($first->release());
+        $this->assertTrue($second->isOwnedByCurrentProcess());
+    }
+
+    public function testWaitingLockReleaseDoesNotDeleteAReplacementOwner(): void
+    {
+        $store = new FileStore(new Filesystem, $this->tempDir);
+        $first = $store->lock('key', 60, 'first');
+        $second = $store->lock('key', 60, 'second');
+        $this->assertTrue($first->acquire());
+        $path = $store->path('file-store-lock:key');
+        $holder = new LockableFile($path, 'c+');
+        $holder->getExclusiveLock();
+        $released = new Channel(1);
+
+        try {
+            Coroutine::create(static function () use ($first, $released): void {
+                $released->push([$first->release()]);
+            });
+
+            $this->assertFalse($released->pop(0.05));
+            unlink($path);
+            $this->assertTrue($second->acquire());
+        } finally {
+            $holder->close();
+            $result = $released->pop(1.0);
+            $released->close();
+        }
+
+        // An array distinguishes a completed false result from a channel timeout.
+        $this->assertSame([false], $result);
+        $this->assertTrue($second->isOwnedByCurrentProcess());
     }
 
     public function testGetPreservesCancellationFromFilesystemRead(): void
@@ -509,6 +614,27 @@ class CacheFileStoreTest extends TestCase
         } finally {
             $lockableFile->close();
         }
+    }
+
+    #[TestWith(['acquire'])]
+    #[TestWith(['refresh'])]
+    public function testLockOperationsRejectAFileReplacedAfterOpening(string $operation): void
+    {
+        // Isolate the native flock interception so it cannot affect another test.
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/replaced_lock_file.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+            $this->tempDir,
+            $operation,
+        ], timeout: 10);
+        $process->run();
+
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+        $this->assertSame([
+            'succeeded' => false,
+            'replacementOwned' => true,
+        ], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
     public function testRefreshPadsShortTimestampsToTenDigits(): void

@@ -54,19 +54,18 @@ class ConcurrencyLimiter
     {
         $id = Str::random(20);
 
-        $starting = ((int) now()->format('Uu')) / 1000;
-
-        $milliseconds = $timeout * 1000;
+        $deadline = (int) now()->format('Uu') + $timeout * 1_000_000;
 
         while (! $lock = $this->claimSlot($id)) {
-            $now = ((int) now()->format('Uu')) / 1000;
+            $remaining = $deadline - (int) now()->format('Uu');
 
-            if (($now + $sleep - $milliseconds) >= $starting) {
+            if ($remaining <= 0) {
                 throw new LimiterTimeoutException;
             }
 
             ConnectionResolver::releaseIdleConnections();
-            Sleep::usleep($sleep * 1000);
+            // Allow a final attempt without sleeping beyond the remaining wait.
+            Sleep::usleep(min($sleep * 1000, $remaining));
         }
 
         return $lock instanceof RefreshableLock

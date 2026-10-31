@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
@@ -1115,6 +1116,27 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', Tag::find(2)->updated_at?->toDateTimeString());
     }
 
+    public function testTouchPreservesRemovedRelatedScopes(): void
+    {
+        Schema::table('tags', fn (Blueprint $table) => $table->softDeletes());
+        $post = Post::create(['title' => Str::random()]);
+        $tag = TouchSoftDeletedTag::create(['name' => 'deleted']);
+        $other = TouchSoftDeletedTag::create(['name' => 'active']);
+        $relation = $post->belongsToMany(TouchSoftDeletedTag::class, 'posts_tags', 'post_id', 'tag_id');
+        $relation->attach([$tag->getKey(), $other->getKey()]);
+        $tag->delete();
+        TouchSoftDeletedTag::withTrashed()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $relation->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
+        $this->assertNotSame('2000-01-01 00:00:00', $other->fresh()->updated_at->format('Y-m-d H:i:s'));
+
+        $relation->withTrashed()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
     public function testCanTouchRelatedModelsUsingCustomRelatedKey(): void
     {
         $post = Post::create(['title' => Str::random()]);
@@ -2065,6 +2087,11 @@ class Tag extends Model
             ->using(ChaperonePostTagPivot::class)
             ->chaperone();
     }
+}
+
+class TouchSoftDeletedTag extends Tag
+{
+    use SoftDeletes;
 }
 
 class UniqueTag extends Model

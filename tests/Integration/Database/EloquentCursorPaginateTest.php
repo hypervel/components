@@ -814,6 +814,48 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertCount(5, $query->cursorPaginate()->items());
     }
 
+    public function testLatestAndOldestPaginationWithJoin(): void
+    {
+        $user = TestUser::create(['name' => 'Taylor']);
+
+        for ($i = 1; $i <= 3; ++$i) {
+            TestPost::create(['title' => 'Title ' . $i, 'user_id' => $user->id, 'created_at' => now()->startOfSecond()->addMinutes($i)]);
+        }
+
+        $query = fn () => TestPost::query()
+            ->join('test_users', 'test_users.id', '=', 'test_posts.user_id')
+            ->select('test_posts.*');
+
+        $firstPage = $query()->latest()->cursorPaginate(2);
+        $secondPage = $query()->latest()->cursorPaginate(2, ['*'], 'cursor', $firstPage->nextCursor());
+
+        $this->assertSame(['Title 3', 'Title 2'], $firstPage->pluck('title')->all());
+        $this->assertSame(['Title 1'], $secondPage->pluck('title')->all());
+
+        $firstPage = $query()->oldest()->cursorPaginate(2);
+        $secondPage = $query()->oldest()->cursorPaginate(2, ['*'], 'cursor', $firstPage->nextCursor());
+
+        $this->assertSame(['Title 1', 'Title 2'], $firstPage->pluck('title')->all());
+        $this->assertSame(['Title 3'], $secondPage->pluck('title')->all());
+    }
+
+    public function testLatestAndOldestWithJoinFromSubquery(): void
+    {
+        $user = TestUser::create(['name' => 'Taylor']);
+
+        for ($i = 1; $i <= 3; ++$i) {
+            TestPost::create(['title' => 'Title ' . $i, 'user_id' => $user->id, 'created_at' => now()->startOfSecond()->addMinutes($i)]);
+        }
+
+        $query = fn () => TestPost::query()
+            ->fromSub(TestPost::query(), 'posts')
+            ->joinSub(TestUser::query()->select('id', 'name'), 'users', 'users.id', '=', 'posts.user_id')
+            ->select('posts.*');
+
+        $this->assertSame(['Title 3', 'Title 2', 'Title 1'], $query()->latest()->pluck('title')->all());
+        $this->assertSame(['Title 1', 'Title 2', 'Title 3'], $query()->oldest()->pluck('title')->all());
+    }
+
     public function testCursorPaginationPreservesFloatOrderValues(): void
     {
         TestPost::fillAndInsert([

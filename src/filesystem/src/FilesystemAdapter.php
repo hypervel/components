@@ -834,7 +834,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         if (method_exists($this->driver, 'getUrl')) {
             return $this->driver->getUrl($path);
         }
-        if ($adapter instanceof FtpAdapter || $adapter instanceof SftpAdapter) { // @phpstan-ignore class.notFound, class.notFound
+        if ($adapter instanceof FtpAdapter || $adapter instanceof SftpAdapter) {
             return $this->getFtpUrl($path);
         }
         if ($adapter instanceof LocalAdapter) {

@@ -8,6 +8,8 @@ use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -169,6 +171,28 @@ class DurationLimiterTest extends TestCase
 
         // Timeout of 0 means it should fail immediately on first retry
         $limiter->block(0, null, 1); // 1ms sleep between retries
+    }
+
+    public function testBlockCanAcquireAtTheDeadlineWithAShorterFinalSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $redis = $this->mockRedis();
+        $connection = m::mock(RedisConnection::class);
+        $redis->shouldReceive('withConnection')
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $connection->shouldReceive('evalWithShaCache')->times(4)
+            ->andReturn([0, 0, '1'], [0, 0, '1'], [0, 0, '1'], [1, 10, '1']);
+
+        $limiter = new DurationLimiter($redis, 'test-key', 1, 10);
+
+        $this->assertTrue($limiter->block(2, sleep: 750));
+
+        Sleep::assertSequence([
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(500)->milliseconds(),
+        ]);
     }
 
     // REMOVED: testUsesSpecifiedConnectionName - Connection is now resolved before creating the limiter,

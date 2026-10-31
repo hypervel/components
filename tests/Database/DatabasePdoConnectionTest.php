@@ -873,6 +873,37 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertTrue($called);
     }
 
+    public function testQueriesRunWhileReconnectingDoNotReconnectAgain(): void
+    {
+        $statement = m::mock(PDOStatement::class);
+        $statement->shouldReceive('execute')->andThrow(
+            new PDOException('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Connection refused')
+        );
+
+        $pdo = m::mock(PDO::class);
+        $pdo->shouldReceive('prepare')->andReturn($statement);
+
+        $connection = new PdoConnection($pdo);
+
+        $reconnects = 0;
+
+        $connection->setReconnector(function (Connection $connection) use (&$reconnects): void {
+            if (++$reconnects > 1) {
+                $this->fail('The connection reconnected while it was already reconnecting.');
+            }
+
+            $connection->statement('bar');
+        });
+
+        try {
+            $connection->statement('foo');
+
+            $this->fail('A QueryException was not thrown.');
+        } catch (QueryException) {
+            $this->assertSame(1, $reconnects);
+        }
+    }
+
     public function testExplicitPhysicalCommitFailureLeavesTheTransactionCallerOwned(): void
     {
         $failure = new RuntimeException('commit failure');

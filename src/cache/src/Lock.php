@@ -95,19 +95,18 @@ abstract class Lock implements LockContract
      */
     public function block(int $seconds, ?callable $callback = null): mixed
     {
-        $starting = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
-
-        $milliseconds = $seconds * 1000;
+        $deadline = (int) CarbonImmutable::now()->format('Uu') + $seconds * 1_000_000;
 
         while (! $this->acquire()) {
-            $now = ((int) CarbonImmutable::now()->format('Uu')) / 1000;
+            $remaining = $deadline - (int) CarbonImmutable::now()->format('Uu');
 
-            if (($now + $this->sleepMilliseconds - $milliseconds) >= $starting) {
+            if ($remaining <= 0) {
                 throw new LockTimeoutException;
             }
 
             ConnectionResolver::releaseIdleConnections();
-            Sleep::usleep($this->sleepMilliseconds * 1000);
+            // Allow a final attempt without sleeping beyond the remaining wait.
+            Sleep::usleep(min($this->sleepMilliseconds * 1000, $remaining));
         }
 
         if (is_callable($callback)) {

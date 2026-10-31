@@ -776,6 +776,8 @@ Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` expl
 
 Custom filesystem contract implementations must also provide `fileExists()` and `directoryExists()`. The existing `exists()` method continues to accept either a file or a directory. See [retrieving files](/docs/{{version}}/filesystem#retrieving-files).
 
+FTP disks use Swoole's FTP support instead of PHP's separate `ftp` extension. Enable it when building Swoole and declare the supplied capability in your application's Composer configuration; see [FTP configuration](/docs/{{version}}/filesystem#ftp-driver-configuration).
+
 S3, Google Cloud Storage, FTP, SFTP, and poolable custom disks are pooled, so they do not hand out objects that outlive an operation. Replace `getAdapter()` and `getDriver()` with `withAdapter()` and `withDriver()`, and an S3 or Google Cloud Storage disk's `getClient()` with `withClient()`; each callback receives the borrowed object. Methods a pooled disk does not support throw instead of forwarding to the driver. See [driver pools](/docs/{{version}}/filesystem#driver-pools).
 
 If you override `FilesystemManager::formatS3Config()`, named credential providers remain configuration data there. Customize their resolution through `createS3Client()` instead.

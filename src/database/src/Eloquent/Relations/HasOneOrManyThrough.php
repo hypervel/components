@@ -582,6 +582,47 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
+     * Touch all of the related models for the relationship.
+     */
+    public function touch(): void
+    {
+        $model = $this->getRelated();
+
+        if ($model::isIgnoringTouch()) {
+            return;
+        }
+
+        $columns = [
+            $model->getUpdatedAtColumn() => $model->freshTimestampString(),
+        ];
+
+        $key = $model->getKeyName();
+
+        // Pluck applies casts; restore binary binding intent for keys selected by the framework.
+        $ids = $this->allRelatedIds()->map(fn ($id) => $model->encodeBinaryAttributeForDatabase($key, $id));
+
+        // The selection already applied the relation's scopes, including explicit removals.
+        $this->updateRelatedKeys(
+            $model->newQueryWithoutRelationships()->withoutGlobalScopes(),
+            $model->getQualifiedKeyName(),
+            $ids,
+            $columns,
+        );
+    }
+
+    /**
+     * Get all of the IDs for the related models.
+     *
+     * @return BaseCollection<int, int|string>
+     */
+    public function allRelatedIds(): BaseCollection
+    {
+        $key = $this->related->getQualifiedKeyName();
+
+        return (clone $this->query)->select($key)->pluck($key);
+    }
+
+    /**
      * Chunk the results of the query.
      */
     public function chunk(int $count, callable $callback): bool

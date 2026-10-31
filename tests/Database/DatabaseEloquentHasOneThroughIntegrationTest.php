@@ -302,6 +302,19 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertSame('A title', $position->contract->title);
     }
 
+    public function testTouch(): void
+    {
+        $this->seedData();
+        $position = Position::first();
+
+        Contract::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+        $this->assertSame('2000-01-01 00:00:00', Contract::first()->updated_at->format('Y-m-d H:i:s'));
+
+        $position->contract()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', Contract::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
     /**
      * Helpers...
      */

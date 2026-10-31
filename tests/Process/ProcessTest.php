@@ -1266,6 +1266,42 @@ class ProcessTest extends TestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testASubSecondTimeoutCanBeSetWithACarbonInterval(): void
+    {
+        if (! env('RUN_BLOCKING_TESTS', false)) {
+            $this->markTestSkipped('Skip blocking tests');
+        }
+
+        $factory = new Factory;
+
+        try {
+            $factory->timeout(CarbonInterval::milliseconds(500))->path(__DIR__)->run('sleep 2;');
+
+            $this->fail('The process did not time out.');
+        } catch (ProcessTimedOutException $e) {
+            $this->assertSame(0.5, $e->exceededTimeout());
+        }
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testASubSecondIdleTimeoutCanBeSetWithACarbonInterval(): void
+    {
+        if (! env('RUN_BLOCKING_TESTS', false)) {
+            $this->markTestSkipped('Skip blocking tests');
+        }
+
+        $factory = new Factory;
+
+        try {
+            $factory->idleTimeout(CarbonInterval::milliseconds(500))->path(__DIR__)->run('sleep 2;');
+
+            $this->fail('The process did not time out.');
+        } catch (ProcessIdleTimedOutException $e) {
+            $this->assertSame(0.5, $e->exceededTimeout());
+        }
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testGeneralTimeoutsThrowTheBaseException(): void
     {
         if (! env('RUN_BLOCKING_TESTS', false)) {

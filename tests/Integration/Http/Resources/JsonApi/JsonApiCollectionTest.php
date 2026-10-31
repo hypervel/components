@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
@@ -210,6 +211,25 @@ class JsonApiCollectionTest extends TestCase
                     ],
                 ]
             );
+    }
+
+    public function testItEagerLoadsIncludesForAllResourcesAtOnce(): void
+    {
+        $users = User::factory()->times(3)->create();
+
+        foreach ($users as $user) {
+            Profile::factory()->create(['user_id' => $user->getKey()]);
+            Post::factory()->create(['user_id' => $user->getKey()]);
+        }
+
+        DB::enableQueryLog();
+
+        $this->getJson('/posts?' . http_build_query(['include' => 'author.profile']))
+            ->assertOk()
+            ->assertJsonCount(6, 'included');
+
+        // One query for the count, one for the posts, one for the authors and one for their profiles...
+        $this->assertCount(4, DB::getQueryLog());
     }
 
     #[TestWith([false])]

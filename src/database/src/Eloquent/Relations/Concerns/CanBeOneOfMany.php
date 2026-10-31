@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Closure;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\JoinClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -29,6 +30,11 @@ trait CanBeOneOfMany
      * @var Builder<*>|null
      */
     protected ?Builder $oneOfManySubQuery = null;
+
+    /**
+     * The model of the query the one of many subselect is currently being joined to.
+     */
+    protected ?Model $oneOfManyJoinModel = null;
 
     /**
      * Add constraints for inner join subselect for one of many relationships.
@@ -171,7 +177,7 @@ trait CanBeOneOfMany
      */
     protected function newOneOfManySubQuery(string|array $groupBy, ?array $columns = null, ?string $aggregate = null): Builder
     {
-        $subQuery = $this->query->getModel()
+        $subQuery = (clone $this->query->getModel())
             ->newQuery()
             ->withoutGlobalScopes($this->removedScopes());
 
@@ -207,15 +213,19 @@ trait CanBeOneOfMany
      */
     protected function addOneOfManyJoinSubQuery(Builder $parent, Builder $subQuery, array $on): void
     {
-        $parent->beforeQuery(function ($parent) use ($subQuery, $on) {
+        $parent->beforeQuery(function ($query) use ($parent, $subQuery, $on) {
             $subQuery->applyBeforeQueryCallbacks();
 
-            $parent->joinSub($subQuery, $this->relationName, function ($join) use ($on) {
+            $query->joinSub($subQuery, $this->relationName, function ($join) use ($parent, $on) {
+                $this->oneOfManyJoinModel = $parent->getModel();
+
                 foreach ($on as $onColumn) {
                     $join->on($this->qualifySubSelectColumn($onColumn . '_aggregate'), '=', $this->qualifyRelatedColumn($onColumn));
                 }
 
                 $this->addOneOfManyJoinSubQueryConstraints($join);
+
+                $this->oneOfManyJoinModel = null;
             });
         });
     }
@@ -267,7 +277,7 @@ trait CanBeOneOfMany
      */
     protected function qualifyRelatedColumn(string $column): string
     {
-        return $this->query->getModel()->qualifyColumn($column);
+        return ($this->oneOfManyJoinModel ?? $this->query->getModel())->qualifyColumn($column);
     }
 
     /**

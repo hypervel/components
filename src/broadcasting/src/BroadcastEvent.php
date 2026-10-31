@@ -6,6 +6,7 @@ namespace Hypervel\Broadcasting;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Support\Arrayable;
@@ -201,6 +202,21 @@ class BroadcastEvent implements ShouldQueue
         }
 
         $this->event->failed($e);
+    }
+
+    /**
+     * Handle a deferred dispatch or transaction cleanup failure.
+     *
+     * @internal
+     */
+    public function deferredDispatchFailed(Throwable $exception): void
+    {
+        if (! $this->event instanceof ShouldRescue) {
+            throw $exception;
+        }
+
+        // The manager's rescue callback has returned before deferred queue work runs.
+        rescue(static fn () => throw $exception);
     }
 
     /**

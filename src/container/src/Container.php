@@ -1597,6 +1597,10 @@ class Container implements ContainerContract
      */
     protected function getContextualConcrete(string $abstract): mixed
     {
+        if ($this->contextual === []) {
+            return null;
+        }
+
         if (! is_null($binding = $this->findInContextualBindings($abstract))) {
             return $binding;
         }

@@ -59,7 +59,7 @@ You may install Swoole using [PIE](https://github.com/php/pie):
 pie install "swoole/swoole:^6.3.0@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
 ```
 
-Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled.
+Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled. Applications using FTP disks also need `--enable-swoole-ftp`; see [FTP configuration](/docs/{{version}}/filesystem#ftp-driver-configuration).
 
 Once the Homebrew formula provides a Swoole version that meets the requirement above, macOS developers may install Swoole via Homebrew instead. The formula already includes the required build options. Replace `8.4` with your installed PHP version:
 

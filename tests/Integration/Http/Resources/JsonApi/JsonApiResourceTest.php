@@ -9,6 +9,9 @@ use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\ArrayBackedJsonApiResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\PostResource;
@@ -467,9 +470,71 @@ class JsonApiResourceTest extends TestCase
         ));
     }
 
-    // Upstream testItIgnoresNestedIncludesThatAreNotResourceRelationships and
-    // testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships are replaced by
-    // testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations in the unit JsonApiResourceTest.
+    public function testItIgnoresNestedIncludesThatAreNotResourceRelationships(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        Comment::factory()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create([
+            'user_id' => $otherUser->getKey(),
+        ]);
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'comments.truncate']))
+            ->assertOk()
+            ->assertJsonCount(1, 'included');
+
+        $this->assertSame(2, Comment::count());
+    }
+
+    public function testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships(): void
+    {
+        $user = User::factory()->create();
+        $post = Post::factory()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create([
+            'post_id' => $post->getKey(),
+            'user_id' => $user->getKey(),
+        ]);
+
+        Comment::factory()->create();
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments.truncate']))
+            ->assertOk()
+            ->assertJsonCount(2, 'included');
+
+        $this->assertSame(2, Comment::count());
+    }
+
+    public function testItEagerLoadsNestedIncludesForAllRelatedModelsAtOnce(): void
+    {
+        $user = User::factory()->create();
+
+        $posts = Post::factory()->count(3)->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        foreach ($posts as $post) {
+            Comment::factory()->create([
+                'post_id' => $post->getKey(),
+                'user_id' => $user->getKey(),
+            ]);
+        }
+
+        DB::enableQueryLog();
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments']))
+            ->assertOk()
+            ->assertJsonCount(6, 'included');
+
+        // One query for the user, one for the posts and one for the comments of all posts...
+        $this->assertCount(3, DB::getQueryLog());
+    }
 
     #[TestWith(['posts.comments', 3])]
     #[TestWith(['posts.comments.commenter', 4])]
@@ -765,6 +830,39 @@ class JsonApiResourceTest extends TestCase
             ])
             ->assertJsonMissingPath('jsonapi')
             ->assertJsonMissingPath('included');
+    }
+
+    public function testAttributesCanBeConditionallyMerged(): void
+    {
+        Route::get('things-with-merged-attributes/{id}', function (string $id) {
+            return new class(['id' => (int) $id, 'name' => 'test', 'secret' => 'hidden', 'notes' => 'internal']) extends ArrayBackedJsonApiResource {
+                /**
+                 * Transform the resource into attributes.
+                 */
+                #[Override]
+                public function toAttributes(Request $request): array
+                {
+                    return [
+                        'name' => $this->resource['name'],
+                        $this->mergeWhen(false, ['secret' => $this->resource['secret']]),
+                        $this->mergeWhen(true, ['notes' => $this->resource['notes']]),
+                    ];
+                }
+            };
+        });
+
+        $this->getJson('/things-with-merged-attributes/99')
+            ->assertHeader('Content-type', 'application/vnd.api+json')
+            ->assertExactJson([
+                'data' => [
+                    'id' => '99',
+                    'type' => 'things',
+                    'attributes' => [
+                        'name' => 'test',
+                        'notes' => 'internal',
+                    ],
+                ],
+            ]);
     }
 
     public function testSameModelWithTheSameResourceTypeIsDeduplicated(): void

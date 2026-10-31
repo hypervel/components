@@ -41,6 +41,27 @@ class LockableFileTest extends TestCase
         parent::tearDown();
     }
 
+    public function testDeletedHandleIsDistinctFromAReplacementAtTheSamePath(): void
+    {
+        $path = $this->tempDir . '/deleted.lock';
+        $file = new LockableFile($path, 'c+');
+
+        try {
+            $this->assertFalse($file->wasDeleted());
+            unlink($path);
+            $replacement = new LockableFile($path, 'c+');
+
+            try {
+                $this->assertTrue($file->wasDeleted());
+                $this->assertFalse($replacement->wasDeleted());
+            } finally {
+                $replacement->close();
+            }
+        } finally {
+            $file->close();
+        }
+    }
+
     public function testBlockingLocksSerializeAccess(): void
     {
         $path = $this->tempDir . '/blocking.lock';

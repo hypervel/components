@@ -48,12 +48,12 @@ class PendingProcess
     /**
      * The maximum number of seconds the process may run.
      */
-    public ?int $timeout = 60;
+    public int|float|null $timeout = 60;
 
     /**
      * The maximum number of seconds the process may go without returning output.
      */
-    public ?int $idleTimeout = null;
+    public int|float|null $idleTimeout = null;
 
     /**
      * The additional environment variables for the process.
@@ -126,7 +126,7 @@ class PendingProcess
      */
     public function timeout(CarbonInterval|int $timeout): static
     {
-        $this->timeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
+        $this->timeout = $timeout instanceof CarbonInterval ? $timeout->totalSeconds : $timeout;
 
         return $this;
     }
@@ -136,7 +136,7 @@ class PendingProcess
      */
     public function idleTimeout(CarbonInterval|int $timeout): static
     {
-        $this->idleTimeout = $timeout instanceof CarbonInterval ? (int) $timeout->totalSeconds : $timeout;
+        $this->idleTimeout = $timeout instanceof CarbonInterval ? $timeout->totalSeconds : $timeout;
 
         return $this;
     }

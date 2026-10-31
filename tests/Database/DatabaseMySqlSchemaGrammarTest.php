@@ -1958,6 +1958,19 @@ SQL],
         $this->assertSame("'foo''bar', 'baz''qux'", $this->getGrammar()->quoteString(["foo'bar", "baz'qux"]));
     }
 
+    public function testCompileForeignKeysConstrainsReferentialConstraints(): void
+    {
+        $grammar = $this->getGrammar();
+
+        $sql = $grammar->compileForeignKeys(null, 'users');
+        $this->assertStringContainsString("where kc.table_schema = schema() and kc.table_name = 'users' and kc.referenced_table_name is not null", $sql);
+        $this->assertStringContainsString("and rc.constraint_schema = schema() and rc.table_name = 'users' ", $sql);
+
+        $sql = $grammar->compileForeignKeys('my_schema', 'users');
+        $this->assertStringContainsString("where kc.table_schema = 'my_schema' and kc.table_name = 'users' and kc.referenced_table_name is not null", $sql);
+        $this->assertStringContainsString("and rc.constraint_schema = 'my_schema' and rc.table_name = 'users' ", $sql);
+    }
+
     /**
      * Create the MySQL schema grammar.
      */
