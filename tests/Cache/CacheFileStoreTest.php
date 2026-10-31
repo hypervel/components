@@ -20,11 +20,13 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\MockObject\MockObject;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Process\Process;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -612,6 +614,27 @@ class CacheFileStoreTest extends TestCase
         } finally {
             $lockableFile->close();
         }
+    }
+
+    #[TestWith(['acquire'])]
+    #[TestWith(['refresh'])]
+    public function testLockOperationsRejectAFileReplacedAfterOpening(string $operation): void
+    {
+        // Isolate the native flock interception so it cannot affect another test.
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/replaced_lock_file.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+            $this->tempDir,
+            $operation,
+        ], timeout: 10);
+        $process->run();
+
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+        $this->assertSame([
+            'succeeded' => false,
+            'replacementOwned' => true,
+        ], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 
     public function testRefreshPadsShortTimestampsToTenDigits(): void

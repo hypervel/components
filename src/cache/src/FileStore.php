@@ -146,6 +146,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
             return false;
         }
 
+        // Release may replace the path after this refresh opens the old inode.
+        if ($file->wasDeleted()) {
+            $file->close();
+
+            return false;
+        }
+
         $contents = $file->read();
 
         if (strlen($contents) < 10) {

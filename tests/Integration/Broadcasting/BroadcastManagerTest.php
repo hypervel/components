@@ -1100,6 +1100,9 @@ class BroadcastManagerTest extends TestCase
         }
     }
 
+    /**
+     * Provide Mercure events with their expected queue routing.
+     */
     public static function mercureQueueSemantics(): array
     {
         return [
