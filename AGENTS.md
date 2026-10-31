@@ -121,7 +121,9 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 Do not routinely run formatting or PHPStan during edits. Run targeted PHPStan earlier only when investigating a typing issue or when its feedback is needed to guide implementation.
 
-**At the end of a coherent implementation slice**, run `composer lint:fix`, `composer analyse`, and the affected tests, in that order. Use PHPUnit for one test file or `composer test:parallel -- --processes=4 tests/PackageName` for multiple files. Use `--filter` when needed to narrow the selection.
+**At the end of a coherent implementation slice**, run `composer analyse` and the affected tests, in that order. Use PHPUnit for one test file or `composer test:parallel -- --processes=4 tests/PackageName` for multiple files. Use `--filter` when needed to narrow the selection.
+
+Run `composer lint:fix` before a scheduled code review or commit checkpoint, not after individual changes within a batch.
 
 Run the full test suite only when the change has framework-wide impact. In that case, use `composer fix`, which includes formatting, analysis and all test suites; do not run those checks separately first. For focused changes, include separate Testbench or dogfood checks when the changed behavior affects those workflows.
 

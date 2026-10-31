@@ -293,4 +293,14 @@ class NotificationSender
 
         return $notifiables;
     }
+
+    /**
+     * Set the locale to be used when sending notifications.
+     */
+    public function locale(?string $locale): static
+    {
+        $this->locale = $locale;
+
+        return $this;
+    }
 }

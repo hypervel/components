@@ -32,6 +32,7 @@
     - [MCP](#mcp)
     - [Saloon](#saloon)
     - [Broadcasting](#broadcasting)
+    - [Notifications](#notifications)
     - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Fortify](#fortify)
@@ -416,6 +417,8 @@ Hypervel follows Laravel's named container APIs, but intentionally does not supp
 
 Use `get()` and `has()` instead when working through the PSR-11 container interface. Hypervel does not expose arbitrary binding removal; `forgetInstance()` clears a temporary instance so the original binding can resolve again.
 
+Custom containers must implement Hypervel's full `Container` contract or extend `Hypervel\Container\Container`; Laravel's container contract alone does not provide the lifetime operations Hypervel uses.
+
 Container lifecycles are adapted for Swoole:
 
 | Need | Method |
@@ -430,6 +433,8 @@ Container lifecycles are adapted for Swoole:
 
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
+
+Facades cache non-scoped services for the worker lifetime, including `bind()` bindings; use `scoped()` for request or job state. Disabling the facade's cache resolves the service on every call, returning fresh instances only for `bind()` bindings and `Transient` classes; singletons and auto-singletons still return the same instance. See [how facades work](/docs/{{version}}/facades#how-facades-work).
 
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 
@@ -594,6 +599,11 @@ Custom OAuth authenticators must implement `getScopes(): ?array`. Overrides of e
 For Pusher and Reverb, replace Guzzle's `max_host_connections` and `max_total_connections` client options with bounded coroutine concurrency or rate limiting. The default client rejects these options because their shared transport cannot be driven safely by concurrent coroutines. See [Pusher broadcasting](/docs/{{version}}/broadcasting#pusher-manual-installation).
 
 Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoole and does not use FrankenPHP's in-process `mercure_publish()` integration. See [Mercure broadcasting](/docs/{{version}}/broadcasting#mercure).
+
+<a name="notifications"></a>
+### Notifications
+
+`Notification::locale()` called during initial application boot sets a worker default that persists across sends. Laravel consumes that locale on the first send. For a one-send override, call it when sending the notification, after application boot. See [notification locales](/docs/{{version}}/notifications#localizing-notifications).
 
 <a name="jsonapi-resources"></a>
 ### JSON:API Resources
@@ -801,7 +811,9 @@ SQLite JSON-path updates replace assigned objects and retain JSON null. Review a
 
 Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
 
-For cursor or ID-based pagination across unions, select plain columns in corresponding positions, or use `fromSub` to paginate the combined output. Hypervel rejects projections whose correspondence cannot be established, including computed paging columns. Union members use positional mapping instead of the protected `getOriginalColumnNameForCursorPagination` override; root queries retain that override. See [paginating unions](/docs/{{version}}/queries#paginating-unions).
+For cursor or ID-based pagination across unions, select plain columns in corresponding positions, or use `fromSub` to paginate the combined output. Hypervel rejects projections whose correspondence cannot be established, including computed paging columns. For query-builder `chunk`, `lazy`, and `cursorPaginate` calls, add `orderBy` after the union; an order on the first query alone throws. Union members use positional mapping instead of the protected `getOriginalColumnNameForCursorPagination` override; root queries retain that override. See [paginating unions](/docs/{{version}}/queries#paginating-unions).
+
+`chunkById`, `lazyById`, and their descending variants prioritize the paging column over other orders. Review calls that stop early, including `lazyById()->take(...)`, because they take the first IDs rather than the first rows under another sort. Limited or offset calls whose leading order conflicts with ID iteration throw, including when a global scope uses `reorder`; use `fromSub` to select a ranked subset before iterating it. See [chunking results](/docs/{{version}}/queries#chunking-results).
 
 For ID-based paging with joins or raw sources, qualify an unselected paging column if another output uses its name. Hypervel rejects that ambiguous form instead of sorting by the wrong column. Alternatively, select the source under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`; see [chunking results](/docs/{{version}}/queries#chunking-results).
 
@@ -868,6 +880,8 @@ Laravel's Memcached, APC / APCu, DynamoDB, and generic cache-backed session conf
 ### Queues
 
 Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, `sync`, `background`, `deferred`, and `null`. The `background` and `deferred` drivers run work inside the current worker process and are not durable external queues.
+
+Remove assignments to `Worker::$flushStickyConnections`: daemon jobs already have independent [sticky routing state](/docs/{{version}}/database#the-sticky-option). If a job must read from the writer regardless of its own writes, use an explicit `::write` connection. The worker constructor also omits Laravel's `$resetScope` callback; move custom per-job setup or cleanup into [job events](/docs/{{version}}/queues#job-events), or [job middleware](/docs/{{version}}/queues#job-middleware) for specific jobs, instead of a worker-wide reset.
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 

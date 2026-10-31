@@ -201,6 +201,18 @@ DB::table('users')->where('active', false)
     });
 ```
 
+The `chunkById` and `lazyById` methods sort by the paging column first, even when another order is present or a global scope replaces the ordering. Use their descending variants to iterate in descending ID order. Other sort orders do not choose the first rows, including when a callback stops early or a lazy collection uses `take()`.
+
+If a query has a `limit` or `offset`, its leading order must match the paging column and iteration direction, including a replacement from a global scope's `reorder`. Otherwise, Hypervel throws an exception instead of silently selecting a different set. A global scope's `orderBy` stays behind the paging column, so limited iteration still takes the first IDs. To iterate a limited set chosen by another order, select it in a subquery first:
+
+```php
+$ranked = DB::table('users')->orderByDesc('score')->limit(100);
+
+DB::query()->fromSub($ranked, 'ranked')->chunkById(20, function (Collection $users) {
+    // Process the highest-scoring users in ID order...
+});
+```
+
 When a selected alias uses your paging column's name, keep the actual column selected under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`. Their descending methods accept the same argument.
 
 For queries with joins or raw sources, qualify an unselected paging column, such as `users.id`; Hypervel throws if another selected alias hides its name and the source cannot be identified. This rule also applies to `forPageAfterId` and `forPageBeforeId`, which do not accept an `alias` argument.
@@ -643,6 +655,8 @@ In addition to the `union` method, the query builder provides a `unionAll` metho
 
 <a name="paginating-unions"></a>
 ### Paginating Unions
+
+For query-builder `cursorPaginate`, `chunk`, and `lazy` calls, place `orderBy` after the union so it sorts the combined rows. An order before `union` belongs only to the first query and is not enough. Eloquent supplies its primary key as the default outer order when none is given.
 
 When using `cursorPaginate`, `chunkById`, or `lazyById` on a union, select the paging columns in corresponding positions in every query. Column names and aliases may differ between queries. Hypervel uses their positions to apply each comparison to the correct source column:
 

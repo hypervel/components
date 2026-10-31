@@ -46,6 +46,7 @@ class InteractsWithRedisParallelTest extends TestCase
 
         $this->captureEnvironmentValues();
         $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', null);
+        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
         $this->setParallelTestingToken(false);
     }
 
@@ -91,6 +92,7 @@ class InteractsWithRedisParallelTest extends TestCase
     {
         $this->setRedisEnvironmentValue('REDIS_DB', '4');
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', null);
+        $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', '5');
         $this->setParallelTestingToken('2');
 
         $this->assertSame(5, $this->harness()->parallelRedisDb());
@@ -100,7 +102,6 @@ class InteractsWithRedisParallelTest extends TestCase
     {
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', '14');
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', null);
-        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
 
         $this->assertSame([14, 15], RedisTestDatabases::workerDatabases());
     }
@@ -119,8 +120,6 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testSecondaryRedisDbIsRequired(): void
     {
-        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
-
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('REDIS_TEST_SECONDARY_DB must be set before requesting the secondary Redis test database.');
 

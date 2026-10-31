@@ -187,8 +187,7 @@ class ModelCacheCoordinator
                     $writeBatch($batch);
                 }
             } else {
-                // Other sort columns would make chunkById skip records between batches.
-                $selection->reorder()->chunkById(
+                $selection->chunkById(
                     self::MUTATION_BATCH_SIZE,
                     static fn (Collection $rows) => $writeBatch($rows->pluck($key)->all()),
                     $qualifiedKey,

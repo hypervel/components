@@ -81,6 +81,13 @@ class Kernel implements KernelContract
     protected array $loadedPaths = [];
 
     /**
+     * The commands registered through the "load" and "command" methods.
+     *
+     * @var array<int, class-string<SymfonyCommand>|SymfonyCommand>
+     */
+    protected array $kernelCommands = [];
+
+    /**
      * All of the registered command duration handlers.
      */
     protected array $commandLifecycleDurationHandlers = [];
@@ -345,15 +352,17 @@ class Kernel implements KernelContract
 
     /**
      * Register a Closure based command with the application.
+     *
+     * Boot or tests only. Commands remain registered for the kernel's lifetime.
      */
     public function command(string $signature, Closure $callback): ClosureCommand
     {
         $command = new ClosureCommand($signature, $callback);
+        $this->kernelCommands[] = $command;
 
-        if ($this->commandsLoaded) {
-            $this->getArtisan()->add($command);
-        } else {
-            ConsoleApplication::starting(fn (ConsoleApplication $artisan) => $artisan->add($command));
+        // Late registrations must also reach an already-created console application.
+        if (isset($this->artisan)) {
+            $this->artisan->add($command);
         }
 
         return $command;
@@ -395,9 +404,7 @@ class Kernel implements KernelContract
         };
 
         foreach ($this->findCommands($paths)->filter($filterCommands) as $file) {
-            ConsoleApplication::starting(function (ConsoleApplication $artisan) use ($file, $possibleCommands) {
-                $artisan->resolve($possibleCommands[$file]);
-            });
+            $this->kernelCommands[] = $possibleCommands[$file];
         }
     }
 
@@ -552,7 +559,7 @@ class Kernel implements KernelContract
         $this->bootstrap();
 
         $artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
-            ->resolveCommands($this->commands)
+            ->resolveCommands([...$this->kernelCommands, ...$this->commands])
             ->setContainerCommandLoader();
 
         if ($this->symfonyDispatcher instanceof EventDispatcher) {

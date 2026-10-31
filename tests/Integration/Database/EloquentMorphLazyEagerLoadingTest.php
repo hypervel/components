@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphLazyEagerLoadingTest;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Database\Fixtures\Models\Comment;
@@ -51,6 +52,21 @@ class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
 
         $this->assertTrue($comment->relationLoaded('commentable'));
         $this->assertTrue($comment->commentable->relationLoaded('user'));
+    }
+
+    public function testLazyEagerLoadingWithMorphMap(): void
+    {
+        Relation::morphMap(['post' => Post::class]);
+
+        $comment = Comment::first();
+        $comment->loadMorph('commentable', ['post' => ['user']]);
+
+        $this->assertTrue($comment->commentable->relationLoaded('user'));
+
+        $comments = Comment::all();
+        $comments->loadMorph('commentable', ['post' => ['user']]);
+
+        $this->assertTrue($comments[0]->commentable->relationLoaded('user'));
     }
 }
 

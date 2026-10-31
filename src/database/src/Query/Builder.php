@@ -2813,9 +2813,8 @@ class Builder implements BuilderContract
 
         $this->markKeysetCondition($bindingOffset, $column);
         $this->orderBy($orderColumn, SortDirection::Descending)->limit($perPage);
-        if (! $this->unions) {
-            $this->orders[array_key_last($this->orders)]['keyset'] = true;
-        }
+        $property = $this->unions ? 'unionOrders' : 'orders';
+        $this->{$property}[array_key_last($this->{$property})]['keyset'] = $column;
 
         return $this;
     }
@@ -2847,9 +2846,8 @@ class Builder implements BuilderContract
 
         $this->markKeysetCondition($bindingOffset, $column);
         $this->orderBy($orderColumn, SortDirection::Ascending)->limit($perPage);
-        if (! $this->unions) {
-            $this->orders[array_key_last($this->orders)]['keyset'] = true;
-        }
+        $property = $this->unions ? 'unionOrders' : 'orders';
+        $this->{$property}[array_key_last($this->{$property})]['keyset'] = $column;
 
         return $this;
     }
@@ -2897,6 +2895,7 @@ class Builder implements BuilderContract
     {
         $remaining = [];
         $removed = 0;
+        $membershipOrders = 0;
 
         foreach ($orders as $order) {
             if (isset($order['bindings'])) {
@@ -2904,10 +2903,11 @@ class Builder implements BuilderContract
             }
 
             if (isset($order['column']) && $order['column'] === $column) {
-                if (! $this->unions) {
+                if (! $this->unions && ! isset($order['keyset'])) {
+                    // Paging orders may move first, but only original orders select membership.
                     // Retained bindings stay live; copy only values actually removed.
                     $this->removedKeysetOrders[] = [
-                        'index' => count($remaining),
+                        'index' => $membershipOrders,
                         'order' => $order,
                         'bindingOffset' => $order['bindings']['offset'] ?? count($bindings),
                         'bindings' => isset($order['bindings'])
@@ -2925,6 +2925,7 @@ class Builder implements BuilderContract
                 continue;
             }
 
+            $membershipOrders += isset($order['keyset']) ? 0 : 1;
             $remaining[] = $order;
         }
 
@@ -3090,7 +3091,7 @@ class Builder implements BuilderContract
      */
     public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): mixed
     {
-        return $this->where('id', '=', $id)->first($columns);
+        return $this->where('id', '=', $id)->first($columns instanceof ExpressionContract ? [$columns] : $columns);
     }
 
     /**
@@ -3309,7 +3310,12 @@ class Builder implements BuilderContract
         string $cursorName = 'cursor',
         Cursor|string|null $cursor = null,
     ): CursorPaginatorContract {
-        return $this->paginateUsingCursor($perPage, $columns, $cursorName, $cursor);
+        return $this->paginateUsingCursor(
+            $perPage,
+            $columns instanceof ExpressionContract ? [$columns] : $columns,
+            $cursorName,
+            $cursor
+        );
     }
 
     /**
@@ -3317,9 +3323,7 @@ class Builder implements BuilderContract
      */
     protected function ensureOrderForCursorPagination(bool $shouldReverse = false): Collection
     {
-        if (empty($this->orders) && empty($this->unionOrders)) {
-            $this->enforceOrderBy();
-        }
+        $this->enforceOrderBy();
 
         $this->prepareCursorOrdering();
 
@@ -3342,7 +3346,7 @@ class Builder implements BuilderContract
             }
         }
 
-        $orders = ! empty($this->unionOrders) ? $this->unionOrders : $this->orders;
+        $orders = $this->unions ? $this->unionOrders : $this->orders;
 
         return (new Collection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
@@ -3378,6 +3382,10 @@ class Builder implements BuilderContract
     public function prepareCursorOrdering(): void
     {
         if ($this->unions) {
+            foreach ($this->unionOrders ?? [] as $index => $order) {
+                $this->unionOrders[$index]['keysetCursor'] = true;
+            }
+
             return;
         }
 
@@ -3390,6 +3398,85 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Restore the operation's ordering when a global scope replaces its paging orders.
+     */
+    public function restoreKeysetOrdersFrom(self $source): bool
+    {
+        $isKeyset = static fn (array $order): bool => isset($order['keyset']) || isset($order['keysetCursor']);
+        $property = $source->unions ? 'unionOrders' : 'orders';
+
+        if (! array_any($source->{$property} ?? [], $isKeyset) || array_any($this->{$property} ?? [], $isKeyset)) {
+            return false;
+        }
+
+        // A bounded iteration cannot silently replace the set a scope's new order chooses.
+        foreach ($source->{$property} as $order) {
+            if (isset($order['keysetLimited'])) {
+                // The marker retains the WHERE source; a union's order names its output.
+                $this->ensureLimitedIterationOrdersById($order['keyset'], $order['direction'] === 'desc');
+            }
+        }
+
+        // Pages compare against the operation's order. Restore its bindings and inner
+        // ordering together so a scope cannot also change which rows belong to it.
+        $this->orders = $source->orders;
+        $this->unionOrders = $source->unionOrders;
+        $this->bindings['order'] = $source->bindings['order'];
+        $this->bindings['unionOrder'] = $source->bindings['unionOrder'];
+        $this->removedKeysetOrders = $source->removedKeysetOrders;
+
+        return true;
+    }
+
+    /**
+     * Sort an ID iteration by its paging column before any other order.
+     */
+    public function prioritizeKeysetOrders(bool $limited = false): static
+    {
+        // The next page compares IDs alone; another leading sort can skip unseen IDs.
+        $property = $this->unions ? 'unionOrders' : 'orders';
+        $orders = $this->{$property} ?? [];
+        $keyset = array_filter($orders, static fn (array $order): bool => isset($order['keyset']));
+
+        if ($keyset !== []) {
+            // Remember the caller's bound; even unlimited iteration gives each page a limit.
+            if ($limited) {
+                foreach ($keyset as $index => $order) {
+                    $keyset[$index]['keysetLimited'] = true;
+                }
+            }
+
+            // These orders own no bindings. Retain other orders for driver-owned row selection.
+            $this->{$property} = [...$keyset, ...array_diff_key($orders, $keyset)];
+        }
+
+        return $this;
+    }
+
+    /**
+     * Reject limited ID iteration when another order would choose different rows.
+     */
+    public function ensureLimitedIterationOrdersById(string $column, bool $descending): void
+    {
+        $first = ($this->unions ? $this->unionOrders : $this->orders)[0] ?? null;
+
+        if ($first === null || $this->getLimit() === 0 || ($this->getLimit() === null && ! $this->getOffset())) {
+            return;
+        }
+
+        $source = fn (string $name): string => Str::chopStart(
+            $this->getOriginalColumnNameForCursorPagination($this, $name),
+            $this->getFromAlias() . '.'
+        );
+
+        // Compare source names without conflating equally named columns from different joins.
+        if (! is_string($first['column'] ?? null) || $source($first['column']) !== $source($this->resolveKeysetOrderColumn($column))
+            || ($first['direction'] ?? null) !== ($descending ? 'desc' : 'asc')) {
+            throw new InvalidArgumentException('Cannot limit an ID-based iteration by another order. Select the rows with fromSub() first, then iterate them.');
+        }
+    }
+
+    /**
      * Add cursor comparisons resolved by the calling query or Eloquent builder.
      *
      * @param list<array{column: string, original: ExpressionContract|string, direction: string}> $orders
@@ -3397,13 +3484,29 @@ class Builder implements BuilderContract
      */
     public function addCursorPaginationConditions(array $orders, array $bindings): static
     {
+        $this->groupOrWheresForKeyset();
         $offset = count($this->bindings['where']);
         $this->addCursorComparisons($orders, $bindings, 0);
         $this->markKeysetCondition($offset);
+        // Bare references cannot be aggregates; keep their grouped pages on the direct
+        // index path. Other raw expressions retain isolation without parsing their SQL.
         $this->hasKeysetExpressions = $this->hasKeysetExpressions
-            || array_any($orders, static fn (array $order): bool => $order['original'] instanceof ExpressionContract);
+            || array_any($orders, fn (array $order): bool => $order['original'] instanceof ExpressionContract
+                && preg_match('/\A[\w.]+\z/', (string) $this->grammar->getValue($order['original'])) !== 1);
 
         return $this;
+    }
+
+    /**
+     * Keep existing "or" conditions from bypassing the page boundary.
+     */
+    protected function groupOrWheresForKeyset(): void
+    {
+        if (array_any($this->wheres, static fn (array $where): bool => str_contains($where['boolean'], 'or'))) {
+            $existing = $this->forNestedWhere();
+            $existing->wheres = $this->wheres;
+            $this->wheres = [['type' => 'Nested', 'query' => $existing, 'boolean' => 'and']];
+        }
     }
 
     /**
@@ -3441,6 +3544,11 @@ class Builder implements BuilderContract
     {
         $isolateSelect = $this->hasSelectKeysetConditions && $this->requiresKeysetIsolation(false);
         $orders = $this->orders;
+        // The unique paging key settles the sort; later keys make MySQL sort every remaining row.
+        $sortsByPageOnly = ! $isolateSelect && isset($orders[0]['keyset']);
+        if ($sortsByPageOnly) {
+            $orders = [$orders[0]];
+        }
         // Keep logical source names for repeated ID calls; resolve aliases only
         // after scopes and get() have completed the executable projection.
         if (! $isolateSelect && $this->hasSelectKeysetConditions && $this->columns !== null && $this->columns !== ['*']) {
@@ -3459,6 +3567,9 @@ class Builder implements BuilderContract
 
         $query = $this->clone();
         $query->orders = $orders;
+        if ($sortsByPageOnly) {
+            $query->bindings['order'] = [];
+        }
         $query->hasSelectKeysetConditions = $query->hasUnionKeysetConditions = false;
         $conditions = [];
         $query->wheres = $query->collectKeysetConditions($query->wheres, $conditions, $isolateSelect);
@@ -3471,23 +3582,20 @@ class Builder implements BuilderContract
         $selectConditions = array_values(array_filter($conditions, static fn (array $condition): bool => ! $condition['range']['union']));
         $unionConditions = array_values(array_filter($conditions, static fn (array $condition): bool => $condition['range']['union']));
         if ($isolateSelect) {
-            $pageOrders = array_values(array_filter($query->orders ?? [], static fn (array $order): bool => isset($order['direction'])
-                && (isset($order['keyset']) || isset($order['keysetCursor']))));
-            $pageBindings = [];
-            foreach ($pageOrders as $index => $order) {
-                // Late scope and callback orders must not contribute parameters to the outer page.
-                if (isset($order['bindings'])) {
-                    $pageOrders[$index]['bindings']['offset'] = count($pageBindings);
-                    array_push($pageBindings, ...array_slice($query->bindings['order'], $order['bindings']['offset'], $order['bindings']['count']));
-                }
-                if (isset($order['column']) && is_string($order['column'])) {
-                    $pageOrders[$index]['column'] = $this->getKeysetOutputColumn($order['column'], source: isset($order['keyset']));
+            // Only the sort belongs outside; driver clauses and their parameters stay in the result.
+            $pageOrders = [];
+            foreach ($query->orders ?? [] as $order) {
+                if (isset($order['direction']) && (isset($order['keyset']) || isset($order['keysetCursor']))) {
+                    $pageOrders[] = [
+                        'column' => is_string($order['column'])
+                            ? $this->getKeysetOutputColumn($order['column'], source: isset($order['keyset'])) : $order['column'],
+                        'direction' => $order['direction'],
+                    ];
                 }
             }
             $query->isolateKeysetSelect(false);
             $query->appendKeysetConditions($selectConditions, [], true);
             $query->orders = $pageOrders;
-            $query->bindings['order'] = $pageBindings;
         }
 
         if ($unionConditions !== []) {
@@ -3589,7 +3697,7 @@ class Builder implements BuilderContract
     /**
      * Get the selected output name for a paging column.
      */
-    protected function getKeysetOutputColumn(string $parameter, bool $source = false): string
+    public function getKeysetOutputColumn(string $parameter, bool $source = false): string
     {
         // ID methods name a WHERE source; cursors name ORDER BY outputs. An alias
         // can shadow another source, so those two lookups need different precedence.
@@ -3771,6 +3879,8 @@ class Builder implements BuilderContract
      */
     protected function appendKeysetConditions(array $conditions, array $mapping = [], bool $output = false): static
     {
+        $this->groupOrWheresForKeyset();
+
         foreach ($conditions as $condition) {
             $this->wheres[] = $this->rebindKeysetColumns($condition['where'], $mapping, $output);
             $this->addBinding($condition['bindings'], 'where');
@@ -3805,19 +3915,18 @@ class Builder implements BuilderContract
 
     /**
      * Restore membership ordering from live entries and the orders paging removed.
+     *
+     * Drivers use this when their clauses select rows according to the original order.
      */
     protected function restoreKeysetOrdering(): void
     {
-        $orders = $this->orders ?? [];
+        $orders = array_values(array_filter($this->orders ?? [], static fn (array $order): bool => ! isset($order['keyset'])));
         foreach (array_reverse($this->removedKeysetOrders) as $removed) {
             array_splice($orders, $removed['index'], 0, [$removed['order']]);
             array_splice($this->bindings['order'], $removed['bindingOffset'], 0, $removed['bindings']);
         }
         $this->orders = [];
         foreach ($orders as $order) {
-            if (isset($order['keyset'])) {
-                continue;
-            }
             if (isset($order['keysetDirection'])) {
                 $order['direction'] = $order['keysetDirection'];
             }
@@ -3995,8 +4104,11 @@ class Builder implements BuilderContract
      */
     protected function enforceOrderBy(): void
     {
-        if (empty($this->orders) && empty($this->unionOrders)) {
-            throw new RuntimeException('You must specify an orderBy clause when using this function.');
+        // A union's inner orders select member rows; only its outer order sorts the result.
+        if (empty($this->unions ? $this->unionOrders : $this->orders)) {
+            throw new RuntimeException($this->unions
+                ? 'You must specify an orderBy clause after the union when using this function.'
+                : 'You must specify an orderBy clause when using this function.');
         }
     }
 

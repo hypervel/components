@@ -292,6 +292,52 @@ class WorkerResourceLifetimeTest extends TestCase
         $this->assertTrue($stopped);
     }
 
+    public function testDaemonJobsHaveIndependentRecordModificationState(): void
+    {
+        (new Waiter(-1))->wait(static fn (): bool => DB::statement('CREATE TABLE records (id INTEGER)'));
+        $modificationStates = [];
+        $jobs = [];
+
+        foreach ([
+            static function () use (&$modificationStates): void {
+                DB::table('records')->insert(['id' => 1]);
+                $modificationStates[] = DB::connection()->hasModifiedRecords();
+            },
+            static function () use (&$modificationStates): void {
+                $modificationStates[] = DB::connection()->hasModifiedRecords();
+            },
+        ] as $handler) {
+            $job = m::mock(JobContract::class);
+            $job->expects('payload')->twice()->andReturn([]);
+            $job->expects('maxTries')->once()->andReturnNull();
+            $job->expects('retryUntil')->once()->andReturnNull();
+            $job->expects('attempts')->once()->andReturn(1);
+            $job->expects('isDeleted')->once()->andReturnFalse();
+            $job->expects('isReleased')->once()->andReturnFalse();
+            $job->expects('timeout')->once()->andReturnNull();
+            $job->expects('fire')->once()->andReturnUsing($handler);
+            $jobs[] = $job;
+        }
+
+        $connection = m::mock(Queue::class);
+        $connection->expects('getConnectionName')->times(6)->andReturn('default');
+        $connection->expects('pop')->twice()->with('queue')->andReturn(...$jobs);
+        $manager = m::mock(QueueManager::class);
+        $manager->expects('connection')->twice()->with('default')->andReturn($connection);
+        $worker = new class($manager, $this->app->make(EventDispatcher::class), $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false) extends Worker {
+            protected function supportsAsyncSignals(): bool
+            {
+                return false;
+            }
+        };
+
+        $this->assertSame(
+            Worker::EXIT_SUCCESS,
+            $worker->daemon('default', 'queue', new WorkerOptions(maxJobs: 2, memory: 1024)),
+        );
+        $this->assertSame([true, false], $modificationStates);
+    }
+
     public function testTimeoutAndSignalCallbacksReleasePooledConnectionsAfterEachBatch(): void
     {
         $connectionName = $this->app->make('config')->string('database.default');

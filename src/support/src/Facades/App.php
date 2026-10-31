@@ -83,6 +83,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool isLocale(string $locale)
  * @method static bool isProduction()
  * @method static bool isScoped(string $abstract)
+ * @method static bool isScopedInstance(mixed $instance)
  * @method static bool isShared(string $abstract)
  * @method static string joinPaths(string|null $basePath, string $path = '')
  * @method static string langPath(string $path = '')

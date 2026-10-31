@@ -4923,6 +4923,15 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $results);
     }
 
+    public function testFindAcceptsALoneExpression(): void
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table users (id integer)');
+        $connection->unprepared('insert into users values (1)');
+
+        $this->assertSame(2, $connection->table('users')->find(1, new Raw('id + 1 as value'))->value);
+    }
+
     public function testFindOrReturnsFirstResultByID(): void
     {
         $builder = $this->getMockQueryBuilder();

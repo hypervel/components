@@ -194,6 +194,9 @@ class WorkCommandTest extends QueueTestCase
         $this->assertTrue(SecondJob::$ran);
     }
 
+    // REMOVED: testWorkerDoesNotFlushStickyConnectionsByDefault and testWorkerCanFlushStickyConnections.
+    // Daemon jobs always own independent routing state; WorkerResourceLifetimeTest covers the real pool.
+
     public function testDaemonWritesOutputFromJobCoroutine(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);

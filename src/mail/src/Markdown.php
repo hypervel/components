@@ -19,6 +19,36 @@ use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 class Markdown
 {
     /**
+     * References that keep interpolated punctuation out of Markdown syntax.
+     */
+    protected const array ENCODED_CHARACTERS = [
+        '\\' => '&#0000092;',
+        '[' => '&#0000091;',
+        ']' => '&#0000093;',
+        '<' => '&#0000060;',
+        '>' => '&#0000062;',
+    ];
+
+    /**
+     * Restore references left escaped in code or unchanged in raw HTML.
+     *
+     * Zero padding keeps ordinary entity examples and literal backslashes intact.
+     * Angle brackets remain escaped so restoration cannot introduce HTML tags.
+     */
+    protected const array DECODED_CHARACTERS = [
+        '&amp;#0000092;' => '\\',
+        '&amp;#0000091;' => '[',
+        '&amp;#0000093;' => ']',
+        '&amp;#0000060;' => '&lt;',
+        '&amp;#0000062;' => '&gt;',
+        '&#0000092;' => '\\',
+        '&#0000091;' => '[',
+        '&#0000093;' => ']',
+        '&#0000060;' => '&lt;',
+        '&#0000062;' => '&gt;',
+    ];
+
+    /**
      * The current theme being used when generating emails.
      */
     protected string $theme = 'default';
@@ -75,15 +105,7 @@ class Markdown
                 }
 
                 return EncodedHtmlString::withEncoding(
-                    function ($value) {
-                        $replacements = [
-                            '[' => '\[',
-                            '<' => '&lt;',
-                            '>' => '&gt;',
-                        ];
-
-                        return str_replace(array_keys($replacements), array_values($replacements), $value);
-                    },
+                    fn ($value) => strtr((string) $value, static::ENCODED_CHARACTERS),
                     $render
                 );
             }
@@ -99,8 +121,12 @@ class Markdown
                 : 'mail::themes.' . $theme;
         }
 
+        if (static::$withSecuredEncoding === true) {
+            $contents = strtr($contents, static::DECODED_CHARACTERS);
+        }
+
         return new HtmlString(($inliner ?: new CssToInlineStyles)->convert(
-            str_replace('\[', '[', $contents),
+            $contents,
             $viewFactory->make($theme, $data)->render()
         ));
     }
@@ -128,21 +154,18 @@ class Markdown
             return new HtmlString(static::converter()->convert((string) $text)->getContent());
         }
 
-        return new HtmlString(EncodedHtmlString::withEncoding(
+        $contents = EncodedHtmlString::withEncoding(
             function ($value) {
-                $replacements = [
-                    '[' => '\[',
-                    '<' => '\<',
-                ];
-
-                $html = str_replace(array_keys($replacements), array_values($replacements), $value);
+                $html = strtr((string) $value, static::ENCODED_CHARACTERS);
 
                 return static::converter([
                     'html_input' => 'escape',
                 ])->convert($html)->getContent();
             },
             fn () => static::converter()->convert((string) $text)->getContent()
-        ));
+        );
+
+        return new HtmlString(strtr($contents, static::DECODED_CHARACTERS));
     }
 
     /**
