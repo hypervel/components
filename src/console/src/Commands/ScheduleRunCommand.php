@@ -524,7 +524,11 @@ class ScheduleRunCommand extends Command
             CoroutineContext::set(self::TASK_FAILED_CONTEXT_KEY, true);
 
             if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
-                $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
+                $this->dispatcher->dispatch(new ScheduledTaskFailed(
+                    $event,
+                    $e,
+                    round(microtime(true) - $start, 2)
+                ));
             }
 
             $this->handler->report($e);
