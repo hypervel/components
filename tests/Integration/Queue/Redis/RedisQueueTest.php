@@ -15,6 +15,7 @@ use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
@@ -598,6 +599,33 @@ class RedisQueueTest extends TestCase
         $this->assertSame(0, $this->redisConnection()->llen("{$redisKey}:notify"));
     }
 
+    public function testBulkDelayedFailurePreservesEarlierJobsAndNotifications(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+        $redisKey = $this->getQueueRedisKey($default);
+        $this->redisConnection()->set("{$redisKey}:delayed", 'not-a-sorted-set');
+        $caught = null;
+
+        try {
+            $this->queue->bulk([
+                new RedisQueueIntegrationTestJob(1),
+                new RedisQueueIntegrationTestJob(2),
+                new RedisQueueIntegrationDelayedJob(3, 60),
+                new RedisQueueIntegrationTestJob(4),
+            ]);
+        } catch (LuaScriptException $caught) {
+        }
+
+        $this->assertInstanceOf(LuaScriptException::class, $caught);
+        $immediate = $this->redisConnection()->lrange($redisKey, 0, -1);
+        $this->assertSame([1, 2], array_map(
+            static fn (string $payload): int => unserialize(json_decode($payload)->data->command)->i,
+            $immediate,
+        ));
+        $this->assertSame(2, $this->redisConnection()->llen("{$redisKey}:notify"));
+    }
+
     public function testDelayedJobsWorkWithPhpRedisSerializationEnabled(): void
     {
         $connection = Redis::connection('default');
@@ -826,6 +854,43 @@ class RedisQueueTest extends TestCase
 
         $this->assertSame(1050, $this->queue->size('bulk-many'));
         $this->assertSame(1050, $this->redisConnection()->llen("{$redisKey}:notify"));
+    }
+
+    #[DataProvider('bulkPushNotificationCountProvider')]
+    public function testBulkPushScriptCreatesOneNotificationPerJob(int $count): void
+    {
+        $connection = $this->redisConnection();
+        $key = "queues:{bulk-script-{$count}}";
+        $payloads = [];
+        $arguments = [];
+
+        for ($i = 0; $i < $count; ++$i) {
+            $payloads[] = "job-{$i}";
+            $arguments[] = 'i';
+            $arguments[] = "job-{$i}";
+        }
+
+        $stored = $connection->eval(LuaScripts::bulk(), 3, $key, "{$key}:notify", "{$key}:delayed", ...$arguments);
+
+        $this->assertSame($count, $stored);
+        $this->assertSame($payloads, $connection->lrange($key, 0, -1));
+        $this->assertSame(array_fill(0, $count, '1'), $connection->lrange("{$key}:notify", 0, -1));
+    }
+
+    /**
+     * Provide bulk sizes around the notification chunk boundary.
+     */
+    public static function bulkPushNotificationCountProvider(): array
+    {
+        return [
+            'empty' => [0],
+            'single' => [1],
+            'before chunk boundary' => [99],
+            'at chunk boundary' => [100],
+            'after chunk boundary' => [101],
+            'multiple chunks' => [250],
+            'full bulk' => [1000],
+        ];
     }
 
     public function testAllQueueNamesStripsClusterBraces(): void
