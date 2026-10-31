@@ -47,6 +47,10 @@
         "symfony/http-foundation": "^8.1",
         "symfony/http-kernel": "^8.1"
     },
+    "conflict": {
+        "league/flysystem-ftp": "<3.13",
+        "league/flysystem-sftp-v3": "<3.13"
+    },
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
         "hypervel/image": "Required to create images from stored files (^0.4).",

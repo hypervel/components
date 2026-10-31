@@ -146,7 +146,7 @@ Swoole supplies the FTP functions without registering as `ext-ftp`. After enabli
 Then install the Flysystem FTP package:
 
 ```shell
-composer require league/flysystem-ftp "^3.0"
+composer require league/flysystem-ftp "^3.25.1"
 ```
 
 Hypervel's Flysystem integrations work great with FTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an FTP filesystem, you may use the configuration example below:
@@ -173,7 +173,7 @@ Hypervel's Flysystem integrations work great with FTP; however, a sample configu
 Before using the SFTP driver, you will need to install the Flysystem SFTP package via the Composer package manager:
 
 ```shell
-composer require league/flysystem-sftp-v3 "^3.0"
+composer require league/flysystem-sftp-v3 "^3.25.1"
 ```
 
 Hypervel's Flysystem integrations work great with SFTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an SFTP filesystem, you may use the configuration example below:
