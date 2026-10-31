@@ -17,6 +17,8 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -143,6 +145,43 @@ class ConcurrencyLimiterTest extends TestCase
         }
 
         $this->assertEquals([1], $store);
+    }
+
+    public function testRetryTimeoutRespectsFakedSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+
+        $lock = new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), 'key', 1, 10);
+
+        $lock->block(2, fn () => null);
+
+        try {
+            $lock->block(2, fn () => null, 500);
+            $this->fail('Expected LimiterTimeoutException.');
+        } catch (LimiterTimeoutException) {
+            // 2s timeout / 500ms faked sleeps advancing Carbon
+            Sleep::assertSleptTimes(4);
+        } finally {
+            Sleep::fake(false);
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function testBlockCanAcquireAtTheDeadlineWithAShorterFinalSleep(): void
+    {
+        Sleep::fake(syncWithCarbon: true);
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $limiter = new ConcurrencyLimiter($this->repository->getStore(), 'key', 1, 2);
+        $limiter->block(0);
+
+        $this->assertTrue($limiter->block(2, sleep: 750));
+
+        Sleep::assertSequence([
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(750)->milliseconds(),
+            Sleep::for(500)->milliseconds(),
+        ]);
     }
 
     public function testItReleasesIfErrorIsThrown(): void
