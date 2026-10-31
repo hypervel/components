@@ -28,8 +28,8 @@ trait FormatsParameters
             is_null($value) => 'null',
             $value === true => 'true',
             $value === false => 'false',
-            // JSON preserves finite precision; non-finite values retain their literal representation.
-            is_float($value) => json_encode($value) ?: (string) $value,
+            // JSON preserves finite precision but cannot encode INF, and casting NAN warns on PHP 8.5.
+            is_float($value) => is_nan($value) ? 'NAN' : (json_encode($value) ?: (string) $value),
             default => (string) $value,
         }, array_values($values));
     }

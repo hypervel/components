@@ -308,10 +308,10 @@ class ValidationRuleBuilderMethodTest extends TestCase
     {
         $translator = new Translator(new ArrayLoader, 'en');
 
-        foreach ([NAN, INF] as $value) {
+        foreach ([[NAN, 'NAN'], [INF, 'INF'], [-INF, '-INF']] as [$value, $expected]) {
             $rule = Rule::acceptedIf('other', $value);
 
-            $this->assertSame(['other', (string) $value], ValidationRuleParser::parse($rule)[1]);
+            $this->assertSame(['other', $expected], ValidationRuleParser::parse($rule)[1]);
 
             foreach (['', false] as $other) {
                 $this->assertTrue((new Validator($translator, ['other' => $other, 'terms' => false], [
