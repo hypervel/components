@@ -6,6 +6,7 @@ namespace Hypervel\Database\Concerns;
 
 use Generator;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\MultipleRecordsFoundException;
@@ -162,6 +163,7 @@ trait BuildsQueries
 
         $column ??= $this->defaultKeyName();
         $alias ??= $column;
+        $this->ensureLimitedIterationOrdersById($column, $descending === true || $descending === SortDirection::Descending);
         $lastId = null;
         $skip = $this->getOffset();
         $remaining = $this->getLimit();
@@ -185,8 +187,8 @@ trait BuildsQueries
             // no results we can just break and return from here. When there are results
             // we will call the callback with the current chunk of these results here.
             $results = match ($descending) {
-                SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->get(),
-                SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->get(),
+                SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
+                SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
             };
 
             $countResults = $results->count();
@@ -330,6 +332,7 @@ trait BuildsQueries
 
         $alias ??= $column;
 
+        $this->ensureLimitedIterationOrdersById($column, $descending === true || $descending === SortDirection::Descending);
         $skip = $this->getOffset();
         $remaining = $this->getLimit();
 
@@ -352,8 +355,8 @@ trait BuildsQueries
                 }
 
                 $results = match ($descending) {
-                    SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->get(),
-                    SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->get(),
+                    SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
+                    SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
                 };
 
                 foreach ($results as $result) {
@@ -507,43 +510,40 @@ trait BuildsQueries
                 : CursorPaginator::resolveCurrentCursor($cursorName, $cursor);
         }
 
+        // The caller must provide the complete unique order. Adding scope keys here
+        // would require extra selected values and can replace an index range with a compound filter.
         $orders = $this->ensureOrderForCursorPagination(! is_null($cursor) && $cursor->pointsToPreviousItems());
         $this->limit($perPage + 1);
         $builder = $this;
 
         if (! is_null($cursor)) {
             $query = $this instanceof Builder ? $this->getQuery() : $this;
-            $originalColumns = $query->columns;
-            $originalColumnNames = [];
-
-            // Resolve argument-only aliases before get() installs its projection,
-            // then restore it so Eloquent scopes retain their normal column semantics.
-            $query->columns ??= Arr::wrap($columns);
-            try {
-                foreach ($orders as $order) {
-                    $originalColumnNames[$order['column']] = $this->getOriginalColumnNameForCursorPagination($this, $order['column']);
-                }
-            } finally {
-                $query->columns = $originalColumns;
-            }
-
             $builder = $this->getBuilderForCursorPage();
+            $pageQuery = $builder instanceof Builder ? $builder->getQuery() : $builder;
+            $originalColumns = $pageQuery->columns;
             $comparisons = [];
             $bindings = [];
-            foreach ($orders as $order) {
-                $column = $order['column'];
-                $original = $originalColumnNames[$column];
-                $order['original'] = $original !== $column && Str::contains($original, ['(', ')'])
-                    ? new Expression($original) : $original;
-                $comparisons[] = $order;
-                $bindings[$column] = $builder->getCursorParameterBinding($cursor, $column);
+
+            // Scopes may add computed aliases. Resolve against the page's scoped projection,
+            // installing argument-only columns afterward so scopes still see their normal input.
+            $pageQuery->columns ??= Arr::wrap($columns);
+            try {
+                foreach ($orders as $order) {
+                    $column = $order['column'];
+                    $original = $this->getOriginalColumnNameForCursorPagination($builder, $column);
+                    $order['original'] = $this->isCursorExpression($pageQuery, $column, $original)
+                        ? new Expression($original) : $original;
+                    $comparisons[] = $order;
+                    $bindings[$column] = $builder->getCursorParameterBinding($cursor, $column);
+                }
+            } finally {
+                $pageQuery->columns = $originalColumns;
             }
 
             // Members are resolved by their output positions during SELECT preparation;
             // keep their select/join bindings and never rewrite a shared union builder.
             $query->addCursorPaginationConditions($comparisons, $bindings);
 
-            $pageQuery = $builder instanceof Builder ? $builder->getQuery() : $builder;
             if ($pageQuery !== $query) {
                 // Keep the caller's page conditions as well as the scoped execution copy's.
                 $pageQuery->addCursorPaginationConditions($comparisons, $bindings);
@@ -582,6 +582,9 @@ trait BuildsQueries
     {
         $query = $builder instanceof Builder ? $builder->getQuery() : $builder;
 
+        // Ordered expressions require a separate select entry with an explicit AS alias.
+        // Implicit aliases and multiple fields in one raw entry remain unsupported: parsing
+        // arbitrary SQL is brittle, while automatic wrapping can change row-lock behavior.
         foreach ($query->getColumns() as $column) {
             if (($position = strripos($column, ' as ')) !== false) {
                 $original = substr($column, 0, $position);
@@ -595,6 +598,31 @@ trait BuildsQueries
         }
 
         return $parameter;
+    }
+
+    /**
+     * Determine whether the resolved cursor column is a declared SQL expression.
+     */
+    protected function isCursorExpression(QueryBuilder $query, string $parameter, string $original): bool
+    {
+        $grammar = $query->getGrammar();
+
+        // Arithmetic need not contain parentheses, and literal identifiers may contain them.
+        // Match the alias as well as its source so another selection cannot change its type.
+        foreach ($query->columns ?? [] as $column) {
+            $value = (string) $grammar->getValue($column);
+            if (($position = strripos($value, ' as ')) !== false) {
+                $alias = substr($value, $position + 4);
+
+                if (substr($value, 0, $position) === $original
+                    && ($parameter === $alias || $grammar->wrap($parameter) === $alias)) {
+                    return $column instanceof ExpressionContract;
+                }
+            }
+        }
+
+        // Preserve custom alias-lookup overrides that return an unselected expression.
+        return $original !== $parameter && Str::contains($original, ['(', ')']);
     }
 
     /**

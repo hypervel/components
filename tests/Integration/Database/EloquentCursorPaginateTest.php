@@ -19,6 +19,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
@@ -104,6 +105,179 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $this->assertSame([2], $page->getCollection()->modelKeys());
         $this->assertEquals(1.5, array_first($page->items()[0]->getAttributes()));
+    }
+
+    #[TestWith(['query'], 'query expression')]
+    #[TestWith(['eloquent'], 'model expression')]
+    #[TestWith(['scope'], 'scope-added expression')]
+    #[TestWith(['argument'], 'lone expression argument')]
+    public function testCursorPaginationUsesTheSelectedArithmeticExpression(string $selection): void
+    {
+        TestPost::fillAndInsert([[], [], [], []]);
+        $scopeCalls = 0;
+        $query = function () use ($selection, &$scopeCalls): Builder|QueryBuilder {
+            $query = in_array($selection, ['eloquent', 'scope'], true)
+                ? TestPost::query() : DB::table('test_posts');
+
+            if ($selection === 'scope') {
+                $query->withGlobalScope('computed-id', function (Builder $builder) use (&$scopeCalls): void {
+                    ++$scopeCalls;
+                    $this->assertNull($builder->getQuery()->columns);
+                    $builder->selectRaw('id + 1 as id');
+                });
+            } elseif ($selection !== 'argument') {
+                $query->selectRaw('id + 1 as id');
+            }
+
+            return $query->orderBy('id');
+        };
+        $columns = $selection === 'argument' ? new Expression('id + 1 as id') : ['*'];
+
+        $first = $query()->cursorPaginate(2, $columns);
+        $second = $query()->cursorPaginate(2, $columns, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(2, $columns, cursor: $second->previousCursor());
+
+        $this->assertSame([2, 3], $first->pluck('id')->all());
+        $this->assertSame([4, 5], $second->pluck('id')->all());
+        $this->assertSame([2, 3], $previous->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
+        $this->assertSame($selection === 'scope' ? 3 : 0, $scopeCalls);
+    }
+
+    public function testCursorPaginationQuotesAliasedIdentifiersContainingParentheses(): void
+    {
+        Schema::table('test_posts', function (Blueprint $table): void {
+            $table->integer('weight (kg)')->nullable();
+        });
+        TestPost::fillAndInsert([['weight (kg)' => 10], ['weight (kg)' => 20]]);
+        $query = fn () => TestPost::query()->select('weight (kg) as weight')->orderBy('weight');
+
+        $first = $query()->cursorPaginate(1);
+        $second = $query()->cursorPaginate(1, cursor: $first->nextCursor());
+
+        $this->assertSame([10], $first->pluck('weight')->all());
+        $this->assertSame([20], $second->pluck('weight')->all());
+        $this->assertNull($second->nextCursor());
+    }
+
+    #[DataProvider('idIteratorScopes')]
+    public function testIdIterationKeepsPagingOrderThroughGlobalScopes(string $method, bool $lazy, bool $descending, bool $replace): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
+        $scopeCalls = 0;
+        $query = TestPost::query()->withGlobalScope('sort', function (Builder $builder) use ($descending, $replace, &$scopeCalls): void {
+            ++$scopeCalls;
+            $builder->{$replace ? 'reorder' : 'orderBy'}('user_id', $descending ? 'desc' : 'asc');
+        });
+        $ids = [];
+        if ($lazy) {
+            $ids = $query->{$method}(2)->take(8)->pluck('id')->all();
+        } else {
+            $this->assertTrue($query->{$method}(2, function ($rows) use (&$ids): bool {
+                array_push($ids, ...$rows->modelKeys());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $this->assertSame($descending ? [6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6], $ids);
+        $this->assertSame(4, $scopeCalls);
+        $this->assertSame($descending ? [3, 3, 2, 2, 1, 1] : [1, 1, 2, 2, 3, 3], $query->get()->pluck('user_id')->all());
+    }
+
+    /**
+     * Cover both directions and iterator families with appended and replaced scope orders.
+     */
+    public static function idIteratorScopes(): iterable
+    {
+        foreach (['chunkById', 'chunkByIdDesc', 'lazyById', 'lazyByIdDesc'] as $method) {
+            foreach ([false, true] as $replace) {
+                yield $method . ($replace ? ' replaced' : ' appended') => [$method, str_starts_with($method, 'lazy'), str_ends_with($method, 'Desc'), $replace];
+            }
+        }
+    }
+
+    public function testCursorPaginationKeepsItsCompoundOrderWhenAScopeReplacesIt(): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
+        $query = fn () => TestPost::query()->orderBy('user_id')->orderBy('id')
+            ->withGlobalScope('reverse', fn (Builder $builder) => $builder->reorder('id', 'desc'));
+
+        $first = $query()->cursorPaginate(3);
+        $second = $query()->cursorPaginate(3, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(3, cursor: $second->previousCursor());
+
+        $this->assertSame([5, 6, 3], $first->getCollection()->modelKeys());
+        $this->assertSame([4, 1, 2], $second->getCollection()->modelKeys());
+        $this->assertSame([5, 6, 3], $previous->getCollection()->modelKeys());
+    }
+
+    #[TestWith(['cursorPaginate'])]
+    #[TestWith(['chunkById'])]
+    #[TestWith(['lazyById'])]
+    public function testUnionPagingRestoresItsOuterOrderAndBoundedMemberBindings(string $method): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 7)));
+        $query = fn () => TestPost::where('id', '>=', 4)->orderByRaw('id * ? desc', [1])->limit(2)
+            ->unionAll(TestPost::where('id', '<=', 3))->orderBy('id')
+            ->withGlobalScope('reverse', fn (Builder $builder) => $builder->reorder()->inOrderOf('id', [7, 6, 5, 4, 3, 2, 1]));
+        $ids = [];
+        if ($method === 'cursorPaginate') {
+            $cursor = null;
+            do {
+                $page = $query()->cursorPaginate(2, cursor: $cursor);
+                array_push($ids, ...$page->getCollection()->modelKeys());
+                $cursor = $page->nextCursor();
+            } while ($cursor !== null && count($ids) < 8);
+            $this->assertSame([3, 6], $query()->cursorPaginate(2, cursor: $page->previousCursor())->getCollection()->modelKeys());
+        } elseif ($method === 'lazyById') {
+            $ids = $query()->lazyById(2)->take(8)->pluck('id')->all();
+        } else {
+            $this->assertTrue($query()->chunkById(2, function ($rows) use (&$ids): bool {
+                array_push($ids, ...$rows->modelKeys());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $this->assertSame([1, 2, 3, 6, 7], $ids);
+    }
+
+    #[TestWith(['cursorPaginate'])]
+    #[TestWith(['chunk'])]
+    #[TestWith(['lazy'])]
+    public function testUnionPaginationAddsAnOuterDefaultOrder(string $method): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 6)));
+        $query = fn () => TestPost::where('id', '>=', 4)->orderByDesc('id')->limit(2)
+            ->unionAll(TestPost::where('id', '<=', 3));
+        $ids = [];
+        if ($method === 'cursorPaginate') {
+            $cursor = null;
+            do {
+                $page = $query()->cursorPaginate(2, cursor: $cursor);
+                array_push($ids, ...$page->getCollection()->modelKeys());
+                $cursor = $page->nextCursor();
+            } while ($cursor !== null && count($ids) < 8);
+        } elseif ($method === 'lazy') {
+            $ids = $query()->lazy(2)->take(8)->pluck('id')->all();
+        } else {
+            $this->assertTrue($query()->chunk(2, function ($rows) use (&$ids): bool {
+                array_push($ids, ...$rows->modelKeys());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $this->assertSame([1, 2, 3, 5, 6], $ids);
+        $raw = $query()->getQuery();
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You must specify an orderBy clause');
+        match ($method) {
+            'chunk' => $raw->chunk(2, fn () => true),
+            'lazy' => $raw->lazy(2)->first(),
+            default => $raw->cursorPaginate(2),
+        };
     }
 
     #[TestWith([false], 'single select')]

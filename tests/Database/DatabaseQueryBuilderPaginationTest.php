@@ -65,6 +65,126 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
     }
 
     #[DataProvider('keysetIterators')]
+    public function testIdIterationPrioritizesItsColumnOverCallerOrders(string $method, bool $lazy, bool $descending): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, score integer)');
+        $connection->unprepared('insert into entries values (1, 30), (2, 30), (3, 20), (4, 20), (5, 10), (6, 10)');
+        $connection->enableQueryLog();
+
+        foreach ([false, true] as $union) {
+            $connection->flushQueryLog();
+            $query = $connection->table('entries')->select('id', 'score');
+            if ($union) {
+                $query->where('id', '<=', 3)->unionAll(
+                    $connection->table('entries')->select('id', 'score')->where('id', '>', 3)
+                )->orderBy('score', $descending ? 'desc' : 'asc');
+            } else {
+                $query->orderByRaw('score + ? ' . ($descending ? 'desc' : 'asc'), [7]);
+            }
+            $ids = [];
+            if ($lazy) {
+                $ids = $query->{$method}(2)->take(8)->pluck('id')->all();
+            } else {
+                $this->assertTrue($query->{$method}(2, function (Collection $rows) use (&$ids): bool {
+                    array_push($ids, ...$rows->pluck('id')->all());
+
+                    return count($ids) < 8;
+                }));
+            }
+
+            $this->assertSame($descending ? [6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6], $ids);
+            if (! $union) {
+                foreach ($connection->getQueryLog() as $executed) {
+                    $this->assertStringEndsWith('order by "id" ' . ($descending ? 'desc' : 'asc') . ' limit 2', $executed['query']);
+                }
+            }
+        }
+    }
+
+    #[DataProvider('limitedIdOrders')]
+    public function testLimitedIdIterationChecksItsLeadingOrder(string $firstColumn, string $column, string $direction, ?int $offset, bool $valid, int $limit = 3): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, score_id integer)');
+        $connection->unprepared('create table scores (id integer)');
+        $connection->unprepared('insert into entries values (1, 4), (2, 3), (3, 2), (4, 1)');
+        $connection->unprepared('insert into scores values (1), (2), (3), (4)');
+
+        foreach (['chunkById', 'lazyById'] as $method) {
+            $query = $connection->table('entries as e')->select('e.id as event_id')->orderBy($firstColumn, $direction);
+            if ($firstColumn === 's.id') {
+                $query->join('scores as s', 's.id', '=', 'e.score_id');
+            }
+            $offset !== null ? $query->offset($offset) : $query->limit($limit);
+            $ids = [];
+            try {
+                if ($method === 'lazyById') {
+                    $ids = $query->lazyById(2, $column, 'event_id')->all();
+                    $ids = array_column($ids, 'event_id');
+                } else {
+                    $query->chunkById(2, function (Collection $rows) use (&$ids): void {
+                        array_push($ids, ...$rows->pluck('event_id')->all());
+                    }, $column, 'event_id');
+                }
+                $this->assertTrue($valid, 'A conflicting limited order must fail before processing rows.');
+                $this->assertSame(array_slice([1, 2, 3, 4], $offset ?? 0, $offset === null ? $limit : null), $ids);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertFalse($valid);
+                $this->assertStringContainsString('fromSub()', $exception->getMessage());
+                $this->assertSame([], $ids);
+            }
+        }
+    }
+
+    /**
+     * Provide valid aliases and conflicting limited iteration orders.
+     */
+    public static function limitedIdOrders(): iterable
+    {
+        yield 'own table qualification' => ['e.id', 'id', 'asc', null, true];
+        yield 'selected alias' => ['event_id', 'e.id', 'asc', null, true];
+        yield 'offset with ID order' => ['e.id', 'e.id', 'asc', 1, true];
+        yield 'other joined table' => ['s.id', 'e.id', 'asc', null, false];
+        yield 'opposite direction' => ['e.id', 'e.id', 'desc', null, false];
+        yield 'offset chosen by another column' => ['e.score_id', 'e.id', 'asc', 1, false];
+        yield 'zero offset does not choose a subset' => ['e.score_id', 'e.id', 'asc', 0, true];
+        yield 'zero limit processes no rows' => ['e.score_id', 'e.id', 'asc', null, true, 0];
+    }
+
+    public function testLimitedIdIterationCanSelectItsRankedSetInASubquery(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer, score integer)');
+        $connection->unprepared('insert into entries values (1, 100), (2, 101), (3, 102), (4, 1), (5, 2), (6, 3)');
+        $ranked = $connection->table('entries')->orderBy('score')->limit(3);
+
+        $this->assertSame([4, 5, 6], $connection->query()->fromSub($ranked, 'ranked')->lazyById(2)->pluck('id')->all());
+    }
+
+    public function testRepeatedIdPagingRestoresMembershipOrdersAndCurrentBindings(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $query = new class($connection) extends Builder {
+            /**
+             * Restore ordering used by a driver's row-selecting clauses.
+             */
+            public function restoreMembershipOrder(): void
+            {
+                $this->restoreKeysetOrdering();
+            }
+        };
+        $query->from('entries')->orderByRaw('ts + ?', [1])->orderByDesc('id')->orderByRaw('bucket + ?', [2])
+            ->forPageAfterId(2, 1)->prioritizeKeysetOrders();
+        $query->setBindings([3, 4], 'order')->orderByRaw('other + ?', [5])
+            ->forPageAfterId(2, 2)->prioritizeKeysetOrders();
+        $query->restoreMembershipOrder();
+
+        $this->assertSame('select * from "entries" where "id" > ? and "id" > ? order by ts + ?, "id" desc, bucket + ?, other + ? limit 2', $query->toSql());
+        $this->assertSame([1, 2, 3, 4, 5], $query->getBindings());
+    }
+
+    #[DataProvider('keysetIterators')]
     public function testKeysetIterationUsesTheSourceColumnWhenAnAliasShadowsIt(string $method, bool $lazy, bool $descending): void
     {
         $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
@@ -113,6 +233,27 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
             $this->assertSame([$expected], $page->pluck('name')->all());
         }
         $this->assertNull($page->previousCursor());
+    }
+
+    public function testCursorPaginationHonorsTheRootAliasLookupOverride(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table entries (id integer)');
+        $connection->unprepared('insert into entries values (1), (2), (3), (4), (5), (6)');
+        $query = new class($connection) extends Builder {
+            /**
+             * Shift the cursor boundary independently of the selected alias.
+             */
+            protected function getOriginalColumnNameForCursorPagination(Builder|EloquentBuilder $builder, string $parameter): string
+            {
+                return '(id - 1)';
+            }
+        };
+
+        $page = $query->from('entries')->select('id as v')->orderBy('v')
+            ->cursorPaginate(2, cursor: new Cursor(['v' => 2]));
+
+        $this->assertSame([4, 5], $page->pluck('v')->all());
     }
 
     #[TestWith(['id', 'entries.id'])]
@@ -305,6 +446,25 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $this->assertSame('posts', $page->from);
         $this->assertSame(2, $page->limit);
         $this->assertSame(3, $page->unionLimit);
+    }
+
+    #[TestWith(['events.tenant_id', false], 'bare reference')]
+    #[TestWith(['tenant_id + 1', true], 'arithmetic expression')]
+    public function testGroupedCursorPagesOnlyIsolateComputedSources(string $source, bool $isolated): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table events (tenant_id integer, amount integer)');
+        $connection->unprepared('insert into events values (1, 2), (1, 3), (2, 5), (3, 7)');
+        $query = $connection->table('events')->selectRaw($source . ' as tenant')->selectRaw('sum(amount) as total')
+            ->orderBy('tenant')->beforeQuery(static fn (Builder $query) => $query
+            ->groupBy('events.tenant_id')->havingRaw('sum(amount) >= ?', [5]));
+        $connection->enableQueryLog();
+
+        $page = $query->cursorPaginate(1, cursor: new Cursor(['tenant' => $isolated ? 2 : 1]));
+
+        $this->assertSame([$isolated ? 3 : 2], $page->pluck('tenant')->all());
+        $this->assertSame([5], $page->pluck('total')->all());
+        $this->assertSame($isolated, str_contains($connection->getQueryLog()[0]['query'], 'cursor_table'));
     }
 
     #[TestWith([false])]

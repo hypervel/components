@@ -1054,8 +1054,9 @@ class Builder implements BuilderContract
      */
     protected function enforceOrderBy(): void
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->orderBy($this->model->getQualifiedKeyName(), SortDirection::Ascending);
+        // A union's outer ordering cannot refer to a member table's qualified key.
+        if (empty($this->query->unions ? $this->query->unionOrders : $this->query->orders)) {
+            $this->orderBy($this->query->unions ? $this->model->getKeyName() : $this->model->getQualifiedKeyName(), SortDirection::Ascending);
         }
     }
 
@@ -1169,9 +1170,7 @@ class Builder implements BuilderContract
      */
     protected function ensureOrderForCursorPagination(bool $shouldReverse = false): BaseCollection
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->enforceOrderBy();
-        }
+        $this->enforceOrderBy();
 
         $this->query->prepareCursorOrdering();
 
@@ -1194,7 +1193,7 @@ class Builder implements BuilderContract
             }
         }
 
-        $orders = ! empty($this->query->unionOrders) ? $this->query->unionOrders : $this->query->orders;
+        $orders = $this->query->unions ? $this->query->unionOrders : $this->query->orders;
 
         return (new BaseCollection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
@@ -1600,6 +1599,9 @@ class Builder implements BuilderContract
                 }
             });
         }
+
+        // A replacement sort cannot change the ordering a cursor or ID page compares against.
+        $builder->query->restoreKeysetOrdersFrom($this->query);
 
         return $builder;
     }
