@@ -899,7 +899,7 @@ class DatabasePdoConnectionTest extends TestCase
             $connection->statement('foo');
 
             $this->fail('A QueryException was not thrown.');
-        } catch (QueryException $e) {
+        } catch (QueryException) {
             $this->assertSame(1, $reconnects);
         }
     }
