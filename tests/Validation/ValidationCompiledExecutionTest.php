@@ -781,6 +781,28 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertNotCount(count($firstPlan->checks), $secondPlan->checks);
     }
 
+    public function testCachedBuilderPlansPreserveStructuredParametersAfterBuilderMutation(): void
+    {
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+        $firstPlan = null;
+
+        foreach (['secret', 'secret', 'different'] as $confirmation) {
+            $rule = Rule::confirmed()->customField('repeat,field|value');
+            $validator = $this->makeValidator(
+                ['value' => 'secret', 'repeat,field|value' => $confirmation],
+                ['value' => [$rule]],
+            );
+
+            $this->assertSame($confirmation === 'secret', $validator->passes());
+
+            $plan = $compiledPlans->getValue($validator)['value'];
+            $firstPlan ??= $plan;
+            $this->assertSame($firstPlan, $plan);
+
+            $rule->customField('another_field');
+        }
+    }
+
     #[DataProvider('guardedRuleCases')]
     public function testGuardedRuleDomainsMatchInCompiledAndDelegatedExecution(
         string $rule,

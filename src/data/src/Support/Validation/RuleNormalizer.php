@@ -6,6 +6,7 @@ namespace Hypervel\Data\Support\Validation;
 
 use Closure;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
 use Hypervel\Data\Attributes\Validation\Dimensions;
@@ -62,6 +63,10 @@ class RuleNormalizer
 
         if (is_string($rule)) {
             return $this->resolveStringRule($rule);
+        }
+
+        if ($rule instanceof ParameterizedRule) {
+            return [$this->resolveRule($rule)];
         }
 
         if ($rule instanceof Rule) {
@@ -122,13 +127,21 @@ class RuleNormalizer
             ? [$rule]
             : explode('|', $rule);
         foreach ($subRules as $subRule) {
-            try {
-                $rules[] = $this->ruleFactory->create($subRule);
-            } catch (CouldNotCreateValidationRule|CannotBuildValidationRule|TypeError|ValueError) {
-                $rules[] = new Rule($subRule);
-            }
+            $rules[] = $this->resolveRule($subRule);
         }
 
         return $rules;
+    }
+
+    /**
+     * Convert a rule to its validation attribute, keeping it as written when no attribute can hold its parameters.
+     */
+    protected function resolveRule(string|ParameterizedRule $rule): ValidationRule
+    {
+        try {
+            return $this->ruleFactory->create($rule);
+        } catch (CouldNotCreateValidationRule|CannotBuildValidationRule|TypeError|ValueError) {
+            return new Rule($rule);
+        }
     }
 }

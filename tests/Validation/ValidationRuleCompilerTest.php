@@ -13,6 +13,7 @@ use Hypervel\Validation\DelegatedCheck;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\RuleCompiler;
+use Hypervel\Validation\Rules\Confirmed;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Stringable;
@@ -528,6 +529,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testCompileAllDelegatedProducesOnlyDelegatedChecks(): void
     {
+        $builder = new Confirmed;
         $plan = RuleCompiler::compileAllDelegated([
             'nullable',
             'bail',
@@ -535,6 +537,7 @@ class ValidationRuleCompilerTest extends TestCase
             'required',
             'string',
             'max:255',
+            $builder,
         ]);
 
         foreach ($plan->checks as $check) {
@@ -545,7 +548,8 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertTrue($plan->nullable);
         $this->assertTrue($plan->bail);
         $this->assertTrue($plan->sometimes);
-        $this->assertCount(6, $plan->checks);
+        $this->assertCount(7, $plan->checks);
+        $this->assertSame($builder, $plan->checks[6]->originalRule);
     }
 
     public function testMultipleOfLiteralInlines(): void

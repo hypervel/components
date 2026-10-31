@@ -7,6 +7,7 @@ namespace Hypervel\Data\Attributes\Validation;
 use Attribute;
 use DateTimeInterface;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
+use Hypervel\Data\Support\Validation\References\FieldReference;
 
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 class DateEquals extends StringValidationAttribute
@@ -14,7 +15,7 @@ class DateEquals extends StringValidationAttribute
     /**
      * Create a date-equals rule attribute.
      */
-    public function __construct(protected string|DateTimeInterface|ExternalReference $date)
+    public function __construct(protected string|DateTimeInterface|FieldReference|ExternalReference $date)
     {
     }
 

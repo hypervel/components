@@ -39,7 +39,7 @@ interface Validator extends MessageProvider
     /**
      * Add conditions to a given field based on a Closure.
      */
-    public function sometimes(array|string $attribute, array|string $rules, callable $callback): static;
+    public function sometimes(array|string $attribute, array|object|string $rules, callable $callback): static;
 
     /**
      * Add an after validation callback.

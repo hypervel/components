@@ -63,6 +63,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\Rule as NativeRule;
 use Hypervel\Validation\Rules\Enum as EnumRule;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
@@ -978,6 +979,16 @@ class DataValidatorTest extends TestCase
 
         NestedDistinctParentDataFixture::getValidationRules([
             'groups' => [['children' => $children]],
+        ]);
+    }
+
+    public function testFinishedItemsCannotBypassAParameterizedDistinctRule(): void
+    {
+        $this->expectException(CannotBuildValidationRule::class);
+        $this->expectExceptionMessageIsOrContains('Cannot build the distinct rule for [items.*.name]');
+
+        ParameterizedDistinctParentDataFixture::getValidationRules([
+            'items' => [new ParameterizedDistinctChildDataFixture('duplicate'), ['name' => 'duplicate']],
         ]);
     }
 
@@ -3352,6 +3363,38 @@ class NestedDynamicCollectionParentDataFixture extends Data
     public function __construct(
         #[DataCollectionOf(NestedDynamicCollectionItemDataFixture::class)]
         public array $groups,
+    ) {
+    }
+}
+
+class ParameterizedDistinctChildDataFixture extends Data
+{
+    /**
+     * Create a child with a value checked across the collection.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Return the structured distinct rule.
+     */
+    public static function rules(): array
+    {
+        return ['name' => [NativeRule::distinct()]];
+    }
+}
+
+class ParameterizedDistinctParentDataFixture extends Data
+{
+    /**
+     * Create the collection parent.
+     *
+     * @param array<array-key, ParameterizedDistinctChildDataFixture> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(ParameterizedDistinctChildDataFixture::class)]
+        public array $items,
     ) {
     }
 }
