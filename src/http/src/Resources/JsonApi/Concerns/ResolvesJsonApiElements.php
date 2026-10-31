@@ -355,6 +355,9 @@ trait ResolvesJsonApiElements
 
     /**
      * Load the requested relationships that are missing on the given related models.
+     *
+     * Collection loading starts on the first resource with every root model.
+     * Overrides must apply constraints to the supplied models, which may belong to different parents.
      */
     protected function loadMissingRequestedRelationships(
         JsonApiRequest $request,

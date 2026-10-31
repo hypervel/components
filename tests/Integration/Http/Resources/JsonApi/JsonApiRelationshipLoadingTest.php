@@ -18,7 +18,7 @@ use Override;
 
 class JsonApiRelationshipLoadingTest extends TestCase
 {
-    public function testEachParentKeepsItsOwnLoaderConstraint(): void
+    public function testNestedLoaderRetainsParentWhenResourceNeedsConstructorArguments(): void
     {
         $users = User::factory()->count(2)->create();
         foreach ($users as $user) {
@@ -28,6 +28,7 @@ class JsonApiRelationshipLoadingTest extends TestCase
             }
         }
 
+        // The root batch cannot reconstruct this resource; nested loading retains each existing parent.
         $collection = new AnonymousResourceCollection(new BaseCollection([
             new ParentSpecificUserResource($users[0], 'published'),
             new ParentSpecificUserResource($users[1], 'draft'),
