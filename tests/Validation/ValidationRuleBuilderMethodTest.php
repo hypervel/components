@@ -277,6 +277,50 @@ class ValidationRuleBuilderMethodTest extends TestCase
         }
     }
 
+    public function testConditionalRuleBuildersPreserveFloatComparisonPrecision(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+
+        foreach ([
+            ['acceptedIf', ['field' => false]],
+            ['declinedIf', ['field' => true]],
+            ['missingIf', ['field' => 'value']],
+            ['missingUnless', ['field' => 'value']],
+            ['presentIf', []],
+            ['presentUnless', []],
+        ] as [$method, $data]) {
+            foreach ([
+                [0.1 + 0.2, 0.1 + 0.2, true],
+                [1234567890.12345, '1234567890.12345', true],
+                [1.1 * 3, '3.3', false],
+            ] as [$comparison, $other, $matches]) {
+                $validator = new Validator($translator, ['other' => $other, ...$data], [
+                    'field' => [Rule::$method('other', $comparison)],
+                ]);
+
+                $passes = str_ends_with($method, 'Unless');
+                $this->assertSame($matches ? $passes : ! $passes, $validator->passes(), $method);
+            }
+        }
+    }
+
+    public function testAcceptedIfNonFiniteValuesDoNotMatchEmptyOrFalseInput(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+
+        foreach ([NAN, INF] as $value) {
+            $rule = Rule::acceptedIf('other', $value);
+
+            $this->assertSame(['other', (string) $value], ValidationRuleParser::parse($rule)[1]);
+
+            foreach (['', false] as $other) {
+                $this->assertTrue((new Validator($translator, ['other' => $other, 'terms' => false], [
+                    'terms' => [$rule],
+                ]))->passes());
+            }
+        }
+    }
+
     /**
      * Test that distinct options remain active when chained.
      */

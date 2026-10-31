@@ -18,6 +18,23 @@ trait FormatsParameters
     }
 
     /**
+     * Format conditional comparison values without rounding floats.
+     *
+     * @return list<string>
+     */
+    protected function formatConditionalValues(array $values): array
+    {
+        return array_map(static fn (string|int|float|bool|null $value): string => match (true) {
+            is_null($value) => 'null',
+            $value === true => 'true',
+            $value === false => 'false',
+            // JSON preserves finite precision; non-finite values retain their literal representation.
+            is_float($value) => json_encode($value) ?: (string) $value,
+            default => (string) $value,
+        }, array_values($values));
+    }
+
+    /**
      * Format parameters for a legacy validation rule string.
      */
     protected function formatParameters(array $parameters): string

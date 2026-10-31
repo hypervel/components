@@ -32,11 +32,6 @@ class AcceptedIf implements ParameterizedRule
      */
     public function toArray(): array
     {
-        $values = array_map(
-            static fn (string|int|float|bool|null $value): string|false => is_string($value) ? $value : json_encode($value),
-            $this->values,
-        );
-
-        return ['accepted_if', $this->anotherField, ...array_values($values)];
+        return ['accepted_if', $this->anotherField, ...$this->formatConditionalValues($this->values)];
     }
 }

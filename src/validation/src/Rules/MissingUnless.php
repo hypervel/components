@@ -29,13 +29,6 @@ class MissingUnless implements ParameterizedRule
      */
     public function toArray(): array
     {
-        $values = array_map(static fn (string|int|float|bool|null $value): string => match (true) {
-            is_null($value) => 'null',
-            $value === true => 'true',
-            $value === false => 'false',
-            default => (string) $value,
-        }, $this->values);
-
-        return ['missing_unless', $this->anotherField, ...array_values($values)];
+        return ['missing_unless', $this->anotherField, ...$this->formatConditionalValues($this->values)];
     }
 }

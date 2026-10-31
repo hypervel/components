@@ -119,6 +119,11 @@ class RuleDenormalizer
             return null;
         }
 
+        if (is_float($parameter)) {
+            // String casts round floats and can change which values match a conditional rule.
+            return json_encode($parameter) ?: (string) $parameter;
+        }
+
         if (is_string($parameter) || is_numeric($parameter)) {
             return (string) $parameter;
         }

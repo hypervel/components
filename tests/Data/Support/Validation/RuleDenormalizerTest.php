@@ -65,6 +65,7 @@ class RuleDenormalizerTest extends TestCase
         // Parameters
         yield 'boolean true parameter' => [new AcceptedIf('field', true), ['accepted_if:field,true']];
         yield 'boolean false parameter' => [new AcceptedIf('field', false), ['accepted_if:field,false']];
+        yield 'float parameter precision' => [new AcceptedIf('field', 1234567890.12345), ['accepted_if:field,1234567890.12345']];
         yield 'enum parameter' => [new AcceptedIf('field', DummyBackedEnum::BOO), ['accepted_if:field,boo']];
         yield 'empty array parameter' => [new EndsWith, ['ends_with']];
         yield 'array parameter' => [new EndsWith(['test', DummyBackedEnum::BOO]), ['ends_with:test,boo']];
