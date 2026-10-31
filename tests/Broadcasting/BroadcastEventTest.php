@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Broadcasting;
 use Exception;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\UniqueFor;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -19,6 +21,34 @@ use Throwable;
 
 class BroadcastEventTest extends TestCase
 {
+    public function testUniqueBroadcastEventReadsUniqueForAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForAttribute);
+
+        $this->assertSame(60, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventReadsInheritedUniqueForAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithInheritedUniqueFor);
+
+        $this->assertSame(60, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventUniqueForMethodOverridesAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForMethod);
+
+        $this->assertSame(120, $job->uniqueFor);
+    }
+
+    public function testUniqueBroadcastEventChildPropertyOverridesInheritedAttribute(): void
+    {
+        $job = new UniqueBroadcastEvent(new TestBroadcastEventWithUniqueForProperty);
+
+        $this->assertSame(180, $job->uniqueFor);
+    }
+
     public function testBasicEventBroadcastParameterFormatting(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
@@ -268,6 +298,31 @@ class BroadcastEventTest extends TestCase
 
         (new BroadcastEvent($event))->handle($manager);
     }
+}
+
+#[UniqueFor(60)]
+class TestBroadcastEventWithUniqueForAttribute extends TestBroadcastEvent
+{
+}
+
+class TestBroadcastEventWithInheritedUniqueFor extends TestBroadcastEventWithUniqueForAttribute
+{
+}
+
+class TestBroadcastEventWithUniqueForMethod extends TestBroadcastEventWithUniqueForAttribute
+{
+    /**
+     * Get the uniqueness lifetime.
+     */
+    public function uniqueFor(): int
+    {
+        return 120;
+    }
+}
+
+class TestBroadcastEventWithUniqueForProperty extends TestBroadcastEventWithUniqueForAttribute
+{
+    public int $uniqueFor = 180;
 }
 
 class TestBroadcastEvent

@@ -201,6 +201,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         if ($event instanceof ShouldBroadcastNow
             || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
+            || $this->broadcastsToSynchronousMercureConnections($event)
         ) {
             $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(
                 new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event)

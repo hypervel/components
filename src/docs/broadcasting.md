@@ -93,7 +93,7 @@ All of your application's event broadcasting configuration is stored in the `con
 Once you have enabled event broadcasting, you're ready to learn more about [defining broadcast events](#defining-broadcast-events) and [listening for events](#listening-for-events). If you're using Hypervel's React [starter kit](/docs/{{version}}/starter-kits), you may listen for events using Echo's [useEcho hook](#using-react-or-vue).
 
 > [!NOTE]
-> Before broadcasting any events, you should first configure and run a [queue worker](/docs/{{version}}/queues). All event broadcasting is done via queued jobs so that the response time of your application is not seriously affected by events being broadcast.
+> Before broadcasting any events, you should first configure and run a [queue worker](/docs/{{version}}/queues). All event broadcasting is done via queued jobs so that the response time of your application is not seriously affected by events being broadcast. The Mercure driver is an exception, as it [broadcasts events synchronously](#mercure-synchronous-broadcasting) by default.
 
 <a name="server-side-installation"></a>
 ## Server Side Installation
@@ -280,6 +280,15 @@ MERCURE_ENCRYPTION_KEY=<your-base64-encoded-encryption-key>
 Mercure publishing uses pooled HTTP clients so concurrent coroutines do not share an active connection. Network waits yield to other coroutines. You may set Symfony HTTP client options through the connection's `client_options` array and bound concurrent publishing through its [pool configuration](/docs/{{version}}/pools#object-pool-options). Configure the connection during worker boot, not per request.
 
 Finally, you are ready to install and configure [Laravel Echo](#client-side-installation), which will receive the broadcast events on the client-side.
+
+<a name="mercure-synchronous-broadcasting"></a>
+#### Synchronous Broadcasting
+
+Unlike other drivers, the Mercure driver broadcasts events immediately instead of queueing them, so it doesn't require a queue worker. Publishing an update is fast, since the hub dispatches it to subscribers asynchronously. To broadcast events using your [queue](#broadcast-queue) instead, set the `MERCURE_ASYNC` environment variable to `true`:
+
+```ini
+MERCURE_ASYNC=true
+```
 
 <a name="client-side-installation"></a>
 ## Client Side Installation
@@ -945,6 +954,8 @@ public function broadcastQueue(): string
 ```
 
 If you would like all of your broadcast events to use the same queue without customizing each event class, you may [route the `ShouldBroadcast` contract to a queue](/docs/{{version}}/queues#queue-routing) instead.
+
+Broadcast events implementing `Hypervel\Contracts\Queue\ShouldBeUnique` also support the `Hypervel\Queue\Attributes\UniqueFor` attribute to configure the lock's lifetime in seconds, just like [unique jobs](/docs/{{version}}/queues#unique-jobs).
 
 If you would like to broadcast your event using the `sync` queue instead of the default queue driver, you can implement the `ShouldBroadcastNow` interface instead of `ShouldBroadcast`:
 

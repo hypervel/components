@@ -7,6 +7,7 @@ namespace Hypervel\Broadcasting;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Queue\Attributes\UniqueFor;
 
 class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
 {
@@ -33,8 +34,8 @@ class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
 
         if (method_exists($event, 'uniqueFor')) {
             $this->uniqueFor = $event->uniqueFor();
-        } elseif (property_exists($event, 'uniqueFor')) {
-            $this->uniqueFor = $event->uniqueFor;
+        } else {
+            $this->uniqueFor = $this->getAttributeValue($event, UniqueFor::class, 'uniqueFor', $this->uniqueFor);
         }
 
         parent::__construct($event);
