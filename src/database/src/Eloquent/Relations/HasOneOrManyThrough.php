@@ -582,6 +582,39 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
+     * Touch all of the related models for the relationship.
+     */
+    public function touch(): void
+    {
+        $model = $this->getRelated();
+
+        if ($model::isIgnoringTouch()) {
+            return;
+        }
+
+        $columns = [
+            $model->getUpdatedAtColumn() => $model->freshTimestampString(),
+        ];
+
+        if (count($ids = $this->allRelatedIds()) > 0) {
+            $this->getRelated()->newQueryWithoutRelationships()->whereIn(
+                $this->related->getQualifiedKeyName(),
+                $ids
+            )->update($columns);
+        }
+    }
+
+    /**
+     * Get all of the IDs for the related models.
+     *
+     * @return BaseCollection<int, int|string>
+     */
+    public function allRelatedIds(): BaseCollection
+    {
+        return $this->pluck($this->related->getQualifiedKeyName());
+    }
+
+    /**
      * Chunk the results of the query.
      */
     public function chunk(int $count, callable $callback): bool

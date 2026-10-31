@@ -9,6 +9,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
@@ -578,6 +579,55 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts);
     }
 
+    public function testTouch(): void
+    {
+        $this->seedData();
+        $country = Country::first();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->updated_at->format('Y-m-d H:i:s'));
+
+        $country->posts()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testTouchRespectsIntermediateSoftDeletes(): void
+    {
+        $this->seedData();
+        $user = SoftDeletesUser::first();
+        $user->delete();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $country = CountrySoftDeletesIntermediate::first();
+        $country->posts()->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testTouchRespectsWithoutTouching(): void
+    {
+        $this->seedData();
+        $country = Country::first();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        Eloquent::withoutTouching(function () use ($country) {
+            $country->posts()->touch();
+        });
+
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testAllRelatedIds(): void
+    {
+        $this->seedData();
+        $country = Country::first();
+
+        $this->assertEquals([1, 2], $country->posts()->allRelatedIds()->all());
+    }
+
     public function testEagerLoadingDoesNotReadTheEmptyFarParentKey(): void
     {
         $this->seedData();
@@ -852,5 +902,20 @@ class SoftDeletesCountry extends Eloquent
     public function users()
     {
         return $this->hasMany(SoftDeletesUser::class, 'country_id');
+    }
+}
+
+class CountrySoftDeletesIntermediate extends Eloquent
+{
+    protected ?string $table = 'countries';
+
+    protected array $guarded = [];
+
+    /**
+     * Get the posts through soft-deletable users.
+     */
+    public function posts(): HasManyThrough
+    {
+        return $this->hasManyThrough(SoftDeletesPost::class, SoftDeletesUser::class, 'country_id', 'user_id');
     }
 }
