@@ -9,15 +9,18 @@ use Hypervel\Contracts\Validation\Rule as CustomRuleContract;
 use Hypervel\Data\Attributes\Validation\AcceptedIf;
 use Hypervel\Data\Attributes\Validation\After;
 use Hypervel\Data\Attributes\Validation\BeforeOrEqual;
+use Hypervel\Data\Attributes\Validation\Confirmed;
 use Hypervel\Data\Attributes\Validation\DateEquals;
 use Hypervel\Data\Attributes\Validation\DeclinedIf;
 use Hypervel\Data\Attributes\Validation\Dimensions;
 use Hypervel\Data\Attributes\Validation\ExcludeIf;
+use Hypervel\Data\Attributes\Validation\ExcludeUnless;
 use Hypervel\Data\Attributes\Validation\Exists;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\NotRegex;
 use Hypervel\Data\Attributes\Validation\Regex;
 use Hypervel\Data\Attributes\Validation\Required;
+use Hypervel\Data\Attributes\Validation\RequiredWith;
 use Hypervel\Data\Attributes\Validation\Rule;
 use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\RuleNormalizer;
@@ -100,6 +103,14 @@ class RuleNormalizerTest extends TestCase
         );
     }
 
+    public function testCanMapParameterizedRulesWithFieldReferences(): void
+    {
+        $this->assertEquals(
+            [new RequiredWith('other')],
+            $this->mapper->execute(ValidationRule::requiredWith('other')),
+        );
+    }
+
     public function testCanMapACustomHypervelRuleObjects(): void
     {
         $rule = new class implements CustomRuleContract {
@@ -140,12 +151,9 @@ class RuleNormalizerTest extends TestCase
         yield ['boolean:strict'];
         yield ['integer:strict'];
         yield ['numeric:strict'];
-        yield ['confirmed:repeat_field'];
         yield ['image:allow_svg'];
         yield ['timezone:per_country,US'];
         yield ['uuid:4'];
-        yield ['accepted_if:field,a,b'];
-        yield ['exclude_unless:field,a,b'];
         yield ['exists:users,email,status,"active"'];
         yield ['unique:users,email,5,uid,status,"active"'];
         yield ['dimensions:min_ratio=1/2,max_ratio=2/1'];
@@ -169,8 +177,11 @@ class RuleNormalizerTest extends TestCase
     public static function typedRulesWithParameters(): iterable
     {
         yield ['accepted_if:status,1', AcceptedIf::class];
+        yield ['accepted_if:field,a,b', AcceptedIf::class];
         yield ['declined_if:status,0', DeclinedIf::class];
         yield ['exclude_if:status,1', ExcludeIf::class];
+        yield ['exclude_unless:field,a,b', ExcludeUnless::class];
+        yield ['confirmed:repeat_field', Confirmed::class];
         yield ['after:2020-01-01', After::class];
         yield ['before_or_equal:2020-01-01 12:00', BeforeOrEqual::class];
         yield ['date_equals:today', DateEquals::class];
@@ -193,6 +204,8 @@ class RuleNormalizerTest extends TestCase
     {
         yield 'closure' => [static function (string $attribute, mixed $value, Closure $fail): void {}];
         yield 'fluent rule' => [ValidationRule::date()];
+        yield 'UUID version' => [ValidationRule::uuid()->version(4)];
+        yield 'combined distinct options' => [ValidationRule::distinct()->strict()->ignoreCase()];
         yield 'nested rules' => [ValidationRule::forEach(static fn (): array => ['integer'])];
         yield 'conditional rules' => [ValidationRule::when(true, ['min:3'])];
         yield 'custom rule' => [new CustomHypervelRule];

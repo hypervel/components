@@ -7,6 +7,7 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
@@ -153,6 +154,7 @@ class ValidationRuleParser
             && ! $rule instanceof Closure
             && ! $rule instanceof ValidationRule
             && ! $rule instanceof RuleContract
+            && ! $rule instanceof ParameterizedRule
             && ! $rule instanceof CompilableRules
             && ! (($rule instanceof Exists || $rule instanceof Unique)
                 && $rule->queryCallbacks() !== []);
@@ -383,6 +385,10 @@ class ValidationRuleParser
      */
     public static function parse(array|object|string $rule): array
     {
+        if ($rule instanceof ParameterizedRule) {
+            $rule = $rule->toArray();
+        }
+
         if ($rule instanceof RuleContract || $rule instanceof CompilableRules) {
             return [$rule, []];
         }

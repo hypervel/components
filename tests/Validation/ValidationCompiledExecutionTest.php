@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Validation\ValidationCompiledExecutionTest;
 use Closure;
 use DateTimeImmutable;
 use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Tests\TestCase;
@@ -15,6 +16,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -419,6 +421,101 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->errors()->has('items.0.end'));
     }
 
+    #[DataProvider('literalConditionalRules')]
+    public function testConditionalComparisonValuesRemainLiteral(
+        string|ParameterizedRule $rule,
+        string $literal,
+        array $field,
+        bool $passesWhenMatching,
+    ): void {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([$literal, 'different'] as $other) {
+                $validator = $this->makeValidator(
+                    ['items' => [['other' => $other, ...$field]]],
+                    ['items.*.value' => $rule],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertSame($other === $literal ? $passesWhenMatching : ! $passesWhenMatching, $validator->passes());
+            }
+        }
+    }
+
+    /**
+     * Provide conditional rules whose comparison values are not field references.
+     */
+    public static function literalConditionalRules(): iterable
+    {
+        yield 'accepted if' => ['accepted_if:items.*.other,*', '*', ['value' => false], false];
+        yield 'declined if' => ['declined_if:items.*.other,*', '*', ['value' => true], false];
+        yield 'missing if' => ['missing_if:items.*.other,*', '*', ['value' => 'present'], false];
+        yield 'missing unless' => ['missing_unless:items.*.other,*', '*', ['value' => 'present'], true];
+        yield 'present if' => ['present_if:items.*.other,*', '*', [], false];
+        yield 'present unless' => ['present_unless:items.*.other,*', '*', [], true];
+        yield 'required if' => ['required_if:items.*.other,*', '*', [], false];
+        yield 'required unless' => ['required_unless:items.*.other,*', '*', [], true];
+        yield 'prohibited if' => ['prohibited_if:items.*.other,*', '*', ['value' => 'present'], false];
+        yield 'prohibited unless' => ['prohibited_unless:items.*.other,*', '*', ['value' => 'present'], true];
+        yield 'exclude if' => ['exclude_if:items.*.other,*|integer', '*', ['value' => 'invalid'], true];
+        yield 'exclude unless' => ['exclude_unless:items.*.other,*|integer', '*', ['value' => 'invalid'], false];
+        yield 'builder multiple asterisks' => [Rule::acceptedIf('items.*.other', '**'), '**', ['value' => false], false];
+        yield 'builder escaped dot' => [Rule::acceptedIf('items.*.other', 'a\.b'), 'a\.b', ['value' => false], false];
+        yield 'builder percent' => [Rule::acceptedIf('items.*.other', '100%'), '100%', ['value' => false], false];
+    }
+
+    public function testArrayFormConditionalValuesKeepTheirStringComparisonSemantics(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([[true, 'x'], [null, 0]] as [$comparison, $other]) {
+                $validator = $this->makeValidator(
+                    ['other' => $other, 'value' => false],
+                    ['value' => [['accepted_if', 'other', $comparison]]],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertTrue($validator->passes());
+            }
+        }
+    }
+
+    public function testDependentFieldsPreservePercentSigns(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['items' => ['50%' => ['discount%' => 10]]],
+                ['items.*.value' => [Rule::requiredWith('items.*.discount%')]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame(['items.50%.value' => ['RequiredWith' => ['items.50%.discount%']]], $validator->failed());
+        }
+    }
+
+    public function testUniqueWhereValuesRemainLiteralWhileIgnoreFieldsResolve(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $verifier = m::mock(PresenceVerifierInterface::class);
+            $verifier->shouldReceive('getCount')->once()->with(
+                'users',
+                'email',
+                'user@example.com',
+                '42',
+                'id',
+                ['scope' => '*', 'path' => 'a\.b', 'discount' => '100%'],
+            )->andReturn(0);
+            $validator = $this->makeValidator(
+                ['items' => [['id' => 42, 'email' => 'user@example.com']]],
+                ['items.*.email' => [Rule::unique('users', 'email')->ignore('[items.*.id]')
+                    ->where('scope', '*')->where('path', 'a\.b')->where('discount', '100%')]],
+                validatorClass: $validatorClass,
+            );
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertTrue($validator->passes());
+        }
+    }
+
     public function testBooleanStrictDelegated(): void
     {
         $v = $this->makeValidator(['flag' => true], ['flag' => 'boolean:strict']);
@@ -779,6 +876,28 @@ class ValidationCompiledExecutionTest extends TestCase
 
         $this->assertNotSame($firstPlan, $secondPlan);
         $this->assertNotCount(count($firstPlan->checks), $secondPlan->checks);
+    }
+
+    public function testCachedBuilderPlansPreserveStructuredParametersAfterBuilderMutation(): void
+    {
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+        $firstPlan = null;
+
+        foreach (['secret', 'secret', 'different'] as $confirmation) {
+            $rule = Rule::confirmed()->customField('repeat,field|value');
+            $validator = $this->makeValidator(
+                ['value' => 'secret', 'repeat,field|value' => $confirmation],
+                ['value' => [$rule]],
+            );
+
+            $this->assertSame($confirmation === 'secret', $validator->passes());
+
+            $plan = $compiledPlans->getValue($validator)['value'];
+            $firstPlan ??= $plan;
+            $this->assertSame($firstPlan, $plan);
+
+            $rule->customField('another_field');
+        }
     }
 
     #[DataProvider('guardedRuleCases')]

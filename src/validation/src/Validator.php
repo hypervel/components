@@ -287,6 +287,27 @@ class Validator implements ValidatorContract
     ];
 
     /**
+     * The position of the first literal parameter in dependent rules.
+     *
+     * @var array<string, int>
+     */
+    protected array $literalParameterOffsets = [
+        'AcceptedIf' => 1,
+        'DeclinedIf' => 1,
+        'ExcludeIf' => 1,
+        'ExcludeUnless' => 1,
+        'MissingIf' => 1,
+        'MissingUnless' => 1,
+        'PresentIf' => 1,
+        'PresentUnless' => 1,
+        'ProhibitedIf' => 1,
+        'ProhibitedUnless' => 1,
+        'RequiredIf' => 1,
+        'RequiredUnless' => 1,
+        'Unique' => 4,
+    ];
+
+    /**
      * The validation rules that can exclude an attribute.
      *
      * @var string[]
@@ -650,11 +671,7 @@ class Validator implements ValidatorContract
                     $passes = $exclusionOutcomes[$outcomeKey];
                 } else {
                     if ($dependsOnOtherFields) {
-                        $parameters = $this->replaceDotInParameters($parameters);
-
-                        if ($explicitKeys !== []) {
-                            $parameters = $this->replaceAsterisksInParameters($parameters, $explicitKeys);
-                        }
+                        $parameters = $this->replaceFieldsInParameters($firstCheck->ruleName, $parameters, $explicitKeys);
                     }
 
                     $passes = match ($firstCheck->ruleName) {
@@ -1133,13 +1150,9 @@ class Validator implements ValidatorContract
 
         // First we will get the correct keys for the given attribute in case the field is nested in
         // an array. Then we determine if the given rule accepts other field names as parameters.
-        // If so, we will replace any asterisks found in the parameters with the correct keys.
+        // If so, resolve those field references without rewriting literal comparison values.
         if ($this->dependsOnOtherFields($rule)) {
-            $parameters = $this->replaceDotInParameters($parameters);
-
-            if ($keys = $this->getExplicitKeys($attribute)) {
-                $parameters = $this->replaceAsterisksInParameters($parameters, $keys);
-            }
+            $parameters = $this->replaceFieldsInParameters($rule, $parameters, $this->getExplicitKeys($attribute));
         }
 
         $value = $this->getValue($attribute);
@@ -1232,6 +1245,25 @@ class Validator implements ValidatorContract
     }
 
     /**
+     * Resolve field parameters without rewriting literal comparison or database values.
+     */
+    protected function replaceFieldsInParameters(string $rule, array $parameters, array $keys): array
+    {
+        // Literal values keep the existing string conversion, but are not attribute paths.
+        $literals = isset($this->literalParameterOffsets[$rule])
+            ? array_map(strval(...), array_splice($parameters, $this->literalParameterOffsets[$rule]))
+            : [];
+
+        $parameters = $this->replaceDotInParameters($parameters);
+
+        if ($keys !== []) {
+            $parameters = $this->replaceAsterisksInParameters($parameters, $keys);
+        }
+
+        return $literals === [] ? $parameters : [...$parameters, ...$literals];
+    }
+
+    /**
      * Replace each escaped field parameter separator with its placeholder.
      */
     protected function replaceDotInParameters(array $parameters): array
@@ -1247,7 +1279,8 @@ class Validator implements ValidatorContract
     protected function replaceAsterisksInParameters(array $parameters, array $keys): array
     {
         return array_map(function ($field) use ($keys) {
-            return vsprintf(str_replace('*', '%s', $field), $keys);
+            // Escape literal percent signs before introducing the wildcard placeholders.
+            return vsprintf(str_replace(['%', '*'], ['%%', '%s'], $field), $keys);
         }, $parameters);
     }
 
@@ -1736,7 +1769,7 @@ class Validator implements ValidatorContract
     /**
      * Add conditions to a given field based on a Closure.
      */
-    public function sometimes(array|string $attribute, array|string $rules, callable $callback): static
+    public function sometimes(array|string $attribute, array|object|string $rules, callable $callback): static
     {
         $payload = new Fluent($this->data);
 

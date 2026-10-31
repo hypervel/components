@@ -1156,7 +1156,7 @@ public static function rules(ValidationContext $context): array
 
 The `ValidationContext` provides the current object's input as `payload`, the complete input as `fullPayload`, and the object's input `path`. A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to the class to merge them instead. Property keys use PHP property names; Hypervel translates them to the mapped input paths.
 
-Validation attributes, including `#[Rule]`, may reference another property by its PHP name; Hypervel converts it to the input name. Rule strings returned from `rules()` or rule hooks are passed to the validator as written, so use input names there, or return an attribute such as `new RequiredWith('lastName')`.
+Validation attributes, including `#[Rule]`, may reference another property by its PHP name; Hypervel converts it to the input name. Date rules treat a plain string as written, so use `new FieldReference('lastName')` to reference a property. Rule strings and rule builders returned from `rules()` or rule hooks are passed to the validator as written, so use input names there, or return an attribute such as `new RequiredWith('lastName')`.
 
 For references from a nested object to the root input, use `FieldReference`:
 

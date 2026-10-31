@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\AttributePlan;
 use Hypervel\Validation\Enums\CheckType;
@@ -11,10 +12,12 @@ use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\RuleCompiler;
 use Hypervel\Validation\RulePlanCache;
+use Hypervel\Validation\Rules\Concerns\FormatsParameters;
 use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
+use WeakReference;
 
 class ValidationRulePlanCacheTest extends TestCase
 {
@@ -66,6 +69,49 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
         $this->assertSame(CheckType::In, $plan->checks[1]->type);
         $this->assertSame($plan, RulePlanCache::get($secondRules));
+    }
+
+    public function testParameterizedRulesSharePlansWithoutRetainingMutableBuilders(): void
+    {
+        $rule = Rule::confirmed()->customField('first');
+        $reference = WeakReference::create($rule);
+        $firstPlan = $this->compile([$rule]);
+        RulePlanCache::put([$rule], $firstPlan);
+
+        $this->assertSame($firstPlan, RulePlanCache::get([Rule::confirmed()->customField('first')]));
+
+        $rule->customField('second');
+
+        $this->assertNull(RulePlanCache::get([$rule]));
+
+        $secondPlan = $this->compile([$rule]);
+        RulePlanCache::put([$rule], $secondPlan);
+        unset($rule);
+
+        $this->assertNull($reference->get());
+        $this->assertSame($firstPlan, RulePlanCache::get([Rule::confirmed()->customField('first')]));
+        $this->assertSame($secondPlan, RulePlanCache::get([Rule::confirmed()->customField('second')]));
+        $this->assertSame(['Confirmed', 'first'], $firstPlan->checks[0]->originalRule);
+        $this->assertSame(['Confirmed', 'second'], $secondPlan->checks[0]->originalRule);
+    }
+
+    public function testParameterizedRulesWithCallbacksRemainUncached(): void
+    {
+        $rule = new class implements ParameterizedRule {
+            use FormatsParameters;
+
+            /**
+             * Return a custom rule with an executable parameter.
+             */
+            public function toArray(): array
+            {
+                return ['custom', static fn (): bool => true];
+            }
+        };
+
+        RulePlanCache::put([$rule], $this->compile([$rule]));
+
+        $this->assertNull(RulePlanCache::get([$rule]));
     }
 
     public function testFlushStateClearsCache(): void
