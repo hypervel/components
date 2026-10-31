@@ -133,7 +133,17 @@ You may also supply a callable `credentials` provider, which takes precedence ov
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration
 
-Before using the FTP driver, you will need to install the Flysystem FTP package via the Composer package manager:
+The FTP driver uses Swoole's coroutine-aware FTP support. Build Swoole with `--enable-swoole-ftp`, which is disabled by default, and disable PHP's separate `ftp` extension to avoid a conflict. Verify that `function_exists('ftp_connect')` returns `true`.
+
+Swoole supplies the FTP functions without registering as `ext-ftp`. After enabling this support, declare it in your application's `composer.json` so Composer can resolve the adapter's requirement:
+
+```json
+"provide": {
+    "ext-ftp": "*"
+}
+```
+
+Then install the Flysystem FTP package:
 
 ```shell
 composer require league/flysystem-ftp "^3.0"
@@ -725,6 +735,8 @@ The MIME type of a given file may be obtained via the `mimeType` method:
 ```php
 $mime = Storage::mimeType('file.jpg');
 ```
+
+For FTP and SFTP disks, you may set the `detect_mime_type_using_path` configuration option to `true` to determine MIME types from file names without downloading their contents. By default, these disks inspect the file contents.
 
 The checksum of a given file may be obtained via the `checksum` method:
 

@@ -40,7 +40,7 @@ use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
@@ -1090,13 +1090,9 @@ class FilesystemAdapterTest extends TestCase
         $this->assertSame('normal file content', $filesystemAdapter->read($storagePath));
     }
 
-    #[RequiresPhpExtension('ftp')]
+    #[RequiresFunction('ftp_connect')]
     public function testCreateFtpDriver(): void
     {
-        if (! class_exists(FtpAdapter::class)) {
-            $this->markTestSkipped('league/flysystem-ftp is not installed.');
-        }
-
         $filesystem = new FilesystemManager(m::mock(Container::class));
 
         $driver = $filesystem->createFtpDriver([

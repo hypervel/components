@@ -126,7 +126,9 @@
         "fakerphp/faker": "^1.24",
         "friendsofphp/php-cs-fixer": "^3.57.2",
         "intervention/image": "^4.2",
+        "league/flysystem-ftp": "^3.36",
         "league/flysystem-google-cloud-storage": "^3.0",
+        "league/flysystem-sftp-v3": "^3.36",
         "meilisearch/meilisearch-php": "^1.16",
         "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
@@ -144,6 +146,9 @@
         "symfony/postmark-mailer": "^8.1",
         "typesense/typesense-php": "^5.2",
         "web-token/jwt-library": "^4.2.3"
+    },
+    "provide": {
+        "ext-ftp": "*"
     },
     "replace": {
         "hypervel/ai": "self.version",

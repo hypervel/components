@@ -412,9 +412,12 @@ class FilesystemManager implements FactoryContract
             $config['root'] = '';
         }
 
-        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config)); // @phpstan-ignore class.notFound, class.notFound
+        $adapter = new FtpAdapter(
+            FtpConnectionOptions::fromArray($config),
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**
@@ -422,7 +425,7 @@ class FilesystemManager implements FactoryContract
      */
     public function createSftpDriver(array $config): Filesystem
     {
-        $provider = SftpConnectionProvider::fromArray($config); // @phpstan-ignore class.notFound
+        $provider = SftpConnectionProvider::fromArray($config);
 
         $root = $config['root'] ?? '';
 
@@ -430,9 +433,14 @@ class FilesystemManager implements FactoryContract
             $config['permissions'] ?? []
         );
 
-        $adapter = new SftpAdapter($provider, $root, $visibility); // @phpstan-ignore class.notFound
+        $adapter = new SftpAdapter(
+            $provider,
+            $root,
+            $visibility,
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**

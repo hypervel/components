@@ -411,6 +411,27 @@ class FilesystemManagerTest extends TestCase
         $filesystem->disk('ondemand');
     }
 
+    #[TestWith(['sftp'])]
+    #[TestWith(['ftp'])]
+    public function testCanBuildRemoteDisksThatDetectMimeTypesUsingThePath(string $driver): void
+    {
+        if ($driver === 'ftp' && ! function_exists('ftp_connect')) {
+            $this->markTestSkipped('Swoole FTP support is not enabled.');
+        }
+
+        $filesystem = new FilesystemManager($this->getContainer());
+
+        $disk = $filesystem->build([
+            'driver' => $driver,
+            'host' => 'localhost',
+            'username' => 'hypervel',
+            'password' => 'secret',
+            'detect_mime_type_using_path' => true,
+        ]);
+
+        $this->assertSame('text/csv', $disk->mimeType('export.csv'));
+    }
+
     public function testCanBuildReadOnlyDisks(): void
     {
         $filesystem = new FilesystemManager($this->getContainer());
