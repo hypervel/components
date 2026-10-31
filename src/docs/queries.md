@@ -203,7 +203,7 @@ DB::table('users')->where('active', false)
 
 The `chunkById` and `lazyById` methods sort by the paging column first, even when another order is present or a global scope replaces the ordering. Use their descending variants to iterate in descending ID order. Other sort orders do not choose the first rows, including when a callback stops early or a lazy collection uses `take()`.
 
-If a query has a `limit` or `offset`, its leading order must match the paging column and iteration direction. Otherwise, Hypervel throws an exception instead of silently selecting a different set. To iterate a limited set chosen by another order, select it in a subquery first:
+If a query has a `limit` or `offset`, its leading order must match the paging column and iteration direction, including a replacement from a global scope's `reorder`. Otherwise, Hypervel throws an exception instead of silently selecting a different set. A global scope's `orderBy` stays behind the paging column, so limited iteration still takes the first IDs. To iterate a limited set chosen by another order, select it in a subquery first:
 
 ```php
 $ranked = DB::table('users')->orderByDesc('score')->limit(100);
