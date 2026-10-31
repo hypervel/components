@@ -382,20 +382,10 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 
                     $settled = true;
 
-                    if (is_object($job)) {
-                        DispatchLockContext::claim($job);
-                    }
-
                     // Child payload hooks run after commit but must see the dispatch-time log context.
-                    try {
-                        $this->withLogContext($context, fn () => $selectedConnection !== null
+                    self::runDeferredEnqueue([$job], fn () => $this->withLogContext($context, fn () => $selectedConnection !== null
                             ? $this->attemptOnConnections($method, $arguments, $job, true)
-                            : $this->attemptOnAllConnections($method, $arguments, $job));
-                    } finally {
-                        if (is_object($job)) {
-                            DispatchLockContext::release($job);
-                        }
-                    }
+                            : $this->attemptOnAllConnections($method, $arguments, $job)));
                 },
                 $connection
             );

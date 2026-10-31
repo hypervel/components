@@ -457,15 +457,20 @@ class UniqueJobTest extends QueueTestCase
 
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
 
+        $failure = new Exception('Rollback.');
+        $caught = null;
+
         try {
-            DB::transaction(function (): never {
+            DB::transaction(function () use ($failure): never {
                 Queue::push(new UniqueTestAfterCommitJob);
 
-                throw new Exception('Rollback.');
+                throw $failure;
             });
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($failure, $caught);
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
@@ -478,15 +483,25 @@ class UniqueJobTest extends QueueTestCase
         Event::listen(UniqueTestEvent::class, UniqueTestAfterCommitListener::class);
 
         $size = Queue::size();
+        $lock = $this->app->get(Cache::class)->lock(
+            'laravel_unique_job:' . hash('xxh128', UniqueTestAfterCommitListener::class) . ':'
+        );
+        $failure = new Exception('Rollback.');
+        $caught = null;
 
         try {
-            DB::transaction(function (): never {
+            DB::transaction(function () use ($lock, $failure): never {
                 event(new UniqueTestEvent);
 
-                throw new Exception('Rollback.');
+                $this->assertTrue($lock->isLocked());
+
+                throw $failure;
             });
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($failure, $caught);
 
         event(new UniqueTestEvent);
 
@@ -515,11 +530,16 @@ class UniqueJobTest extends QueueTestCase
 
         config()->set('queue.connections.failing', ['driver' => 'failing']);
 
+        $caught = null;
+
         try {
             dispatch(new UniqueTestJob)->onConnection('failing');
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
         }
 
+        $this->assertInstanceOf(RuntimeException::class, $caught);
+        $this->assertSame('Queue unavailable.', $caught->getMessage());
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get());
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Ably\AblyRest;
+use Closure;
 use Exception;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
@@ -17,6 +18,7 @@ use Hypervel\Broadcasting\BroadcastPoolProxy;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\Mercure\Hub as MercureHub;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
@@ -33,21 +35,29 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Attributes\UniqueFor;
+use Hypervel\Queue\FailoverQueue;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
@@ -58,7 +68,9 @@ use PHPUnit\Framework\Attributes\TestWith;
 use Pusher\Pusher;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Mercure\Exception\InvalidArgumentException as MercureInvalidArgumentException;
+use Throwable;
 
 class BroadcastManagerTest extends TestCase
 {
@@ -363,6 +375,67 @@ class BroadcastManagerTest extends TestCase
         $replacement = $cache->lock($lockKey, 10);
         $this->assertTrue($replacement->get());
         $replacement->forceRelease();
+    }
+
+    #[TestWith(['event'])]
+    #[TestWith(['connection'])]
+    #[TestWith(['failover'])]
+    #[TestWith(['failover child'])]
+    #[TestWith(['cancellation'])]
+    #[TestWith(['rollback'])]
+    public function testDeferredQueueFailuresHonorBroadcastRescueAndReleaseLocks(string $mode): void
+    {
+        config(['cache.default' => 'array', 'broadcasting.default' => 'log']);
+        $failure = $mode === 'cancellation' ? new CanceledException : new RuntimeException('Queue unavailable.');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->with($failure, [])->times($mode === 'cancellation' ? 0 : 1);
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        if ($mode === 'rollback') {
+            DispatchLockContext::captureReleaseContextUsing(static fn () => static function (Closure $release) use ($failure): void {
+                $release();
+                throw $failure;
+            });
+        }
+
+        $transactions = new DatabaseTransactionsManager;
+        $this->app->instance('db.transactions', $transactions);
+        $queue = new TestFailingDeferredBroadcastQueue($failure, $mode !== 'event');
+        $queue->setContainer($this->app);
+        $queue->setConnectionName('deferred');
+        $queue->setAfterCommitDispatcher(static fn () => throw $failure);
+
+        if (str_starts_with($mode, 'failover')) {
+            $manager = m::mock(QueueManager::class);
+            $manager->shouldReceive('connection')->with('deferred')->andReturn($queue);
+            $queue = new FailoverQueue($manager, $this->app->make(EventDispatcher::class), ['deferred'], $mode === 'failover');
+            $queue->setContainer($this->app);
+            $queue->setConnectionName('failover');
+        }
+
+        $factory = m::mock(QueueFactory::class);
+        $factory->shouldReceive('connection')->andReturn($queue);
+        $this->app->instance(QueueFactory::class, $factory);
+        $lock = $this->app->make(Cache::class)->lock('laravel_unique_job:' . hash('xxh128', TestDeferredRescuedBroadcast::class) . ':');
+
+        $transactions->begin('first', 1);
+        $transactions->begin('second', 1);
+        Broadcast::queue(new TestDeferredRescuedBroadcast($mode === 'event' ? true : null));
+        $this->assertTrue($lock->isLocked());
+        $transactions->commit('first', 1, 0);
+        $this->assertTrue($lock->isLocked());
+
+        $caught = null;
+        try {
+            $mode === 'rollback'
+                ? $transactions->rollback('second', 0)
+                : $transactions->commit('second', 1, 0);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($mode === 'cancellation' ? $failure : null, $caught);
+        $this->assertFalse($lock->isLocked());
     }
 
     public function testUniqueEventWithNullableCacheResolverUsesDefaultCache(): void
@@ -1005,6 +1078,132 @@ class BroadcastManagerTest extends TestCase
         Queue::assertNotPushed(BroadcastEvent::class);
     }
 
+    #[DataProvider('mercureQueueSemantics')]
+    public function testMercurePreservesExplicitQueueSemantics(ShouldBroadcast $event, bool $queued): void
+    {
+        Bus::fake();
+        Queue::fake();
+
+        config([
+            'broadcasting.default' => 'mercure',
+            'broadcasting.connections.mercure' => $this->mercureConfig(['driver' => 'mercure']),
+        ]);
+
+        Broadcast::queue($event);
+
+        if ($queued) {
+            Bus::assertNotDispatched(BroadcastEvent::class);
+            Queue::assertPushed($event instanceof ShouldBeUnique ? UniqueBroadcastEvent::class : BroadcastEvent::class);
+        } else {
+            Bus::assertDispatched(BroadcastEvent::class);
+            Queue::assertNothingPushed();
+        }
+    }
+
+    public static function mercureQueueSemantics(): array
+    {
+        return [
+            'outbox contract' => [new class extends TestEvent implements ShouldQueueViaOutbox {}, true],
+            'outbox property' => [new class extends TestEvent {
+                public bool $viaOutbox = true;
+            }, true],
+            'before commit' => [new class extends TestEvent {
+                public bool $afterCommit = false;
+            }, false],
+            'outbox explicitly disabled' => [new class extends TestEvent implements ShouldQueueViaOutbox {
+                public bool $viaOutbox = false;
+            }, false],
+            'explicit immediate unique event' => [new class extends TestEventUnique implements ShouldBroadcastNow {}, false],
+        ];
+    }
+
+    public function testUniqueMercurePublishesWithoutAWorkerAndReleasesTheLock(): void
+    {
+        $published = 0;
+        $manager = $this->synchronousMercureManager(function () use (&$published, &$manager): void {
+            ++$published;
+            if ($published === 1) {
+                $manager->queue(new TestSynchronousMercureUniqueEvent);
+            }
+        });
+
+        $manager->queue(new TestSynchronousMercureUniqueEvent);
+        $this->assertSame(1, $published);
+        $manager->queue(new TestSynchronousMercureUniqueEvent);
+        $this->assertSame(2, $published);
+    }
+
+    public function testMercureDefersDeduplicatesAndRollsBackWithoutAWorker(): void
+    {
+        $published = 0;
+        $manager = $this->synchronousMercureManager(function () use (&$published): void {
+            ++$published;
+        });
+
+        DB::beginTransaction();
+        $manager->queue(new TestSynchronousMercureUniqueEvent(true));
+        $manager->queue(new TestSynchronousMercureUniqueEvent(true));
+        $this->assertSame(0, $published);
+        DB::rollBack();
+        $this->assertSame(0, $published);
+        DB::beginTransaction();
+        $manager->queue(new TestSynchronousMercureUniqueEvent(true));
+        $manager->queue(new TestSynchronousMercureUniqueEvent(true));
+        $this->assertSame(0, $published);
+        DB::commit();
+        $this->assertSame(1, $published);
+        $manager->queue(new TestSynchronousMercureUniqueEvent(true));
+        $this->assertSame(2, $published);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSynchronousMercurePreservesNonSerializableEvents(bool $afterCommit): void
+    {
+        $published = 0;
+        $manager = $this->synchronousMercureManager(function () use (&$published): void {
+            ++$published;
+        });
+
+        DB::beginTransaction();
+        $manager->queue(new TestNonSerializableMercureEvent($afterCommit));
+        $this->assertSame($afterCommit ? 0 : 1, $published);
+        DB::commit();
+        $this->assertSame(1, $published);
+    }
+
+    #[TestWith(['publish'])]
+    #[TestWith(['commit cleanup'])]
+    #[TestWith(['rollback cleanup'])]
+    public function testDeferredMercureRescuesPublicationAndLockCleanupFailures(string $phase): void
+    {
+        $failure = new RuntimeException('Broadcast operation failed.');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($failure, []);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $published = 0;
+        $manager = $this->synchronousMercureManager(function () use (&$published, $phase, $failure): void {
+            ++$published;
+            if ($phase === 'publish') {
+                throw $failure;
+            }
+        });
+        if ($phase !== 'publish') {
+            DispatchLockContext::captureReleaseContextUsing(static fn () => static function (Closure $release) use ($failure): void {
+                $release();
+                throw $failure;
+            });
+        }
+
+        DB::beginTransaction();
+        $manager->queue(new TestRescuedMercureEvent(true));
+        $lock = $this->app->make(Cache::class)->lock('laravel_unique_job:' . hash('xxh128', TestRescuedMercureEvent::class) . ':');
+        $this->assertTrue($lock->isLocked());
+        $phase === 'rollback cleanup' ? DB::rollBack() : DB::commit();
+        $this->assertSame($phase === 'rollback cleanup' ? 0 : 1, $published);
+        $this->assertFalse($lock->isLocked());
+    }
+
     public function testMercureConnectionSelectionPreservesZeroValuedEnums(): void
     {
         Bus::fake();
@@ -1417,6 +1616,25 @@ class BroadcastManagerTest extends TestCase
     }
 
     /**
+     * Create a Mercure manager that uses the real dispatch path without a queue worker.
+     */
+    protected function synchronousMercureManager(Closure $publish): BroadcastManager
+    {
+        config([
+            'queue.default' => 'null',
+            'cache.default' => 'array',
+            'broadcasting.default' => 'mercure',
+            'broadcasting.connections.mercure' => ['driver' => 'mercure', 'async' => false],
+        ]);
+        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster->shouldReceive('broadcast')->andReturnUsing($publish);
+        $manager = $this->app->make(BroadcastManager::class);
+        $manager->extend('mercure', static fn () => $broadcaster);
+
+        return $manager;
+    }
+
+    /**
      * Build a remote Mercure connection configuration.
      */
     protected function mercureConfig(array $overrides = []): array
@@ -1499,6 +1717,71 @@ class TestEvent implements ShouldBroadcast
     {
         return [];
     }
+}
+
+class TestDeferredRescuedBroadcast extends TestEvent implements ShouldBeUnique, ShouldRescue
+{
+    /**
+     * Create an event with an optional commit preference.
+     */
+    public function __construct(public ?bool $afterCommit = null)
+    {
+    }
+}
+
+class TestFailingDeferredBroadcastQueue extends SyncQueue
+{
+    /**
+     * Create a queue that fails when it executes a payload.
+     */
+    public function __construct(private Throwable $failure, bool $afterCommit)
+    {
+        parent::__construct($afterCommit);
+    }
+
+    /**
+     * Fail before the queued broadcast can run.
+     */
+    protected function executePayload(string $payload, ?string $queue = null): int
+    {
+        throw $this->failure;
+    }
+}
+
+class TestSynchronousMercureUniqueEvent extends TestEvent implements ShouldBeUnique
+{
+    /**
+     * Create a unique event with the given commit preference.
+     */
+    public function __construct(public bool $afterCommit = false)
+    {
+    }
+
+    /**
+     * Get the channels the event should broadcast on.
+     */
+    public function broadcastOn(): array
+    {
+        return ['test'];
+    }
+}
+
+class TestNonSerializableMercureEvent extends TestSynchronousMercureUniqueEvent
+{
+    private Closure $callback;
+
+    /**
+     * Create an event containing a nonserializable callback.
+     */
+    public function __construct(bool $afterCommit)
+    {
+        parent::__construct($afterCommit);
+        $this->callback = static fn () => null;
+    }
+}
+
+class TestRescuedMercureEvent extends TestSynchronousMercureUniqueEvent implements ShouldRescue
+{
 }
 
 class TestForwardedEvent implements ShouldBroadcast

@@ -513,34 +513,16 @@ abstract class Queue
             $this->addJobRollbackCallback($transactions, $job, $connection);
         }
 
-        $callback = static function (Queue $owner) use ($jobs, $enqueue): mixed {
-            foreach ($jobs as $job) {
-                if (is_object($job)) {
-                    DispatchLockContext::claim($job);
-                }
-            }
-
-            try {
-                return $enqueue($owner);
-            } finally {
-                foreach ($jobs as $job) {
-                    if (is_object($job)) {
-                        DispatchLockContext::release($job);
-                    }
-                }
-            }
-        };
-
         if ($this->afterCommitDispatcher !== null) {
             $dispatcher = $this->afterCommitDispatcher;
 
             $transactions->addCallback(
-                static fn () => $dispatcher($callback),
+                static fn () => self::runDeferredEnqueue($jobs, static fn () => $dispatcher($enqueue)),
                 $connection,
             );
         } else {
             $transactions->addCallback(
-                fn () => $callback($this),
+                fn () => self::runDeferredEnqueue($jobs, fn () => $enqueue($this)),
                 $connection,
             );
         }
@@ -549,6 +531,45 @@ abstract class Queue
             if (is_object($job)) {
                 DispatchLockContext::delegate($job);
             }
+        }
+    }
+
+    /**
+     * Run deferred work with its dispatch locks and optional deferredDispatchFailed job hook.
+     *
+     * @param array<int, object|string> $jobs
+     */
+    protected static function runDeferredEnqueue(array $jobs, Closure $operation): mixed
+    {
+        try {
+            foreach ($jobs as $job) {
+                if (is_object($job)) {
+                    DispatchLockContext::claim($job);
+                }
+            }
+
+            // Reacquiring a pooled queue can fail before its enqueue callback runs.
+            try {
+                return $operation();
+            } finally {
+                foreach ($jobs as $job) {
+                    if (is_object($job)) {
+                        DispatchLockContext::release($job);
+                    }
+                }
+            }
+        } catch (Throwable $exception) {
+            $job = reset($jobs);
+
+            if (Coroutine::causedByCancellation($exception)
+                || count($jobs) !== 1
+                || ! is_object($job)
+                || ! method_exists($job, 'deferredDispatchFailed')
+            ) {
+                throw $exception;
+            }
+
+            return $job->deferredDispatchFailed($exception);
         }
     }
 
@@ -783,11 +804,8 @@ abstract class Queue
             return null;
         }
 
-        return static function () use ($job): void {
-            // Rollback revokes ownership delegated to the commit callback, which can no longer run.
-            DispatchLockContext::claim($job);
-            DispatchLockContext::release($job);
-        };
+        // Rollback revokes ownership delegated to the commit callback, which can no longer run.
+        return static fn () => self::runDeferredEnqueue([$job], static fn () => null);
     }
 
     /**
