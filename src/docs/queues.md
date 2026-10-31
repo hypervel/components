@@ -3466,6 +3466,12 @@ If you would like to delete a failed job, you may use the `queue:forget` command
 php artisan queue:forget 91401d2c-0784-4f43-824c-34f94a33c24d
 ```
 
+You may delete several failed jobs by passing multiple IDs:
+
+```shell
+php artisan queue:forget 5 6 7
+```
+
 > [!NOTE]
 > When using [Horizon](/docs/{{version}}/horizon), you should use the `horizon:forget` command to delete a failed job instead of the `queue:forget` command.
 
