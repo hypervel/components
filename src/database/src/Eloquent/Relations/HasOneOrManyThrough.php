@@ -596,12 +596,18 @@ abstract class HasOneOrManyThrough extends Relation
             $model->getUpdatedAtColumn() => $model->freshTimestampString(),
         ];
 
-        if (count($ids = $this->allRelatedIds()) > 0) {
-            $this->getRelated()->newQueryWithoutRelationships()->whereIn(
-                $this->related->getQualifiedKeyName(),
-                $ids
-            )->update($columns);
-        }
+        $key = $model->getKeyName();
+
+        // Pluck applies casts; restore binary binding intent for keys selected by the framework.
+        $ids = $this->allRelatedIds()->map(fn ($id) => $model->encodeBinaryAttributeForDatabase($key, $id));
+
+        // The selection already applied the relation's scopes, including explicit removals.
+        $this->updateRelatedKeys(
+            $model->newQueryWithoutRelationships()->withoutGlobalScopes(),
+            $model->getQualifiedKeyName(),
+            $ids,
+            $columns,
+        );
     }
 
     /**
@@ -611,7 +617,9 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function allRelatedIds(): BaseCollection
     {
-        return $this->pluck($this->related->getQualifiedKeyName());
+        $key = $this->related->getQualifiedKeyName();
+
+        return (clone $this->query)->select($key)->pluck($key);
     }
 
     /**

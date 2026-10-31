@@ -1347,12 +1347,20 @@ class BelongsToMany extends Relation
             $this->related->getUpdatedAtColumn() => $this->related->freshTimestampString(),
         ];
 
+        // Pivot queries return raw keys; retain their binary binding intent without decoding them.
+        $key = $this->relatedKey;
+        $ids = $this->allRelatedIds()->map(fn ($id) => $this->related->prepareBinaryAttributesForDatabase([$key => $id])[$key]);
+
         // If we actually have IDs for the relation, we will run the query to update all
         // the related model's timestamps, to make sure these all reflect the changes
         // to the parent models. This will help us keep any caching synced up here.
-        if (count($ids = $this->allRelatedIds()) > 0) {
-            $this->getRelated()->newQueryWithoutRelationships()->whereIn($this->getQualifiedRelatedKeyName(), $ids)->update($columns);
-        }
+        // Pivot selection does not apply related-model scopes, but explicit removals still apply.
+        $this->updateRelatedKeys(
+            $this->getRelated()->newQueryWithoutRelationships()->withoutGlobalScopes($this->query->removedScopes()),
+            $this->getQualifiedRelatedKeyName(),
+            $ids,
+            $columns,
+        );
     }
 
     /**

@@ -34,6 +34,8 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             $table->integer('counter')->default(0);
             $table->binary('uuid', length: 16, fixed: true)->unique();
             $table->binary('ulid', length: 16, fixed: true);
+            $table->integer('parent_id')->nullable();
+            $table->timestamp('updated_at')->nullable();
         });
 
         Schema::create('binary_primary_keys', function (Blueprint $table): void {
@@ -41,6 +43,13 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             $table->string('name');
             $table->integer('counter')->default(0);
             $table->timestamp('deleted_at')->nullable();
+            $table->integer('identifier_id')->nullable();
+            $table->timestamp('updated_at')->nullable();
+        });
+
+        Schema::create('binary_touch_links', function (Blueprint $table): void {
+            $table->integer('parent_id');
+            $table->binary('related_uuid', length: 16, fixed: true);
         });
     }
 
@@ -180,6 +189,46 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             ->exists());
         $this->assertFalse($model->isDirty('uuid'));
         $this->assertSame($uuid, $model->fresh()->uuid);
+    }
+
+    #[TestWith(['through'])]
+    #[TestWith(['pivot'])]
+    public function testRelationTouchBindsFrameworkSelectedBinaryKeys(string $kind): void
+    {
+        $parent = AsBinaryIdentifierModel::create([
+            'uuid' => '00000000-0000-0000-0000-000000000001',
+            'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        ]);
+        $intermediate = TouchingAsBinaryIdentifierModel::create([
+            'uuid' => '00ff7f80-4048-43c2-b80b-40491d165946',
+            'ulid' => '2WBHE5RQ2WBHE5RQ2WBHE5RQ2W',
+            'parent_id' => $parent->getKey(),
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        if ($kind === 'through') {
+            $related = TouchingAsBinaryPrimaryKeyModel::create([
+                'id' => $intermediate->uuid,
+                'name' => 'related',
+                'identifier_id' => $intermediate->getKey(),
+                'updated_at' => '2000-01-01 00:00:00',
+            ]);
+            $relation = $parent->hasManyThrough(TouchingAsBinaryPrimaryKeyModel::class, AsBinaryIdentifierModel::class, 'parent_id', 'identifier_id');
+        } else {
+            $related = $intermediate;
+            $parent->getConnection()->table('binary_touch_links')->insert([
+                'parent_id' => $parent->getKey(),
+                'related_uuid' => new BinaryParameter($related->getRawOriginal('uuid')),
+            ]);
+            $relation = $parent->belongsToMany(TouchingAsBinaryIdentifierModel::class, 'binary_touch_links', 'parent_id', 'related_uuid', 'id', 'uuid');
+        }
+
+        $this->assertTrue($relation->sole()->is($related));
+
+        $relation->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', $related->fresh()->getRawOriginal('updated_at'));
+        $this->assertNull($parent->fresh()->getRawOriginal('updated_at'));
     }
 
     #[DataProvider('fillAndInsertMethods')]
@@ -517,6 +566,20 @@ class AsBinaryPrimaryKeyModel extends Model
             'id' => AsBinary::uuid(),
         ];
     }
+}
+
+class TouchingAsBinaryIdentifierModel extends AsBinaryIdentifierModel
+{
+    public const ?string CREATED_AT = null;
+
+    public bool $timestamps = true;
+}
+
+class TouchingAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    public const ?string CREATED_AT = null;
+
+    public bool $timestamps = true;
 }
 
 class ScopedAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel

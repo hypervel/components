@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Collection as BaseCollection;
@@ -290,6 +291,34 @@ abstract class Relation implements BuilderContract
             $this->rawUpdate([
                 $model->getUpdatedAtColumn() => $model->freshTimestampString(),
             ]);
+        }
+    }
+
+    /**
+     * Update related keys, splitting unbounded queries at the statement binding limit.
+     *
+     * @param Builder<TRelatedModel> $query
+     * @param BaseCollection<array-key, mixed> $keys
+     * @param array<string, mixed> $values
+     */
+    protected function updateRelatedKeys(Builder $query, string $column, BaseCollection $keys, array $values): void
+    {
+        if ($keys->isEmpty()) {
+            return;
+        }
+
+        // Prepare scopes once so counting bindings and splitting the update do not replay them.
+        $query = $query->applyScopes()->withoutGlobalScopes();
+        $connection = $query->getConnection();
+        $base = $query->getQuery();
+
+        // Limits and offsets select across the whole list and must not be reapplied per chunk.
+        $size = $connection instanceof PdoConnection && $base->limit === null && $base->offset === null
+            ? $connection->maxBindings() - count($values) - count($base->getBindings())
+            : $keys->count();
+
+        foreach (array_chunk($keys->all(), $size) as $chunk) {
+            (clone $query)->whereIn($column, $chunk)->update($values);
         }
     }
 

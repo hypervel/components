@@ -620,12 +620,36 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
     }
 
-    public function testAllRelatedIds(): void
+    public function testTouchPreservesRemovedRelatedScopes(): void
+    {
+        $this->schema()->table('posts', fn ($table) => $table->softDeletes());
+        $this->seedData();
+        TouchSoftDeletedPost::first()->delete();
+        TouchSoftDeletedPost::withTrashed()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $relation = Country::first()->hasManyThrough(TouchSoftDeletedPost::class, User::class, 'country_id', 'user_id');
+        $relation->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', TouchSoftDeletedPost::onlyTrashed()->first()->updated_at->format('Y-m-d H:i:s'));
+
+        $relation->withTrashed()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', TouchSoftDeletedPost::onlyTrashed()->first()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['posts.title'])]
+    public function testAllRelatedIds(?string $column): void
     {
         $this->seedData();
         $country = Country::first();
+        $relation = $country->posts();
 
-        $this->assertEquals([1, 2], $country->posts()->allRelatedIds()->all());
+        if ($column !== null) {
+            $relation->select($column);
+        }
+
+        $this->assertEquals([1, 2], $relation->allRelatedIds()->all());
     }
 
     public function testEagerLoadingDoesNotReadTheEmptyFarParentKey(): void
@@ -765,6 +789,11 @@ class Post extends Eloquent
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+}
+
+class TouchSoftDeletedPost extends Post
+{
+    use SoftDeletes;
 }
 
 class Country extends Eloquent
