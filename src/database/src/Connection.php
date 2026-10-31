@@ -83,6 +83,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected mixed $reconnector = null;
 
     /**
+     * Indicates if the connection is reconnecting after a lost connection.
+     */
+    protected bool $reconnecting = false;
+
+    /**
      * The owner notified when the current driver resources are forgotten.
      */
     protected ?Closure $resourceReleaser = null;
@@ -910,8 +915,15 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function tryAgainIfCausedByLostConnection(QueryException $e, string $query, array $bindings, Closure $callback): mixed
     {
-        if ($this->causedByLostConnection($e->getPrevious())) {
-            $this->reconnect();
+        // Queries run while reconnecting (e.g. from ConnectionEstablished listeners) must not reconnect again...
+        if (! $this->reconnecting && $this->causedByLostConnection($e->getPrevious())) {
+            $this->reconnecting = true;
+
+            try {
+                $this->reconnect();
+            } finally {
+                $this->reconnecting = false;
+            }
 
             return $this->runQueryCallback($query, $bindings, $callback);
         }
