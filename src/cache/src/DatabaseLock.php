@@ -188,6 +188,7 @@ class DatabaseLock extends Lock implements RefreshableLock
     protected function getCurrentOwner(): ?string
     {
         return $this->connection()->table($this->table)
+            ->useWritePdo()
             ->where('key', $this->name)
             ->where('expiration', '>', $this->currentTime())
             ->first()
@@ -266,6 +267,7 @@ class DatabaseLock extends Lock implements RefreshableLock
         $now = $this->currentTime();
 
         $lock = $this->connection()->table($this->table)
+            ->useWritePdo()
             ->where('key', $this->name)
             ->where('expiration', '>', $now)
             ->first();

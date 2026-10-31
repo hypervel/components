@@ -105,6 +105,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
             return false;
         }
 
+        // A releasing owner can unlink this inode between opening it and acquiring its lock.
+        if ($file->wasDeleted()) {
+            $file->close();
+
+            return false;
+        }
+
         $expire = $file->read(10);
 
         if (empty($expire) || $this->currentTime() >= $expire) {
@@ -163,6 +170,59 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $this->ensurePermissionsAreCorrect($path);
 
         return true;
+    }
+
+    /**
+     * Read the owner of a live lock without removing its file.
+     */
+    public function getLockOwner(string $key): ?string
+    {
+        try {
+            $contents = $this->files->get($this->path($key), true);
+
+            if ($this->currentTime() >= (int) substr($contents, 0, 10)) {
+                return null;
+            }
+
+            return $this->unserialize(substr($contents, 10));
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * Remove a lock file only while its expected owner holds it.
+     */
+    public function forgetIfOwned(string $key, string $expectedOwner): bool
+    {
+        if (! $this->files->exists($path = $this->path($key))) {
+            return false;
+        }
+
+        $file = new LockableFile($path, 'c+');
+
+        try {
+            $file->getExclusiveLock(block: true);
+
+            // A waiting release must never unlink the replacement for its old inode.
+            if ($file->wasDeleted()) {
+                return false;
+            }
+
+            $contents = $file->read();
+            $empty = strlen($contents) < 10;
+            $owned = ! $empty && $this->unserialize(substr($contents, 10)) === $expectedOwner;
+            $live = $owned && $this->currentTime() < (int) substr($contents, 0, 10);
+
+            // Keep the lock through deletion; acquisition rejects any orphaned open handle.
+            $deleted = ($owned || $empty) && $this->files->delete($path);
+
+            return $live && $deleted;
+        } finally {
+            $file->close();
+        }
     }
 
     /**
