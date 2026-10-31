@@ -31,6 +31,7 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
     {
         Schema::create('binary_identifiers', function (Blueprint $table): void {
             $table->increments('id');
+            $table->integer('counter')->default(0);
             $table->binary('uuid', length: 16, fixed: true)->unique();
             $table->binary('ulid', length: 16, fixed: true);
         });
@@ -154,6 +155,31 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
 
         $this->assertSame($upsertUuid, $upserted->uuid);
         $this->assertSame($upsertUlid, $upserted->ulid);
+    }
+
+    #[TestWith(['increment'])]
+    #[TestWith(['decrement'])]
+    #[TestWith(['incrementEach'])]
+    #[TestWith(['decrementEach'])]
+    public function testIncrementAndDecrementBindBinaryExtraAttributes(string $method): void
+    {
+        $model = AsBinaryIdentifierModel::create([
+            'counter' => 10,
+            'uuid' => '00000000-0000-0000-0000-000000000001',
+            'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        ]);
+        $uuid = '00ff7f80-4048-43c2-b80b-40491d165946';
+        $extra = ['uuid' => $uuid];
+
+        str_ends_with($method, 'Each')
+            ? $model->{$method}(['counter' => 1], $extra)
+            : $model->{$method}('counter', 1, $extra);
+
+        $this->assertTrue(AsBinaryIdentifierModel::query()
+            ->where('uuid', new BinaryParameter(Uuid::fromString($uuid)->toBinary()))
+            ->exists());
+        $this->assertFalse($model->isDirty('uuid'));
+        $this->assertSame($uuid, $model->fresh()->uuid);
     }
 
     #[DataProvider('fillAndInsertMethods')]

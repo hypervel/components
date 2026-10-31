@@ -365,6 +365,23 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame(['views' => 11, 'likes' => 7], $post->getChanges());
         $this->assertSame(['views' => 10, 'likes' => 5], $post->getPrevious());
     }
+
+    public function testIncrementCastsExtraAttributes(): void
+    {
+        config(['app.key' => str_repeat('a', 32)]);
+
+        $post = TestUpdateModel5::create(['views' => 10]);
+
+        $post->increment('views', 1, ['name' => 'secret']);
+
+        $this->assertNotSame('secret', TestUpdateModel5::query()->toBase()->value('name'));
+        $this->assertSame('secret', $post->fresh()->name);
+
+        $post->incrementEach(['views' => 1], ['name' => 'another secret']);
+
+        $this->assertNotSame('another secret', TestUpdateModel5::query()->toBase()->value('name'));
+        $this->assertSame('another secret', $post->fresh()->name);
+    }
 }
 
 class TestUpdateModel1 extends Model
@@ -405,6 +422,15 @@ class TestUpdateModel4 extends Model
     protected array $fillable = ['views', 'likes', 'name'];
 
     protected array $casts = ['deleted_at' => 'datetime'];
+}
+
+class TestUpdateModel5 extends Model
+{
+    public ?string $table = 'test_model4';
+
+    protected array $fillable = ['views', 'likes', 'name'];
+
+    protected array $casts = ['name' => 'encrypted'];
 }
 
 class TestSelectiveUpdateModel extends TestUpdateModel1

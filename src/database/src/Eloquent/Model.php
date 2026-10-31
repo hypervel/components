@@ -1209,6 +1209,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->forceFill($extra);
 
+        $extra = array_merge($extra, array_intersect_key($this->getAttributes(), $extra));
+
         if ($this->fireModelEvent('updating') === false) {
             return false;
         }
@@ -1217,7 +1219,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $amount = (clone $this)->setAttribute($column, $amount)->getAttributeFromArray($column);
         }
 
-        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column, $extra): void {
+        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}(
+            $column,
+            $amount,
+            $this->prepareBinaryAttributesForDatabase($extra)
+        ), function () use ($column, $extra): void {
             if ($this->refreshes !== []) {
                 // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
                 $this->mergeAttributesFromCachedCasts();
@@ -1376,6 +1382,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->forceFill($extra);
 
+        $extra = array_merge($extra, array_intersect_key($this->getAttributes(), $extra));
+
         if ($this->fireModelEvent('updating') === false) {
             return false;
         }
@@ -1392,7 +1400,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return tap(
             $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
-                ->{$method}($dbColumns, $extra),
+                ->{$method}($dbColumns, $this->prepareBinaryAttributesForDatabase($extra)),
             function () use ($columns, $extra): void {
                 if ($this->refreshes !== []) {
                     // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
