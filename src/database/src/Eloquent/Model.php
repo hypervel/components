@@ -97,6 +97,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const string MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing_attribute_access_suppressed';
 
     /**
+     * Context key for passing a write's changes through the synchronization hook.
+     */
+    protected const string SYNC_CHANGES_CONTEXT_KEY = '__database.model.sync_changes';
+
+    /**
      * Context key for storing whether mass assignment is unguarded.
      */
     public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
@@ -1211,6 +1216,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $extra = array_merge($extra, array_intersect_key($this->getAttributes(), $extra));
 
+        // The statement stores these values even if an updating listener changes them, so compare them now.
+        $extraChanges = $this->getDirtyFromAttributes($extra);
+
         if ($this->fireModelEvent('updating') === false) {
             return false;
         }
@@ -1223,16 +1231,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $column,
             $amount,
             $this->prepareBinaryAttributesForDatabase($extra)
-        ), function () use ($column, $extra): void {
+        ), function () use ($column, $extra, $extraChanges): void {
             if ($this->refreshes !== []) {
-                // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+                // Refreshing drops the cast cache, so keep in-place edits made by updating listeners.
                 $this->mergeAttributesFromCachedCasts();
 
                 // The statement applies the extra values after the increment, so they win.
                 $this->refreshSavedAttributes($extra + [$column => $this->attributes[$column]]);
             }
 
-            $this->syncChanges();
+            $this->syncIncrementedChanges($extra, $extraChanges);
 
             $this->fireModelEvent('updated', false);
 
@@ -1384,6 +1392,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $extra = array_merge($extra, array_intersect_key($this->getAttributes(), $extra));
 
+        // The statement stores these values even if an updating listener changes them, so compare them now.
+        $extraChanges = $this->getDirtyFromAttributes($extra);
+
         if ($this->fireModelEvent('updating') === false) {
             return false;
         }
@@ -1401,21 +1412,38 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         return tap(
             $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
                 ->{$method}($dbColumns, $this->prepareBinaryAttributesForDatabase($extra)),
-            function () use ($columns, $extra): void {
+            function () use ($columns, $extra, $extraChanges): void {
                 if ($this->refreshes !== []) {
-                    // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+                    // Refreshing drops the cast cache, so keep in-place edits made by updating listeners.
                     $this->mergeAttributesFromCachedCasts();
 
                     // The statement applies the extra values after the increments, so they win.
                     $this->refreshSavedAttributes($extra + array_intersect_key($this->attributes, $columns));
                 }
 
-                $this->syncChanges();
+                $this->syncIncrementedChanges($extra, $extraChanges);
 
                 $this->fireModelEvent('updated', false);
 
                 $this->syncIncrementedOriginals(array_keys($columns), $extra);
             }
+        );
+    }
+
+    /**
+     * Sync changes using the extra values an increment stored.
+     *
+     * @param array<string, mixed> $extra
+     * @param array<string, mixed> $extraChanges
+     */
+    private function syncIncrementedChanges(array $extra, array $extraChanges): void
+    {
+        $stored = array_diff_key($extra, array_flip($this->refreshes));
+
+        // Reuse the written values without running cached setters again; database-refreshed values win.
+        $this->syncChangesFrom(
+            $this->getDirtyFromAttributes(array_diff_key($this->attributes, $stored))
+            + array_intersect_key($extraChanges, $stored)
         );
     }
 

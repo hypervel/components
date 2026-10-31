@@ -445,6 +445,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('RESTOCKED', $item->note);
         $this->assertFalse($item->isDirty('note'));
         $this->assertSame(60, $item->getOriginal('id'));
+        $this->assertSame(60, $item->getChanges()['id']);
         $this->assertSame(61, $item->id);
         $this->assertNull(GeneratedTotal::find($id));
 

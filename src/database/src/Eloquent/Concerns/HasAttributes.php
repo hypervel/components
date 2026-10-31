@@ -2216,7 +2216,12 @@ trait HasAttributes
      */
     public function syncChanges(): static
     {
-        return $this->syncChangesFrom($this->getDirty());
+        /** @var null|array{model: static, changes: array<string, mixed>} $pending */
+        $pending = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        $this->changes = ($pending['model'] ?? null) === $this ? $pending['changes'] : $this->getDirty();
+        $this->previous = array_intersect_key($this->getRawOriginal(), $this->changes);
+
+        return $this;
     }
 
     /**
@@ -2226,10 +2231,15 @@ trait HasAttributes
      */
     private function syncChangesFrom(array $changes): static
     {
-        $this->changes = $changes;
-        $this->previous = array_intersect_key($this->getRawOriginal(), $changes);
+        // Pass stored values through the zero-argument hook so overrides run without repeating cached setters.
+        $previous = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, ['model' => $this, 'changes' => $changes]);
 
-        return $this;
+        try {
+            return $this->syncChanges();
+        } finally {
+            CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, $previous);
+        }
     }
 
     /**
