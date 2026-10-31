@@ -167,6 +167,7 @@ trait BuildsQueries
         $lastId = null;
         $skip = $this->getOffset();
         $remaining = $this->getLimit();
+        $limited = $remaining !== null || $skip > 0;
 
         $page = 1;
 
@@ -187,8 +188,8 @@ trait BuildsQueries
             // no results we can just break and return from here. When there are results
             // we will call the callback with the current chunk of these results here.
             $results = match ($descending) {
-                SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
-                SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
+                SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders($limited)->get(),
+                SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders($limited)->get(),
             };
 
             $countResults = $results->count();
@@ -335,8 +336,9 @@ trait BuildsQueries
         $this->ensureLimitedIterationOrdersById($column, $descending === true || $descending === SortDirection::Descending);
         $skip = $this->getOffset();
         $remaining = $this->getLimit();
+        $limited = $remaining !== null || $skip > 0;
 
-        return new LazyCollection(function () use ($chunkSize, $column, $alias, $descending, $skip, $remaining): Generator {
+        return new LazyCollection(function () use ($chunkSize, $column, $alias, $descending, $skip, $remaining, $limited): Generator {
             $lastId = null;
 
             $page = 1;
@@ -355,8 +357,8 @@ trait BuildsQueries
                 }
 
                 $results = match ($descending) {
-                    SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
-                    SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders()->get(),
+                    SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->prioritizeKeysetOrders($limited)->get(),
+                    SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->prioritizeKeysetOrders($limited)->get(),
                 };
 
                 foreach ($results as $result) {

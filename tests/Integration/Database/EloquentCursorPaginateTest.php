@@ -17,6 +17,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -197,6 +198,73 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         }
     }
 
+    #[DataProvider('limitedIdScopeOrders')]
+    public function testLimitedIdIterationValidatesReplacingScopeOrders(string $scopeOrder, bool $offsetOnly, bool $callerOrder, bool $throws, bool $descending = false): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => (4 - $id) * 10], range(1, 4)));
+
+        foreach ($descending ? ['chunkByIdDesc', 'lazyByIdDesc'] : ['chunkById', 'lazyById'] as $method) {
+            $scopeCalls = 0;
+            $query = TestPost::query()->withGlobalScope('sort', function (Builder $builder) use ($scopeOrder, &$scopeCalls): void {
+                ++$scopeCalls;
+                match ($scopeOrder) {
+                    'replace-other' => $builder->reorder('user_id'),
+                    'replace-id' => $builder->reorder('id'),
+                    'replace-descending' => $builder->reorder('id', 'desc'),
+                    'append-other' => $builder->orderBy('user_id'),
+                    'clear' => $builder->reorder(),
+                    'filter' => $builder->where('id', '>', 0),
+                };
+            });
+            $offsetOnly ? $query->offset(1) : $query->limit(2);
+            if ($callerOrder) {
+                $query->orderBy('id', $descending ? 'desc' : 'asc');
+            }
+            $ids = [];
+
+            try {
+                if (str_starts_with($method, 'lazy')) {
+                    $rows = $query->{$method}(1);
+                    $this->assertSame(0, $scopeCalls);
+                    $rows->each(function (TestPost $post) use (&$ids): void {
+                        $ids[] = $post->id;
+                    });
+                } else {
+                    $query->{$method}(1, function ($rows) use (&$ids): void {
+                        array_push($ids, ...$rows->modelKeys());
+                    });
+                }
+                $this->assertFalse($throws, 'A conflicting replacement must fail before processing rows.');
+                $expected = $descending ? [4, 3, 2, 1] : [1, 2, 3, 4];
+                $this->assertSame($offsetOnly ? array_slice($expected, 1) : array_slice($expected, 0, 2), $ids);
+                $this->assertSame($offsetOnly ? 4 : 2, $scopeCalls);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertTrue($throws);
+                $this->assertStringContainsString('fromSub()', $exception->getMessage());
+                $this->assertSame([], $ids);
+                $this->assertSame(1, $scopeCalls);
+            }
+        }
+    }
+
+    /**
+     * Distinguish scope replacements from appended orders and ordinary filtering.
+     */
+    public static function limitedIdScopeOrders(): iterable
+    {
+        yield 'replacement with a limit' => ['replace-other', false, false, true];
+        yield 'replacement with an offset' => ['replace-other', true, false, true];
+        yield 'replacement of an explicit ID order' => ['replace-other', false, true, true];
+        yield 'replacement with the opposite direction' => ['replace-descending', false, false, true];
+        yield 'replacement with the paging key' => ['replace-id', false, false, false];
+        yield 'replacement with the descending paging key' => ['replace-descending', false, false, false, true];
+        yield 'cleared ordering' => ['clear', false, false, false];
+        yield 'appended order with a limit' => ['append-other', false, false, false];
+        yield 'appended order with an offset' => ['append-other', true, false, false];
+        yield 'appended order after an explicit ID order' => ['append-other', false, true, false];
+        yield 'filtering only' => ['filter', false, false, false];
+    }
+
     public function testCursorPaginationKeepsItsCompoundOrderWhenAScopeReplacesIt(): void
     {
         TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
@@ -243,41 +311,86 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame([1, 2, 3, 6, 7], $ids);
     }
 
-    #[TestWith(['cursorPaginate'])]
-    #[TestWith(['chunk'])]
-    #[TestWith(['lazy'])]
-    public function testUnionPaginationAddsAnOuterDefaultOrder(string $method): void
+    #[DataProvider('unionDefaultOrders')]
+    public function testUnionPaginationAddsAnOuterDefaultOrder(string $method, string $columns, bool $bounded): void
     {
-        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 6)));
-        $query = fn () => TestPost::where('id', '>=', 4)->orderByDesc('id')->limit(2)
-            ->unionAll(TestPost::where('id', '<=', 3));
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => $id * 10], range(1, 6)));
+        $query = function () use ($columns, $bounded): Builder {
+            $first = TestPost::query()->select($columns)->where('id', '>=', 4);
+            if ($bounded) {
+                $first->orderByDesc('id')->limit(2);
+            }
+
+            return $first->unionAll(TestPost::query()->select($columns)->where('id', '<=', 3));
+        };
+        $key = str_contains($columns, 'record_id') ? 'record_id' : 'id';
         $ids = [];
         if ($method === 'cursorPaginate') {
             $cursor = null;
             do {
                 $page = $query()->cursorPaginate(2, cursor: $cursor);
-                array_push($ids, ...$page->getCollection()->modelKeys());
+                array_push($ids, ...$page->pluck($key)->all());
                 $cursor = $page->nextCursor();
             } while ($cursor !== null && count($ids) < 8);
         } elseif ($method === 'lazy') {
-            $ids = $query()->lazy(2)->take(8)->pluck('id')->all();
+            $ids = $query()->lazy(2)->take(8)->pluck($key)->all();
         } else {
-            $this->assertTrue($query()->chunk(2, function ($rows) use (&$ids): bool {
-                array_push($ids, ...$rows->modelKeys());
+            $this->assertTrue($query()->chunk(2, function ($rows) use (&$ids, $key): bool {
+                array_push($ids, ...$rows->pluck($key)->all());
 
                 return count($ids) < 8;
             }));
         }
 
-        $this->assertSame([1, 2, 3, 5, 6], $ids);
+        $expected = $bounded ? [1, 2, 3, 5, 6] : range(1, 6);
+        if ($columns === 'user_id as id') {
+            $expected = array_map(static fn (int $id): int => $id * 10, $expected);
+        }
+        $this->assertSame($expected, $ids);
         $raw = $query()->getQuery();
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You must specify an orderBy clause');
+        $this->expectExceptionMessage('You must specify an orderBy clause after the union');
         match ($method) {
             'chunk' => $raw->chunk(2, fn () => true),
             'lazy' => $raw->lazy(2)->first(),
             default => $raw->cursorPaginate(2),
         };
+    }
+
+    /**
+     * Resolve the default union order through its actual output names.
+     */
+    public static function unionDefaultOrders(): iterable
+    {
+        foreach (['cursorPaginate', 'chunk', 'lazy'] as $method) {
+            yield $method . ' plain key' => [$method, '*', true];
+            yield $method . ' aliased key' => [$method, 'id as record_id', true];
+            yield $method . ' qualified aliased key without an inner order' => [$method, 'test_posts.id as record_id', false];
+            yield $method . ' shadowing output' => [$method, 'user_id as id', true];
+        }
+    }
+
+    #[TestWith([false], 'table name')]
+    #[TestWith([true], 'table alias')]
+    public function testUnionDefaultOrderUsesTheModelKeyInsteadOfAJoinedKey(bool $aliased): void
+    {
+        TestUser::fillAndInsert([['id' => 10], ['id' => 20]]);
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => $id % 2 ? 10 : 20], range(1, 6)));
+        $source = $aliased ? 'p' : 'test_posts';
+        $member = fn (string $operator): Builder => TestPost::query()->from('test_posts', $aliased ? 'p' : null)
+            ->join('test_users', 'test_users.id', '=', $source . '.user_id')
+            ->select($aliased ? 'test_users.id' : 'test_users.id as owner_id', $source . '.id as post_id')
+            ->where($source . '.id', $operator, 3);
+        $ids = [];
+        $cursor = null;
+
+        do {
+            $page = $member('<=')->unionAll($member('>'))->cursorPaginate(2, cursor: $cursor);
+            array_push($ids, ...$page->pluck('post_id')->all());
+            $cursor = $page->nextCursor();
+        } while ($cursor !== null && count($ids) < 8);
+
+        $this->assertSame([1, 2, 3, 4, 5, 6], $ids);
     }
 
     #[TestWith([false], 'single select')]

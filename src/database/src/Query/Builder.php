@@ -3409,6 +3409,13 @@ class Builder implements BuilderContract
             return false;
         }
 
+        // A bounded iteration cannot silently replace the set a scope's new order chooses.
+        foreach ($source->{$property} as $order) {
+            if (isset($order['keysetLimited'])) {
+                $this->ensureLimitedIterationOrdersById($order['column'], $order['direction'] === 'desc');
+            }
+        }
+
         // Pages compare against the operation's order. Restore its bindings and inner
         // ordering together so a scope cannot also change which rows belong to it.
         $this->orders = $source->orders;
@@ -3423,7 +3430,7 @@ class Builder implements BuilderContract
     /**
      * Sort an ID iteration by its paging column before any other order.
      */
-    public function prioritizeKeysetOrders(): static
+    public function prioritizeKeysetOrders(bool $limited = false): static
     {
         // The next page compares IDs alone; another leading sort can skip unseen IDs.
         $property = $this->unions ? 'unionOrders' : 'orders';
@@ -3431,6 +3438,13 @@ class Builder implements BuilderContract
         $keyset = array_filter($orders, static fn (array $order): bool => isset($order['keyset']));
 
         if ($keyset !== []) {
+            // Remember the caller's bound; even unlimited iteration gives each page a limit.
+            if ($limited) {
+                foreach ($keyset as $index => $order) {
+                    $keyset[$index]['keysetLimited'] = true;
+                }
+            }
+
             // These orders own no bindings. Retain other orders for driver-owned row selection.
             $this->{$property} = [...$keyset, ...array_diff_key($orders, $keyset)];
         }
@@ -3682,7 +3696,7 @@ class Builder implements BuilderContract
     /**
      * Get the selected output name for a paging column.
      */
-    protected function getKeysetOutputColumn(string $parameter, bool $source = false): string
+    public function getKeysetOutputColumn(string $parameter, bool $source = false): string
     {
         // ID methods name a WHERE source; cursors name ORDER BY outputs. An alias
         // can shadow another source, so those two lookups need different precedence.
@@ -4091,7 +4105,9 @@ class Builder implements BuilderContract
     {
         // A union's inner orders select member rows; only its outer order sorts the result.
         if (empty($this->unions ? $this->unionOrders : $this->orders)) {
-            throw new RuntimeException('You must specify an orderBy clause when using this function.');
+            throw new RuntimeException($this->unions
+                ? 'You must specify an orderBy clause after the union when using this function.'
+                : 'You must specify an orderBy clause when using this function.');
         }
     }
 

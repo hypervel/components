@@ -1054,9 +1054,12 @@ class Builder implements BuilderContract
      */
     protected function enforceOrderBy(): void
     {
-        // A union's outer ordering cannot refer to a member table's qualified key.
+        // A union's outer order uses the selected key output. Qualify its source
+        // so a joined table's ID cannot match first.
         if (empty($this->query->unions ? $this->query->unionOrders : $this->query->orders)) {
-            $this->orderBy($this->query->unions ? $this->model->getKeyName() : $this->model->getQualifiedKeyName(), SortDirection::Ascending);
+            $this->orderBy($this->query->unions
+                ? $this->query->getKeysetOutputColumn($this->qualifyColumn($this->model->getKeyName()))
+                : $this->model->getQualifiedKeyName(), SortDirection::Ascending);
         }
     }
 
