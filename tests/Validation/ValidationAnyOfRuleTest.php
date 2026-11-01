@@ -133,6 +133,29 @@ class ValidationAnyOfRuleTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
+    public function testAssociativeArrayValueAgainstPlainRules(): void
+    {
+        $rule = Rule::anyOf([
+            ['string', 'email'],
+            ['string', 'alpha_dash', 'min:6'],
+        ]);
+
+        $validator = new Validator($this->app->make('translator'), [
+            'username' => ['x' => 1],
+        ], ['username' => ['required', $rule]]);
+        $this->assertFalse($validator->passes());
+
+        $validator = new Validator($this->app->make('translator'), [
+            'username' => 'taylor@hypervel.com',
+        ], ['username' => ['required', $rule]]);
+        $this->assertTrue($validator->passes());
+
+        $validator = new Validator($this->app->make('translator'), [
+            'data' => ['x' => 1],
+        ], ['data' => Rule::anyOf(['string', 'array'])]);
+        $this->assertTrue($validator->passes());
+    }
+
     public function testTaggedUnionObjects(): void
     {
         $validator = new Validator($this->app->make('translator'), [

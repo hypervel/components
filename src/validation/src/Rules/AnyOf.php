@@ -36,9 +36,11 @@ class AnyOf implements Rule, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         foreach ($this->rules as $rule) {
+            $keyed = Arr::isAssoc(Arr::wrap($rule));
+
             $validator = Validator::make(
-                Arr::isAssoc(Arr::wrap($value)) ? $value : [$value],
-                Arr::isAssoc(Arr::wrap($rule)) ? $rule : [$rule],
+                $keyed && Arr::isAssoc(Arr::wrap($value)) ? $value : [$value],
+                $keyed ? $rule : [$rule],
                 $this->validator->customMessages, // @phpstan-ignore property.notFound
                 $this->validator->customAttributes // @phpstan-ignore property.notFound
             );
