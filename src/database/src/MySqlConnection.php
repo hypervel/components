@@ -309,6 +309,9 @@ class MySqlConnection extends PdoConnection
         $isMaria = str_contains($version, 'MariaDB') || $this->isMaria();
         $version = $this->normalizeServerVersion($version);
 
+        // Keep this case-sensitive: default Vitess reports a MySQL version with a "-Vitess"
+        // suffix and must use the MySQL comparison below. Overrides such as "19.0.0-vitess"
+        // carry the Vitess release number required by this branch.
         if (Str::contains($version, ['vitess', 'PlanetScale'])) {
             return version_compare(Str::before($version, '-'), '19.0', '>=');
         }
