@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Inertia;
 
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -31,9 +32,7 @@ use Hypervel\Tests\Inertia\Fixtures\WithAllErrorsMiddleware;
 use Hypervel\Tests\Inertia\Fixtures\WithoutPreviousLocationMiddleware;
 use LogicException;
 use PHPUnit\Framework\Attributes\After;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MiddlewareTest extends TestCase
 {
@@ -99,17 +98,6 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($fooCalled);
     }
 
-    public function testNonInertiaResponsesPreserveExistingVaryHeaders(): void
-    {
-        $request = Request::create('/');
-        $response = new SymfonyResponse('content', 200, ['Vary' => 'Accept-Encoding']);
-
-        $result = (new Middleware)->handle($request, fn () => $response);
-
-        $this->assertSame($response, $result);
-        $this->assertSame(['Accept-Encoding', Header::INERTIA], $result->getVary());
-    }
-
     public function testInertiaVaryHeaderIsDeduplicatedCaseInsensitively(): void
     {
         $request = Request::create('/');
@@ -122,40 +110,44 @@ class MiddlewareTest extends TestCase
         $this->assertSame(['x-inertia', 'Accept-Encoding'], $result->getVary());
     }
 
-    public function testZeroContentIsNotTreatedAsAnEmptyResponse(): void
+    public function testAResponseBodyOfZeroIsNotTreatedAsEmptyForInertiaRequests(): void
     {
-        $request = Request::create('/');
-        $request->headers->set(Header::INERTIA, 'true');
-        $response = new SymfonyResponse('0');
+        $original = response('0');
+        Route::middleware(Middleware::class)->get('/', fn () => $original);
 
-        $result = (new Middleware)->handle($request, fn () => $response);
+        $response = $this->from('/foo')->get('/', ['X-Inertia' => 'true']);
 
-        $this->assertSame($response, $result);
-        $this->assertSame('0', $result->getContent());
+        $response->assertOk();
+        $this->assertSame($original, $response->baseResponse);
+        $this->assertSame('0', $response->getContent());
     }
 
-    public function testStreamedResponsesAreNotTreatedAsEmptyResponses(): void
+    public function testStreamedResponsesAreNotTreatedAsEmptyForInertiaRequests(): void
     {
-        $request = Request::create('/');
-        $request->headers->set(Header::INERTIA, 'true');
-        $response = new StreamedResponse(fn () => print 'content');
+        $original = response()->streamDownload(function (): void {
+            echo 'hello';
+        }, 'hello.txt');
+        Route::middleware(Middleware::class)->get('/', fn () => $original);
 
-        $result = (new Middleware)->handle($request, fn () => $response);
+        $response = $this->from('/foo')->get('/', ['X-Inertia' => 'true']);
 
-        $this->assertSame($response, $result);
-        $this->assertFalse($result->getContent());
+        $response->assertOk();
+        $response->assertDownload('hello.txt');
+        $this->assertSame($original, $response->baseResponse);
+        $this->assertFalse($response->baseResponse->getContent());
     }
 
-    public function testBinaryResponsesAreNotTreatedAsEmptyResponses(): void
+    public function testFileDownloadsAreNotTreatedAsEmptyForInertiaRequests(): void
     {
-        $request = Request::create('/');
-        $request->headers->set(Header::INERTIA, 'true');
-        $response = new BinaryFileResponse(__FILE__);
+        $original = response()->download(__DIR__ . '/Fixtures/ExamplePage.vue', 'example.vue');
+        Route::middleware(Middleware::class)->get('/', fn () => $original);
 
-        $result = (new Middleware)->handle($request, fn () => $response);
+        $response = $this->from('/foo')->get('/', ['X-Inertia' => 'true']);
 
-        $this->assertSame($response, $result);
-        $this->assertFalse($result->getContent());
+        $response->assertOk();
+        $response->assertDownload('example.vue');
+        $this->assertSame($original, $response->baseResponse);
+        $this->assertFalse($response->baseResponse->getContent());
     }
 
     public function testTheVersionIsOptional(): void
@@ -906,6 +898,63 @@ class MiddlewareTest extends TestCase
 
         $response->assertStatus(500);
         $this->assertFalse($called);
+    }
+
+    public function testTheVaryHeaderIsSet(): void
+    {
+        Route::middleware(Middleware::class)->get('/', function () {
+            return Inertia::render('User/Edit');
+        });
+
+        $response = $this->get('/');
+
+        $this->assertSame(['X-Inertia'], $response->headers->all('Vary'));
+    }
+
+    public function testExistingVaryHeaderValuesArePreserved(): void
+    {
+        $original = null;
+        Route::middleware(Middleware::class)->get('/', function (Request $request) use (&$original) {
+            return $original = Inertia::render('User/Edit')->toResponse($request)->setVary('Accept-Language');
+        });
+
+        $response = $this->get('/');
+
+        $this->assertSame($original, $response->baseResponse);
+        $this->assertSame(['Accept-Language, X-Inertia'], $response->headers->all('Vary'));
+    }
+
+    public function testTheVaryHeaderIsNotDuplicated(): void
+    {
+        Route::middleware(Middleware::class)->get('/', function (Request $request) {
+            return Inertia::render('User/Edit')->toResponse($request)->setVary('X-Inertia');
+        });
+
+        $response = $this->get('/');
+
+        $this->assertSame(['X-Inertia'], $response->headers->all('Vary'));
+    }
+
+    public function testEmptyVaryHeaderValuesAreDiscarded(): void
+    {
+        Route::middleware(Middleware::class)->get('/', function (Request $request) {
+            return Inertia::render('User/Edit')->toResponse($request)->setVary('');
+        });
+
+        $response = $this->get('/');
+
+        $this->assertSame(['X-Inertia'], $response->headers->all('Vary'));
+    }
+
+    public function testExistingVaryHeaderValuesArePreservedOnPrecognitiveRoutes(): void
+    {
+        Route::middleware([HandlePrecognitiveRequests::class, Middleware::class])->get('/', function (Request $request) {
+            return Inertia::render('User/Edit')->toResponse($request)->setVary('Accept-Language');
+        });
+
+        $response = $this->get('/');
+
+        $this->assertSame(['Accept-Language, X-Inertia, Precognition'], $response->headers->all('Vary'));
     }
 
     public function testMiddlewareRegistersSsrExceptPaths(): void

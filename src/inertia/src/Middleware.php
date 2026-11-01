@@ -258,13 +258,11 @@ class Middleware
      */
     protected function addInertiaVaryHeader(Response $response): void
     {
-        foreach ($response->getVary() as $header) {
-            if (strcasecmp($header, Header::INERTIA) === 0) {
-                return;
-            }
-        }
+        // Keep case-insensitive matching without allocating a Collection on every response.
+        $vary = array_unique(array_filter($response->getVary()));
+        $present = array_any($vary, static fn (string $header): bool => strcasecmp($header, Header::INERTIA) === 0);
 
-        $response->setVary(Header::INERTIA, false);
+        $response->setVary(implode(', ', $present ? $vary : [...$vary, Header::INERTIA]));
     }
 
     /**
