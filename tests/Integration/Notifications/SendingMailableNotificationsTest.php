@@ -57,21 +57,28 @@ class SendingMailableNotificationsTest extends TestCase
         $email = $message->toString();
         $textBody = $message->getTextBody();
 
-        $cid = explode(' cid:', (new Stringable($textBody))->explode("\n")
-            ->filter(fn ($line) => str_contains($line, 'Embed content: cid:'))
-            ->first())[1];
+        $this->assertCount(1, $attachments = $message->getAttachments());
+        $this->assertStringContainsString('Embed content: ', $textBody);
+        $this->assertStringNotContainsString('Embed content: cid:', $textBody);
+
+        $this->assertSame(1, preg_match('/Embed content: cid:([^<\s]+)/', $message->getHtmlBody(), $matches));
 
         $filename = explode(' file: ', (new Stringable($textBody))->explode("\n")
             ->filter(fn ($line) => str_contains($line, 'Embed file: '))
             ->first())[1];
 
-        $this->assertStringContainsString(<<<EOT
-        Content-Type: application/x-php; name={$filename}\r
-        Content-Transfer-Encoding: base64\r
-        Content-Disposition: inline; name={$filename};\r
-         filename={$filename}\r
-        Content-ID: <{$cid}>\r
-        EOT, $email);
+        // The HTML view is compiled with a different echo format, so its compiled filename has a suffix.
+        $hash = explode('.', $filename)[0];
+
+        $this->assertStringContainsString('Content-Type: application/x-php;', $email);
+        $this->assertStringContainsString($hash, $email);
+        $this->assertStringContainsString("Content-ID: <{$matches[1]}>", $email);
+
+        // Inspect the parsed attachment because its longer filename may be folded in MIME headers.
+        $this->assertSame(1, preg_match('/Embed file: ([^<\s]+)/', $message->getHtmlBody(), $htmlFilename));
+        $this->assertSame($htmlFilename[1], $attachments[0]->getFilename());
+        $this->assertSame('inline', $attachments[0]->getDisposition());
+        $this->assertSame('base64', $attachments[0]->getPreparedHeaders()->get('Content-Transfer-Encoding')->getBodyAsString());
     }
 
     public function testCanSetTheme(): void
