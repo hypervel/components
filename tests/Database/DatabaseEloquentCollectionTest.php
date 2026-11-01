@@ -423,6 +423,49 @@ class DatabaseEloquentCollectionTest extends TestCase
         );
     }
 
+    #[DataProvider('keylessDictionaryOperations')]
+    public function testCollectionDictionaryOperationsRejectModelsWithoutPrimaryKeys(string $method, bool $emptyReceiver): void
+    {
+        $model = (new CollectionModel)->setKeyName(null);
+        $collection = new Collection($emptyReceiver ? [] : [$model]);
+        $arguments = match ($method) {
+            'unique' => [],
+            'only', 'except' => [[1]],
+            default => [[$model]],
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No primary key defined on model.');
+
+        $collection->{$method}(...$arguments);
+    }
+
+    /**
+     * Provide collection operations that build a primary-key dictionary.
+     */
+    public static function keylessDictionaryOperations(): array
+    {
+        return [
+            'merge' => ['merge', false],
+            'merge into empty collection' => ['merge', true],
+            'unique' => ['unique', false],
+            'only' => ['only', false],
+            'except' => ['except', false],
+            'diff' => ['diff', false],
+            'intersect' => ['intersect', false],
+        ];
+    }
+
+    public function testKeylessCollectionsCanBeConcatenatedAndDeduplicatedByAnExplicitColumn(): void
+    {
+        $one = (new CollectionModel)->setKeyName(null)->forceFill(['name' => 'Taylor']);
+        $two = (new CollectionModel)->setKeyName(null)->forceFill(['name' => 'Abigail']);
+        $collection = (new Collection([$one]))->concat([$two, $one]);
+
+        $this->assertSame([$one, $two, $one], $collection->all());
+        $this->assertSame([$one, $two], $collection->unique('name')->values()->all());
+    }
+
     public function testMap(): void
     {
         $one = new CollectionModel;

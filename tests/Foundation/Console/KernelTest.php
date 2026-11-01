@@ -258,6 +258,7 @@ PHP);
             $this->assertContains('App\Console\Commands\Discovery\ExampleCommand', $commands);
             $this->assertContains('App\Console\Commands\Discovery\ExampleCommandTest', $commands);
             $this->assertNotContains('App\Console\Commands\Discovery\ExampleCommandUnitTest', $commands);
+            $this->assertFalse((new Kernel($this->app, $this->app->make('events')))->getArtisan()->has('example'));
         } finally {
             $loader->unregister();
             $files->deleteDirectory($directory);
@@ -346,6 +347,8 @@ PHP);
     {
         $kernel = $this->app->make(KernelContract::class);
         $first = $kernel->getArtisan();
+        $kernel->command('kernel-test-late-command', fn (): int => 0);
+        $this->assertTrue($first->has('kernel-test-late-command'));
 
         $kernel->setArtisan(null);
 
@@ -355,6 +358,7 @@ PHP);
 
         $this->assertNotSame($first, $fresh);
         $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
+        $this->assertTrue($fresh->has('kernel-test-late-command'));
     }
 
     public function testReportExceptionDelegatesToExceptionHandler(): void
@@ -531,6 +535,15 @@ PHP);
 
         $this->assertSame($first, $second);
         $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+    }
+
+    public function testClosureCommandsAreOnlyRegisteredWithTheKernelThatDefinedThem(): void
+    {
+        $kernel = $this->makeKernel();
+        $kernel->command('kernel-test-closure-command', fn (): int => 0);
+
+        $this->assertTrue($kernel->getArtisan()->has('kernel-test-closure-command'));
+        $this->assertFalse($this->makeKernel()->getArtisan()->has('kernel-test-closure-command'));
     }
 
     /**

@@ -275,7 +275,7 @@ class EloquentModelStub extends Model
 {
     protected ?string $table = 'table';
 
-    protected string $primaryKey = 'id_column';
+    protected ?string $primaryKey = 'id_column';
 
     protected array $guarded = [];
 }
@@ -284,7 +284,7 @@ class PrefixedTableEloquentModelStub extends Model
 {
     protected ?string $table = 'public.table';
 
-    protected string $primaryKey = 'id_column';
+    protected ?string $primaryKey = 'id_column';
 
     protected array $guarded = [];
 }

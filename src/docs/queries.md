@@ -10,6 +10,7 @@
 - [Raw Expressions](#raw-expressions)
 - [Joins](#joins)
 - [Unions](#unions)
+    - [Paginating Unions](#paginating-unions)
 - [Basic Where Clauses](#basic-where-clauses)
     - [Where Clauses](#where-clauses)
     - [Or Where Clauses](#or-where-clauses)
@@ -199,6 +200,22 @@ DB::table('users')->where('active', false)
         }
     });
 ```
+
+The `chunkById` and `lazyById` methods sort by the paging column first, even when another order is present or a global scope replaces the ordering. Use their descending variants to iterate in descending ID order. Other sort orders do not choose the first rows, including when a callback stops early or a lazy collection uses `take()`.
+
+If a query has a `limit` or `offset`, its leading order must match the paging column and iteration direction, including a replacement from a global scope's `reorder`. Otherwise, Hypervel throws an exception instead of silently selecting a different set. A global scope's `orderBy` stays behind the paging column, so limited iteration still takes the first IDs. To iterate a limited set chosen by another order, select it in a subquery first:
+
+```php
+$ranked = DB::table('users')->orderByDesc('score')->limit(100);
+
+DB::query()->fromSub($ranked, 'ranked')->chunkById(20, function (Collection $users) {
+    // Process the highest-scoring users in ID order...
+});
+```
+
+When a selected alias uses your paging column's name, keep the actual column selected under a separate name and pass that name as the `alias` argument to `chunkById` or `lazyById`. Their descending methods accept the same argument.
+
+For queries with joins or raw sources, qualify an unselected paging column, such as `users.id`; Hypervel throws if another selected alias hides its name and the source cannot be identified. This rule also applies to `forPageAfterId` and `forPageBeforeId`, which do not accept an `alias` argument.
 
 Since the `chunkById` and `lazyById` methods add their own "where" conditions to the query being executed, you should typically [logically group](#logical-grouping) your own conditions within a closure:
 
@@ -650,6 +667,35 @@ $users = DB::table('users')
 
 In addition to the `union` method, the query builder provides a `unionAll` method. Queries that are combined using the `unionAll` method will not have their duplicate results removed. The `unionAll` method has the same method signature as the `union` method.
 
+<a name="paginating-unions"></a>
+### Paginating Unions
+
+For query-builder `cursorPaginate`, `chunk`, and `lazy` calls, place `orderBy` after the union so it sorts the combined rows. An order before `union` belongs only to the first query and is not enough. Eloquent supplies its primary key as the default outer order when none is given.
+
+When using `cursorPaginate`, `chunkById`, or `lazyById` on a union, select the paging columns in corresponding positions in every query. Column names and aliases may differ between queries. Hypervel uses their positions to apply each comparison to the correct source column:
+
+```php
+$entries = DB::table('posts')->select('id', 'title')
+    ->unionAll(DB::table('archives')->select('post_id', 'title'))
+    ->orderBy('id')
+    ->cursorPaginate(20);
+```
+
+Each selected entry up to and including a paging column must be a plain column, optionally with an alias. Raw expressions after those columns are allowed. Wildcards are also supported when every query selects only the columns of the same table on the same connection, without joins.
+
+For other projections, Hypervel throws an exception instead of guessing which columns correspond. Wrap the union in `fromSub` and paginate its output when using computed paging columns or wildcards from different tables:
+
+```php
+$combined = DB::table('posts')->selectRaw('id + 1000 as entry_id, title')
+    ->unionAll(DB::table('archives')->selectRaw('post_id as entry_id, title'));
+
+$entries = DB::query()->fromSub($combined, 'entries')
+    ->orderBy('entry_id')
+    ->cursorPaginate(20);
+```
+
+The ordering columns must uniquely identify each result, as with other cursor queries. The descending chunk and lazy methods and the `forPageAfterId` / `forPageBeforeId` methods follow the same union rules.
+
 <a name="basic-where-clauses"></a>
 ## Basic Where Clauses
 
@@ -841,7 +887,7 @@ WHERE published = true AND NOT (
 <a name="json-where-clauses"></a>
 ### JSON Where Clauses
 
-Hypervel also supports querying JSON column types on databases that provide support for JSON column types. Currently, this includes MariaDB 10.3+, MySQL 8.0+, PostgreSQL 12.0+, and SQLite 3.39.0+. To query a JSON column, use the `->` operator:
+Hypervel also supports querying JSON column types on databases that provide support for JSON column types. Currently, this includes all [supported MariaDB versions](/docs/{{version}}/database#introduction), MySQL 8.0+, PostgreSQL 12.0+, and SQLite 3.39.0+. To query a JSON column, use the `->` operator:
 
 ```php
 $users = DB::table('users')
@@ -1779,7 +1825,7 @@ DB::table('users')->updateOrInsert(
 <a name="updating-json-columns"></a>
 ### Updating JSON Columns
 
-When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on MariaDB 10.3+, MySQL 5.7+, PostgreSQL 9.5+, and SQLite 3.39.0+:
+When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on all [supported MariaDB versions](/docs/{{version}}/database#introduction), MySQL 5.7+, PostgreSQL 9.5+, and SQLite 3.39.0+:
 
 ```php
 $affected = DB::table('users')

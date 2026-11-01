@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
@@ -43,6 +44,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             $table->increments('id');
             $table->string('name');
             $table->string('type')->nullable();
+            $table->integer('count')->default(0);
             $table->timestamps();
         });
 
@@ -293,6 +295,19 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->load('tags');
         $this->assertEquals($tag7->name, $post->tags[6]->name);
         $this->assertEquals($tag8->name, $post->tags[7]->name);
+    }
+
+    public function testCloneKeepsTheRelationQuery(): void
+    {
+        $user = User::create(['name' => Str::random()]);
+        $other = User::create(['name' => Str::random()]);
+        $post = Post::create(['title' => Str::random()]);
+        $otherPost = Post::create(['title' => Str::random()]);
+
+        $other->posts()->attach($otherPost);
+        $user->posts()->attach($post);
+
+        $this->assertEquals([$post->id], $user->posts()->clone()->get()->modelKeys());
     }
 
     public function testDetachMethod(): void
@@ -821,6 +836,36 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertTrue($tag->is($post->tags()->first()));
     }
 
+    public function testIncrementOrCreateMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez']);
+
+        $this->assertTrue($tag1->is($tag2));
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertFalse($tag2->wasRecentlyCreated);
+        $this->assertEquals(2, $tag2->fresh()->count);
+        $this->assertTrue($tag1->is($post->tags()->first()));
+        $this->assertCount(1, $post->tags()->get());
+    }
+
+    public function testIncrementOrCreateMethodWithExtra(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag1 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'featured']);
+
+        $this->assertTrue($tag1->wasRecentlyCreated);
+        $this->assertSame('featured', $tag1->fresh()->type);
+
+        $tag2 = $post->tags()->incrementOrCreate(['name' => 'wavez'], extra: ['type' => 'pinned']);
+
+        $this->assertSame('pinned', $tag2->fresh()->type);
+        $this->assertEquals(2, $tag2->fresh()->count);
+    }
+
     public function testUpdateOrCreateMethodCreate(): void
     {
         $post = Post::create(['title' => Str::random()]);
@@ -1082,6 +1127,27 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
 
         $this->assertNotSame('2017-10-10 10:10:10', Tag::find(2)->updated_at?->toDateTimeString());
+    }
+
+    public function testTouchPreservesRemovedRelatedScopes(): void
+    {
+        Schema::table('tags', fn (Blueprint $table) => $table->softDeletes());
+        $post = Post::create(['title' => Str::random()]);
+        $tag = TouchSoftDeletedTag::create(['name' => 'deleted']);
+        $other = TouchSoftDeletedTag::create(['name' => 'active']);
+        $relation = $post->belongsToMany(TouchSoftDeletedTag::class, 'posts_tags', 'post_id', 'tag_id');
+        $relation->attach([$tag->getKey(), $other->getKey()]);
+        $tag->delete();
+        TouchSoftDeletedTag::withTrashed()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $relation->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
+        $this->assertNotSame('2000-01-01 00:00:00', $other->fresh()->updated_at->format('Y-m-d H:i:s'));
+
+        $relation->withTrashed()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', $tag->fresh()->updated_at->format('Y-m-d H:i:s'));
     }
 
     public function testCanTouchRelatedModelsUsingCustomRelatedKey(): void
@@ -2018,7 +2084,7 @@ class Tag extends Model
 
     public bool $timestamps = true;
 
-    protected array $fillable = ['name', 'type'];
+    protected array $fillable = ['name', 'type', 'count'];
 
     public function posts()
     {
@@ -2034,6 +2100,11 @@ class Tag extends Model
             ->using(ChaperonePostTagPivot::class)
             ->chaperone();
     }
+}
+
+class TouchSoftDeletedTag extends Tag
+{
+    use SoftDeletes;
 }
 
 class UniqueTag extends Model

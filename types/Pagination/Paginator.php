@@ -29,6 +29,11 @@ assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorphCoun
 assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorph('parentable', [Post::class => 'comments']));
 assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorphCount('parentable', [Post::class => 'comments']));
 
+foreach (['post', 2] as $alias) {
+    assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorph('parentable', [$alias => ['comments']]));
+    assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorphCount('parentable', [$alias => ['comments' => []]]));
+}
+
 $paginator->each(function ($post) {
     assertType('Post', $post);
 });
@@ -74,6 +79,11 @@ assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->l
 }]]));
 assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorph('parentable', [Post::class => 'comments']));
 assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorphCount('parentable', [Post::class => 'comments']));
+
+foreach (['post', 2] as $alias) {
+    assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorph('parentable', [$alias => ['comments']]));
+    assertType('Hypervel\Pagination\CursorPaginator<int, Post>', $cursorPaginator->loadMorphCount('parentable', [$alias => ['comments' => []]]));
+}
 
 $cursorPaginator->each(function ($post) {
     assertType('Post', $post);

@@ -1548,6 +1548,8 @@ $alias = $post->getMorphClass();
 $class = Relation::getMorphedModel($alias);
 ```
 
+Registered aliases may also be used instead of class names as the keys passed to `constrain`, `morphWith`, `morphWithCount`, `loadMorph`, and `loadMorphCount`. For example, `$comments->loadMorph('commentable', ['post' => ['author']])` loads the `author` relationship for the mapped post models.
+
 > [!WARNING]
 > When adding a "morph map" to your existing application, every morphable `*_type` column value in your database that still contains a fully-qualified class will need to be converted to its "map" name.
 
@@ -2285,6 +2287,8 @@ $users = User::withWhereHas('posts', function ($query) {
 })->get();
 ```
 
+You may also [select specific columns](#eager-loading-specific-columns) when providing a callback, such as `withWhereHas('posts:id,user_id,title', $callback)`.
+
 For a single, simple condition, you may use the `withWhereRelation` method:
 
 ```php
@@ -2542,6 +2546,18 @@ $user->posts()->createManyQuietly([
 ```
 
 You may also use the `findOrNew`, `firstOrNew`, `firstOrCreate`, and `updateOrCreate` methods to [create and update models on relationships](/docs/{{version}}/eloquent#upserts).
+
+The `incrementOrCreate` method creates a related record with the given default value, or increments the column if a matching record already exists. Any extra attributes are applied when creating or incrementing the record:
+
+```php
+$post->views()->incrementOrCreate(
+    ['date' => today()->toDateString()],
+    column: 'count',
+    default: 1,
+    step: 1,
+    extra: ['last_viewed_at' => now()],
+);
+```
 
 > [!NOTE]
 > Before using the `create` method, be sure to review the [mass assignment](/docs/{{version}}/eloquent#mass-assignment) documentation.

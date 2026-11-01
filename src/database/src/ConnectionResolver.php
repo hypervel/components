@@ -163,15 +163,23 @@ class ConnectionResolver implements ConnectionResolverInterface
     }
 
     /**
-     * Check the current connection's transaction state without borrowing a pool slot.
+     * Get the current execution's connection without borrowing a pool slot.
      */
-    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
     {
-        $connectionName = ConnectionName::parse($this->connectionName($name));
+        return $this->getContextConnection($this->connectionName($name));
+    }
+
+    /**
+     * Find the context-owned connection, including shared in-memory aliases.
+     */
+    private function getContextConnection(string $name): ?ConnectionInterface
+    {
+        $connectionName = ConnectionName::parse($name);
         $held = CoroutineContext::get($this->getContextKey($connectionName->requested));
 
-        if ($held instanceof Connection) {
-            return $held->hasApplicableTransaction();
+        if ($held instanceof ConnectionInterface) {
+            return $held;
         }
 
         $pool = $this->poolManager->existing($connectionName->requested);
@@ -180,12 +188,22 @@ class ConnectionResolver implements ConnectionResolverInterface
         if ($pool?->getSharedInMemorySqlitePdo() !== null) {
             $held = CoroutineContext::get($this->getContextKey($pool->getName()));
 
-            if ($held instanceof Connection) {
-                return $held->hasApplicableTransaction();
+            if ($held instanceof ConnectionInterface) {
+                return $held;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * Check the current connection's transaction state without borrowing a pool slot.
+     */
+    public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool
+    {
+        $held = $this->getContextConnection($this->connectionName($name));
+
+        return $held instanceof Connection && $held->hasApplicableTransaction();
     }
 
     /**

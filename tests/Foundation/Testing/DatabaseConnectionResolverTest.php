@@ -280,8 +280,16 @@ class DatabaseConnectionResolverTest extends TestCase
         $resolver = $this->app->make(DatabaseConnectionResolver::class);
 
         $this->assertSame($resolver->connection(), $resolver->connection(''));
-        $this->assertSame('0', $resolver->connection(DatabaseTestingConnectionName::Zero)->getName());
-        $this->assertSame('1', $resolver->connection(DatabaseTestingConnectionName::One)->getName());
+        $this->assertSame($resolver->connection(), $resolver->getHeldConnection());
+        $this->assertSame($resolver->getHeldConnection(), $resolver->getHeldConnection(''));
+
+        $zero = $resolver->connection(DatabaseTestingConnectionName::Zero);
+        $one = $resolver->connection(DatabaseTestingConnectionName::One);
+
+        $this->assertSame('0', $zero->getName());
+        $this->assertSame('1', $one->getName());
+        $this->assertSame($zero, $resolver->getHeldConnection(DatabaseTestingConnectionName::Zero));
+        $this->assertSame($one, $resolver->getHeldConnection(DatabaseTestingConnectionName::One));
     }
 
     public function testPooledTransactionChecksIgnoreARetainedTestingConnection(): void
@@ -292,6 +300,7 @@ class DatabaseConnectionResolverTest extends TestCase
             config(['database.connections.testing.database' => $database]);
             $resolver = $this->app->make(DatabaseConnectionResolver::class);
             $retained = $resolver->connection();
+            $this->assertSame($retained, $resolver->getHeldConnection());
             $pool = $this->app->make(PoolManager::class)->pool('testing');
             $borrowed = $pool->getBorrowedCount();
             $retained->beginTransaction();
@@ -300,6 +309,7 @@ class DatabaseConnectionResolverTest extends TestCase
                 $this->assertTrue($resolver->hasApplicableTransaction());
                 config(['database.connections.testing.pool.testing_enabled' => true]);
                 $this->assertFalse($resolver->hasApplicableTransaction());
+                $this->assertNull($resolver->getHeldConnection());
                 $this->assertSame($borrowed, $pool->getBorrowedCount());
             } finally {
                 $retained->rollBack();
@@ -307,6 +317,8 @@ class DatabaseConnectionResolverTest extends TestCase
 
             $pooled = $resolver->connection();
             $this->assertNotSame($retained, $pooled);
+            $this->assertSame($pooled, $resolver->getHeldConnection());
+            $this->assertSame($retained, $resolver->getResolvedConnection('testing'));
             $pooled->beginTransaction();
 
             try {

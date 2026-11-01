@@ -7,10 +7,14 @@ namespace Hypervel\Tests\Database\DatabaseEloquentHasOneOfManyTest;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentHasOneOfManyTest extends TestCase
 {
@@ -59,6 +63,18 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             $table->dateTime('published_at');
             $table->foreignId('user_id');
         });
+
+        $this->schema()->create('comments', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->foreignId('parent_id')->nullable();
+            $table->integer('score')->default(0);
+        });
+
+        $this->schema()->create('soft_deleting_comments', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->foreignId('parent_id')->nullable();
+            $table->softDeletes();
+        });
     }
 
     /**
@@ -70,6 +86,8 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->schema()->drop('logins');
         $this->schema()->drop('states');
         $this->schema()->drop('prices');
+        $this->schema()->drop('comments');
+        $this->schema()->drop('soft_deleting_comments');
 
         parent::tearDown();
     }
@@ -80,10 +98,40 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame('latest_login', $user->latest_login()->getRelationName());
     }
 
-    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(): void
+    #[TestWith([Login::class])]
+    #[TestWith([SchemaLogin::class])]
+    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(string $related): void
     {
         $model = TestModel::make();
-        $this->assertSame('logins_of_many', $model->logins()->getRelationName());
+        $relation = $model->logins($related);
+
+        $this->assertSame('logins_of_many', $relation->getRelationName());
+        $this->assertStringContainsString('as "logins_of_many"', $relation->toSql());
+    }
+
+    #[TestWith([Login::class])]
+    #[TestWith([SchemaLogin::class])]
+    public function testItUsesTheTableNameWhenOfManyIsCalledInsideAClosure(string $related): void
+    {
+        User::resolveRelationUsing('first_login_from_closure', function (User $user) use ($related): HasOne {
+            $relation = $user->hasOne($related, 'user_id');
+
+            if ($related === SchemaLogin::class) {
+                // SQLite requires explicit columns instead of schema.table.*.
+                $relation->select(['main.logins.id', 'main.logins.user_id']);
+            }
+
+            return $relation->ofMany('id', 'min');
+        });
+
+        $user = User::create();
+        $first = $user->first_login_from_closure()->create();
+        $user->first_login_from_closure()->create();
+
+        $this->assertTrue($first->is($user->first_login_from_closure));
+        $this->assertTrue($first->is(User::with('first_login_from_closure')->first()->first_login_from_closure));
+        $this->assertCount(1, User::has('first_login_from_closure')->get());
+        $this->assertSame('logins_of_many', $user->first_login_from_closure()->getRelationName());
     }
 
     public function testRelationNameCanBeSet(): void
@@ -296,6 +344,41 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         })->exists();
 
         $this->assertFalse($found);
+    }
+
+    public function testExistenceQueriesOnSelfReferencingRelation(): void
+    {
+        $first = Comment::create();
+        $second = Comment::create();
+        $first->replies()->create();
+        $second->replies()->create();
+
+        $this->assertEquals([$first->id, $second->id], Comment::has('latestReply')->pluck('id')->all());
+        $this->assertEquals([1, 1, 0, 0], Comment::withCount('latestReply')->pluck('latest_reply_count')->all());
+        $this->assertEquals([3, 4], Comment::doesntHave('latestReply')->pluck('id')->all());
+    }
+
+    public function testExistenceQueriesOnSelfReferencingRelationWithAggregateColumn(): void
+    {
+        $first = Comment::create();
+        $second = Comment::create();
+        $first->replies()->create(['score' => 5]);
+        $first->replies()->create(['score' => 3]);
+        $second->replies()->create(['score' => 1]);
+
+        $this->assertEquals([$first->id], Comment::whereHas('topReply', fn ($query) => $query->where('score', 5))->pluck('id')->all());
+        $this->assertEquals([1, 1, 0, 0, 0], Comment::withCount('topReply')->pluck('top_reply_count')->all());
+    }
+
+    public function testExistenceQueriesOnSelfReferencingRelationWithSoftDeletes(): void
+    {
+        $first = SoftDeletingComment::create();
+        $second = SoftDeletingComment::create();
+        $first->replies()->create();
+        $second->replies()->create()->delete();
+
+        $this->assertEquals([$first->id], SoftDeletingComment::has('latestReply')->pluck('id')->all());
+        $this->assertEquals([1, 0, 0], SoftDeletingComment::withCount('latestReply')->pluck('latest_reply_count')->all());
     }
 
     public function testHasCount(): void
@@ -665,9 +748,14 @@ class User extends Eloquent
 
 class TestModel extends Eloquent
 {
-    public function logins()
+    /**
+     * Get the latest login.
+     *
+     * @param class-string<Login> $related
+     */
+    public function logins(string $related = Login::class): HasOne
     {
-        return $this->hasOne(Login::class)->ofMany();
+        return $this->hasOne($related)->ofMany();
     }
 }
 
@@ -678,6 +766,11 @@ class Login extends Eloquent
     protected array $guarded = [];
 
     public bool $timestamps = false;
+}
+
+class SchemaLogin extends Login
+{
+    protected ?string $table = 'main.logins';
 }
 
 class LoginWithSoftDeletes extends Eloquent
@@ -713,4 +806,64 @@ class Price extends Eloquent
     protected array $fillable = ['published_at'];
 
     protected array $casts = ['published_at' => 'datetime'];
+}
+
+class Comment extends Eloquent
+{
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comment's replies.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Get the latest reply.
+     */
+    public function latestReply(): HasOne
+    {
+        return $this->hasOne(self::class, 'parent_id')->latestOfMany();
+    }
+
+    /**
+     * Get the highest-scoring reply.
+     */
+    public function topReply(): HasOne
+    {
+        return $this->hasOne(self::class, 'parent_id')->ofMany('score', 'max');
+    }
+}
+
+class SoftDeletingComment extends Eloquent
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'soft_deleting_comments';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comment's replies.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Get the latest reply.
+     */
+    public function latestReply(): HasOne
+    {
+        return $this->hasOne(self::class, 'parent_id')->latestOfMany();
+    }
 }

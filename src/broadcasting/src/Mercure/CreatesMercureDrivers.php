@@ -18,6 +18,8 @@ use Symfony\Component\Mercure\Jwt\TokenFactoryInterface;
 use Symfony\Component\Mercure\Jwt\WebTokenFactory;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+use function Hypervel\Support\enum_value;
+
 trait CreatesMercureDrivers
 {
     protected const string DEFAULT_MERCURE_ALGORITHM = 'HS256';
@@ -104,6 +106,29 @@ trait CreatesMercureDrivers
     }
 
     // REMOVED: frankenPhpMercure() calls FrankenPHP's in-process hub; Hypervel uses Swoole and publishes over HTTP.
+
+    /**
+     * Determine if the given event only targets Mercure connections publishing synchronously.
+     */
+    protected function broadcastsToSynchronousMercureConnections(mixed $event): bool
+    {
+        $connections = method_exists($event, 'broadcastConnections')
+            ? $event->broadcastConnections()
+            : [null];
+
+        foreach ($connections as $connection) {
+            $connection = enum_value($connection);
+            $config = $this->getConfig($connection === null || $connection === ''
+                ? $this->getDefaultDriver()
+                : (string) $connection);
+
+            if (($config['driver'] ?? null) !== 'mercure' || ! empty($config['async'])) {
+                return false;
+            }
+        }
+
+        return $connections !== [];
+    }
 
     /**
      * Identify the shared HTTP-client pool for construction and invalidation.

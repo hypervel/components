@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\EloquentWhereHasMorphTest;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Expression;
@@ -36,6 +37,11 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
             $table->string('title');
             $table->nullableMorphs('commentable');
             $table->softDeletes();
+        });
+
+        Schema::create('likes', function (Blueprint $table) {
+            $table->increments('id');
+            $table->morphs('likeable');
         });
 
         $models = [];
@@ -235,6 +241,16 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
         $this->assertEquals([1], $comments->pluck('id')->all());
     }
 
+    public function testWhereHasMorphWithTrashed(): void
+    {
+        Like::create(['likeable_type' => Post::class, 'likeable_id' => 1]);
+        Like::create(['likeable_type' => Post::class, 'likeable_id' => 3]);
+
+        $this->assertEquals([1, 2], Like::has('likeableWithTrashed')->orderBy('id')->pluck('id')->all());
+        $this->assertEquals([1, 2], Like::whereHasMorph('likeableWithTrashed', Post::class)->orderBy('id')->pluck('id')->all());
+        $this->assertEquals([1], Like::has('likeable')->pluck('id')->all());
+    }
+
     public function testHasMorph(): void
     {
         $comments = Comment::hasMorph('commentable', Post::class)->orderBy('id')->get();
@@ -369,6 +385,33 @@ class Comment extends Model
     public function commentableWithOwnerKey()
     {
         return $this->morphTo('commentable', null, null, 'slug');
+    }
+}
+
+class Like extends Model
+{
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    /**
+     * Get the liked model.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function likeable(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    /**
+     * Get the liked model, including soft deleted models.
+     *
+     * @return MorphTo<Model, $this>
+     */
+    public function likeableWithTrashed(): MorphTo
+    {
+        return $this->morphTo('likeable')->withTrashed();
     }
 }
 

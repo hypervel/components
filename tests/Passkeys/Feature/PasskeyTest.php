@@ -58,7 +58,7 @@ class UserWithCustomPrimaryKey extends Authenticatable implements PasskeyUser
 
     protected ?string $table = 'users_with_custom_primary_keys';
 
-    protected string $primaryKey = 'user_id';
+    protected ?string $primaryKey = 'user_id';
 
     public bool $incrementing = false;
 

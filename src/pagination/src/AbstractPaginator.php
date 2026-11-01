@@ -286,7 +286,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param array<class-string, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -300,7 +300,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param array<class-string, array<array-key, array|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static

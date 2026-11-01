@@ -287,6 +287,20 @@ abstract class HasOneOrMany extends Relation
     }
 
     /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
+    {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
+            if (! $instance->wasRecentlyCreated) {
+                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+            }
+        });
+    }
+
+    /**
      * Insert new records or update the existing ones.
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int

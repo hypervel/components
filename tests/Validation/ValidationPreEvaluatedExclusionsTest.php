@@ -13,6 +13,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use Stringable;
 
 class ValidationPreEvaluatedExclusionsTest extends TestCase
@@ -74,6 +75,27 @@ class ValidationPreEvaluatedExclusionsTest extends TestCase
         $this->assertSame([
             'users' => ['other' => ['secret' => 'retained']],
         ], $validator->validated());
+    }
+
+    #[TestWith(['*'], 'asterisk')]
+    #[TestWith(['**'], 'multiple asterisks')]
+    #[TestWith(['a\.b'], 'escaped dot')]
+    #[TestWith(['100%'], 'percent')]
+    public function testExclusionComparisonValuesRemainLiteral(string $literal): void
+    {
+        foreach ([Validator::class, DelegatedExclusionValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['items' => [
+                    ['type' => $literal, 'secret' => 'invalid'],
+                    ['type' => '0', 'secret' => 7],
+                ]],
+                ['items.*.secret' => "exclude_if:items.*.type,{$literal}|integer"],
+                $validatorClass,
+            );
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame(['items' => [1 => ['secret' => 7]]], $validator->validated());
+        }
     }
 
     public function testActiveExclusionsResetBetweenPasses(): void

@@ -118,7 +118,7 @@ class Article extends Model
 {
     public bool $timestamps = false;
 
-    protected string $primaryKey = 'slug';
+    protected ?string $primaryKey = 'slug';
 
     protected string $keyType = 'string';
 

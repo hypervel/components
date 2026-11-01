@@ -51,7 +51,7 @@ composer require hypervel/image
 If you will use the bundled GD or Imagick driver, also install Intervention Image:
 
 ```shell
-composer require intervention/image:^4.0
+composer require intervention/image:^4.2
 ```
 
 You should also ensure your PHP installation has the matching GD or Imagick extension. A custom driver does not require Intervention Image or either bundled extension.
@@ -251,10 +251,13 @@ $image = $image->toPng();
 $image = $image->toGif();
 $image = $image->toAvif();
 $image = $image->toHeic();
+$image = $image->toJxl();
 $image = $image->toBmp();
 ```
 
-The public `toFormat` method accepts `webp`, `jpg`, `jpeg`, `png`, `gif`, `avif`, `heic`, `heif`, and `bmp`. The `heif` spelling is normalized to `heic`:
+JPEG XL (`jxl`) requires the Imagick driver with JPEG XL support enabled in ImageMagick.
+
+The public `toFormat` method accepts `webp`, `jpg`, `jpeg`, `png`, `gif`, `avif`, `heic`, `heif`, `jxl`, and `bmp`. The `heif` spelling is normalized to `heic`:
 
 ```php
 $image = $image->toFormat('heif');

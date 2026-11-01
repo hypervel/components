@@ -209,10 +209,14 @@ class Flight extends Model
 }
 ```
 
+For tables without a primary key, use `#[Table(key: false)]`. These models support retrieval and insertion, but updating, refreshing, or deleting an instance throws an exception. Eloquent collection methods such as `merge()` and `unique()` also throw because they require primary keys. Use explicit query conditions for updates and deletes, `concat()` to combine collections, and `unique('column')` to remove duplicates.
+
+A custom `$primaryKey` inherited from a parent takes precedence over this attribute; declare `protected ?string $primaryKey = null` on the child instead.
+
 <a name="composite-primary-keys"></a>
 #### "Composite" Primary Keys
 
-Eloquent requires each model to have at least one uniquely identifying "ID" that can serve as its primary key. "Composite" primary keys are not supported by Eloquent models. However, you are free to add additional multi-column, unique indexes to your database tables in addition to the table's uniquely identifying primary key.
+Operations that identify an individual model require a single unique primary key. "Composite" primary keys are not supported by Eloquent models. However, you are free to add additional multi-column, unique indexes to your database tables in addition to the table's uniquely identifying primary key.
 
 <a name="uuid-and-ulid-keys"></a>
 ### UUID and ULID Keys
@@ -472,6 +476,8 @@ You may specify multiple attributes as an array:
 ```
 
 After the model is written, the configured attributes will be refreshed from the database.
+
+`Refreshes` reads the row back using the primary key, so models without one must override `setKeysForSelectQuery`.
 
 <a name="configuring-eloquent-strictness"></a>
 ### Configuring Eloquent Strictness

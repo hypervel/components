@@ -378,6 +378,14 @@ class Image implements Responsable, Stringable
     }
 
     /**
+     * Convert the image to JPEG XL format.
+     */
+    public function toJxl(): static
+    {
+        return $this->toFormat('jxl');
+    }
+
+    /**
      * Convert the image to BMP format.
      */
     public function toBmp(): static
@@ -392,7 +400,7 @@ class Image implements Responsable, Stringable
      */
     public function toFormat(string $format): static
     {
-        if (! in_array($format, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'avif', 'heic', 'heif', 'bmp'], true)) {
+        if (! in_array($format, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'avif', 'heic', 'heif', 'jxl', 'bmp'], true)) {
             throw new ImageException("The [{$format}] format is not supported.");
         }
 
@@ -527,6 +535,7 @@ class Image implements Responsable, Stringable
             'image/webp' => 'webp',
             'image/avif', 'image/x-avif' => 'avif',
             'image/heic', 'image/x-heic', 'image/heif' => 'heic',
+            'image/jxl', 'image/x-jxl' => 'jxl',
             'image/bmp' => 'bmp',
             'image/svg+xml' => 'svg',
             'image/tiff' => 'tiff',
@@ -557,8 +566,8 @@ class Image implements Responsable, Stringable
 
         $contents = $this->toBytes();
 
-        // getimagesizefromstring() misreports HEIC's coded / padded frame size, so HEIC dimensions belong to the selected driver.
-        if (in_array($this->mimeType(), ['image/heic', 'image/heif', 'image/x-heic'], true)) {
+        // getimagesizefromstring() misreports HEIC's coded / padded frame size and cannot read JXL, so use the selected driver.
+        if (in_array($this->mimeType(), ['image/heic', 'image/heif', 'image/x-heic', 'image/jxl', 'image/x-jxl'], true)) {
             $driver = $this->resolveDriver();
 
             try {

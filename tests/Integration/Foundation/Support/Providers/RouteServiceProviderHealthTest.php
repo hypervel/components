@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Integration\Foundation\Support\Providers;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\DiagnosingHealth;
+use Hypervel\Http\Request;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -81,13 +83,15 @@ class RouteServiceProviderHealthTest extends TestCase
 
     public function testItReturnsJsonFailureStatusWhenDiagnosisReportsAProblem(): void
     {
-        Event::listen(DiagnosingHealth::class, static function (): never {
-            throw new RuntimeException('Database connection refused.');
-        });
+        $failure = new RuntimeException('Database connection refused.');
+        Exceptions::fake();
+        Event::listen(DiagnosingHealth::class, static fn () => throw $failure);
 
         $this->getJson('/up')
             ->assertStatus(500)
             ->assertExactJson(['status' => 'down']);
+
+        Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $failure);
     }
 
     public function testItRendersHtmlFailurePageWhenDiagnosisReportsAProblem(): void
@@ -99,6 +103,31 @@ class RouteServiceProviderHealthTest extends TestCase
         $this->get('/up')
             ->assertStatus(500)
             ->assertSee('experiencing problems');
+    }
+
+    public function testHealthRouteCanBeCachedWithoutAbsolutePaths(): void
+    {
+        $route = $this->app->make('router')->getRoutes()->match(Request::create('/up'));
+
+        $route->prepareForSerialization();
+
+        $this->assertStringNotContainsString(
+            realpath(__DIR__ . '/../../../../../src'),
+            $route->getAction('uses')
+        );
+
+        $this->get('/up')->assertOk();
+    }
+
+    public function testHealthRouteHonorsEventFakesAfterAnEarlierRequest(): void
+    {
+        $this->getJson('/up')->assertOk();
+
+        Event::fake([DiagnosingHealth::class]);
+
+        $this->getJson('/up')->assertOk();
+
+        Event::assertDispatched(DiagnosingHealth::class);
     }
 
     public function testEmptyDiagnosisMessagesStillProduceFailureResponses(): void

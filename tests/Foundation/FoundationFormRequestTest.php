@@ -660,6 +660,38 @@ class FoundationFormRequestTest extends TestCase
         $this->assertTrue($exception->validator->errors()->has('unexpected'));
     }
 
+    public function testFailOnUnknownFieldsIgnoresCsrfTokenAndMethodFields(): void
+    {
+        FormRequest::failOnUnknownFields();
+
+        $request = $this->createRequest(
+            ['_token' => 'token', '_method' => 'PUT', 'name' => 'Taylor'],
+            FoundationTestFormRequestStub::class,
+            'POST'
+        );
+
+        $request->validateResolved();
+
+        $this->assertEquals(['name' => 'Taylor'], $request->validated());
+    }
+
+    public function testFailOnUnknownFieldsStillRejectsUnknownFieldsAlongsideCsrfTokenAndMethodFields(): void
+    {
+        FormRequest::failOnUnknownFields();
+
+        $request = $this->createRequest(
+            ['_token' => 'token', '_method' => 'PUT', 'name' => 'Taylor', 'unexpected' => 'value'],
+            FoundationTestFormRequestStub::class,
+            'POST'
+        );
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame(['unexpected'], $exception->validator->errors()->keys());
+    }
+
     public function testFailOnUnknownFieldsAllowsConfirmationFieldsWhenBaseFieldIsConfirmed(): void
     {
         FormRequest::failOnUnknownFields();

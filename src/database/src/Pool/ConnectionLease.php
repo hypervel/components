@@ -158,6 +158,9 @@ class ConnectionLease implements NonCopyableContext
             $connection = $this->connection;
             $connection->setPdo($this->pdoResolver)->setReadPdo($this->readPdoResolver);
             $connection->getPdo();
+        } else {
+            // Announce the replacement while failed listener queries are still guarded against another reconnect.
+            $this->resolvePhysicalConnection();
         }
 
         return $this->connection;

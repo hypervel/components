@@ -200,5 +200,5 @@ class ModelWithCustomUuidPrimaryKeyName extends Eloquent
 
     protected array $guarded = [];
 
-    protected string $primaryKey = 'uuid';
+    protected ?string $primaryKey = 'uuid';
 }

@@ -10,6 +10,7 @@ use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\InteractsWithQueue;
@@ -60,6 +61,26 @@ class BusDispatcherTest extends TestCase
         });
 
         $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand);
+    }
+
+    public function testCommandsAreQueuedUsingAttributesInheritedFromParentClass(): void
+    {
+        $container = new Container;
+        $container->instance('queue.routes', new QueueRoutes);
+        Container::setInstance($container);
+        $usedConnection = null;
+        $dispatcher = new Dispatcher($container, function (?string $connection) use (&$usedConnection): Queue {
+            $usedConnection = $connection;
+
+            $mock = m::mock(Queue::class);
+            $mock->expects('later')->with(10, m::type(BusDispatcherTestQueueableChildCommand::class), '', 'foo');
+
+            return $mock;
+        });
+
+        $dispatcher->dispatch(new BusDispatcherTestQueueableChildCommand);
+
+        $this->assertSame('redis', $usedConnection);
     }
 
     public function testCommandsThatShouldQueueIsQueuedUsingQueueAndDelayAttributes(): void
@@ -355,6 +376,18 @@ class BusDispatcherTestSpecificQueueAndDelayAttributesCommand implements ShouldQ
 #[QueueAttribute('foo')]
 #[Delay(10)]
 class BusDispatcherTestSpecificQueueAndDelayAttributeWithPropertyCommand implements ShouldQueue
+{
+    use Queueable;
+}
+
+#[Connection('redis')]
+#[QueueAttribute('foo')]
+#[Delay(10)]
+abstract class BusDispatcherTestParentCommandWithAttributes implements ShouldQueue
+{
+}
+
+class BusDispatcherTestQueueableChildCommand extends BusDispatcherTestParentCommandWithAttributes
 {
     use Queueable;
 }

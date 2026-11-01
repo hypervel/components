@@ -809,7 +809,7 @@ PHP);
             timeout: CarbonInterval::seconds(120),
         ));
 
-        $factory->assertRan(fn (PendingProcess $process): bool => $process->timeout === 120);
+        $factory->assertRan(fn (PendingProcess $process): bool => $process->timeout === 120.0);
     }
 
     public function testCoroutineAndSyncDriversAcceptProcessOnlyTimeouts(): void

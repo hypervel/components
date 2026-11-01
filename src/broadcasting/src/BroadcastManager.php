@@ -27,11 +27,14 @@ use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\Queue\Factory as Queue;
+use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Http\Request;
@@ -39,6 +42,7 @@ use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
@@ -199,9 +203,13 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function queue(mixed $event): void
     {
-        if ($event instanceof ShouldBroadcastNow
-            || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
-        ) {
+        $immediate = $event instanceof ShouldBroadcastNow
+            || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow());
+        $synchronousMercure = ! $immediate
+            && ! ($event->viaOutbox ?? $event instanceof ShouldQueueViaOutbox)
+            && $this->broadcastsToSynchronousMercureConnections($event);
+
+        if ($immediate || ($synchronousMercure && ! $event instanceof ShouldBeUnique && empty($event->afterCommit))) {
             $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(
                 new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             );
@@ -229,21 +237,31 @@ class BroadcastManager implements BroadcastingFactoryContract
             ? new UniqueBroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             : new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event);
 
-        if ($event instanceof ShouldBeUnique && $this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
-            return;
-        }
-
-        $push = fn () => $this->app->make(Queue::class)
-            ->connection(
-                $event->connection
-                    ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
-                    ?? $this->resolveConnectionFromQueueRoute($event, $queue)
-            )
-            ->pushOn($queue, $broadcastEvent);
+        $push = $synchronousMercure
+            ? fn () => $this->dispatchSynchronousBroadcast($broadcastEvent)
+            : fn () => $this->app->make(Queue::class)
+                ->connection(
+                    $event->connection
+                        ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
+                        ?? $this->resolveConnectionFromQueueRoute($event, $queue)
+                )
+                ->pushOn($queue, $broadcastEvent);
 
         if ($event instanceof ShouldBeUnique) {
             $dispatch = $push;
-            $push = static function () use ($broadcastEvent, $dispatch): mixed {
+            $push = function () use ($broadcastEvent, $dispatch): mixed {
+                // Acquisition and skip listeners can fail too, so keep them inside the rescue boundary.
+                if ($this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
+                    /** @var EventDispatcher $events */
+                    $events = $this->app->make('events');
+
+                    if ($events->hasListeners(UniqueJobSkipped::class)) {
+                        $events->dispatch(new UniqueJobSkipped($broadcastEvent));
+                    }
+
+                    return null;
+                }
+
                 try {
                     return $dispatch();
                 } finally {
@@ -255,6 +273,48 @@ class BroadcastManager implements BroadcastingFactoryContract
         $event instanceof ShouldRescue
             ? $this->rescue($push)
             : $push();
+    }
+
+    /**
+     * Publish synchronously while honoring commit timing and dispatch locks.
+     */
+    protected function dispatchSynchronousBroadcast(BroadcastEvent $event): void
+    {
+        $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow($event);
+
+        if ($event->afterCommit && $this->app->bound('db.transactions')) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->app->make('db.transactions');
+
+            if ($transactions->hasApplicableTransaction()) {
+                // Direct publishing retains the event without queue serialization or model reloads.
+                $release = static function () use ($event): void {
+                    DispatchLockContext::claim($event);
+                    DispatchLockContext::release($event);
+                };
+                $transactions->addCallbackForRollback(fn () => $event->event instanceof ShouldRescue
+                    ? $this->rescue($release)
+                    : $release());
+
+                $publish = static function () use ($event, $dispatch): void {
+                    DispatchLockContext::claim($event);
+
+                    try {
+                        $dispatch();
+                    } finally {
+                        DispatchLockContext::release($event);
+                    }
+                };
+                $transactions->addCallback(fn () => $event->event instanceof ShouldRescue
+                    ? $this->rescue($publish)
+                    : $publish());
+                DispatchLockContext::delegate($event);
+
+                return;
+            }
+        }
+
+        $dispatch();
     }
 
     /**

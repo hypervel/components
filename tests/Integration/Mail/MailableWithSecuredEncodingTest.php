@@ -12,6 +12,7 @@ use Hypervel\Mail\Markdown;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\DomCrawler\Crawler;
 
 class MailableWithSecuredEncodingTest extends MailableTestCase
 {
@@ -119,5 +120,76 @@ TABLE, false);
             'Visit <span>https://hypervel.org/docs</span> to browse the documentation',
             '<em>Hi</em> Visit &lt;span&gt;https://hypervel.org/docs&lt;/span&gt; to browse the documentation',
         ];
+
+        // Encoding must block Markdown injection without deleting the user's backslashes.
+        yield ['\[Hypervel](https://hypervel.org)', '<em>Hi</em> \[Hypervel](https://hypervel.org)'];
+
+        yield ['!\[Hypervel](https://hypervel.org)', '<em>Hi</em> !\[Hypervel](https://hypervel.org)'];
+
+        yield ['\\\server\share', '<em>Hi</em> \\\server\share'];
+    }
+
+    #[WithMigration]
+    #[DataProvider('markdownEncodedLinkTextTemplateDataProvider')]
+    public function testItCanAssertMarkdownEncodedStringUsingTemplateWithLinkText(string $given, string $expected): void
+    {
+        $user = UserFactory::new()->create([
+            'name' => $given,
+        ]);
+
+        $mailable = new class($user) extends Mailable {
+            public ?string $theme = 'taylor';
+
+            /**
+             * Create the mailable for the given user.
+             */
+            public function __construct(public User $user)
+            {
+            }
+
+            /**
+             * Build the mailable.
+             */
+            public function build(): static
+            {
+                return $this->markdown('link-with-template');
+            }
+        };
+
+        $mailable->assertSeeInHtml($expected, false);
+        $mailable->assertDontSeeInHtml('https://example.com"', false);
+    }
+
+    /**
+     * Provide user text that must stay inside the template's link.
+     */
+    public static function markdownEncodedLinkTextTemplateDataProvider(): iterable
+    {
+        yield ['Taylor', '<a href="https://hypervel.org">Taylor</a>'];
+
+        yield ['Taylor](https://example.com)', '<a href="https://hypervel.org">Taylor](https://example.com)</a>'];
+
+        // Encoding must block Markdown injection without deleting the user's backslashes.
+        yield ['Taylor\](https://example.com)', '<a href="https://hypervel.org">Taylor\](https://example.com)</a>'];
+    }
+
+    public function testSecuredRenderingPreservesLiteralContentAcrossMailComponents(): void
+    {
+        $value = '\\\server\share [x] <b>';
+        $html = $this->app->make(Markdown::class)->render('message-with-punctuation', [
+            'value' => $value,
+            'punctuation' => '[x]',
+            'host' => 'evil.test\\',
+            'number' => 42,
+        ])->toHtml();
+        $document = new Crawler($html);
+
+        $this->assertSame('literal \[ and \] and \\\ and &#91; and &lt;', $document->filter('code')->eq(0)->text());
+        $this->assertSame($value, $document->filter('code')->eq(1)->text());
+        $this->assertSame($value, $document->filter('.panel-item')->text());
+        $this->assertSame($value, $document->filter('.subcopy')->text());
+        $this->assertStringContainsString('content: "[x]"', $document->filter('style')->last()->text());
+        $this->assertSame('https://evil.test%5C.good.test', $document->selectLink('Destination')->attr('href'));
+        $this->assertContains('42', $document->filter('p')->each(fn (Crawler $paragraph): string => $paragraph->text()));
     }
 }

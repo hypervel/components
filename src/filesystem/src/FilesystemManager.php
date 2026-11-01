@@ -412,9 +412,12 @@ class FilesystemManager implements FactoryContract
             $config['root'] = '';
         }
 
-        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config)); // @phpstan-ignore class.notFound, class.notFound
+        $adapter = new FtpAdapter(
+            FtpConnectionOptions::fromArray($config),
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**
@@ -422,7 +425,7 @@ class FilesystemManager implements FactoryContract
      */
     public function createSftpDriver(array $config): Filesystem
     {
-        $provider = SftpConnectionProvider::fromArray($config); // @phpstan-ignore class.notFound
+        $provider = SftpConnectionProvider::fromArray($config);
 
         $root = $config['root'] ?? '';
 
@@ -430,9 +433,14 @@ class FilesystemManager implements FactoryContract
             $config['permissions'] ?? []
         );
 
-        $adapter = new SftpAdapter($provider, $root, $visibility); // @phpstan-ignore class.notFound
+        $adapter = new SftpAdapter(
+            $provider,
+            $root,
+            $visibility,
+            detectMimeTypeUsingPath: (bool) ($config['detect_mime_type_using_path'] ?? false),
+        );
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
     }
 
     /**
@@ -971,9 +979,9 @@ class FilesystemManager implements FactoryContract
      * resolution will return the replacement. Any shared pool remains
      * available until its idle TTL expires or purge() invalidates it.
      */
-    public function set(string $name, mixed $disk): static
+    public function set(UnitEnum|string $name, mixed $disk): static
     {
-        $this->disks[$name] = $disk;
+        $this->disks[enum_value($name)] = $disk;
 
         return $this;
     }
@@ -1015,11 +1023,13 @@ class FilesystemManager implements FactoryContract
      * coroutines may already hold a reference to the disk and next resolution
      * will rebuild a wrapper. Shared pools remain available until their idle
      * TTL expires or purge() deliberately invalidates them.
+     *
+     * @param array<string|UnitEnum>|string|UnitEnum $disk
      */
-    public function forgetDisk(array|string $disk): static
+    public function forgetDisk(UnitEnum|array|string $disk): static
     {
-        foreach ((array) $disk as $diskName) {
-            unset($this->disks[$diskName]);
+        foreach (Arr::wrap($disk) as $diskName) {
+            unset($this->disks[enum_value($diskName)]);
         }
 
         return $this;
@@ -1032,9 +1042,9 @@ class FilesystemManager implements FactoryContract
      * Closing deliberately invalidates a shared pool; other converged disks
      * acquire a fresh pool on their next operation.
      */
-    public function purge(?string $name = null): void
+    public function purge(UnitEnum|string|null $name = null): void
     {
-        $name ??= $this->getDefaultDriver();
+        $name = (string) (enum_value($name) ?? $this->getDefaultDriver());
 
         $disk = $this->disks[$name] ?? null;
         unset($this->disks[$name]);

@@ -10,13 +10,19 @@ use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Lottery;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use LogicException;
 use ParseError;
+use PHPUnit\Framework\Attributes\TestWith;
+use Throwable;
 
 #[WithConfig('logging.default', 'null')]
 #[WithConfig('telescope.watchers', [
@@ -37,6 +43,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(EntryType::EXCEPTION, $entry->type);
         $this->assertSame(BananaException::class, $entry->content['class']);
         $this->assertSame(__FILE__, $entry->content['file']);
+        $this->assertSame($exception->getLine(), $entry->content['line']);
         $this->assertSame('Something went bananas.', $entry->content['message']);
         $this->assertArrayHasKey('trace', $entry->content);
     }
@@ -54,6 +61,7 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(EntryType::EXCEPTION, $entry->type);
         $this->assertSame(BananaError::class, $entry->content['class']);
         $this->assertSame(__FILE__, $entry->content['file']);
+        $this->assertSame($exception->getLine(), $entry->content['line']);
         $this->assertSame('Something went bananas.', $entry->content['message']);
         $this->assertArrayHasKey('trace', $entry->content);
     }
@@ -83,6 +91,38 @@ class ExceptionWatcherTest extends FeatureTestCase
         $this->assertSame(1, $entry->content['line']);
         $this->assertSame("Unclosed '('", $entry->content['message']);
         $this->assertArrayHasKey('trace', $entry->content);
+    }
+
+    #[TestWith(['filter', false], 'individual filter')]
+    #[TestWith(['filterBatch', false], 'batch filter')]
+    #[TestWith(['filter', true], 'individual filter with deduplication')]
+    #[TestWith(['filterBatch', true], 'batch filter with deduplication')]
+    public function testReportableFiltersKeepAdmittedMappedExceptions(string $filterMethod, bool $deduplicate): void
+    {
+        Telescope::{$filterMethod}(static fn (IncomingEntry|Collection $entries): bool => $entries instanceof IncomingEntry
+            ? $entries->isReportableException()
+            : $entries->contains(static fn (IncomingEntry $entry): bool => $entry->isReportableException()));
+
+        $handler = $this->app->make(ExceptionHandler::class);
+        if ($deduplicate) {
+            $handler->dontReportDuplicates();
+        }
+
+        $handler->map(BananaException::class, static fn (BananaException $exception): BananaException => new BananaException($exception->getMessage(), 0, $exception));
+        $evaluations = 0;
+        $handler->throttleUsing(static function (Throwable $exception) use (&$evaluations): Lottery {
+            ++$evaluations;
+
+            return Lottery::odds(1, 2);
+        });
+        Lottery::forceResultWithSequence([true, false], static fn (): bool => false);
+
+        $exception = new BananaException('admitted failure');
+        $handler->report($exception);
+        $handler->report($exception);
+
+        $this->assertCount(1, $this->loadTelescopeEntries());
+        $this->assertSame($deduplicate ? 1 : 2, $evaluations);
     }
 
     public function testExceptionWatcherStoresExtraWhenContextFacadeUsed(): void

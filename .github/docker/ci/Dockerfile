@@ -95,6 +95,9 @@ RUN set -eux; \
 
 RUN printf '%s\n' 'swoole.use_shortname=Off' > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
 
+# The development Composer root declares the FTP capability supplied by Swoole.
+RUN php -r 'if (! function_exists("ftp_connect") || extension_loaded("ftp")) { fwrite(STDERR, "Swoole FTP support without the separate FTP extension is required for filesystem tests.\n"); exit(1); }'
+
 RUN set -eux; \
     test "$(php -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')" = "${PHP_VERSION}"; \
     test "$(php -r 'echo phpversion("swoole");')" = "${SWOOLE_VERSION}"; \

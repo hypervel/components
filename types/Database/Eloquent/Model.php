@@ -90,6 +90,9 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
     assertType('Hypervel\Types\Model\Articles<(int|string), Hypervel\Types\Model\Article>', $article->newCollection([new Article]));
     assertType('Hypervel\Types\Model\Comments', $comment->newCollection([new Comment]));
 
+    assertType('User', $user->load(['posts' => fn ($query) => $query]));
+    assertType('User', $user->loadMorph('parentable', ['post' => ['comments' => fn ($query) => $query]]));
+    assertType('User', $user->loadCount(['posts' => fn (Builder $query) => $query->where('published', true)]));
     assertType('User', $user->loadAggregate('posts', $expression, 'sum'));
     assertType('User', $user->loadMax('posts', $expression));
     assertType('User', $user->loadMin('posts', $expression));
@@ -119,6 +122,16 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
     assertType('User', $user->loadMorphSum('parentable', [Post::class => ['comments' => $aggregate]], $expression));
     assertType('User', $user->loadMorphAvg('parentable', [Post::class => ['comments' => $aggregate]], $expression));
     assertType('User', $user->loadMorphCount('parentable', [Post::class => 'comments']));
+
+    foreach (['post', 2] as $alias) {
+        assertType('User', $user->loadMorph('parentable', [$alias => ['comments']]));
+        assertType('User', $user->loadMorphAggregate('parentable', [$alias => ['comments' => []]], $expression, 'sum'));
+        assertType('User', $user->loadMorphCount('parentable', [$alias => ['comments' => []]]));
+        assertType('User', $user->loadMorphMax('parentable', [$alias => ['comments' => []]], $expression));
+        assertType('User', $user->loadMorphMin('parentable', [$alias => ['comments' => []]], $expression));
+        assertType('User', $user->loadMorphSum('parentable', [$alias => ['comments' => []]], $expression));
+        assertType('User', $user->loadMorphAvg('parentable', [$alias => ['comments' => []]], $expression));
+    }
 
     assertType('bool', $user->restore());
     assertType('User', $user->restoreOrCreate());

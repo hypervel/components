@@ -10,6 +10,7 @@ use ErrorException;
 use Exception;
 use Generator;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\DeadlockException;
@@ -41,6 +42,7 @@ use LogicException;
 use Mockery as m;
 use PDO;
 use PDOException;
+use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
@@ -2395,6 +2397,199 @@ class DatabaseConnectionTest extends TestCase
 
         $this->assertFalse($connection->logging());
         $this->assertFalse($connection->pretending());
+    }
+
+    public function testOlapRunsCallbackUsingOlapWorkloadOnVitess(): void
+    {
+        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['getAttribute'])->getMock();
+        $pdo->expects($this->once())->method('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->willReturn('8.0.34-PlanetScale');
+
+        $queries = (new MySqlConnection($pdo))->pretend(function ($connection) {
+            $connection->olap(fn ($connection) => $connection->select('foo bar'));
+        });
+
+        $this->assertSame([
+            "set workload = 'olap'",
+            'foo bar',
+            "set workload = 'oltp'",
+        ], array_column($queries, 'query'));
+    }
+
+    public function testOlapSetsWorkloadOnReadAndWriteConnections(): void
+    {
+        $writePdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['getAttribute', 'exec'])->getMock();
+        $writePdo->expects($this->once())->method('getAttribute')->willReturn('8.0.34-PlanetScale');
+        $writePdo->expects($this->exactly(2))->method('exec');
+
+        $readPdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['exec'])->getMock();
+        $readPdo->expects($this->exactly(2))->method('exec');
+
+        $connection = (new MySqlConnection($writePdo, config: ['sticky' => true]))->setReadPdo($readPdo);
+        $connection->recordsHaveBeenModified();
+
+        $this->assertSame('foo', $connection->olap(function () use ($connection): string {
+            $this->assertTrue($connection->hasPinnedSession());
+
+            return 'foo';
+        }));
+    }
+
+    public function testOlapLeavesOtherMySqlServersUnchanged(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $pdo->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34');
+        $pdo->shouldNotReceive('exec');
+        $connection = new MySqlConnection($pdo);
+
+        $this->assertSame($connection, $connection->olap(static fn ($connection) => $connection));
+    }
+
+    public function testNestedOlapScopesRestoreTheWorkloadOnlyAfterTheOuterCallback(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $pdo->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34-vitess');
+        $connection = new MySqlConnection($pdo);
+
+        $queries = $connection->pretend(function () use ($connection): void {
+            $connection->olap(function () use ($connection): void {
+                $connection->olap(fn () => $connection->select('inner query'));
+                $connection->select('outer query');
+            });
+        });
+
+        $this->assertSame([
+            "set workload = 'olap'",
+            'inner query',
+            'outer query',
+            "set workload = 'oltp'",
+        ], array_column($queries, 'query'));
+    }
+
+    public function testOlapReappliesTheWorkloadBeforeRetryingALostConnection(): void
+    {
+        $original = m::mock(PDO::class);
+        $original->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34-vitess');
+        $original->expects('exec')->with("set workload = 'olap'");
+        $original->expects('prepare')->with('select total')->andThrow(new PDOException('server has gone away'));
+        $replacement = m::mock(PDO::class);
+        $replacement->expects('exec')->with("set workload = 'olap'")->ordered();
+        $statement = m::mock(PDOStatement::class);
+        $statement->expects('setFetchMode')->with(PDO::FETCH_OBJ);
+        $statement->expects('execute');
+        $statement->expects('fetchAll')->andReturn([42]);
+        $replacement->expects('prepare')->with('select total')->andReturn($statement)->ordered();
+        $replacement->expects('exec')->with("set workload = 'oltp'")->ordered();
+        $connection = new MySqlConnection($original);
+        $reconnects = 0;
+        $connection->setReconnector(static function (MySqlConnection $connection) use ($replacement, &$reconnects): void {
+            ++$reconnects;
+            $connection->setPdo($replacement);
+        });
+
+        $this->assertSame([42], $connection->olap(fn () => $connection->select('select total')));
+        $this->assertSame(1, $reconnects);
+    }
+
+    #[TestWith([false], 'raw writer')]
+    #[TestWith([true], 'read query')]
+    public function testOlapRecoversItsWorkloadAndEndpointAfterAFailedReconnect(bool $read): void
+    {
+        $original = m::mock(PDO::class);
+        $original->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34-vitess');
+        $original->expects('exec')->with("set workload = 'olap'");
+        $originalRead = m::mock(PDO::class);
+        $originalRead->expects('exec')->with("set workload = 'olap'");
+        $replacement = m::mock(PDO::class);
+        $replacement->expects('exec')->with("set workload = 'olap'")->globally()->ordered();
+        $replacementRead = m::mock(PDO::class);
+        $replacementRead->expects('exec')->with("set workload = 'olap'")->globally()->ordered();
+
+        if ($read) {
+            $statement = m::mock(PDOStatement::class);
+            $statement->expects('setFetchMode')->with(PDO::FETCH_OBJ);
+            $statement->expects('execute');
+            $statement->expects('fetchAll')->andReturn([42]);
+            $replacementRead->expects('prepare')->with('select total')->andReturn($statement)->globally()->ordered();
+            $replacement->shouldNotReceive('prepare');
+        }
+
+        $replacement->expects('exec')->with("set workload = 'oltp'")->globally()->ordered();
+        $replacementRead->expects('exec')->with("set workload = 'oltp'")->globally()->ordered();
+        $connection = (new MySqlConnection($original))->setReadPdo($originalRead);
+        $failure = new RuntimeException('Database unavailable.');
+        $reconnects = 0;
+        $connection->setReconnector(static function (MySqlConnection $connection) use ($replacement, $replacementRead, $failure, &$reconnects): void {
+            $connection->setPdo(static fn (): PDO => $replacement)
+                ->setReadPdo(static fn (): PDO => $replacementRead);
+
+            if (++$reconnects === 1) {
+                throw $failure;
+            }
+        });
+
+        $connection->olap(function () use ($connection, $failure, $replacement, $read): void {
+            try {
+                $connection->reconnect();
+                $this->fail('Expected the reconnect to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            if ($read) {
+                $this->assertSame([42], $connection->select('select total'));
+            } else {
+                $this->assertSame($replacement, $connection->getPdo());
+            }
+        });
+
+        $this->assertSame(2, $reconnects);
+        $this->assertSame($replacementRead, $connection->getReadPdo());
+    }
+
+    public function testPartialOlapSetupPreventsReusingEitherSession(): void
+    {
+        $writePdo = m::mock(PDO::class);
+        $writePdo->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34-vitess');
+        $writePdo->expects('exec')->with("set workload = 'olap'");
+        $readPdo = m::mock(PDO::class);
+        $failure = new PDOException('Workload change refused.');
+        $readPdo->expects('exec')->with("set workload = 'olap'")->andThrow($failure);
+        $connection = (new MySqlConnection($writePdo))->setReadPdo($readPdo);
+
+        try {
+            $connection->olap(fn () => $this->fail('A partially configured callback must not run.'));
+            $this->fail('Expected the workload change to fail.');
+        } catch (QueryException $exception) {
+            $this->assertSame($failure, $exception->getPrevious());
+        }
+
+        $this->assertFalse((new MySqlConnection($writePdo))->isReusable());
+        $this->assertFalse((new MySqlConnection($readPdo))->isReusable());
+    }
+
+    public function testOlapRestorationFailurePreservesCancellationAndDiscardsTheSession(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $pdo->expects('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn('8.0.34-vitess');
+        $pdo->expects('exec')->with("set workload = 'olap'");
+        $connection = new MySqlConnection($pdo);
+        $cancellation = new CanceledException('Analytics canceled.');
+        $failure = new RuntimeException('Restore hook failed.');
+        $connection->beforeExecuting(static function (string $query) use ($failure): void {
+            if ($query === "set workload = 'oltp'") {
+                throw $failure;
+            }
+        });
+
+        try {
+            $connection->olap(static fn (): never => throw $cancellation);
+            $this->fail('Expected the restoration failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+            $this->assertTrue(Coroutine::causedByCancellation($exception));
+        }
+
+        $this->assertFalse($connection->isReusable());
     }
 
     public function testSchemaBuilderCanBeCreated(): void

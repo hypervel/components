@@ -9,6 +9,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
@@ -203,6 +204,24 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail($model ? (new Post)->forceFill(['id' => 1]) : 1);
     }
 
+    public function testFindOrNewReturnsTheRelatedModel(): void
+    {
+        $this->seedData();
+        $this->seedDataExtended();
+        $country = Country::find(2);
+
+        $post = $country->posts()->findOrNew(5);
+
+        $this->assertTrue($post->exists);
+        $this->assertSame(5, $post->id);
+        $this->assertSame('Example2 title1', $post->title);
+
+        $post = $country->posts()->findOrNew(1);
+
+        $this->assertFalse($post->exists);
+        $this->assertInstanceOf(Post::class, $post);
+    }
+
     public function testFindOrFailWithManyThrowsAnException(): void
     {
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
@@ -393,6 +412,24 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         });
     }
 
+    public function testChunkMapReturnsCorrectModels(): void
+    {
+        $this->seedData();
+        $this->seedDataExtended();
+        $country = Country::find(2);
+
+        $posts = $country->posts()->chunkMap(fn (Post $post): array => [$post->id, $post->title], 2);
+
+        $this->assertEquals([
+            [3, 'Example1 title1'],
+            [4, 'Example1 title2'],
+            [5, 'Example2 title1'],
+            [6, 'Example2 title2'],
+            [7, 'Example3 title1'],
+            [8, 'Example3 title2'],
+        ], $posts->all());
+    }
+
     public function testChunkById(): void
     {
         $this->seedData();
@@ -542,6 +579,79 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts);
     }
 
+    public function testTouch(): void
+    {
+        $this->seedData();
+        $country = Country::first();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->updated_at->format('Y-m-d H:i:s'));
+
+        $country->posts()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testTouchRespectsIntermediateSoftDeletes(): void
+    {
+        $this->seedData();
+        $user = SoftDeletesUser::first();
+        $user->delete();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $country = CountrySoftDeletesIntermediate::first();
+        $country->posts()->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testTouchRespectsWithoutTouching(): void
+    {
+        $this->seedData();
+        $country = Country::first();
+
+        Post::query()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        Eloquent::withoutTouching(function () use ($country) {
+            $country->posts()->touch();
+        });
+
+        $this->assertSame('2000-01-01 00:00:00', Post::first()->fresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    public function testTouchPreservesRemovedRelatedScopes(): void
+    {
+        $this->schema()->table('posts', fn ($table) => $table->softDeletes());
+        $this->seedData();
+        TouchSoftDeletedPost::first()->delete();
+        TouchSoftDeletedPost::withTrashed()->update(['updated_at' => '2000-01-01 00:00:00']);
+
+        $relation = Country::first()->hasManyThrough(TouchSoftDeletedPost::class, User::class, 'country_id', 'user_id');
+        $relation->touch();
+
+        $this->assertSame('2000-01-01 00:00:00', TouchSoftDeletedPost::onlyTrashed()->first()->updated_at->format('Y-m-d H:i:s'));
+
+        $relation->withTrashed()->touch();
+
+        $this->assertNotSame('2000-01-01 00:00:00', TouchSoftDeletedPost::onlyTrashed()->first()->updated_at->format('Y-m-d H:i:s'));
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['posts.title'])]
+    public function testAllRelatedIds(?string $column): void
+    {
+        $this->seedData();
+        $country = Country::first();
+        $relation = $country->posts();
+
+        if ($column !== null) {
+            $relation->select($column);
+        }
+
+        $this->assertEquals([1, 2], $relation->allRelatedIds()->all());
+    }
+
     public function testEagerLoadingDoesNotReadTheEmptyFarParentKey(): void
     {
         $this->seedData();
@@ -681,6 +791,11 @@ class Post extends Eloquent
     }
 }
 
+class TouchSoftDeletedPost extends Post
+{
+    use SoftDeletes;
+}
+
 class Country extends Eloquent
 {
     protected ?string $table = 'countries';
@@ -816,5 +931,20 @@ class SoftDeletesCountry extends Eloquent
     public function users()
     {
         return $this->hasMany(SoftDeletesUser::class, 'country_id');
+    }
+}
+
+class CountrySoftDeletesIntermediate extends Eloquent
+{
+    protected ?string $table = 'countries';
+
+    protected array $guarded = [];
+
+    /**
+     * Get the posts through soft-deletable users.
+     */
+    public function posts(): HasManyThrough
+    {
+        return $this->hasManyThrough(SoftDeletesPost::class, SoftDeletesUser::class, 'country_id', 'user_id');
     }
 }

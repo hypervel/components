@@ -156,6 +156,9 @@ class MySqlGrammar extends Grammar
      */
     public function compileForeignKeys(?string $schema, string $table): string
     {
+        $schema = $schema ? $this->quoteString($schema) : 'schema()';
+        $table = $this->quoteString($table);
+
         return sprintf(
             'select kc.constraint_name as `name`, '
             . 'group_concat(kc.column_name order by kc.ordinal_position) as `columns`, '
@@ -167,9 +170,12 @@ class MySqlGrammar extends Grammar
             . 'from information_schema.key_column_usage kc join information_schema.referential_constraints rc '
             . 'on kc.constraint_schema = rc.constraint_schema and kc.constraint_name = rc.constraint_name '
             . 'where kc.table_schema = %s and kc.table_name = %s and kc.referenced_table_name is not null '
+            . 'and rc.constraint_schema = %s and rc.table_name = %s '
             . 'group by kc.constraint_name, kc.referenced_table_schema, kc.referenced_table_name, rc.update_rule, rc.delete_rule',
-            $schema ? $this->quoteString($schema) : 'schema()',
-            $this->quoteString($table)
+            $schema,
+            $table,
+            $schema,
+            $table
         );
     }
 
@@ -297,11 +303,9 @@ class MySqlGrammar extends Grammar
     #[Override]
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
-        $isMaria = $this->connection->isMaria();
-        $version = $this->connection->getServerVersion();
-
-        if (($isMaria && version_compare($version, '10.5.2', '<'))
-            || (! $isMaria && version_compare($version, '8.0.3', '<'))) {
+        // All supported MariaDB versions have native column renaming.
+        if (! $this->connection->isMaria()
+            && version_compare($this->connection->getServerVersion(), '8.0.3', '<')) {
             return $this->compileLegacyRenameColumn($blueprint, $command);
         }
 
@@ -316,6 +320,14 @@ class MySqlGrammar extends Grammar
         $column = (new Collection($this->connection->getSchemaBuilder()->getColumns($blueprint->getTable())))
             ->firstWhere('name', $command->from);
 
+        // Metadata leaves string defaults unquoted. Only temporal columns can
+        // use CURRENT_TIMESTAMP as an expression; "NULL" remains a string.
+        $default = $column['default'];
+        if (in_array($column['type_name'], ['timestamp', 'datetime'], true)
+            && $default !== null && str_starts_with(strtolower($default), 'current_timestamp')) {
+            $default = new Expression($default);
+        }
+
         $modifiers = $this->addModifiers($column['type'], $blueprint, new ColumnDefinition([
             'change' => true,
             'type' => match ($column['type_name']) {
@@ -327,9 +339,7 @@ class MySqlGrammar extends Grammar
                 default => $column['type_name'],
             },
             'nullable' => $column['nullable'],
-            'default' => $column['default'] && (str_starts_with(strtolower($column['default']), 'current_timestamp') || $column['default'] === 'NULL')
-                ? new Expression($column['default'])
-                : $column['default'],
+            'default' => $default,
             'autoIncrement' => $column['auto_increment'],
             'collation' => $column['collation'],
             'comment' => $column['comment'],

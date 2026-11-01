@@ -9,6 +9,8 @@
         - [PostgreSQL Keepalives](#postgresql-keepalives)
         - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
+        - [Preventing Stale Database Reads](#preventing-stale-database-reads)
+        - [Using the Write Connection for Reads](#using-the-write-connection-for-reads)
     - [Connection Pooling](#connection-pooling)
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -18,6 +20,7 @@
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
+    - [Running Analytical Queries on Vitess](#running-analytical-queries-on-vitess)
     - [Listening for Query Events](#listening-for-query-events)
     - [Monitoring Cumulative Query Time](#monitoring-cumulative-query-time)
 - [Database Transactions](#database-transactions)
@@ -34,7 +37,7 @@ Almost every modern web application interacts with a database. Hypervel makes in
 
 <div class="content-list" markdown="1">
 
-- MariaDB 10.3+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
+- MariaDB 10.11+ ([Version Policy](https://mariadb.org/about/#maintenance-policy))
 - MySQL 5.7+ ([Version Policy](https://en.wikipedia.org/wiki/MySQL#Release_history))
 - PostgreSQL 10.0+ ([Version Policy](https://www.postgresql.org/support/versioning/))
 - SQLite 3.32.0+
@@ -244,6 +247,49 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 #### The `sticky` Option
 
 The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
+
+A long-running queue worker gives each job its own coroutine, so one job's writes do not send later jobs' reads to the write connection.
+
+<a name="preventing-stale-database-reads"></a>
+#### Preventing Stale Database Reads
+
+While the `sticky` option only affects the current request, the `Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads` middleware allows subsequent requests in the same session to read recently written data from the write connection. This can help prevent users from seeing stale data while your read replicas catch up with the write database.
+
+To enable this behavior, append the middleware to the `web` middleware group in your application's `bootstrap/app.php` file:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->web(append: [
+        PreventStaleDatabaseReads::class,
+    ]);
+})
+```
+
+The middleware tracks writes to the default database connection in the user's session. By default, requests within two seconds of a write will use the write connection for reads on that connection. You may customize this duration using the middleware's `for` method:
+
+```php
+$middleware->web(append: [
+    PreventStaleDatabaseReads::for(5),
+]);
+```
+
+Since this middleware relies on the session, it must run after the `Hypervel\Session\Middleware\StartSession` middleware. It does not affect reads made by other sessions or on other database connections. Child coroutines resolve their own connections, so their reads and writes are not covered by this middleware.
+
+<a name="using-the-write-connection-for-reads"></a>
+#### Using the Write Connection for Reads
+
+If you need to ensure that all reads on a connection use the write database while executing a callback, you may use the connection's `usingWritePdo` method:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$users = DB::connection()->usingWritePdo(fn ($connection) => $connection->table('users')->get());
+```
+
+This also applies to Eloquent queries and relationship queries executed within the callback using the same connection. The method returns the callback's result and restores the connection's previous read preference when the callback finishes, even if an exception is thrown.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
@@ -528,7 +574,9 @@ Both execution methods construct database errors through the protected `newQuery
 
 Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
 
-Query builders with statement-level options may override the protected `Query\Builder::ensureCanEmbedQuery` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member; call the parent to preserve the built-in rejection of embedded timeouts.
+Query builders with statement-level options may override the protected `Query\Builder::prepareQueryForEmbedding` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member. Call the parent first, validate the returned query, and return it so callback preparation and the built-in rejection of embedded timeouts are preserved.
+
+Custom query execution methods should run `applyBeforeQueryCallbacks()`, then call the protected `prepareForSelect()` method and use the returned builder for both SQL and bindings. It preserves the caller's query while preparing pagination around bounded union members. Drivers with additional row-selection clauses can override `requiresKeysetIsolation()` and `isolateKeysetSelect()` to retain those clauses inside the selected page and request options outside it. When those clauses depend on ordering, call `restoreKeysetOrdering()` on the inner query to preserve which rows they select. `getRawBindings()` describes the caller's clauses; `getBindings()` returns parameters in the order required by the prepared SQL.
 
 Custom Eloquent builders may override the public `ensureCanCreateOrFirst(): void` method to reject helpers that depend on unique-constraint recovery. Both `firstOrCreate` and `createOrFirst` call it before reading or writing, including their relationship forms; `updateOrCreate` and `incrementOrCreate` reach it through those helpers. Helpers delegate to each other, so validation may run more than once per operation; keep overrides side-effect-free. Relationships use the related model's builder, even when the parent uses another driver. The default method imposes no restriction, and ordinary `create`, `save`, and `firstOrNew` are unchanged.
 
@@ -865,6 +913,31 @@ if ($connection instanceof PdoConnection) {
 The driver-neutral `Connection` class does not expose PDO methods because native and HTTP drivers do not have a PDO instance. Code that requires direct PDO access should accept or narrow to `PdoConnection` instead of a generic connection.
 
 If you are building a low-level PDO extension, you may use `getRawPdo` to access the connection parameter without resolving or configuring it. This value may be a PDO, a lazy connection closure, or `null`. Applications should use `getPdo` or Hypervel's query APIs instead.
+
+<a name="running-analytical-queries-on-vitess"></a>
+### Running Analytical Queries on Vitess
+
+When using a Vitess database, such as PlanetScale, you may use the `olap` method to execute analytical queries using the OLAP workload:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$totals = DB::connection('mysql')->olap(fn ($connection) => $connection->table('orders')
+    ->selectRaw('customer_id, sum(total) as total')
+    ->groupBy('customer_id')
+    ->get()
+);
+```
+
+Hypervel sets the workload on both the read and write connections, then resets it to OLTP when the callback finishes, even if an exception is thrown. The `olap` method returns the callback's result. On MySQL connections that are not using Vitess, the callback is executed without changing the workload.
+
+The connection remains [pinned](#releasing-and-pinning-connections) until the callback finishes, including while waiting for external services. Complete any lazy queries inside the callback. Nested `olap` calls share the outer scope, and a recovered connection receives the OLAP workload before queries resume.
+
+You may determine whether a MySQL connection is using Vitess via the `isVitess` method:
+
+```php
+$isVitess = DB::connection('mysql')->isVitess();
+```
 
 <a name="listening-for-query-events"></a>
 ### Listening for Query Events

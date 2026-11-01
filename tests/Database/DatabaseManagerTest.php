@@ -80,6 +80,19 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame('sqlite', $manager->getDefaultConnection());
     }
 
+    public function testHeldConnectionFallsBackToTheResolverAndNormalizesEnumNames(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'analytics');
+
+        $manager = $this->db->getDatabaseManager();
+
+        $this->assertSame($manager->connection(), $manager->getHeldConnection());
+        $this->assertSame($manager->connection('analytics'), $manager->getHeldConnection(DatabaseManagerTestUnitConnection::analytics));
+    }
+
     public function testReconnectorAcceptsArrayCallable(): void
     {
         $manager = $this->db->getDatabaseManager();

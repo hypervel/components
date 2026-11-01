@@ -26,11 +26,13 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Throwable;
 
 class FoundationApplicationTest extends TestCase
 {
@@ -427,11 +429,14 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame(['first', 'second'], $called);
     }
 
-    public function testTerminationCancellationSupersedesAnEarlierFailureAndStopsLaterCallbacks(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminationCancellationSupersedesAnEarlierFailureAndStopsLaterCallbacks(bool $throwingCleanup): void
     {
         $app = new Application;
         $called = [];
         $cancellation = new CanceledException('canceled');
+        $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
 
         $app->terminating(function () use (&$called): void {
             $called[] = 'first';
@@ -450,7 +455,7 @@ class FoundationApplicationTest extends TestCase
         try {
             $app->terminate();
             $this->fail('Expected application termination to preserve cancellation.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

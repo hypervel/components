@@ -155,6 +155,18 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     }
 
     /**
+     * Get the connection owned by the active testing mode without borrowing one.
+     */
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
+    {
+        $name = $this->connectionName($name);
+
+        return $this->poolEnabled(ConnectionName::parse($name))
+            ? parent::getHeldConnection($name)
+            : $this->getResolvedConnection($name);
+    }
+
+    /**
      * Get the connections shared across the test's setup, requests and assertions.
      *
      * @return array<string, ConnectionInterface>

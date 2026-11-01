@@ -52,7 +52,6 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
 
         $conn = $this->getConnection();
         $conn->shouldReceive('getConfig')->andReturn(null);
-        $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->create();
@@ -934,7 +933,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     {
         $conn = $this->getConnection();
         $conn->expects('isMaria')->andReturn(true);
-        $conn->expects('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('getServerVersion')->andReturn('10.11.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->date('foo');
@@ -948,7 +947,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     {
         $conn = $this->getConnection();
         $conn->expects('isMaria')->andReturn(true);
-        $conn->expects('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('getServerVersion')->andReturn('10.11.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->date('foo')->useCurrent();
@@ -962,7 +961,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     {
         $conn = $this->getConnection();
         $conn->expects('isMaria')->andReturn(true);
-        $conn->expects('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('getServerVersion')->andReturn('10.11.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->year('birth_year');
@@ -975,7 +974,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     {
         $conn = $this->getConnection();
         $conn->expects('isMaria')->andReturn(true);
-        $conn->expects('getServerVersion')->andReturn('10.3.0');
+        $conn->expects('getServerVersion')->andReturn('10.11.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->year('birth_year')->useCurrent();
@@ -1215,7 +1214,6 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     public function testAddingUuid(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->uuid('foo');
@@ -1225,23 +1223,11 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `foo` uuid not null', $statements[0]);
     }
 
-    public function testAddingUuidOn106(): void
-    {
-        $conn = $this->getConnection();
-        $conn->expects('getServerVersion')->andReturn('10.6.21');
-
-        $blueprint = new Blueprint($conn, 'users');
-        $blueprint->uuid('foo');
-        $statements = $blueprint->toSql();
-
-        $this->assertCount(1, $statements);
-        $this->assertSame('alter table `users` add `foo` char(36) not null', $statements[0]);
-    }
+    // REMOVED: UUID fallback coverage for MariaDB below the 10.11 minimum.
 
     public function testAddingUuidDefaultsColumnName(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $blueprint->uuid();
@@ -1254,7 +1240,6 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
     public function testAddingForeignUuid(): void
     {
         $conn = $this->getConnection();
-        $conn->shouldReceive('getServerVersion')->andReturn('10.7.0');
 
         $blueprint = new Blueprint($conn, 'users');
         $foreignUuid = $blueprint->foreignUuid('foo');
@@ -1632,6 +1617,19 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
 
         return $connection;
+    }
+
+    public function testCompileForeignKeysConstrainsReferentialConstraints(): void
+    {
+        $grammar = $this->getGrammar();
+
+        $sql = $grammar->compileForeignKeys(null, 'users');
+        $this->assertStringContainsString("where kc.table_schema = schema() and kc.table_name = 'users' and kc.referenced_table_name is not null", $sql);
+        $this->assertStringContainsString("and rc.constraint_schema = schema() and rc.table_name = 'users' ", $sql);
+
+        $sql = $grammar->compileForeignKeys('my_schema', 'users');
+        $this->assertStringContainsString("where kc.table_schema = 'my_schema' and kc.table_name = 'users' and kc.referenced_table_name is not null", $sql);
+        $this->assertStringContainsString("and rc.constraint_schema = 'my_schema' and rc.table_name = 'users' ", $sql);
     }
 
     /**

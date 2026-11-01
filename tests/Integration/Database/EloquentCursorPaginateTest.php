@@ -5,16 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
@@ -58,6 +64,39 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertCount(15, TestPost::cursorPaginate(15, ['id', 'title']));
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCursorPaginationResolvesAliasesInTheColumnsArgument(bool $eloquent): void
+    {
+        TestPost::fillAndInsert([[], [], []]);
+        $scopeCalls = 0;
+        $callbackCalls = 0;
+        $query = $eloquent ? TestPost::query() : DB::table('test_posts');
+
+        if ($eloquent) {
+            $query->withGlobalScope('visible', function (Builder $builder) use (&$scopeCalls): void {
+                ++$scopeCalls;
+                $this->assertNull($builder->getQuery()->columns);
+                $builder->where('id', '>', 1);
+            });
+        }
+
+        $query->beforeQuery(function (QueryBuilder $builder) use (&$callbackCalls): void {
+            ++$callbackCalls;
+            $this->assertSame(['id as cursor_id'], $builder->columns);
+        });
+        $page = $query->orderBy('cursor_id')->cursorPaginate(
+            2,
+            ['id as cursor_id'],
+            cursor: new Cursor(['cursor_id' => 2]),
+        );
+
+        $this->assertSame([3], $page->pluck('cursor_id')->all());
+        $this->assertSame($eloquent ? 1 : 0, $scopeCalls);
+        $this->assertSame(1, $callbackCalls);
+        $this->assertNull(($eloquent ? $query->getQuery() : $query)->columns);
+    }
+
     public function testCursorPaginationWithNumericExpressionProjection(): void
     {
         TestPost::fillAndInsert([['title' => 'First'], ['title' => 'Second']]);
@@ -67,6 +106,354 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $this->assertSame([2], $page->getCollection()->modelKeys());
         $this->assertEquals(1.5, array_first($page->items()[0]->getAttributes()));
+    }
+
+    #[TestWith(['query'], 'query expression')]
+    #[TestWith(['eloquent'], 'model expression')]
+    #[TestWith(['scope'], 'scope-added expression')]
+    #[TestWith(['argument'], 'lone expression argument')]
+    public function testCursorPaginationUsesTheSelectedArithmeticExpression(string $selection): void
+    {
+        TestPost::fillAndInsert([[], [], [], []]);
+        $scopeCalls = 0;
+        $query = function () use ($selection, &$scopeCalls): Builder|QueryBuilder {
+            $query = in_array($selection, ['eloquent', 'scope'], true)
+                ? TestPost::query() : DB::table('test_posts');
+
+            if ($selection === 'scope') {
+                $query->withGlobalScope('computed-id', function (Builder $builder) use (&$scopeCalls): void {
+                    ++$scopeCalls;
+                    $this->assertNull($builder->getQuery()->columns);
+                    $builder->selectRaw('id + 1 as id');
+                });
+            } elseif ($selection !== 'argument') {
+                $query->selectRaw('id + 1 as id');
+            }
+
+            return $query->orderBy('id');
+        };
+        $columns = $selection === 'argument' ? new Expression('id + 1 as id') : ['*'];
+
+        $first = $query()->cursorPaginate(2, $columns);
+        $second = $query()->cursorPaginate(2, $columns, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(2, $columns, cursor: $second->previousCursor());
+
+        $this->assertSame([2, 3], $first->pluck('id')->all());
+        $this->assertSame([4, 5], $second->pluck('id')->all());
+        $this->assertSame([2, 3], $previous->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
+        $this->assertSame($selection === 'scope' ? 3 : 0, $scopeCalls);
+    }
+
+    public function testCursorPaginationQuotesAliasedIdentifiersContainingParentheses(): void
+    {
+        Schema::table('test_posts', function (Blueprint $table): void {
+            $table->integer('weight (kg)')->nullable();
+        });
+        TestPost::fillAndInsert([['weight (kg)' => 10], ['weight (kg)' => 20]]);
+        $query = fn () => TestPost::query()->select('weight (kg) as weight')->orderBy('weight');
+
+        $first = $query()->cursorPaginate(1);
+        $second = $query()->cursorPaginate(1, cursor: $first->nextCursor());
+
+        $this->assertSame([10], $first->pluck('weight')->all());
+        $this->assertSame([20], $second->pluck('weight')->all());
+        $this->assertNull($second->nextCursor());
+    }
+
+    #[DataProvider('idIteratorScopes')]
+    public function testIdIterationKeepsPagingOrderThroughGlobalScopes(string $method, bool $lazy, bool $descending, bool $replace): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
+        $scopeCalls = 0;
+        $query = TestPost::query()->withGlobalScope('sort', function (Builder $builder) use ($descending, $replace, &$scopeCalls): void {
+            ++$scopeCalls;
+            $builder->{$replace ? 'reorder' : 'orderBy'}('user_id', $descending ? 'desc' : 'asc');
+        });
+        $ids = [];
+        if ($lazy) {
+            $ids = $query->{$method}(2)->take(8)->pluck('id')->all();
+        } else {
+            $this->assertTrue($query->{$method}(2, function ($rows) use (&$ids): bool {
+                array_push($ids, ...$rows->modelKeys());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $this->assertSame($descending ? [6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6], $ids);
+        $this->assertSame(4, $scopeCalls);
+        $this->assertSame($descending ? [3, 3, 2, 2, 1, 1] : [1, 1, 2, 2, 3, 3], $query->get()->pluck('user_id')->all());
+    }
+
+    /**
+     * Cover both directions and iterator families with appended and replaced scope orders.
+     */
+    public static function idIteratorScopes(): iterable
+    {
+        foreach (['chunkById', 'chunkByIdDesc', 'lazyById', 'lazyByIdDesc'] as $method) {
+            foreach ([false, true] as $replace) {
+                yield $method . ($replace ? ' replaced' : ' appended') => [$method, str_starts_with($method, 'lazy'), str_ends_with($method, 'Desc'), $replace];
+            }
+        }
+    }
+
+    #[DataProvider('limitedIdScopeOrders')]
+    public function testLimitedIdIterationValidatesReplacingScopeOrders(string $scopeOrder, bool $offsetOnly, bool $callerOrder, bool $throws, bool $descending = false): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => (4 - $id) * 10], range(1, 4)));
+
+        foreach ($descending ? ['chunkByIdDesc', 'lazyByIdDesc'] : ['chunkById', 'lazyById'] as $method) {
+            $scopeCalls = 0;
+            $query = TestPost::query()->withGlobalScope('sort', function (Builder $builder) use ($scopeOrder, &$scopeCalls): void {
+                ++$scopeCalls;
+                match ($scopeOrder) {
+                    'replace-other' => $builder->reorder('user_id'),
+                    'replace-id' => $builder->reorder('id'),
+                    'replace-descending' => $builder->reorder('id', 'desc'),
+                    'append-other' => $builder->orderBy('user_id'),
+                    'clear' => $builder->reorder(),
+                    'filter' => $builder->where('id', '>', 0),
+                };
+            });
+            $offsetOnly ? $query->offset(1) : $query->limit(2);
+            if ($callerOrder) {
+                $query->orderBy('id', $descending ? 'desc' : 'asc');
+            }
+            $ids = [];
+
+            try {
+                if (str_starts_with($method, 'lazy')) {
+                    $rows = $query->{$method}(1);
+                    $this->assertSame(0, $scopeCalls);
+                    $rows->each(function (TestPost $post) use (&$ids): void {
+                        $ids[] = $post->id;
+                    });
+                } else {
+                    $query->{$method}(1, function ($rows) use (&$ids): void {
+                        array_push($ids, ...$rows->modelKeys());
+                    });
+                }
+                $this->assertFalse($throws, 'A conflicting replacement must fail before processing rows.');
+                $expected = $descending ? [4, 3, 2, 1] : [1, 2, 3, 4];
+                $this->assertSame($offsetOnly ? array_slice($expected, 1) : array_slice($expected, 0, 2), $ids);
+                $this->assertSame($offsetOnly ? 4 : 2, $scopeCalls);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertTrue($throws);
+                $this->assertStringContainsString('fromSub()', $exception->getMessage());
+                $this->assertSame([], $ids);
+                $this->assertSame(1, $scopeCalls);
+            }
+        }
+    }
+
+    /**
+     * Distinguish scope replacements from appended orders and ordinary filtering.
+     */
+    public static function limitedIdScopeOrders(): iterable
+    {
+        yield 'replacement with a limit' => ['replace-other', false, false, true];
+        yield 'replacement with an offset' => ['replace-other', true, false, true];
+        yield 'replacement of an explicit ID order' => ['replace-other', false, true, true];
+        yield 'replacement with the opposite direction' => ['replace-descending', false, false, true];
+        yield 'replacement with the paging key' => ['replace-id', false, false, false];
+        yield 'replacement with the descending paging key' => ['replace-descending', false, false, false, true];
+        yield 'cleared ordering' => ['clear', false, false, false];
+        yield 'appended order with a limit' => ['append-other', false, false, false];
+        yield 'appended order with an offset' => ['append-other', true, false, false];
+        yield 'appended order after an explicit ID order' => ['append-other', false, true, false];
+        yield 'filtering only' => ['filter', false, false, false];
+    }
+
+    #[TestWith([false, false], 'ascending alias')]
+    #[TestWith([true, false], 'descending alias')]
+    #[TestWith([false, true], 'opposite direction')]
+    public function testLimitedUnionIdIterationValidatesTheSourceOfAScopedAlias(bool $descending, bool $conflicting): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 6)));
+
+        foreach ($descending ? ['chunkByIdDesc', 'lazyByIdDesc'] : ['chunkById', 'lazyById'] as $method) {
+            $query = TestPost::query()->select('id as record_id')->where('id', '<=', 3)
+                ->unionAll(TestPost::query()->select('id as record_id')->where('id', '>', 3))
+                ->limit(3)->withGlobalScope('sort', fn (Builder $builder) => $builder->reorder('record_id', $descending || $conflicting ? 'desc' : 'asc'));
+            $ids = [];
+
+            try {
+                if (str_starts_with($method, 'lazy')) {
+                    $query->{$method}(1, 'id', 'record_id')->each(function (TestPost $post) use (&$ids): void {
+                        $ids[] = $post->record_id;
+                    });
+                } else {
+                    $query->{$method}(1, function ($rows) use (&$ids): void {
+                        array_push($ids, ...$rows->pluck('record_id')->all());
+                    }, 'id', 'record_id');
+                }
+
+                $this->assertFalse($conflicting, 'A conflicting scope order must fail before processing rows.');
+                $this->assertSame($descending ? [6, 5, 4] : [1, 2, 3], $ids);
+            } catch (InvalidArgumentException $exception) {
+                $this->assertTrue($conflicting);
+                $this->assertStringContainsString('fromSub()', $exception->getMessage());
+                $this->assertSame([], $ids);
+            }
+        }
+    }
+
+    public function testCursorPaginationKeepsItsCompoundOrderWhenAScopeReplacesIt(): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => 4 - (int) ceil($id / 2)], range(1, 6)));
+        $query = fn () => TestPost::query()->orderBy('user_id')->orderBy('id')
+            ->withGlobalScope('reverse', fn (Builder $builder) => $builder->reorder('id', 'desc'));
+
+        $first = $query()->cursorPaginate(3);
+        $second = $query()->cursorPaginate(3, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(3, cursor: $second->previousCursor());
+
+        $this->assertSame([5, 6, 3], $first->getCollection()->modelKeys());
+        $this->assertSame([4, 1, 2], $second->getCollection()->modelKeys());
+        $this->assertSame([5, 6, 3], $previous->getCollection()->modelKeys());
+    }
+
+    #[TestWith(['cursorPaginate'])]
+    #[TestWith(['chunkById'])]
+    #[TestWith(['lazyById'])]
+    public function testUnionPagingRestoresItsOuterOrderAndBoundedMemberBindings(string $method): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id], range(1, 7)));
+        $query = fn () => TestPost::where('id', '>=', 4)->orderByRaw('id * ? desc', [1])->limit(2)
+            ->unionAll(TestPost::where('id', '<=', 3))->orderBy('id')
+            ->withGlobalScope('reverse', fn (Builder $builder) => $builder->reorder()->inOrderOf('id', [7, 6, 5, 4, 3, 2, 1]));
+        $ids = [];
+        if ($method === 'cursorPaginate') {
+            $cursor = null;
+            do {
+                $page = $query()->cursorPaginate(2, cursor: $cursor);
+                array_push($ids, ...$page->getCollection()->modelKeys());
+                $cursor = $page->nextCursor();
+            } while ($cursor !== null && count($ids) < 8);
+            $this->assertSame([3, 6], $query()->cursorPaginate(2, cursor: $page->previousCursor())->getCollection()->modelKeys());
+        } elseif ($method === 'lazyById') {
+            $ids = $query()->lazyById(2)->take(8)->pluck('id')->all();
+        } else {
+            $this->assertTrue($query()->chunkById(2, function ($rows) use (&$ids): bool {
+                array_push($ids, ...$rows->modelKeys());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $this->assertSame([1, 2, 3, 6, 7], $ids);
+    }
+
+    #[DataProvider('unionDefaultOrders')]
+    public function testUnionPaginationAddsAnOuterDefaultOrder(string $method, string $columns, bool $bounded): void
+    {
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => $id * 10], range(1, 6)));
+        $query = function () use ($columns, $bounded): Builder {
+            $first = TestPost::query()->select($columns)->where('id', '>=', 4);
+            if ($bounded) {
+                $first->orderByDesc('id')->limit(2);
+            }
+
+            return $first->unionAll(TestPost::query()->select($columns)->where('id', '<=', 3));
+        };
+        $key = str_contains($columns, 'record_id') ? 'record_id' : 'id';
+        $ids = [];
+        if ($method === 'cursorPaginate') {
+            $cursor = null;
+            do {
+                $page = $query()->cursorPaginate(2, cursor: $cursor);
+                array_push($ids, ...$page->pluck($key)->all());
+                $cursor = $page->nextCursor();
+            } while ($cursor !== null && count($ids) < 8);
+        } elseif ($method === 'lazy') {
+            $ids = $query()->lazy(2)->take(8)->pluck($key)->all();
+        } else {
+            $this->assertTrue($query()->chunk(2, function ($rows) use (&$ids, $key): bool {
+                array_push($ids, ...$rows->pluck($key)->all());
+
+                return count($ids) < 8;
+            }));
+        }
+
+        $expected = $bounded ? [1, 2, 3, 5, 6] : range(1, 6);
+        if ($columns === 'user_id as id') {
+            $expected = array_map(static fn (int $id): int => $id * 10, $expected);
+        }
+        $this->assertSame($expected, $ids);
+        $raw = $query()->getQuery();
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You must specify an orderBy clause after the union');
+        match ($method) {
+            'chunk' => $raw->chunk(2, fn () => true),
+            'lazy' => $raw->lazy(2)->first(),
+            default => $raw->cursorPaginate(2),
+        };
+    }
+
+    /**
+     * Resolve the default union order through its actual output names.
+     */
+    public static function unionDefaultOrders(): iterable
+    {
+        foreach (['cursorPaginate', 'chunk', 'lazy'] as $method) {
+            yield $method . ' plain key' => [$method, '*', true];
+            yield $method . ' aliased key' => [$method, 'id as record_id', true];
+            yield $method . ' qualified aliased key without an inner order' => [$method, 'test_posts.id as record_id', false];
+            yield $method . ' shadowing output' => [$method, 'user_id as id', true];
+        }
+    }
+
+    #[TestWith([false], 'table name')]
+    #[TestWith([true], 'table alias')]
+    public function testUnionDefaultOrderUsesTheModelKeyInsteadOfAJoinedKey(bool $aliased): void
+    {
+        TestUser::fillAndInsert([['id' => 10], ['id' => 20]]);
+        TestPost::fillAndInsert(array_map(fn (int $id): array => ['id' => $id, 'user_id' => $id % 2 ? 10 : 20], range(1, 6)));
+        $source = $aliased ? 'p' : 'test_posts';
+        $member = fn (string $operator): Builder => TestPost::query()->from('test_posts', $aliased ? 'p' : null)
+            ->join('test_users', 'test_users.id', '=', $source . '.user_id')
+            ->select($aliased ? 'test_users.id' : 'test_users.id as owner_id', $source . '.id as post_id')
+            ->where($source . '.id', $operator, 3);
+        $ids = [];
+        $cursor = null;
+
+        do {
+            $page = $member('<=')->unionAll($member('>'))->cursorPaginate(2, cursor: $cursor);
+            array_push($ids, ...$page->pluck('post_id')->all());
+            $cursor = $page->nextCursor();
+        } while ($cursor !== null && count($ids) < 8);
+
+        $this->assertSame([1, 2, 3, 4, 5, 6], $ids);
+    }
+
+    #[TestWith([false], 'single select')]
+    #[TestWith([true], 'union members')]
+    public function testCursorBoundaryAppliesToAllOrWhereBranches(bool $union): void
+    {
+        TestPost::fillAndInsert([[], [], [], [], []]);
+        $query = function () use ($union): QueryBuilder {
+            $query = DB::table('test_posts')->select('id')->where('id', 1);
+
+            if ($union) {
+                $query->orWhere('id', 3)->unionAll(
+                    DB::table('test_posts')->select('id')->where('id', 4)->orWhere('id', 5)
+                );
+            } else {
+                $query->orWhere('id', '>=', 3);
+            }
+
+            return $query->orderBy('id');
+        };
+
+        $first = $query()->cursorPaginate(2);
+        $second = $query()->cursorPaginate(2, cursor: $first->nextCursor());
+        $previous = $query()->cursorPaginate(2, cursor: $second->previousCursor());
+
+        $this->assertSame([1, 3], $first->pluck('id')->all());
+        $this->assertSame([4, 5], $second->pluck('id')->all());
+        $this->assertSame([1, 3], $previous->pluck('id')->all());
+        $this->assertNull($second->nextCursor());
     }
 
     public function testPaginationWithUnion(): void
@@ -86,6 +473,109 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             ->cursorPaginate(1);
 
         $this->assertSame(['user_id'], $result->getOptions()['parameters']);
+    }
+
+    #[DataProvider('boundedUnionProvider')]
+    public function testPaginationPreservesBoundedUnionMembers(string $shape, array $firstIds, array $secondIds): void
+    {
+        for ($id = 1; $id <= 7; ++$id) {
+            TestPost::create(['id' => $id]);
+        }
+
+        $calls = 0;
+        $query = function () use ($shape, &$calls): QueryBuilder {
+            $bounded = DB::table('test_posts')->where('id', '<', 7)->orderByDesc('id')->limit(3);
+            $ordinary = DB::table('test_posts')->select('id as identifier')->where('id', 7);
+            $query = match ($shape) {
+                'root' => $bounded->unionAll($ordinary),
+                'member' => $ordinary->unionAll($bounded->select('id as identifier')),
+                'group' => $ordinary->unionAll(
+                    DB::table('test_posts')->select('id as identifier')->where('id', '<=', 3)
+                        ->unionAll(DB::table('test_posts')->select('id as identifier')->whereBetween('id', [4, 6]))
+                        ->orderByDesc('identifier')->offset(1)->limit(3)
+                ),
+            };
+
+            return $query->orderByDesc('identifier')->beforeQuery(function () use (&$calls): void {
+                ++$calls;
+            });
+        };
+
+        $first = $query()->cursorPaginate(2, ['id as identifier']);
+        $this->assertSame($firstIds, $first->pluck('identifier')->all());
+        $this->assertSame(1, $calls);
+        $second = $query()->cursorPaginate(2, ['id as identifier'], cursor: $first->nextCursor());
+        $this->assertSame($secondIds, $second->pluck('identifier')->all());
+        $this->assertSame(2, $calls);
+        $previous = $query()->cursorPaginate(2, ['id as identifier'], cursor: $second->previousCursor());
+        $this->assertSame($firstIds, $previous->pluck('identifier')->all());
+        $this->assertSame(3, $calls);
+        $after = $query()->cursorPaginate(2, ['id as identifier'], cursor: new Cursor(['identifier' => $secondIds[1]]));
+        $this->assertSame([], $after->items());
+        $this->assertSame(4, $calls);
+    }
+
+    /**
+     * Provide bounded primary selects, members and complete union groups.
+     */
+    public static function boundedUnionProvider(): array
+    {
+        return [
+            ['root', [7, 6], [5, 4]],
+            ['member', [7, 6], [5, 4]],
+            ['group', [7, 5], [4, 3]],
+        ];
+    }
+
+    public function testBoundedEloquentUnionKeepsScopesAndEagerLoads(): void
+    {
+        TestUser::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
+        TestPost::fillAndInsert([['user_id' => 1], ['user_id' => 3], ['user_id' => 4]]);
+        $scopeCalls = 0;
+        $query = function () use (&$scopeCalls): Builder {
+            return TestUser::with('posts')
+                ->withGlobalScope('visible', function (Builder $query) use (&$scopeCalls): void {
+                    ++$scopeCalls;
+                    $query->where('test_users.id', '>=', 2);
+                })
+                ->orderByDesc('id')->limit(2)
+                ->unionAll(TestUser::where('id', 1))
+                ->orderByDesc('id');
+        };
+
+        $first = $query()->cursorPaginate(2);
+        $this->assertSame([4, 3], $first->getCollection()->modelKeys());
+        $this->assertSame(1, $scopeCalls);
+        $second = $query()->cursorPaginate(2, cursor: $first->nextCursor());
+        $this->assertSame([1], $second->getCollection()->modelKeys());
+        $this->assertSame(2, $scopeCalls);
+        $this->assertTrue($second->items()[0]->relationLoaded('posts'));
+        $this->assertSame([1], $second->items()[0]->posts->pluck('user_id')->all());
+        $previous = $query()->cursorPaginate(2, cursor: $second->previousCursor());
+        $this->assertSame([4, 3], $previous->getCollection()->modelKeys());
+        $this->assertSame(3, $scopeCalls);
+    }
+
+    public function testBoundedUnionMemberKeepsItsImplicitProjection(): void
+    {
+        TestPost::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
+        $query = fn (): QueryBuilder => DB::table('test_posts')->where('id', '<=', 2)->orderByDesc('id')->limit(1)
+            ->unionAll(DB::table('test_posts', 'archive')->where('id', '>', 2)->orderByDesc('id')->limit(1))
+            ->orderByDesc('id');
+
+        $first = $query()->cursorPaginate(1, ['test_posts.*']);
+        $this->assertSame([4], $first->pluck('id')->all());
+        $second = $query()->cursorPaginate(1, ['test_posts.*'], cursor: $first->nextCursor());
+        $this->assertSame([2], $second->pluck('id')->all());
+    }
+
+    public function testOrdinaryCursorPaginationStillOwnsItsLimit(): void
+    {
+        TestPost::fillAndInsert([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]]);
+        $page = DB::table('test_posts')->orderBy('id')->limit(1)
+            ->cursorPaginate(3, cursor: new Cursor(['id' => 1]));
+
+        $this->assertSame([2, 3, 4], $page->pluck('id')->all());
     }
 
     public function testPaginationWithDistinct(): void
@@ -324,6 +814,48 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertCount(5, $query->cursorPaginate()->items());
     }
 
+    public function testLatestAndOldestPaginationWithJoin(): void
+    {
+        $user = TestUser::create(['name' => 'Taylor']);
+
+        for ($i = 1; $i <= 3; ++$i) {
+            TestPost::create(['title' => 'Title ' . $i, 'user_id' => $user->id, 'created_at' => now()->startOfSecond()->addMinutes($i)]);
+        }
+
+        $query = fn () => TestPost::query()
+            ->join('test_users', 'test_users.id', '=', 'test_posts.user_id')
+            ->select('test_posts.*');
+
+        $firstPage = $query()->latest()->cursorPaginate(2);
+        $secondPage = $query()->latest()->cursorPaginate(2, ['*'], 'cursor', $firstPage->nextCursor());
+
+        $this->assertSame(['Title 3', 'Title 2'], $firstPage->pluck('title')->all());
+        $this->assertSame(['Title 1'], $secondPage->pluck('title')->all());
+
+        $firstPage = $query()->oldest()->cursorPaginate(2);
+        $secondPage = $query()->oldest()->cursorPaginate(2, ['*'], 'cursor', $firstPage->nextCursor());
+
+        $this->assertSame(['Title 1', 'Title 2'], $firstPage->pluck('title')->all());
+        $this->assertSame(['Title 3'], $secondPage->pluck('title')->all());
+    }
+
+    public function testLatestAndOldestWithJoinFromSubquery(): void
+    {
+        $user = TestUser::create(['name' => 'Taylor']);
+
+        for ($i = 1; $i <= 3; ++$i) {
+            TestPost::create(['title' => 'Title ' . $i, 'user_id' => $user->id, 'created_at' => now()->startOfSecond()->addMinutes($i)]);
+        }
+
+        $query = fn () => TestPost::query()
+            ->fromSub(TestPost::query(), 'posts')
+            ->joinSub(TestUser::query()->select('id', 'name'), 'users', 'users.id', '=', 'posts.user_id')
+            ->select('posts.*');
+
+        $this->assertSame(['Title 3', 'Title 2', 'Title 1'], $query()->latest()->pluck('title')->all());
+        $this->assertSame(['Title 1', 'Title 2', 'Title 3'], $query()->oldest()->pluck('title')->all());
+    }
+
     public function testCursorPaginationPreservesFloatOrderValues(): void
     {
         TestPost::fillAndInsert([
@@ -357,14 +889,22 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             ]);
         }
 
-        $relation = fn (): BelongsToMany => $user->favoritePosts()
-            ->using(CursorBinaryPivot::class)
-            ->withPivot('position')
-            ->orderBy('test_post_user.position');
+        $scopeCalls = 0;
+        $relation = function () use ($user, &$scopeCalls): BelongsToMany {
+            return $user->favoritePosts()
+                ->using(CursorBinaryPivot::class)
+                ->withPivot('position')
+                ->withGlobalScope('visible', function (Builder $builder) use (&$scopeCalls): void {
+                    ++$scopeCalls;
+                    $builder->whereNotNull('test_posts.id');
+                })
+                ->orderBy('test_post_user.position');
+        };
         $first = $relation()->cursorPaginate(2);
         $next = $relation()->cursorPaginate(2, cursor: $first->nextCursor()->encode());
 
         $this->assertSame([3], $next->pluck('id')->all());
+        $this->assertSame(2, $scopeCalls);
     }
 
     public function testRelationsAcceptCursorObjects(): void

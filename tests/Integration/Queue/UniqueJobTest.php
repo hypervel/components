@@ -14,14 +14,18 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Bus;
@@ -35,6 +39,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use UnitEnum;
 
 #[WithMigration]
 #[WithMigration('cache')]
@@ -452,16 +457,127 @@ class UniqueJobTest extends QueueTestCase
 
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
 
+        $failure = new Exception('Rollback.');
+        $caught = null;
+
         try {
-            DB::transaction(function (): never {
+            DB::transaction(function () use ($failure): never {
                 Queue::push(new UniqueTestAfterCommitJob);
 
-                throw new Exception('Rollback.');
+                throw $failure;
             });
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($failure, $caught);
         $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testRolledBackQueuedListenerReleasesItsUniqueLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        config()->set('cache.default', 'array');
+
+        Event::listen(UniqueTestEvent::class, UniqueTestAfterCommitListener::class);
+
+        $size = Queue::size();
+        $lock = $this->app->get(Cache::class)->lock(
+            'laravel_unique_job:' . hash('xxh128', UniqueTestAfterCommitListener::class) . ':'
+        );
+        $failure = new Exception('Rollback.');
+        $caught = null;
+
+        try {
+            DB::transaction(function () use ($lock, $failure): never {
+                event(new UniqueTestEvent);
+
+                $this->assertTrue($lock->isLocked());
+
+                throw $failure;
+            });
+        } catch (Exception $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+
+        event(new UniqueTestEvent);
+
+        $this->assertSame($size + 1, Queue::size());
+    }
+
+    public function testLockIsReleasedWhenPushingToTheQueueFails(): void
+    {
+        Queue::extend('failing', fn () => new class implements ConnectorInterface {
+            /**
+             * Establish a queue connection.
+             */
+            public function connect(array $config): QueueContract
+            {
+                return new class extends NullQueue {
+                    /**
+                     * Push a new job onto the queue.
+                     */
+                    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): never
+                    {
+                        throw new RuntimeException('Queue unavailable.');
+                    }
+                };
+            }
+        });
+
+        config()->set('queue.connections.failing', ['driver' => 'failing']);
+
+        $caught = null;
+
+        try {
+            dispatch(new UniqueTestJob)->onConnection('failing');
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $caught);
+        $this->assertSame('Queue unavailable.', $caught->getMessage());
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get());
+    }
+
+    public function testListenerLockIsReleasedWhenPushingToTheQueueFails(): void
+    {
+        Queue::extend('failing', fn () => new class implements ConnectorInterface {
+            /**
+             * Establish a queue connection.
+             */
+            public function connect(array $config): QueueContract
+            {
+                return new class extends NullQueue {
+                    /**
+                     * Push a new job onto the queue.
+                     */
+                    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): never
+                    {
+                        throw new RuntimeException('Queue unavailable.');
+                    }
+                };
+            }
+        });
+
+        config()->set('queue.connections.failing', ['driver' => 'failing']);
+
+        Event::listen(UniqueTestEvent::class, UniqueTestFailingPushListener::class);
+
+        try {
+            event(new UniqueTestEvent);
+
+            $this->fail('Expected pushing the listener to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Queue unavailable.', $exception->getMessage());
+        }
+
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', UniqueTestFailingPushListener::class) . ':';
+
+        $this->assertTrue($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
     /**
@@ -719,6 +835,16 @@ class UniqueTestEvent
 {
 }
 
+class UniqueTestAfterCommitListener implements ShouldQueueAfterCommit, ShouldBeUnique
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(UniqueTestEvent $event): void
+    {
+    }
+}
+
 class UniqueTestListener implements ShouldQueue, ShouldBeUnique
 {
     /**
@@ -728,6 +854,18 @@ class UniqueTestListener implements ShouldQueue, ShouldBeUnique
     {
         return 'unique-id-1';
     }
+
+    /**
+     * Handle the event.
+     */
+    public function handle(UniqueTestEvent $event): void
+    {
+    }
+}
+
+class UniqueTestFailingPushListener implements ShouldQueue, ShouldBeUnique
+{
+    public string $connection = 'failing';
 
     /**
      * Handle the event.

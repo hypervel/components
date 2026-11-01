@@ -16,7 +16,7 @@ class Role extends BaseRole
 
     public const string HIERARCHY_TABLE = 'roles_hierarchy';
 
-    protected string $primaryKey = 'role_test_id';
+    protected ?string $primaryKey = 'role_test_id';
 
     protected array $visible = [
         'role_test_id',

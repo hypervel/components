@@ -45,6 +45,11 @@ class DatabaseQueryBuilderEmbeddingTest extends TestCase
     {
         $outer = $this->builder()->from('users');
         $child = $this->builder()->select('id')->from('memberships')->where('enabled', true);
+        $callbackCalls = 0;
+        $child->beforeQuery(static function (Builder $query) use (&$callbackCalls): void {
+            ++$callbackCalls;
+            $query->where('team_id', 2);
+        });
         $attach($outer, $child);
         $sql = $outer->toSql();
         $bindings = $outer->getBindings();
@@ -56,6 +61,22 @@ class DatabaseQueryBuilderEmbeddingTest extends TestCase
         $this->assertSame($bindings, $outer->getBindings());
         $this->assertSame([$child], $outer->validatedQueries);
         $this->assertSame(5, $child->timeout);
+        $this->assertSame([true, 2], $bindings);
+        $this->assertStringContainsString('"enabled" = ? and "team_id" = ?', $sql);
+        $this->assertSame(1, $callbackCalls);
+    }
+
+    #[DataProvider('attachmentPaths')]
+    public function testEmbeddingRejectsStatementOptionsAddedByCallbacks(Closure $attach): void
+    {
+        $outer = $this->builder()->from('users');
+        $child = $this->builder()->select('id')->from('memberships');
+        $child->beforeQuery(static fn (Builder $query): Builder => $query->timeout(5));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An embedded query cannot define its own timeout.');
+
+        $attach($outer, $child);
     }
 
     /**
@@ -94,14 +115,16 @@ class EmbeddingAwareQueryBuilder extends Builder
     /**
      * Extend embedding validation while retaining the framework timeout rule.
      */
-    protected function ensureCanEmbedQuery(Builder $query): void
+    protected function prepareQueryForEmbedding(Builder $query): Builder
     {
-        parent::ensureCanEmbedQuery($query);
+        $query = parent::prepareQueryForEmbedding($query);
 
         $this->validatedQueries[] = $query;
 
         if ($this->embeddingFailure !== null) {
             throw $this->embeddingFailure;
         }
+
+        return $query;
     }
 }

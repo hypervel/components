@@ -363,6 +363,11 @@ class Container implements ContainerContract
      */
     public function isScoped(string $abstract): bool
     {
+        // Internal resolution usually supplies an already canonical name.
+        if (isset($this->aliases[$abstract])) {
+            $abstract = $this->getAlias($abstract);
+        }
+
         if (isset($this->scopedInstances[$abstract])) {
             return true;
         }
@@ -379,6 +384,24 @@ class Container implements ContainerContract
             $this->scopedInstances[$abstract] = true;
 
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the object is a resolved scoped instance in this coroutine.
+     */
+    public function isScopedInstance(mixed $instance): bool
+    {
+        if (! is_object($instance)) {
+            return false;
+        }
+
+        foreach ($this->scopedInstances as $abstract => $_) {
+            if (CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract) === $instance) {
+                return true;
+            }
         }
 
         return false;
@@ -1574,6 +1597,10 @@ class Container implements ContainerContract
      */
     protected function getContextualConcrete(string $abstract): mixed
     {
+        if ($this->contextual === []) {
+            return null;
+        }
+
         if (! is_null($binding = $this->findInContextualBindings($abstract))) {
             return $binding;
         }

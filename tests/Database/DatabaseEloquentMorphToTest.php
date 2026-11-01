@@ -461,7 +461,7 @@ class MorphToAssociateParentStub extends Model
 
 class MorphToAssociateRelatedStub extends Model
 {
-    protected string $primaryKey = 'model_id';
+    protected ?string $primaryKey = 'model_id';
 }
 
 class AccessibleMorphTo extends MorphTo

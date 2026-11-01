@@ -22,19 +22,24 @@ class LostConnectionDetector implements LostConnectionDetectorContract
             $e = $e->getPrevious();
         }
 
-        // mysqlnd can report protocol failures as PHP warnings even in exception mode.
+        $message = $e->getMessage();
+
+        // mysqlnd can report protocol and TLS failures as PHP warnings even in exception mode.
         if ($e instanceof ErrorException) {
-            return Str::startsWith($e->getMessage(), [
+            if (Str::startsWith($message, [
                 'Packets out of order. Expected',
                 'Error while sending',
-            ]);
-        }
+            ])) {
+                return true;
+            }
 
-        if (! $e instanceof PDOException && ! $e instanceof LostConnectionException) {
+            // Only native PDO TLS warnings may use the connection-loss reasons below.
+            if (! preg_match('/^PDO(?:Statement)?::\w+\(\): SSL(?:: | operation failed with code )/', $message)) {
+                return false;
+            }
+        } elseif (! $e instanceof PDOException && ! $e instanceof LostConnectionException) {
             return false;
         }
-
-        $message = $e->getMessage();
 
         return Str::contains($message, [
             'server has gone away',

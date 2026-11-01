@@ -279,6 +279,10 @@ class Worker
      */
     public static bool $pausable = true;
 
+    // Laravel's $flushStickyConnections and $resetScope constructor callback are
+    // intentionally omitted. Daemon jobs own their database, log and scoped
+    // container state; worker-wide resets would interfere with concurrent jobs.
+
     /**
      * Create a new queue worker.
      *

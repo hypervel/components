@@ -12,7 +12,9 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\Exceptions\ResourceIdentificationException;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use JsonSerializable;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -112,6 +114,32 @@ class JsonApiResourceTest extends TestCase
             'id' => '1',
             'type' => 'posts',
         ], $resource->resolveResourceData($request));
+    }
+
+    public function testJsonSerializableAttributesCanReturnACollection(): void
+    {
+        $resource = new class([]) extends JsonApiResourceWithCustomIdentifier {
+            /**
+             * Transform the resource into serializable attributes.
+             */
+            #[Override]
+            public function toAttributes(Request $request): JsonSerializable
+            {
+                return new class implements JsonSerializable {
+                    /**
+                     * Return the resource's attribute values.
+                     */
+                    public function jsonSerialize(): Collection
+                    {
+                        return new Collection(['title' => 'Post title']);
+                    }
+                };
+            }
+        };
+
+        $data = $resource->resolveResourceData(new JsonApiRequest);
+
+        $this->assertSame(['title' => 'Post title'], (array) $data['attributes']);
     }
 
     public function testDefaultAttributesExcludeReservedAndDeclaredRelationshipNames(): void

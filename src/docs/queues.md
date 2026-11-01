@@ -493,7 +493,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
 In the example above, the `UpdateSearchIndex` job is unique. So, the job will not be dispatched if another instance of the job is already on the queue and has not finished processing.
 
-When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event. The event's `job` property contains the job that was skipped.
+When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event if an active listener is registered. The event's `job` property contains the job that was skipped.
 
 In certain cases, you may want to define a specific "key" that makes the job unique or you may want to specify a timeout beyond which the job no longer stays unique. To accomplish this, you may use the `UniqueFor` attribute and define a `uniqueId` method on your job class:
 
@@ -3472,6 +3472,12 @@ If you would like to delete a failed job, you may use the `queue:forget` command
 
 ```shell
 php artisan queue:forget 91401d2c-0784-4f43-824c-34f94a33c24d
+```
+
+You may delete several failed jobs by passing multiple IDs:
+
+```shell
+php artisan queue:forget 5 6 7
 ```
 
 > [!NOTE]

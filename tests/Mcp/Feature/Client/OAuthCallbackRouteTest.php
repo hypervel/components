@@ -55,6 +55,7 @@ class OAuthCallbackRouteTest extends TestCase
             'token_endpoint' => 'https://auth.test/token',
             'redirect_uri' => 'https://app.test/callback',
             'return_to' => null,
+            'resource' => 'https://mcp.test/mcp',
         ]];
     }
 
@@ -102,7 +103,8 @@ class OAuthCallbackRouteTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://auth.test/token'
             && ($request['grant_type'] ?? null) === 'authorization_code'
-            && ($request['code'] ?? null) === 'auth-code');
+            && ($request['code'] ?? null) === 'auth-code'
+            && ($request['resource'] ?? null) === 'https://mcp.test/mcp');
     }
 
     public function testRegistersAConnectRouteThatRedirectsToTheAuthorizationServer(): void

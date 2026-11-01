@@ -445,6 +445,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('RESTOCKED', $item->note);
         $this->assertFalse($item->isDirty('note'));
         $this->assertSame(60, $item->getOriginal('id'));
+        $this->assertSame(60, $item->getChanges()['id']);
         $this->assertSame(61, $item->id);
         $this->assertNull(GeneratedTotal::find($id));
 
@@ -1652,6 +1653,23 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['abigailotwell@gmail.com'], $results->first()->friends->pluck('email')->unique()->toArray());
     }
 
+    public function testWithWhereHasWithSpecificColumnsAndCallback(): void
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $user->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::withWhereHas('friends:id,email', function ($query) {
+            $query->where('email', 'abigailotwell@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+        $this->assertCount(1, $results->first()->friends);
+        $this->assertSame(['id', 'email'], array_keys($results->first()->friends->first()->getAttributes()));
+        $this->assertSame('abigailotwell@gmail.com', $results->first()->friends->first()->email);
+    }
+
     public function testHasOnNestedSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
@@ -1963,6 +1981,37 @@ class DatabaseEloquentIntegrationTest extends TestCase
             $this->assertEquals($user->id, $result->pivot->user_id);
             $this->assertEquals($friend->id, $result->pivot->friend_id);
         });
+    }
+
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkMapRequest(): void
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $results = User::first()->friends()->chunkMap(fn (User $result): User => $result, 2);
+
+        $this->assertCount(1, $results);
+        $this->assertSame('abigailotwell@gmail.com', $results->first()->email);
+        $this->assertEquals($user->id, $results->first()->pivot->user_id);
+        $this->assertEquals($friend->id, $results->first()->pivot->friend_id);
+    }
+
+    public function testCursorDoesNotCreateExtraModelInstancesForEachRecord(): void
+    {
+        User::insert([
+            ['email' => 'taylorotwell@gmail.com'],
+            ['email' => 'abigailotwell@gmail.com'],
+            ['email' => 'foo@gmail.com'],
+        ]);
+
+        $query = UserWithInstanceCount::query();
+
+        UserWithInstanceCount::$instances = 0;
+
+        $models = $query->cursor()->all();
+
+        $this->assertCount(3, $models);
+        $this->assertSame(4, UserWithInstanceCount::$instances);
     }
 
     public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest(): void
@@ -3230,6 +3279,21 @@ class User extends Eloquent
     }
 }
 
+class UserWithInstanceCount extends User
+{
+    public static int $instances = 0;
+
+    /**
+     * Count model instances created while consuming the cursor.
+     */
+    public function __construct(array $attributes = [])
+    {
+        ++static::$instances;
+
+        parent::__construct($attributes);
+    }
+}
+
 class UserWithCustomFriendPivot extends User
 {
     public function friends()
@@ -3315,7 +3379,7 @@ class UniqueUserWithCustomKey extends UniqueUser
 {
     public bool $incrementing = false;
 
-    protected string $primaryKey = 'screen_name';
+    protected ?string $primaryKey = 'screen_name';
 
     protected string $keyType = 'string';
 }

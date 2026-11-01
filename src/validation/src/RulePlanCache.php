@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use InvalidArgumentException;
 
 /**
  * Worker-lifetime LRU cache of compiled rule plans.
  *
- * Plans are keyed by the normalized rule definition (string-only arrays).
+ * Plans are keyed by string rules or structured rules containing only scalar values.
  * Plans are pure data — safe to cache across requests. A cached null-equivalent
  * (un-cacheable) is represented by returning null from get(), not stored.
  *
@@ -38,8 +39,7 @@ final class RulePlanCache
     /**
      * Get a cached plan for the given rule array.
      *
-     * Returns null if the rules contain non-string elements (un-cacheable)
-     * or if no cached plan exists.
+     * Return null for rules with executable or non-scalar state, or when no plan exists.
      *
      * @param list<mixed> $rules
      */
@@ -106,10 +106,9 @@ final class RulePlanCache
     }
 
     /**
-     * Produce a stable cache key for string-only rule arrays.
+     * Produce a stable cache key for string rules and scalar structured rules.
      *
-     * Returns null if the array contains any non-string element (un-cacheable
-     * because Rule objects and Closures can't produce a stable key).
+     * Executable rules and non-scalar parameters remain uncached.
      *
      * @param list<mixed> $rules
      */
@@ -118,7 +117,13 @@ final class RulePlanCache
         $parts = [];
 
         foreach ($rules as $item) {
-            if (! is_string($item)) {
+            if ($item instanceof ParameterizedRule) {
+                $item = $item->toArray();
+
+                if (! array_all($item, static fn (mixed $part): bool => is_scalar($part))) {
+                    return null;
+                }
+            } elseif (! is_string($item)) {
                 return null;
             }
             $parts[] = $item;

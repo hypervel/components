@@ -84,6 +84,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     protected mixed $reconnector = null;
 
     /**
+     * Indicates if the connection is reconnecting after a lost connection.
+     */
+    protected bool $reconnecting = false;
+
+    /**
      * The owner notified when the current driver resources are forgotten.
      */
     protected ?Closure $resourceReleaser = null;
@@ -923,8 +928,15 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function tryAgainIfCausedByLostConnection(QueryException $e, string $query, array $bindings, Closure $callback): mixed
     {
-        if ($this->causedByLostConnection($e->getPrevious())) {
-            $this->reconnect();
+        // Queries run while reconnecting (e.g. from ConnectionEstablished listeners) must not reconnect again...
+        if (! $this->reconnecting && $this->causedByLostConnection($e->getPrevious())) {
+            $this->reconnecting = true;
+
+            try {
+                $this->reconnect();
+            } finally {
+                $this->reconnecting = false;
+            }
 
             return $this->runQueryCallback($query, $bindings, $callback);
         }
@@ -1378,6 +1390,27 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->readOnWriteConnection = $value;
 
         return $this;
+    }
+
+    /**
+     * Execute the given callback using the write connection for reads.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
+     */
+    public function usingWritePdo(Closure $callback): mixed
+    {
+        $readOnWriteConnection = $this->readOnWriteConnection;
+
+        $this->useWriteConnectionWhenReading();
+
+        try {
+            return $callback($this);
+        } finally {
+            $this->useWriteConnectionWhenReading($readOnWriteConnection);
+        }
     }
 
     /**

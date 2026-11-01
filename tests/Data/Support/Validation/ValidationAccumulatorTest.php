@@ -9,6 +9,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Data\Support\Validation\ValidationAccumulator;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Stringable;
@@ -132,6 +133,20 @@ class ValidationAccumulatorTest extends TestCase
         $this->assertTrue($accumulator->equals($other));
 
         $other->rules = ['name' => [new StringableRuleFixture('different')]];
+
+        $this->assertFalse($accumulator->equals($other));
+    }
+
+    public function testComparesParameterizedRulesByTheirStructuredValues(): void
+    {
+        $accumulator = new ValidationAccumulator;
+        $accumulator->rules = ['website' => [ValidationRule::url()->protocols(['https'])]];
+        $other = new ValidationAccumulator;
+        $other->rules = ['website' => [ValidationRule::url()->protocols(['https'])]];
+
+        $this->assertTrue($accumulator->equals($other));
+
+        $other->rules = ['website' => [ValidationRule::url()->protocols(['http'])]];
 
         $this->assertFalse($accumulator->equals($other));
     }

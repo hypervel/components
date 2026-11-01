@@ -7453,6 +7453,12 @@ class ValidationValidatorTest extends TestCase
         });
         $this->assertEquals(['x' => ['Required', 'Confirmed']], $v->getRules());
 
+        $v = new Validator($trans, ['x' => 'foo'], []);
+        $v->sometimes('x', ValidationRule::confirmed(), static fn (): bool => true);
+
+        $this->assertTrue($v->fails());
+        $this->assertSame(['x' => ['Confirmed' => []]], $v->failed());
+
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['x' => ''], ['y' => 'Required']);
         $v->sometimes('x', 'Required', function ($i) {

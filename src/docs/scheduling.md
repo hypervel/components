@@ -786,3 +786,5 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the s
 | `Hypervel\Console\Events\ScheduledTaskFailed`             |
 
 </div>
+
+The `ScheduledTaskFailed` event's `runtime` property contains the elapsed execution time in seconds, or `null` when the runtime is unavailable.

@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Data\Attributes\Validation\ArrayType;
 use Hypervel\Data\Attributes\Validation\BooleanType;
 use Hypervel\Data\Attributes\Validation\Enum;
@@ -1591,9 +1592,7 @@ class DataValidationCompiler
                 return true;
             }
 
-            if (is_string($rule)
-                && strtolower(trim(explode(':', $rule, 2)[0])) === 'distinct'
-            ) {
+            if ($this->ruleKeyword($rule) === 'distinct') {
                 return true;
             }
         }
@@ -1633,18 +1632,24 @@ class DataValidationCompiler
                 return true;
             }
 
-            if (! is_string($rule)) {
-                continue;
-            }
-
-            $name = strtolower(trim(explode(':', $rule, 2)[0]));
-
-            if (in_array($name, self::PRESENCE_RULES, true)) {
+            if (in_array($this->ruleKeyword($rule), self::PRESENCE_RULES, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Get the keyword of a string or structured validation rule.
+     */
+    protected function ruleKeyword(mixed $rule): ?string
+    {
+        if ($rule instanceof ParameterizedRule) {
+            $rule = $rule->toArray()[0];
+        }
+
+        return is_string($rule) ? strtolower(trim(explode(':', $rule, 2)[0])) : null;
     }
 
     /**

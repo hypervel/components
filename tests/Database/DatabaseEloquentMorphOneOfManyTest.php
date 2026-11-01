@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Database\DatabaseEloquentMorphOneOfManyTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentMorphOneOfManyTest extends TestCase
@@ -42,6 +45,12 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
             $table->string('state');
             $table->string('type')->nullable();
         });
+
+        $this->schema()->create('comments', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->nullableMorphs('commentable');
+            $table->integer('score')->default(0);
+        });
     }
 
     /**
@@ -51,6 +60,7 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
     {
         $this->schema()->drop('products');
         $this->schema()->drop('states');
+        $this->schema()->drop('comments');
 
         parent::tearDown();
     }
@@ -198,6 +208,21 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
         $this->assertTrue($product->current_foo_state_exists);
     }
 
+    public function testExistenceQueriesOnSelfReferencingRelation(): void
+    {
+        $first = Comment::create();
+        $second = Comment::create();
+        $firstReply = $first->replies()->create(['score' => 5]);
+        $first->replies()->create(['score' => 3]);
+        $second->replies()->create(['score' => 1]);
+        Comment::create(['commentable_id' => $firstReply->id, 'commentable_type' => Product::class, 'score' => 9]);
+
+        $this->assertEquals([$first->id, $second->id], Comment::has('latestReply')->pluck('id')->all());
+        $this->assertEquals([$first->id], Comment::whereHas('topReply', fn ($query) => $query->where('score', 5))->pluck('id')->all());
+        $this->assertEquals([1, 1, 0, 0, 0, 0], Comment::withCount('latestReply')->pluck('latest_reply_count')->all());
+        $this->assertEquals([3, 4, 5, 6], Comment::doesntHave('latestReply')->pluck('id')->all());
+    }
+
     /**
      * Get a database connection instance.
      */
@@ -256,4 +281,37 @@ class State extends Eloquent
     public bool $timestamps = false;
 
     protected array $fillable = ['state', 'type'];
+}
+
+class Comment extends Eloquent
+{
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comment's replies.
+     */
+    public function replies(): MorphMany
+    {
+        return $this->morphMany(self::class, 'commentable');
+    }
+
+    /**
+     * Get the latest reply.
+     */
+    public function latestReply(): MorphOne
+    {
+        return $this->morphOne(self::class, 'commentable')->latestOfMany();
+    }
+
+    /**
+     * Get the highest-scoring reply.
+     */
+    public function topReply(): MorphOne
+    {
+        return $this->morphOne(self::class, 'commentable')->ofMany('score', 'max');
+    }
 }

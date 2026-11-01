@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
@@ -24,6 +25,10 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use WeakReference;
 
 class DispatchLockContextTest extends TestCase
@@ -224,6 +229,52 @@ class DispatchLockContextTest extends TestCase
             'background later' => [DispatchLockContextBackgroundQueue::class, true],
             'deferred later' => [DispatchLockContextDeferredQueue::class, true],
         ];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFailedQueueReacquisitionReleasesOwnedLocks(bool $cleanupThrows): void
+    {
+        $container = new Container;
+        $transactions = new DatabaseTransactionsManager;
+        $container->instance('db.transactions', $transactions);
+        $container->instance(EventDispatcher::class, new EventsDispatcher($container));
+        Container::setInstance($container);
+        $queue = new SyncQueue(true);
+        $queue->setContainer($container);
+        $queue->setConnectionName('test');
+        $failure = $cleanupThrows ? new CanceledException : new RuntimeException('Queue unavailable.');
+        $cleanupFailure = new RuntimeException('Lock cleanup failed.');
+
+        if ($cleanupThrows) {
+            DispatchLockContext::captureReleaseContextUsing(static fn () => static function (Closure $release) use ($cleanupFailure): void {
+                $release();
+                throw $cleanupFailure;
+            });
+        }
+
+        $cache = new Repository(new WorkerArrayStore);
+        $job = new DispatchLockContextDefaultCacheJob('failed-reacquisition');
+        $this->assertTrue((new UniqueLock($cache))->acquireForDispatch($job));
+        $lock = $cache->lock(UniqueLock::getKey($job));
+        $queue->setAfterCommitDispatcher(static fn () => throw $failure);
+
+        $transactions->begin('default', 1);
+        $queue->push($job);
+        $this->assertTrue($lock->isLocked());
+
+        try {
+            $transactions->commit('default', 1, 0);
+            $this->fail('Expected the deferred queue failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupThrows ? $cleanupFailure : $failure, $exception);
+            if ($cleanupThrows) {
+                $this->assertSame($failure, $exception->getPrevious());
+            }
+        }
+
+        $this->assertFalse($lock->isLocked());
+        $this->assertFalse(DispatchLockContext::has($job));
     }
 }
 

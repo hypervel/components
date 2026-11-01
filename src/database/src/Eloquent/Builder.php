@@ -8,12 +8,14 @@ use BadMethodCallException;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Database\Eloquent\SupportsPartialRelations;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
@@ -421,6 +423,10 @@ class Builder implements BuilderContract
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
+
+            if (! empty($this->query->joins) && empty($this->query->unions) && is_string($this->query->from)) {
+                $column = $this->qualifyColumn($column);
+            }
         }
 
         $this->query->latest($column);
@@ -435,6 +441,10 @@ class Builder implements BuilderContract
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
+
+            if (! empty($this->query->joins) && empty($this->query->unions) && is_string($this->query->from)) {
+                $column = $this->qualifyColumn($column);
+            }
         }
 
         $this->query->oldest($column);
@@ -755,7 +765,7 @@ class Builder implements BuilderContract
      */
     public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
     {
-        return tap($this->firstOrCreate($attributes, [$column => $default]), function ($instance) use ($column, $step, $extra) {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function ($instance) use ($column, $step, $extra) {
             if (! $instance->wasRecentlyCreated) {
                 $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
             }
@@ -1036,10 +1046,14 @@ class Builder implements BuilderContract
      */
     public function cursor(): LazyCollection
     {
-        return $this->applyScopes()->query->cursor()->map(function ($record) {
-            $model = $this->newModelInstance()->newFromBuilder($record);
+        $builder = $this->applyScopes();
+        // Scopes can replace the model when adding query-time casts.
+        $instance = $builder->newModelInstance();
 
-            return $this->applyAfterQueryCallbacks($this->newModelInstance()->newCollection([$model]))->first();
+        return $builder->query->cursor()->map(function ($record) use ($instance) {
+            $model = $instance->newFromBuilder($record);
+
+            return $this->applyAfterQueryCallbacks($instance->newCollection([$model]))->first();
         })->reject(fn ($model) => is_null($model));
     }
 
@@ -1048,8 +1062,12 @@ class Builder implements BuilderContract
      */
     protected function enforceOrderBy(): void
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->orderBy($this->model->getQualifiedKeyName(), SortDirection::Ascending);
+        // A union's outer order uses the selected key output. Qualify its source
+        // so a joined table's ID cannot match first.
+        if (empty($this->query->unions ? $this->query->unionOrders : $this->query->orders)) {
+            $this->orderBy($this->query->unions
+                ? $this->query->getKeysetOutputColumn($this->qualifyColumn($this->model->getKeyName()))
+                : $this->model->getQualifiedKeyName(), SortDirection::Ascending);
         }
     }
 
@@ -1060,28 +1078,31 @@ class Builder implements BuilderContract
      */
     public function pluck(Expression|string $column, ?string $key = null): BaseCollection
     {
+        $builder = $this->applyScopes();
+        $model = $builder->getModel();
+
         if ($column instanceof Expression) {
             // Casts and accessors use the returned field name, which cannot be
             // recovered from the values alone or reliably inferred from raw SQL.
-            [$results, $column] = $this->toBase()->pluckWithColumn($column, $key);
+            [$results, $column] = $builder->query->pluckWithColumn($column, $key);
         } else {
-            $results = $this->toBase()->pluck($column, $key);
+            $results = $builder->query->pluck($column, $key);
 
-            $column = Str::after($column, "{$this->model->getTable()}.");
+            $column = Str::after($column, "{$model->getTable()}.");
         }
 
         // If the model has a mutator for the requested column, we will spin through
         // the results and mutate the values so that the mutated version of these
         // columns are returned as you would expect from these Eloquent models.
-        if (is_null($column) || (! $this->model->hasAnyGetMutator($column)
-            && ! $this->model->hasCast($column)
-            && ! in_array($column, $this->model->getDates()))) {
+        if (is_null($column) || (! $model->hasAnyGetMutator($column)
+            && ! $model->hasCast($column)
+            && ! in_array($column, $model->getDates()))) {
             return $this->applyAfterQueryCallbacks($results);
         }
 
         return $this->applyAfterQueryCallbacks(
-            $results->map(function ($value) use ($column) {
-                return $this->model->newFromBuilder([$column => $value])->{$column};
+            $results->map(function ($value) use ($column, $model) {
+                return $model->newFromBuilder([$column => $value])->{$column};
             })
         );
     }
@@ -1160,9 +1181,9 @@ class Builder implements BuilderContract
      */
     protected function ensureOrderForCursorPagination(bool $shouldReverse = false): BaseCollection
     {
-        if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->enforceOrderBy();
-        }
+        $this->enforceOrderBy();
+
+        $this->query->prepareCursorOrdering();
 
         $reverseDirection = function ($order) {
             if (! isset($order['direction'])) {
@@ -1175,15 +1196,34 @@ class Builder implements BuilderContract
         };
 
         if ($shouldReverse) {
-            $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
-            $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
+            if (! empty($this->query->unionOrders)) {
+                // Reversing the page must not change a bounded first SELECT's rows.
+                $this->query->unionOrders = (new BaseCollection($this->query->unionOrders))->map($reverseDirection)->toArray();
+            } else {
+                $this->query->orders = (new BaseCollection($this->query->orders))->map($reverseDirection)->toArray();
+            }
         }
 
-        $orders = ! empty($this->query->unionOrders) ? $this->query->unionOrders : $this->query->orders;
+        $orders = $this->query->unions ? $this->query->unionOrders : $this->query->orders;
 
         return (new BaseCollection($orders))
             ->filter(fn ($order) => Arr::has($order, 'direction'))
             ->values();
+    }
+
+    /**
+     * Get the builder that owns cursor binding and page execution.
+     */
+    protected function getBuilderForCursorPage(): static
+    {
+        $builder = $this->applyScopes();
+
+        // Scope-added casts must encode the cursor and hydrate the page together.
+        // Avoid a second scope pass in get(), preserving its original callback ownership.
+        $builder->scopes = [];
+        $builder->afterQueryCallbacks = $this->afterQueryCallbacks;
+
+        return $builder;
     }
 
     /**
@@ -1571,6 +1611,9 @@ class Builder implements BuilderContract
             });
         }
 
+        // A replacement sort cannot change the ordering a cursor or ID page compares against.
+        $builder->query->restoreKeysetOrdersFrom($this->query);
+
         return $builder;
     }
 
@@ -1834,6 +1877,8 @@ class Builder implements BuilderContract
         return [explode(':', $name)[0], static function ($query) use ($name) {
             $query->select(array_map(static function ($column) use ($query) {
                 return $query instanceof BelongsToMany
+                    || $query instanceof HasOneOrManyThrough
+                    || ($query instanceof SupportsPartialRelations && $query->isOneOfMany())
                     ? $query->getRelated()->qualifyColumn($column)
                     : $column;
             }, explode(',', explode(':', $name)[1])));
@@ -1889,7 +1934,7 @@ class Builder implements BuilderContract
      */
     public function withCasts(array $casts): static
     {
-        $this->model->mergeCasts($casts);
+        $this->model = (clone $this->model)->mergeCasts($casts);
 
         return $this;
     }

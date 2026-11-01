@@ -6,18 +6,22 @@ namespace Hypervel\Tests\Database;
 
 use Closure;
 use Generator;
+use Hypervel\Contracts\Database\LostConnectionDetector;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\LeasableConnection;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Database\QueryException;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use LogicException;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -183,6 +187,32 @@ class DatabaseDriverConnectionLeaseTest extends TestCase
         $this->assertSame(3, $this->generations);
     }
 
+    public function testQueriesRunWhileReconnectingDoNotReconnectAgain(): void
+    {
+        $failure = new RuntimeException('The remote database connection was lost.');
+        $detector = m::mock(LostConnectionDetector::class);
+        $detector->shouldReceive('causedByLostConnection')->with($failure)->andReturnTrue();
+        $this->app->instance(LostConnectionDetector::class, $detector);
+        $connection = DB::connection('leased');
+        $reconnects = 0;
+
+        Event::listen(ConnectionEstablished::class, function (ConnectionEstablished $event) use ($failure, &$reconnects): void {
+            if (++$reconnects > 1) {
+                $this->fail('The leased connection reconnected while it was already reconnecting.');
+            }
+
+            $event->connection->runFailingQuery($failure);
+        });
+
+        try {
+            $connection->runFailingQuery($failure);
+            $this->fail('A QueryException was not thrown.');
+        } catch (QueryException $exception) {
+            $this->assertSame(1, $reconnects);
+            $this->assertSame($failure, $exception->getPrevious());
+        }
+    }
+
     public function testAnEndedOwnerResetsItsWorkAndCannotBorrowAgain(): void
     {
         [$retained] = parallel([static function (): LeasedDriverConnection {
@@ -277,6 +307,18 @@ class LeasedDriverConnection extends Connection implements LeasableConnection
     public function statement(string $query, array $bindings = []): bool
     {
         return true;
+    }
+
+    /**
+     * Run a failing operation through the driver's normal retry boundary.
+     */
+    public function runFailingQuery(Throwable $failure): void
+    {
+        $this->run('query', [], function () use ($failure): never {
+            $this->physical();
+
+            throw $failure;
+        });
     }
 
     public function affectingStatement(string $query, array $bindings = []): int

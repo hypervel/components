@@ -9,6 +9,7 @@ use ErrorException;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
@@ -16,7 +17,6 @@ use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
 use Psr\Log\LoggerInterface;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
@@ -135,8 +135,7 @@ class HandleExceptions
         try {
             $logger = static::$app->make(LogManager::class);
         } catch (Throwable $exception) {
-            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 
@@ -165,9 +164,11 @@ class HandleExceptions
                     ));
                 }
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return;
         }
     }

@@ -106,9 +106,23 @@ trait HasAttributes
     protected array $classCastCache = [];
 
     /**
+     * The stored attributes each cached class cast was created from or last wrote.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    protected array $classCastStoredValues = [];
+
+    /**
      * The attributes that have been cast using "Attribute" return type mutators.
      */
     protected array $attributeCastCache = [];
+
+    /**
+     * The stored attributes each cached accessor was created from or last wrote.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    protected array $attributeCastStoredValues = [];
 
     /**
      * The cached merged casts array for this instance.
@@ -732,8 +746,9 @@ trait HasAttributes
 
         if ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching)) {
             $this->attributeCastCache[$key] = $value;
+            $this->attributeCastStoredValues[$key] = $this->attributes;
         } else {
-            unset($this->attributeCastCache[$key]);
+            unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
         }
 
         return $value;
@@ -904,9 +919,12 @@ trait HasAttributes
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
             || $objectCachingDisabled) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;
+            // The first writeback identifies the cast's backing columns. Until then,
+            // retain the values it read without invoking its setter a second time.
+            $this->classCastStoredValues[$key] = $this->attributes;
         }
 
         return $value;
@@ -1109,6 +1127,8 @@ trait HasAttributes
 
         $this->attributes[$key] = $value;
 
+        unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
+
         return $this;
     }
 
@@ -1150,7 +1170,13 @@ trait HasAttributes
     {
         $this->mergeAttributesFromCachedCasts();
 
-        return $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
+        $result = $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
+
+        // A legacy setter can refresh stored data after reading a cached accessor.
+        // Class casts reconcile their own writes so in-place mutations survive.
+        unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
+
+        return $result;
     }
 
     /**
@@ -1166,18 +1192,17 @@ trait HasAttributes
             $this->attributes[$key] = $value;
         };
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $this->normalizeCastClassResponse(
-                $key,
-                $callback($value, $this->attributes)
-            )
-        );
+        // Read attributes after the callback so its other writes and cast
+        // synchronizations are not replaced by an earlier argument snapshot.
+        $attributes = $this->normalizeCastClassResponse($key, $callback($value, $this->attributes));
+        $this->attributes = array_merge($this->attributes, $attributes);
 
-        if ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching)) {
+        // Setter-only inputs must not overwrite later changes to objects returned by class casts.
+        if ($attribute->get && ($attribute->withCaching || (is_object($value) && $attribute->withObjectCaching))) {
             $this->attributeCastCache[$key] = $value;
+            $this->attributeCastStoredValues[$key] = $this->attributes;
         } else {
-            unset($this->attributeCastCache[$key]);
+            unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
         }
 
         return $this;
@@ -1199,19 +1224,25 @@ trait HasAttributes
     {
         [$key, $path] = explode('->', $key, 2);
 
+        $this->mergeAttributeFromCachedCasts($key);
+
         $value = $this->castAttributeAsJson($key, $this->getArrayAttributeWithValue(
             $path,
             $key,
             $value
         ));
 
-        $this->attributes[$key] = $this->isEncryptedCastable($key)
-            ? $this->castAttributeAsEncryptedString($key, $value)
-            : $value;
+        $this->attributes[$key] = match (true) {
+            $this->isEncryptedCastable($key) => $this->castAttributeAsEncryptedString($key, $value),
+            $this->isEncryptedClassCastable($key) => Crypt::encryptString($value),
+            default => $value,
+        };
 
         if ($this->isClassCastable($key)) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         }
+
+        unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
 
         return $this;
     }
@@ -1223,22 +1254,20 @@ trait HasAttributes
     {
         $caster = $this->resolveCasterClass($key);
 
-        $this->attributes = array_replace(
-            $this->attributes,
-            $this->normalizeCastClassResponse($key, $caster->set(
-                $this,
-                $key,
-                $value,
-                $this->attributes
-            ))
-        );
+        // A caster can update other attributes while producing its stored values.
+        $attributes = $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes));
+        $this->attributes = array_replace($this->attributes, $attributes);
+
+        // A custom caster may read the accessor while preparing the new stored value.
+        unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
 
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
             || ($caster->withoutObjectCaching ?? false)) {
-            unset($this->classCastCache[$key]);
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;
+            $this->classCastStoredValues[$key] = $this->attributes;
         }
     }
 
@@ -1261,6 +1290,8 @@ trait HasAttributes
                 $this->getEnumCaseFromValue($enumClass, $value)
             );
         }
+
+        unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
     }
 
     /**
@@ -1310,11 +1341,11 @@ trait HasAttributes
             return [];
         }
 
-        return $this->fromJson(
-            $this->isEncryptedCastable($key)
-                ? $this->fromEncryptedString($this->attributes[$key])
-                : $this->attributes[$key]
-        );
+        return $this->fromJson(match (true) {
+            $this->isEncryptedCastable($key) => $this->fromEncryptedString($this->attributes[$key]),
+            $this->isEncryptedClassCastable($key) => Crypt::decryptString($this->attributes[$key]),
+            default => $this->attributes[$key],
+        });
     }
 
     /**
@@ -1391,7 +1422,7 @@ trait HasAttributes
      * Set the encrypter instance that will be used to encrypt attributes.
      *
      * Boot-only. The encrypter persists in a static property for the worker
-     * lifetime and is used by every encrypted attribute across all coroutines.
+     * lifetime and is used by primitive encrypted casts across all coroutines.
      */
     public static function encryptUsing(?EncrypterContract $encrypter): void
     {
@@ -1686,6 +1717,15 @@ trait HasAttributes
     }
 
     /**
+     * Determine whether a value is an encrypted class castable for inbound manipulation.
+     */
+    protected function isEncryptedClassCastable(string $key): bool
+    {
+        return $this->isClassCastable($key)
+            && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class]);
+    }
+
+    /**
      * Determine if the given key is cast using a custom class.
      *
      * @throws InvalidCastException
@@ -1879,12 +1919,13 @@ trait HasAttributes
         $value = $this->classCastCache[$key];
         $caster = $this->resolveCasterClass($key);
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $caster instanceof CastsInboundAttributes
-                ? [$key => $value]
-                : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes))
-        );
+        $attributes = $caster instanceof CastsInboundAttributes
+            ? [$key => $value]
+            : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes));
+
+        if ($this->mergeCachedCastAttributes($attributes, $this->classCastStoredValues[$key])) {
+            unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
+        }
     }
 
     /**
@@ -1902,14 +1943,20 @@ trait HasAttributes
      */
     protected function mergeAttributeFromAttributeCasts(string $key): void
     {
-        if (! isset($this->attributeCastCache[$key])) {
+        if (! array_key_exists($key, $this->attributeCastCache)) {
             return;
         }
 
         $value = $this->attributeCastCache[$key];
-        $attribute = $this->{StrCache::camel($key)}();
+        $attribute = $value === null ? null : $this->{StrCache::camel($key)}();
 
-        if ($attribute->get && ! $attribute->set) {
+        // Cached nulls and get-only accessors have no writeback. Refresh them when
+        // their raw input changes without invoking a setter or guessing dependencies.
+        if ($attribute === null || ($attribute->get && ! $attribute->set)) {
+            if (($this->attributes[$key] ?? null) !== ($this->attributeCastStoredValues[$key][$key] ?? null)) {
+                unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
+            }
+
             return;
         }
 
@@ -1917,13 +1964,44 @@ trait HasAttributes
             $this->attributes[$key] = $value;
         };
 
-        $this->attributes = array_merge(
-            $this->attributes,
-            $this->normalizeCastClassResponse(
-                $key,
-                $callback($value, $this->attributes)
-            )
-        );
+        // Preserve writes performed by the setter before merging its returned values.
+        $attributes = $this->normalizeCastClassResponse($key, $callback($value, $this->attributes));
+
+        if ($this->mergeCachedCastAttributes($attributes, $this->attributeCastStoredValues[$key])) {
+            unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
+        }
+    }
+
+    /**
+     * Merge cached cast values, advance their baseline, and indicate whether stored replacements took precedence.
+     */
+    protected function mergeCachedCastAttributes(array $attributes, array &$storedValues): bool
+    {
+        $replaced = false;
+
+        // Replaced backing values take precedence over cached edits. Keep edits
+        // to other columns; unrelated attributes can change independently,
+        // including encrypted casts that are written back during reads.
+        foreach ($attributes as $column => $attribute) {
+            if (($this->attributes[$column] ?? null) !== ($storedValues[$column] ?? null)) {
+                unset($attributes[$column]);
+                $replaced = true;
+            }
+        }
+
+        $this->attributes = array_merge($this->attributes, $attributes);
+
+        if (! $replaced) {
+            // Partial responses retain omitted columns. Skip unchanged values so
+            // read-only writeback does not copy the shared attribute snapshot.
+            foreach ($attributes as $column => $attribute) {
+                if (($storedValues[$column] ?? null) !== $attribute) {
+                    $storedValues[$column] = $attribute;
+                }
+            }
+        }
+
+        return $replaced;
     }
 
     /**
@@ -2015,9 +2093,11 @@ trait HasAttributes
     {
         $this->attributes = $attributes;
 
-        // Laravel clears these after syncing, which merges stale cast objects over the replacement values.
+        // Laravel clears these after syncing, which writes objects from the old row over the replacement values.
         $this->classCastCache = [];
+        $this->classCastStoredValues = [];
         $this->attributeCastCache = [];
+        $this->attributeCastStoredValues = [];
 
         if ($sync) {
             $this->syncOriginal();
@@ -2146,7 +2226,12 @@ trait HasAttributes
      */
     public function syncChanges(): static
     {
-        return $this->syncChangesFrom($this->getDirty());
+        /** @var null|array{model: static, changes: array<string, mixed>} $pending */
+        $pending = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        $this->changes = ($pending['model'] ?? null) === $this ? $pending['changes'] : $this->getDirty();
+        $this->previous = array_intersect_key($this->getRawOriginal(), $this->changes);
+
+        return $this;
     }
 
     /**
@@ -2156,10 +2241,15 @@ trait HasAttributes
      */
     private function syncChangesFrom(array $changes): static
     {
-        $this->changes = $changes;
-        $this->previous = array_intersect_key($this->getRawOriginal(), $changes);
+        // Pass stored values through the zero-argument hook so overrides run without repeating cached setters.
+        $previous = CoroutineContext::get(self::SYNC_CHANGES_CONTEXT_KEY);
+        CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, ['model' => $this, 'changes' => $changes]);
 
-        return $this;
+        try {
+            return $this->syncChanges();
+        } finally {
+            CoroutineContext::set(self::SYNC_CHANGES_CONTEXT_KEY, $previous);
+        }
     }
 
     /**
@@ -2193,7 +2283,9 @@ trait HasAttributes
         [$this->attributes, $this->changes, $this->previous] = [$this->original, [], []];
 
         $this->classCastCache = [];
+        $this->classCastStoredValues = [];
         $this->attributeCastCache = [];
+        $this->attributeCastStoredValues = [];
 
         return $this;
     }
@@ -2376,8 +2468,9 @@ trait HasAttributes
             return $current === $original;
         }
         if ($this->isClassCastable($key) && $original !== null && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class])) {
-            if (empty(static::currentEncrypter()->getPreviousKeys())) {
-                return $this->fromEncryptedString($attribute) === $this->fromEncryptedString($original);
+            // These casts use Crypt, independently of the model's custom encrypter.
+            if (empty(Crypt::getPreviousKeys())) {
+                return Crypt::decryptString($attribute) === Crypt::decryptString($original);
             }
 
             return false;

@@ -10,5 +10,5 @@ class PostStringyKey extends Model
 {
     protected ?string $table = 'my_posts';
 
-    protected string $primaryKey = 'my_id';
+    protected ?string $primaryKey = 'my_id';
 }

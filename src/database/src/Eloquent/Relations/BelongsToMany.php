@@ -734,6 +734,20 @@ class BelongsToMany extends Relation
     }
 
     /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
+    {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
+            if (! $instance->wasRecentlyCreated) {
+                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+            }
+        });
+    }
+
+    /**
      * Find a related model by its primary key.
      *
      * @return (
@@ -1147,6 +1161,27 @@ class BelongsToMany extends Relation
     }
 
     /**
+     * Run a map over each item while chunking.
+     *
+     * @template TReturn
+     *
+     * @param callable(object{pivot: TPivotModel}&TRelatedModel): TReturn $callback
+     * @return BaseCollection<int, TReturn>
+     */
+    public function chunkMap(callable $callback, int $count = 1000): BaseCollection
+    {
+        $collection = new BaseCollection;
+
+        $this->chunk($count, function (BaseCollection $items) use ($collection, $callback): void {
+            $items->each(function (mixed $item) use ($collection, $callback): void {
+                $collection->push($callback($item));
+            });
+        });
+
+        return $collection;
+    }
+
+    /**
      * Query lazily, by chunks of the given size.
      *
      * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
@@ -1312,12 +1347,20 @@ class BelongsToMany extends Relation
             $this->related->getUpdatedAtColumn() => $this->related->freshTimestampString(),
         ];
 
+        // Pivot queries return raw keys; retain their binary binding intent without decoding them.
+        $key = $this->relatedKey;
+        $ids = $this->allRelatedIds()->map(fn ($id) => $this->related->prepareBinaryAttributesForDatabase([$key => $id])[$key]);
+
         // If we actually have IDs for the relation, we will run the query to update all
         // the related model's timestamps, to make sure these all reflect the changes
         // to the parent models. This will help us keep any caching synced up here.
-        if (count($ids = $this->allRelatedIds()) > 0) {
-            $this->getRelated()->newQueryWithoutRelationships()->whereIn($this->getQualifiedRelatedKeyName(), $ids)->update($columns);
-        }
+        // Pivot selection does not apply related-model scopes, but explicit removals still apply.
+        $this->updateRelatedKeys(
+            $this->getRelated()->newQueryWithoutRelationships()->withoutGlobalScopes($this->query->removedScopes()),
+            $this->getQualifiedRelatedKeyName(),
+            $ids,
+            $columns,
+        );
     }
 
     /**

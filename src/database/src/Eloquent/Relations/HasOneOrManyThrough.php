@@ -212,6 +212,20 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
+     * Find a related model by its primary key or return a new instance of the related model.
+     *
+     * @return ($id is Model ? TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel))
+     */
+    public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
+    {
+        if (is_null($instance = $this->find($id, $columns))) {
+            $instance = $this->related->newInstance();
+        }
+
+        return $instance;
+    }
+
+    /**
      * Get the first related model record matching the attributes or instantiate it.
      *
      * @param array|(Closure(): array) $values
@@ -219,7 +233,7 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
-        if (! is_null($instance = $this->where($attributes)->first())) {
+        if (! is_null($instance = $this->where($this->qualifyRelatedAttributes($attributes))->first())) {
             return $instance;
         }
 
@@ -236,7 +250,7 @@ abstract class HasOneOrManyThrough extends Relation
     {
         $this->getQuery()->ensureCanCreateOrFirst();
 
-        if (! is_null($instance = (clone $this)->where($attributes)->first())) {
+        if (! is_null($instance = (clone $this)->where($this->qualifyRelatedAttributes($attributes))->first())) {
             return $instance;
         }
 
@@ -258,7 +272,7 @@ abstract class HasOneOrManyThrough extends Relation
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {
-            return $this->useWritePdo()->where($attributes)->first() ?? throw $exception;
+            return $this->useWritePdo()->where($this->qualifyRelatedAttributes($attributes))->first() ?? throw $exception;
         }
     }
 
@@ -273,6 +287,30 @@ abstract class HasOneOrManyThrough extends Relation
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
                 $instance->fill(value($values))->save();
+            }
+        });
+    }
+
+    /**
+     * Qualify the given attribute keys with the related model's table.
+     */
+    protected function qualifyRelatedAttributes(array $attributes): array
+    {
+        return (new BaseCollection($attributes))
+            ->mapWithKeys(fn (mixed $value, int|string $key): array => [$this->related->qualifyColumn((string) $key) => $value])
+            ->all();
+    }
+
+    /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
+    {
+        return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
+            if (! $instance->wasRecentlyCreated) {
+                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
             }
         });
     }
@@ -544,6 +582,47 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
+     * Touch all of the related models for the relationship.
+     */
+    public function touch(): void
+    {
+        $model = $this->getRelated();
+
+        if ($model::isIgnoringTouch()) {
+            return;
+        }
+
+        $columns = [
+            $model->getUpdatedAtColumn() => $model->freshTimestampString(),
+        ];
+
+        $key = $model->getKeyName();
+
+        // Pluck applies casts; restore binary binding intent for keys selected by the framework.
+        $ids = $this->allRelatedIds()->map(fn ($id) => $model->encodeBinaryAttributeForDatabase($key, $id));
+
+        // The selection already applied the relation's scopes, including explicit removals.
+        $this->updateRelatedKeys(
+            $model->newQueryWithoutRelationships()->withoutGlobalScopes(),
+            $model->getQualifiedKeyName(),
+            $ids,
+            $columns,
+        );
+    }
+
+    /**
+     * Get all of the IDs for the related models.
+     *
+     * @return BaseCollection<int, int|string>
+     */
+    public function allRelatedIds(): BaseCollection
+    {
+        $key = $this->related->getQualifiedKeyName();
+
+        return (clone $this->query)->select($key)->pluck($key);
+    }
+
+    /**
      * Chunk the results of the query.
      */
     public function chunk(int $count, callable $callback): bool
@@ -609,6 +688,27 @@ abstract class HasOneOrManyThrough extends Relation
                 }
             }
         });
+    }
+
+    /**
+     * Run a map over each item while chunking.
+     *
+     * @template TReturn
+     *
+     * @param callable(TRelatedModel): TReturn $callback
+     * @return BaseCollection<int, TReturn>
+     */
+    public function chunkMap(callable $callback, int $count = 1000): BaseCollection
+    {
+        $collection = new BaseCollection;
+
+        $this->chunk($count, function (BaseCollection $items) use ($collection, $callback): void {
+            $items->each(function (mixed $item) use ($collection, $callback): void {
+                $collection->push($callback($item));
+            });
+        });
+
+        return $collection;
     }
 
     /**

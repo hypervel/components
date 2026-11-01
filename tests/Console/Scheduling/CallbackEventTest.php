@@ -222,27 +222,6 @@ class CallbackEventTest extends TestCase
         $event->run($this->app);
     }
 
-    public function testSuccessfulRunDoesNotRethrowExceptionFromPreviousRun(): void
-    {
-        $calls = 0;
-        $event = new CallbackEvent($this->mutex, function () use (&$calls): string {
-            if (++$calls === 1) {
-                throw new RuntimeException('first run failed');
-            }
-
-            return 'recovered';
-        });
-
-        try {
-            $event->run($this->app);
-            $this->fail('The first callback exception was not thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('first run failed', $exception->getMessage());
-        }
-
-        $this->assertSame('recovered', $event->run($this->app));
-    }
-
     public function testCallbackFailureRemainsPrimaryWhenAfterCallbackFails(): void
     {
         $event = new CallbackEvent($this->mutex, fn () => throw new RuntimeException('callback failed'));

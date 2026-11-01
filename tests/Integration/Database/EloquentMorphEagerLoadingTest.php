@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphEagerLoadingTest;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
@@ -78,6 +79,23 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $this->assertInstanceOf(Video::class, $comments[1]->getRelation('commentable'));
     }
 
+    public function testWithMorphLoadingWithMorphMap(): void
+    {
+        Relation::morphMap(['post' => Post::class]);
+
+        Comment::where('commentable_type', Post::class)->update(['commentable_type' => 'post']);
+
+        $comments = Comment::query()
+            ->with(['commentable' => function (MorphTo $morphTo): void {
+                $morphTo->morphWith(['post' => ['user']]);
+            }])
+            ->orderBy('id')
+            ->get();
+
+        $this->assertInstanceOf(Post::class, $comments[0]->commentable);
+        $this->assertTrue($comments[0]->commentable->relationLoaded('user'));
+    }
+
     public function testWithMorphLoadingWithSingleRelation(): void
     {
         $comments = Comment::query()
@@ -137,7 +155,7 @@ class Post extends Model
 {
     public bool $timestamps = false;
 
-    protected string $primaryKey = 'post_id';
+    protected ?string $primaryKey = 'post_id';
 
     /**
      * Get the post's user.

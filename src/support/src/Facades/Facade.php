@@ -38,18 +38,24 @@ abstract class Facade
     protected static array $resolvedInstance;
 
     /**
+     * Accessors whose resolved objects belong to a coroutine scope.
+     *
+     * @var array<string, true>
+     */
+    protected static array $scopedAccessors = [];
+
+    /**
      * Indicates if the resolved instance should be cached.
      *
      * When false, the facade resolves from the container on every access
      * instead of caching in $resolvedInstance. Useful for stateful services
      * like Pipeline where each usage needs a fresh instance.
      *
-     * Important: for $cached = false to produce fresh instances, the
-     * underlying class must be explicitly bound with bind(), not singleton().
-     * Our container auto-singletons unbound classes, so an unbound class
-     * would still return the same instance from the container regardless
-     * of this setting. This differs from Laravel where unbound classes
-     * always resolve fresh.
+     * Scoped bindings always resolve through the container, preserving the
+     * current coroutine's instance. When caching is enabled, other bindings
+     * keep their first resolved instance for the worker lifetime.
+     * The container's lifetime still applies: disabling this cache does not
+     * make singletons or auto-singletons fresh.
      */
     protected static bool $cached = true;
 
@@ -238,11 +244,21 @@ abstract class Facade
         }
 
         if (static::$app) {
-            if (static::$cached) {
-                return static::$resolvedInstance[$name] = static::$app->make($name);
+            $instance = static::$app->make($name);
+
+            if (! static::$cached || isset(static::$scopedAccessors[$name]) || static::$app->isScoped($name)) {
+                return $instance;
             }
 
-            return static::$app->make($name);
+            // A transient factory can return a scoped service. Remember its lifetime
+            // so later calls neither retain the object nor repeat the scoped-store scan.
+            if (static::$app->isScopedInstance($instance)) {
+                static::$scopedAccessors[$name] = true;
+            } else {
+                static::$resolvedInstance[$name] = $instance;
+            }
+
+            return $instance;
         }
 
         return null;
@@ -256,7 +272,9 @@ abstract class Facade
      */
     public static function clearResolvedInstance(?string $name = null): void
     {
-        unset(static::$resolvedInstance[$name ?? static::getFacadeAccessor()]);
+        $name ??= static::getFacadeAccessor();
+
+        unset(static::$resolvedInstance[$name], static::$scopedAccessors[$name]);
     }
 
     /**
@@ -268,6 +286,7 @@ abstract class Facade
     public static function clearResolvedInstances(): void
     {
         static::$resolvedInstance = [];
+        static::$scopedAccessors = [];
     }
 
     /**

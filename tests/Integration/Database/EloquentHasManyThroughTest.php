@@ -42,14 +42,30 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         Schema::create('products', function (Blueprint $table) {
             $table->increments('id');
             $table->integer('category_id');
+            $table->softDeletes();
         });
 
         Schema::create('articles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id');
             $table->string('title')->unique();
+            $table->string('slug')->nullable();
+            $table->integer('views')->default(0);
             $table->timestamps();
         });
+    }
+
+    public function testEagerLoadingSpecificColumns(): void
+    {
+        $user = User::create(['name' => Str::random()]);
+        $team = Team::create(['owner_id' => $user->id]);
+        $mate = User::create(['name' => 'John', 'team_id' => $team->id]);
+
+        $user = User::with('teamMates:id,name')->find($user->id);
+
+        $this->assertCount(1, $user->teamMates);
+        $this->assertSame($mate->id, $user->teamMates[0]->id);
+        $this->assertSame('John', $user->teamMates[0]->name);
     }
 
     public function testBasicCreateAndRetrieve(): void
@@ -137,6 +153,16 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
         $users = User::has('teamMatesBySlugWithPendingRelationship')->get();
         $this->assertCount(1, $users);
+    }
+
+    public function testCloneKeepsTheRelationQuery(): void
+    {
+        $team = Team::create();
+        User::create(['name' => Str::random()]);
+        $user = User::create(['name' => Str::random(), 'team_id' => $team->id]);
+        $article = Article::create(['user_id' => $user->id, 'title' => Str::random()]);
+
+        $this->assertEquals([$article->id], $team->articles()->clone()->get()->modelKeys());
     }
 
     public function testHasSameParentAndThroughParentTable(): void
@@ -271,6 +297,26 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertTrue($team->is($mate->team));
         $this->assertSame('Adam Wathan', $mate->name);
         $this->assertSame('adam', $mate->slug);
+    }
+
+    public function testFirstOrCreateWithColumnThatAlsoExistsOnIntermediateTable(): void
+    {
+        $team = Team::create();
+        $user = $team->members()->create(['name' => 'Taylor', 'slug' => 'taylor']);
+        $article = Article::create(['user_id' => $user->id, 'title' => 'Hypervel', 'slug' => 'hypervel']);
+
+        $this->assertTrue($article->is($team->articles()->firstOrNew(['slug' => 'hypervel'])));
+        $this->assertTrue($article->is($team->articles()->firstOrCreate(['slug' => 'hypervel'])));
+
+        $updated = $team->articles()->updateOrCreate(['slug' => 'hypervel'], ['views' => 5]);
+
+        $this->assertTrue($article->is($updated));
+        $this->assertEquals(5, $article->fresh()->views);
+
+        $created = $team->articles()->firstOrCreate(['slug' => 'eloquent'], ['user_id' => $user->id, 'title' => 'Eloquent']);
+
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertSame('eloquent', $created->fresh()->slug);
     }
 
     public function testFirstOrCreateRegressionIssue(): void
@@ -426,6 +472,23 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('jane-slug', $jane->fresh()->slug);
     }
 
+    public function testIncrementOrCreateIncrementsTheRelatedModel(): void
+    {
+        $team = Team::create();
+
+        $jane = User::create(['name' => 'Jane']);
+        $john = User::create(['name' => 'John', 'team_id' => $team->id]);
+
+        $johnsArticle = Article::create(['user_id' => $john->id, 'title' => 'foo']);
+        $janesArticle = Article::create(['user_id' => $jane->id, 'title' => 'bar']);
+
+        $article = $team->articles()->incrementOrCreate(['title' => 'foo'], 'views');
+
+        $this->assertTrue($article->is($johnsArticle));
+        $this->assertEquals(1, $johnsArticle->fresh()->views);
+        $this->assertEquals(0, $janesArticle->fresh()->views);
+    }
+
     public function testCanReplicateModelLoadedThroughHasManyThrough(): void
     {
         $team = Team::create();
@@ -439,6 +502,21 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $newArticle = $article->replicate();
         $newArticle->title .= ' v2';
         $newArticle->save();
+    }
+
+    public function testRestoreWithSoftDeletingThroughParent(): void
+    {
+        $category = Category::create();
+        $subCategory = Category::create(['parent_id' => $category->id]);
+        $product = Product::create(['category_id' => $subCategory->id]);
+
+        $category->subProducts()->delete();
+
+        $this->assertTrue($product->fresh()->trashed());
+
+        $category->subProducts()->onlyTrashed()->restore();
+
+        $this->assertFalse($product->fresh()->trashed());
     }
 
     public function testOne(): void
@@ -627,6 +705,8 @@ class Category extends Model
 
 class Product extends Model
 {
+    use SoftDeletes;
+
     public bool $timestamps = false;
 
     protected array $guarded = [];
