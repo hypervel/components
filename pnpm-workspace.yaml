@@ -14,7 +14,7 @@ allowBuilds:
 # report a peer version mismatch despite using the bundled Vite runtime.
 # Update both core aliases with the vite-plus catalog pin; match Vitest to `vp toolchain vitest`.
 overrides:
-  'vite@*': npm:@voidzero-dev/vite-plus-core@1.3.0
+  'vite@*': npm:@voidzero-dev/vite-plus-core@1.4.0
   'vitest@*': 5.0.5
 
 # Supply-chain defense: require packages to be at least 7 days old before
@@ -39,8 +39,8 @@ catalog:
   sass: ^1.106.0
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
-  vite-plus: 1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
   vue: ^3.5.44
   vue-json-pretty: ^2.6.0
   vue-router: ^4.6.4
