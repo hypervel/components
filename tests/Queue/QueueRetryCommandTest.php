@@ -655,6 +655,10 @@ class QueueRetryCommandTest extends TestCase
 
         yield 'removed class on FIFO' => ['default.fifo', $incomplete];
         yield 'removed class on standard' => ['default', $incomplete];
+        yield 'removed class without optional command name' => ['default.fifo', [
+            'job' => 'CustomObjectHandler@call',
+            'data' => ['command' => 'O:10:"RemovedJob":0:{}'],
+        ]];
     }
 
     public function testDispatchesTheEventBeforePushingAndForgetsTheJobAfterwards(): void

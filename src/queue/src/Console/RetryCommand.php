@@ -234,7 +234,7 @@ class RetryCommand extends Command
 
         // Unrestorable jobs still need the driver's string-job defaults, including required FIFO message options.
         if ($instance === null || $instance instanceof __PHP_Incomplete_Class) {
-            $instance = $payload['data']['commandName'];
+            $instance = $payload['data']['commandName'] ?? $payload['job'];
         }
 
         $getOptions = fn (SqsQueue $queue) => $queue->getQueueableOptions(
