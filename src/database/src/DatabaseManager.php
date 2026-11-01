@@ -104,6 +104,28 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Get the connection already held by the current resolver.
+     *
+     * Resolvers without connection inspection support resolve normally.
+     */
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
+    {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $resolver = $this->app->make('db.resolver');
+
+        return $resolver instanceof ConnectionResolver
+            ? $resolver->getHeldConnection($name)
+            : $resolver->connection($name);
+    }
+
+    /**
      * Determine whether a connection has an applicable transaction without borrowing a pool slot.
      */
     public function hasApplicableTransaction(UnitEnum|string|null $name = null): bool

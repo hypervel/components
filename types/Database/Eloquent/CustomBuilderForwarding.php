@@ -42,7 +42,7 @@ function test(User $user, ScopedUser $scoped, FixedUser $fixed): void
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->tenant('one')->published());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->ignoredAnswer());
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->tenant('one')->models());
-    assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->clone());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->clone());
     assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->applyScopes());
     assertType('int', $user->children()->rawAnswer());
     assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery<int, Hypervel\Types\CustomBuilderForwarding\User, \'fixture\'>', $user->children()->dump());

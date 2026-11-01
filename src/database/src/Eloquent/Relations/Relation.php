@@ -625,6 +625,14 @@ abstract class Relation implements BuilderContract
     }
 
     /**
+     * Clone the relationship.
+     */
+    public function clone(): static
+    {
+        return clone $this;
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void

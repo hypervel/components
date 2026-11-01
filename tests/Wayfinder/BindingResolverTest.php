@@ -173,7 +173,7 @@ class NonIncrementingBindingResolverModel extends Model
 
     protected ?string $table = 'external_binding_models';
 
-    protected string $primaryKey = 'external_id';
+    protected ?string $primaryKey = 'external_id';
 
     protected string $keyType = 'string';
 

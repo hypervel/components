@@ -2626,7 +2626,7 @@ use Hypervel\Validation\Rule;
 ],
 ```
 
-The fluent numeric builder also provides `integer`, `min`, `max`, `greaterThan`, `greaterThanOrEqualTo`, `lessThan`, `lessThanOrEqualTo`, `digits`, `digitsBetween`, `minDigits`, `maxDigits`, `multipleOf`, `same`, `different`, and `exactly` methods. Pass `strict: true` to the `integer` method to apply the [strict integer rule](#rule-integer).
+Pass `strict: true` to `Rule::numeric()` to reject numeric strings. The fluent numeric builder also provides `integer`, `min`, `max`, `greaterThan`, `greaterThanOrEqualTo`, `lessThan`, `lessThanOrEqualTo`, `digits`, `digitsBetween`, `minDigits`, `maxDigits`, `multipleOf`, `same`, `different`, and `exactly` methods. Pass `strict: true` to the `integer` method to apply the [strict integer rule](#rule-integer).
 
 <a name="rule-present"></a>
 #### present

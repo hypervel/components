@@ -9,10 +9,12 @@ use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Foundation\Application;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Events\NotificationDelivered;
@@ -23,6 +25,7 @@ use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
+use Hypervel\Notifications\NotificationServiceProvider;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue;
@@ -549,6 +552,62 @@ class NotificationSenderTest extends TestCase
         }
 
         $this->assertSame(TransportException::class, $failed->data['exception']::class);
+    }
+
+    public function testNotificationFailedIsDispatchedAfterAChannelDispatchedItWithoutThrowing(): void
+    {
+        $notifiable = new AnonymousNotifiable;
+        $container = new Application;
+        $container->instance('config', new Config(['app' => ['name' => 'Name', 'logo' => 'Logo']]));
+        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+        $bus = new BusFake(new BusDispatcher(new Container));
+        $events = new EventDispatcher;
+        $container->instance('events', $events);
+        (new NotificationServiceProvider($container))->boot();
+
+        $failed = [];
+        $events->listen(NotificationFailed::class, function (NotificationFailed $event) use (&$failed): void {
+            $failed[] = $event->channel;
+        });
+
+        $pushChannel = new class($events) {
+            /**
+             * Create a channel that reports failures without throwing.
+             */
+            public function __construct(protected Dispatcher $events)
+            {
+            }
+
+            /**
+             * Send the notification.
+             */
+            public function send(mixed $notifiable, Notification $notification): void
+            {
+                $this->events->dispatch(new NotificationFailed($notifiable, $notification, 'push'));
+            }
+        };
+
+        $smsChannel = new ChannelSpy;
+        $smsChannel->exception = new RuntimeException('SMS gateway down');
+
+        $manager->expects('driver')->with('push')->andReturn($pushChannel);
+        $manager->expects('driver')->with('sms')->andReturn($smsChannel);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+        $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['push']);
+
+        // Check cleanup before another attempt can overwrite a leaked failure marker.
+        $this->assertNull(CoroutineContext::get(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY));
+        $caught = null;
+
+        try {
+            $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['sms']);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($smsChannel->exception, $caught);
+        $this->assertSame(['push', 'sms'], $failed);
     }
 
     public function testItPreservesNotificationStateMutatedInViaMethod(): void

@@ -447,6 +447,9 @@ class Collection extends BaseCollection implements QueueableCollection
 
             if ($key !== null) {
                 $dictionary[$key] = $item;
+            } elseif ($item->getKeyName() === null) {
+                // Match getDictionary() without allocating a second dictionary for incoming models.
+                throw new LogicException('No primary key defined on model.');
             }
         }
 
@@ -762,6 +765,9 @@ class Collection extends BaseCollection implements QueueableCollection
 
             if ($key !== null) {
                 $dictionary[$key] = $value;
+            } elseif ($value->getKeyName() === null) {
+                // Keyless results cannot be deduplicated by identity. Unsaved keyed models still skip.
+                throw new LogicException('No primary key defined on model.');
             }
         }
 

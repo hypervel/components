@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Aws\Result;
 use Closure;
+use ErrorException;
 use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
@@ -780,6 +781,53 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertNull($connection->getRawReadPdo());
         $this->assertSame($connection, DB::connection('physical_leases'));
         $this->assertSame(2, $connection->selectOne('select 2 as value')->value);
+    }
+
+    public function testReconnectReleasesWarningHandlesThroughThePhysicalConnection(): void
+    {
+        $this->app->instance('db.connector.pgsql', new class extends LeasePdoConnector {
+            private bool $first = true;
+
+            /**
+             * Make the first physical handle warn when it is released.
+             */
+            public function connect(array $config): PDO
+            {
+                if (! $this->first) {
+                    return parent::connect($config);
+                }
+
+                $this->first = false;
+
+                return new class('sqlite::memory:') extends PDO {
+                    /**
+                     * Simulate a native teardown warning.
+                     */
+                    public function __destruct()
+                    {
+                        trigger_error('SSL: Broken pipe', E_USER_WARNING);
+                    }
+                };
+            }
+        });
+
+        $connection = DB::connection('physical_leases');
+        $original = WeakReference::create($connection->getPdo());
+
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): void {
+            if (error_reporting() & $severity) {
+                throw new ErrorException($message, 0, $severity, $file, $line);
+            }
+        });
+
+        try {
+            $connection->reconnect();
+
+            $this->assertNull($original->get());
+            $this->assertSame(2, $connection->selectFromWriteConnection('select 2 as value')[0]->value);
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testCapturedMySqlInsertIdsSurviveEarlyRelease(): void

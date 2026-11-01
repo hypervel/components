@@ -109,7 +109,7 @@ class Video extends Model
 {
     public bool $timestamps = false;
 
-    protected string $primaryKey = 'uuid';
+    protected ?string $primaryKey = 'uuid';
 
     protected string $keyType = 'string';
 

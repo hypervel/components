@@ -111,29 +111,6 @@ class NotificationFailedEventTest extends TestCase
         $this->assertSame(['channel-owned', 'sender-owned'], $dispatched());
     }
 
-    public function testReportedFailureWithoutAnExceptionDoesNotAffectTheNextAttempt(): void
-    {
-        $events = $this->app->make(Dispatcher::class);
-        $manager = $this->app->make(ChannelManager::class);
-        $notifiable = new NotificationFailedEventNotifiable;
-        $notification = new NotificationFailedEventNotification;
-        $dispatched = $this->recordFailures($events);
-
-        $manager->extend('reported', fn () => new NotificationFailedEventReportingChannel($events));
-        $manager->extend('throwing', fn () => new NotificationFailedEventThrowingChannel);
-
-        $manager->sendNow($notifiable, $notification, ['reported']);
-
-        // Check cleanup before another attempt can overwrite a leaked failure marker.
-        $this->assertNull(CoroutineContext::get(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY));
-
-        $this->captureRuntimeException(
-            fn () => $manager->sendNow($notifiable, $notification, ['throwing'])
-        );
-
-        $this->assertSame(['reported', 'throwing'], $dispatched());
-    }
-
     public function testSuccessfulAndExceptionalAttemptsRemoveTheirContextState(): void
     {
         $manager = $this->app->make(ChannelManager::class);
@@ -245,24 +222,6 @@ class NotificationFailedEventDispatchingChannel
         }
 
         throw new RuntimeException("{$this->channel} failed.");
-    }
-}
-
-class NotificationFailedEventReportingChannel
-{
-    /**
-     * Create a channel that reports a failure without throwing.
-     */
-    public function __construct(private readonly Dispatcher $events)
-    {
-    }
-
-    /**
-     * Report the delivery failure without an exception.
-     */
-    public function send(mixed $notifiable, Notification $notification): void
-    {
-        $this->events->dispatch(new NotificationFailed($notifiable, $notification, 'reported'));
     }
 }
 

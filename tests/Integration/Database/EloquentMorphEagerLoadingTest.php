@@ -155,7 +155,7 @@ class Post extends Model
 {
     public bool $timestamps = false;
 
-    protected string $primaryKey = 'post_id';
+    protected ?string $primaryKey = 'post_id';
 
     /**
      * Get the post's user.

@@ -2287,6 +2287,8 @@ $users = User::withWhereHas('posts', function ($query) {
 })->get();
 ```
 
+You may also [select specific columns](#eager-loading-specific-columns) when providing a callback, such as `withWhereHas('posts:id,user_id,title', $callback)`.
+
 For a single, simple condition, you may use the `withWhereRelation` method:
 
 ```php

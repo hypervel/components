@@ -48,6 +48,7 @@ use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Attributes\UniqueFor;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SyncQueue;
@@ -58,6 +59,7 @@ use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
@@ -323,6 +325,69 @@ class BroadcastManagerTest extends TestCase
         Broadcast::queue(new TestEventUniqueWithInheritedUniqueFor);
 
         Queue::assertPushed(UniqueBroadcastEvent::class, 2);
+    }
+
+    public function testUniqueEventsEmitUniqueJobSkippedEventWhenLockNotAcquired(): void
+    {
+        Queue::fake();
+
+        $skipped = [];
+
+        Event::listen(UniqueJobSkipped::class, function (UniqueJobSkipped $event) use (&$skipped): void {
+            $skipped[] = $event->job;
+        });
+
+        Broadcast::queue(new TestEventUnique);
+
+        $this->assertSame([], $skipped);
+
+        Broadcast::queue(new TestEventUnique);
+
+        Queue::assertPushed(UniqueBroadcastEvent::class, 1);
+        $this->assertCount(1, $skipped);
+        $this->assertInstanceOf(UniqueBroadcastEvent::class, $skipped[0]);
+        $this->assertInstanceOf(TestEventUnique::class, $skipped[0]->event);
+    }
+
+    #[TestWith(['lock', true], 'rescued lock failure')]
+    #[TestWith(['lock', false], 'ordinary lock failure')]
+    #[TestWith(['listener', true], 'rescued skip-listener failure')]
+    #[TestWith(['listener', false], 'ordinary skip-listener failure')]
+    #[TestWith(['listener', true, true], 'skip listener propagates chained cancellation')]
+    public function testUniqueBroadcastPreparationHonorsRescue(string $phase, bool $rescued, bool $cancellation = false): void
+    {
+        Queue::fake();
+
+        $failure = new RuntimeException('Broadcast preparation failed.', previous: $cancellation ? new CanceledException : null);
+        $event = $rescued ? new TestEventUniqueRescue : new TestEventUnique;
+        $handler = m::mock(ExceptionHandler::class);
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        if ($rescued && ! $cancellation) {
+            $handler->expects('report')->with($failure, []);
+        } else {
+            $handler->shouldNotReceive('report');
+        }
+
+        if ($phase === 'lock') {
+            $store = m::mock(ArrayStore::class)->makePartial();
+            $store->expects('lock')->andThrow($failure);
+            $this->app->instance(Cache::class, new CacheRepository($store));
+        } else {
+            Broadcast::queue($event);
+            Event::listen(UniqueJobSkipped::class, static fn () => throw $failure);
+        }
+
+        $caught = null;
+
+        try {
+            Broadcast::queue($event);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($rescued && ! $cancellation ? null : $failure, $caught);
+        Queue::assertPushed(UniqueBroadcastEvent::class, $phase === 'lock' ? 0 : 1);
     }
 
     public function testUniqueForAttributeDoesNotMakeEventsUniqueWithoutTheContract(): void

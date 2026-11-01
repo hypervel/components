@@ -45,7 +45,7 @@ class EntryModel extends Model
     /**
      * The primary key for the model.
      */
-    protected string $primaryKey = 'uuid';
+    protected ?string $primaryKey = 'uuid';
 
     /**
      * The "type" of the auto-incrementing ID.

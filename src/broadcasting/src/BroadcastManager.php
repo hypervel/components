@@ -27,6 +27,7 @@ use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
@@ -41,6 +42,7 @@ use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
@@ -235,10 +237,6 @@ class BroadcastManager implements BroadcastingFactoryContract
             ? new UniqueBroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             : new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event);
 
-        if ($event instanceof ShouldBeUnique && $this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
-            return;
-        }
-
         $push = $synchronousMercure
             ? fn () => $this->dispatchSynchronousBroadcast($broadcastEvent)
             : fn () => $this->app->make(Queue::class)
@@ -251,7 +249,19 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         if ($event instanceof ShouldBeUnique) {
             $dispatch = $push;
-            $push = static function () use ($broadcastEvent, $dispatch): mixed {
+            $push = function () use ($broadcastEvent, $dispatch): mixed {
+                // Acquisition and skip listeners can fail too, so keep them inside the rescue boundary.
+                if ($this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
+                    /** @var EventDispatcher $events */
+                    $events = $this->app->make('events');
+
+                    if ($events->hasListeners(UniqueJobSkipped::class)) {
+                        $events->dispatch(new UniqueJobSkipped($broadcastEvent));
+                    }
+
+                    return null;
+                }
+
                 try {
                     return $dispatch();
                 } finally {

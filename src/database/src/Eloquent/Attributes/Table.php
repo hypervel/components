@@ -14,7 +14,7 @@ class Table
      */
     public function __construct(
         public ?string $name = null,
-        public ?string $key = null,
+        public string|false|null $key = null,
         public ?string $keyType = null,
         public ?bool $incrementing = null,
         public ?bool $timestamps = null,

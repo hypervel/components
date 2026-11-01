@@ -1653,6 +1653,23 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame(['abigailotwell@gmail.com'], $results->first()->friends->pluck('email')->unique()->toArray());
     }
 
+    public function testWithWhereHasWithSpecificColumnsAndCallback(): void
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $user->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::withWhereHas('friends:id,email', function ($query) {
+            $query->where('email', 'abigailotwell@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+        $this->assertCount(1, $results->first()->friends);
+        $this->assertSame(['id', 'email'], array_keys($results->first()->friends->first()->getAttributes()));
+        $this->assertSame('abigailotwell@gmail.com', $results->first()->friends->first()->email);
+    }
+
     public function testHasOnNestedSelfReferencingBelongsToManyRelationship(): void
     {
         $user = User::create(['email' => 'taylorotwell@gmail.com']);
@@ -3362,7 +3379,7 @@ class UniqueUserWithCustomKey extends UniqueUser
 {
     public bool $incrementing = false;
 
-    protected string $primaryKey = 'screen_name';
+    protected ?string $primaryKey = 'screen_name';
 
     protected string $keyType = 'string';
 }

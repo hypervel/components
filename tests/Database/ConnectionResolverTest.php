@@ -603,6 +603,9 @@ class ConnectionResolverTest extends TestCase
             $connection->setQueryGrammar(new ConnectionResolverTestTimestampGrammar($connection));
 
             $this->assertSame('U', $resolver->connectionDateFormat('sqlite'));
+            $this->assertSame($connection, $resolver->getHeldConnection());
+            $this->assertSame($connection, $resolver->getHeldConnection(''));
+            $this->assertSame($connection, $resolver->getHeldConnection(ConnectionResolverTestName::Sqlite));
         });
     }
 
@@ -667,6 +670,11 @@ class ConnectionResolverTest extends TestCase
 
         return new ConnectionResolver($app);
     }
+}
+
+enum ConnectionResolverTestName: string
+{
+    case Sqlite = 'sqlite';
 }
 
 class ConnectionResolverTestTimestampGrammar extends SQLiteGrammar

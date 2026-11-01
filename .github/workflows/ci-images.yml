@@ -46,12 +46,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Publish a plain manifest: cleanup deletes untagged versions,
+      # including the required children of an image index.
       - name: Build image
         env:
           IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
         run: |
           docker build \
             --pull \
+            --provenance=false \
             --build-arg PHP_VERSION=${{ matrix.php }} \
             --tag "$IMAGE" \
             --file .github/docker/ci/Dockerfile \

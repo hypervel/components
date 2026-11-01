@@ -9,6 +9,8 @@
         - [PostgreSQL Keepalives](#postgresql-keepalives)
         - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
+        - [Preventing Stale Database Reads](#preventing-stale-database-reads)
+        - [Using the Write Connection for Reads](#using-the-write-connection-for-reads)
     - [Connection Pooling](#connection-pooling)
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -247,6 +249,47 @@ Eloquent models created or retrieved through `::write` retain that connection fo
 The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state belongs to the coroutine's connection and survives an early release of its physical session. If the write side can reach more than one server, the connection keeps its session after writing instead; see [releasing and pinning connections](#releasing-and-pinning-connections). Other coroutines have independent routing state. It is up to you to decide if this is the desired behavior for your application.
 
 A long-running queue worker gives each job its own coroutine, so one job's writes do not send later jobs' reads to the write connection.
+
+<a name="preventing-stale-database-reads"></a>
+#### Preventing Stale Database Reads
+
+While the `sticky` option only affects the current request, the `Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads` middleware allows subsequent requests in the same session to read recently written data from the write connection. This can help prevent users from seeing stale data while your read replicas catch up with the write database.
+
+To enable this behavior, append the middleware to the `web` middleware group in your application's `bootstrap/app.php` file:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Foundation\Http\Middleware\PreventStaleDatabaseReads;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->web(append: [
+        PreventStaleDatabaseReads::class,
+    ]);
+})
+```
+
+The middleware tracks writes to the default database connection in the user's session. By default, requests within two seconds of a write will use the write connection for reads on that connection. You may customize this duration using the middleware's `for` method:
+
+```php
+$middleware->web(append: [
+    PreventStaleDatabaseReads::for(5),
+]);
+```
+
+Since this middleware relies on the session, it must run after the `Hypervel\Session\Middleware\StartSession` middleware. It does not affect reads made by other sessions or on other database connections. Child coroutines resolve their own connections, so their reads and writes are not covered by this middleware.
+
+<a name="using-the-write-connection-for-reads"></a>
+#### Using the Write Connection for Reads
+
+If you need to ensure that all reads on a connection use the write database while executing a callback, you may use the connection's `usingWritePdo` method:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$users = DB::connection()->usingWritePdo(fn ($connection) => $connection->table('users')->get());
+```
+
+This also applies to Eloquent queries and relationship queries executed within the callback using the same connection. The method returns the callback's result and restores the connection's previous read preference when the callback finishes, even if an exception is thrown.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling

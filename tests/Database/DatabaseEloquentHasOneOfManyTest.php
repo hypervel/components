@@ -14,6 +14,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentHasOneOfManyTest extends TestCase
 {
@@ -97,10 +98,40 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame('latest_login', $user->latest_login()->getRelationName());
     }
 
-    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(): void
+    #[TestWith([Login::class])]
+    #[TestWith([SchemaLogin::class])]
+    public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(string $related): void
     {
         $model = TestModel::make();
-        $this->assertSame('logins_of_many', $model->logins()->getRelationName());
+        $relation = $model->logins($related);
+
+        $this->assertSame('logins_of_many', $relation->getRelationName());
+        $this->assertStringContainsString('as "logins_of_many"', $relation->toSql());
+    }
+
+    #[TestWith([Login::class])]
+    #[TestWith([SchemaLogin::class])]
+    public function testItUsesTheTableNameWhenOfManyIsCalledInsideAClosure(string $related): void
+    {
+        User::resolveRelationUsing('first_login_from_closure', function (User $user) use ($related): HasOne {
+            $relation = $user->hasOne($related, 'user_id');
+
+            if ($related === SchemaLogin::class) {
+                // SQLite requires explicit columns instead of schema.table.*.
+                $relation->select(['main.logins.id', 'main.logins.user_id']);
+            }
+
+            return $relation->ofMany('id', 'min');
+        });
+
+        $user = User::create();
+        $first = $user->first_login_from_closure()->create();
+        $user->first_login_from_closure()->create();
+
+        $this->assertTrue($first->is($user->first_login_from_closure));
+        $this->assertTrue($first->is(User::with('first_login_from_closure')->first()->first_login_from_closure));
+        $this->assertCount(1, User::has('first_login_from_closure')->get());
+        $this->assertSame('logins_of_many', $user->first_login_from_closure()->getRelationName());
     }
 
     public function testRelationNameCanBeSet(): void
@@ -717,9 +748,14 @@ class User extends Eloquent
 
 class TestModel extends Eloquent
 {
-    public function logins()
+    /**
+     * Get the latest login.
+     *
+     * @param class-string<Login> $related
+     */
+    public function logins(string $related = Login::class): HasOne
     {
-        return $this->hasOne(Login::class)->ofMany();
+        return $this->hasOne($related)->ofMany();
     }
 }
 
@@ -730,6 +766,11 @@ class Login extends Eloquent
     protected array $guarded = [];
 
     public bool $timestamps = false;
+}
+
+class SchemaLogin extends Login
+{
+    protected ?string $table = 'main.logins';
 }
 
 class LoginWithSoftDeletes extends Eloquent

@@ -14,6 +14,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
 use Mockery as m;
 use Override;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -301,6 +302,16 @@ class BladeTest extends TestCase
         Blade::expects('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'));
 
         $this->artisan('view:cache');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testViewCacheCommandCompilesNamespacedViewsAtThePathTheyRenderFrom(): void
+    {
+        View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components', '..', 'components'));
+
+        $this->artisan('view:cache');
+
+        $this->assertFileExists(Blade::getCompiledPath(View::getFinder()->find('components::panel')));
     }
 
     /**

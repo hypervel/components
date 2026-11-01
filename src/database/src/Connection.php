@@ -1380,6 +1380,27 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Execute the given callback using the write connection for reads.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
+     */
+    public function usingWritePdo(Closure $callback): mixed
+    {
+        $readOnWriteConnection = $this->readOnWriteConnection;
+
+        $this->useWriteConnectionWhenReading();
+
+        try {
+            return $callback($this);
+        } finally {
+            $this->useWriteConnectionWhenReading($readOnWriteConnection);
+        }
+    }
+
+    /**
      * Resolve and record the connection role for an operation.
      *
      * @return 'read'|'write'

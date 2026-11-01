@@ -364,9 +364,14 @@ class PdoConnection extends Connection
         $pdo = $this->resolvePdo();
 
         // Transaction and cleanup failures can invalidate a PDO even without session configurators.
-        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: false);
+        if (static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)) {
+            return $pdo;
+        }
+
+        // Replacement must release the old handle through the setters, not this frame.
+        unset($pdo);
+
+        return $this->synchronizeSession(read: false);
     }
 
     /**
@@ -388,9 +393,13 @@ class PdoConnection extends Connection
 
         $pdo = $this->resolveReadPdo();
 
-        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: true);
+        if (static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)) {
+            return $pdo;
+        }
+
+        unset($pdo);
+
+        return $this->synchronizeSession(read: true);
     }
 
     /**
@@ -400,6 +409,10 @@ class PdoConnection extends Connection
     {
         return $this->readPdo;
     }
+
+    // Laravel's direct-PDO methods, including getDirectPdo(), are intentionally omitted.
+    // Direct endpoints use named connections so their pools own the handles and cleanup;
+    // migrations select that connection through migrations_connection.
 
     /**
      * Resolve the current write PDO without synchronizing session state.
@@ -483,8 +496,9 @@ class PdoConnection extends Connection
     /**
      * Synchronize the desired state for a physical database session.
      */
-    protected function synchronizeSession(PDO $pdo, bool $read): PDO
+    protected function synchronizeSession(bool $read): PDO
     {
+        $pdo = $read ? $this->resolveReadPdo() : $this->resolvePdo();
         $sessionState = static::physicalSessionState($pdo);
 
         if ($sessionState->configuring) {
@@ -497,6 +511,7 @@ class PdoConnection extends Connection
             $sessionState->configuring = true;
 
             try {
+                unset($pdo);
                 $pdo = $this->replaceUnknownSession($read);
             } finally {
                 $sessionState->configuring = false;
@@ -695,7 +710,8 @@ class PdoConnection extends Connection
         $this->lockForPopping = null;
         $this->maxBindings = null;
 
-        $this->pdo = $pdo;
+        // A dead PDO may warn during destruction; that must not interrupt replacement.
+        @$this->pdo = $pdo;
 
         return $this;
     }
@@ -705,7 +721,8 @@ class PdoConnection extends Connection
      */
     public function setReadPdo(PDO|Closure|null $pdo): static
     {
-        $this->readPdo = $pdo;
+        // Suppress only handle destruction, leaving callbacks and rollback errors visible.
+        @$this->readPdo = $pdo;
 
         return $this;
     }
@@ -760,6 +777,7 @@ class PdoConnection extends Connection
                 }
             }
         } finally {
+            unset($pdo, $readPdo, $handle);
             $this->forgetDriverResources();
         }
 
