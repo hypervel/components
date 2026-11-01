@@ -812,7 +812,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Allow dispatching after responses.
      *
-     * Tests only. Changes the underlying dispatcher's worker-lifetime setting.
+     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
      */
     public function withDispatchingAfterResponses(): static
     {
@@ -824,7 +824,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Disable dispatching after responses.
      *
-     * Tests only. Changes the underlying dispatcher's worker-lifetime setting.
+     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
      */
     public function withoutDispatchingAfterResponses(): static
     {
