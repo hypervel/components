@@ -65,6 +65,19 @@ class ConfigCacheCommandTest extends TestCase
         $this->assertFileExists($this->app->getCachedConfigPath());
     }
 
+    public function testConfigurationIsCachedAtomically(): void
+    {
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('replace')->once()->with($this->app->getCachedConfigPath(), m::type('string'), null)->passthru();
+        $files->shouldNotReceive('put');
+
+        $this->app->instance('files', $files);
+
+        $this->artisan('config:cache')->assertSuccessful();
+
+        $this->assertFileExists($this->app->getCachedConfigPath());
+    }
+
     public function testConfigurationCacheFailsWithNonSerializableValue(): void
     {
         $files = new Filesystem;
