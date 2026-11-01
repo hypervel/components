@@ -820,6 +820,26 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('25', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
     }
 
+    public function testCurrentRouteIsResetWhenTheNextRequestDoesNotMatch(): void
+    {
+        $router = $this->getRouter();
+        $router->get('invoices/{invoice}', fn (string $invoice): string => $invoice)->name('invoices.show');
+
+        $this->assertSame('123', $router->dispatch(Request::create('invoices/123', 'GET'))->getContent());
+        $this->assertSame('invoices.show', $router->currentRouteName());
+
+        try {
+            $router->dispatch(Request::create('missing', 'GET'));
+
+            $this->fail('A NotFoundHttpException should have been thrown.');
+        } catch (NotFoundHttpException) {
+        }
+
+        $this->assertNull($router->current());
+        $this->assertNull($router->currentRouteName());
+        $this->assertFalse($router->is('invoices.show'));
+    }
+
     public function testRoutesDontMatchNonMatchingDomain(): void
     {
         $this->expectException(NotFoundHttpException::class);
