@@ -164,8 +164,12 @@ trait CanBeOneOfMany
      */
     protected function getDefaultOneOfManyJoinAlias(string $relation): string
     {
-        return $relation == $this->query->getModel()->getTable()
-            ? $relation . '_of_many'
+        // Schema qualification is not part of an alias, but the table name still
+        // needs a distinct join alias when the relation is named after that table.
+        $table = last(explode('.', $this->query->getModel()->getTable()));
+
+        return last(explode('.', $relation)) === $table
+            ? $table . '_of_many'
             : $relation;
     }
 
