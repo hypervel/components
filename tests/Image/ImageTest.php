@@ -34,6 +34,7 @@ use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
 use Hypervel\Tests\TestCase;
 use Imagick;
+use ImagickException;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -365,9 +366,16 @@ class ImageTest extends TestCase
             $imagick->newImage(10, 10, 'red');
             $imagick->setImageFormat('jxl');
             $contents = $imagick->getImageBlob();
+        } catch (ImagickException) {
+            // A registered format may still lack its encoding delegate.
+            $contents = '';
         } finally {
             $imagick->clear();
             $imagick->destroy();
+        }
+
+        if ($contents === '') {
+            $this->markTestSkipped('The Imagick extension cannot encode jxl images.');
         }
 
         $mimeType = (new finfo(FILEINFO_MIME_TYPE))->buffer($contents);

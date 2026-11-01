@@ -1499,15 +1499,24 @@ class DatabasePdoConnectionTest extends TestCase
     {
         $failure = new RuntimeException('Session configuration failed.');
         PdoConnection::configureSessionUsing(new class($failure) implements SessionConfigurator {
+            /**
+             * Create a configurator that fails once.
+             */
             public function __construct(private ?RuntimeException $failure)
             {
             }
 
+            /**
+             * Get the desired session state.
+             */
             public function state(PdoConnection $connection): ?string
             {
                 return 'configured';
             }
 
+            /**
+             * Apply the session state or throw the configured failure once.
+             */
             public function apply(PDO $pdo, string $state, PdoConnection $connection): void
             {
                 if ($this->failure !== null) {

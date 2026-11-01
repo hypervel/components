@@ -33,6 +33,9 @@ class TransformsRequestTest extends TestCase
         $this->assertSame($original, $request->json()->all());
     }
 
+    /**
+     * Provide middleware that transforms request input.
+     */
     public static function middlewareProvider(): iterable
     {
         yield [TransformsRequest::class];
@@ -59,6 +62,9 @@ class TransformsRequestTest extends TestCase
         }
     }
 
+    /**
+     * Provide middleware and values that amplify nested input keys.
+     */
     public static function amplifiedInputProvider(): iterable
     {
         foreach ([TransformsRequest::class, TrimStrings::class, ConvertEmptyStringsToNull::class] as $middleware) {
@@ -73,6 +79,9 @@ class TransformsRequestTest extends TestCase
         $middleware = new class extends TransformsRequest {
             protected int $maxKeyBytes = 10;
 
+            /**
+             * Return the full input path for the value.
+             */
             protected function transform(string $key, mixed $value): mixed
             {
                 return $key;
@@ -146,6 +155,9 @@ class TransformsRequestTest extends TestCase
         $middleware = new class extends TransformsRequest {
             protected int $maxKeyBytes = 10;
 
+            /**
+             * Yield during transformation to interleave requests.
+             */
             protected function transform(string $key, mixed $value): mixed
             {
                 usleep(5000);
