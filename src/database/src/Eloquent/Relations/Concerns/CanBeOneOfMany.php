@@ -285,7 +285,9 @@ trait CanBeOneOfMany
      */
     protected function guessRelationship(): string
     {
-        return debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)[2]['function'];
+        $relation = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)[2]['function'];
+
+        return str_contains($relation, '{closure') ? $this->query->getModel()->getTable() : $relation;
     }
 
     /**
