@@ -240,7 +240,7 @@
     },
     "conflict": {
         "aws/aws-sdk-php": "<3.369.1",
-        "intervention/image": "<4.0 || >=5.0",
+        "intervention/image": "<4.2 || >=5.0",
         "league/flysystem-ftp": "<3.13",
         "league/flysystem-sftp-v3": "<3.13"
     },

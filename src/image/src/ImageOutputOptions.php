@@ -14,7 +14,7 @@ class ImageOutputOptions
     /**
      * The output format.
      *
-     * @var null|'avif'|'bmp'|'gif'|'heic'|'jpeg'|'jpg'|'png'|'webp'
+     * @var null|'avif'|'bmp'|'gif'|'heic'|'jpeg'|'jpg'|'jxl'|'png'|'webp'
      */
     public ?string $format = null;
 
