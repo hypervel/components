@@ -52,6 +52,7 @@ use JsonSerializable;
 use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionProperty;
 use RuntimeException;
 use Stringable;
 use Throwable;
@@ -312,13 +313,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $classAttributes = [];
 
     /**
-     * Cache of whether each class directly declares each class attribute.
+     * Cache of whether class attributes override inherited properties.
      *
-     * Both positive and negative results are retained for the worker lifetime.
+     * True overrides unconditionally; false keeps the property. Other values
+     * are inherited property defaults that may be replaced if still unchanged.
      *
-     * @var array<string, bool>
+     * @var array<string, bool|string|UnitEnum>
      */
-    protected static array $classDeclaredAttributes = [];
+    protected static array $classAttributeOverrides = [];
 
     /**
      * Cache of the nearest class declaring each property.
@@ -538,18 +540,15 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         /** @var null|Table $table */
         $table = static::resolveClassAttribute(Table::class);
 
-        $declaresTable = static::classPropertyDeclarer('table') === static::class;
-
-        if (! $declaresTable && static::classDeclaresAttribute(Table::class)) {
-            $this->table = $table->name ?? null;
+        // Keep an attribute's override in descendants, and do not clear an inherited
+        // table when Table only configures other model settings.
+        if ($table?->name !== null && $this->classAttributeOverridesProperty(Table::class, 'table')) {
+            $this->table = $table->name;
         } else {
             $this->table ??= $table->name ?? null;
         }
 
-        // Reuse declaration metadata instead of reflecting on every hydrated model.
-        $declaresConnection = static::classPropertyDeclarer('connection') === static::class;
-
-        if (! $declaresConnection && static::classDeclaresAttribute(ConnectionAttribute::class)) {
+        if ($this->classAttributeOverridesProperty(ConnectionAttribute::class, 'connection')) {
             $this->connection = static::resolveClassAttribute(ConnectionAttribute::class, 'name');
         } else {
             $this->connection ??= static::resolveClassAttribute(ConnectionAttribute::class, 'name');
@@ -604,7 +603,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$booted = [];
         static::$bootedCallbacks = [];
         static::$classAttributes = [];
-        static::$classDeclaredAttributes = [];
+        static::$classAttributeOverrides = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
         self::flushScopeCaches();
@@ -2584,18 +2583,45 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
-     * Determine whether a class directly declares an attribute.
+     * Determine whether a class attribute should override the property.
+     *
+     * Direct attributes override inherited properties. Inherited attributes only
+     * replace more distant property defaults, keeping different values assigned
+     * during construction. Assignments equal to a default are indistinguishable
+     * from untouched defaults and are replaced.
      *
      * @param class-string $attributeClass
+     * @param 'connection'|'table' $property
      */
-    protected static function classDeclaresAttribute(string $attributeClass): bool
+    protected function classAttributeOverridesProperty(string $attributeClass, string $property): bool
     {
         $class = static::class;
-        $cacheKey = $class . '@' . $attributeClass;
+        $cacheKey = $class . '@' . $attributeClass . '@' . $property;
 
-        return static::$classDeclaredAttributes[$cacheKey] ??= (
-            new ReflectionClass($class)
-        )->getAttributes($attributeClass) !== [];
+        if (! isset(static::$classAttributeOverrides[$cacheKey])) {
+            $declarer = static::classPropertyDeclarer($property);
+            $reflection = new ReflectionClass($class);
+            $override = false;
+
+            do {
+                if ($reflection->getName() === $declarer) {
+                    break;
+                }
+
+                if ($reflection->getAttributes($attributeClass) !== []) {
+                    $override = $reflection->getName() === $class
+                        ? true
+                        : ((new ReflectionProperty($class, $property))->getDefaultValue() ?? false);
+                    break;
+                }
+            } while ($reflection = $reflection->getParentClass());
+
+            static::$classAttributeOverrides[$cacheKey] = $override;
+        }
+
+        $override = static::$classAttributeOverrides[$cacheKey];
+
+        return $override === true || ($override !== false && $override === $this->{$property});
     }
 
     /**
@@ -3029,7 +3055,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$globalScopes = [];
         static::$resolvesDefaultConnections = [];
         static::$classAttributes = [];
-        static::$classDeclaredAttributes = [];
+        static::$classAttributeOverrides = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
         self::flushScopeCaches();

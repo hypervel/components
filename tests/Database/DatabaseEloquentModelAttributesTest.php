@@ -83,6 +83,19 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame('parent_attr', $model->getTable());
     }
 
+    public function testGrandchildKeepsTableAttributeOverride(): void
+    {
+        $this->assertSame('child_attr', (new GrandchildModelWithTableAttribute)->getTable());
+    }
+
+    public function testTableAttributeWithoutNamePreservesInheritedTable(): void
+    {
+        $model = new ChildModelWithNamelessTableAttribute;
+
+        $this->assertSame('parent_prop', $model->getTable());
+        $this->assertFalse($model->usesTimestamps());
+    }
+
     public function testTableAttributeIsResolvedFromATrait(): void
     {
         $model = new ModelWithTableAttributeTrait;
@@ -344,11 +357,61 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame('secondary', $model->getConnectionName());
     }
 
+    public function testGrandchildKeepsConnectionAttributeOverride(): void
+    {
+        $this->assertSame('secondary', (new GrandchildModelWithConnectionAttribute)->getConnectionName());
+    }
+
+    public function testInheritedLocationAttributesPreserveValuesAssignedDuringConstruction(): void
+    {
+        $inherited = new class extends ModelWithLocationAttributes {
+            use SetsRuntimeModelLocation;
+        };
+
+        $this->assertSame('runtime_table', $inherited->getTable());
+        $this->assertSame('runtime_connection', $inherited->getConnectionName());
+
+        $grandchild = new class extends ModelWithLocationAttributeOverrides {
+            /**
+             * Set runtime configuration before initializing the model.
+             */
+            public function __construct(array $attributes = [])
+            {
+                $this->setTable('runtime_table');
+                $this->setConnection('runtime_connection');
+
+                parent::__construct($attributes);
+            }
+        };
+
+        $this->assertSame('runtime_table', $grandchild->getTable());
+        $this->assertSame('runtime_connection', $grandchild->getConnectionName());
+
+        $direct = new #[Table('attribute_table')] #[Connection('secondary')] class extends Model {
+            use SetsRuntimeModelLocation;
+        };
+
+        $this->assertSame('attribute_table', $direct->getTable());
+        $this->assertSame('secondary', $direct->getConnectionName());
+    }
+
     public function testChildConnectionPropertyOverridesParentConnectionAttribute(): void
     {
         $model = new ChildModelWithConnectionProperty;
 
         $this->assertSame('default', $model->getConnectionName());
+    }
+
+    public function testLocationAttributesInitializePropertiesWithoutDefaults(): void
+    {
+        $model = new #[Table('attribute_table')] #[Connection('secondary')] class extends Model {
+            protected ?string $table;
+
+            protected UnitEnum|string|null $connection;
+        };
+
+        $this->assertSame('attribute_table', $model->getTable());
+        $this->assertSame('secondary', $model->getConnectionName());
     }
 
     public function testTimestampsAttribute(): void
@@ -569,28 +632,29 @@ class DatabaseEloquentModelAttributesTest extends TestCase
 
         $reflection = new ReflectionClass(Model::class);
         $guardConfigurationsProperty = $reflection->getProperty('guardConfigurations');
-        $classDeclaredAttributesProperty = $reflection->getProperty('classDeclaredAttributes');
+        $classAttributeOverridesProperty = $reflection->getProperty('classAttributeOverrides');
         $classPropertyDeclarersProperty = $reflection->getProperty('classPropertyDeclarers');
 
         $guardConfigurations = $guardConfigurationsProperty->getValue();
-        $classDeclaredAttributes = $classDeclaredAttributesProperty->getValue();
+        $classAttributeOverrides = $classAttributeOverridesProperty->getValue();
         $classPropertyDeclarers = $classPropertyDeclarersProperty->getValue();
 
         $guardConfigurations[ModelWithUnguardedAttribute::class] = [
             'guarded' => ['cached'],
             'propertyDefault' => ['*'],
         ];
-        $classDeclaredAttributes[ChildModelWithTableAttribute::class . '@' . Table::class] = false;
+        $cacheKey = ChildModelWithTableAttribute::class . '@' . Table::class . '@table';
+        $classAttributeOverrides[$cacheKey] = false;
 
         $guardConfigurationsProperty->setValue(null, $guardConfigurations);
-        $classDeclaredAttributesProperty->setValue(null, $classDeclaredAttributes);
+        $classAttributeOverridesProperty->setValue(null, $classAttributeOverrides);
 
         $this->assertSame(['cached'], (new ModelWithUnguardedAttribute)->getGuarded());
         $this->assertSame('parent_prop', (new ChildModelWithTableAttribute)->getTable());
 
-        $classDeclaredAttributes[ChildModelWithTableAttribute::class . '@' . Table::class] = true;
+        unset($classAttributeOverrides[$cacheKey]);
         $classPropertyDeclarers[ChildModelWithTableAttribute::class . '@table'] = ChildModelWithTableAttribute::class;
-        $classDeclaredAttributesProperty->setValue(null, $classDeclaredAttributes);
+        $classAttributeOverridesProperty->setValue(null, $classAttributeOverrides);
         $classPropertyDeclarersProperty->setValue(null, $classPropertyDeclarers);
 
         $this->assertSame('parent_prop', (new ChildModelWithTableAttribute)->getTable());
@@ -598,7 +662,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         Model::clearBootedModels();
 
         $this->assertSame([], $guardConfigurationsProperty->getValue());
-        $this->assertSame([], $classDeclaredAttributesProperty->getValue());
+        $this->assertSame([], $classAttributeOverridesProperty->getValue());
         $this->assertSame([], $classPropertyDeclarersProperty->getValue());
         $this->assertSame([], (new ModelWithUnguardedAttribute)->getGuarded());
         $this->assertSame('child_attr', (new ChildModelWithTableAttribute)->getTable());
@@ -961,6 +1025,15 @@ class ChildModelWithTableAttribute extends ParentModelWithTableProperty
 {
 }
 
+class GrandchildModelWithTableAttribute extends ChildModelWithTableAttribute
+{
+}
+
+#[Table(timestamps: false)]
+class ChildModelWithNamelessTableAttribute extends ParentModelWithTableProperty
+{
+}
+
 #[Table(name: 'parent_attr')]
 class ParentModelWithTableAttribute extends Model
 {
@@ -1066,6 +1139,10 @@ class ChildModelWithConnectionAttribute extends ParentModelWithConnectionPropert
 {
 }
 
+class GrandchildModelWithConnectionAttribute extends ChildModelWithConnectionAttribute
+{
+}
+
 #[Connection('secondary')]
 class ParentModelWithConnectionAttribute extends Model
 {
@@ -1078,6 +1155,37 @@ class ChildModelWithNoConnection extends ParentModelWithConnectionAttribute
 class ChildModelWithConnectionProperty extends ParentModelWithConnectionAttribute
 {
     protected UnitEnum|string|null $connection = 'default';
+}
+
+trait SetsRuntimeModelLocation
+{
+    /**
+     * Configure the model's table and connection during initialization.
+     */
+    protected function initializeSetsRuntimeModelLocation(): void
+    {
+        $this->setTable('runtime_table');
+        $this->setConnection('runtime_connection');
+    }
+}
+
+#[Table('attribute_table')]
+#[Connection('secondary')]
+class ModelWithLocationAttributes extends Model
+{
+}
+
+class ModelWithLocationProperties extends Model
+{
+    protected ?string $table = 'parent_table';
+
+    protected UnitEnum|string|null $connection = 'default';
+}
+
+#[Table('attribute_table')]
+#[Connection('secondary')]
+class ModelWithLocationAttributeOverrides extends ModelWithLocationProperties
+{
 }
 
 #[Table(timestamps: false)]

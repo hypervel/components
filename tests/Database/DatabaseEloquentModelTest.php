@@ -4364,7 +4364,7 @@ class DatabaseEloquentModelTest extends TestCase
         $reflection->setStaticPropertyValue('relationResolvers', [ModelStub::class => ['foo' => fn () => null]]);
         $reflection->setStaticPropertyValue('guardableColumns', [ModelStub::class => ['id']]);
         $reflection->setStaticPropertyValue('guardConfigurations', [ModelStub::class => ['guarded' => [], 'propertyDefault' => ['*']]]);
-        $reflection->setStaticPropertyValue('classDeclaredAttributes', [ModelStub::class . '@attribute' => true]);
+        $reflection->setStaticPropertyValue('classAttributeOverrides', [ModelStub::class . '@attribute@property' => true]);
         $reflection->setStaticPropertyValue('classPropertyDeclarers', [ModelStub::class . '@table' => ModelStub::class]);
         $reflection->setStaticPropertyValue('mutatorCache', [ModelStub::class => ['foo']]);
         $reflection->setStaticPropertyValue('attributeMutatorCache', [ModelStub::class => ['foo' => true]]);
@@ -4399,7 +4399,7 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $reflection->getStaticPropertyValue('relationResolvers'));
         $this->assertSame([], $reflection->getStaticPropertyValue('guardableColumns'));
         $this->assertSame([], $reflection->getStaticPropertyValue('guardConfigurations'));
-        $this->assertSame([], $reflection->getStaticPropertyValue('classDeclaredAttributes'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('classAttributeOverrides'));
         $this->assertSame([], $reflection->getStaticPropertyValue('classPropertyDeclarers'));
         $this->assertTrue(Model::$snakeAttributes);
         $this->assertSame([], $reflection->getStaticPropertyValue('mutatorCache'));
