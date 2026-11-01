@@ -1045,5 +1045,4 @@ assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'takeUntil', LazyAnima
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'takeWhile', LazyAnimal, Hypervel\\Support\\LazyCollection<int, LazyAnimal>>", $coll->takeWhile);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'unique', LazyAnimal, Hypervel\\Support\\LazyCollection<int, LazyAnimal>>", $coll->unique);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'unless', LazyAnimal, Hypervel\\Support\\LazyCollection<int, LazyAnimal>>", $coll->unless);
-assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'until', LazyAnimal, Hypervel\\Support\\LazyCollection<int, LazyAnimal>>", $coll->until);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'when', LazyAnimal, Hypervel\\Support\\LazyCollection<int, LazyAnimal>>", $coll->when);

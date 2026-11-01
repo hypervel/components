@@ -1257,7 +1257,6 @@ assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'takeUntil', Animal, H
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'takeWhile', Animal, Hypervel\\Support\\Collection<int, Animal>>", $coll->takeWhile);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'unique', Animal, Hypervel\\Support\\Collection<int, Animal>>", $coll->unique);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'unless', Animal, Hypervel\\Support\\Collection<int, Animal>>", $coll->unless);
-assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'until', Animal, Hypervel\\Support\\Collection<int, Animal>>", $coll->until);
 assertType("Hypervel\\Support\\HigherOrderCollectionProxy<'when', Animal, Hypervel\\Support\\Collection<int, Animal>>", $coll->when);
 
 enum Digit
