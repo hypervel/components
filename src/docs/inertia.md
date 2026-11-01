@@ -14408,6 +14408,12 @@ The `--runtime` flag on the Artisan command overrides the configured value for a
 php artisan inertia:start-ssr --runtime=bun
 ```
 
+By default, the command stops the server at the configured SSR URL before starting. If that URL points to a shared server or load balancer, use `--no-stop-before-start` to start a new instance without sending a shutdown request.
+
+```bash
+php artisan inertia:start-ssr --no-stop-before-start
+```
+
 You may also enable the `ensure_runtime_exists` option to verify the runtime binary exists before attempting to start the SSR server. The command will exit with an error if the binary cannot be found.
 
 ```php
