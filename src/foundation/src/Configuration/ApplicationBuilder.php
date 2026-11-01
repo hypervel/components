@@ -13,7 +13,7 @@ use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\Exceptions\Handler;
-use Hypervel\Foundation\Http\HealthCheckController;
+use Hypervel\Foundation\Http\HealthCheck;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider as AppRouteServiceProvider;
@@ -188,7 +188,7 @@ class ApplicationBuilder
             }
 
             if (is_string($health)) {
-                Route::get($health, HealthCheckController::class);
+                Route::get($health, HealthCheck::class);
             }
 
             if (is_string($web) || is_array($web)) {
