@@ -28,7 +28,7 @@ class CustomBuilderForwardingTest extends TestCase
         $this->assertSame($builder->getModel(), $builder->models()->sole());
     }
 
-    public function testRelationsDecorateFluentResultsButRetainTerminalsAndClonedBuilders(): void
+    public function testRelationsDecorateFluentResultsRetainTerminalsAndCloneTheirQueries(): void
     {
         $builder = $this->builder(new ForwardingTestModel);
         $parent = new ForwardingTestModel;
@@ -40,9 +40,11 @@ class CustomBuilderForwardingTest extends TestCase
         $this->assertSame(42, $relation->rawAnswer());
         $this->assertSame($builder->getModel(), $relation->models()->sole());
         $clone = $relation->clone();
-        $this->assertInstanceOf(ForwardingTestBuilder::class, $clone);
-        $this->assertNotSame($builder, $clone);
-        $this->assertNotSame($builder->getQuery(), $clone->getQuery());
+        $this->assertInstanceOf(HasMany::class, $clone);
+        $this->assertNotSame($relation, $clone);
+        $this->assertInstanceOf(ForwardingTestBuilder::class, $clone->getQuery());
+        $this->assertNotSame($builder, $clone->getQuery());
+        $this->assertNotSame($builder->getQuery(), $clone->getQuery()->getQuery());
     }
 
     public function testScopesWinOverQueryForwardingButNotNativeEloquentOrRelationMethods(): void
