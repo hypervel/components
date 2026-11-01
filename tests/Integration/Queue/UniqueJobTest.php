@@ -543,6 +543,43 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get());
     }
 
+    public function testListenerLockIsReleasedWhenPushingToTheQueueFails(): void
+    {
+        Queue::extend('failing', fn () => new class implements ConnectorInterface {
+            /**
+             * Establish a queue connection.
+             */
+            public function connect(array $config): QueueContract
+            {
+                return new class extends NullQueue {
+                    /**
+                     * Push a new job onto the queue.
+                     */
+                    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): never
+                    {
+                        throw new RuntimeException('Queue unavailable.');
+                    }
+                };
+            }
+        });
+
+        config()->set('queue.connections.failing', ['driver' => 'failing']);
+
+        Event::listen(UniqueTestEvent::class, UniqueTestFailingPushListener::class);
+
+        try {
+            event(new UniqueTestEvent);
+
+            $this->fail('Expected pushing the listener to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Queue unavailable.', $exception->getMessage());
+        }
+
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', UniqueTestFailingPushListener::class) . ':';
+
+        $this->assertTrue($this->app->get(Cache::class)->lock($lockKey, 10)->get());
+    }
+
     /**
      * Get the unique lock key for the given job.
      */
@@ -817,6 +854,18 @@ class UniqueTestListener implements ShouldQueue, ShouldBeUnique
     {
         return 'unique-id-1';
     }
+
+    /**
+     * Handle the event.
+     */
+    public function handle(UniqueTestEvent $event): void
+    {
+    }
+}
+
+class UniqueTestFailingPushListener implements ShouldQueue, ShouldBeUnique
+{
+    public string $connection = 'failing';
 
     /**
      * Handle the event.
