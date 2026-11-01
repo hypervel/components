@@ -349,7 +349,7 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
         $this->validateTextResponse($data);
 
         return new EmbeddingsResponse(
-            (new Collection($data['data'] ?? []))->pluck('embedding')->all(),
+            (new Collection($data['data'] ?? []))->sortBy('index')->pluck('embedding')->all(),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
         );

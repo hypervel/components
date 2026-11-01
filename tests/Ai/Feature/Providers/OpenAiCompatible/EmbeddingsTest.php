@@ -14,6 +14,7 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class EmbeddingsTest extends TestCase
@@ -56,14 +57,18 @@ class EmbeddingsTest extends TestCase
         });
     }
 
-    public function testEmbeddingsResponseIsCorrectlyParsed(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testEmbeddingsResponseIsCorrectlyParsed(bool $shuffled): void
     {
+        $embeddings = [
+            ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
+            ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
+        ];
+
         Http::fake(['*' => Http::response([
             'object' => 'list',
-            'data' => [
-                ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
-                ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
-            ],
+            'data' => $shuffled ? array_reverse($embeddings) : $embeddings,
             'usage' => ['prompt_tokens' => 10],
         ])]);
 

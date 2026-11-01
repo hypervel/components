@@ -100,7 +100,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
      */
     protected function parseEmbeddings(array $data, int $expectedCount): array
     {
-        $embeddings = (new Collection($data['data'] ?? []))->pluck('embedding');
+        $embeddings = (new Collection($data['data'] ?? []))->sortBy('index')->pluck('embedding');
 
         if ($embeddings->count() !== $expectedCount) {
             throw new AiException('OpenAI-compatible Error: [invalid_response] The response did not contain the expected number of embeddings.');
