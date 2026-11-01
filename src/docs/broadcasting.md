@@ -961,6 +961,8 @@ If you would like all of your broadcast events to use the same queue without cus
 
 Broadcast events implementing `Hypervel\Contracts\Broadcasting\ShouldBeUnique` also support the `Hypervel\Queue\Attributes\UniqueFor` attribute to configure the lock's lifetime in seconds, just like [unique jobs](/docs/{{version}}/queues#unique-jobs).
 
+When a unique broadcast is skipped because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event. Its `job` property contains the `UniqueBroadcastEvent` wrapper, whose `event` property contains your broadcast event.
+
 If you would like to broadcast your event using the `sync` queue instead of the default queue driver, you can implement the `ShouldBroadcastNow` interface instead of `ShouldBroadcast`:
 
 ```php

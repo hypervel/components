@@ -48,6 +48,7 @@ use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Attributes\UniqueFor;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SyncQueue;
@@ -58,6 +59,7 @@ use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
@@ -323,6 +325,28 @@ class BroadcastManagerTest extends TestCase
         Broadcast::queue(new TestEventUniqueWithInheritedUniqueFor);
 
         Queue::assertPushed(UniqueBroadcastEvent::class, 2);
+    }
+
+    public function testUniqueEventsEmitUniqueJobSkippedEventWhenLockNotAcquired(): void
+    {
+        Queue::fake();
+
+        $skipped = [];
+
+        Event::listen(UniqueJobSkipped::class, function (UniqueJobSkipped $event) use (&$skipped): void {
+            $skipped[] = $event->job;
+        });
+
+        Broadcast::queue(new TestEventUnique);
+
+        $this->assertSame([], $skipped);
+
+        Broadcast::queue(new TestEventUnique);
+
+        Queue::assertPushed(UniqueBroadcastEvent::class, 1);
+        $this->assertCount(1, $skipped);
+        $this->assertInstanceOf(UniqueBroadcastEvent::class, $skipped[0]);
+        $this->assertInstanceOf(TestEventUnique::class, $skipped[0]->event);
     }
 
     public function testUniqueForAttributeDoesNotMakeEventsUniqueWithoutTheContract(): void
