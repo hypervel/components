@@ -3843,6 +3843,8 @@ Bus::fake();
 Bus::assertNothingDispatched();
 ```
 
+When faking only selected jobs with `Bus::fake([...])`, you may call `Bus::withoutDispatchingAfterResponses()` to run unfaked after-response jobs synchronously during the test. Call `Bus::withDispatchingAfterResponses()` to restore deferred dispatching.
+
 <a name="faking-a-subset-of-jobs"></a>
 ### Faking a Subset of Jobs
 
