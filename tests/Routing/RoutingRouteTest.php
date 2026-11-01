@@ -851,7 +851,6 @@ class RoutingRouteTest extends TestCase
     }
 
     #[TestWith(['dispatch'])]
-    #[TestWith(['dispatchToRoute'])]
     #[TestWith(['dispatchToCallback'])]
     public function testCurrentRouteIsResetWhenTheNextRequestDoesNotMatch(string $method): void
     {
@@ -875,6 +874,22 @@ class RoutingRouteTest extends TestCase
         $this->assertNull($router->current());
         $this->assertNull($router->currentRouteName());
         $this->assertFalse($router->is('invoices.show'));
+    }
+
+    public function testFailedNestedRouteDispatchKeepsTheCurrentRoute(): void
+    {
+        $router = $this->getRouter();
+        $router->get('invoices/{invoice}', function () use ($router): string {
+            try {
+                $router->dispatchToRoute(Request::create('missing', 'GET'));
+                $this->fail('A NotFoundHttpException should have been thrown.');
+            } catch (NotFoundHttpException) {
+            }
+
+            return $router->input('invoice');
+        });
+
+        $this->assertSame('123', $router->dispatch(Request::create('invoices/123', 'GET'))->getContent());
     }
 
     public function testRoutesDontMatchNonMatchingDomain(): void
