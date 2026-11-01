@@ -576,6 +576,8 @@ If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote s
 
 Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
 
+If an MCP client's URL redirects to another origin that needs its custom headers, configure the final URL directly. Hypervel follows the redirect without forwarding those headers; see [custom client headers](/docs/{{version}}/mcp#client-custom-headers).
+
 Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
 
 MCP servers do not negotiate protocol revision `2025-03-26`. Clients limited to that revision cannot connect; use clients that support `2025-06-18` or newer. See [protocol versions](/docs/{{version}}/mcp#protocol-versions).

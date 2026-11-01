@@ -8,12 +8,14 @@ use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\LineReader;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Response as ClientResponse;
 use Hypervel\Mcp\Client\Contracts\IsolatesExchanges;
 use Hypervel\Mcp\Client\Contracts\Transport;
 use Hypervel\Mcp\Client\Contracts\UsesProtocol;
 use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
 use Hypervel\Mcp\Client\Exceptions\TransportException;
+use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\WwwAuthenticateChallenge;
 use Hypervel\Mcp\Enums\ProtocolHandshake;
 use Hypervel\Mcp\Enums\ProtocolVersion;
@@ -193,7 +195,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 
         try {
             try {
-                $response = Http::withHeaders($this->headers($headers))
+                $response = $this->request($headers)
                     ->withBody($message, 'application/json')
                     ->timeout($timeoutSeconds)
                     ->withOptions(['stream' => true])
@@ -384,6 +386,28 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     }
 
     /**
+     * Prepare a request with custom headers restricted to the configured origin.
+     *
+     * @param array<string, string> $headers
+     */
+    protected function request(array $headers = []): PendingRequest
+    {
+        $request = Http::withHeaders($this->headers($headers));
+
+        if ($this->customHeaders === []) {
+            return $request;
+        }
+
+        // Preserve protocol headers: a redirect target may have issued the session during initialization.
+        $customHeaders = array_values(array_filter(
+            array_keys($this->customHeaders),
+            fn (string $name): bool => ! $this->reserved($name),
+        ));
+
+        return $request->withMiddleware(new RestrictHeadersToOrigin($this->url, $customHeaders));
+    }
+
+    /**
      * Determine whether the header belongs to the MCP protocol.
      */
     protected function reserved(string $name): bool
@@ -513,7 +537,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
         }
 
         try {
-            Http::withHeaders($this->headers())
+            $this->request()
                 ->timeout($this->timeoutSeconds)
                 ->delete($this->url);
         } catch (CanceledException $exception) {

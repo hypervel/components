@@ -2062,6 +2062,21 @@ $client = Client::web('https://api.githubcopilot.com/mcp/')->withToken(
 
 If you already obtained a suitable token through [Socialite](/docs/{{version}}/socialite) or another account-linking flow, pass that token to `withToken`; you do not need to register MCP OAuth routes.
 
+<a name="client-custom-headers"></a>
+#### Custom Headers
+
+If a server expects an API key or another custom header, use the `withHeaders` method. Named clients may define the same values using the `headers` configuration option:
+
+```php
+use Hypervel\Mcp\Client;
+
+$client = Client::web('https://projects.example.com/mcp')->withHeaders([
+    'X-Api-Key' => config()->string('services.projects.api_key'),
+]);
+```
+
+Custom headers stay on the configured URL's origin: its scheme, host and port. Redirects to another origin are followed without those headers, so connect to the destination server's URL directly if it needs them.
+
 <a name="client-oauth"></a>
 #### Linking User Accounts With OAuth
 

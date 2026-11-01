@@ -14,6 +14,7 @@ use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Client\Response;
 use Hypervel\Mcp\Client\Exceptions\OAuthException;
+use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\Concerns\InteractsWithOAuthEndpoints;
 use Hypervel\Support\Arr;
 use Psr\Http\Message\RequestInterface;
@@ -117,6 +118,7 @@ class AuthServerDiscovery
         try {
             return $this->oAuthRequest()
                 ->withHeaders($headers)
+                ->withMiddleware(new RestrictHeadersToOrigin($resourceUrl, array_keys($headers)))
                 ->withMiddleware(function (callable $handler): Closure {
                     return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
                         // Resolve every hop through the same boundary as other OAuth requests, which

@@ -147,6 +147,34 @@ class InteractsWithOAuthEndpointsTest extends TestCase
         }
     }
 
+    #[TestWith(['https://other.test/mcp'], 'different host')]
+    #[TestWith(['https://mcp.test:8443/mcp'], 'different port')]
+    public function testResourceHeadersStayOnTheirOriginDuringProbeRedirects(string $redirectUrl): void
+    {
+        $requests = [];
+        Http::fake(function ($request) use (&$requests): void {
+            $requests[] = $request;
+        });
+        Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 307, ['Location' => 'https://mcp.test:443/next']),
+            'https://mcp.test/next' => Http::response('', 307, ['Location' => $redirectUrl]),
+            $redirectUrl => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://metadata.test/resource"',
+            ]),
+        ]);
+
+        (new AuthServerDiscovery)->requireAdvertised(
+            'https://mcp.test/mcp',
+            'https://metadata.test/resource',
+            ['X-Api-Key' => 'resource-secret'],
+        );
+
+        $this->assertCount(3, $requests);
+        $this->assertTrue($requests[0]->hasHeader('X-Api-Key', 'resource-secret'));
+        $this->assertTrue($requests[1]->hasHeader('X-Api-Key', 'resource-secret'));
+        $this->assertFalse($requests[2]->hasHeader('X-Api-Key'));
+    }
+
     #[TestWith([false], 'environment proxy')]
     #[TestWith([true], 'policy proxy')]
     public function testProbesPreserveHttpsProxiesAndPinsOnEachHop(bool $policyProxy): void
