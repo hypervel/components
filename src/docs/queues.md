@@ -493,7 +493,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
 In the example above, the `UpdateSearchIndex` job is unique. So, the job will not be dispatched if another instance of the job is already on the queue and has not finished processing.
 
-When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event. The event's `job` property contains the job that was skipped.
+When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event if an active listener is registered. The event's `job` property contains the job that was skipped.
 
 In certain cases, you may want to define a specific "key" that makes the job unique or you may want to specify a timeout beyond which the job no longer stays unique. To accomplish this, you may use the `UniqueFor` attribute and define a `uniqueId` method on your job class:
 

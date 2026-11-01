@@ -237,17 +237,6 @@ class BroadcastManager implements BroadcastingFactoryContract
             ? new UniqueBroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
             : new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event);
 
-        if ($event instanceof ShouldBeUnique && $this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
-            /** @var EventDispatcher $events */
-            $events = $this->app->make('events');
-
-            if ($events->hasListeners(UniqueJobSkipped::class)) {
-                $events->dispatch(new UniqueJobSkipped($broadcastEvent));
-            }
-
-            return;
-        }
-
         $push = $synchronousMercure
             ? fn () => $this->dispatchSynchronousBroadcast($broadcastEvent)
             : fn () => $this->app->make(Queue::class)
@@ -260,7 +249,19 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         if ($event instanceof ShouldBeUnique) {
             $dispatch = $push;
-            $push = static function () use ($broadcastEvent, $dispatch): mixed {
+            $push = function () use ($broadcastEvent, $dispatch): mixed {
+                // Acquisition and skip listeners can fail too, so keep them inside the rescue boundary.
+                if ($this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
+                    /** @var EventDispatcher $events */
+                    $events = $this->app->make('events');
+
+                    if ($events->hasListeners(UniqueJobSkipped::class)) {
+                        $events->dispatch(new UniqueJobSkipped($broadcastEvent));
+                    }
+
+                    return null;
+                }
+
                 try {
                     return $dispatch();
                 } finally {
