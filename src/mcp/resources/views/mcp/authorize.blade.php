@@ -65,8 +65,9 @@
                     Authorize {{ $client->name }}
                 </h3>
 
-                <p class="text-sm text-muted-foreground text-center">
-                    You will be redirected to {{ in_array(strtolower(parse_url($redirectUri, PHP_URL_SCHEME)), ['http', 'https'], true) ? parse_url($redirectUri, PHP_URL_HOST) : $redirectUri }}.
+                {{-- Passport supplies the validated destination; do not replace it with raw query input. --}}
+                <p class="text-xs text-muted-foreground text-center break-all">
+                    You will be redirected to {{ $redirectUri }}
                 </p>
 
                 @if ($client->client_uri ?? null)

@@ -610,6 +610,9 @@ class Router implements BindingRegistrar, RegistrarContract
     {
         CoroutineContext::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
 
+        // A failed match must not retain an earlier dispatch's route in this coroutine.
+        CoroutineContext::set(self::CURRENT_ROUTE_CONTEXT_KEY, null);
+
         return $this->dispatchToRoute($request);
     }
 
@@ -634,6 +637,7 @@ class Router implements BindingRegistrar, RegistrarContract
     public function dispatchToCallback(Request $request, Closure $callback): SymfonyResponse
     {
         CoroutineContext::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
+        CoroutineContext::set(self::CURRENT_ROUTE_CONTEXT_KEY, null);
 
         $route = $this->findRoute($request);
 
@@ -831,21 +835,24 @@ class Router implements BindingRegistrar, RegistrarContract
                 ! empty($excluded),
                 fn (Collection $collection): Collection => $collection->reject(function (mixed $name) use ($excluded): bool {
                     if ($name instanceof Closure) {
-                        return false;
+                        // Aliases resolve to the same closure instance on both sides.
+                        return in_array($name, $excluded, true);
                     }
 
-                    if (in_array($name, $excluded, true)) {
+                    $class = explode(':', $name, 2)[0];
+
+                    if (in_array($name, $excluded, true) || in_array($class, $excluded, true)) {
                         return true;
                     }
 
-                    if (! class_exists($name)) {
+                    if (! class_exists($class)) {
                         return false;
                     }
 
-                    $reflection = new ReflectionClass($name);
+                    $reflection = new ReflectionClass($class);
 
                     return (new Collection($excluded))->contains(
-                        fn (string $exclude): bool => class_exists($exclude) && $reflection->isSubclassOf($exclude)
+                        fn (string|Closure $exclude): bool => is_string($exclude) && class_exists($exclude) && $reflection->isSubclassOf($exclude)
                     );
                 })
             )

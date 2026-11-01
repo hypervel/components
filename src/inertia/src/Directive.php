@@ -17,9 +17,7 @@ class Directive
         $id = $id === '' ? 'app' : $id;
 
         $template = '<?php
-            $__inertiaState = \Hypervel\Inertia\InertiaState::current();
-            $__inertiaState->page = $page;
-            $__inertiaSsrResponse = $__inertiaState->dispatchSsr();
+            $__inertiaSsrResponse = \Hypervel\Inertia\InertiaState::current()->setPage($page)->dispatchSsr();
 
             if ($__inertiaSsrResponse) {
                 echo $__inertiaSsrResponse->body;
@@ -39,9 +37,7 @@ class Directive
     public static function compileHead(string $expression = ''): string
     {
         $template = '<?php
-            $__inertiaState = \Hypervel\Inertia\InertiaState::current();
-            $__inertiaState->page = $page;
-            $__inertiaSsrResponse = $__inertiaState->dispatchSsr();
+            $__inertiaSsrResponse = \Hypervel\Inertia\InertiaState::current()->setPage($page)->dispatchSsr();
 
             if ($__inertiaSsrResponse) {
                 echo $__inertiaSsrResponse->head;

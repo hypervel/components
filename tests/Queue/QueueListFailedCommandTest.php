@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\ListFailedCommand;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -82,6 +83,24 @@ class QueueListFailedCommandTest extends TestCase
 
         $this->assertStringContainsString('App\Jobs\ProcessOrder', $output);
         $this->assertStringNotContainsString('CallQueuedHandler', $output);
+    }
+
+    public function testStringJobCommandDataDoesNotHideTheHandlerMethod(): void
+    {
+        $queue = new class extends SyncQueue {
+            /**
+             * Build a string payload through the real queue producer.
+             */
+            public function payloadFor(string $job, array $data): string
+            {
+                return $this->createPayload($job, 'default', $data);
+            }
+        };
+        $output = $this->runListFailedCommandWithRawPayload(
+            $queue->payloadFor('RunCommand@handle', ['command' => 'backup:run']),
+        );
+
+        $this->assertStringContainsString('RunCommand@handle', $output);
     }
 
     public function testMalformedPayloadDoesNotThrow(): void

@@ -87,6 +87,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Role', $user->roles()->firstOrCreate());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->create());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->createQuietly());
+    assertType('Hypervel\Types\Relations\Role', $user->roles()->forceCreate());
+    assertType('Hypervel\Types\Relations\Role', $user->roles()->forceCreateQuietly());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->createOrFirst());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->updateOrCreate([]));
     assertType('Hypervel\Types\Relations\Role', $user->roles()->save(new Role));

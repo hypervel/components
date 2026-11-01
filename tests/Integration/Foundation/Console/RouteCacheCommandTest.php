@@ -72,13 +72,19 @@ class RouteCacheCommandTest extends TestCase
         CleanupActions::run(...$actions);
     }
 
-    public function testRouteCacheSucceedsWithSourceRoutes(): void
+    public function testRoutesAreCachedAtomically(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
             Route::get('/foo', fn () => 'foo')->name('foo.index');
             PHP
         );
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('replace')->once()->with($this->app->getCachedRoutesPath(), m::type('string'), null)->passthru();
+        $files->shouldNotReceive('put');
+
+        $this->app->instance('files', $files);
 
         $this->artisan('route:cache')
             ->assertSuccessful()

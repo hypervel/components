@@ -4225,6 +4225,9 @@ return [
             ],
         ],
     ],
+    \Hypervel\Session\Console\SessionGarbageCollectCommand::class => [
+        'name' => 'session:garbage-collect',
+    ],
     \Hypervel\Session\Console\SessionTableCommand::class => [
         'name' => 'make:session-table',
         'aliases' => [

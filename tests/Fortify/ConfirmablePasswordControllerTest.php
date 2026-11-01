@@ -13,6 +13,7 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 #[WithMigration]
 class ConfirmablePasswordControllerTest extends TestCase
@@ -92,6 +93,19 @@ class ConfirmablePasswordControllerTest extends TestCase
         $this->assertNotEquals($response->getTargetUrl(), 'http://foo.com/bar');
     }
 
+    #[DataProvider('invalidPasswordInputProvider')]
+    public function testPasswordConfirmationCanFailWithInvalidInput(array $input): void
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['url.intended' => 'http://foo.com/bar'])
+            ->post('/user/confirm-password', $input);
+
+        $response->assertSessionHasErrors(['password']);
+        $response->assertSessionMissing('auth.password_confirmed_at_web');
+        $response->assertRedirect();
+        $this->assertNotEquals($response->getTargetUrl(), 'http://foo.com/bar');
+    }
+
     public function testPasswordConfirmationCanBeCustomized(): void
     {
         $this->freezeSecond();
@@ -147,15 +161,36 @@ class ConfirmablePasswordControllerTest extends TestCase
         $response->assertStatus(201);
     }
 
-    public function testPasswordConfirmationCanFailWithJson(): void
+    #[DataProvider('invalidPasswordInputProvider')]
+    public function testPasswordConfirmationCanFailWithJson(array $input): void
     {
         $response = $this->actingAs($this->user)
-            ->postJson(
-                '/user/confirm-password',
-                ['password' => 'invalid']
-            );
+            ->postJson('/user/confirm-password', $input);
 
+        $response->assertStatus(422);
         $response->assertJsonValidationErrors('password');
+        $response->assertSessionMissing('auth.password_confirmed_at_web');
+    }
+
+    /**
+     * Provide malformed or incorrect password confirmation input.
+     */
+    public static function invalidPasswordInputProvider(): array
+    {
+        return [
+            'missing password' => [[]],
+            'null password' => [['password' => null]],
+            'empty password' => [['password' => '']],
+            'incorrect password' => [['password' => 'invalid']],
+            'empty array' => [['password' => []]],
+            'array' => [['password' => ['secret']]],
+            'associative array' => [['password' => ['password' => 'secret']]],
+            'nested array' => [['password' => [['secret']]]],
+            'boolean true' => [['password' => true]],
+            'boolean false' => [['password' => false]],
+            'integer' => [['password' => 123]],
+            'float' => [['password' => 1.23]],
+        ];
     }
 
     #[WithConfig('auth.password_timeout', 120)]

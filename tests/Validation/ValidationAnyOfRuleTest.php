@@ -10,6 +10,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 enum TaggedUnionDiscriminatorType: string
 {
@@ -131,6 +132,62 @@ class ValidationAnyOfRuleTest extends TestCase
             'id' => 'abc',
         ], $idRule);
         $this->assertFalse($validator->passes());
+    }
+
+    public function testAssociativeArrayValueAgainstPlainRules(): void
+    {
+        $rule = Rule::anyOf([
+            ['string', 'email'],
+            ['string', 'alpha_dash', 'min:6'],
+        ]);
+
+        $validator = new Validator($this->app->make('translator'), [
+            'username' => ['x' => 1],
+        ], ['username' => ['required', $rule]]);
+        $this->assertFalse($validator->passes());
+
+        $validator = new Validator($this->app->make('translator'), [
+            'username' => 'taylor@hypervel.com',
+        ], ['username' => ['required', $rule]]);
+        $this->assertTrue($validator->passes());
+
+        $validator = new Validator($this->app->make('translator'), [
+            'data' => ['x' => 1],
+        ], ['data' => Rule::anyOf(['string', 'array'])]);
+        $this->assertTrue($validator->passes());
+    }
+
+    #[DataProvider('alternativeRuleShapes')]
+    public function testAlternativeRulesPreserveTheirDataShape(array $rules, mixed $value, bool $passes): void
+    {
+        $validator = new Validator($this->app->make('translator'), ['data' => $value], [
+            'data' => Rule::anyOf([$rules]),
+        ]);
+
+        $this->assertSame($passes, $validator->passes());
+    }
+
+    /**
+     * Provide keyed alternatives and values with different shapes.
+     */
+    public static function alternativeRuleShapes(): iterable
+    {
+        yield 'numeric field rejects a scalar' => [[1 => 'array'], [1 => 'invalid'], false];
+        yield 'numeric field accepts an array' => [[1 => 'array'], [1 => ['valid']], true];
+        yield 'wildcard rejects invalid list item' => [['*.email' => 'email'], [['email' => 'invalid']], false];
+        yield 'wildcard accepts valid list item' => [['*.email' => 'email'], [['email' => 'test@example.com']], true];
+        yield 'wildcard rejects a present null' => [['*' => 'required'], null, false];
+        yield 'wildcard has no items in an empty array' => [['*' => 'required'], [], true];
+        yield 'keyed rules reject a scalar missing required fields' => [['email' => 'required|email'], 'invalid', false];
+    }
+
+    public function testNestedArraysCanUseAnArrayAlternativeAfterExists(): void
+    {
+        $validator = new Validator($this->app->make('translator'), ['data' => ['a' => [1], 'b' => [2]]], [
+            'data' => Rule::anyOf(['exists:users,id', 'array']),
+        ]);
+
+        $this->assertTrue($validator->passes());
     }
 
     public function testTaggedUnionObjects(): void

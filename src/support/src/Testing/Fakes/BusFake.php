@@ -810,6 +810,30 @@ class BusFake implements Fake, QueueingDispatcher
     }
 
     /**
+     * Allow dispatching after responses.
+     *
+     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     */
+    public function withDispatchingAfterResponses(): static
+    {
+        $this->dispatcher->withDispatchingAfterResponses(); // @phpstan-ignore method.notFound (Laravel forwards this optional concrete dispatcher API.)
+
+        return $this;
+    }
+
+    /**
+     * Disable dispatching after responses.
+     *
+     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     */
+    public function withoutDispatchingAfterResponses(): static
+    {
+        $this->dispatcher->withoutDispatchingAfterResponses(); // @phpstan-ignore method.notFound (Laravel forwards this optional concrete dispatcher API.)
+
+        return $this;
+    }
+
+    /**
      * Get the batches that have been dispatched.
      */
     public function dispatchedBatches(): array

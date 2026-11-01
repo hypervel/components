@@ -544,6 +544,38 @@ class RegistrarTest extends TestCase
         $this->assertDatabaseCount('oauth_clients', 0);
     }
 
+    #[DataProvider('oversizedRedirectUris')]
+    public function testRejectsTooManyOrTooLongRedirectUrisBeforeCreatingAClient(array $redirectUris): void
+    {
+        $this->prepareOauthRegistration();
+
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => $redirectUris,
+        ])->assertBadRequest()->assertJson(['error' => 'invalid_redirect_uri']);
+
+        $this->assertDatabaseCount('oauth_clients', 0);
+    }
+
+    /**
+     * Provide redirect lists that exceed registration limits.
+     */
+    public static function oversizedRedirectUris(): array
+    {
+        return [
+            'too many' => [array_map(fn (int $index): string => "https://example.com/callback/{$index}", range(1, 11))],
+            'too long' => [['https://example.com/' . str_repeat('a', 1005)]],
+        ];
+    }
+
+    public function testAcceptsUpToTenRedirectUris(): void
+    {
+        $this->prepareOauthRegistration();
+
+        $this->postJson('/oauth/register', [
+            'redirect_uris' => array_map(fn (int $index): string => "https://example.com/callback/{$index}", range(1, 10)),
+        ])->assertCreated();
+    }
+
     public function testKeepsRedirectErrorsAheadOfMetadataErrors(): void
     {
         $this->prepareOauthRegistration();

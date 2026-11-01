@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Aws\Result;
+use Aws\Sqs\SqsClient;
 use Generator;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Events\JobRetryRequested;
@@ -14,10 +17,12 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Failed\NullFailedJobProvider;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SqsQueue;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
@@ -160,7 +165,9 @@ class QueueRetryCommandTest extends TestCase
         $this->runRetryCommand(['id' => ['1']], $failer, ['database' => $queue]);
     }
 
-    public function testRefreshesTheRetryUntilTimestampWhenTheJobDefinesRetryUntil(): void
+    #[TestWith([false], 'unmarked object payload')]
+    #[TestWith([true], 'custom object handler')]
+    public function testRefreshesTheRetryUntilTimestampWhenTheJobDefinesRetryUntil(bool $customHandler): void
     {
         $failer = m::mock(FailedJobProviderInterface::class);
         $queue = m::mock(QueueContract::class);
@@ -172,6 +179,14 @@ class QueueRetryCommandTest extends TestCase
             payload: ['retryUntil' => 0],
             job: new QueueRetryCommandTestJobWithRetryUntil(retryUntil: 1234567890)
         );
+
+        if ($customHandler) {
+            $producer = new QueueRetryCommandCustomQueue;
+            $producer->setContainer(new Application);
+            $payload = json_decode($producer->payloadFor(new QueueRetryCommandTestJobWithRetryUntil(1234567890)), true);
+            $payload['retryUntil'] = 0;
+            $job->payload = json_encode($payload);
+        }
 
         $failer->shouldReceive('find')->once()->with('1')->andReturn($job);
         $queue->shouldReceive('pushRaw')->once()->with(m::on(function (string $payload): bool {
@@ -533,6 +548,119 @@ class QueueRetryCommandTest extends TestCase
         $this->assertSame(['job-3'], array_keys($pendingJobs));
     }
 
+    public function testRetriesRemainingJobsWhenAJobsModelNoLongerExists(): void
+    {
+        $failer = m::mock(FailedJobProviderInterface::class);
+        $queue = m::mock(QueueContract::class);
+
+        $missing = $this->failedJob(id: 'job-1', connection: 'database', queue: 'default', job: new QueueRetryCommandTestJobWithMissingModel);
+
+        $jobs = new Collection([
+            'job-1' => $missing,
+            'job-2' => $this->failedJob(id: 'job-2', connection: 'database', queue: 'default'),
+        ]);
+
+        $failer->shouldReceive('find')->once()->with('batch')->andReturn($jobs);
+
+        $queue->shouldReceive('pushRaw')->once()->with($missing->payload, 'default', []);
+        $failer->shouldReceive('forget')->once()->with('job-1');
+
+        $queue->shouldReceive('pushRaw')->once()->with($this->retriedPayload(id: 'job-2'), 'default', []);
+        $failer->shouldReceive('forget')->once()->with('job-2');
+
+        $this->runRetryCommand(['id' => ['batch']], $failer, ['database' => $queue]);
+    }
+
+    public function testRetriesStringJobsWithoutInterpretingTheirCommandData(): void
+    {
+        $failer = m::mock(FailedJobProviderInterface::class);
+        $queue = m::mock(QueueContract::class);
+        $data = ['command' => 'backup:run', 'commandName' => 'backup:run'];
+        $job = $this->failedJob(id: '1', connection: 'database', queue: 'default');
+        $job->payload = (new QueueRetryCommandCustomQueue)->payloadFor('RunCommand@handle', $data);
+
+        $failer->shouldReceive('find')->once()->with('1')->andReturn($job);
+        $queue->shouldReceive('pushRaw')->once()->with($job->payload, 'default', []);
+        $failer->shouldReceive('forget')->once()->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['database' => $queue]);
+    }
+
+    public function testRetriesJobWithoutQueueableOptionsWhenItsModelNoLongerExists(): void
+    {
+        $failer = m::mock(FailedJobProviderInterface::class);
+        $sqs = m::mock(SqsClient::class);
+        $queue = new SqsQueue($sqs, 'default', 'https://sqs.example.test');
+
+        $job = $this->failedJob(id: '1', connection: 'sqs', queue: 'default', job: new QueueRetryCommandTestJobWithMissingModel);
+
+        $failer->shouldReceive('find')->once()->with('1')->andReturn($job);
+        $sqs->shouldReceive('sendMessage')->once()->with([
+            'QueueUrl' => 'https://sqs.example.test/default',
+            'MessageBody' => $job->payload,
+        ])->andReturn(new Result(['MessageId' => 'message-1']));
+        $failer->shouldReceive('forget')->once()->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['sqs' => $queue]);
+    }
+
+    #[DataProvider('jobsWithoutRestorableObjects')]
+    public function testRetriesSqsJobsWithDefaultOptionsWhenNoObjectCanBeRestored(string $queueName, array $payload): void
+    {
+        $failer = m::mock(FailedJobProviderInterface::class);
+        $sqs = m::mock(SqsClient::class);
+        $queue = new SqsQueue($sqs, $queueName, 'https://sqs.example.test');
+        $job = $this->failedJob(
+            id: '1',
+            connection: 'sqs',
+            queue: $queueName,
+            payload: $payload,
+            job: new QueueRetryCommandTestJobWithMissingModel,
+        );
+
+        $failer->shouldReceive('find')->once()->with('1')->andReturn($job);
+        $sqs->shouldReceive('sendMessage')->once()->with(m::on(function (array $message) use ($queueName, $job): bool {
+            $expected = [
+                'QueueUrl' => 'https://sqs.example.test/' . $queueName,
+                'MessageBody' => $job->payload,
+            ];
+
+            if (str_ends_with($queueName, '.fifo')) {
+                $this->assertIsString($message['MessageDeduplicationId']);
+                unset($message['MessageDeduplicationId']);
+                $expected['MessageGroupId'] = $queueName;
+            }
+
+            $this->assertSame($expected, $message);
+
+            return true;
+        }))->andReturn(new Result(['MessageId' => 'message-1']));
+        $failer->shouldReceive('forget')->once()->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['sqs' => $queue]);
+    }
+
+    /**
+     * Provide retry payloads whose queue options need no restored object.
+     */
+    public static function jobsWithoutRestorableObjects(): iterable
+    {
+        yield 'missing model on FIFO' => ['default.fifo', []];
+        yield 'string job with command data on FIFO' => ['default.fifo', json_decode(
+            (new QueueRetryCommandCustomQueue)->payloadFor('RunCommand@handle', ['command' => 'backup:run', 'commandName' => 'backup:run']),
+            true,
+        )];
+
+        $incomplete = ['data' => ['commandName' => 'RemovedJob', 'command' => 'O:10:"RemovedJob":0:{}']];
+
+        yield 'removed class on FIFO' => ['default.fifo', $incomplete];
+        yield 'removed class on standard' => ['default', $incomplete];
+        yield 'removed class without optional command name' => ['default.fifo', [
+            'job' => 'CustomObjectHandler@call',
+            'data' => ['command' => 'O:10:"RemovedJob":0:{}'],
+        ]];
+    }
+
     public function testDispatchesTheEventBeforePushingAndForgetsTheJobAfterwards(): void
     {
         $failer = m::mock(FailedJobProviderInterface::class);
@@ -711,6 +839,25 @@ class QueueRetryCommandTest extends TestCase
     }
 }
 
+class QueueRetryCommandCustomQueue extends SyncQueue
+{
+    /**
+     * Build payloads through the real queue producer.
+     */
+    public function payloadFor(object|string $job, mixed $data = ''): string
+    {
+        return $this->createPayload($job, 'default', $data);
+    }
+
+    /**
+     * Replace the object handler as a custom queue driver may do.
+     */
+    protected function createObjectPayload(object $job, ?string $queue): array
+    {
+        return array_replace(parent::createObjectPayload($job, $queue), ['job' => 'CustomObjectHandler@call']);
+    }
+}
+
 class QueueRetryCommandTestJob
 {
 }
@@ -730,5 +877,16 @@ class QueueRetryCommandTestJobWithRetryUntil
     public function retryUntil(): int
     {
         return $this->retryUntil;
+    }
+}
+
+class QueueRetryCommandTestJobWithMissingModel
+{
+    /**
+     * Restore a job whose model has been deleted.
+     */
+    public function __unserialize(array $data): void
+    {
+        throw (new ModelNotFoundException)->setModel('App\Models\User', [1]);
     }
 }

@@ -12,10 +12,12 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use PharData;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 use SplFileInfo;
+use Symfony\Component\Process\Process;
 
 use function Hypervel\Coroutine\go;
 
@@ -321,6 +323,75 @@ class FilesystemTest extends TestCase
     {
         $files = new Filesystem;
         $this->assertTrue($files->missing($this->tempDir . '/file.txt'));
+    }
+
+    public function testExistsReturnsFalseForPharUri(): void
+    {
+        $files = new Filesystem;
+        $this->assertFalse($files->exists('phar:///some/archive.phar/entry'));
+        $this->assertFalse($files->exists('PHAR:///some/archive.phar/entry'));
+    }
+
+    public function testIsFileReturnsFalseForPharUri(): void
+    {
+        $files = new Filesystem;
+        $this->assertFalse($files->isFile('phar:///some/archive.phar/entry'));
+        $this->assertFalse($files->isFile('PHAR:///some/archive.phar/entry'));
+    }
+
+    public function testGetThrowsExceptionForPharUri(): void
+    {
+        $files = new Filesystem;
+        $this->expectException(FileNotFoundException::class);
+        $files->get('phar:///some/archive.phar/entry');
+    }
+
+    #[RequiresPhpExtension('phar')]
+    public function testFilesInsideTheRunningPharCanBeRead(): void
+    {
+        $phar = $this->tempDir . '/app.phar';
+
+        file_put_contents($this->tempDir . '/run.php', '<?php
+            require ' . var_export(realpath(__DIR__ . '/../../vendor/autoload.php'), true) . ';
+            require __DIR__."/Filesystem.php";
+
+            $files = new Hypervel\Filesystem\Filesystem;
+
+            echo $files->get(Phar::running()."/file.txt"), "|", var_export($files->exists("phar:///some/archive.phar/entry"), true);
+        ');
+
+        file_put_contents($this->tempDir . '/build.php', '<?php
+            $phar = new Phar(' . var_export($phar, true) . ');
+            $phar->addFile(' . var_export(realpath(__DIR__ . '/../../src/filesystem/src/Filesystem.php'), true) . ', "Filesystem.php");
+            $phar->addFile(' . var_export($this->tempDir . '/run.php', true) . ', "run.php");
+            $phar->addFromString("file.txt", "Hello from phar");
+            $phar->setStub(\'<?php Phar::mapPhar("app.phar"); require "phar://app.phar/run.php"; __HALT_COMPILER();\');
+        ');
+
+        (new Process([PHP_BINARY, '-d', 'phar.readonly=0', $this->tempDir . '/build.php'], timeout: 10))->mustRun();
+
+        $process = new Process([PHP_BINARY, $phar], timeout: 10);
+        $process->mustRun();
+
+        $this->assertSame('Hello from phar|false', $process->getOutput());
+    }
+
+    #[RequiresPhpExtension('phar')]
+    public function testExistingForeignArchiveCannotBeReadOrRequired(): void
+    {
+        $archive = new PharData($this->tempDir . '/upload.tar');
+        $archive['shell.php'] = '<?php throw new RuntimeException("Archive script executed.");';
+        copy($this->tempDir . '/upload.tar', $this->tempDir . '/avatar.jpg');
+        $path = 'phar://' . $this->tempDir . '/avatar.jpg/shell.php';
+        $files = new Filesystem;
+
+        $this->assertTrue(file_exists($path));
+        $this->assertFalse($files->exists($path));
+        $this->assertFalse($files->isFile($path));
+
+        $this->expectException(FileNotFoundException::class);
+
+        $files->getRequire($path);
     }
 
     public function testDeleteDirectory(): void

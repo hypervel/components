@@ -381,7 +381,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
         $redisProxy->expects('isCluster')->andReturn(false);
-        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
+        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
         $id = $queue->push('foo', ['data']);
@@ -404,7 +404,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
         $redisProxy->expects('isCluster')->andReturn(false);
-        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
+        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
@@ -432,7 +432,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
         $redisProxy->expects('isCluster')->andReturn(false);
-        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
+        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
         $events = m::mock(Dispatcher::class);
@@ -562,7 +562,7 @@ class QueueRedisQueueTest extends TestCase
                 $this->assertSame('foo', $event->job);
                 $this->assertSame('default', $event->connectionName);
                 $this->assertNull($event->queue);
-                $this->assertSame(['uuid' => (string) $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null], $event->payload());
+                $this->assertSame(['uuid' => (string) $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null], $event->payload());
 
                 return true;
             })
@@ -602,7 +602,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
         $redisProxy->expects('isCluster')->andReturn(false);
-        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
+        $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'custom' => 'taylor', 'bar' => 'foo', 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
         Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
@@ -639,7 +639,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
             ['queues:default:delayed'],
-            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
+            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
         );
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
@@ -668,7 +668,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
             ['queues:default:delayed'],
-            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
+            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
         );
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
@@ -694,7 +694,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
             ['queues:default:delayed'],
-            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
+            [1002, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
         );
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
@@ -853,7 +853,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::push(),
             ['queues:{default}', 'queues:{default}:notify'],
-            [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]
+            [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]
         );
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 
@@ -920,7 +920,7 @@ class QueueRedisQueueTest extends TestCase
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
             ['queues:{default}:delayed'],
-            [2, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
+            [2, json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])]
         );
         $redis->expects('connection')->twice()->andReturn($redisProxy);
 

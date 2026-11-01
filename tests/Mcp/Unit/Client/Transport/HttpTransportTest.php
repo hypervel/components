@@ -260,6 +260,53 @@ class HttpTransportTest extends TestCase
         });
     }
 
+    #[TestWith([false], 'message')]
+    #[TestWith([true], 'session termination')]
+    public function testRedirectsKeepCustomHeadersOnTheirOrigin(bool $disconnect): void
+    {
+        $requests = [];
+        Http::fake(function (Request $request) use (&$requests): PromiseInterface {
+            if (($request['method'] ?? null) === 'initialize') {
+                return Http::response(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], headers: [
+                    'MCP-Session-Id' => 'resource-session',
+                ]);
+            }
+
+            $requests[] = $request;
+
+            return match ($request->url()) {
+                'https://mcp.test/mcp' => Http::response('', 307, ['Location' => 'https://other.test/mcp']),
+                'https://other.test/mcp' => Http::response('', 307, ['Location' => 'https://mcp.test/return']),
+                default => Http::response('', 202),
+            };
+        });
+        $transport = new HttpTransport('https://mcp.test/mcp');
+        $transport->withHeaders(['X-Api-Key' => 'resource-secret', 'MCP-Protocol-Version' => 'ignored']);
+        $transport->useProtocol(ProtocolVersion::V2025_11_25);
+
+        try {
+            $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']));
+            $transport->receive();
+
+            if ($disconnect) {
+                $transport->disconnect();
+            } else {
+                $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'ping']));
+            }
+
+            $this->assertCount(3, $requests);
+            foreach ([0, 2] as $index) {
+                $this->assertTrue($requests[$index]->hasHeader('X-Api-Key', 'resource-secret'));
+                $this->assertTrue($requests[$index]->hasHeader('MCP-Session-Id', 'resource-session'));
+            }
+            $this->assertFalse($requests[1]->hasHeader('X-Api-Key'));
+            $this->assertTrue($requests[1]->hasHeader('MCP-Session-Id', 'resource-session'));
+            $this->assertTrue($requests[1]->hasHeader('MCP-Protocol-Version', ProtocolVersion::V2025_11_25->value));
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
     public function testLetsACustomAuthorizationHeaderOverrideTheBearerToken(): void
     {
         Http::fake(['*' => Http::response(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]), 200, ['Content-Type' => 'application/json'])]);

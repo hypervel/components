@@ -792,6 +792,18 @@ class AuthGuardTest extends TestCase
         $this->assertFalse($guard->viaRemember());
     }
 
+    public function testUserReturnsNullWhenRememberCookieHasEmptyToken(): void
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app);
+        $cookieRequest = Request::create('/', 'GET', [], [$guard->getRecallerName() => 'id||baz']);
+        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
+        $guard->getSession()->expects('get')->with($guard->getName())->andReturn(null);
+        $guard->getProvider()->shouldReceive('retrieveByToken')->never();
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->viaRemember());
+    }
+
     public function testUserReturnsNullWhenPasswordlessUserHasInvalidRememberCookieHash(): void
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();

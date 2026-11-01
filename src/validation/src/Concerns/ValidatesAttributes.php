@@ -1082,6 +1082,15 @@ trait ValidatesAttributes
         // that the columns being "verified" shares the given attribute's name.
         $column = $this->getQueryColumn($parameters, $attribute);
 
+        // Nested arrays and non-stringable objects cannot be compared by array_unique().
+        if (is_array($value)) {
+            foreach ($value as $element) {
+                if (is_array($element) || (is_object($element) && ! $element instanceof Stringable)) {
+                    return false;
+                }
+            }
+        }
+
         $expected = is_array($value) ? count(array_unique($value)) : 1;
 
         if ($expected === 0) {
@@ -1548,7 +1557,7 @@ trait ValidatesAttributes
     {
         if (is_array($value) && $this->hasRule($attribute, 'Array')) {
             foreach ($value as $element) {
-                if (is_array($element)) {
+                if (is_array($element) || (is_object($element) && ! $element instanceof Stringable)) {
                     return false;
                 }
             }

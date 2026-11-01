@@ -70,6 +70,27 @@ class EmbeddingTest extends TestCase
         $this->assertSame([0.4, 0.5, 0.6], $response->embeddings[1]);
     }
 
+    public function testEmbeddingsAreReturnedInInputOrderEvenWhenTheResponseIsShuffled(): void
+    {
+        Http::fake(['*' => Http::response([
+            'object' => 'list',
+            'data' => [
+                ['object' => 'embedding', 'index' => 2, 'embedding' => [0.7, 0.8, 0.9]],
+                ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
+                ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
+            ],
+            'usage' => ['prompt_tokens' => 30],
+        ])]);
+
+        $response = Embeddings::for(['Hello', 'World', 'Again'])->generate(provider: 'openai', model: 'text-embedding-3-small');
+
+        $this->assertSame([
+            [0.1, 0.2, 0.3],
+            [0.4, 0.5, 0.6],
+            [0.7, 0.8, 0.9],
+        ], $response->embeddings);
+    }
+
     public function testEmbeddingsRequestSendsBearerToken(): void
     {
         Http::fake(['*' => $this->fakeOpenAiEmbeddingResponse()]);

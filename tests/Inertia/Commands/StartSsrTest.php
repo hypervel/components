@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Inertia\Commands\StartSsr;
+use Hypervel\Inertia\Ssr\HttpGateway;
+use Hypervel\Inertia\Ssr\SsrException;
 use Hypervel\Tests\Inertia\TestCase;
 use Mockery as m;
 use ReflectionProperty;
+use RuntimeException;
 use Symfony\Component\Process\Process;
 
 class StartSsrTest extends TestCase
@@ -154,11 +158,58 @@ class StartSsrTest extends TestCase
         $this->assertSame('nonexistent-runtime-binary', $this->processCommand[0]);
     }
 
+    public function testSsrServerIsStoppedBeforeStartingByDefault(): void
+    {
+        $this->fakeProcess();
+
+        $mock = m::mock(HttpGateway::class);
+        $mock->shouldReceive('checkHealth')->once()->andReturnTrue();
+        $mock->shouldReceive('shutdown')->once()->andReturnTrue();
+        $this->app->instance(HttpGateway::class, $mock);
+
+        $this->artisan('inertia:start-ssr')->assertExitCode(0);
+    }
+
+    public function testSsrServerIsNotStoppedWhenTheNoStopBeforeStartOptionIsUsed(): void
+    {
+        $this->fakeProcess();
+
+        $mock = m::mock(HttpGateway::class);
+        $mock->shouldNotReceive('checkHealth');
+        $mock->shouldNotReceive('shutdown');
+        $this->app->instance(HttpGateway::class, $mock);
+
+        $this->artisan('inertia:start-ssr', ['--no-stop-before-start' => true])->assertExitCode(0);
+    }
+
     public function testReturnsFailureWhenTheChildProcessFails(): void
     {
         $this->fakeProcess([PHP_BINARY, '-r', 'exit(1);']);
 
         $this->artisan('inertia:start-ssr')->assertExitCode(1);
+    }
+
+    public function testStopsTheChildWhenReportingFails(): void
+    {
+        $process = new Process([PHP_BINARY, '-r', 'fwrite(STDERR, "SSR error\n"); sleep(10);']);
+        $this->app->bind(Process::class, static fn (): Process => $process);
+        $failure = new RuntimeException('Reporting failed.');
+        $this->app->make(ExceptionHandler::class)->reportable(static function (SsrException $exception) use ($failure): never {
+            throw $failure;
+        });
+
+        try {
+            try {
+                $this->artisan('inertia:start-ssr', ['--no-stop-before-start' => true])->run();
+                $this->fail('The reporting failure was not propagated.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertFalse($process->isRunning());
+        } finally {
+            $process->stop(0);
+        }
     }
 
     public function testRegistersTerminationSignalsThroughTheCommandRegistry(): void

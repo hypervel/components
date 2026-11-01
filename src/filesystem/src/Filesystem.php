@@ -11,6 +11,7 @@ use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
+use Phar;
 use RuntimeException;
 use SensitiveParameter;
 use SplFileObject;
@@ -33,6 +34,10 @@ class Filesystem
      */
     public function exists(string $path): bool
     {
+        if ($this->hasDangerousStreamWrapper($path)) {
+            return false;
+        }
+
         return file_exists($path);
     }
 
@@ -520,7 +525,28 @@ class Filesystem
      */
     public function isFile(string $file): bool
     {
+        if ($this->hasDangerousStreamWrapper($file)) {
+            return false;
+        }
+
         return is_file($file);
+    }
+
+    /**
+     * Determine if the given path reads from a phar archive other than the running one.
+     *
+     * The require helpers use isFile(), so this also prevents them from executing scripts from uploaded archives.
+     */
+    protected function hasDangerousStreamWrapper(string $path): bool
+    {
+        // Avoid lowercasing entire paths on these frequently called checks.
+        if (strncasecmp($path, 'phar://', 7) !== 0) {
+            return false;
+        }
+
+        $running = class_exists(Phar::class, false) ? Phar::running() : '';
+
+        return $running === '' || ! str_starts_with($path, $running . '/');
     }
 
     /**

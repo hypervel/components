@@ -126,6 +126,32 @@ class OnceTest extends TestCase
         $this->assertSame($results[0], $results[1]);
     }
 
+    public function testIsNotMemoizedWhenObjectIdIsReused(): void
+    {
+        $instance = new class {
+            /**
+             * Get the user's name once for each captured object.
+             */
+            public function name(object $user): string
+            {
+                return once(fn (): string => $user->name);
+            }
+        };
+
+        $names = array_map(fn (int $index): string => "user {$index}", range(1, 10));
+
+        $results = [];
+
+        foreach ($names as $name) {
+            $user = new stdClass;
+            $user->name = $name;
+
+            $results[] = $instance->name($user);
+        }
+
+        $this->assertSame($names, $results);
+    }
+
     public function testUsageOfThis(): void
     {
         $instance = new MyClass;
@@ -424,26 +450,14 @@ class OnceTest extends TestCase
     public function testOnceDifferentiatesObjectsFromScalarAndArrayCaptures(): void
     {
         $object = new stdClass;
+        $id = spl_object_id($object);
 
-        // The first object token after framework cleanup is 1.
         $results = array_map(
             fn (mixed $value): string => once(fn (): string => get_debug_type($value)),
-            [$object, 1, spl_object_id($object), '1', ['id' => 1]],
+            [$object, $id, (string) $id, ['id' => $id]],
         );
 
-        $this->assertSame(['stdClass', 'int', 'int', 'string', 'array'], $results);
-    }
-
-    public function testOnceDoesNotReuseResultsForTemporaryObjects(): void
-    {
-        $format = static fn (object $value): int => once(fn (): int => $value->number);
-
-        $results = array_map(
-            static fn (int $number): int => $format((object) ['number' => $number]),
-            [1, 2, 3],
-        );
-
-        $this->assertSame([1, 2, 3], $results);
+        $this->assertSame(['stdClass', 'int', 'string', 'array'], $results);
     }
 
     public function testOnceIsCoroutineScoped(): void

@@ -24,6 +24,8 @@ class OAuthClient
 
     /**
      * Create an OAuth client for the configured resource.
+     *
+     * @param array<string, string> $resourceHeaders
      */
     public function __construct(
         protected OAuthConfig $config,
@@ -32,6 +34,7 @@ class OAuthClient
         protected ?string $challengeScope = null,
         protected AuthServerDiscovery $discovery = new AuthServerDiscovery,
         protected ?string $clientIdMetadataUrl = null,
+        protected array $resourceHeaders = [],
     ) {
         $this->resourceUrl = Str::before($this->resourceUrl, '#');
     }
@@ -41,6 +44,10 @@ class OAuthClient
      */
     public function redirect(?string $returnTo = null): RedirectResponse
     {
+        if ($this->resourceMetadataUrl !== null) {
+            $this->discovery->requireAdvertised($this->resourceUrl, $this->resourceMetadataUrl, $this->resourceHeaders);
+        }
+
         $discovered = $this->discover();
         $metadata = $discovered->server;
 

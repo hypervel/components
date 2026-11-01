@@ -46,6 +46,22 @@ class DatabaseLockTest extends DatabaseTestCase
         $otherLock->release();
     }
 
+    public function testOverlongLockNamesFailWithoutLeavingATruncatedLock(): void
+    {
+        if (! in_array($this->driver, ['mysql', 'mariadb'], true)) {
+            $this->markTestSkipped('Only MySQL and MariaDB truncate overlong names with INSERT IGNORE.');
+        }
+
+        try {
+            Cache::store('database')->lock(str_repeat('a', 300))->get();
+            $this->fail('The overlong lock name was accepted.');
+        } catch (QueryException $exception) {
+            $this->assertSame('22001', $exception->getCode());
+        }
+
+        $this->assertSame(0, DB::table('cache_locks')->count());
+    }
+
     public function testOwnerCanAcquireItsLiveLockAgainWithinTheSameSecond(): void
     {
         // A frozen clock gives the second acquisition the expiration the lock already has, so its update changes nothing.
@@ -130,6 +146,34 @@ class DatabaseLockTest extends DatabaseTestCase
         $this->assertTrue($otherLock->get());
 
         $otherLock->release();
+    }
+
+    public function testLockCannotBeAcquiredWhileHeldInsideTransaction(): void
+    {
+        $lock = Cache::driver('database')->lock('foo');
+        $this->assertTrue($lock->get());
+
+        DB::transaction(function (): void {
+            $this->assertFalse(Cache::driver('database')->lock('foo')->get());
+
+            $this->assertSame(1, DB::table('cache_locks')->count());
+        });
+
+        $lock->release();
+    }
+
+    public function testExpiredLockCanBeAcquiredInsideTransaction(): void
+    {
+        $lock = Cache::driver('database')->lock('foo');
+        $this->assertTrue($lock->get());
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
+
+        DB::transaction(function (): void {
+            $otherLock = Cache::driver('database')->lock('foo');
+            $this->assertTrue($otherLock->get());
+
+            $otherLock->release();
+        });
     }
 
     public function testIsLocked(): void

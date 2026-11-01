@@ -12,10 +12,12 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Markdown;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\SentMessage;
+use Hypervel\Mail\TextMessage;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
@@ -97,10 +99,18 @@ class MailChannel
      */
     protected function buildMarkdownText(MailMessage $message): Closure
     {
-        return fn ($data) => $this->markdown->renderText(
-            $message->markdown,
-            array_merge($data, $message->data()),
-        );
+        return function (array $data) use ($message): HtmlString {
+            if (isset($data['message'])) {
+                $data = array_merge($data, [
+                    'message' => new TextMessage($data['message']),
+                ]);
+            }
+
+            return $this->markdown->renderText(
+                $message->markdown,
+                array_merge($data, $message->data()),
+            );
+        };
     }
 
     /**

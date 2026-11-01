@@ -28,7 +28,9 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JsonSerializable;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -173,6 +175,32 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(MyPushedJobClass::class, $entry->content['name']);
         $this->assertSame('default', $entry->content['queue']);
         $this->assertSame(['framework' => 'Laravel'], $entry->content['data']);
+    }
+
+    #[TestWith([
+        ['command' => 'backup:run', 'commandName' => 'backup:run', 'batchId' => ['external' => 42]],
+        ['command' => 'backup:run', 'commandName' => 'backup:run', 'batchId' => ['external' => 42]],
+    ], 'caller metadata names')]
+    #[TestWith(['', ['']], 'default string data')]
+    #[TestWith([new PushedJobData, ['command' => 'backup:run']], 'JSON serializable data')]
+    public function testStringJobsPreserveCallerDataWithoutInterpretingItAsMetadata(mixed $data, array $expectedData): void
+    {
+        $this->app->make(QueueManager::class)
+            ->connection('database')
+            ->push(MyPushedJobClass::class . '@handle', $data);
+        $this->artisan('queue:work', [
+            'connection' => 'database',
+            '--once' => true,
+        ]);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $this->assertSame(EntryType::JOB, $entry->type);
+        $this->assertSame('processed', $entry->content['status']);
+        $this->assertSame('database', $entry->content['connection']);
+        $this->assertSame(MyPushedJobClass::class, $entry->content['name']);
+        $this->assertSame('default', $entry->content['queue']);
+        $this->assertSame($expectedData, $entry->content['data']);
+        $this->assertNull($entry->family_hash);
     }
 
     public function testJobCanHandleDeletedSerializedModel(): void
@@ -430,6 +458,24 @@ class MyPushedJobClass
     public function fire(Job $job, array $data)
     {
         throw new PushedJobFailedException;
+    }
+
+    /**
+     * Handle a string job successfully.
+     */
+    public function handle(Job $job, mixed $data): void
+    {
+    }
+}
+
+class PushedJobData implements JsonSerializable
+{
+    /**
+     * Publish caller data independently of the object's properties.
+     */
+    public function jsonSerialize(): array
+    {
+        return ['command' => 'backup:run'];
     }
 }
 

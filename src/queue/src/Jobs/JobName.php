@@ -17,6 +17,16 @@ class JobName
     }
 
     /**
+     * Determine whether the payload carries an object job.
+     */
+    public static function hasJobObject(array $payload): bool
+    {
+        // Check the marker before caller-owned data, which may still be an object in payload hooks.
+        // Unmarked payloads retain Laravel's format, including custom object-job handlers.
+        return ! isset($payload['stringJob']) && isset($payload['data']['command']);
+    }
+
+    /**
      * Get the resolved name of the queued job class.
      */
     public static function resolve(string $name, array $payload): string

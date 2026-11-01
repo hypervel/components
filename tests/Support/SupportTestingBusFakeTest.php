@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
@@ -689,6 +690,18 @@ class SupportTestingBusFakeTest extends TestCase
             $this->assertStringContainsString('The following jobs were dispatched unexpectedly:', $e->getMessage());
             $this->assertStringContainsString(ChainedJobStub::class, $e->getMessage());
         }
+    }
+
+    public function testDispatchingAfterResponsesCanBeToggledOnTheFake(): void
+    {
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->expects('withoutDispatchingAfterResponses')->andReturnSelf();
+        $dispatcher->expects('withDispatchingAfterResponses')->andReturnSelf();
+
+        $fake = new BusFake($dispatcher);
+
+        $this->assertSame($fake, $fake->withoutDispatchingAfterResponses());
+        $this->assertSame($fake, $fake->withDispatchingAfterResponses());
     }
 
     public function testAssertDispatchedWithIgnoreClass(): void

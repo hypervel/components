@@ -45,6 +45,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -220,6 +221,35 @@ class RoutingRouteTest extends TestCase
         }])->withoutMiddleware(RoutingTestMiddlewareGroupTwo::class);
 
         $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
+    }
+
+    public function testNamedClosureMiddlewareCanBeSkippedAlongsideClassMiddleware(): void
+    {
+        $router = $this->getRouter();
+        $router->aliasMiddleware('optional', fn ($request, $next) => $next($request));
+
+        $route = $router->get('foo', fn (): string => 'hello')
+            ->middleware(['optional', RoutingTestMiddlewareGroupTwo::class])
+            ->withoutMiddleware('optional');
+
+        $this->assertSame([RoutingTestMiddlewareGroupTwo::class], $router->gatherRouteMiddleware($route));
+    }
+
+    public function testMiddlewareWithParametersCanBeSkipped(): void
+    {
+        $router = $this->getRouter();
+        $router->aliasMiddleware('two', RoutingTestMiddlewareGroupTwo::class);
+
+        $router->get('foo/bar', ['middleware' => RoutingTestMiddlewareGroupTwo::class . ':taylor', function (): string {
+            return 'hello';
+        }])->withoutMiddleware(RoutingTestMiddlewareGroupTwo::class);
+
+        $router->get('foo/baz', ['middleware' => 'two:taylor', function (): string {
+            return 'hello';
+        }])->withoutMiddleware('two');
+
+        $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
+        $this->assertSame('hello', $router->dispatch(Request::create('foo/baz', 'GET'))->getContent());
     }
 
     public function testMiddlewareCanBeSkippedFromResources(): void
@@ -818,6 +848,48 @@ class RoutingRouteTest extends TestCase
             return $age;
         });
         $this->assertSame('25', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
+    }
+
+    #[TestWith(['dispatch'])]
+    #[TestWith(['dispatchToCallback'])]
+    public function testCurrentRouteIsResetWhenTheNextRequestDoesNotMatch(string $method): void
+    {
+        $router = $this->getRouter();
+        $router->get('invoices/{invoice}', fn (string $invoice): string => $invoice)->name('invoices.show');
+
+        $this->assertSame('123', $router->dispatch(Request::create('invoices/123', 'GET'))->getContent());
+        $this->assertSame('invoices.show', $router->currentRouteName());
+
+        try {
+            if ($method === 'dispatchToCallback') {
+                $router->dispatchToCallback(Request::create('missing', 'GET'), static fn (): string => 'unexpected');
+            } else {
+                $router->{$method}(Request::create('missing', 'GET'));
+            }
+
+            $this->fail('A NotFoundHttpException should have been thrown.');
+        } catch (NotFoundHttpException) {
+        }
+
+        $this->assertNull($router->current());
+        $this->assertNull($router->currentRouteName());
+        $this->assertFalse($router->is('invoices.show'));
+    }
+
+    public function testFailedNestedRouteDispatchKeepsTheCurrentRoute(): void
+    {
+        $router = $this->getRouter();
+        $router->get('invoices/{invoice}', function () use ($router): string {
+            try {
+                $router->dispatchToRoute(Request::create('missing', 'GET'));
+                $this->fail('A NotFoundHttpException should have been thrown.');
+            } catch (NotFoundHttpException) {
+            }
+
+            return $router->input('invoice');
+        });
+
+        $this->assertSame('123', $router->dispatch(Request::create('invoices/123', 'GET'))->getContent());
     }
 
     public function testRoutesDontMatchNonMatchingDomain(): void

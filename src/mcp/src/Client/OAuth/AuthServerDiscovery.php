@@ -4,10 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Mcp\Client\OAuth;
 
+use Closure;
+use GuzzleHttp\Exception\TransferException;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Exception\MalformedUriException;
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Mcp\Client\Exceptions\OAuthException;
+use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\Concerns\InteractsWithOAuthEndpoints;
 use Hypervel\Support\Arr;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 
 class AuthServerDiscovery
 {
@@ -66,6 +78,77 @@ class AuthServerDiscovery
         $scopesSupported = array_values(array_map(strval(...), (array) ($resourceMetadata['scopes_supported'] ?? [])));
 
         return new DiscoveryResult($serverMetadata, $scopesSupported, $resource);
+    }
+
+    /**
+     * Require caller-supplied metadata to be advertised by the resource.
+     *
+     * @param array<string, string> $headers
+     */
+    public function requireAdvertised(string $resourceUrl, string $resourceMetadataUrl, array $headers = []): void
+    {
+        $this->requireFetchable($resourceMetadataUrl, $resourceUrl);
+
+        if ($resourceMetadataUrl === $this->wellKnown($resourceUrl, 'oauth-protected-resource')) {
+            return;
+        }
+
+        $this->requireFetchable($resourceUrl, $resourceUrl);
+
+        $response = $this->probe($resourceUrl, array_filter(
+            $headers,
+            static fn (string $name): bool => strcasecmp($name, 'Authorization') !== 0 && ! str_starts_with(strtolower($name), 'mcp-'),
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        $advertised = WwwAuthenticateChallenge::parse($response->header('WWW-Authenticate'))->resourceMetadataUrl;
+
+        if (! in_array($response->status(), [401, 403], true) || $advertised === null || ! hash_equals($advertised, $resourceMetadataUrl)) {
+            throw new OAuthException("The protected resource metadata URL [{$resourceMetadataUrl}] was not advertised by the resource [{$resourceUrl}].");
+        }
+    }
+
+    /**
+     * Probe the resource for its unauthenticated authorization challenge.
+     *
+     * @param array<string, string> $headers
+     */
+    protected function probe(string $resourceUrl, array $headers): Response
+    {
+        try {
+            return $this->oAuthRequest()
+                ->withHeaders($headers)
+                ->withMiddleware(new RestrictHeadersToOrigin($resourceUrl, array_keys($headers)))
+                ->withMiddleware(function (callable $handler): Closure {
+                    return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                        // Resolve every hop through the same boundary as other OAuth requests, which
+                        // preserves ordinary proxies that the generic destination-policy handler rejects.
+                        $transportOptions = ['curl', 'proxy', 'timeout', 'connect_timeout'];
+                        $hop = new PendingRequest(options: Arr::only($options, $transportOptions));
+                        $destination = $this->resolveOAuthDestination($hop, (string) $request->getUri());
+
+                        return $handler($request->withUri($destination->uri, true), array_replace(
+                            $options,
+                            Arr::only($hop->getOptions(), $transportOptions),
+                        ));
+                    };
+                })
+                ->withOptions(['allow_redirects' => [
+                    'max' => 5,
+                    'strict' => true,
+                    'on_redirect' => function (RequestInterface $request, ResponseInterface $response, UriInterface $uri) use ($resourceUrl): void {
+                        $this->requireFetchable((string) $uri, $resourceUrl);
+                    },
+                ]])
+                ->accept('application/json, text/event-stream')
+                ->post($resourceUrl, [
+                    'jsonrpc' => '2.0',
+                    'id' => 1,
+                    'method' => 'ping',
+                ]);
+        } catch (ConnectionException|RequestException|TransferException|MalformedUriException $exception) {
+            throw new OAuthException("Unable to reach the resource [{$resourceUrl}] to verify its protected resource metadata.", $exception->getCode(), previous: $exception);
+        }
     }
 
     /**

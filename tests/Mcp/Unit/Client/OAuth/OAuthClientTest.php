@@ -25,6 +25,7 @@ use Hypervel\Support\Facades\Session;
 use Hypervel\Tests\Mcp\Fixtures\Client\OAuth\FakeDestinationPolicy;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -715,6 +716,9 @@ class OAuthClientTest extends TestCase
     public function testUsesTheServerAdvertisedResourceMetadataUrlWhenProvided(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response([
                 'authorization_servers' => ['https://auth.test'],
             ]),
@@ -734,12 +738,37 @@ class OAuthClientTest extends TestCase
 
         $this->assertStringStartsWith('https://auth.test/authorize?', $target);
 
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/mcp' && $request['method'] === 'ping');
         Http::assertSent(fn ($request): bool => $request->url() === 'https://mcp.test/.well-known/custom-resource');
+    }
+
+    public function testRejectsResourceMetadataTheResourceDoesNotAdvertiseBeforeRedirecting(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
+        ]);
+
+        $this->assertThrows(
+            fn () => Client::web('https://mcp.test/mcp')
+                ->withOAuth(clientId: 'client-123', clientSecret: 'secret', redirectUri: 'https://app.test/callback')
+                ->oAuthClient('https://attacker.test/resource')->redirect(),
+            OAuthException::class,
+            'was not advertised by the resource',
+        );
+
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request): bool => str_starts_with($request->url(), 'https://attacker.test'));
     }
 
     public function testThrowsInsteadOfFallingBackToTheOriginWhenAnExplicitResourceMetadataUrlFails(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response('', 404),
             'https://mcp.test/.well-known/oauth-authorization-server' => Http::response([
                 'issuer' => 'https://mcp.test',
@@ -766,6 +795,9 @@ class OAuthClientTest extends TestCase
     public function testThrowsWhenAnExplicitResourceMetadataUrlReturnsInvalidJson(): void
     {
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://mcp.test/.well-known/custom-resource"',
+            ]),
             'https://mcp.test/.well-known/custom-resource' => Http::response('not json', 200, ['Content-Type' => 'text/plain']),
         ]);
 
@@ -1641,6 +1673,9 @@ class OAuthClientTest extends TestCase
         ]));
 
         Http::fake([
+            'https://mcp.test/mcp' => Http::response('', 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="https://blocked.test/metadata"',
+            ]),
             'https://mcp.test/.well-known/oauth-protected-resource/mcp' => Http::response([
                 'authorization_servers' => [$stage === 'metadata' ? 'https://blocked.test' : 'https://auth.test'],
             ]),
@@ -1788,5 +1823,32 @@ class OAuthClientTest extends TestCase
             [new DestinationResolutionException('DNS failed')],
             [new CanceledException('DNS cancelled')],
         ];
+    }
+
+    #[TestWith(['refresh'])]
+    #[TestWith(['client_credentials'])]
+    public function testDoesNotProbeTheResourceForDeveloperSuppliedMetadataOnDirectTokenGrants(string $grant): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://mcp.test/.well-known/custom-resource' => Http::response([
+                'authorization_servers' => ['https://auth.test'],
+            ]),
+            'https://auth.test/.well-known/oauth-authorization-server' => Http::response([
+                'issuer' => 'https://auth.test',
+                'authorization_endpoint' => 'https://auth.test/authorize',
+                'token_endpoint' => 'https://auth.test/token',
+            ]),
+            'https://auth.test/token' => Http::response(['access_token' => 'access-token']),
+        ]);
+
+        $oauth = Client::web('https://mcp.test/mcp')
+            ->withOAuth(clientId: 'client-123', clientSecret: 'secret')
+            ->oAuthClient('https://mcp.test/.well-known/custom-resource');
+
+        $token = $grant === 'refresh' ? $oauth->refreshCredentials('refresh-token') : $oauth->clientCredentials();
+
+        $this->assertSame('access-token', $token->accessToken);
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://mcp.test/mcp');
     }
 }

@@ -1864,6 +1864,8 @@ If your application is not already using Passport, follow Passport's [installati
 
 Dynamic client registration applies `passport.middleware` and Passport's named `passport` rate limiter. You may customize that limiter using Passport's [rate limiting configuration](/docs/{{version}}/passport#rate-limiting).
 
+Clients may register up to 10 redirect URIs, each at most 1,024 characters long.
+
 Dynamically registered clients are marked as third-party clients, so Passport's `firstParty()` method returns `false` even though they have no owner. This keeps them subject to consent when your application skips consent for its own clients.
 
 MCP registration creates public clients and grants them `mcp:use` plus the anonymous scopes allowed by `passport.registration.scopes`. Custom client scope defaults are preserved, with wildcard and provisioning scopes excluded. Use Hypervel's Passport migrations and schema when importing client data, including its nullable JSONB `scopes` column and boolean `third_party` column. The registration response reports the saved client name and scope allowance.
@@ -2060,6 +2062,21 @@ $client = Client::web('https://api.githubcopilot.com/mcp/')->withToken(
 
 If you already obtained a suitable token through [Socialite](/docs/{{version}}/socialite) or another account-linking flow, pass that token to `withToken`; you do not need to register MCP OAuth routes.
 
+<a name="client-custom-headers"></a>
+#### Custom Headers
+
+If a server expects an API key or another custom header, use the `withHeaders` method. Named clients may define the same values using the `headers` configuration option:
+
+```php
+use Hypervel\Mcp\Client;
+
+$client = Client::web('https://projects.example.com/mcp')->withHeaders([
+    'X-Api-Key' => config()->string('services.projects.api_key'),
+]);
+```
+
+Custom headers stay on the configured URL's origin: its scheme, host and port. Redirects to another origin are followed without those headers, so connect to the destination server's URL directly if it needs them.
+
 <a name="client-oauth"></a>
 #### Linking User Accounts With OAuth
 
@@ -2192,10 +2209,12 @@ try {
 
 Your application stores the token and scopes and decides when to retry the operation. Limit repeated authorization attempts when a server continues to reject the requested permissions.
 
+Before redirecting for authorization, the client verifies that the resource advertises any supplied custom metadata URL. The standard well-known metadata URL needs no probe. Direct client-credentials and refresh grants do not perform this check.
+
 <a name="oauth-destinations"></a>
 #### OAuth Destinations
 
-OAuth discovery, registration and token requests validate resolved addresses before sending, then pin those addresses for the connection. This prevents remote metadata from directing the server to private network services. These checks run during OAuth requests, not on every MCP tool call. Automatic redirects are disabled, and DNS resolution shares the request's timeout budget.
+OAuth discovery, registration and token requests validate resolved addresses before sending, then pin those addresses for the connection. This prevents remote metadata from directing the server to private network services. These checks run during OAuth requests, not on every MCP tool call. Automatic redirects are disabled for these requests; resource advertisement probes follow up to five redirects, validating and pinning each hop. DNS resolution shares the request's timeout budget, and response bodies are limited to 1 MiB by default.
 
 Hostname pinning requires cURL with SSL support and libcurl 7.75 or later. See the HTTP client's [destination policy limitations](/docs/{{version}}/http-client#destination-policy-limitations).
 

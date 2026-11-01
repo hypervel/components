@@ -93,6 +93,12 @@ Of course, you may call the `paginate` method after setting other constraints on
 $users = User::where('votes', '>', 100)->paginate(15);
 ```
 
+If you already know the total number of matching records, pass it as the `total` argument to avoid a separate count query. This also works on relationship queries, including many-to-many and has-many-through relationships. You may pass an integer or a closure that returns the total:
+
+```php
+$roles = $user->roles()->paginate(15, total: $totalRoles);
+```
+
 You may also use the `simplePaginate` method when paginating Eloquent models:
 
 ```php

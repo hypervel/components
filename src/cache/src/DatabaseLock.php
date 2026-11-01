@@ -83,10 +83,11 @@ class DatabaseLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         $connection = $this->connection();
+        $driver = $connection->getDriverName();
 
-        // Every SQLite write takes the database-wide write lock, even an insert that fails on the existing key or an
+        // Every SQLite write takes the database-wide write lock, even an insert that ignores the existing key or an
         // update that matches nothing, so a live lock held by another owner is refused with a read instead.
-        if ($connection->getDriverName() === 'sqlite') {
+        if ($driver === 'sqlite') {
             $owner = $connection->table($this->table)
                 ->useWritePdo()
                 ->where('key', $this->name)
@@ -98,16 +99,23 @@ class DatabaseLock extends Lock implements RefreshableLock
             }
         }
 
-        try {
-            $connection->table($this->table)->insert([
-                'key' => $this->name,
-                'owner' => $this->owner,
-                'expiration' => $this->expiresAt(),
-            ]);
+        $record = [
+            'key' => $this->name,
+            'owner' => $this->owner,
+            'expiration' => $this->expiresAt(),
+        ];
 
-            $acquired = true;
+        try {
+            // MySQL's INSERT IGNORE truncates overlong names, leaving locks that cannot be released by their full name.
+            $acquired = in_array($driver, ['mysql', 'mariadb'], true)
+                ? $connection->table($this->table)->insert($record)
+                : $connection->table($this->table)->insertOrIgnore($record) > 0;
         } catch (UniqueConstraintViolationException) {
             // Only an existing row means the lock may still be taken over; other failures, such as a busy database, propagate.
+            $acquired = false;
+        }
+
+        if (! $acquired) {
             $updated = $connection->table($this->table)
                 ->where('key', $this->name)
                 ->where(function ($query) {

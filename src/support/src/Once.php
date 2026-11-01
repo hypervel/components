@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use Hypervel\Context\CoroutineContext;
 use WeakMap;
+use WeakReference;
 
 class Once
 {
@@ -22,7 +23,7 @@ class Once
     /**
      * Create a new once instance.
      *
-     * @param WeakMap<object, array<string, mixed>> $values
+     * @param WeakMap<object, array<string, array{value: mixed, objects: array<int, WeakReference<object>>}>> $values
      */
     protected function __construct(protected WeakMap $values)
     {
@@ -53,11 +54,39 @@ class Once
             $this->values[$object] = [];
         }
 
-        if (array_key_exists($hash, $this->values[$object])) {
-            return $this->values[$object][$hash];
+        $objects = $onceable->objects();
+
+        if (isset($this->values[$object][$hash]) && $this->usesSameObjects($this->values[$object][$hash]['objects'], $objects)) {
+            return $this->values[$object][$hash]['value'];
         }
 
-        return $this->values[$object][$hash] = call_user_func($onceable->callable);
+        $value = call_user_func($onceable->callable);
+
+        $this->values[$object][$hash] = [
+            'value' => $value,
+            'objects' => array_map(WeakReference::create(...), $objects),
+        ];
+
+        return $value;
+    }
+
+    /**
+     * Determine if the cached references still point to the given objects.
+     *
+     * Object hashes are based on object IDs, which PHP reuses once an object is destroyed.
+     *
+     * @param array<int, WeakReference<object>> $references
+     * @param array<int, object> $objects
+     */
+    protected function usesSameObjects(array $references, array $objects): bool
+    {
+        foreach ($objects as $key => $object) {
+            if ($references[$key]->get() !== $object) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -19,19 +19,18 @@ class EventCacheCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testEventsCacheCommandCreatesFile(): void
+    public function testEventsAreCachedAtomically(): void
     {
-        $this->artisan('event:cache')
-            ->assertSuccessful();
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('replace')->once()->with($this->app->getCachedEventsPath(), m::type('string'), null)->passthru();
 
-        $this->assertFileExists($this->app->getCachedEventsPath());
-    }
+        $this->app->instance('files', $files);
 
-    public function testEventsCacheCommandOutputsSuccessMessage(): void
-    {
         $this->artisan('event:cache')
             ->expectsOutputToContain('Events cached successfully.')
             ->assertSuccessful();
+
+        $this->assertFileExists($this->app->getCachedEventsPath());
     }
 
     public function testCachedFileContainsProviderEvents(): void

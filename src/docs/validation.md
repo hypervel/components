@@ -1678,6 +1678,8 @@ use Hypervel\Validation\Rule;
 ],
 ```
 
+Rulesets with non-sequential keys are treated as maps of fields to rules, so pass filtered rulesets through `array_values`.
+
 <a name="rule-alpha"></a>
 #### alpha
 

@@ -375,6 +375,8 @@ class BelongsToMany extends Relation
 
             $column($pivotQuery);
 
+            $this->qualifyPivotWheres($pivotQuery->getQuery());
+
             return $this->addCompiledPivotConstraint(
                 $this->newPivotStatement()->addNestedWhereQuery($pivotQuery->getQuery(), $boolean)
             );
@@ -659,7 +661,7 @@ class BelongsToMany extends Relation
         $this->getQuery()->ensureCanCreateOrFirst();
 
         if (is_null($instance = (clone $this)->where($attributes)->first())) {
-            if (is_null($instance = $this->related->where($attributes)->first())) {
+            if (is_null($instance = $this->related->newQuery()->withoutGlobalScopes($this->query->removedScopes())->where($attributes)->first())) {
                 $instance = $this->createOrFirst($attributes, $values, $joining, $touch);
             } else {
                 try {
@@ -693,7 +695,13 @@ class BelongsToMany extends Relation
             // ...
         }
 
-        $instance = $this->related->where($attributes)->useWritePdo()->first() ?? throw $exception;
+        $instance = $this->related->newQuery()->withoutGlobalScopes($this->query->removedScopes())
+            ->where($attributes)->useWritePdo()->first() ?? throw $exception;
+
+        // The recovered model may already be linked even without a unique constraint on the pivot table.
+        if ($this->hasAttachedPivot($instance)) {
+            return $instance;
+        }
 
         try {
             $this->getQuery()->withSavepointIfNeeded(fn () => $this->attach($instance, $joining, $touch));
@@ -714,6 +722,38 @@ class BelongsToMany extends Relation
         return $this->newPivotStatementForId($instance)
             ->useWritePdo()
             ->exists();
+    }
+
+    /**
+     * Get the first record matching the attributes, including trashed records, and restore it. If the record is not found, create it.
+     *
+     * @param array|(Closure(): array) $values
+     * @return TRelatedModel
+     */
+    public function restoreOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
+    {
+        $this->withTrashed();
+
+        return tap($this->firstOrCreate($attributes, $values, $joining, $touch), function ($instance) {
+            $instance->restore();
+        });
+    }
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, find the matching record, including trashed records, and restore it.
+     *
+     * @param array|(Closure(): array) $values
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrRestore(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
+    {
+        $this->withTrashed();
+
+        return tap($this->createOrFirst($attributes, $values, $joining, $touch), function ($instance) {
+            $instance->restore();
+        });
     }
 
     /**
@@ -1036,11 +1076,11 @@ class BelongsToMany extends Relation
      *
      * @return LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel>
      */
-    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
+    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
         $this->query->addSelect($this->shouldSelect($columns));
 
-        return tap($this->query->paginate($perPage, $columns, $pageName, $page), function ($paginator) {
+        return tap($this->query->paginate($perPage, $columns, $pageName, $page, $total), function ($paginator) {
             $this->hydratePivotRelation($paginator->items());
         });
     }
@@ -1494,6 +1534,34 @@ class BelongsToMany extends Relation
         return Model::withoutEvents(fn (): array => $this->createMany($records, $joinings));
     }
 
+    /**
+     * Create a new instance of the related model and attach it to the parent model. Allow mass-assignment.
+     *
+     * @return TRelatedModel
+     */
+    public function forceCreate(array $attributes = [], array $joining = [], bool $touch = true): Model
+    {
+        $attributes = array_merge($this->getQuery()->pendingAttributes, $attributes);
+
+        $instance = $this->related->newInstance()->forceFill($attributes);
+
+        $instance->save(['touch' => false]);
+
+        $this->attach($instance, $joining, $touch);
+
+        return $instance;
+    }
+
+    /**
+     * Create a new instance of the related model with mass assignment without raising any events and attach it to the parent model.
+     *
+     * @return TRelatedModel
+     */
+    public function forceCreateQuietly(array $attributes = [], array $joining = [], bool $touch = true): Model
+    {
+        return Model::withoutEvents(fn (): Model => $this->forceCreate($attributes, $joining, $touch));
+    }
+
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from == $query->getQuery()->from) {
@@ -1701,6 +1769,35 @@ class BelongsToMany extends Relation
     public function getPivotColumns(): array
     {
         return $this->pivotColumns;
+    }
+
+    /**
+     * Qualify the column names in the given query's where clauses by the pivot table.
+     */
+    protected function qualifyPivotWheres(QueryBuilder $query): void
+    {
+        foreach ($query->wheres as &$where) {
+            if ($where['type'] === 'Nested') {
+                $this->qualifyPivotWheres($where['query']);
+
+                continue;
+            }
+
+            foreach (['column', 'first', 'second'] as $key) {
+                if (isset($where[$key]) && is_string($where[$key])) {
+                    $where[$key] = $this->qualifyPivotColumn($where[$key]);
+                }
+            }
+
+            // Only betweenColumns stores column names in "values"; other forms store comparison values.
+            $key = $where['type'] === 'betweenColumns' ? 'values' : 'columns';
+
+            foreach ($where[$key] ?? [] as $index => $column) {
+                if (is_string($column)) {
+                    $where[$key][$index] = $this->qualifyPivotColumn($column);
+                }
+            }
+        }
     }
 
     /**

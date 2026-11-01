@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 function fail()
 {
@@ -637,11 +638,13 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
-    public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders(): void
+    #[TestWith(['Foo', 'Foo, Precognition'])]
+    #[TestWith([['Foo', 'Prefer'], 'Foo, Prefer, Precognition'])]
+    public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders(string|array $vary, string $expected): void
     {
-        Route::get('test-route', function () {
-            precognitive(function ($bail) {
-                $bail(response('expected')->header('Vary', 'Foo'));
+        Route::get('test-route', function () use ($vary) {
+            precognitive(function ($bail) use ($vary) {
+                $bail(response('expected')->header('Vary', $vary));
                 fail();
             });
             fail();
@@ -649,7 +652,7 @@ class PrecognitionTest extends RoutingTestCase
 
         $response = $this->get('test-route', ['Precognition' => 'true']);
 
-        $response->assertHeader('Vary', 'Foo, Precognition');
+        $response->assertHeader('Vary', $expected);
         $response->assertHeaderMissing('Precognition-Success');
     }
 

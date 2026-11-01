@@ -11,8 +11,10 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Jobs\JobName;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Enumerable;
@@ -188,11 +190,15 @@ class RetryCommand extends Command
     {
         $payload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
 
-        if (! isset($payload['data']['command'])) {
+        if (! JobName::hasJobObject($payload)) {
             return json_encode($payload, JSON_THROW_ON_ERROR);
         }
 
-        $instance = $this->getInstanceFromPayload($payload);
+        try {
+            $instance = $this->getInstanceFromPayload($payload);
+        } catch (ModelNotFoundException) {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        }
 
         if (is_object($instance) && ! $instance instanceof __PHP_Incomplete_Class && method_exists($instance, 'retryUntil')) {
             $retryUntil = $instance->retryUntil();
@@ -218,12 +224,21 @@ class RetryCommand extends Command
 
         $payload = json_decode($job->payload, true, flags: JSON_THROW_ON_ERROR);
 
-        if (! isset($payload['data']['command'])) {
-            return [];
+        try {
+            $instance = JobName::hasJobObject($payload)
+                ? $this->getInstanceFromPayload($payload)
+                : $payload['job'];
+        } catch (ModelNotFoundException) {
+            $instance = null;
+        }
+
+        // Unrestorable jobs still need the driver's string-job defaults, including required FIFO message options.
+        if ($instance === null || $instance instanceof __PHP_Incomplete_Class) {
+            $instance = $payload['data']['commandName'] ?? $payload['job'];
         }
 
         $getOptions = fn (SqsQueue $queue) => $queue->getQueueableOptions(
-            $this->getInstanceFromPayload($payload),
+            $instance,
             $job->queue,
             $job->payload,
         );

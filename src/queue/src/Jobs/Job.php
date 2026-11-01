@@ -308,7 +308,8 @@ abstract class Job implements JobContract, JobLifecycleCallbacks
         $this->markAsFailed();
 
         try {
-            $commandName = $this->payload()['data']['commandName'] ?? false;
+            $payload = $this->payload();
+            $commandName = JobName::hasJobObject($payload) ? ($payload['data']['commandName'] ?? false) : false;
         } catch (InvalidPayloadException) {
             $commandName = false;
         }

@@ -4672,6 +4672,12 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['name' => ['foo', []]], ['name' => 'Array|In:foo,bar']);
         $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['name' => [new stdClass]], ['name' => 'Array|In:foo,bar']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['name' => [new Stringable('foo')]], ['name' => 'Array|In:foo,bar']);
+        $this->assertTrue($v->passes());
     }
 
     public function testValidateNotIn(): void
@@ -5025,6 +5031,12 @@ class ValidationValidatorTest extends TestCase
         $mock->expects('getMultiCount')->with('users', 'email_addr', ['foo', 'foo'], [])->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['email' => ['a' => ['foo']]], ['email' => 'exists:users,email_addr']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['email' => [new stdClass, new stdClass]], ['email' => 'exists:users,email_addr']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidationExistsIsNotCalledUnnecessarily(): void
