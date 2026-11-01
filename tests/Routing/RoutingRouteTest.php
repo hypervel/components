@@ -45,6 +45,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -849,7 +850,10 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('25', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
     }
 
-    public function testCurrentRouteIsResetWhenTheNextRequestDoesNotMatch(): void
+    #[TestWith(['dispatch'])]
+    #[TestWith(['dispatchToRoute'])]
+    #[TestWith(['dispatchToCallback'])]
+    public function testCurrentRouteIsResetWhenTheNextRequestDoesNotMatch(string $method): void
     {
         $router = $this->getRouter();
         $router->get('invoices/{invoice}', fn (string $invoice): string => $invoice)->name('invoices.show');
@@ -858,7 +862,11 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('invoices.show', $router->currentRouteName());
 
         try {
-            $router->dispatch(Request::create('missing', 'GET'));
+            if ($method === 'dispatchToCallback') {
+                $router->dispatchToCallback(Request::create('missing', 'GET'), static fn (): string => 'unexpected');
+            } else {
+                $router->{$method}(Request::create('missing', 'GET'));
+            }
 
             $this->fail('A NotFoundHttpException should have been thrown.');
         } catch (NotFoundHttpException) {

@@ -609,8 +609,6 @@ class Router implements BindingRegistrar, RegistrarContract
     public function dispatch(Request $request): SymfonyResponse
     {
         CoroutineContext::set(self::CURRENT_REQUEST_CONTEXT_KEY, $request);
-        // A failed match must not retain an earlier dispatch's route in this coroutine.
-        CoroutineContext::set(self::CURRENT_ROUTE_CONTEXT_KEY, null);
 
         return $this->dispatchToRoute($request);
     }
@@ -659,6 +657,9 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function findRoute(Request $request): Route
     {
+        // A failed match must not retain an earlier dispatch's route in this coroutine.
+        CoroutineContext::set(self::CURRENT_ROUTE_CONTEXT_KEY, null);
+
         if ($this->events->hasListeners(Routing::class)) {
             $this->events->dispatch(new Routing($request));
         }
