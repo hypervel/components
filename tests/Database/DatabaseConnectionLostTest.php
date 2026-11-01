@@ -77,6 +77,8 @@ class DatabaseConnectionLostTest extends TestCase
         yield 'explicit signal' => [new LostConnectionException('Lost connection and no reconnector available.')];
         yield 'mysqlnd packet warning' => [new ErrorException('Packets out of order. Expected 1 received 0. Packet size=145', 0, E_WARNING)];
         yield 'mysqlnd send warning' => [new ErrorException('Error while sending QUERY packet. PID=1234', 0, E_WARNING)];
+        yield 'PDO TLS broken pipe' => [new ErrorException('PDOStatement::execute(): SSL: Broken pipe', 0, E_WARNING)];
+        yield 'PDO TLS record failure' => [new ErrorException('PDO::query(): SSL operation failed with code 1. OpenSSL Error messages: decryption failed or bad record mac', 0, E_WARNING)];
     }
 
     #[DataProvider('nonDatabaseFailures')]
@@ -99,5 +101,7 @@ class DatabaseConnectionLostTest extends TestCase
         yield 'filesystem warning' => [new ErrorException('fopen(missing): Failed to open stream: No such file or directory', 0, E_WARNING)];
         yield 'embedded packet warning' => [new ErrorException('fopen(Packets out of order. Expected): Failed to open stream', 0, E_WARNING)];
         yield 'unsupported PDO warning mode' => [new ErrorException('PDO::query(): SQLSTATE[HY000]: General error: 2006 MySQL server has gone away', 0, E_WARNING)];
+        yield 'PDO certificate configuration' => [new ErrorException('PDO::__construct(): SSL operation failed with code 1. OpenSSL Error messages: certificate verify failed', 0, E_WARNING)];
+        yield 'Redis TLS failure' => [new ErrorException('Redis::get(): SSL: Connection reset by peer', 0, E_WARNING)];
     }
 }
