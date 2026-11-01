@@ -9,15 +9,19 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
+use UnitEnum;
 
 class UniqueJobSchedulingTest extends TestCase
 {
@@ -43,6 +47,46 @@ class UniqueJobSchedulingTest extends TestCase
             UniqueTestJob::class,
             UniqueTestJob::class
         );
+
+        Queue::assertPushed(UniqueTestJob::class, 1);
+    }
+
+    public function testUniqueLockIsReleasedWhenPushingToTheQueueFails(): void
+    {
+        Queue::extend('failing', fn () => new class implements ConnectorInterface {
+            /**
+             * Establish a queue connection.
+             */
+            public function connect(array $config): QueueContract
+            {
+                return new class extends NullQueue {
+                    /**
+                     * Push a new job onto the queue.
+                     */
+                    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): never
+                    {
+                        throw new RuntimeException('Queue unavailable.');
+                    }
+                };
+            }
+        });
+
+        config()->set('queue.connections.failing', ['driver' => 'failing']);
+
+        $event = $this->app->make(Schedule::class)->job(UniqueTestJob::class, null, 'failing')->name('')->everyMinute();
+        $caught = null;
+
+        try {
+            $event->run($this->app);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $caught);
+        $this->assertSame('Queue unavailable.', $caught->getMessage());
+
+        Queue::fake();
+        $this->dispatchJobs(UniqueTestJob::class);
 
         Queue::assertPushed(UniqueTestJob::class, 1);
     }
@@ -73,34 +117,6 @@ class UniqueJobSchedulingTest extends TestCase
     public function testUniqueLockIsReleasedWhenDispatchFailsBeforePayloadCreation(): void
     {
         $exception = new RuntimeException('Dispatch failed before payload creation.');
-        $calls = 0;
-
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->twice()
-            ->andReturnUsing(function () use (&$calls, $exception): void {
-                if (++$calls === 1) {
-                    throw $exception;
-                }
-            });
-
-        $this->app->instance(Dispatcher::class, $dispatcher);
-
-        $schedule = $this->scheduleUniqueJobs(2);
-
-        try {
-            $schedule->events()[0]->run($this->app);
-            $this->fail('Expected the first dispatch to fail.');
-        } catch (RuntimeException $throwable) {
-            $this->assertSame($exception, $throwable);
-        }
-
-        $schedule->events()[1]->run($this->app);
-    }
-
-    public function testUniqueLockIsReleasedWhenDispatchFailsAfterPayloadCreationBegins(): void
-    {
-        $exception = new RuntimeException('Dispatch failed after payload creation began.');
         $calls = 0;
 
         $dispatcher = m::mock(Dispatcher::class);
