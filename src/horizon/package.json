@@ -15,7 +15,7 @@
         "@vue/test-utils": "catalog:",
         "axios": "catalog:",
         "bootstrap": "catalog:",
-        "chart.js": "^2.9.4",
+        "chart.js": "^4.5.1",
         "jsdom": "catalog:",
         "moment": "^2.31.0",
         "moment-timezone": "catalog:",
