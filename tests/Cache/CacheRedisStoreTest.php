@@ -12,6 +12,7 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Mockery as m;
+use Redis;
 use stdClass;
 
 class CacheRedisStoreTest extends RedisCacheTestCase
@@ -255,5 +256,25 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store->flushStaleTags();
 
         $this->assertSame(1, $client->getScanCallCount());
+    }
+
+    public function testFlushStaleTagsDoesNotDoublePrefixTheMatchPattern(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->allows('getShouldTransform')->andReturn(false);
+        $connection->allows('getOption')->with(Redis::OPT_PREFIX)->andReturn('app_');
+        $connection->allows('getOption')->with(Redis::OPT_SCAN)->andReturn(Redis::SCAN_PREFIX);
+        $connection->expects('scan')
+            ->with(m::any(), 'prefix:_all:tag:*:entries', 1000)
+            ->andReturnUsing(function (mixed &$cursor): array {
+                $cursor = 0;
+
+                return ['app_prefix:_all:tag:foo:entries'];
+            });
+        $connection->expects('zRemRangeByScore')->with('prefix:_all:tag:foo:entries', '0', m::any())->andReturn(0);
+        $connection->allows('zscan')->andReturn(false);
+        $connection->allows('zCard')->andReturn(0);
+
+        $this->createStore($connection, tagMode: 'all')->flushStaleTags();
     }
 }
