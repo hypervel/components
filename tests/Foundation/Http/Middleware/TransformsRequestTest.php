@@ -4,14 +4,174 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http\Middleware\TransformsRequestTest;
 
+use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\TransformsRequest;
+use Hypervel\Foundation\Http\Middleware\TrimStrings;
+use Hypervel\Http\Exceptions\PostTooLargeException;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
+use function Hypervel\Coroutine\parallel;
+
 class TransformsRequestTest extends TestCase
 {
+    #[DataProvider('middlewareProvider')]
+    public function testUnchangedNestedArraysAreNotCopied(string $middlewareClass): void
+    {
+        $request = Request::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '[' . str_repeat('[0],', 19999) . '[0]]');
+        $original = $request->json()->all();
+        $middleware = new $middlewareClass;
+        $before = memory_get_usage();
+
+        $middleware->handle($request, fn () => null);
+
+        // Copying the 20,000 unchanged inner arrays would require several MiB.
+        $this->assertLessThan(1024 * 1024, memory_get_usage() - $before);
+        $this->assertSame($original, $request->json()->all());
+    }
+
+    public static function middlewareProvider(): iterable
+    {
+        yield [TransformsRequest::class];
+        yield [TrimStrings::class];
+        yield [ConvertEmptyStringsToNull::class];
+    }
+
+    #[DataProvider('amplifiedInputProvider')]
+    public function testRejectsAmplifiedJsonKeys(string $middlewareClass, mixed $value): void
+    {
+        $key = str_repeat('è', 197499);
+        $request = Request::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            $key => array_fill(0, 100, $value),
+        ], JSON_UNESCAPED_UNICODE));
+
+        try {
+            (new $middlewareClass)->handle($request, function (): never {
+                $this->fail('An amplified request should not reach the next middleware.');
+            });
+
+            $this->fail('An amplified request should be rejected.');
+        } catch (PostTooLargeException $exception) {
+            $this->assertSame(413, $exception->getStatusCode());
+        }
+    }
+
+    public static function amplifiedInputProvider(): iterable
+    {
+        foreach ([TransformsRequest::class, TrimStrings::class, ConvertEmptyStringsToNull::class] as $middleware) {
+            foreach ([0, ' value ', '', []] as $value) {
+                yield [$middleware, $value];
+            }
+        }
+    }
+
+    public function testKeyBudgetIncludesNestedPathsAndPreservesDottedKeys(): void
+    {
+        $middleware = new class extends TransformsRequest {
+            protected int $maxKeyBytes = 10;
+
+            protected function transform(string $key, mixed $value): mixed
+            {
+                return $key;
+            }
+        };
+
+        // The processed keys are "foo" (3 bytes) and "foo.bar" (7 bytes).
+        $middleware->handle(new Request(['foo' => ['bar' => 'value']]), function (Request $request): void {
+            $this->assertSame('foo.bar', $request->input('foo.bar'));
+        });
+
+        $this->expectException(PostTooLargeException::class);
+
+        $middleware->handle(new Request(['foo' => ['bars' => 'value']]), fn () => null);
+    }
+
+    public function testKeyBudgetIsSharedAcrossParameterBags(): void
+    {
+        $middleware = new class extends TransformsRequest {
+            protected int $maxKeyBytes = 10;
+        };
+
+        $request = Request::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"foobar": 0}');
+        $request->query->set('hello', 0);
+
+        $this->expectException(PostTooLargeException::class);
+
+        $middleware->handle($request, fn () => null);
+    }
+
+    public function testKeyBudgetIsSharedAcrossQueryAndFormParameters(): void
+    {
+        $middleware = new class extends TransformsRequest {
+            protected int $maxKeyBytes = 10;
+        };
+
+        $request = Request::create('/?hello=0', 'POST', ['foobar' => 0]);
+
+        $this->expectException(PostTooLargeException::class);
+
+        $middleware->handle($request, fn () => null);
+    }
+
+    public function testKeyBudgetResetsWhenMiddlewareIsReused(): void
+    {
+        $middleware = new class extends TransformsRequest {
+            protected int $maxKeyBytes = 10;
+        };
+
+        for ($i = 0; $i < 2; ++$i) {
+            $middleware->handle(new Request(['1234567890' => 'value']), function (Request $request): void {
+                $this->assertSame('value', $request->input('1234567890'));
+            });
+        }
+
+        try {
+            $middleware->handle(new Request(['12345678901' => 'value']), fn () => null);
+
+            $this->fail('The key budget should be exceeded.');
+        } catch (PostTooLargeException $exception) {
+            $this->assertSame(413, $exception->getStatusCode());
+        }
+
+        $middleware->handle(new Request(['1234567890' => 'value']), function (Request $request): void {
+            $this->assertSame('value', $request->input('1234567890'));
+        });
+    }
+
+    public function testYieldingTransformsKeepEachRequestsKeyBudget(): void
+    {
+        $middleware = new class extends TransformsRequest {
+            protected int $maxKeyBytes = 10;
+
+            protected function transform(string $key, mixed $value): mixed
+            {
+                usleep(5000);
+
+                return $value;
+            }
+        };
+        $handle = static function (array $input) use ($middleware): int {
+            try {
+                return $middleware->handle(new Request($input), static fn (): int => 200);
+            } catch (PostTooLargeException $exception) {
+                return $exception->getStatusCode();
+            }
+        };
+
+        $this->assertSame([200, 200], parallel([
+            static fn (): int => $handle(['a' => ['b' => 1], 'c' => ['d' => 2]]),
+            static fn (): int => $handle(['a' => ['b' => 1], 'c' => ['d' => 2]]),
+        ]));
+
+        $this->assertSame([413, 200], parallel([
+            static fn (): int => $handle(['a' => ['bbbb' => 1], 'c' => ['dddd' => 2]]),
+            static fn (): int => $handle([]),
+        ]));
+    }
+
     public function testEmptyParameterBagIsNotReadOrReplaced(): void
     {
         $bag = new TrackingParameterBag;

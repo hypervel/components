@@ -790,6 +790,8 @@ $value = $request->cookie('name');
 
 By default, Hypervel includes the `Hypervel\Foundation\Http\Middleware\TrimStrings` and `Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
 
+To prevent oversized nested field names from consuming excessive resources, these middleware reject requests with an HTTP 413 response when the combined size of the processed field paths exceeds 20 MiB. This limit counts full nested paths across the query string and request body.
+
 #### Disabling Input Normalization
 
 If you would like to disable this behavior for all requests, you may remove the two middleware from your application's middleware stack by invoking the `$middleware->remove` method in your application's `bootstrap/app.php` file:
