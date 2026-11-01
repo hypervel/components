@@ -13,6 +13,7 @@ use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\JobName;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -22,6 +23,7 @@ use Hypervel\Telescope\ExceptionContext;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\JsonNormalizer;
 use Hypervel\Telescope\Telescope;
 use RuntimeException;
 
@@ -60,7 +62,8 @@ class JobWatcher extends Watcher
             return null;
         }
 
-        $job = isset($payload['data']['command'])
+        $hasJobObject = JobName::hasJobObject($payload);
+        $job = $hasJobObject
             ? get_class($payload['data']['command'])
             : $payload['job'];
 
@@ -78,7 +81,7 @@ class JobWatcher extends Watcher
 
         Telescope::recordJob(
             $entry = IncomingEntry::make($content)
-                ->withFamilyHash($content['data']['batchId'] ?? null)
+                ->withFamilyHash($hasJobObject ? ($content['data']['batchId'] ?? null) : null)
                 ->tags($this->tags($payload))
         );
 
@@ -207,8 +210,11 @@ class JobWatcher extends Watcher
      */
     protected function data(array $payload): array
     {
-        if (! isset($payload['data']['command'])) {
-            return $payload['data'];
+        if (! JobName::hasJobObject($payload)) {
+            // String handlers accept arbitrary JSON data; the entry's display contract requires an array.
+            return is_array($payload['data'])
+                ? $payload['data']
+                : Arr::wrap(JsonNormalizer::normalize($payload['data']));
         }
 
         return ExtractProperties::from(
@@ -221,7 +227,7 @@ class JobWatcher extends Watcher
      */
     protected function tags(array $payload): array
     {
-        if (! isset($payload['data']['command'])) {
+        if (! JobName::hasJobObject($payload)) {
             return [];
         }
 
@@ -235,7 +241,7 @@ class JobWatcher extends Watcher
      */
     protected function updateBatch(array $payload): void
     {
-        if (! isset($payload['data']['command'])) {
+        if (! JobName::hasJobObject($payload)) {
             return;
         }
 

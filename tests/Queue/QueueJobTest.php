@@ -17,6 +17,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\Job;
+use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -176,7 +177,10 @@ class QueueJobTest extends TestCase
         $job = new QueueJobPayloadStub(json_encode([
             'uuid' => 'job-uuid',
             'job' => QueueJobTimeoutBatchStub::class,
-            'data' => ['commandName' => QueueJobTimeoutBatchStub::class],
+            'data' => [
+                'commandName' => QueueJobTimeoutBatchStub::class,
+                'command' => serialize(new QueueJobTimeoutBatchStub),
+            ],
         ], JSON_THROW_ON_ERROR));
         $timeout = TimeoutExceededException::forJob($job);
         $gate = $this->armCurrentCoroutineCancellation();
@@ -258,7 +262,10 @@ class QueueJobTest extends TestCase
         $job = new QueueJobPayloadStub(json_encode([
             'uuid' => 'job-uuid',
             'job' => QueueJobTimeoutBatchStub::class,
-            'data' => ['commandName' => QueueJobTimeoutBatchStub::class],
+            'data' => [
+                'commandName' => QueueJobTimeoutBatchStub::class,
+                'command' => serialize(new QueueJobTimeoutBatchStub),
+            ],
         ], JSON_THROW_ON_ERROR));
         $timeout = TimeoutExceededException::forJob($job);
 
@@ -309,6 +316,41 @@ class QueueJobTest extends TestCase
             'named connection' => ['sqlite'],
             'default connection' => [null],
         ];
+    }
+
+    public function testStringJobTimeoutDoesNotTreatCallerDataAsBatchMetadata(): void
+    {
+        $queue = new class extends SyncQueue {
+            /**
+             * Build a string-job payload through the real producer.
+             */
+            public function payloadFor(string $job, array $data): string
+            {
+                return $this->createPayload($job, 'default', $data);
+            }
+        };
+        $job = new QueueJobPayloadStub($queue->payloadFor(
+            QueueJobTimeoutBatchStub::class,
+            ['command' => 'backup:run', 'commandName' => 'backup:run'],
+        ));
+        $timeout = TimeoutExceededException::forJob($job);
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()
+            ->withArgs(fn (JobFailed $event): bool => $event->job === $job && $event->exception === $timeout);
+
+        $container = m::mock(Container::class);
+        $container->shouldNotReceive('make')->with(BatchRepository::class);
+        $container->shouldReceive('make')->with('config')->andReturn(new ConfigRepository(['queue' => ['failed' => ['driver' => null]]]));
+        $container->shouldReceive('make')->once()->with(QueueJobTimeoutBatchStub::class)->andReturn(new QueueJobTimeoutBatchStub);
+        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+        $job->setContainer($container);
+        $job->setConnectionName('redis');
+
+        $job->fail($timeout);
+
+        $this->assertTrue($job->hasFailed());
+        $this->assertTrue($job->isDeleted());
     }
 
     /**

@@ -379,6 +379,8 @@ abstract class Queue
             'uuid' => (string) Str::uuid(),
             'displayName' => is_string($job) ? explode('@', $job)[0] : null,
             'job' => $job,
+            // Caller data must not be interpreted as serialized object-job metadata.
+            'stringJob' => true,
             'maxTries' => null,
             'maxExceptions' => null,
             'failOnTimeout' => false,
