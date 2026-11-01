@@ -14,6 +14,7 @@ use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ParsesIndexedEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\ResolvesAudioFilenames;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\BuildsTextRequests;
@@ -52,6 +53,7 @@ class OpenAiGateway implements Gateway, StepTextGateway
     use MapsTools;
     use ParsesTextResponses;
     use HandlesFailoverErrors;
+    use ParsesIndexedEmbeddings;
     use ParsesServerSentEvents;
     use ResolvesAudioFilenames;
 
@@ -287,7 +289,7 @@ class OpenAiGateway implements Gateway, StepTextGateway
         $data = $response->json();
 
         return new EmbeddingsResponse(
-            collect($data['data'] ?? [])->sortBy('index')->pluck('embedding')->all(),
+            $this->parseIndexedEmbeddings($data['data'] ?? [], count($inputs), $provider->name()),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
         );

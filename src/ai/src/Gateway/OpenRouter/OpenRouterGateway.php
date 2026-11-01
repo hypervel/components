@@ -16,6 +16,7 @@ use Hypervel\Ai\Contracts\Providers\SupportsWebFetch;
 use Hypervel\Ai\Contracts\Providers\SupportsWebSearch;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ParsesIndexedEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\WrapsPcmAudio;
 use Hypervel\Ai\Gateway\OpenAiCompatible\Concerns\MapsChatCompletionTools;
@@ -59,6 +60,7 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
     use ParsesTextResponses;
     use HandlesFailoverErrors;
     use MapsChatCompletionTools;
+    use ParsesIndexedEmbeddings;
     use ParsesServerSentEvents;
     use PerformsChatCompletionSteps;
     use WrapsPcmAudio;
@@ -349,7 +351,7 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
         $this->validateTextResponse($data);
 
         return new EmbeddingsResponse(
-            (new Collection($data['data'] ?? []))->sortBy('index')->pluck('embedding')->all(),
+            $this->parseIndexedEmbeddings($data['data'] ?? [], count($inputs), $provider->name()),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
         );

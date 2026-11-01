@@ -14,6 +14,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Gateway\AzureOpenAi\Concerns\CreatesAzureOpenAiClient;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
+use Hypervel\Ai\Gateway\Concerns\ParsesIndexedEmbeddings;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\BuildsTextRequests;
 use Hypervel\Ai\Gateway\OpenAi\Concerns\HandlesTextGeneration;
@@ -46,6 +47,7 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
     use MapsAttachments;
     use MapsMessages;
     use MapsTools;
+    use ParsesIndexedEmbeddings;
     use ParsesServerSentEvents;
     use ParsesTextResponses;
 
@@ -80,7 +82,7 @@ class AzureOpenAiGateway implements EmbeddingGateway, ImageGateway, StepTextGate
         $data = $response->json();
 
         return new EmbeddingsResponse(
-            collect($data['data'] ?? [])->sortBy('index')->pluck('embedding')->all(),
+            $this->parseIndexedEmbeddings($data['data'] ?? [], count($inputs), $provider->name()),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
         );

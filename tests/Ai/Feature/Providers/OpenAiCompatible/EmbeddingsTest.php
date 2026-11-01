@@ -59,12 +59,17 @@ class EmbeddingsTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testEmbeddingsResponseIsCorrectlyParsed(bool $shuffled): void
+    #[TestWith([false, true], 'response order without indices')]
+    public function testEmbeddingsResponseIsCorrectlyParsed(bool $shuffled, bool $omitIndices = false): void
     {
         $embeddings = [
             ['object' => 'embedding', 'index' => 0, 'embedding' => [0.1, 0.2, 0.3]],
             ['object' => 'embedding', 'index' => 1, 'embedding' => [0.4, 0.5, 0.6]],
         ];
+
+        if ($omitIndices) {
+            unset($embeddings[0]['index'], $embeddings[1]['index']);
+        }
 
         Http::fake(['*' => Http::response([
             'object' => 'list',
@@ -240,6 +245,29 @@ class EmbeddingsTest extends TestCase
         ])]);
 
         Ai::instance('openai-compatible')->embeddings(['Hello']);
+    }
+
+    #[TestWith([['index' => 0, 'embedding' => [0.3]]], 'duplicate')]
+    #[TestWith([['index' => 3, 'embedding' => [0.3]]], 'out of range')]
+    #[TestWith([['index' => -1, 'embedding' => [0.3]]], 'negative')]
+    #[TestWith([['index' => '2', 'embedding' => [0.3]]], 'non-integer')]
+    #[TestWith(['not-a-record'], 'non-array record')]
+    public function testEmbeddingsRejectInvalidIndices(mixed $invalidRecord): void
+    {
+        Http::fake(['*' => Http::response([
+            'object' => 'list',
+            'data' => [
+                ['index' => 0, 'embedding' => [0.1]],
+                ['index' => 1, 'embedding' => [0.2]],
+                $invalidRecord,
+            ],
+            'usage' => ['prompt_tokens' => 3],
+        ])]);
+
+        $this->expectException(AiException::class);
+        $this->expectExceptionMessage('embedding indices');
+
+        Ai::instance('openai-compatible')->embeddings(['First', 'Second', 'Third']);
     }
 
     public function testEmbeddingsRateLimitResponseThrowsRateLimitedException(): void
