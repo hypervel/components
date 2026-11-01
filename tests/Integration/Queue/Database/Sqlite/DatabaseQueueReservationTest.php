@@ -121,6 +121,55 @@ class DatabaseQueueReservationTest extends TestCase
         }
     }
 
+    public function testJobIsNotFailedWhenReservingItThrowsAConcurrencyError(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+
+        $database->statement("create trigger reserve_job before update on jobs begin select raise(abort, 'database is locked'); end");
+
+        $failed = 0;
+        $events->listen(JobFailed::class, function () use (&$failed): void {
+            ++$failed;
+        });
+
+        try {
+            $queue->pop('default');
+
+            $this->fail('The exception was not thrown.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('database is locked', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $database->table('jobs')->count());
+        $this->assertSame(0, $failed);
+    }
+
+    public function testJobIsFailedWhenReservingItThrowsAnotherError(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+
+        $database->statement("create trigger reserve_job before update on jobs begin select raise(abort, 'attempts out of range'); end");
+
+        $failed = 0;
+        $events->listen(JobFailed::class, function () use (&$failed): void {
+            ++$failed;
+        });
+
+        try {
+            $queue->pop('default');
+
+            $this->fail('The exception was not thrown.');
+        } catch (QueryException) {
+        }
+
+        $this->assertSame(0, $database->table('jobs')->count());
+        $this->assertSame(1, $failed);
+    }
+
     public function testNestedConcurrencyFailureDoesNotFailTheJob(): void
     {
         $pdo = new PDO('sqlite::memory:');
