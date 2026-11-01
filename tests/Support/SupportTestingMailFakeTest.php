@@ -386,6 +386,37 @@ class SupportTestingMailFakeTest extends TestCase
         }
     }
 
+    public function testRawHtmlAndPlainMessagesAreNotSent(): void
+    {
+        $this->mailManager->shouldNotReceive('raw');
+        $this->mailManager->shouldNotReceive('html');
+        $this->mailManager->shouldNotReceive('plain');
+
+        $callback = fn ($message) => $message->to('taylor@hypervel.com');
+
+        $this->fake->raw('Hello', $callback);
+        $this->fake->html('<p>Hello</p>', $callback);
+        $this->fake->plain('emails.welcome', [], $callback);
+
+        $this->fake->assertNothingOutgoing();
+
+        $this->fake->mailer('ses')->raw('raw', $callback);
+        $rawNext = new MailableStub;
+        $this->fake->send($rawNext);
+
+        $this->fake->mailer('ses')->html('<p>html</p>', $callback);
+        $htmlNext = new MailableStub;
+        $this->fake->send($htmlNext);
+
+        $this->fake->mailer('ses')->plain('mail.view', [], $callback);
+        $plainNext = new MailableStub;
+        $this->fake->send($plainNext);
+
+        $this->assertTrue($rawNext->usesMailer('smtp'));
+        $this->assertTrue($htmlNext->usesMailer('smtp'));
+        $this->assertTrue($plainNext->usesMailer('smtp'));
+    }
+
     public function testAssertOutgoingCount(): void
     {
         $this->fake->assertNothingOutgoing();
@@ -635,32 +666,6 @@ class SupportTestingMailFakeTest extends TestCase
         $this->fake->send($mailable);
 
         $this->assertTrue($mailable->usesMailer('smtp'));
-    }
-
-    public function testRawHtmlAndPlainConsumeMailerWithoutCallingTheRealManager(): void
-    {
-        $this->mailManager->shouldNotReceive('raw');
-        $this->mailManager->shouldNotReceive('html');
-        $this->mailManager->shouldNotReceive('plain');
-
-        $callback = static function (): void {
-        };
-
-        $this->fake->mailer('ses')->raw('raw', $callback);
-        $rawNext = new MailableStub;
-        $this->fake->send($rawNext);
-
-        $this->fake->mailer('ses')->html('<p>html</p>', $callback);
-        $htmlNext = new MailableStub;
-        $this->fake->send($htmlNext);
-
-        $this->fake->mailer('ses')->plain('mail.view', [], $callback);
-        $plainNext = new MailableStub;
-        $this->fake->send($plainNext);
-
-        $this->assertTrue($rawNext->usesMailer('smtp'));
-        $this->assertTrue($htmlNext->usesMailer('smtp'));
-        $this->assertTrue($plainNext->usesMailer('smtp'));
     }
 
     public function testQueueHelpersAcceptEnumsWithoutCallingTheRealManager(): void
