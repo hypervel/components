@@ -101,6 +101,12 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'updated_at' => '2023-01-01 00:00:00',
             ]]);
 
+        $source->getConnection()->expects('select')->with(
+            'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
+            [123, 456],
+            false,
+        )->andReturn([['exists' => 0]]);
+
         $source->getConnection()->expects('insert')->with(
             'insert into "pivot_table" ("related_id", "source_id") values (?, ?)',
             [456, 123],
@@ -204,12 +210,13 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
         $source->getConnection()
             ->expects('select')
+            ->twice()
             ->with(
                 'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
                 [123, 456],
                 false,
             )
-            ->andReturn([['exists' => 1]]);
+            ->andReturn([['exists' => 0]], [['exists' => 1]]);
 
         $result = $source->related()->createOrFirst(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertFalse($result->wasRecentlyCreated);
@@ -259,7 +266,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             [123, 456],
             false,
-        )->andReturn([['exists' => 0]]);
+        )->twice()->andReturn([['exists' => 0]]);
 
         try {
             $source->related()->createOrFirst(['attr' => 'foo'], ['val' => 'bar']);

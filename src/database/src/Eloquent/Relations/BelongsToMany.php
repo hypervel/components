@@ -698,6 +698,11 @@ class BelongsToMany extends Relation
         $instance = $this->related->newQuery()->withoutGlobalScopes($this->query->removedScopes())
             ->where($attributes)->useWritePdo()->first() ?? throw $exception;
 
+        // The recovered model may already be linked even without a unique constraint on the pivot table.
+        if ($this->hasAttachedPivot($instance)) {
+            return $instance;
+        }
+
         try {
             $this->getQuery()->withSavepointIfNeeded(fn () => $this->attach($instance, $joining, $touch));
         } catch (UniqueConstraintViolationException $attachException) {

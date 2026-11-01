@@ -133,6 +133,11 @@ class EloquentRelationRestoreOrCreateTest extends DatabaseTestCase
         $this->assertTrue($restored->is($created));
         $this->assertFalse($restored->trashed());
         $this->assertTrue($user->roles()->whereKey($created->getKey())->exists());
+
+        $restored->delete();
+        $user->roles()->createOrRestore(['id' => $created->id], ['name' => 'admin']);
+
+        $this->assertSame(1, $user->roles()->count());
     }
 }
 
