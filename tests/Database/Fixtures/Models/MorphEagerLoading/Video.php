@@ -10,5 +10,5 @@ class Video extends Model
 {
     public bool $timestamps = false;
 
-    protected string $primaryKey = 'video_id';
+    protected ?string $primaryKey = 'video_id';
 }

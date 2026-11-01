@@ -130,7 +130,7 @@ class User extends Eloquent
 
 class Article extends Eloquent
 {
-    protected string $primaryKey = 'aid';
+    protected ?string $primaryKey = 'aid';
 
     protected ?string $table = 'articles';
 

@@ -19,12 +19,17 @@ use Hypervel\Database\Eloquent\Attributes\Unguarded;
 use Hypervel\Database\Eloquent\Attributes\Visible;
 use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
 use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use UnitEnum;
 
 class DatabaseEloquentModelAttributesTest extends TestCase
 {
@@ -113,6 +118,137 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame('custom_id', $model->getKeyName());
     }
 
+    public function testPrimaryKeyAttributeCanDisablePrimaryKey(): void
+    {
+        $model = new ModelWithoutPrimaryKeyAttribute;
+
+        $this->assertNull($model->getKeyName());
+    }
+
+    public function testPrimaryKeyCanBeDisabledByPropertyOrSetter(): void
+    {
+        $model = new class extends Model {
+            protected ?string $primaryKey = null;
+        };
+
+        $this->assertNull($model->getKey());
+        $this->assertSame([], $model->getCasts());
+
+        $model->setKeyName('id');
+        $this->assertSame(['id' => 'int'], $model->getCasts());
+
+        $model->setKeyName(null);
+        $this->assertNull($model->getKeyName());
+        $this->assertSame([], $model->getCasts());
+    }
+
+    public function testIncrementingUsesTheOverriddenKeyName(): void
+    {
+        $keyless = new class extends Model {
+            /**
+             * Get the primary key for the model.
+             */
+            public function getKeyName(): ?string
+            {
+                return null;
+            }
+        };
+
+        $this->assertFalse($keyless->getIncrementing());
+        $this->assertSame([], $keyless->getCasts());
+
+        $keyed = new class extends Model {
+            protected ?string $primaryKey = null;
+
+            /**
+             * Get the primary key for the model.
+             */
+            public function getKeyName(): string
+            {
+                return 'row_id';
+            }
+        };
+
+        $this->assertTrue($keyed->getIncrementing());
+        $this->assertSame(['row_id' => 'int'], $keyed->getCasts());
+    }
+
+    public function testKeylessModelsCanBeInsertedAndRetrieved(): void
+    {
+        DB::schema()->create('keyless_records', function (Blueprint $table): void {
+            $table->string('name');
+        });
+
+        $model = new ModelWithoutPrimaryKeyAttribute;
+        $model->setTable('keyless_records');
+        $model->timestamps = false;
+        $model->name = 'Taylor';
+
+        $this->assertTrue($model->save());
+        $this->assertTrue($model->exists);
+        $this->assertNull($model->getKey());
+        $this->assertSame(['name' => 'Taylor'], $model->getAttributes());
+        $this->assertSame(['name' => 'Taylor'], $model->newQuery()->first()->toArray());
+
+        $another = $model->replicate();
+        $another->setTable('keyless_records');
+        $another->timestamps = false;
+        $another->name = 'Abigail';
+
+        $this->assertTrue($another->saveOrIgnore());
+        $this->assertSame(['Taylor', 'Abigail'], $model->newQuery()->pluck('name')->all());
+    }
+
+    #[TestWith(['save'])]
+    #[TestWith(['refresh'])]
+    #[TestWith(['delete'])]
+    public function testKeylessModelsRejectOperationsRequiringAnIdentity(string $operation): void
+    {
+        $model = new ModelWithoutPrimaryKeyAttribute;
+        $model->timestamps = false;
+        $model->exists = true;
+        $model->name = 'Taylor';
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No primary key defined on model.');
+
+        $model->{$operation}();
+    }
+
+    public function testKeylessModelsCanSupplyTheirOwnSaveKeys(): void
+    {
+        DB::schema()->create('keyless_records', function (Blueprint $table): void {
+            $table->string('tenant');
+            $table->string('name');
+            $table->integer('visits');
+        });
+
+        DB::table('keyless_records')->insert([
+            ['tenant' => 'first', 'name' => 'Taylor', 'visits' => 1],
+            ['tenant' => 'second', 'name' => 'Taylor', 'visits' => 1],
+        ]);
+
+        $model = new class extends ModelWithoutPrimaryKeyAttribute {
+            protected ?string $table = 'keyless_records';
+
+            public bool $timestamps = false;
+
+            /**
+             * Set the keys for a save update query.
+             */
+            protected function setKeysForSaveQuery(Builder $query): Builder
+            {
+                return $query->where('tenant', $this->tenant)->where('name', $this->name);
+            }
+        };
+
+        $record = $model->newQuery()->where('tenant', 'first')->first();
+        $record->visits = 2;
+
+        $this->assertTrue($record->save());
+        $this->assertSame(['first' => 2, 'second' => 1], DB::table('keyless_records')->pluck('visits', 'tenant')->all());
+    }
+
     public function testPrimaryKeyPropertyTakesPrecedence(): void
     {
         $model = new ModelWithPrimaryKeyAttributeAndProperty;
@@ -192,6 +328,27 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithIntegerBackedEnumConnectionAttribute;
 
         $this->assertSame('0', $model->getConnectionName());
+    }
+
+    public function testChildConnectionAttributeOverridesInheritedConnectionProperty(): void
+    {
+        $model = new ChildModelWithConnectionAttribute;
+
+        $this->assertSame('secondary', $model->getConnectionName());
+    }
+
+    public function testChildInheritsParentConnectionAttribute(): void
+    {
+        $model = new ChildModelWithNoConnection;
+
+        $this->assertSame('secondary', $model->getConnectionName());
+    }
+
+    public function testChildConnectionPropertyOverridesParentConnectionAttribute(): void
+    {
+        $model = new ChildModelWithConnectionProperty;
+
+        $this->assertSame('default', $model->getConnectionName());
     }
 
     public function testTimestampsAttribute(): void
@@ -853,10 +1010,15 @@ class ModelWithPrimaryKeyAttribute extends Model
 {
 }
 
+#[Table(key: false)]
+class ModelWithoutPrimaryKeyAttribute extends Model
+{
+}
+
 #[Table(key: 'attribute_id')]
 class ModelWithPrimaryKeyAttributeAndProperty extends Model
 {
-    protected string $primaryKey = 'property_id';
+    protected ?string $primaryKey = 'property_id';
 }
 
 #[Table(key: 'uuid', keyType: 'string')]
@@ -892,6 +1054,30 @@ class ModelWithBackedEnumConnectionAttribute extends Model
 #[Connection(ConnectionIntegerBackedEnum::Zero)]
 class ModelWithIntegerBackedEnumConnectionAttribute extends Model
 {
+}
+
+class ParentModelWithConnectionProperty extends Model
+{
+    protected UnitEnum|string|null $connection = 'default';
+}
+
+#[Connection('secondary')]
+class ChildModelWithConnectionAttribute extends ParentModelWithConnectionProperty
+{
+}
+
+#[Connection('secondary')]
+class ParentModelWithConnectionAttribute extends Model
+{
+}
+
+class ChildModelWithNoConnection extends ParentModelWithConnectionAttribute
+{
+}
+
+class ChildModelWithConnectionProperty extends ParentModelWithConnectionAttribute
+{
+    protected UnitEnum|string|null $connection = 'default';
 }
 
 #[Table(timestamps: false)]

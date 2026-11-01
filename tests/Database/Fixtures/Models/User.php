@@ -11,5 +11,5 @@ class User extends Model
 {
     use Authenticatable;
 
-    protected string $primaryKey = 'internal_id';
+    protected ?string $primaryKey = 'internal_id';
 }

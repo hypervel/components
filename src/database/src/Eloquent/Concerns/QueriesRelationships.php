@@ -162,8 +162,14 @@ trait QueriesRelationships
      */
     public function withWhereHas(string $relation, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
-        return $this->whereHas(Str::before($relation, ':'), $callback, $operator, $count)
-            ->with($callback ? [$relation => static fn ($query) => $callback($query)] : $relation);
+        if ($callback === null) {
+            return $this->whereHas(Str::before($relation, ':'), null, $operator, $count)->with($relation);
+        }
+
+        [$name, $select] = $this->parseNameAndAttributeSelectionConstraint($relation);
+
+        return $this->whereHas($name, $callback, $operator, $count)
+            ->with([$name => $this->combineConstraints([$select, static fn ($query) => $callback($query)])]);
     }
 
     /**

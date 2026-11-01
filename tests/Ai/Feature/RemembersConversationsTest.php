@@ -169,7 +169,7 @@ class RemembersConversationsTest extends TestCase
         $participant = new class extends Model {
             protected array $guarded = [];
 
-            protected string $primaryKey = 'uuid';
+            protected ?string $primaryKey = 'uuid';
 
             protected string $keyType = 'string';
 

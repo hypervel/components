@@ -315,7 +315,7 @@ class HasInverseRelationParentStub extends Model
 {
     protected static bool $unguarded = true;
 
-    protected string $primaryKey = 'id';
+    protected ?string $primaryKey = 'id';
 
     public function getForeignKey(): string
     {
@@ -327,7 +327,7 @@ class HasInverseRelationRelatedStub extends Model
 {
     protected static bool $unguarded = true;
 
-    protected string $primaryKey = 'id';
+    protected ?string $primaryKey = 'id';
 
     public function getForeignKey(): string
     {

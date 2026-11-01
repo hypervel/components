@@ -1828,7 +1828,7 @@ class NamespacedPersonalAccessToken extends PersonalAccessToken
 {
     protected ?string $table = 'namespaced_personal_access_tokens';
 
-    protected string $primaryKey = 'token_id';
+    protected ?string $primaryKey = 'token_id';
 
     /**
      * Get cache key for token and tokenable.

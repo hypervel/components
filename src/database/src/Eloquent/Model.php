@@ -119,7 +119,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The primary key for the model.
      */
-    protected string $primaryKey = 'id';
+    protected ?string $primaryKey = 'id';
 
     /**
      * The "type" of the primary key ID.
@@ -546,10 +546,17 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->table ??= $table->name ?? null;
         }
 
-        $this->connection ??= static::resolveClassAttribute(ConnectionAttribute::class, 'name');
+        // Reuse declaration metadata instead of reflecting on every hydrated model.
+        $declaresConnection = static::classPropertyDeclarer('connection') === static::class;
+
+        if (! $declaresConnection && static::classDeclaresAttribute(ConnectionAttribute::class)) {
+            $this->connection = static::resolveClassAttribute(ConnectionAttribute::class, 'name');
+        } else {
+            $this->connection ??= static::resolveClassAttribute(ConnectionAttribute::class, 'name');
+        }
 
         if ($this->primaryKey === 'id' && $table && $table->key !== null) {
-            $this->primaryKey = $table->key;
+            $this->primaryKey = $table->key === false ? null : $table->key;
         }
 
         if ($this->keyType === 'int' && $table && $table->keyType !== null) {
@@ -1727,7 +1734,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     private function getRawKeyForQuery(): mixed
     {
-        $keyName = $this->getKeyName();
+        // Keyless models can be inserted, but these queries need a row identity.
+        $keyName = $this->getKeyName() ?? throw new LogicException('No primary key defined on model.');
 
         return $this->original[$keyName]
             ?? ($this->isBinaryCast($this->getCasts()[$keyName] ?? null) && array_key_exists($keyName, $this->attributes)
@@ -1950,7 +1958,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $this->mergeAttributesFromCachedCasts();
 
-        // @phpstan-ignore function.impossibleType (defensive: users may set $primaryKey = null)
         if (is_null($this->getKeyName())) {
             throw new LogicException('No primary key defined on model.');
         }
@@ -2633,7 +2640,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get the primary key for the model.
      */
-    public function getKeyName(): string
+    public function getKeyName(): ?string
     {
         return $this->primaryKey;
     }
@@ -2641,7 +2648,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Set the primary key for the model.
      */
-    public function setKeyName(string $key): static
+    public function setKeyName(?string $key): static
     {
         $this->primaryKey = $key;
 
@@ -2683,7 +2690,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getIncrementing(): bool
     {
-        return $this->incrementing;
+        // A keyless insert must not try to store a generated ID after writing the row.
+        return $this->incrementing && $this->getKeyName() !== null;
     }
 
     /**
@@ -2703,7 +2711,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getKey(): mixed
     {
-        return $this->getAttribute($this->getKeyName());
+        return ($key = $this->getKeyName()) !== null ? $this->getAttribute($key) : null;
     }
 
     /**
