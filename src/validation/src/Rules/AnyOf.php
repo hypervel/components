@@ -36,10 +36,11 @@ class AnyOf implements Rule, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         foreach ($this->rules as $rule) {
-            $keyed = Arr::isAssoc(Arr::wrap($rule));
+            // Filtered rule lists keep numeric gaps, so only string keys identify a field map.
+            $keyed = array_any(Arr::wrap($rule), static fn (mixed $definition, int|string $key): bool => is_string($key));
 
             $validator = Validator::make(
-                $keyed && Arr::isAssoc(Arr::wrap($value)) ? $value : [$value],
+                $keyed ? Arr::wrap($value) : [$value],
                 $keyed ? $rule : [$rule],
                 $this->validator->customMessages, // @phpstan-ignore property.notFound
                 $this->validator->customAttributes // @phpstan-ignore property.notFound

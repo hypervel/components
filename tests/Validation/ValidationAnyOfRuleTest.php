@@ -10,6 +10,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 enum TaggedUnionDiscriminatorType: string
 {
@@ -153,6 +154,37 @@ class ValidationAnyOfRuleTest extends TestCase
         $validator = new Validator($this->app->make('translator'), [
             'data' => ['x' => 1],
         ], ['data' => Rule::anyOf(['string', 'array'])]);
+        $this->assertTrue($validator->passes());
+    }
+
+    #[DataProvider('alternativeRuleShapes')]
+    public function testAlternativeRulesPreserveTheirDataShape(array $rules, mixed $value, bool $passes): void
+    {
+        $validator = new Validator($this->app->make('translator'), ['data' => $value], [
+            'data' => Rule::anyOf([$rules]),
+        ]);
+
+        $this->assertSame($passes, $validator->passes());
+    }
+
+    /**
+     * Provide filtered rule lists and keyed alternatives.
+     */
+    public static function alternativeRuleShapes(): iterable
+    {
+        yield 'filtered list rejects invalid email' => [array_filter(['string', null, 'email']), 'not-an-email', false];
+        yield 'filtered list accepts valid email' => [array_filter(['string', null, 'email']), 'test@example.com', true];
+        yield 'wildcard rejects invalid list item' => [['*.email' => 'email'], [['email' => 'invalid']], false];
+        yield 'wildcard accepts valid list item' => [['*.email' => 'email'], [['email' => 'test@example.com']], true];
+        yield 'keyed rules reject a scalar missing required fields' => [['email' => 'required|email'], 'invalid', false];
+    }
+
+    public function testNestedArraysCanUseAnArrayAlternativeAfterExists(): void
+    {
+        $validator = new Validator($this->app->make('translator'), ['data' => ['a' => [1], 'b' => [2]]], [
+            'data' => Rule::anyOf(['exists:users,id', 'array']),
+        ]);
+
         $this->assertTrue($validator->passes());
     }
 

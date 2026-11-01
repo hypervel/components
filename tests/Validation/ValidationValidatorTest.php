@@ -5025,6 +5025,9 @@ class ValidationValidatorTest extends TestCase
         $mock->expects('getMultiCount')->with('users', 'email_addr', ['foo', 'foo'], [])->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['email' => ['a' => ['foo']]], ['email' => 'exists:users,email_addr']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidationExistsIsNotCalledUnnecessarily(): void

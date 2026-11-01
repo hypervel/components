@@ -1082,6 +1082,15 @@ trait ValidatesAttributes
         // that the columns being "verified" shares the given attribute's name.
         $column = $this->getQueryColumn($parameters, $attribute);
 
+        // Nested arrays cannot be compared by array_unique() or bound by whereIn().
+        if (is_array($value)) {
+            foreach ($value as $element) {
+                if (is_array($element)) {
+                    return false;
+                }
+            }
+        }
+
         $expected = is_array($value) ? count(array_unique($value)) : 1;
 
         if ($expected === 0) {
