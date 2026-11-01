@@ -33,6 +33,58 @@
 - Investigate a focused PHPStan rule for cancellation checks that miss cleanup exception chains. Detect bare `CanceledException` checks around callbacks or listeners, including `releaseIdleConnections()`, where `Coroutine::causedByCancellation()` is needed to prevent retries or continued work after cancellation. Use the cancellation regression cases to assess detection and false positives; preserve valid native-only checks, cleanup-error reporting and foreign-cancellation boundaries. Integrate useful checks with the coroutine-safety analysis above rather than attempting to infer every ownership decision automatically.
 - Audit typed input accessors across `InteractsWithData`, Support `DataObject`, and Hypervel Data. Define the accepted integer, float, and boolean forms for each public contract. Extract a neutral Support conversion primitive only if `InteractsWithData` and `DataObject` converge on exactly the same strict semantics, and decide separately whether Hypervel Data should adopt those semantics rather than changing its tested permissive casts as a side effect.
 
+## Legacy removals
+
+Remove older ways of doing things once a modern equivalent fully replaces them, so developers and LLMs writing Hypervel code have one correct way and get an immediate, clear error for the old one. These are deliberate departures from Laravel's API, not bug fixes. Make these changes in any private packages as well.
+
+- Remove Eloquent model configuration properties that have attribute equivalents, and require `#[Scope]` instead of `scopeXxx` methods. Do all of them in one change, so there is one rule rather than a list of exceptions.
+  - **Why.** Laravel's Eloquent docs already show only these attributes, but its code still supports both forms. A property and its attribute compete for the same instance property, and PHP inheritance cannot order one against the other, so the model has to decide which wins during construction. That has already caused a real bug: with a `$connection` property on a grandparent and `#[Connection]` on the parent, an empty child silently used the grandparent's database. The current fix for it cannot tell an untouched default from an assignment of the same value (see "Undo the inheritance fix" below). Without the property, none of this can happen.
+  - **Replacements.** Before removing each property, confirm its attribute covers every supported use. If one does not, keep that property and record why here. Properties with no attribute, such as `$casts`, `$with`, `$withCount`, `$perPage` and `$attributes`, stay.
+
+    | Remove | Use instead | Runtime API that stays |
+    |---|---|---|
+    | `$table` | `#[Table('name')]` | `setTable()`, overriding `getTable()` |
+    | `$connection` | `#[Connection('name')]` | `setConnection()`, `on()`, overriding `getConnectionName()` |
+    | `$primaryKey`, `$keyType` | `#[Table(key: ..., keyType: ...)]` | `setKeyName()`, `setKeyType()` |
+    | `$incrementing` | `#[WithoutIncrementing]`, `#[Table(incrementing: ...)]` | `setIncrementing()` |
+    | `$timestamps` | `#[WithoutTimestamps]`, `#[Table(timestamps: ...)]` | Assigning `$model->timestamps` at runtime, which `AsPivot` relies on, so only declaring a default is removed |
+    | `$dateFormat` | `#[DateFormat]`, `#[Table(dateFormat: ...)]` | `setDateFormat()` |
+    | `$fillable` | `#[Fillable]` | `fillable()`, `mergeFillable()` |
+    | `$guarded` | `#[Guarded]`, `#[Unguarded]` | `guard()`, `mergeGuarded()` |
+    | `$hidden`, `$visible` | `#[Hidden]`, `#[Visible]` | `setHidden()`, `setVisible()`, `makeHidden()`, `makeVisible()` |
+    | `$appends` | `#[Appends]` | `setAppends()` |
+    | `$touches` | `#[Touches]` | `setTouchedRelations()` |
+    | `$refreshes` | `#[Refreshes]` | None today |
+    | `scopeXxx()` methods | `#[Scope]` | Not applicable |
+
+    The instance properties themselves stay, because the runtime APIs need somewhere to store values. Only declaring them in a child class or trait is removed. Attributes accept constant expressions only, so config-driven values such as package table names must be set after `parent::__construct()`, as `Role` and `Permission` already do, or come from an overridden getter.
+  - **Failing loudly.** Silently ignoring a declared property would mean using the wrong table or database, so it must throw. Add one check on the model's boot path, so it runs once per class and costs nothing per hydrated model. Throw when `classPropertyDeclarer()` reports a class other than `Model` for a removed property, or when a model has a `scope[A-Z]` method, and name the replacement in the message, including the declared value where there is one, such as "App\Models\Post declares $table, which Hypervel doesn't support. Use #[Table('posts')] on the class instead. To choose a table at runtime, call setTable() after parent::__construct()." Do not use `final` properties instead: PHP's "Cannot override final property" error does not name the replacement, and an LLM may work around it in the constructor. An untyped `protected $table = 'posts';` never reaches this check, because PHP refuses to load the class first with "Type of Post::$table must be ?string", and that error cannot be caught or customized. Adding the type then triggers our message, so the LLM reaches the right answer on its second try. Accept that detour. The alternatives are worse: renaming the storage property so `Model` no longer declares `$table` sends `$this->table = 'x'` in a subclass through `__set`, where it becomes a model attribute and only fails on save; removing the native types from `Model` makes the code worse and gives typed declarations PHP's error instead; and adding a hint in `HandleExceptions::handleShutdown()` depends on matching PHP's wording. Convert framework classes first, since `Pivot` declares `$incrementing` and `$guarded`.
+  - **Undo the inheritance fix.** Replace the table and connection branches in `Model::initializeModelAttributes()` with:
+
+    ```php
+    $this->table ??= $table?->name;
+    $this->connection ??= static::resolveClassAttribute(ConnectionAttribute::class, 'name');
+    ```
+
+    Values assigned before `parent::__construct()` or in a trait initializer then always win, whether the attribute is direct or inherited. Today, a direct attribute overwrites them. Then:
+    - Delete `classAttributeOverridesProperty()`, `$classAttributeOverrides`, its resets in `clearBootedModels()` and `flushState()`, and the `ReflectionProperty` import.
+    - Delete the "assigning that property's exact default" entry from `src/database/README.md`.
+    - Delete the "A custom `$primaryKey` inherited from a parent" sentence from `src/docs/eloquent.md`. A child's `#[Table(key: false)]` simply wins once the parent cannot declare `$primaryKey`.
+    - In `DatabaseEloquentModelAttributesTest`, delete `testGrandchildKeepsTableAttributeOverride`, `testGrandchildKeepsConnectionAttributeOverride`, `testTableAttributeWithoutNamePreservesInheritedTable` and `testLocationAttributesInitializePropertiesWithoutDefaults`, plus the `GrandchildModelWithTableAttribute`, `GrandchildModelWithConnectionAttribute`, `ChildModelWithNamelessTableAttribute`, `ModelWithLocationProperties` and `ModelWithLocationAttributeOverrides` fixtures.
+    - Keep `testInheritedLocationAttributesPreserveValuesAssignedDuringConstruction` as runtime-assignment coverage, but rename it, drop its grandparent-property case, and make its direct-attribute case expect the runtime values.
+    - Remove the deleted caches from `testGuardAndTableMetadataCachesAreUsedAndCleared` and `DatabaseEloquentModelTest::testFlushStateRestoresStaticState`.
+  - **Simplify the other initializers.** Once `$guarded` is gone, `guardConfiguration()` no longer needs to stop at a declaring class or read the property's default, and `classPropertyDeclarer()` is left with only the new boot check. Remove the `get_class_vars($class)['timestamps']` read in `isIgnoringTouch()`. Keep value checks such as `$this->primaryKey === 'id'` and `$this->timestamps === true`, because they protect values assigned before initialization. The merging in `initializeGuardsAttributes()` and `initializeHidesAttributes()` can stay.
+  - **Nameless `Table` attributes.** The nearest `Table` attribute replaces a parent's entirely, because `resolveClassAttribute()` returns only one. So `#[Table(timestamps: false)]` on a child of `#[Table('flights')]` uses the name derived from the child's class, not `flights`. Keep this and document it in `src/docs/eloquent.md`: repeat the name, or use a dedicated attribute such as `WithoutTimestamps`, `WithoutIncrementing` or `DateFormat`, which leaves the parent's `Table` in place. Merging `Table` fields across classes would be a new rule.
+  - **Scopes.** Delete `isLegacyScopeMethod()`, `$legacyScopeMethods` and its reset in `flushScopeCaches()`, simplify `hasNamedScope()` and `callNamedScope()`, and remove the legacy branch from `ModelScopeMethodResolver`. Convert `DatabaseNotification`, `HasRoles`, `HasPermissions` and Telescope's `EntryModel`, plus the `NamedScopes`, `CustomBuilderForwarding` and `SoftDeletes` type fixtures and the test fixtures. Other `scope[A-Z]` methods in `src/` are not model scopes and stay, including `Route::scopeBindings()`, `Passport::scopeIds()`, `StoredValueCache::scopeTokenKey()`, `ResolvesInheritedScopes::scopeExistsIn()` and the nested-set relation helpers.
+  - **Consumers.** Convert the framework's models (about 20 files), `skeletons/hypervel/app/Models/User.php`, `src/testbench/src/Foundation/Console/stubs/user.stub` and all test fixtures. This is the largest part of the work: about 230 test files declare `$table` alone.
+  - **Documentation and rules.**
+    - Update `src/docs/eloquent.md`, `src/docs/nested-set.md` and `src/docs/migrations.md`.
+    - Rewrite the model part of "Inherited Properties" in `src/docs/porting-from-laravel.md`, including its "Common model properties to audit" list, and add the scope change.
+    - Add a `Differences From Laravel` entry to `src/database/README.md`.
+    - With owner approval, update `AGENTS.md`: the model examples under "Stricter typing", the `$table` note under "Helper class namespacing", the quick checklist's model-property step and "Use attributed local scopes".
+  - **Future syncs.** Upstream tests keep using the old forms: about 120 Laravel test files declare `$table`. Add a rule to `AGENTS.md`, under "Approved unsupported features" or beside it, telling sync work to convert upstream fixtures to attributes and to remove upstream tests of property precedence with a `REMOVED:` comment, rather than porting the old forms back. This conversion is a permanent cost of every sync.
+  - **Assess at the same time.** The `bootXxx` and `initializeXxx` trait method conventions have `#[Boot]` and `#[Initialize]` equivalents. Check whether they fully replace those conventions and add them to this removal if so.
+
 ## Testing
 
 - Remove the PHPStan `2.3.1` pins in the root, Database and Foundation manifests once a release fixes the 2.3.2 loop-narrowing regression: `DataCollectionEloquentCast::set()` rejects a value narrowed by `instanceof` against `class-string<TData>`. Verify the full source and type-fixture analyses before restoring the version ranges.
