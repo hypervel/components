@@ -1642,6 +1642,8 @@ class RedisConnectionTest extends TestCase
             'disconnected replica' => [new RedisException('MASTERDOWN link is down'), 'get', ['foo'], true],
             'read failure' => [new RedisException('Connection lost'), 'get', ['foo'], false],
             'warning-shaped reset' => [new ErrorException('Redis::get(): SSL: Connection reset by peer'), 'get', ['foo'], false],
+            'broken pipe while reading' => [new ErrorException('Redis::lLen(): SSL: Broken pipe'), 'llen', ['foo'], false],
+            'broken pipe during a non-idempotent write' => [new ErrorException('Redis::rPush(): SSL: Broken pipe'), 'rpush', ['foo', 'bar'], false],
             'stream write failure' => [new ErrorException('Redis::get(): Send of 30 bytes failed with errno=32 Broken pipe'), 'get', ['foo'], false],
             'TLS protocol failure' => [new ErrorException('Redis::get(): SSL operation failed with code 1. OpenSSL Error messages: bad length'), 'get', ['foo'], false],
             'transaction opening' => [new RedisException('Connection lost'), 'multi', [], false],
