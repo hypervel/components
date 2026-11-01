@@ -715,9 +715,9 @@ class Rule
     /**
      * Get a numeric rule builder instance.
      */
-    public static function numeric(): Numeric
+    public static function numeric(bool $strict = false): Numeric
     {
-        return new Numeric;
+        return new Numeric(strict: $strict);
     }
 
     /**
