@@ -432,6 +432,26 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
+    public function testPaginateMethodWithTotal(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        Tag::create(['name' => Str::random()]);
+        Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach(Tag::all());
+
+        DB::enableQueryLog();
+
+        $paginator = $post->tags()->paginate(1, total: 10);
+
+        $this->assertSame(10, $paginator->total());
+        $this->assertCount(1, $paginator->items());
+        $this->assertCount(1, DB::getQueryLog());
+
+        $this->assertSame(5, $post->tags()->paginate(1, total: fn () => 5)->total());
+    }
+
     public function testFindMethodStringyKey(): void
     {
         Schema::create('post_string_key', function (Blueprint $table) {
@@ -674,6 +694,32 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $tags);
         $this->assertSame(['quiet', 'first', 'second'], $attached->pluck('name')->all());
         $this->assertSame(['taylor', 'one', 'two'], $attached->pluck('pivot.flag')->all());
+    }
+
+    public function testForceCreateMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        $tag = $post->belongsToMany(GuardedTag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->forceCreate(['name' => 'wavez', 'type' => 'featured'], ['flag' => 'taylor']);
+
+        $this->assertSame('featured', $tag->type);
+        $this->assertTrue($tag->is($post->tags()->first()));
+        $this->assertSame('featured', $post->tags()->first()->type);
+        $this->assertSame('taylor', $post->tags()->first()->pivot->flag);
+    }
+
+    public function testForceCreateQuietlyMethod(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+
+        GuardedTag::creating(fn () => false);
+
+        $tag = $post->belongsToMany(GuardedTag::class, 'posts_tags', 'post_id', 'tag_id')
+            ->forceCreateQuietly(['name' => 'wavez', 'type' => 'featured']);
+
+        $this->assertSame('featured', $tag->type);
+        $this->assertTrue($tag->is($post->tags()->first()));
     }
 
     public function testFirstOrCreateMethod(): void
@@ -1202,6 +1248,66 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $this->assertCount(1, $tags);
         $this->assertEquals($tag1->id, $tags->first()->id);
+    }
+
+    public function testWherePivotWithClosureQualifiesColumns(): void
+    {
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+        $post->tags()->attach($tag, ['flag' => 'foo']);
+
+        CarbonImmutable::setTestNow('2017-10-20 10:10:10');
+
+        $post->tags()->attach(Tag::create(['name' => Str::random()]), ['flag' => 'foo']);
+
+        $tags = $post->tags()->wherePivot(function (Builder $query): void {
+            $query->where('created_at', '<', '2017-10-15 00:00:00');
+        })->get();
+
+        $this->assertCount(1, $tags);
+        $this->assertEquals($tag->id, $tags->first()->id);
+
+        $post = Post::with(['tags' => function (BelongsToMany $query): void {
+            $query->wherePivot(fn (Builder $query) => $query->where('created_at', '<', '2017-10-15 00:00:00'));
+        }])->first();
+
+        $this->assertCount(1, $post->tags);
+        $this->assertEquals($tag->id, $post->tags->first()->id);
+    }
+
+    #[TestWith(['whereBetweenColumns'], 'between columns')]
+    #[TestWith(['whereRowValues'], 'row values')]
+    #[TestWith(['whereValueBetween'], 'value between columns')]
+    public function testWherePivotWithClosureQualifiesColumnLists(string $method): void
+    {
+        CarbonImmutable::setTestNow('2017-10-15 00:00:00');
+
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => Str::random()]);
+        $otherTag = Tag::create(['name' => Str::random()]);
+
+        $post->tags()->attach($tag, [
+            'flag' => 'foo',
+            'created_at' => '2017-10-10 00:00:00',
+            'updated_at' => '2017-10-20 00:00:00',
+        ]);
+        $post->tags()->attach($otherTag, [
+            'flag' => 'foo',
+            'created_at' => '2017-10-20 00:00:00',
+            'updated_at' => '2017-10-20 00:00:00',
+        ]);
+
+        $tags = $post->tags()->wherePivot(function (Builder $query) use ($method): void {
+            match ($method) {
+                'whereBetweenColumns' => $query->whereBetweenColumns('tags.created_at', ['created_at', 'updated_at']),
+                'whereRowValues' => $query->whereRowValues(['created_at', 'updated_at'], '=', ['2017-10-10 00:00:00', '2017-10-20 00:00:00']),
+                'whereValueBetween' => $query->whereValueBetween('2017-10-15 00:00:00', ['created_at', 'updated_at']),
+            };
+        })->get();
+
+        $this->assertSame([$tag->id], $tags->modelKeys());
     }
 
     public function testOrWherePivotWithClosure(): void
@@ -2076,6 +2182,15 @@ class Post extends Model
             ->using(ChaperonePartialPivot::class)
             ->chaperone();
     }
+}
+
+class GuardedTag extends Model
+{
+    public ?string $table = 'tags';
+
+    public bool $timestamps = true;
+
+    protected array $fillable = ['name'];
 }
 
 class Tag extends Model

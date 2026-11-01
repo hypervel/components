@@ -955,7 +955,7 @@ return $this->belongsToMany(Role::class)
     });
 ```
 
-Qualify column names inside the closure if the related table has columns with the same names. Pivot filters constrain which existing rows `detach`, `sync`, and `updateExistingPivot` affect; they do not restrict newly attached rows.
+Unqualified column names inside the closure are automatically prefixed with the intermediate table's name. Raw expressions are not changed, so qualify any column names they contain. Pivot filters constrain which existing rows `detach`, `sync`, and `updateExistingPivot` affect; they do not restrict newly attached rows.
 
 The `wherePivot` adds a where clause constraint to the query, but does not add the specified value when creating new models via the defined relationship. If you need to both query and create relationships with a particular pivot value, you may use the `withPivotValue` method:
 
@@ -2547,6 +2547,16 @@ $user->posts()->createManyQuietly([
 
 You may also use the `findOrNew`, `firstOrNew`, `firstOrCreate`, and `updateOrCreate` methods to [create and update models on relationships](/docs/{{version}}/eloquent#upserts).
 
+For related models that use [soft deletes](/docs/{{version}}/eloquent#soft-deleting), `restoreOrCreate` finds a matching record, including deleted records, and restores it, or creates one if none exists. On many-to-many relationships, it also attaches the record to the parent:
+
+```php
+$post = $user->posts()->restoreOrCreate(['title' => 'Draft']);
+
+$role = $user->roles()->restoreOrCreate(['name' => 'editor']);
+```
+
+The `createOrRestore` method attempts creation first, then finds and restores a matching record if a unique constraint prevents the insert.
+
 The `incrementOrCreate` method creates a related record with the given default value, or increments the column if a matching record already exists. Any extra attributes are applied when creating or incrementing the record:
 
 ```php
@@ -2605,6 +2615,12 @@ When attaching a relationship to a model, you may also pass an array of addition
 
 ```php
 $user->roles()->attach($roleId, ['expires' => $expires]);
+```
+
+To create and attach a related model while bypassing mass assignment protection, use `forceCreate`. Its second argument accepts intermediate table attributes. Use `forceCreateQuietly` to also suppress model events:
+
+```php
+$role = $user->roles()->forceCreate(['name' => 'Editor'], ['expires' => $expires]);
 ```
 
 Sometimes it may be necessary to remove a role from a user. To remove a many-to-many relationship record, use the `detach` method. The `detach` method will delete the appropriate record out of the intermediate table; however, both models will remain in the database:

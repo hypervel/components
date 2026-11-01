@@ -534,11 +534,11 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @return LengthAwarePaginator<int, TRelatedModel>
      */
-    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
+    public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
         $this->query->addSelect($this->shouldSelect($columns));
 
-        return $this->query->paginate($perPage, $columns, $pageName, $page);
+        return $this->query->paginate($perPage, $columns, $pageName, $page, $total);
     }
 
     /**
