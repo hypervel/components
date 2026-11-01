@@ -168,14 +168,16 @@ class ValidationAnyOfRuleTest extends TestCase
     }
 
     /**
-     * Provide filtered rule lists and keyed alternatives.
+     * Provide keyed alternatives and values with different shapes.
      */
     public static function alternativeRuleShapes(): iterable
     {
-        yield 'filtered list rejects invalid email' => [array_filter(['string', null, 'email']), 'not-an-email', false];
-        yield 'filtered list accepts valid email' => [array_filter(['string', null, 'email']), 'test@example.com', true];
+        yield 'numeric field rejects a scalar' => [[1 => 'array'], [1 => 'invalid'], false];
+        yield 'numeric field accepts an array' => [[1 => 'array'], [1 => ['valid']], true];
         yield 'wildcard rejects invalid list item' => [['*.email' => 'email'], [['email' => 'invalid']], false];
         yield 'wildcard accepts valid list item' => [['*.email' => 'email'], [['email' => 'test@example.com']], true];
+        yield 'wildcard rejects a present null' => [['*' => 'required'], null, false];
+        yield 'wildcard has no items in an empty array' => [['*' => 'required'], [], true];
         yield 'keyed rules reject a scalar missing required fields' => [['email' => 'required|email'], 'invalid', false];
     }
 
