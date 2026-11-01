@@ -23,13 +23,21 @@ class SessionGarbageCollectCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
-        $this->hypervel->make('session')
+        $result = $this->hypervel->make('session')
             ->driver()
             ->getHandler()
             ->gc($this->hypervel->make('config')->integer('session.lifetime') * 60);
 
+        if ($result === false) {
+            $this->components->error('Session garbage collector failed.');
+
+            return static::FAILURE;
+        }
+
         $this->components->info('Session garbage collector ran successfully.');
+
+        return static::SUCCESS;
     }
 }
