@@ -31,8 +31,8 @@ class OAuthRegisterController
     {
         // Redirect errors take precedence, including errors in individual list members.
         $redirectValidator = Validator::make($request->only('redirect_uris'), [
-            'redirect_uris' => ['required', 'array', 'list', 'min:1'],
-            'redirect_uris.*' => ['bail', 'required', 'string', function (string $attribute, string $value, Closure $fail): void {
+            'redirect_uris' => ['required', 'array', 'list', 'min:1', 'max:10'],
+            'redirect_uris.*' => ['bail', 'required', 'string', 'max:1024', function (string $attribute, string $value, Closure $fail): void {
                 if (! $this->isValidRedirectUri($value)) {
                     $fail($attribute . ' is not a valid URL.');
 

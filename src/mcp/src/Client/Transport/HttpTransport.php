@@ -146,6 +146,16 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     }
 
     /**
+     * Get the client's custom HTTP headers.
+     *
+     * @return array<string, string>
+     */
+    public function customHeaders(): array
+    {
+        return $this->customHeaders;
+    }
+
+    /**
      * Get the server endpoint URL.
      */
     public function url(): string
