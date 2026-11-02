@@ -41,8 +41,10 @@ use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter as InMemorySpanExporte
 use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheInstrumentationTest extends TestCase
 {
@@ -215,21 +217,26 @@ class CacheInstrumentationTest extends TestCase
         ]);
     }
 
-    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(bool $wrapped): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $resolver = static function () use ($cancellation): never {
             throw $cancellation;
         };
         $this->instrumentation($resolver)->register($this->options(['key' => true]));
 
         $this->withinSpan(function () use ($cancellation): void {
+            $caught = null;
+
             try {
                 $this->events->dispatch(new CacheHit('array', 'customer:1', 'value'));
-                $this->fail('Expected the resolver cancellation to propagate.');
-            } catch (CanceledException $exception) {
-                $this->assertSame($cancellation, $exception);
+            } catch (Throwable $exception) {
+                $caught = $exception;
             }
+
+            $this->assertSame($cancellation, $caught);
         });
 
         $this->assertCount(0, $this->spanExporter->getSpans()[0]->getEvents());
