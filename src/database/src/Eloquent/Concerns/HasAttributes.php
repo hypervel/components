@@ -45,6 +45,7 @@ use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -1482,10 +1483,18 @@ trait HasAttributes
      *
      * @throws MathException
      */
-    protected function asDecimal(float|string $value, int $decimals): string
+    protected function asDecimal(float|int|string $value, int $decimals): string
     {
+        // Keep integers exact and avoid PHP 8.5's warning when stringifying NAN.
+        $value = is_float($value) && is_nan($value) ? 'NAN' : (string) $value;
+
+        // Bound scientific-notation expansion without restricting explicit decimal precision.
+        if (Number::exceedsMaxExponent($value)) {
+            throw new MathException('Unable to cast value to a decimal.');
+        }
+
         try {
-            return (string) BigDecimal::of((string) $value)->toScale($decimals, RoundingMode::HalfUp);
+            return (string) BigDecimal::of($value)->toScale($decimals, RoundingMode::HalfUp);
         } catch (BrickMathException $e) {
             throw new MathException('Unable to cast value to a decimal.', previous: $e);
         }
@@ -2083,7 +2092,7 @@ trait HasAttributes
     {
         $this->attributes = $attributes;
 
-        // Synchronizing original values must not write back objects from the old row.
+        // Laravel clears these after syncing, which writes objects from the old row over the replacement values.
         $this->classCastCache = [];
         $this->classCastStoredValues = [];
         $this->attributeCastCache = [];

@@ -418,9 +418,14 @@ class ConnectionPoolTest extends TestCase
         $pool->release($replacement);
     }
 
-    public function testDiscardRepairsCapacityBeforeRethrowingCancellation(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testDiscardRepairsCapacityBeforeRethrowingCancellation(bool $chained): void
     {
         $cancellation = new CanceledException('close canceled');
+        if ($chained) {
+            $cancellation = new RuntimeException('close cleanup failed', previous: $cancellation);
+        }
         $connections = [
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
             new PoolConnectionStub,
@@ -436,7 +441,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->discard($connection);
             $this->fail('Discarding the connection was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

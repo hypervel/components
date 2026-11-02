@@ -216,6 +216,11 @@ class Builder implements BuilderContract
     public string|bool|null $lock = null;
 
     /**
+     * Whether to skip rows locked by another transaction.
+     */
+    public bool $skipLocked = false;
+
+    /**
      * The query execution timeout in seconds.
      */
     public ?int $timeout = null;
@@ -2975,6 +2980,10 @@ class Builder implements BuilderContract
      */
     public function lock(string|bool $value = true): static
     {
+        if ($this->skipLocked && is_string($value)) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        }
+
         $this->lock = $value;
         $this->useWritePdo();
 
@@ -2995,6 +3004,20 @@ class Builder implements BuilderContract
     public function sharedLock(): static
     {
         return $this->lock(false);
+    }
+
+    /**
+     * Skip rows locked by another transaction when supported by the server.
+     */
+    public function skipLocked(): static
+    {
+        if (! is_bool($this->lock)) {
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        }
+
+        $this->skipLocked = true;
+
+        return $this;
     }
 
     /**
@@ -3378,6 +3401,8 @@ class Builder implements BuilderContract
 
     /**
      * Retain membership ordering before cursor traversal reverses it.
+     *
+     * @internal paging hook for framework and database-driver builders
      */
     public function prepareCursorOrdering(): void
     {
@@ -3399,6 +3424,8 @@ class Builder implements BuilderContract
 
     /**
      * Restore the operation's ordering when a global scope replaces its paging orders.
+     *
+     * @internal paging hook for framework and database-driver builders
      */
     public function restoreKeysetOrdersFrom(self $source): bool
     {
@@ -3430,6 +3457,8 @@ class Builder implements BuilderContract
 
     /**
      * Sort an ID iteration by its paging column before any other order.
+     *
+     * @internal
      */
     public function prioritizeKeysetOrders(bool $limited = false): static
     {
@@ -3455,6 +3484,8 @@ class Builder implements BuilderContract
 
     /**
      * Reject limited ID iteration when another order would choose different rows.
+     *
+     * @internal
      */
     public function ensureLimitedIterationOrdersById(string $column, bool $descending): void
     {
@@ -3481,6 +3512,7 @@ class Builder implements BuilderContract
      *
      * @param list<array{column: string, original: ExpressionContract|string, direction: string}> $orders
      * @param array<string, mixed> $bindings
+     * @internal
      */
     public function addCursorPaginationConditions(array $orders, array $bindings): static
     {
@@ -3696,6 +3728,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the selected output name for a paging column.
+     *
+     * @internal
      */
     public function getKeysetOutputColumn(string $parameter, bool $source = false): string
     {

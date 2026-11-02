@@ -41,6 +41,40 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame('123.45678900000000000000', $model->amount);
     }
 
+    #[DataProvider('decimalParsingProvider')]
+    public function testDecimalParsingPreservesPrecisionAndBoundsExponentExpansion(float|int|string $value, ?string $expected): void
+    {
+        $model = new class extends Model {
+            protected array $casts = ['amount' => 'decimal:2'];
+        };
+        $model->amount = $value;
+
+        if ($expected === null) {
+            $this->expectException(MathException::class);
+            $this->expectExceptionMessageIs('Unable to cast value to a decimal.');
+            $model->toArray();
+
+            return;
+        }
+
+        $this->assertSame($expected, $model->amount);
+        $this->assertSame($expected, $model->toArray()['amount']);
+    }
+
+    public static function decimalParsingProvider(): array
+    {
+        return [
+            'positive exponent rejected' => ['1e1001', null],
+            'negative exponent rejected' => ['1E-1001', null],
+            'positive boundary accepted' => ['1e1000', '1' . str_repeat('0', 1000) . '.00'],
+            'negative boundary accepted' => ['1e-1000', '0.00'],
+            'explicit long decimal preserved' => [str_repeat('9', 1002) . '.125', str_repeat('9', 1002) . '.13'],
+            'fraction preserved' => ['1/4', '0.25'],
+            'integer precision preserved' => [9007199254740993, '9007199254740993.00'],
+            'NAN rejected without warnings' => [NAN, null],
+        ];
+    }
+
     public function testItHandlesIntegersWithUnderscores(): void
     {
         $model = new class extends Model {
