@@ -15,6 +15,7 @@ use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactio
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use LogicException;
 use Mockery as m;
 use PDO;
 use ReflectionProperty;
@@ -51,6 +52,33 @@ class DatabaseConnectionResolverTest extends TestCase
         $resolver->releaseIdleConnections();
 
         $this->assertSame(42, $connection->table('restored_database')->value('value'));
+    }
+
+    #[DefineEnvironment('definePooledDatabase')]
+    public function testRestorationRejectsAPinnedSessionWithoutReplacingTheDatabase(): void
+    {
+        $resolver = $this->app->make('db.resolver');
+        $connection = $resolver->connection('testing');
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
+        $previous = $pool->getSharedInMemorySqlitePdo();
+        $saved = new PDO('sqlite::memory:');
+
+        $connection->withPinnedSession(function () use ($resolver, $connection, $pool, $previous, $saved): void {
+            $this->assertSame($previous, $connection->getPdo());
+
+            try {
+                $resolver->restoreInMemoryPdoIfPooled('testing', $saved);
+                $this->fail('Expected restoration to reject the borrowed session.');
+            } catch (LogicException $exception) {
+                $this->assertSame('Cannot restore the in-memory SQLite database while connections are borrowed.', $exception->getMessage());
+            }
+
+            $this->assertSame($previous, $pool->getSharedInMemorySqlitePdo());
+            $this->assertSame($previous, $connection->getPdo());
+        });
+
+        $this->assertTrue($resolver->restoreInMemoryPdoIfPooled('testing', $saved));
+        $this->assertSame($saved, $connection->getPdo());
     }
 
     public function testFlushDisconnectsCachedConnection(): void
