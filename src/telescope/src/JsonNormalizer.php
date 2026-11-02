@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Json;
 use Throwable;
 
 class JsonNormalizer
 {
     /**
-     * Normalize an observed value without allowing serialization errors to escape.
+     * Normalize an observed value, purging serialization failures except for cancellation.
      */
     public static function normalize(mixed $value): mixed
     {
@@ -26,7 +27,11 @@ class JsonNormalizer
             }
 
             return Json::decode($json);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return Telescope::PURGED_VALUE;
         }
     }
