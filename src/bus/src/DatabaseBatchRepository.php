@@ -6,6 +6,7 @@ namespace Hypervel\Bus;
 
 use Closure;
 use DateTimeInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
@@ -289,7 +290,11 @@ class DatabaseBatchRepository implements PrunableBatchRepository
 
         try {
             return unserialize($serialized);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return [];
         }
     }
