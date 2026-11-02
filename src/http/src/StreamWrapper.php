@@ -250,18 +250,13 @@ final class StreamWrapper
      */
     public function stream_cast(int $castAs): mixed
     {
-        try {
-            $stream = clone $this->stream;
-            $resource = $stream->detach();
-        } catch (RuntimeException $e) {
-            if (Coroutine::causedByCancellation($e)) {
-                throw $e;
-            }
-
+        // Decorator clones share their inner stream; detaching breaks the retained body,
+        // and its raw descriptor would bypass decoding or range limits.
+        if ($this->stream::class !== Stream::class) {
             return false;
         }
 
-        return $resource ?? false;
+        return (clone $this->stream)->detach() ?? false;
     }
 
     /**
