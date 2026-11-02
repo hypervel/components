@@ -14,7 +14,7 @@ class Blacklist implements BlacklistContract
     public function __construct(
         protected StorageContract $storage,
         protected int $gracePeriod = 0,
-        protected int $refreshTTL = 20160,
+        protected ?int $refreshTTL = 20160,
         protected string $key = 'jti'
     ) {
     }
@@ -27,6 +27,12 @@ class Blacklist implements BlacklistContract
         // if there is no exp claim then add the jwt to
         // the blacklist indefinitely
         if (! array_key_exists('exp', $payload)) {
+            return $this->addForever($payload);
+        }
+
+        // if there is no refresh time limit then the token can be
+        // refreshed at any time, so it must stay blacklisted forever
+        if (is_null($this->refreshTTL)) {
             return $this->addForever($payload);
         }
 
@@ -165,9 +171,9 @@ class Blacklist implements BlacklistContract
      *
      * @return $this
      */
-    public function setRefreshTTL(int $ttl): static
+    public function setRefreshTTL(?int $ttl): static
     {
-        $this->refreshTTL = (int) $ttl;
+        $this->refreshTTL = $ttl;
 
         return $this;
     }
@@ -175,7 +181,7 @@ class Blacklist implements BlacklistContract
     /**
      * Get the refresh time limit.
      */
-    public function getRefreshTTL(): int
+    public function getRefreshTTL(): ?int
     {
         return $this->refreshTTL;
     }

@@ -77,6 +77,23 @@ class BlacklistTest extends TestCase
         $this->blacklist->add($payload);
     }
 
+    public function testAddATokenToTheBlacklistForeverWhenRefreshTTLIsNull()
+    {
+        $payload = [
+            'sub' => 1,
+            'iss' => 'http://example.com',
+            'exp' => $this->testNowTimestamp + 3600,
+            'nbf' => $this->testNowTimestamp,
+            'iat' => $this->testNowTimestamp,
+            'jti' => 'foo',
+        ];
+
+        $this->storage->shouldReceive('forever')->with('foo', 'forever')->once();
+        $this->storage->shouldNotReceive('add');
+
+        (new Blacklist($this->storage, 0, null))->add($payload);
+    }
+
     public function testReturnTrueWhenAddingAnExpiredTokenToTheBlacklist()
     {
         $payload = [
@@ -255,6 +272,8 @@ class BlacklistTest extends TestCase
         $this->assertInstanceOf(Blacklist::class, $this->blacklist->setRefreshTTL(15));
 
         $this->assertSame(15, $this->blacklist->getRefreshTTL());
+
+        $this->assertNull($this->blacklist->setRefreshTTL(null)->getRefreshTTL());
     }
 
     public function testKeyNotExistsInPayload()
