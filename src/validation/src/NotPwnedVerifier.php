@@ -6,6 +6,7 @@ namespace Hypervel\Validation;
 
 use Exception;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\Factory as HttpClientFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
@@ -70,6 +71,10 @@ class NotPwnedVerifier implements UncompromisedVerifier
                 'https://api.pwnedpasswords.com/range/' . $hashPrefix
             );
         } catch (Exception $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             report($e);
         }
 
