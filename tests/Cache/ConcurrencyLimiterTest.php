@@ -21,6 +21,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -250,9 +251,16 @@ class ConcurrencyLimiterTest extends TestCase
         }
     }
 
-    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $limiter = new ConcurrencyLimiter(
             $this->failingReleaseStore(releaseFailure: $releaseCancellation),
             'key',
@@ -263,7 +271,7 @@ class ConcurrencyLimiterTest extends TestCase
         try {
             $limiter->block(0, fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
     }
@@ -519,9 +527,16 @@ class ConcurrencyLimiterTest extends TestCase
         }
     }
 
-    public function testFunnelReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testFunnelReleaseCancellationSupersedesOrdinaryCallbackFailure(bool $wrapped): void
     {
         $releaseCancellation = new CanceledException('release canceled');
+
+        if ($wrapped) {
+            $releaseCancellation = new RuntimeException('Release cleanup failed.', previous: $releaseCancellation);
+        }
+
         $repository = new Repository($this->failingReleaseStore(releaseFailure: $releaseCancellation));
 
         try {
@@ -530,7 +545,7 @@ class ConcurrencyLimiterTest extends TestCase
                 ->block(0)
                 ->then(fn () => throw new RuntimeException('callback failure'));
             $this->fail('Expected the release cancellation to be thrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
     }

@@ -12,8 +12,8 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\InteractsWithTime;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConcurrencyLimiterBuilder
@@ -124,12 +124,8 @@ class ConcurrencyLimiterBuilder
         } catch (Throwable $throwable) {
             try {
                 $lease->release();
-            } catch (CanceledException $cleanupCancellation) {
-                if (! $throwable instanceof CanceledException) {
-                    throw $cleanupCancellation;
-                }
-            } catch (Throwable) {
-                // Preserve the callback failure as primary.
+            } catch (Throwable $cleanupFailure) {
+                throw Coroutine::preferCancellation($throwable, $cleanupFailure);
             }
 
             throw $throwable;

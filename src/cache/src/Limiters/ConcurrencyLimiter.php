@@ -9,10 +9,10 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Support\now;
@@ -93,12 +93,8 @@ class ConcurrencyLimiter
             } catch (Throwable $throwable) {
                 try {
                     $lease->release();
-                } catch (CanceledException $cleanupCancellation) {
-                    if (! $throwable instanceof CanceledException) {
-                        throw $cleanupCancellation;
-                    }
-                } catch (Throwable) {
-                    // Preserve the callback failure as primary.
+                } catch (Throwable $cleanupFailure) {
+                    throw Coroutine::preferCancellation($throwable, $cleanupFailure);
                 }
 
                 throw $throwable;
