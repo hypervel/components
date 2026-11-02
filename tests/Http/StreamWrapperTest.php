@@ -8,6 +8,7 @@ use Error;
 use GuzzleHttp\Handler\InflateBodyStream;
 use GuzzleHttp\Psr7\CachingStream;
 use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\LimitStream;
 use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Http\StreamWrapper;
@@ -95,19 +96,33 @@ class StreamWrapperTest extends TestCase
 
     public function testStreamCastFailureRemovesStreamFromSelection(): void
     {
-        $stream = $this->createStub(StreamInterface::class);
-        $stream->method('isReadable')->willReturn(true);
-        $stream->method('isWritable')->willReturn(false);
-        $stream->method('detach')->willThrowException(new RuntimeException('detach failed'));
-
-        $failed = StreamWrapper::getResource($stream);
+        $native = fopen('php://temp', 'r+');
+        fwrite($native, 'abcdef');
+        $body = Utils::streamFor($native);
+        $failed = StreamWrapper::detach(new LimitStream($body, 3, 1));
         $valid = StreamWrapper::getResource(Utils::streamFor('foo'));
         $streams = [$failed, $valid];
         $write = null;
         $except = null;
 
-        self::assertSame(1, @stream_select($streams, $write, $except, 0));
-        self::assertSame([$valid], array_values($streams));
+        try {
+            self::assertSame(1, @stream_select($streams, $write, $except, 0));
+            self::assertSame([$valid], array_values($streams));
+            self::assertTrue($body->isReadable());
+            self::assertSame('bcd', stream_get_contents($failed));
+            fclose($failed);
+            self::assertFalse(is_resource($native));
+        } finally {
+            if (is_resource($failed)) {
+                fclose($failed);
+            }
+
+            fclose($valid);
+
+            if (is_resource($native)) {
+                fclose($native);
+            }
+        }
     }
 
     public function testValidatesStream(): void
@@ -428,7 +443,6 @@ class StreamWrapperTest extends TestCase
     #[TestWith(['tell'])]
     #[TestWith(['eof'])]
     #[TestWith(['getSize'])]
-    #[TestWith(['detach'])]
     public function testOtherStreamOperationsPreserveCancellation(string $method): void
     {
         $failure = new RuntimeException('Stream cleanup failed.', previous: new CanceledException);
@@ -437,8 +451,6 @@ class StreamWrapperTest extends TestCase
         $body->method('isWritable')->willReturn(true);
         $body->method($method)->willThrowException($failure);
         $resource = StreamWrapper::getResource($body);
-        $read = [$resource];
-        $write = $except = null;
         $caught = null;
 
         try {
@@ -447,7 +459,6 @@ class StreamWrapperTest extends TestCase
                 'tell' => fseek($resource, 0),
                 'eof' => feof($resource),
                 'getSize' => fstat($resource),
-                'detach' => stream_select($read, $write, $except, 0),
             };
         } catch (Throwable $exception) {
             $caught = $exception;
