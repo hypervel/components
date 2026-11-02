@@ -186,6 +186,42 @@ class TransactionManagerTest extends TestCase
         $this->assertSame([], Context::get('_db.transactions'));
     }
 
+    public function testCallbackRegisteredByDroppedTransactionRollbackWaitsForTransactionBeingBegun()
+    {
+        $connection = $this->connection();
+
+        $this->beginTransaction($connection);
+        $this->manager->addCallback(function () {
+            $this->manager->addCallback($this->record('registered'));
+        }, TransactionRolledBack::class);
+        $this->levels[spl_object_id($connection)] = 0;
+
+        $this->beginTransaction($connection);
+        $this->assertSame([], $this->calls);
+
+        $this->commitTransaction($connection);
+        $this->assertSame(['registered'], $this->calls);
+    }
+
+    public function testCallbackRegisteredByDroppedTransactionRollbackKeepsCommittingTransaction()
+    {
+        $connection = $this->connection();
+
+        $this->beginTransaction($connection);
+        $this->manager->addCallback($this->record('outer'));
+        $this->manager->addCallback($this->record('outer rolled back'), TransactionRolledBack::class);
+        $this->beginTransaction($connection);
+        $this->manager->addCallback(function () {
+            $this->calls[] = 'nested rolled back';
+            $this->manager->addCallback($this->record('registered'));
+        }, TransactionRolledBack::class);
+        --$this->levels[spl_object_id($connection)];
+
+        $this->commitTransaction($connection);
+
+        $this->assertSame(['nested rolled back', 'registered', 'outer'], $this->calls);
+    }
+
     public function testCallbackRegisteredByCommitCallbackRunsImmediately()
     {
         $connection = $this->connection();

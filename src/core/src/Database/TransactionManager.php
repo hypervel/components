@@ -28,9 +28,9 @@ class TransactionManager
     {
         $event = $this->getEvent($event);
 
-        $this->discardTransactions(
+        $this->runRollbackCallbacks($this->discardTransactions(
             fn (array $transaction) => $transaction['level'] > $transaction['connection']->transactionLevel()
-        );
+        ));
 
         $transactions = $this->getTransactions();
 
@@ -56,7 +56,7 @@ class TransactionManager
 
         // The connection was at the level below before this transaction began,
         // so anything recorded deeper was dropped without a rollback event.
-        $this->discardTransactions(
+        $discarded = $this->discardTransactions(
             fn (array $transaction) => $transaction['connection'] === $connection && $transaction['level'] >= $level
         );
 
@@ -64,6 +64,10 @@ class TransactionManager
         $transactions[] = ['connection' => $connection, 'level' => $level, 'callbacks' => []];
 
         $this->setTransactions($transactions);
+
+        // Record the new transaction first so callbacks registered while these
+        // run wait for it instead of running at once.
+        $this->runRollbackCallbacks($discarded);
     }
 
     /**
@@ -75,33 +79,31 @@ class TransactionManager
 
         // Only the transaction at the level above was committed, so anything
         // recorded deeper was dropped without a rollback event.
-        $this->discardTransactions(
+        $discarded = $this->discardTransactions(
             fn (array $transaction) => $transaction['connection'] === $connection && $transaction['level'] > $level + 1
         );
 
         $transactions = $this->getTransactions();
+        $callbacks = [];
 
-        if (is_null($committed = $this->findTransaction($transactions, $connection, $level + 1))) {
-            return;
-        }
+        if (! is_null($committed = $this->findTransaction($transactions, $connection, $level + 1))) {
+            $callbacks = $transactions[$committed]['callbacks'];
 
-        $callbacks = $transactions[$committed]['callbacks'];
+            unset($transactions[$committed]);
+            $transactions = array_values($transactions);
 
-        unset($transactions[$committed]);
-        $transactions = array_values($transactions);
-
-        // Releasing a savepoint hands its callbacks to the enclosing transaction.
-        if (! is_null($parent = $this->findTransaction($transactions, $connection, $level))) {
-            $transactions[$parent]['callbacks'] = array_merge_recursive($transactions[$parent]['callbacks'], $callbacks);
+            // Releasing a savepoint hands its callbacks to the enclosing transaction.
+            if (! is_null($parent = $this->findTransaction($transactions, $connection, $level))) {
+                $transactions[$parent]['callbacks'] = array_merge_recursive($transactions[$parent]['callbacks'], $callbacks);
+                $callbacks = [];
+            }
 
             $this->setTransactions($transactions);
-
-            return;
         }
 
-        // Forget the transaction first so callbacks registered while these
-        // run are not attached to a transaction that has already committed.
-        $this->setTransactions($transactions);
+        // Run callbacks only once the committed transaction is forgotten, so
+        // callbacks registered while they run attach to transactions still open.
+        $this->runRollbackCallbacks($discarded);
 
         foreach ($callbacks[TransactionCommitted::class] ?? [] as $callback) {
             $callback();
@@ -115,9 +117,9 @@ class TransactionManager
     {
         $level = $connection->transactionLevel();
 
-        $this->discardTransactions(
+        $this->runRollbackCallbacks($this->discardTransactions(
             fn (array $transaction) => $transaction['connection'] === $connection && $transaction['level'] > $level
-        );
+        ));
     }
 
     /**
@@ -200,15 +202,18 @@ class TransactionManager
     }
 
     /**
-     * Forget the matching transactions as rolled back and run their rollback callbacks.
+     * Forget the matching transactions as rolled back and return them.
      *
      * Hyperf also lowers the level without a rollback event when a rollback
      * loses the connection or a nested transaction deadlocks, so a transaction
      * recorded deeper than its connection's level has already rolled back.
      *
+     * Their rollback callbacks are left to the caller, which runs them once
+     * the recorded state is final so callbacks they register attach correctly.
+     *
      * @param callable(array): bool $rolledBack
      */
-    protected function discardTransactions(callable $rolledBack): void
+    protected function discardTransactions(callable $rolledBack): array
     {
         $remaining = [];
         $discarded = [];
@@ -221,13 +226,19 @@ class TransactionManager
             }
         }
 
-        if ($discarded === []) {
-            return;
+        if ($discarded !== []) {
+            $this->setTransactions($remaining);
         }
 
-        $this->setTransactions($remaining);
+        return $discarded;
+    }
 
-        foreach (array_reverse($discarded) as $transaction) {
+    /**
+     * Run the rollback callbacks of discarded transactions, innermost first.
+     */
+    protected function runRollbackCallbacks(array $transactions): void
+    {
+        foreach (array_reverse($transactions) as $transaction) {
             foreach ($transaction['callbacks'][TransactionRolledBack::class] ?? [] as $callback) {
                 $callback();
             }
