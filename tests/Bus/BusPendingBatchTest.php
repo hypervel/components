@@ -13,17 +13,107 @@ use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class BusPendingBatchTest extends TestCase
 {
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['deletion failure'])]
+    #[TestWith(['after response'])]
+    #[TestWith(['reporting'])]
+    public function testBeforeCallbackCancellationStopsBatchDispatch(string $scenario): void
+    {
+        $deleteThrows = $scenario === 'deletion failure';
+        $reporting = $scenario === 'reporting';
+        $cancellation = new CanceledException;
+        $failure = $scenario === 'direct' ? $cancellation : new RuntimeException('Before cleanup failed.', previous: $cancellation);
+        $container = new Container;
+        $repository = m::mock(BatchRepository::class);
+        $batch = m::mock(Batch::class);
+        $batch->id = 'batch';
+        $batch->shouldNotReceive('add');
+        $repository->shouldReceive('store')->once()->andReturn($batch);
+        $deletionFailure = new RuntimeException('Batch deletion failed.');
+        $deletion = $repository->shouldReceive('delete')->once()->with('batch');
+        $deleteThrows ? $deletion->andThrow($deletionFailure) : $deletion->andReturnNull();
+        $container->instance(BatchRepository::class, $repository);
+        if ($reporting) {
+            $handler = m::mock(ExceptionHandler::class);
+            $handler->shouldReceive('report')->once()->andThrow($failure);
+            $container->instance(ExceptionHandler::class, $handler);
+            Container::setInstance($container);
+        }
+        $callbackFailure = $reporting ? new RuntimeException('Before callback failed.') : $failure;
+        $pending = (new PendingBatch($container, new Collection))->before(static fn () => throw $callbackFailure);
+        $caught = null;
+
+        try {
+            $scenario === 'after response' ? $pending->dispatchAfterResponse() : $pending->dispatch();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($deleteThrows ? $deletionFailure : $failure, $caught);
+        if ($deleteThrows) {
+            $this->assertSame($failure, $caught->getPrevious());
+        }
+    }
+
+    #[TestWith([false], 'new batch')]
+    #[TestWith([true], 'stored batch')]
+    public function testDeletionFailureRetainsDispatchCancellation(bool $stored): void
+    {
+        $cancellation = new CanceledException;
+        $cleanup = new RuntimeException('Batch deletion failed.');
+        $container = new Container;
+        $repository = m::mock(BatchRepository::class);
+        $batch = m::mock(Batch::class);
+        $batch->id = 'batch';
+        $batch->shouldReceive('add')->once()->andThrow($cancellation);
+        $container->instance(BatchRepository::class, $repository);
+
+        if ($stored) {
+            $batch->shouldReceive('delete')->once()->andThrow($cleanup);
+        } else {
+            $repository->shouldReceive('store')->once()->andReturn($batch);
+            $repository->shouldReceive('delete')->once()->with('batch')->andThrow($cleanup);
+        }
+
+        $pending = new class($container, new Collection) extends PendingBatch {
+            /**
+             * Exercise the same stored-batch dispatch used after a response.
+             */
+            public function dispatchStored(Batch $batch): void
+            {
+                $this->dispatchExistingBatch($batch);
+            }
+        };
+        $caught = null;
+
+        try {
+            $stored ? $pending->dispatchStored($batch) : $pending->dispatch();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cleanup, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
     public function testPendingBatchNormalizesEnumConnectionAndQueueIdentifiers(): void
     {
         $job = new class {
