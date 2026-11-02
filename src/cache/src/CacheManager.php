@@ -596,9 +596,10 @@ class CacheManager implements FactoryContract
      * Register classes that cache stores may unserialize.
      *
      * Boot-only. The resolver contributes to the worker-lifetime cache policy
-     * and is evaluated at application boot completion in console processes or
-     * after the worker configuration is rebuilt in Swoole workers. An earlier
-     * cache read evaluates the current contributions without memoizing them.
+     * and is evaluated when the application finishes booting in console processes,
+     * after configuration reload in Swoole workers, or before a custom server
+     * process starts handling work. An earlier cache read evaluates the current
+     * contributions without memoizing them.
      *
      * @param Closure(): array<array-key, class-string> $resolver
      *

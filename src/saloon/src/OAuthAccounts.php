@@ -16,6 +16,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\RequestException;
@@ -34,7 +35,6 @@ use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 use SensitiveParameter;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -300,10 +300,8 @@ class OAuthAccounts
                             return $this->renew($identity, $refreshUsing, $attempt, $retryDelay);
                         },
                     );
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
-                    if ($retryDelay === null) {
+                    if ($retryDelay === null || Coroutine::causedByCancellation($exception)) {
                         throw $exception;
                     }
 
@@ -381,8 +379,11 @@ class OAuthAccounts
             try {
                 $renewed = $refreshUsing($current);
             } catch (Throwable $exception) {
-                $oauthError = $this->oauthError($exception);
-                $retryDelay = $attempt < 3 ? $this->retryDelay($exception, $oauthError, $attempt) : null;
+                if (! Coroutine::causedByCancellation($exception)) {
+                    $oauthError = $this->oauthError($exception);
+                    $retryDelay = $attempt < 3 ? $this->retryDelay($exception, $oauthError, $attempt) : null;
+                }
+
                 throw $exception;
             }
 
@@ -425,10 +426,15 @@ class OAuthAccounts
             } catch (Throwable $cleanupFailure) {
                 $retryDelay = null;
                 $oauthError = null;
-                try {
-                    $this->exceptions->report($cleanupFailure);
-                } catch (Throwable) {
-                    // Reporting must not replace the provider failure or cancellation.
+                if (Coroutine::causedByCancellation($cleanupFailure)) {
+                    $exception = Coroutine::preferCancellation($exception, $cleanupFailure);
+                } else {
+                    try {
+                        $this->exceptions->report($cleanupFailure);
+                    } catch (Throwable $reportingFailure) {
+                        // Ordinary reporting failures must not replace the provider failure.
+                        $exception = Coroutine::preferCancellation($exception, $reportingFailure);
+                    }
                 }
             }
 

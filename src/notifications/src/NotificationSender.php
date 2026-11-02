@@ -129,18 +129,21 @@ class NotificationSender
                 $response = $this->manager->driver($channel)->send($notifiable, $notification);
             }
         } catch (Throwable $exception) {
-            if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true
-                && $this->events->hasListeners(NotificationFailed::class)
-            ) {
-                $this->events->dispatch(new NotificationFailed($notifiable, $notification, $channel, [
-                    // Queued listeners must serialize the event without the HTTP response.
-                    'exception' => $exception instanceof HttpTransportException
-                        ? new TransportException($exception->getMessage(), $exception->getCode())
-                        : $exception,
-                ]));
+            // Failure observers must not hide cancellation and make a retry repeat delivery.
+            try {
+                throw $exception;
+            } finally {
+                if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true
+                    && $this->events->hasListeners(NotificationFailed::class)
+                ) {
+                    $this->events->dispatch(new NotificationFailed($notifiable, $notification, $channel, [
+                        // Queued listeners must serialize the event without the HTTP response.
+                        'exception' => $exception instanceof HttpTransportException
+                            ? new TransportException($exception->getMessage(), $exception->getCode())
+                            : $exception,
+                    ]));
+                }
             }
-
-            throw $exception;
         } finally {
             if ($previousFailureState === null) {
                 CoroutineContext::forget(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY);

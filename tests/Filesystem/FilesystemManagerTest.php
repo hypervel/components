@@ -55,6 +55,7 @@ use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 use UnitEnum;
 
 use function Aws\serialize;
@@ -1117,7 +1118,9 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
-    public function testReadThroughPromotionCancellationClosesOwnedStreams(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testReadThroughPromotionCancellationClosesOwnedStreams(bool $wrapped): void
     {
         $initialStreamIds = array_keys(get_resources('stream'));
         $source = fopen('php://temp', 'w+b');
@@ -1125,24 +1128,30 @@ class FilesystemManagerTest extends TestCase
         rewind($source);
         $temporary = null;
         $cancellation = new CanceledException('promotion canceled');
+        $failure = $wrapped ? UnableToWriteFile::atLocation('file.txt', previous: $cancellation) : $cancellation;
         $primary = m::mock(FilesystemOperator::class);
         $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturn(false);
         $primary->shouldReceive('writeStream')->once()->andReturnUsing(
-            static function (string $path, mixed $stream) use (&$temporary, $cancellation): never {
+            static function (string $path, mixed $stream) use (&$temporary, $failure): never {
                 $temporary = $stream;
 
-                throw $cancellation;
+                throw $failure;
             },
         );
         $fallback = m::mock(FilesystemOperator::class);
         $fallback->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
         $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
 
+        $caught = null;
+
         try {
-            $adapter->readStream('file.txt');
-            $this->fail('Expected cancellation to escape promotion.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            try {
+                $adapter->readStream('file.txt');
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
             $this->assertFalse(is_resource($source));
             $this->assertNotNull($temporary);
             $this->assertFalse(is_resource($temporary));
@@ -1159,6 +1168,26 @@ class FilesystemManagerTest extends TestCase
                 fclose($temporary);
             }
         }
+    }
+
+    public function testReadThroughPromotionPreservesWrappedCancellationForStringReads(): void
+    {
+        $failure = UnableToWriteFile::atLocation('file.txt', previous: new CanceledException);
+        $primary = m::mock(FilesystemOperator::class);
+        $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturnFalse();
+        $primary->shouldReceive('write')->once()->with('file.txt', 'contents')->andThrow($failure);
+        $fallback = m::mock(FilesystemOperator::class);
+        $fallback->shouldReceive('read')->once()->with('file.txt')->andReturn('contents');
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
+        $caught = null;
+
+        try {
+            $adapter->read('file.txt');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     #[DataProvider('closingPromotionResults')]

@@ -15,6 +15,7 @@ use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;
 
 class CacheServiceProvider extends ServiceProvider
@@ -64,8 +65,8 @@ class CacheServiceProvider extends ServiceProvider
             return;
         }
 
-        // Finalize after BeforeWorkerStart rebuilds the worker configuration.
-        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
+        // Workers finalize after configuration reload; custom processes inherit the master's configuration.
+        $events->listen([AfterWorkerStart::class, BeforeProcessHandle::class], function (): void {
             $this->app->make(CacheManager::class)->finalizeSerializableClasses();
         });
     }

@@ -13,6 +13,7 @@ use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
@@ -20,7 +21,6 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\ViewErrorBag;
 use Stringable;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class View implements ArrayAccess, Htmlable, Stringable, ViewContract
@@ -181,18 +181,18 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
         try {
             $this->factory->notifyRendering($this);
             $contents = $this->getContents();
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception = $throwable;
         }
 
         try {
             $this->factory->notifyRendered($this, $exception);
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

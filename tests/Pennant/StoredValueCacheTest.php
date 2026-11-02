@@ -19,7 +19,10 @@ use InvalidArgumentException;
 use JsonSerializable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -299,6 +302,34 @@ class StoredValueCacheTest extends TestCase
         } catch (RuntimeException $caught) {
             $this->assertSame($exception, $caught);
         }
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCancellationStopsInvalidationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        $failed = m::mock(Repository::class);
+        $failed->shouldReceive('put')->once()->andReturnFalse();
+        $canceled = m::mock(Repository::class);
+        $canceled->shouldReceive('put')->once()->andThrow($failure);
+        $unvisited = m::mock(Repository::class);
+        $unvisited->shouldNotReceive('put');
+        $caught = null;
+
+        try {
+            (new StoredValueCache('features', [[$failed, 60], [$canceled, 60], [$unvisited, 60]]))
+                ->rotatePartition('testing', null);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     #[DataProvider('invalidTtls')]

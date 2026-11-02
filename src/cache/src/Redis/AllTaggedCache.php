@@ -18,7 +18,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 use UnitEnum;
 
@@ -110,10 +110,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $seconds,
                 $this->tags->tagIds()
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
@@ -172,10 +170,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $this->tags->tagIds(),
                 $this->taggedItemKeyPrefix()
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 foreach ($values as $key => $value) {
                     $this->event(new KeyWriteFailed(
                         $this->getName(),
@@ -274,10 +270,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $value,
                 $this->tags->tagIds()
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
@@ -311,10 +305,8 @@ class AllTaggedCache extends NamespacedTaggedCache
 
         try {
             $this->store->allTagOps()->flush()->execute($this->tags->tagIds());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(CacheFlushFailed::class)) {
                 $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
             }
 

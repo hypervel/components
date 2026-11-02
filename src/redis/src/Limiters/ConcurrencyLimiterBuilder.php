@@ -7,6 +7,7 @@ namespace Hypervel\Redis\Limiters;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\InteractsWithTime;
 use Throwable;
@@ -125,9 +126,7 @@ class ConcurrencyLimiterBuilder
         try {
             $lease->release();
         } catch (Throwable $exception) {
-            if ($callbackException === null) {
-                throw $exception;
-            }
+            throw Coroutine::preferCancellation($callbackException, $exception);
         }
 
         if ($callbackException !== null) {

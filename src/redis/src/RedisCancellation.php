@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hypervel\Engine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use RedisClusterException;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
@@ -27,7 +28,7 @@ class RedisCancellation
         }
 
         if (($exception instanceof RedisException || $exception instanceof RedisClusterException)
-            && Coroutine::isCanceled()
+            && EngineCoroutine::isCanceled()
         ) {
             return new CanceledException($message, previous: $exception);
         }
@@ -42,11 +43,11 @@ class RedisCancellation
         ?Throwable $operationFailure,
         ?Throwable $cleanupFailure,
     ): void {
-        if ($operationFailure instanceof CanceledException) {
+        if ($operationFailure !== null && Coroutine::causedByCancellation($operationFailure)) {
             throw $operationFailure;
         }
 
-        if ($cleanupFailure instanceof CanceledException) {
+        if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
             throw $cleanupFailure;
         }
 

@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Session\Concerns\ValidatesUserSessionArguments;
 use Hypervel\Session\Contracts\CanManageUserSessions;
@@ -764,6 +765,10 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                 try {
                     $this->cleanUserIndex($connection, $owner, $cleanupSessionIds);
                 } catch (Throwable $cleanupFailure) {
+                    if (Coroutine::causedByCancellation($payloadFailure)) {
+                        throw $payloadFailure;
+                    }
+
                     throw new RuntimeException(
                         sprintf(
                             'Redis session payload deletion failed with %s: %s',

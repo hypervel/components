@@ -12,6 +12,7 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -33,6 +34,32 @@ use WeakReference;
 
 class DispatchLockContextTest extends TestCase
 {
+    public function testReleaseAttemptsBothLocksAndPreservesCancellationFromDebounceCleanup(): void
+    {
+        $failure = new RuntimeException('Debounce cleanup failed.', previous: new CanceledException);
+        $unique = m::mock(Cache::class);
+        $lock = m::mock(Lock::class);
+        $unique->shouldReceive('lock')->once()->with('unique')->andReturn($lock);
+        $lock->shouldReceive('forceRelease')->once()->andThrow(new RuntimeException('Unique release failed.'));
+        $debounce = m::mock(Cache::class);
+        $debounce->shouldReceive('get')->once()->with('debounce')->andReturn('owner');
+        $debounce->shouldReceive('forget')->once()->with('debounce')->andThrow($failure);
+        $debounce->shouldReceive('forget')->once()->with('debounce:first_dispatched_at')->andReturnTrue();
+        $job = new DispatchLockContextJob('cleanup');
+        DispatchLockContext::registerUnique($job, $unique, null, 'unique', '');
+        DispatchLockContext::registerDebounce($job, $debounce, 'debounce', 'owner');
+        $caught = null;
+
+        try {
+            DispatchLockContext::release($job);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse(DispatchLockContext::has($job));
+    }
+
     public function testMetadataRemainsAvailableUntilTheExactJobIsAccepted(): void
     {
         $cache = new Repository(new WorkerArrayStore, ['store' => 'unique']);

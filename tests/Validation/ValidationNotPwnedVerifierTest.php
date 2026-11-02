@@ -15,6 +15,10 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\NotPwnedVerifier;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ValidationNotPwnedVerifierTest extends TestCase
 {
@@ -120,5 +124,28 @@ class ValidationNotPwnedVerifierTest extends TestCase
         ]));
 
         $exceptionHandler->assertReported(ConnectionException::class);
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationDoesNotBecomeSuccessfulValidation(bool $wrapped): void
+    {
+        $cancellation = new CanceledException;
+        $failure = $wrapped ? new RuntimeException('HTTP cleanup failed.', previous: $cancellation) : $cancellation;
+        $exceptionHandler = new ExceptionHandlerFake(new Handler($this->app));
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+        $http = new HttpFactory;
+        $http->fake(static fn () => throw $failure);
+        $verifier = new NotPwnedVerifier($http);
+        $caught = null;
+
+        try {
+            $verifier->verify(['value' => 'password', 'threshold' => 0]);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $exceptionHandler->assertNothingReported();
     }
 }

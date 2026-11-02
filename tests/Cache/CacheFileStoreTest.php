@@ -18,6 +18,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Cache\Fixtures\CanceledDeserialization;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -27,6 +28,7 @@ use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -193,9 +195,34 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
-    public function testGetPreservesCancellationFromSerializableClassPolicy(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCanceledDeserializationDoesNotDeleteTheCachedValue(bool $wrapped): void
     {
-        $cancellation = new CanceledException('policy canceled');
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $store->put('foo', new CanceledDeserialization($wrapped), 60);
+        $caught = null;
+
+        try {
+            $store->get('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertFileExists($store->path('foo'));
+    }
+
+    #[TestWith(['get', false], 'value direct cancellation')]
+    #[TestWith(['get', true], 'value wrapped cancellation')]
+    #[TestWith(['getLockOwner', false], 'owner direct cancellation')]
+    #[TestWith(['getLockOwner', true], 'owner wrapped cancellation')]
+    public function testSerializableClassPolicyCancellationEscapesReads(string $method, bool $wrapped): void
+    {
+        $cancellation = $wrapped
+            ? new RuntimeException('Policy cleanup failed.', previous: new CanceledException)
+            : new CanceledException('policy canceled');
         $files = $this->mockFilesystem();
         $files->expects($this->once())
             ->method('get')
@@ -207,13 +234,15 @@ class CacheFileStoreTest extends TestCase
                 static fn (): never => throw $cancellation,
             ),
         );
+        $caught = null;
 
         try {
-            $store->get('foo');
-            $this->fail('Resolving the serialization policy was expected to be canceled.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $store->{$method}('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testPutCreatesMissingDirectories(): void

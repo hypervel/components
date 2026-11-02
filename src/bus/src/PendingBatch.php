@@ -347,11 +347,14 @@ class PendingBatch
 
             $batch = $batch->add($this->jobs);
         } catch (Throwable $e) {
-            if (isset($batch)) {
-                $repository->delete($batch->id);
+            // Keep the original failure in flight so cleanup errors retain its cancellation chain.
+            try {
+                throw $e;
+            } finally {
+                if (isset($batch)) {
+                    $repository->delete($batch->id);
+                }
             }
-
-            throw $e;
         }
 
         $events = $this->container->make(EventDispatcher::class);
@@ -387,9 +390,12 @@ class PendingBatch
         try {
             $batch = $batch->add($this->jobs);
         } catch (Throwable $e) {
-            $batch->delete();
-
-            throw $e;
+            // Keep the original failure in flight so cleanup errors retain its cancellation chain.
+            try {
+                throw $e;
+            } finally {
+                $batch->delete();
+            }
         }
 
         $events = $this->container->make(EventDispatcher::class);
@@ -422,15 +428,28 @@ class PendingBatch
     {
         $batch = $repository->store($this);
 
-        (new Collection($this->beforeCallbacks()))->each(function ($handler) use ($batch) {
-            try {
-                return $handler($batch);
-            } catch (Throwable $e) {
-                if (function_exists('report')) {
-                    report($e);
+        try {
+            (new Collection($this->beforeCallbacks()))->each(function ($handler) use ($batch) {
+                try {
+                    return $handler($batch);
+                } catch (Throwable $e) {
+                    if (Coroutine::causedByCancellation($e)) {
+                        throw $e;
+                    }
+
+                    if (function_exists('report')) {
+                        report($e);
+                    }
                 }
+            });
+        } catch (Throwable $e) {
+            // Dispatch cannot own cleanup until store returns the saved batch.
+            try {
+                throw $e;
+            } finally {
+                $repository->delete($batch->id);
             }
-        });
+        }
 
         return $batch;
     }

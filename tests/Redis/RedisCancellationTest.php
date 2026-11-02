@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Redis;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Redis\RedisCancellation;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RedisClusterException;
 use RedisException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 class RedisCancellationTest extends TestCase
 {
@@ -27,6 +29,25 @@ class RedisCancellationTest extends TestCase
         $this->assertNull(RedisCancellation::cancellationFrom(new RedisException('failed'), 'boundary canceled'));
         $this->assertNull(RedisCancellation::cancellationFrom(new RedisClusterException('failed'), 'boundary canceled'));
         $this->assertNull(RedisCancellation::cancellationFrom(new RuntimeException('failed'), 'boundary canceled'));
+    }
+
+    #[TestWith([true, false], 'operation cancellation')]
+    #[TestWith([false, true], 'cleanup cancellation')]
+    #[TestWith([true, true], 'first cancellation')]
+    #[TestWith([false, false], 'ordinary cleanup precedence')]
+    public function testFailureSelectionPreservesWrappedCancellation(bool $operationCanceled, bool $cleanupCanceled): void
+    {
+        $operation = new RuntimeException('Operation failed.', previous: $operationCanceled ? new CanceledException : null);
+        $cleanup = new RuntimeException('Cleanup failed.', previous: $cleanupCanceled ? new CanceledException : null);
+        $caught = null;
+
+        try {
+            RedisCancellation::throwOperationOrCleanupFailure($operation, $cleanup);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($operationCanceled ? $operation : $cleanup, $caught);
     }
 
     public function testItNormalizesOnlyNativePhpRedisFailuresAtTheCancellationBoundary(): void

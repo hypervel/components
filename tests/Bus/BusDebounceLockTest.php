@@ -12,7 +12,10 @@ use Hypervel\Engine\Channel;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -59,12 +62,14 @@ class BusDebounceLockTest extends TestCase
         }
     }
 
-    public function testAcquisitionFailureRemainsPrimaryWhenCleanupProbeFails(): void
+    #[TestWith([false], 'ordinary cleanup failure')]
+    #[TestWith([true], 'wrapped cleanup cancellation')]
+    public function testAcquisitionFailureRemainsPrimaryWhenCleanupProbeFails(bool $canceled): void
     {
         $job = new BusDebounceLockJob('entity-1');
         $key = DebounceLock::getKey($job);
         $failure = new RuntimeException('Maximum-wait read failed.');
-        $cleanupFailure = new RuntimeException('Cleanup owner probe failed.');
+        $cleanupFailure = new RuntimeException('Cleanup owner probe failed.', previous: $canceled ? new CanceledException : null);
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('put')->once()->with($key, m::type('string'), 300)->andReturnTrue();
         $cache->shouldReceive('get')->once()->with($key . ':first_dispatched_at')->andThrow($failure);
@@ -75,8 +80,25 @@ class BusDebounceLockTest extends TestCase
             (new DebounceLock($cache))->acquire($job);
             $this->fail('Expected the maximum-wait read failure was not thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
+            $this->assertSame($canceled ? $cleanupFailure : $failure, $exception);
         }
+    }
+
+    public function testReleasePreservesCancellationFromSecondCleanup(): void
+    {
+        $failure = new RuntimeException('Cache cleanup failed.', previous: new CanceledException);
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('forget')->once()->with('key')->andThrow(new RuntimeException('First deletion failed.'));
+        $cache->shouldReceive('forget')->once()->with('key:first_dispatched_at')->andThrow($failure);
+        $caught = null;
+
+        try {
+            DebounceLock::releaseOwned($cache, 'key');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 }
 

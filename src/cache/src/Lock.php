@@ -6,13 +6,13 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Lock implements LockContract
@@ -131,12 +131,8 @@ abstract class Lock implements LockContract
     {
         try {
             $this->release();
-        } catch (CanceledException $cleanupCancellation) {
-            if (! $failure instanceof CanceledException) {
-                throw $cleanupCancellation;
-            }
-        } catch (Throwable) {
-            // Preserve the callback failure as primary.
+        } catch (Throwable $cleanupFailure) {
+            throw Coroutine::preferCancellation($failure, $cleanupFailure);
         }
 
         throw $failure;

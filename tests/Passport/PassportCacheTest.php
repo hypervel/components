@@ -31,6 +31,8 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -417,6 +419,41 @@ class PassportCacheTest extends TestCase
         $this->assertTrue($second->fresh()->revoked);
         $this->assertNull($cache->get('passport:tokens:' . $second->id));
         $this->assertTrue(Token::findToken($second->id)->revoked);
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testBatchInvalidationStopsOnCancellationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        $cache = $this->app->make('cache')->store('passport-file');
+        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
+        $coordinator->shouldReceive('invalidate')->once()
+            ->with($cache, 'passport:tokens:token')->andThrow(new LockTimeoutException);
+        $coordinator->shouldReceive('invalidate')->once()
+            ->with($cache, 'passport:tokens:token-second')->andThrow($failure);
+        $coordinator->shouldReceive('invalidate')->never()
+            ->with($cache, 'passport:tokens:token-third');
+        $this->app->instance(ModelCacheCoordinator::class, $coordinator);
+
+        $first = $this->createToken();
+        $first->replicate()->forceFill(['id' => 'token-second'])->save();
+        $first->replicate()->forceFill(['id' => 'token-third'])->save();
+        $caught = null;
+
+        try {
+            Client::findOrFail($first->client_id)->tokens()->update(['revoked' => true]);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame(0, DB::transactionLevel());
     }
 
     public function testOwnedClientRelationUpdatesAndDeletesAcrossSeveralBatches(): void

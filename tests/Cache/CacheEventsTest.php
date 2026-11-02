@@ -27,6 +27,7 @@ use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\VersionedTagSet;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
@@ -36,6 +37,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheEventsTest extends TestCase
 {
@@ -375,9 +377,13 @@ class CacheEventsTest extends TestCase
         string $repositoryMethod,
         array $repositoryArguments,
         string $startedEvent,
+        bool $cleanupThrows,
     ): void {
         $cancellation = new CanceledException('cache operation canceled');
-        $store = m::mock(Store::class, CanFlushLocks::class);
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
+        $store = m::mock(Store::class, CanFlushLocks::class, AuthoritativeRawReadable::class);
         $store->shouldReceive('supportsFlushingLocks')->andReturnTrue()->byDefault();
         $store->expects($storeMethod)
             ->with(...$storeArguments)
@@ -389,7 +395,7 @@ class CacheEventsTest extends TestCase
         try {
             $repository->{$repositoryMethod}(...$repositoryArguments);
             $this->fail('The cache operation was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -399,10 +405,11 @@ class CacheEventsTest extends TestCase
     /**
      * Provide cache operations that propagate coroutine cancellation.
      */
-    public static function repositoryCancellationOperations(): array
+    public static function repositoryCancellationOperations(): iterable
     {
-        return [
+        $operations = [
             'get' => ['get', ['foo'], 'get', ['foo'], RetrievingKey::class],
+            'authoritative get' => ['getAuthoritativeRaw', ['foo'], 'getAuthoritativeRaw', ['foo'], RetrievingKey::class],
             'many' => ['many', [['foo', 'bar']], 'many', [['foo', 'bar']], RetrievingManyKeys::class],
             'put' => ['put', ['foo', 'bar', 60], 'put', ['foo', 'bar', 60], WritingKey::class],
             'put many' => ['putMany', [['foo' => 'bar'], 60], 'putMany', [['foo' => 'bar'], 60], WritingManyKeys::class],
@@ -411,6 +418,11 @@ class CacheEventsTest extends TestCase
             'clear' => ['flush', [], 'clear', [], CacheFlushing::class],
             'flush locks' => ['flushLocks', [], 'flushLocks', [], CacheLocksFlushing::class],
         ];
+
+        foreach ($operations as $name => $arguments) {
+            yield $name => [...$arguments, false];
+            yield $name . ' with cleanup failure' => [...$arguments, true];
+        }
     }
 
     public function testPullTriggersEvents(): void

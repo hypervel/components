@@ -10,7 +10,7 @@ use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Contracts\Cache\Store;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 use UnitEnum;
 
@@ -82,10 +82,8 @@ abstract class TaggedCache extends Repository
 
         try {
             $result = $this->tags->reset();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(CacheFlushFailed::class)) {
                 $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
             }
 

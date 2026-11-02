@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
@@ -17,7 +18,6 @@ use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use RuntimeException;
 use Stringable;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -275,9 +275,7 @@ class PendingProcess
         try {
             (new InvokedProcess($process))->stop(0);
         } catch (Throwable $cleanupException) {
-            if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                throw $cleanupException;
-            }
+            throw Coroutine::preferCancellation($exception, $cleanupException);
         }
 
         throw $exception;

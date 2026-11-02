@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Countable;
 use DateTimeInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use League\CommonMark\Environment\Environment;
@@ -17,7 +18,6 @@ use League\CommonMark\GithubFlavoredMarkdownConverter;
 use League\CommonMark\MarkdownConverter;
 use LogicException;
 use Stringable as BaseStringable;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
@@ -1102,9 +1102,11 @@ class Str
     {
         try {
             return (string) $value;
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $fallback;
         }
     }

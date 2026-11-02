@@ -16,7 +16,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 use UnitEnum;
 
@@ -80,10 +80,8 @@ class AnyTaggedCache extends AnyModeTaggedCache
 
         try {
             $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
@@ -145,10 +143,8 @@ class AnyTaggedCache extends AnyModeTaggedCache
 
         try {
             $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 foreach ($values as $key => $value) {
                     $this->event(new KeyWriteFailed(
                         $this->getName(),
@@ -215,10 +211,8 @@ class AnyTaggedCache extends AnyModeTaggedCache
 
         try {
             $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
