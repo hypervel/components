@@ -13,10 +13,13 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\ServerProcess\AbstractProcess;
+use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Server as SwooleServer;
 
 class CacheServiceProviderTest extends TestCase
@@ -81,7 +84,9 @@ class CacheServiceProviderTest extends TestCase
         $manager->allowSerializableClassesUsing(static fn (): array => []);
     }
 
-    public function testServerFinalizationResolvesTheWorkerManagerAtEventTime(): void
+    #[TestWith([false], 'server worker')]
+    #[TestWith([true], 'custom server process')]
+    public function testServerFinalizationResolvesTheWorkerManagerAtEventTime(bool $customProcess): void
     {
         $workerManager = $this->manager();
         $events = m::mock(Dispatcher::class);
@@ -89,7 +94,9 @@ class CacheServiceProviderTest extends TestCase
         $events->shouldReceive('listen')
             ->times(3)
             ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
-                $listeners[$event][] = $listener;
+                foreach ((array) $event as $name) {
+                    $listeners[$name][] = $listener;
+                }
             });
         $application = m::mock(Application::class);
         $application->shouldReceive('make')
@@ -112,10 +119,17 @@ class CacheServiceProviderTest extends TestCase
         $this->assertCount(1, $listeners[BeforeServerStart::class]);
         $this->assertCount(2, $listeners[AfterWorkerStart::class]);
 
-        $server = m::mock(SwooleServer::class);
-        // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
-        $server->taskworker = true;
-        $listeners[AfterWorkerStart::class][1](new AfterWorkerStart($server, 9));
+        if ($customProcess) {
+            $event = new BeforeProcessHandle(m::mock(AbstractProcess::class), 0);
+        } else {
+            $server = m::mock(SwooleServer::class);
+            // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
+            $server->taskworker = true;
+            $event = new AfterWorkerStart($server, 9);
+        }
+
+        $this->assertArrayHasKey($event::class, $listeners);
+        $listeners[$event::class][array_key_last($listeners[$event::class])]($event);
 
         $this->expectException(LogicException::class);
         $workerManager->allowSerializableClassesUsing(static fn (): array => []);
