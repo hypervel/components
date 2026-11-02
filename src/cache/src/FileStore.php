@@ -193,9 +193,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
             }
 
             return $this->unserialize(substr($contents, 10));
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return null;
         }
     }
