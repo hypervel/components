@@ -68,21 +68,27 @@ class FilesystemNonCoroutineTest extends TestCase
         $autoloader = dirname(__DIR__, 2) . '/vendor/autoload.php';
         $processes = [];
 
-        for ($i = 0; $i < 20; ++$i) {
-            $process = new Process([PHP_BINARY, $scriptPath, $autoloader, $filePath, (string) strlen($content)]);
-            $process->start();
-            $processes[] = $process;
-        }
+        try {
+            for ($i = 0; $i < 20; ++$i) {
+                $process = new Process([PHP_BINARY, $scriptPath, $autoloader, $filePath, (string) strlen($content)]);
+                $processes[] = $process;
+                $process->start();
+            }
 
-        $allSucceeded = true;
-        foreach ($processes as $index => $process) {
-            $process->wait();
-            if ($process->getExitCode() !== 0) {
-                $allSucceeded = false;
+            $allSucceeded = true;
+            foreach ($processes as $process) {
+                $process->wait();
+                if ($process->getExitCode() !== 0) {
+                    $allSucceeded = false;
+                }
+            }
+
+            $this->assertTrue($allSucceeded, 'At least one subprocess got a partial or corrupt read');
+        } finally {
+            foreach ($processes as $process) {
+                $process->stop(0);
             }
         }
-
-        $this->assertTrue($allSucceeded, 'At least one subprocess got a partial or corrupt read');
     }
 
     public function testLockedPutWithStreamResource(): void
