@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Response;
@@ -16,7 +17,6 @@ use Hypervel\Support\Facades\Http;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class UntrustedUrl
@@ -101,7 +101,7 @@ class UntrustedUrl
             try {
                 $response = $request->get((string) $uri);
             } catch (Throwable $exception) {
-                if ($tooLarge && ! $exception instanceof CanceledException) {
+                if ($tooLarge && ! Coroutine::causedByCancellation($exception)) {
                     throw new InvalidArgumentException("The remote file exceeds the maximum size of {$kilobytes} kilobytes.");
                 }
 
