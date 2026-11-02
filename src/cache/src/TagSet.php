@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hypervel\Contracts\Cache\Store;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 abstract class TagSet
@@ -58,9 +58,11 @@ abstract class TagSet
                 if (! $operation($item)) {
                     $result = false;
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
