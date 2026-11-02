@@ -11,7 +11,6 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -358,11 +357,11 @@ class ConnectionResolver implements ConnectionResolverInterface
     {
         try {
             $owner->discard();
-        } catch (CanceledException $cancellation) {
-            if (! $exception instanceof CanceledException) {
-                throw $cancellation;
+        } catch (Throwable $cleanupException) {
+            if (Coroutine::causedByCancellation($cleanupException) && ! Coroutine::causedByCancellation($exception)) {
+                throw $cleanupException;
             }
-        } catch (Throwable) {
+
             // Preserve the connection setup failure.
         }
     }

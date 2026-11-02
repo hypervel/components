@@ -131,9 +131,12 @@ class ConnectionPoolTest extends TestCase
         ], $pool->getStats());
     }
 
-    public function testCloseDrainsEveryIdleConnectionBeforeRethrowingCancellation(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testCloseDrainsEveryIdleConnectionBeforeRethrowingCancellation(bool $chained): void
     {
         $cancellation = new CanceledException('close canceled');
+        $cancellation = $chained ? new RuntimeException('cleanup failed', previous: $cancellation) : $cancellation;
         $connections = [
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
             new PoolConnectionStub,
@@ -152,7 +155,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->close();
             $this->fail('Closing an idle connection was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -833,9 +836,12 @@ class ConnectionPoolTest extends TestCase
         $pool->release($connection);
     }
 
-    public function testUsageMaintenanceCancellationDiscardsTheUnreturnedBorrow(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testUsageMaintenanceCancellationDiscardsTheUnreturnedBorrow(bool $chained): void
     {
         $cancellation = new CanceledException('maintenance canceled');
+        $cancellation = $chained ? new RuntimeException('cleanup failed', previous: $cancellation) : $cancellation;
         $connections = [
             new PoolConnectionStub,
             new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
@@ -865,7 +871,7 @@ class ConnectionPoolTest extends TestCase
         try {
             $pool->borrow();
             $this->fail('Usage maintenance was expected to be canceled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

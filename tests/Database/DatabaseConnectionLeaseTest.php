@@ -21,7 +21,9 @@ use Hypervel\Database\Connectors\ConnectorInterface;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\Pool\ConnectionLease;
 use Hypervel\Database\Pool\DatabasePool;
+use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Schema\Blueprint;
@@ -56,6 +58,7 @@ use Hypervel\Tests\Grpc\Fixtures\ClientCallClient;
 use Hypervel\Tests\Grpc\Fixtures\ClientCallClientFactory;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use LogicException;
+use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -1008,6 +1011,34 @@ class DatabaseConnectionLeaseTest extends TestCase
             [spl_object_id($other), '2'],
             [spl_object_id($connection), '1'],
         ], $configurator->applied);
+    }
+
+    public function testAcquisitionCleanupPropagatesWrappedCancellation(): void
+    {
+        $setupFailure = new RuntimeException('Connection listener failed.');
+        $cleanupFailure = new RuntimeException('Discard cleanup failed.', previous: new CanceledException('Discard canceled.'));
+        $physical = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', '', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $pool = m::mock(DatabasePool::class);
+        $wrapper = m::mock(PooledConnection::class);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
+        $wrapper->expects('attachLease')->twice();
+        $wrapper->expects('getDriverConnection')->once()->andReturn($physical);
+        $wrapper->expects('dispatchConnectionEstablishedEvent')->once()->andThrow($setupFailure);
+        $wrapper->expects('discard')->once()->andThrow($cleanupFailure);
+
+        $lease = new ConnectionLease($pool, $wrapper, $this->app->make('db.factory'), $physical);
+        $lease->detach();
+
+        try {
+            $lease->connection->getPdo();
+            $this->fail('Expected cleanup cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure, $exception, $exception::class . ': ' . $exception->getMessage());
+        }
     }
 
     #[DataProvider('connectionListenerFailures')]

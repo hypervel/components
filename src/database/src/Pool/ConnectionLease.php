@@ -6,13 +6,13 @@ namespace Hypervel\Database\Pool;
 
 use Closure;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\LeasableConnection;
 use Hypervel\Database\PdoConnection;
 use LogicException;
 use PDO;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -229,11 +229,11 @@ class ConnectionLease implements NonCopyableContext
     {
         try {
             $this->pooledConnection?->discard();
-        } catch (CanceledException $cancellation) {
-            if (! $exception instanceof CanceledException) {
-                throw $cancellation;
+        } catch (Throwable $cleanupException) {
+            if (Coroutine::causedByCancellation($cleanupException) && ! Coroutine::causedByCancellation($exception)) {
+                throw $cleanupException;
             }
-        } catch (Throwable) {
+
             // Preserve the acquisition or connection-listener failure.
         }
     }
