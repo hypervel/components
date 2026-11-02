@@ -11,10 +11,38 @@ use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class DatabasePostgresSchemaStateTest extends TestCase
 {
+    public function testDumpOutputFailureStopsTheProcess(): void
+    {
+        $process = new Process([PHP_BINARY, '-r', 'echo "progress"; usleep(5000000);']);
+        $connection = $this->createStub(PostgresConnection::class);
+        $connection->method('getConfig')->willReturn([
+            'host' => 'localhost', 'port' => 5432, 'username' => 'root', 'password' => '', 'database' => 'hypervel',
+        ]);
+        $state = new PostgresSchemaState($connection, processFactory: static fn () => $process);
+        $failure = new RuntimeException('Unable to write dump output.');
+        $state->withMigrationTable(null)->handleOutputUsing(static fn () => throw $failure);
+        $caught = null;
+
+        try {
+            try {
+                $state->dump($connection, '/unused-schema.sql');
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
+            $this->assertFalse($process->isRunning());
+        } finally {
+            $process->stop(0);
+        }
+    }
+
     public function testBaseVariablesUseConfiguredConnectionByDefault(): void
     {
         $schemaState = new PostgresSchemaState(m::mock(PostgresConnection::class));

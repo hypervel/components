@@ -12,12 +12,35 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 use function Hypervel\Support\artisan_binary;
 use function Hypervel\Support\php_binary;
 
 class QueueListenerTest extends TestCase
 {
+    public function testOutputFailureStopsTheWorkerProcess(): void
+    {
+        $process = new Process([PHP_BINARY, '-r', 'echo "progress"; usleep(5000000);']);
+        $listener = new Listener(sys_get_temp_dir());
+        $failure = new RuntimeException('Unable to write worker output.');
+        $listener->setOutputHandler(static fn () => throw $failure);
+        $caught = null;
+
+        try {
+            try {
+                $listener->runProcess($process, 128);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
+            $this->assertFalse($process->isRunning());
+        } finally {
+            $process->stop(0);
+        }
+    }
+
     public function testRunProcessCallsProcess(): void
     {
         $process = m::mock(Process::class)->makePartial();

@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hypervel\Support\Sleep;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use Symfony\Component\Process\Process;
 
 use function Hypervel\Support\artisan_binary;
@@ -13,6 +14,8 @@ use function Hypervel\Support\php_binary;
 
 class Listener
 {
+    use GuardsProcessOutput;
+
     /**
      * The environment the workers should run under.
      */
@@ -136,9 +139,9 @@ class Listener
      */
     public function runProcess(Process $process, float|string $memory): void
     {
-        $process->run(function ($type, $line) {
+        $process->run($this->guardProcessOutput($process, function ($type, $line) {
             $this->handleWorkerOutput($type, $line);
-        });
+        }));
 
         // Once we have run the job we'll go check if the memory limit has been exceeded
         // for the script. If it has, we will kill this script so the process manager

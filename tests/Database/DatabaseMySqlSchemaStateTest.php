@@ -12,10 +12,38 @@ use Hypervel\Tests\TestCase;
 use Pdo\Mysql;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class DatabaseMySqlSchemaStateTest extends TestCase
 {
+    public function testDumpOutputFailureStopsTheProcess(): void
+    {
+        $process = new Process([PHP_BINARY, '-r', 'echo "progress"; usleep(5000000);']);
+        $state = new MySqlSchemaState($this->createStub(MySqlConnection::class));
+        $failure = new RuntimeException('Unable to write dump output.');
+        $caught = null;
+
+        try {
+            try {
+                (new ReflectionMethod($state, 'executeDumpProcess'))->invoke(
+                    $state,
+                    $process,
+                    static fn () => throw $failure,
+                    [],
+                );
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
+            $this->assertFalse($process->isRunning());
+        } finally {
+            $process->stop(0);
+        }
+    }
+
     #[DataProvider('provider')]
     public function testConnectionString(string $expectedConnectionString, array $expectedVariables, array $dbConfig): void
     {

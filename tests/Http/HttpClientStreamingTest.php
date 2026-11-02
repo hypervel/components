@@ -629,7 +629,9 @@ class HttpClientStreamingTest extends TestCase
                 throw $failure;
             }
         } finally {
-            posix_kill(-$processId, SIGKILL);
+            if ($processId !== null) {
+                posix_kill(-$processId, SIGKILL);
+            }
             $process->stop(0);
         }
     }

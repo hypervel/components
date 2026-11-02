@@ -9,7 +9,10 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 use function Hypervel\Support\php_binary;
 
@@ -99,6 +102,33 @@ class SupportComposerTest extends TestCase
         );
 
         $composer->removePackages(['phpunit/phpunit'], true);
+    }
+
+    #[TestWith(['requirePackages'])]
+    #[TestWith(['removePackages'])]
+    public function testOutputFailureStopsTheComposerProcess(string $method): void
+    {
+        $process = new Process([PHP_BINARY, '-r', 'echo "progress"; usleep(5000000);']);
+        $composer = $this->getMockBuilder(Composer::class)
+            ->onlyMethods(['getProcess'])
+            ->setConstructorArgs([new Filesystem, sys_get_temp_dir()])
+            ->getMock();
+        $composer->expects($this->once())->method('getProcess')->willReturn($process);
+        $failure = new RuntimeException('Unable to write process output.');
+        $caught = null;
+
+        try {
+            try {
+                $composer->{$method}(['example/package'], output: static fn () => throw $failure);
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($failure, $caught);
+            $this->assertFalse($process->isRunning());
+        } finally {
+            $process->stop(0);
+        }
     }
 
     /**

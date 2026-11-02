@@ -25,7 +25,9 @@ class PostgresSchemaState extends SchemaState
         }
 
         $commands->map(function ($command) use ($path) {
-            $this->makeProcess($command)->mustRun($this->output, array_merge($this->baseVariables($this->connection->getConfig()), [
+            $process = $this->makeProcess($command);
+
+            $process->mustRun($this->guardProcessOutput($process, $this->output), array_merge($this->baseVariables($this->connection->getConfig()), [
                 'HYPERVEL_LOAD_PATH' => $path,
             ]));
         });
