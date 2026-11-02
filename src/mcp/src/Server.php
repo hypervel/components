@@ -7,6 +7,7 @@ namespace Hypervel\Mcp;
 use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Mcp\Enums\ErrorCode;
 use Hypervel\Mcp\Enums\Extension;
 use Hypervel\Mcp\Enums\MetaKey;
@@ -51,7 +52,6 @@ use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use JsonException;
 use stdClass;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -257,8 +257,6 @@ abstract class Server
             }
 
             $this->handleMessage($request, $context);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->sendException($exception, $context, $requestId);
         }
@@ -269,6 +267,10 @@ abstract class Server
      */
     protected function sendException(Throwable $exception, ServerContext $context, int|string|null $requestId): void
     {
+        if (Coroutine::causedByCancellation($exception)) {
+            throw $exception;
+        }
+
         if ($exception instanceof JsonRpcException) {
             $response = $exception->toJsonRpcResponse();
         } else {
@@ -417,8 +419,6 @@ abstract class Server
                 $this->send($message, $context, $request);
                 yield;
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->sendException($exception, $context, $request->id);
             yield;

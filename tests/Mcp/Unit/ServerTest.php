@@ -22,7 +22,10 @@ use Hypervel\Tests\Mcp\Fixtures\CustomMethodHandler;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Tests\Mcp\Fixtures\callStreamingToolMessage;
 use function Hypervel\Tests\Mcp\Fixtures\callToolMessage;
@@ -841,23 +844,33 @@ class ServerTest extends TestCase
         ];
     }
 
-    public function testLazyCancellationRestoresTheRequestWithoutSendingAnError(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testLazyCancellationRestoresTheRequestWithoutSendingAnError(bool $wrapped): void
     {
+        config(['app.debug' => false]);
+
         $transport = new ArrayTransport;
         $server = new ExampleServer($transport);
         $server->addMethod('test/cancel', CancellationMethod::class);
         $method = new CancellationMethod;
+
+        if ($wrapped) {
+            $method->cancellation = new RuntimeException('Request cleanup failed.', previous: $method->cancellation);
+        }
+
         $this->app->instance(CancellationMethod::class, $method);
         $outer = new Request(['outer' => true]);
         CoroutineContext::set(Request::class, $outer);
+        $caught = null;
 
         try {
             $server->handle('{"jsonrpc":"2.0","id":1,"method":"test/cancel","params":{"arguments":{"value":"inner"}}}');
-            $this->fail('Cancellation must propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($method->cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($method->cancellation, $caught);
         $this->assertSame('inner', $method->closedUnder?->get('value'));
         $this->assertSame($outer, CoroutineContext::get(Request::class));
         $this->assertCount(1, $transport->sent);
@@ -939,7 +952,7 @@ class CancellationMethod implements Method
 {
     public ?Request $closedUnder = null;
 
-    public CanceledException $cancellation;
+    public Throwable $cancellation;
 
     /**
      * Create the cancellation signal.
