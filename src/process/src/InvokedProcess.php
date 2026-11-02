@@ -6,11 +6,11 @@ namespace Hypervel\Process;
 
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Traits\Macroable;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -71,9 +71,7 @@ class InvokedProcess implements InvokedProcessContract
                 // A failed release or interrupted wait must not leave the child running.
                 $this->process->stop(0, $signal);
             } catch (Throwable $cleanupException) {
-                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                    throw $cleanupException;
-                }
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;
