@@ -16,9 +16,11 @@ use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class StreamableAgentResponseTest extends TestCase
@@ -87,6 +89,25 @@ class StreamableAgentResponseTest extends TestCase
 
         $this->assertSame(['Boom.'], $failures);
         $this->assertSame(['Boom.', 'Boom.'], $iterationFailures);
+    }
+
+    public function testThrowingCatchCallbackPreservesProducerCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $callbackFailure = new RuntimeException('Failure callback failed.');
+        $response = new StreamableAgentResponse('invocation', static fn () => throw $cancellation);
+        $response->catch(static fn () => throw $callbackFailure);
+        $caught = null;
+
+        try {
+            iterator_to_array($response);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($callbackFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
     }
 
     #[DataProvider('completionCallbackModes')]
