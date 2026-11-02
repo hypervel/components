@@ -44,9 +44,12 @@ use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
 use OpenTelemetry\SemConv\Attributes\CodeAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ExceptionInstrumentationTest extends TestCase
 {
@@ -297,6 +300,29 @@ class ExceptionInstrumentationTest extends TestCase
         $attributes = $this->records[0]->getAttributes();
         $this->assertTrue($attributes->get('enricher.first'));
         $this->assertTrue($attributes->get('enricher.last'));
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testEnrichmentCancellationStopsLaterCallbacks(bool $wrapped): void
+    {
+        $failure = $wrapped ? new RuntimeException('Enricher cleanup failed.', previous: new CanceledException) : new CanceledException;
+        $continued = false;
+        $this->instrumentation(enrichers: [
+            static fn () => throw $failure,
+            static function () use (&$continued): void { $continued = true; },
+        ])->register($this->options());
+        $caught = null;
+
+        try {
+            $this->handler->report(new RuntimeException('Application failed.'));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($continued);
+        $this->assertCount(0, $this->records);
     }
 
     public function testMetricsOnlyModeDoesNotEnableDirectLogDeduplication(): void
