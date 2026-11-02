@@ -8,7 +8,9 @@ use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
+use Hypervel\Database\TransactionManager;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
+use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;
 use Hypervel\Event\ListenerProvider;
@@ -60,6 +62,20 @@ class EventDispatcherTest extends TestCase
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');
         $this->assertInstanceOf(StdoutLoggerInterface::class, $loggerProperty->getValue($instance));
+    }
+
+    public function testFactorySetsTransactionManagerResolver()
+    {
+        $transactions = Mockery::mock(TransactionManager::class);
+        $transactions->shouldReceive('addCallback')->once();
+
+        $container = Mockery::mock(ContainerInterface::class);
+        $container->shouldReceive('get')->with(PsrListenerProviderInterface::class)->andReturn(new ListenerProvider());
+        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn(Mockery::mock(StdoutLoggerInterface::class));
+        $container->shouldReceive('has')->with(TransactionManager::class)->andReturnTrue();
+        $container->shouldReceive('get')->with(TransactionManager::class)->andReturn($transactions);
+
+        (new EventDispatcherFactory())($container)->dispatch(new class implements ShouldDispatchAfterCommit {});
     }
 
     public function testStoppable()
