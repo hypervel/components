@@ -6,6 +6,7 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 use WeakMap;
 
@@ -311,7 +312,7 @@ class DispatchLockContext
                 );
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
