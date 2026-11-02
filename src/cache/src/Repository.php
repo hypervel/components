@@ -39,12 +39,12 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -339,10 +339,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $this->store->put($this->itemKey($key), $value, $seconds);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
@@ -404,10 +402,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $this->store->putMany($values, $seconds);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 foreach ($values as $key => $value) {
                     $this->event(new KeyWriteFailed(
                         $this->getName(),
@@ -522,10 +518,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $this->store->forever($this->itemKey($key), $value);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyWriteFailed::class)) {
                 $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
@@ -837,10 +831,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $this->store->forget($this->itemKey($key));
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyForgetFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyForgetFailed::class)) {
                 $this->event(new KeyForgetFailed($this->getName(), $key, exception: $exception));
             }
 
@@ -895,10 +887,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $this->store->flush();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(CacheFlushFailed::class)) {
                 $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
             }
 
@@ -935,10 +925,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $result = $store->flushLocks();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(CacheLocksFlushFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(CacheLocksFlushFailed::class)) {
                 $this->event(new CacheLocksFlushFailed($this->getName(), exception: $exception));
             }
 
@@ -1265,10 +1253,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
                     $this->store->get($this->itemKey($key))
                 );
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyRetrievalFailed::class)) {
                 $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
             }
 
@@ -1309,10 +1295,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         try {
             $value = $store->getAuthoritativeRaw($this->itemKey($key));
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(KeyRetrievalFailed::class)) {
                 $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
             }
 
@@ -1390,10 +1374,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
                 $result[$key] = $value;
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($this->events?->hasListeners(ManyKeysRetrievalFailed::class)) {
+            if (! Coroutine::causedByCancellation($exception) && $this->events?->hasListeners(ManyKeysRetrievalFailed::class)) {
                 $this->event(new ManyKeysRetrievalFailed($this->getName(), $keys, $exception));
             }
 
