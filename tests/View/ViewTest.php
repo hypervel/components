@@ -18,6 +18,7 @@ use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -526,9 +527,14 @@ class ViewTest extends TestCase
         $this->assertSame(['first', 'second', 'third'], $order);
     }
 
-    public function testPreRenderCancellationSkipsCompletionObserversAndClearsState(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPreRenderCancellationSkipsCompletionObserversAndClearsState(bool $wrapped): void
     {
         $cancellation = new CanceledException;
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Render cleanup failed.', previous: $cancellation);
+        }
         $factory = new Factory(
             m::mock(EngineResolver::class),
             m::mock(ViewFinderInterface::class),
@@ -540,8 +546,9 @@ class ViewTest extends TestCase
         $factory->observeRendering(function () use ($cancellation): never {
             throw $cancellation;
         });
-        $factory->observeRendered(function (): void {
-            $this->fail('Completion observers must not run after cancellation.');
+        $completionObserved = false;
+        $factory->observeRendered(function () use (&$completionObserved): void {
+            $completionObserved = true;
         });
 
         $engine = m::mock(Engine::class);
@@ -551,26 +558,33 @@ class ViewTest extends TestCase
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
             $this->fail('Expected rendering to be cancelled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertFalse($factory->hasSection('content'));
         $this->assertSame('', $factory->yieldPushContent('scripts'));
         $this->assertTrue($factory->doneRendering());
+        $this->assertFalse($completionObserved);
     }
 
-    public function testRenderSectionsEngineCancellationSkipsCompletionObservers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRenderSectionsEngineCancellationSkipsCompletionObservers(bool $wrapped): void
     {
         $cancellation = new CanceledException;
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Engine cleanup failed.', previous: $cancellation);
+        }
         $factory = new Factory(
             m::mock(EngineResolver::class),
             m::mock(ViewFinderInterface::class),
             $events = m::mock(Dispatcher::class),
         );
 
-        $factory->observeRendered(function (): void {
-            $this->fail('Completion observers must not run after cancellation.');
+        $completionObserved = false;
+        $factory->observeRendered(function () use (&$completionObserved): void {
+            $completionObserved = true;
         });
 
         $engine = m::mock(Engine::class);
@@ -580,16 +594,22 @@ class ViewTest extends TestCase
         try {
             (new View($factory, $engine, 'test', 'path'))->renderSections();
             $this->fail('Expected rendering to be cancelled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertTrue($factory->doneRendering());
+        $this->assertFalse($completionObserved);
     }
 
-    public function testRenderedObserverCancellationStopsRemainingObservers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRenderedObserverCancellationStopsRemainingObservers(bool $wrapped): void
     {
         $cancellation = new CanceledException;
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Observer cleanup failed.', previous: $cancellation);
+        }
         $factory = new Factory(
             m::mock(EngineResolver::class),
             m::mock(ViewFinderInterface::class),
@@ -597,6 +617,7 @@ class ViewTest extends TestCase
         );
 
         $order = [];
+        $factory->observeRendered(static fn () => throw new RuntimeException('Earlier observer failed.'));
         $factory->observeRendered(function () use ($cancellation, &$order): never {
             $order[] = 'first';
 
@@ -613,17 +634,22 @@ class ViewTest extends TestCase
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
             $this->fail('Expected completion to be cancelled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame(['first'], $order);
     }
 
-    public function testRenderedObserverCancellationSupersedesRenderingFailure(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRenderedObserverCancellationSupersedesRenderingFailure(bool $wrapped): void
     {
         $renderingException = new RuntimeException('rendering failed');
         $cancellation = new CanceledException;
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Observer cleanup failed.', previous: $cancellation);
+        }
         $factory = new Factory(
             m::mock(EngineResolver::class),
             m::mock(ViewFinderInterface::class),
@@ -646,7 +672,7 @@ class ViewTest extends TestCase
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
             $this->fail('Expected completion to be cancelled.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
