@@ -61,6 +61,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
         $this->assertSame($expected, $model->toArray()['amount']);
     }
 
+    /**
+     * Provide decimal inputs for precision and exponent-limit checks.
+     */
     public static function decimalParsingProvider(): array
     {
         return [

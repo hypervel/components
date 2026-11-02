@@ -304,6 +304,9 @@ class FormRequestCastingTest extends TestCase
         $this->assertSame($expected, $request->safe()->all()['value']);
     }
 
+    /**
+     * Provide decimal inputs for precision and exponent-limit checks.
+     */
     public static function decimalParsingProvider(): array
     {
         return [
