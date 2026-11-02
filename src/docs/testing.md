@@ -234,6 +234,8 @@ The request is stored in the current coroutine's context, so it is discarded whe
 
 Tests that create child coroutines, subscribers, processes, servers, or other asynchronous resources must close or join those resources in a `finally` block. This ensures that assertion failures and other exceptions cannot leave work running after the test has finished.
 
+For subprocess fixtures, prefer Hypervel's `Process` facade, or `Hypervel\Process\Factory` in tests without an application. It stops asynchronous processes when the test coroutine ends, so fixtures with that lifetime do not need their own cleanup block. Stop them explicitly when shutdown timing matters or they finish serving their purpose earlier. Use Symfony Process directly when testing its behavior or an interface that requires it, and keep explicit cleanup for those processes and for processes started outside a coroutine.
+
 When a test needs results or exceptions from child coroutines, prefer the `parallel` helper instead of coordinating them with unbounded channel reads. Use channels directly when channel behavior is what the test is exercising.
 
 Swoole tables are also resources your test owns. Swoole only releases a table's memory when `destroy` is called, so a table created in a test stays in memory until the test process exits. When a test creates a Swoole table, use the `InteractsWithSwooleTables` trait and pass the table to `trackSwooleTable`. The trait destroys tracked tables after each test, so you should not call `destroy` on them yourself.

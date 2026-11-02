@@ -447,6 +447,8 @@ Hypervel's framework clients are designed to cooperate with Swoole coroutines, b
 
 Before porting an integration that performs network, filesystem, subprocess, or other external I/O, verify that its client is safe to use with Swoole's coroutine hooks. Prefer a coroutine-aware client. For unusual work that requires an unhookable extension or full process isolation, use the `process` concurrency driver described in the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+Hypervel's [asynchronous Process API](/docs/{{version}}/processes#asynchronous-processes) stops a process when its starting coroutine exits. Start it in the coroutine that will wait for it. When using Symfony Process directly, wait for or stop it before that coroutine exits, using `finally` when intervening work can throw.
+
 Pooled database and Redis resources belong to the coroutine or callback that borrowed them. Do not retain a checked-out low-level connection on a singleton or static property, and do not use it after its owning callback or coroutine ends. Use the manager or facade for each operation and the documented callback APIs, such as `Redis::withConnection()`, when several operations must share one borrowed connection. See [database connection pooling](/docs/{{version}}/database#connection-pooling) and [holding a pooled Redis connection](/docs/{{version}}/redis#holding-a-pooled-connection).
 
 <a name="configuration"></a>
