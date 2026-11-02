@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 use Closure;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\OpenTelemetry\Context\PsrRequestHeadersSetter;
@@ -360,9 +361,11 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     'The OpenTelemetry URL-template resolver must return a string or null.',
                 );
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             self::logError('OpenTelemetry URL-template resolution failed.', ['exception' => $exception]);
 
             return;
