@@ -67,15 +67,20 @@ class WorkerProcessTest extends IntegrationTestCase
         PHP;
         $output = '';
         $process = new WorkerProcess(new Process([PHP_BINARY, '-r', $script]));
-        $process->start(static function (string $type, string $buffer) use (&$output): void {
-            $output .= $buffer;
-        });
 
-        $process->pause();
-        $exitCode = $process->wait();
+        try {
+            $process->start(static function (string $type, string $buffer) use (&$output): void {
+                $output .= $buffer;
+            });
 
-        $this->assertSame(0, $exitCode);
-        $this->assertSame('received', $output);
+            $process->pause();
+            $exitCode = $process->wait();
+
+            $this->assertSame(0, $exitCode);
+            $this->assertSame('received', $output);
+        } finally {
+            $process->kill();
+        }
     }
 
     public function testStartRestoresTheParentSignalMaskAfterSuccess(): void
@@ -166,6 +171,7 @@ class WorkerProcessTest extends IntegrationTestCase
             Event::assertDispatched(WorkerProcessRestarting::class);
             Event::assertDispatched(UnableToLaunchProcess::class);
         } finally {
+            $workerProcess->kill();
             CarbonImmutable::setTestNow();
         }
     }
@@ -193,6 +199,7 @@ class WorkerProcessTest extends IntegrationTestCase
             Event::assertDispatched(WorkerProcessRestarting::class);
             $this->assertCount(1, Event::dispatched(WorkerProcessRestarting::class));
         } finally {
+            $workerProcess->kill();
             CarbonImmutable::setTestNow();
         }
     }
@@ -224,6 +231,7 @@ class WorkerProcessTest extends IntegrationTestCase
             Event::assertDispatched(WorkerProcessRestarting::class);
             $this->assertCount(2, Event::dispatched(WorkerProcessRestarting::class));
         } finally {
+            $workerProcess->kill();
             CarbonImmutable::setTestNow();
         }
     }
