@@ -39,7 +39,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * The configuration that signs and verifies tokens.
      */
-    protected Configuration $config;
+    protected ?Configuration $config;
 
     /**
      * Whether the provider has no private key, so it can only verify tokens.
@@ -86,6 +86,8 @@ class Lcobucci extends Provider implements ProviderContract
      */
     public function encode(array $payload): string
     {
+        $config = $this->config();
+
         if ($this->verifiesOnly) {
             throw new JwtException('Private key is not set.');
         }
@@ -94,7 +96,7 @@ class Lcobucci extends Provider implements ProviderContract
 
         try {
             return $builder
-                ->getToken($this->config->signer(), $this->config->signingKey())
+                ->getToken($config->signer(), $config->signingKey())
                 ->toString();
         } catch (Exception $e) {
             throw new JwtException('Could not create token: ' . $e->getMessage(), $e->getCode(), $e);
@@ -108,9 +110,11 @@ class Lcobucci extends Provider implements ProviderContract
      */
     public function decode(#[SensitiveParameter] string $token): array
     {
+        $config = $this->config();
+
         try {
             /** @var Plain */
-            $token = $this->config->parser()->parse($token);
+            $token = $config->parser()->parse($token);
         } catch (Throwable $exception) {
             throw new TokenInvalidException(
                 'Could not decode token: ' . $exception->getMessage(),
@@ -120,7 +124,7 @@ class Lcobucci extends Provider implements ProviderContract
         }
 
         try {
-            $verified = $this->config->validator()->validate($token, ...$this->config->validationConstraints());
+            $verified = $config->validator()->validate($token, ...$config->validationConstraints());
         } catch (ConversionFailed) {
             // ECDSA verification rejects a signature of the wrong length before comparing it.
             $verified = false;
@@ -141,7 +145,7 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function getBuilderFromClaims(array $payload): Builder
     {
-        $builder = $this->config->builder();
+        $builder = $this->config()->builder();
 
         foreach ($payload as $key => $value) {
             switch ($key) {
@@ -193,6 +197,27 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
+     * Get the configuration, rebuilding it if the algorithm or keys have changed.
+     */
+    protected function config(): Configuration
+    {
+        return $this->config ?? $this->configure();
+    }
+
+    /**
+     * Discard the configuration so it and the signer are rebuilt on next use.
+     *
+     * @return $this
+     */
+    protected function resetConfig(): static
+    {
+        // Algorithm and keys can be changed in either order before the provider is used.
+        $this->config = null;
+
+        return $this;
+    }
+
+    /**
      * Build the configuration.
      */
     protected function buildConfig(): Configuration
@@ -218,24 +243,24 @@ class Lcobucci extends Provider implements ProviderContract
      *
      * @throws JwtException
      */
-    protected function configure(?Configuration $config = null): void
+    protected function configure(?Configuration $config = null): Configuration
     {
         // buildConfig() reads the signer and the verification-only flag.
         $this->signer = $this->getSigner();
         $this->verifiesOnly = $config === null && $this->isAsymmetric() && ! $this->getPrivateKey();
-        $this->config = $config ?? $this->buildConfig();
+
+        return $this->config = $config ?? $this->buildConfig();
     }
 
     /**
-     * Rebuild the signer and configuration after a setting changes.
+     * Discard the configuration after a setting changes.
      *
-     * A configuration given to the constructor is replaced by one built from the new settings.
-     *
-     * @throws JwtException
+     * A configuration given to the constructor is replaced by one built from the new settings
+     * on next use, when invalid settings also raise their configuration error.
      */
     protected function onConfigurationChanged(): void
     {
-        $this->configure();
+        $this->resetConfig();
     }
 
     /**
