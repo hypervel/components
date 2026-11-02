@@ -21,6 +21,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\NoSeekStream;
+use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Request as GuzzleRequest;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\StreamDecoratorTrait;
@@ -886,8 +887,35 @@ class HttpClientTest extends TestCase
 
         $response = $this->factory->get('http://foo.com/api');
 
-        $this->assertIsResource($response->resource());
-        $this->assertSame('{"result":{"foo":"bar"}}', stream_get_contents($response->resource()));
+        $resource = $response->resource();
+
+        try {
+            $this->assertIsResource($resource);
+            $this->assertSame('{"result":{"foo":"bar"}}', stream_get_contents($resource));
+        } finally {
+            fclose($resource);
+        }
+
+        $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
+    }
+
+    public function testResponseResourcePreservesProducerCancellation(): void
+    {
+        $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
+        $response = new Response(new Psr7Response(body: new PumpStream(static fn () => throw $failure)));
+        $resource = $response->resource();
+        $caught = null;
+
+        try {
+            fread($resource, 1);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            fclose($resource);
+            $response->close();
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     public function testResponseCanBeReturnedAsCollection(): void
