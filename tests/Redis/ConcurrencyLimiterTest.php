@@ -13,7 +13,10 @@ use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
 {
@@ -105,26 +108,36 @@ class ConcurrencyLimiterTest extends TestCase
         }
     }
 
-    public function testBlockPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['direct cancellation'])]
+    #[TestWith(['wrapped cancellation'])]
+    public function testBlockPreservesCallbackFailureWhenReleaseAlsoFails(string $kind): void
     {
         $redis = $this->mockRedis();
         $callbackException = new RuntimeException('callback failed');
+        $releaseException = match ($kind) {
+            'direct cancellation' => new CanceledException,
+            'wrapped cancellation' => new RuntimeException('Release cleanup failed.', previous: new CanceledException),
+            default => new RuntimeException('release failed'),
+        };
 
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('eval')
-            ->andThrow(new RuntimeException('release failed'));
+            ->andThrow($releaseException);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
+
+        $caught = null;
 
         try {
             $limiter->block(5, function () use ($callbackException): never {
                 throw $callbackException;
             });
-
-            $this->fail('Expected the callback failure to be thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackException, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($kind === 'ordinary' ? $callbackException : $releaseException, $caught);
     }
 
     public function testBlockThrowsTimeoutExceptionWhenCannotAcquire(): void

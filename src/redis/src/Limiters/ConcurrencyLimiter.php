@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Redis\LuaScripts;
 use Hypervel\Redis\RedisConnection;
@@ -106,9 +107,7 @@ class ConcurrencyLimiter
             try {
                 $lease->release();
             } catch (Throwable $exception) {
-                if ($callbackException === null) {
-                    throw $exception;
-                }
+                throw Coroutine::preferCancellation($callbackException, $exception);
             }
 
             if ($callbackException !== null) {
