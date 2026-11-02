@@ -23,6 +23,7 @@ use Hypervel\Ai\Storage\StoredTurn;
 use Hypervel\Ai\Support\ConversationSelection;
 use Hypervel\Ai\Support\PendingConversationTitle;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
@@ -76,9 +77,12 @@ class RememberConversation
             try {
                 $response = $next($prompt);
             } catch (Throwable $exception) {
-                $this->rememberFailedTurn($prompt, $exception, $pendingConversationId);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure recording throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->rememberFailedTurn($prompt, $exception, $pendingConversationId);
+                }
             }
 
             // Record each failed producer attempt; public catch callbacks run only once per response.
@@ -97,9 +101,12 @@ class RememberConversation
                             yield from $produce();
                         } catch (Throwable $exception) {
                             $threw = true;
-                            $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
-
-                            throw $exception;
+                            // Keep the original exception, including cancellation, as previous if failure recording throws.
+                            try {
+                                throw $exception;
+                            } finally {
+                                $this->rememberFailedTurn($prompt, $exception, $pendingConversationId, retryable: ! $responseReference->get()->hasYielded());
+                            }
                         }
 
                         $completed = true;
@@ -210,6 +217,8 @@ class RememberConversation
             if (($exception === null || ! Coroutine::causedByCancellation($exception)) && ! $exception instanceof StreamAbandonedException) {
                 try {
                     $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
+                } catch (ChildCancellationException) {
+                    // An independently canceled title must not discard the caller's completed turn.
                 } catch (Throwable $caught) {
                     if (! Coroutine::causedByCancellation($caught)) {
                         throw $caught;
@@ -226,53 +235,56 @@ class RememberConversation
             }
         }
 
-        if ($this->store instanceof StoresConversationTurns) {
-            $stored = $this->store->storeTurn($conversationId, $title, $participantType, $participantId, $prompt, $response, $exception);
-        } else {
-            if ($newConversation) {
-                $conversationId = $this->store->storeConversation(
+        // Persist the finished turn if the caller was canceled during title generation; storage failures retain that cancellation.
+        try {
+            if ($cancellation !== null) {
+                throw $cancellation;
+            }
+        } finally {
+            if ($this->store instanceof StoresConversationTurns) {
+                $stored = $this->store->storeTurn($conversationId, $title, $participantType, $participantId, $prompt, $response, $exception);
+            } else {
+                if ($newConversation) {
+                    $conversationId = $this->store->storeConversation(
+                        $participantType,
+                        $participantId,
+                        $title,
+                        $conversationId,
+                    );
+                }
+
+                // A resume continues the turn its decisions answer, so it adds no message of its own...
+                $userMessageId = $prompt->hasApprovalDecisions() ? null : $this->store->storeUserMessage(
+                    $conversationId,
                     $participantType,
                     $participantId,
-                    $title,
-                    $conversationId,
+                    $agent::class,
+                    new UserMessage($prompt->prompt, $prompt->attachments),
                 );
+
+                $assistantMessageId = $this->store->storeAssistantMessage(
+                    $conversationId,
+                    $participantType,
+                    $participantId,
+                    $prompt,
+                    $response,
+                    $exception,
+                );
+
+                $stored = new StoredTurn($conversationId, $userMessageId, $assistantMessageId);
             }
 
-            // A resume continues the turn its decisions answer, so it adds no message of its own...
-            $userMessageId = $prompt->hasApprovalDecisions() ? null : $this->store->storeUserMessage(
-                $conversationId,
-                $participantType,
-                $participantId,
-                $agent::class,
-                new UserMessage($prompt->prompt, $prompt->attachments),
-            );
+            if ($newConversation) {
+                // Completing a lazy operation must not replace a selection the caller changed meanwhile.
+                if ($agent->currentConversation() === $selection->conversationId && $agent->conversationParticipant() === $participant) {
+                    $agent->continue($stored->conversationId, $participant);
+                }
 
-            $assistantMessageId = $this->store->storeAssistantMessage(
-                $conversationId,
-                $participantType,
-                $participantId,
-                $prompt,
-                $response,
-                $exception,
-            );
-
-            $stored = new StoredTurn($conversationId, $userMessageId, $assistantMessageId);
-        }
-
-        if ($newConversation) {
-            // Completing a lazy operation must not replace a selection the caller changed meanwhile.
-            if ($agent->currentConversation() === $selection->conversationId && $agent->conversationParticipant() === $participant) {
-                $agent->continue($stored->conversationId, $participant);
+                $selection->conversationId = $stored->conversationId;
             }
 
-            $selection->conversationId = $stored->conversationId;
-        }
-
-        $response->withinConversation($stored->conversationId, $participant)
-            ->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
-
-        if ($cancellation !== null) {
-            throw $cancellation;
+            $response->withinConversation($stored->conversationId, $participant)
+                ->withStoredMessages($stored->userMessageId, $stored->assistantMessageId);
         }
 
         return $stored;
