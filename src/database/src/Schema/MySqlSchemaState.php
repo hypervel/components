@@ -168,7 +168,7 @@ class MySqlSchemaState extends SchemaState
         }
 
         try {
-            $process->setTimeout(null)->mustRun($output, $variables);
+            $process->setTimeout(null)->mustRun($this->guardProcessOutput($process, $output), $variables);
         } catch (Exception $e) {
             if (Str::contains($e->getMessage(), ['column-statistics', 'column_statistics'])) {
                 return $this->executeDumpProcess(Process::fromShellCommandLine(

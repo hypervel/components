@@ -7,10 +7,13 @@ namespace Hypervel\Database\Schema;
 use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use Symfony\Component\Process\Process;
 
 abstract class SchemaState
 {
+    use GuardsProcessOutput;
+
     /**
      * The connection instance.
      */
