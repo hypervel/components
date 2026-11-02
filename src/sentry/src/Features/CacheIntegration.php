@@ -444,7 +444,11 @@ class CacheIntegration extends Feature
             } finally {
                 CoroutineContext::forget(self::SESSION_KEY_RESOLUTION_CONTEXT_KEY);
             }
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // We can assume the session store is not available here so there is no session key to retrieve
             // We capture a generic exception to avoid breaking the application because some code paths can
             // result in an exception other than the expected `BindingResolutionException`

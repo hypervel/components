@@ -12,11 +12,11 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Factory implements FactoryContract
@@ -374,9 +374,11 @@ class Factory implements FactoryContract
         foreach ($this->renderedObservers as $observer) {
             try {
                 $observer($view, $exception);
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $observerException ??= $throwable;
             }
         }

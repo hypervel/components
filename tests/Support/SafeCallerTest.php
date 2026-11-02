@@ -11,8 +11,10 @@ use Hypervel\Support\SafeCaller;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SafeCallerTest extends TestCase
 {
@@ -96,9 +98,15 @@ class SafeCallerTest extends TestCase
         }
     }
 
-    public function testCallPreservesCancellationFromCallback(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCallPreservesCancellationFromCallback(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
+        }
         $container = m::mock(Container::class);
         $container->shouldNotReceive('has');
         $caller = new SafeCaller($container);
@@ -107,15 +115,22 @@ class SafeCallerTest extends TestCase
             $caller->call(fn () => throw $cancellation);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testCallPreservesCancellationFromExceptionReporter(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCallPreservesCancellationFromExceptionReporter(bool $wrapped): void
     {
         $failure = new RuntimeException('failed');
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Reporter cleanup failed.', previous: $cancellation);
+        }
+
         $defaultCalled = false;
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once()->with($failure)->andThrow($cancellation);
@@ -133,7 +148,7 @@ class SafeCallerTest extends TestCase
             );
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 

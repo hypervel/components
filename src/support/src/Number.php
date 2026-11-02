@@ -17,6 +17,11 @@ class Number
     use Macroable;
 
     /**
+     * The largest scientific-notation exponent expanded by default.
+     */
+    public const int MAX_EXPONENT = 1000;
+
+    /**
      * The default locale.
      */
     protected const string DEFAULT_LOCALE = 'en';
@@ -62,6 +67,32 @@ class Number
         }
 
         return $formatter->format(static::withoutNegativeZero($number, $formatter->format(...)));
+    }
+
+    /**
+     * Get the exponent of a numeric string written in scientific notation.
+     *
+     * @internal
+     */
+    public static function exponent(string $number): ?int
+    {
+        if (! is_numeric($number) || ($position = stripos($number, 'e')) === false) {
+            return null;
+        }
+
+        return (int) substr($number, $position + 1);
+    }
+
+    /**
+     * Determine if a numeric string exceeds the default scientific-notation exponent range.
+     *
+     * @internal
+     */
+    public static function exceedsMaxExponent(string $number): bool
+    {
+        $exponent = static::exponent($number);
+
+        return $exponent !== null && ($exponent > static::MAX_EXPONENT || $exponent < -static::MAX_EXPONENT);
     }
 
     /**

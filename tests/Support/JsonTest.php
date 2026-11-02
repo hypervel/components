@@ -10,6 +10,7 @@ use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use stdClass;
 use ValueError;
 
 class JsonTest extends TestCase
@@ -104,6 +105,63 @@ class JsonTest extends TestCase
         Json::decode('{invalid}');
     }
 
+    #[DataProvider('jsonWithExactNumbers')]
+    public function testDecodeNumbersAsStringsPreservesNumberTokens(string $json, mixed $expected): void
+    {
+        $this->assertSame($expected, Json::decodeNumbersAsStrings($json));
+    }
+
+    /**
+     * Provide numeric tokens and strings whose contents must remain untouched.
+     */
+    public static function jsonWithExactNumbers(): iterable
+    {
+        yield 'decimal scalar' => ['1.234567890123456789', '1.234567890123456789'];
+        yield 'lexical forms' => ['[1.10,-0,1E+2,1e9999]', ['1.10', '-0', '1E+2', '1e9999']];
+        yield 'nested values' => [
+            '{"123":{"rates":[123456789012345678901,0.000000000000000001]},"flags":[true,false,null],"empty":[]}',
+            [123 => ['rates' => ['123456789012345678901', '0.000000000000000001']], 'flags' => [true, false, null], 'empty' => []],
+        ];
+        yield 'null scalar' => ['null', null];
+        yield 'string scalar' => ['"123\u0034"', '1234'];
+
+        $escaped = str_repeat('é123"\\', 2000);
+
+        yield 'escaped strings' => [json_encode([$escaped, 1], JSON_THROW_ON_ERROR), [$escaped, '1']];
+    }
+
+    public function testDecodeNumbersAsStringsPreservesObjectShape(): void
+    {
+        $value = Json::decodeNumbersAsStrings('{"rate":1.10,"empty":{}}', false);
+
+        $this->assertSame('1.10', $value->rate);
+        $this->assertInstanceOf(stdClass::class, $value->empty);
+    }
+
+    #[DataProvider('invalidJsonWithNumbers')]
+    public function testDecodeNumbersAsStringsRejectsOriginalInvalidInput(string $json, int $depth): void
+    {
+        json_decode($json, true, $depth + 1);
+        $error = json_last_error();
+
+        $this->expectException(JsonException::class);
+        $this->expectExceptionCode($error);
+
+        Json::decodeNumbersAsStrings($json, depth: $depth);
+    }
+
+    /**
+     * Provide invalid documents that token quoting must not repair.
+     */
+    public static function invalidJsonWithNumbers(): iterable
+    {
+        yield 'leading zero' => ['[01]', 8];
+        yield 'missing fraction' => ['[1.]', 8];
+        yield 'numeric key' => ['{1:2}', 8];
+        yield 'invalid UTF-8' => ["[\"\xff\",1]", 8];
+        yield 'too deep' => ['[[1]]', 1];
+    }
+
     public function testEncodeThrowsOnInvalidValue(): void
     {
         $this->expectException(JsonException::class);
@@ -117,6 +175,7 @@ class JsonTest extends TestCase
         $json = Json::encode($value);
 
         $this->assertSame($value, Json::decode($json));
+        $this->assertSame($value, Json::decodeNumbersAsStrings($json));
         $this->assertTrue(Json::validate($json));
     }
 
@@ -126,6 +185,7 @@ class JsonTest extends TestCase
         $json = Json::encode($value, depth: 8);
 
         $this->assertSame($value, Json::decode($json, depth: 8));
+        $this->assertSame($value, Json::decodeNumbersAsStrings($json, depth: 8));
         $this->assertTrue(Json::validate($json, depth: 8));
     }
 

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use DateTimeInterface;
+use GuzzleHttp\Handler\InflateBodyStream;
+use GuzzleHttp\Psr7\CachingStream;
+use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
@@ -20,6 +23,7 @@ use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Http\StreamWrapper;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
@@ -36,13 +40,22 @@ use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathTraversalDetected;
+use League\Flysystem\UnableToCopyFile;
+use League\Flysystem\UnableToCreateDirectory;
+use League\Flysystem\UnableToDeleteDirectory;
+use League\Flysystem\UnableToDeleteFile;
+use League\Flysystem\UnableToMoveFile;
+use League\Flysystem\UnableToProvideChecksum;
 use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToRetrieveMetadata;
+use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
+use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -931,6 +944,38 @@ class FilesystemAdapterTest extends TestCase
         $this->assertSame('some-data', $filesystemAdapter->get('bar.txt'));
     }
 
+    public function testPutWithDecodedStreamPreservesProducerCancellationAndClosesTheBody(): void
+    {
+        $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
+        $body = new InflateBodyStream(new PumpStream(static fn () => throw $failure));
+        $adapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $caught = null;
+
+        try {
+            $adapter->put('bar.txt', $body);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($body->isReadable());
+    }
+
+    public function testPutWithStreamAllowsTheWriterToCloseItsInput(): void
+    {
+        $body = new CachingStream(new Stream(fopen('php://temp', 'w+b')));
+        $driver = m::mock(FilesystemOperator::class);
+        $driver->shouldReceive('writeStream')->once()->andReturnUsing(
+            static function (string $path, mixed $stream): void {
+                fclose($stream);
+            },
+        );
+        $adapter = new FilesystemAdapter($driver, $this->adapter);
+
+        $this->assertTrue($adapter->put('bar.txt', $body));
+        $this->assertFalse($body->isReadable());
+    }
+
     public function testPutFileAs(): void
     {
         file_put_contents($filePath = $this->tempDir . '/foo.txt', 'uploaded file content');
@@ -1263,6 +1308,95 @@ class FilesystemAdapterTest extends TestCase
         $this->filesystem->write('file.txt', 'contents');
         $filesystemAdapter->serve(Request::create('/file.txt'), 'file.txt');
         $this->assertFalse($serveCalled);
+    }
+
+    #[DataProvider('canceledFilesystemOperations')]
+    public function testCancellationBypassesTheFilesystemFailurePolicy(string $method, array $arguments, string $driverMethod, Throwable $failure): void
+    {
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $driver = m::mock(FilesystemOperator::class);
+        $driver->shouldReceive($driverMethod)->once()->andThrow($failure);
+        $adapter = new FilesystemAdapter($driver, $this->adapter, ['throw' => false, 'report' => true]);
+        $stream = $method === 'writeStream' ? fopen('php://memory', 'w+b') : null;
+
+        if ($stream !== null) {
+            $arguments[1] = $stream;
+        }
+
+        $caught = null;
+
+        try {
+            $adapter->{$method}(...$arguments);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        $this->assertSame($failure, $caught);
+    }
+
+    /**
+     * Cover the public operations that apply the disk's failure policy.
+     */
+    public static function canceledFilesystemOperations(): array
+    {
+        $cancellation = new CanceledException('Filesystem operation canceled.');
+
+        return [
+            'read' => ['get', ['file'], 'read', UnableToReadFile::fromLocation('file', previous: $cancellation)],
+            'read stream' => ['readStream', ['file'], 'readStream', UnableToReadFile::fromLocation('file', previous: $cancellation)],
+            'write' => ['put', ['file', 'contents'], 'write', UnableToWriteFile::atLocation('file', previous: $cancellation)],
+            'write stream' => ['writeStream', ['file', null], 'writeStream', UnableToWriteFile::atLocation('file', previous: $cancellation)],
+            'visibility' => ['setVisibility', ['file', 'private'], 'setVisibility', UnableToSetVisibility::atLocation('file', previous: $cancellation)],
+            'delete' => ['delete', ['file'], 'delete', UnableToDeleteFile::atLocation('file', previous: $cancellation)],
+            'copy' => ['copy', ['file', 'copy'], 'copy', UnableToCopyFile::fromLocationTo('file', 'copy', $cancellation)],
+            'move' => ['move', ['file', 'moved'], 'move', UnableToMoveFile::fromLocationTo('file', 'moved', $cancellation)],
+            'checksum' => ['checksum', ['file'], 'checksum', new UnableToProvideChecksum('Canceled.', 'file', $cancellation)],
+            'mime type' => ['mimeType', ['file'], 'mimeType', UnableToRetrieveMetadata::mimeType('file', previous: $cancellation)],
+            'create directory' => ['makeDirectory', ['directory'], 'createDirectory', UnableToCreateDirectory::atLocation('directory', previous: $cancellation)],
+            'delete directory' => ['deleteDirectory', ['directory'], 'deleteDirectory', UnableToDeleteDirectory::atLocation('directory', previous: $cancellation)],
+        ];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRangeReadPreservesCancellationFromTheStreamProducerAndClosesTheStream(bool $closeThrows): void
+    {
+        $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
+        $closeFailure = new RuntimeException('Stream close failed.');
+        $body = m::mock(StreamInterface::class, new CachingStream(new PumpStream(static fn () => throw $failure)));
+        if ($closeThrows) {
+            $body->shouldReceive('close')->once()->andThrow($closeFailure);
+        }
+        $stream = StreamWrapper::detach($body);
+        $driver = m::mock(FilesystemOperator::class);
+        $driver->shouldReceive('readStream')->once()->andReturn($stream);
+        $adapter = new FilesystemAdapter($driver, $this->adapter);
+        $caught = null;
+
+        try {
+            $adapter->readStreamRange('file', 3, 5);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            $closed = ! is_resource($stream);
+
+            if (! $closed) {
+                fclose($stream);
+            }
+        }
+
+        $this->assertSame($closeThrows ? $closeFailure : $failure, $caught);
+        if ($closeThrows) {
+            $this->assertSame($failure, $caught->getPrevious());
+        }
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertTrue($closed);
     }
 
     public function testThrowExceptionsForGet(): void

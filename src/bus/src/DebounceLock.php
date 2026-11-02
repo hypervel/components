@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\CarbonImmutable;
@@ -89,8 +90,8 @@ class DebounceLock
         } catch (Throwable $exception) {
             try {
                 static::releaseOwned($cache, $key, $owner);
-            } catch (Throwable) {
-                // A cleanup failure must not replace the acquisition failure.
+            } catch (Throwable $cleanupException) {
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;
@@ -182,7 +183,7 @@ class DebounceLock
         try {
             $cache->forget($key . ':first_dispatched_at');
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

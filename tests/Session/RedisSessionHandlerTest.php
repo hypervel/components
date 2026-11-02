@@ -20,7 +20,10 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use UnexpectedValueException;
 
 use function Hypervel\Coroutine\parallel;
@@ -989,10 +992,17 @@ class RedisSessionHandlerTest extends TestCase
         }
     }
 
-    public function testClusterBulkDestroyRetainsCleanupFailureWhenBothOperationsFail(): void
+    #[TestWith(['ordinary'])]
+    #[TestWith(['direct cancellation'])]
+    #[TestWith(['wrapped cancellation'])]
+    public function testClusterBulkDestroyRetainsCleanupFailureWhenBothOperationsFail(string $kind): void
     {
         $owner = $this->ownerDigest('users', 'user-1');
-        $payloadFailure = new UnexpectedValueException('payload failed');
+        $payloadFailure = match ($kind) {
+            'direct cancellation' => new CanceledException,
+            'wrapped cancellation' => new RuntimeException('Payload cleanup failed.', previous: new CanceledException),
+            default => new UnexpectedValueException('payload failed'),
+        };
         $connection = $this->expectConnection(cluster: true);
         $connection->shouldReceive('hKeys')->once()->andReturn(['invalid', self::SESSION_ID]);
         $connection->shouldReceive('evalWithShaCache')->once()->andThrow($payloadFailure);
@@ -1001,14 +1011,21 @@ class RedisSessionHandlerTest extends TestCase
             ->with('sessions:_users:' . $owner . ':sessions', 'invalid')
             ->andReturnFalse();
 
+        $caught = null;
         try {
             $this->handler(tracked: true)->destroyUserSessions('users', 'user-1');
-            $this->fail('Expected the combined failure to propagate.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString(UnexpectedValueException::class, $exception->getMessage());
-            $this->assertStringContainsString('payload failed', $exception->getMessage());
-            $this->assertInstanceOf(UnexpectedValueException::class, $exception->getPrevious());
-            $this->assertSame('Redis failed to clean the user session index.', $exception->getPrevious()->getMessage());
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        if ($kind === 'ordinary') {
+            $this->assertInstanceOf(RuntimeException::class, $caught);
+            $this->assertStringContainsString(UnexpectedValueException::class, $caught->getMessage());
+            $this->assertStringContainsString('payload failed', $caught->getMessage());
+            $this->assertInstanceOf(UnexpectedValueException::class, $caught->getPrevious());
+            $this->assertSame('Redis failed to clean the user session index.', $caught->getPrevious()->getMessage());
+        } else {
+            $this->assertSame($payloadFailure, $caught);
         }
     }
 

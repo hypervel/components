@@ -28,6 +28,7 @@ use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Redis as PhpRedis;
 use RedisCluster;
 use RedisClusterException;
@@ -170,9 +171,14 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testSubscriberLoopPreservesCallbackCancellationOverOrdinaryCloseFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testSubscriberLoopPreservesCallbackCancellationOverOrdinaryCloseFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException('callback canceled');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
+        }
         $channel = m::mock(Channel::class);
         $channel->expects('pop')->andReturn(new Message('updates', 'payload'));
         $subscriber = $this->mockSubscriber($channel, new RuntimeException('close failed'));
@@ -183,7 +189,7 @@ class RedisProxyTest extends TestCase
                 throw $cancellation;
             });
             $this->fail('Expected the cancellation to escape.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -838,9 +844,14 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testCommandCancellationSkipsFailureEventAndStillReleasesTheConnection(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCommandCancellationSkipsFailureEventAndStillReleasesTheConnection(bool $wrapped): void
     {
         $cancellation = new CanceledException('command canceled');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Command cleanup failed.', previous: $cancellation);
+        }
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldNotReceive('hasListeners');
         $connection = $this->createMockRedisConnection(
@@ -1033,9 +1044,14 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testCleanupCancellationSupersedesOrdinaryCommandFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCleanupCancellationSupersedesOrdinaryCommandFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException('cleanup canceled');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Release cleanup failed.', previous: $cancellation);
+        }
         $connection = $this->createMockRedisConnection(
             'get',
             exception: new RuntimeException('Command failed.'),
@@ -1050,9 +1066,14 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testEventCancellationRemainsPrimaryOverOrdinaryCleanupFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testEventCancellationRemainsPrimaryOverOrdinaryCleanupFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException('event canceled');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Event cleanup failed.', previous: $cancellation);
+        }
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
         $dispatcher->expects('dispatch')->andThrow($cancellation);
@@ -1303,9 +1324,14 @@ class RedisProxyTest extends TestCase
         });
     }
 
-    public function testWithConnectionPreservesCallbackCancellationOverCleanupFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testWithConnectionPreservesCallbackCancellationOverCleanupFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException('Callback canceled.');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
+        }
         $connection = $this->mockConnection();
         $connection->expects('release')->andThrow(new RuntimeException('Cleanup failed.'));
 
@@ -1918,9 +1944,14 @@ class RedisProxyTest extends TestCase
         $this->assertSame($nativeFailure, $exception->getPrevious());
     }
 
-    public function testClusterDiscoveryReleaseCancellationSupersedesOrdinaryDiscoveryFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testClusterDiscoveryReleaseCancellationSupersedesOrdinaryDiscoveryFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException('Release canceled.');
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Release cleanup failed.', previous: $cancellation);
+        }
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andThrow(new RuntimeException('Master discovery failed.'));

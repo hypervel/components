@@ -24,6 +24,7 @@ use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 class HubTest extends TestCase
 {
@@ -197,21 +198,28 @@ class HubTest extends TestCase
     }
 
     #[DataProvider('cancellableCallbacks')]
-    public function testCallbackCancellationPropagatesUnchanged(string $option, Closure $action): void
+    public function testCallbackCancellationPropagatesUnchanged(string $option, Closure $action, bool $wrapped): void
     {
         $cancellation = new CanceledException('Canceled.');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
+        }
+
         $client = m::mock(ClientInterface::class);
         $client->shouldReceive('getOptions')->andReturn(new Options([
             'traces_sample_rate' => 1.0,
             $option => static fn (): never => throw $cancellation,
         ]));
+        $caught = null;
 
         try {
             $action(new Hub($client));
-            $this->fail('The callback cancellation was not propagated.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     /**
@@ -221,13 +229,19 @@ class HubTest extends TestCase
     {
         $startTransaction = static fn (Hub $hub): Transaction => $hub->startTransaction(new TransactionContext('test'));
 
-        return [
+        $callbacks = [
             'before_breadcrumb' => ['before_breadcrumb', static fn (Hub $hub): bool => $hub->addBreadcrumb(
                 new Breadcrumb(Breadcrumb::LEVEL_INFO, Breadcrumb::TYPE_DEFAULT, 'test')
-            )],
-            'traces_sampler' => ['traces_sampler', $startTransaction],
-            'profiles_sampler' => ['profiles_sampler', $startTransaction],
+            ), false],
+            'traces_sampler' => ['traces_sampler', $startTransaction, false],
+            'profiles_sampler' => ['profiles_sampler', $startTransaction, false],
         ];
+
+        foreach ($callbacks as $name => [$option, $action]) {
+            $callbacks[$name . ' with cleanup failure'] = [$option, $action, true];
+        }
+
+        return $callbacks;
     }
 
     /**

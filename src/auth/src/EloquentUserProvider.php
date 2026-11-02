@@ -13,6 +13,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -562,7 +563,7 @@ class EloquentUserProvider implements UserProvider
                 $coordinator = $container->make(ModelCacheCoordinator::class);
                 $exception = null;
 
-                // Every configured store must be attempted even if another store is unavailable.
+                // Ordinary store failures must not prevent invalidation of the remaining stores.
                 foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
                     try {
                         $coordinator->invalidate(
@@ -570,6 +571,10 @@ class EloquentUserProvider implements UserProvider
                             $descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment,
                         );
                     } catch (Throwable $throwable) {
+                        if (Coroutine::causedByCancellation($throwable)) {
+                            throw $throwable;
+                        }
+
                         $exception ??= $throwable;
                     }
                 }

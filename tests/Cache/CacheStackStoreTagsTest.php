@@ -33,9 +33,11 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheStackStoreTagsTest extends TestCase
 {
@@ -461,9 +463,14 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedRememberDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedRememberDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('read canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
         $taggable->shouldReceive('get')->once()->with('key')->andThrow($cancellation);
 
@@ -475,7 +482,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->remember('key', 60, fn () => 'computed');
             $this->fail('Expected the tagged cache read cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -508,9 +515,14 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
         $taggedCache = m::mock(TaggedCache::class);
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
@@ -525,7 +537,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->put('key', 'value', 60);
             $this->fail('Expected the tagged cache write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -559,9 +571,14 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedForeverDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedForeverDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forever write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
         $taggedCache = m::mock(TaggedCache::class);
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
@@ -576,7 +593,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->forever('key', 'value');
             $this->fail('Expected the tagged forever cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -606,9 +623,14 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testTaggedExpiredPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTaggedExpiredPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forget canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $taggable = $this->anyModeTaggableStore();
         $taggable->shouldReceive('forget')->once()->with('key')->andThrow($cancellation);
 
@@ -620,7 +642,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->put('key', 'value', 0);
             $this->fail('Expected the tagged forget cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -729,9 +751,14 @@ class CacheStackStoreTagsTest extends TestCase
         }
     }
 
-    public function testTagSetFlushStopsImmediatelyOnCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTagSetFlushStopsImmediatelyOnCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = m::mock(TaggedCache::class);
@@ -745,7 +772,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             (new StackStore([$firstTaggable, $secondTaggable]))->tags(['tag'])->getTags()->flush();
             $this->fail('Expected the tag flush cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -781,9 +808,14 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testClearCancellationSkipsFailureEventAndRemainingTaggableLayers(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testClearCancellationSkipsFailureEventAndRemainingTaggableLayers(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = m::mock(TaggedCache::class);
@@ -800,7 +832,7 @@ class CacheStackStoreTagsTest extends TestCase
         try {
             $cache->clear();
             $this->fail('Expected the tagged flush cancellation to be rethrown.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($cancellation, $caught);
         }
 

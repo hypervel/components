@@ -39,6 +39,8 @@ use Sentry\State\Hub;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CacheIntegrationTest extends TestCase
 {
@@ -659,15 +661,30 @@ class CacheIntegrationTest extends TestCase
         $this->assertSame('GET {sessionKey}', $spans[2]->getDescription());
     }
 
-    public function testRedisSessionResolutionThrowableDoesNotBreakCommandTracing(): void
+    #[TestWith([false], 'ordinary resolution failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testRedisSessionResolutionFailureStopsTracingOnlyForCancellation(bool $canceled): void
     {
         $this->registerObservedRedisPool();
-        $this->app->bind('session.store', static fn (): never => throw new Error('Session resolution failed.'));
+        $failure = $canceled
+            ? new RuntimeException('Session cleanup failed.', previous: new CanceledException)
+            : new Error('Session resolution failed.');
+        $this->app->bind('session.store', static fn (): never => throw $failure);
         $transaction = $this->startTransaction();
 
-        $this->dispatchHypervelEvent(new CommandExecuted('GET', ['test-key'], 0.005, $this->createRedisConnection('default')));
+        $caught = null;
 
-        $this->assertSame('GET test-key', $transaction->getSpanRecorder()->getSpans()[1]->getDescription());
+        try {
+            $this->dispatchHypervelEvent(new CommandExecuted('GET', ['test-key'], 0.005, $this->createRedisConnection('default')));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+
+        if (! $canceled) {
+            $this->assertSame('GET test-key', $transaction->getSpanRecorder()->getSpans()[1]->getDescription());
+        }
     }
 
     public function testRedisCommandWithoutParentSpanDoesNotCreateSpan(): void

@@ -7,9 +7,9 @@ namespace Hypervel\Process;
 use ArrayIterator;
 use Countable;
 use Hypervel\Contracts\Process\InvokedProcess;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use Traversable;
 
@@ -54,10 +54,7 @@ class InvokedProcessPool implements Countable, IteratorAggregate
                     $running[] = $process;
                 }
             } catch (Throwable $throwable) {
-                if ($exception === null
-                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             if (! $shouldStop) {
@@ -67,10 +64,7 @@ class InvokedProcessPool implements Countable, IteratorAggregate
             try {
                 $process->stop($timeout, $signal);
             } catch (Throwable $throwable) {
-                if ($exception === null
-                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -108,9 +102,7 @@ class InvokedProcessPool implements Countable, IteratorAggregate
                 // Stopping bounds cleanup when a sibling depends on external progress that may never arrive.
                 $this->stop(0);
             } catch (Throwable $cleanupException) {
-                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                    throw $cleanupException;
-                }
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;

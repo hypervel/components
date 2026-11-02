@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Pennant\Drivers;
 
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Pennant\FeaturePartition;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -174,9 +174,11 @@ class StoredValueCache
                 if (! $cache->put($tokens, $ttl)) {
                     $exception ??= new RuntimeException('Unable to invalidate cached feature values. They may be stale until they expire.');
                 }
-            } catch (CanceledException $canceledException) {
-                throw $canceledException;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

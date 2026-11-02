@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\OpenTelemetry\Support;
 
 use Hypervel\Contracts\Auth\Factory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
 use OpenTelemetry\SemConv\Incubating\Attributes\UserIncubatingAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use Traversable;
 use UnexpectedValueException;
@@ -68,9 +68,11 @@ class UserContextResolver
             }
 
             $state->userAttributes = $attributes;
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             self::logError('OpenTelemetry user-context resolution failed.', ['exception' => $exception]);
         }
 

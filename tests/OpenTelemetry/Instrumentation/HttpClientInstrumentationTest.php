@@ -48,8 +48,10 @@ use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\UrlIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class HttpClientInstrumentationTest extends TestCase
 {
@@ -323,9 +325,11 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame(2_000_000_000, $this->clock->timestamp);
     }
 
-    public function testUrlTemplateResolverCancellationStopsBeforeThePhysicalSend(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testUrlTemplateResolverCancellationStopsBeforeThePhysicalSend(bool $wrapped): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $physicalSends = 0;
         $this->urlTemplateResolver = static function () use ($cancellation): never {
             throw $cancellation;
@@ -337,17 +341,27 @@ class HttpClientInstrumentationTest extends TestCase
         });
         $this->instrumentation()->register($this->options());
 
+        $caught = null;
+
         try {
             $this->factory->get('https://example.test');
-            $this->fail('The resolver cancellation was not rethrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertSame(0, $physicalSends);
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount($wrapped ? 1 : 0, $spans);
+
+        if ($wrapped) {
+            // Cancellation stops the request, but its real cleanup failure remains observable.
+            $this->assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+            $this->assertSame(RuntimeException::class, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        }
+
         $this->metricReader->collect();
-        $this->assertSame([], $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
+        $this->assertCount($wrapped ? 1 : 0, $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
     }
 
     public function testManualModeTracesOnlyMarkedRequestsWhileMetricsRemainIndependent(): void

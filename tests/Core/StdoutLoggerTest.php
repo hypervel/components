@@ -13,6 +13,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonSerializable;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LogLevel;
 use RuntimeException;
@@ -21,6 +22,7 @@ use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 class StdoutLoggerTest extends TestCase
 {
@@ -223,11 +225,18 @@ class StdoutLoggerTest extends TestCase
         );
     }
 
-    public function testStringableCancellationEscapesWithoutWritingFallbackLog(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testStringableCancellationEscapesWithoutWritingFallbackLog(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('String conversion cleanup failed.', previous: $cancellation);
+        }
+
         $message = new class($cancellation) implements Stringable {
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
             }
 
@@ -246,7 +255,7 @@ class StdoutLoggerTest extends TestCase
             $logger->info($message);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
@@ -393,11 +402,18 @@ class StdoutLoggerTest extends TestCase
         $this->assertArrayNotHasKey('context', $data);
     }
 
-    public function testJsonSerializationCancellationEscapesWithoutWritingFallbackLog(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testJsonSerializationCancellationEscapesWithoutWritingFallbackLog(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Serialization cleanup failed.', previous: $cancellation);
+        }
+
         $serializer = new class($cancellation) implements JsonSerializable {
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
             }
 
@@ -416,7 +432,7 @@ class StdoutLoggerTest extends TestCase
             $logger->info('Payload.', ['payload' => ['serializer' => $serializer]]);
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }

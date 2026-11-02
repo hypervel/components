@@ -18,7 +18,6 @@ use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -113,10 +112,11 @@ class EventHandler
 
         try {
             $this->{$handlerMethod}(...$arguments);
-        } catch (CanceledException $exception) {
-            // Cancellation during instrumentation, such as origin resolution's file reads, must propagate.
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // Ignore to prevent bubbling up errors in the SDK
         }
     }

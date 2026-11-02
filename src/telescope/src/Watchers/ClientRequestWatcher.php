@@ -10,6 +10,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -292,6 +293,10 @@ class ClientRequestWatcher extends Watcher
 
             return $content;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
@@ -369,6 +374,10 @@ class ClientRequestWatcher extends Watcher
                 return 'Empty Response';
             }
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {

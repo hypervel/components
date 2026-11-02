@@ -15,8 +15,10 @@ use Hypervel\Cache\VersionedTagSet;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 enum TaggedCacheTestKeyStringEnum: string
 {
@@ -212,9 +214,14 @@ class CacheTaggedCacheTest extends TestCase
         }
     }
 
-    public function testVersionedTagResetStopsImmediatelyOnCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testVersionedTagResetStopsImmediatelyOnCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $store = m::mock(Store::class);
         $store->shouldReceive('forever')
             ->once()
@@ -225,22 +232,28 @@ class CacheTaggedCacheTest extends TestCase
         try {
             (new VersionedTagSet($store, ['users', 'posts']))->reset();
             $this->fail('Expected the tag reset cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }
 
-    public function testVersionedTagFlushStopsImmediatelyOnCancellation(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testVersionedTagFlushStopsImmediatelyOnCancellation(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('tag:earlier:key')->andThrow(new RuntimeException('Earlier tag failed.'));
         $store->shouldReceive('forget')->once()->with('tag:users:key')->andThrow($cancellation);
         $store->shouldNotReceive('forget')->with('tag:posts:key');
 
         try {
-            (new VersionedTagSet($store, ['users', 'posts']))->flush();
+            (new VersionedTagSet($store, ['earlier', 'users', 'posts']))->flush();
             $this->fail('Expected the tag flush cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }

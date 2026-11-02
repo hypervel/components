@@ -383,13 +383,16 @@ class StreamableAgentResponse implements IteratorAggregate, Responsable
 
                 $this->catchCallbacks = [];
 
-                $this->runInContext(function () use ($callbacks, $exception): void {
-                    foreach ($callbacks as $callback) {
-                        $callback($exception);
-                    }
-                });
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->runInContext(function () use ($callbacks, $exception): void {
+                        foreach ($callbacks as $callback) {
+                            $callback($exception);
+                        }
+                    });
+                }
             }
 
             $this->events = new Collection($events);

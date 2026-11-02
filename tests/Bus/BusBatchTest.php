@@ -8,16 +8,20 @@ use Generator;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchFactory;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
 use Hypervel\Bus\Events\BatchStarted;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
+use Hypervel\Bus\UpdatedBatchJobCounts;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
@@ -34,7 +38,9 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class BusBatchTest extends TestCase
@@ -263,6 +269,36 @@ class BusBatchTest extends TestCase
 
         $this->assertEquals(6, $batch->processedJobs());
         $this->assertEquals(60, $batch->progress());
+    }
+
+    #[TestWith([false], 'ordinary callback failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testProgressContinuesOnlyAfterOrdinaryCallbackFailures(bool $canceled): void
+    {
+        $failure = new RuntimeException('Progress failed.', previous: $canceled ? new CanceledException : null);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->times($canceled ? 0 : 1)->with($failure, []);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $repository = m::mock(BatchRepository::class);
+        $continued = false;
+        $batch = new Batch(m::mock(Factory::class), $repository, 'batch', 'batch', 2, 2, 0, [], [
+            'progress' => [
+                static fn () => throw $failure,
+                static function () use (&$continued): void { $continued = true; },
+            ],
+        ], CarbonImmutable::now());
+        $repository->shouldReceive('find')->with('batch')->andReturn($batch);
+        $repository->shouldReceive('decrementPendingJobs')->once()->andReturn(new UpdatedBatchJobCounts(1));
+        $caught = null;
+
+        try {
+            $batch->recordSuccessfulJob('job');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+        $this->assertSame(! $canceled, $continued);
     }
 
     public function testSuccessfulJobsCanBeRecorded(): void
@@ -823,6 +859,44 @@ class BusBatchTest extends TestCase
             });
     }
 
+    #[TestWith([false], 'ordinary restoration failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testOptionsRestorationFallbackDoesNotSwallowCancellation(bool $canceled): void
+    {
+        $factory = m::mock(BatchFactory::class);
+        $connection = m::mock(PostgresConnection::class);
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->andReturn($connection);
+        $connection->shouldReceive('table->useWritePdo->where->first')->once()->andReturn((object) [
+            'id' => 'batch', 'name' => '', 'total_jobs' => 0, 'pending_jobs' => 0,
+            'failed_jobs' => 0, 'failed_job_ids' => '[]',
+            'options' => serialize([new BatchOptionWithFailingRestoration($canceled)]),
+            'created_at' => now()->getTimestamp(), 'cancelled_at' => null, 'finished_at' => null,
+        ]);
+        $repository = new DatabaseBatchRepository($factory, $resolver, 'job_batches');
+        if ($canceled) {
+            $factory->shouldNotReceive('make');
+        } else {
+            $factory->shouldReceive('make')->once()
+                ->withSomeOfArgs($repository, 'batch', '', 0, 0, 0, [], [])
+                ->andReturn(m::mock(Batch::class));
+        }
+        $caught = null;
+
+        try {
+            $repository->find('batch');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        if ($canceled) {
+            $this->assertInstanceOf(RuntimeException::class, $caught);
+            $this->assertTrue(Coroutine::causedByCancellation($caught));
+        } else {
+            $this->assertNull($caught);
+        }
+    }
+
     #[DataProvider('serializedOptions')]
     public function testOptionsUnserializeOnPostgres(string $serialize, array $options): void
     {
@@ -902,6 +976,24 @@ class BusBatchTest extends TestCase
             ->onQueue('test-queue');
 
         return $repository->store($pendingBatch);
+    }
+}
+
+class BatchOptionWithFailingRestoration
+{
+    /**
+     * Configure a canceled or ordinary application-object restoration failure.
+     */
+    public function __construct(private bool $canceled)
+    {
+    }
+
+    /**
+     * Fail while restoring a stored batch option.
+     */
+    public function __wakeup(): void
+    {
+        throw new RuntimeException('Option restoration failed.', previous: $this->canceled ? new CanceledException : null);
     }
 }
 

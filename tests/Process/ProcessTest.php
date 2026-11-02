@@ -209,7 +209,8 @@ class ProcessTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testProcessPoolRollsBackProcessesStartedBeforeCreationFailure(bool $cleanupIsCanceled): void
+    #[TestWith([true, true], 'wrapped cleanup cancellation')]
+    public function testProcessPoolRollsBackProcessesStartedBeforeCreationFailure(bool $cleanupIsCanceled, bool $wrapped = false): void
     {
         $factory = new class extends Factory {
             /** @var list<PendingProcess> */
@@ -221,11 +222,14 @@ class ProcessTest extends TestCase
             }
         };
         $cleanupFailure = $cleanupIsCanceled ? new CanceledException('Rollback canceled.') : null;
+        if ($wrapped) {
+            $cleanupFailure = new RuntimeException('Rollback cleanup failed.', previous: $cleanupFailure);
+        }
         $startedProcess = new class($cleanupFailure) extends FakeInvokedProcess {
             /**
              * Create a started child with optional cleanup cancellation.
              */
-            public function __construct(private ?CanceledException $failure)
+            public function __construct(private ?Throwable $failure)
             {
                 parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
             }
@@ -286,12 +290,16 @@ class ProcessTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testProcessPoolWaitStopsEverySiblingAndPreservesCancellationPrecedence(bool $cleanupIsCanceled): void
+    #[TestWith([true, true], 'wrapped cleanup cancellation')]
+    public function testProcessPoolWaitStopsEverySiblingAndPreservesCancellationPrecedence(bool $cleanupIsCanceled, bool $wrapped = false): void
     {
         $waitFailure = new RuntimeException('Unable to wait for the first process.');
         $cleanupFailure = $cleanupIsCanceled
             ? new CanceledException('Stopping the first process was canceled.')
             : new RuntimeException('Unable to stop the first process.');
+        if ($wrapped) {
+            $cleanupFailure = new RuntimeException('Stop cleanup failed.', previous: $cleanupFailure);
+        }
         $failingProcess = new class($waitFailure, $cleanupFailure) extends FakeInvokedProcess {
             public bool $stopAttempted = false;
 
@@ -347,14 +355,18 @@ class ProcessTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testProcessPoolStopContinuesAfterARunningCheckFailure(bool $cleanupIsCanceled): void
+    #[TestWith([true, true], 'wrapped cleanup cancellation')]
+    public function testProcessPoolStopContinuesAfterARunningCheckFailure(bool $cleanupIsCanceled, bool $wrapped = false): void
     {
         $runningFailure = new RuntimeException('Unable to inspect the first process.');
         $cleanupFailure = $cleanupIsCanceled ? new CanceledException('Stopping the process was canceled.') : null;
+        if ($wrapped) {
+            $cleanupFailure = new RuntimeException('Stop cleanup failed.', previous: $cleanupFailure);
+        }
         $failingProcess = new class($runningFailure, $cleanupFailure) extends FakeInvokedProcess {
             public bool $stopAttempted = false;
 
-            public function __construct(protected RuntimeException $failure, private ?CanceledException $cleanupFailure)
+            public function __construct(protected RuntimeException $failure, private ?Throwable $cleanupFailure)
             {
                 parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
             }
@@ -636,7 +648,9 @@ class ProcessTest extends TestCase
 
     #[TestWith([true])]
     #[TestWith([false])]
-    public function testStopStillTerminatesTheProcessWhenDatabaseReleaseFails(bool $releaseIsCanceled): void
+    #[TestWith([true, true], 'wrapped operation cancellation')]
+    #[TestWith([false, true], 'wrapped cleanup cancellation')]
+    public function testStopStillTerminatesTheProcessWhenDatabaseReleaseFails(bool $releaseIsCanceled, bool $wrapped = false): void
     {
         $failure = $releaseIsCanceled
             ? new CanceledException('Database release canceled.')
@@ -644,6 +658,13 @@ class ProcessTest extends TestCase
         $cleanupFailure = $releaseIsCanceled
             ? new RuntimeException('Cleanup failed.')
             : new CanceledException('Cleanup canceled.');
+        if ($wrapped) {
+            if ($releaseIsCanceled) {
+                $failure = new RuntimeException('Release cleanup failed.', previous: $failure);
+            } else {
+                $cleanupFailure = new RuntimeException('Stop cleanup failed.', previous: $cleanupFailure);
+            }
+        }
         $lease = m::mock(ConnectionLease::class);
         $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
         CoroutineContext::set('__process.test.lease', $lease);
@@ -654,7 +675,7 @@ class ProcessTest extends TestCase
 
         try {
             (new InvokedProcess($process))->stop(5, 15);
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $caught = $exception;
         } finally {
             CoroutineContext::forget('__process.test.lease');
@@ -687,7 +708,8 @@ class ProcessTest extends TestCase
 
     #[TestWith(['run'])]
     #[TestWith(['start'])]
-    public function testPendingProcessStopsTheChildWhenExecutionFailsBeforeHandoff(string $method): void
+    #[TestWith(['start', true], 'wrapped cleanup cancellation')]
+    public function testPendingProcessStopsTheChildWhenExecutionFailsBeforeHandoff(string $method, bool $cleanupIsCanceled = false): void
     {
         $failure = $method === 'run'
             ? new CanceledException('Run canceled.')
@@ -695,7 +717,14 @@ class ProcessTest extends TestCase
         $process = m::mock(SymfonyProcess::class);
         $process->shouldReceive('getCommandline')->once()->andReturn('test-command');
         $process->shouldReceive($method)->once()->with(null)->andThrow($failure);
-        $process->shouldReceive('stop')->once()->with(0, null)->andReturn(0);
+        $cleanupFailure = $cleanupIsCanceled
+            ? new RuntimeException('Stop cleanup failed.', previous: new CanceledException)
+            : null;
+        if ($cleanupFailure !== null) {
+            $process->shouldReceive('stop')->twice()->with(0, null)->andThrow($cleanupFailure);
+        } else {
+            $process->shouldReceive('stop')->once()->with(0, null)->andReturn(0);
+        }
         $pending = new class(new Factory, $process) extends PendingProcess {
             /**
              * Create a pending process with a controlled execution failure.
@@ -721,7 +750,7 @@ class ProcessTest extends TestCase
             $caught = $exception;
         }
 
-        $this->assertSame($failure, $caught);
+        $this->assertSame($cleanupFailure ?? $failure, $caught);
     }
 
     public function testOutputGuardPreservesCancellationDuringEmergencyStop(): void

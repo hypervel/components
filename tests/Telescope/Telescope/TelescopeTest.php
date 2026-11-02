@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Telescope;
 
+use Hypervel\Cache\CacheManager;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\ScheduledTaskStarting;
@@ -17,6 +18,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Facades\Auth;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -27,7 +29,9 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Throwable;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -108,6 +112,25 @@ class TelescopeTest extends FeatureTestCase
         EntryModel::count();
 
         $this->assertCount(1, Telescope::getEntriesQueue());
+    }
+
+    public function testRecordingPreservesCancellationFromUserResolution(): void
+    {
+        $failure = new RuntimeException('User lookup cleanup failed.', previous: new CanceledException);
+        $original = Auth::getFacadeRoot();
+        Auth::shouldReceive('hasUser')->once()->andThrow($failure);
+        $caught = null;
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'entry']));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            Auth::swap($original);
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame([], Telescope::getEntriesQueue());
     }
 
     public function testThrowingTagCallbackDoesNotPoisonLaterRecording(): void
@@ -272,6 +295,28 @@ class TelescopeTest extends FeatureTestCase
         Telescope::flushState();
 
         $this->assertTrue(Telescope::shouldListen());
+    }
+
+    public function testStartingRecordingPreservesCacheCancellation(): void
+    {
+        Telescope::stopRecording();
+        $failure = new RuntimeException('Pause lookup cleanup failed.', previous: new CanceledException);
+        $original = $this->app->make('cache');
+        $cache = m::mock(CacheManager::class);
+        $cache->shouldReceive('get')->once()->with('telescope:pause-recording', false)->andThrow($failure);
+        $this->app->instance('cache', $cache);
+        $caught = null;
+
+        try {
+            Telescope::startRecording();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        } finally {
+            $this->app->instance('cache', $original);
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse(Telescope::isRecording());
     }
 
     public function testResolvedCommandStartsRecording(): void

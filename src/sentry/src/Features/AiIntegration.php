@@ -47,6 +47,7 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Ai\Responses\TextResponse;
 use Hypervel\Ai\Tools\ToolNameResolver;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\UploadedFile;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\JsonSchema\Types\ObjectType;
@@ -65,7 +66,6 @@ use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakReference;
 
@@ -919,10 +919,11 @@ class AiIntegration extends Feature
                 $objectType = new ObjectType($properties);
                 $definition['parameters'] = $objectType->toArray();
             }
-        } catch (CanceledException $exception) {
-            // User-defined schema hooks may perform cancellable I/O.
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // Ignore schema resolution failures.
         }
 

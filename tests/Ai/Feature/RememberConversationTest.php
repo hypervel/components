@@ -475,6 +475,26 @@ class RememberConversationTest extends TestCase
         $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'content' => 'Hello back']);
     }
 
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testIndependentTitleCancellationPreservesTheCompletedTurn(bool $wrapped): void
+    {
+        config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
+        $prompt = $this->prompt();
+        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $failure = $wrapped
+            ? new RuntimeException('Title cleanup failed.', previous: new CanceledException)
+            : new CanceledException;
+        $middleware->shouldReceive('generateTitle')->once()->andThrow($failure);
+
+        $response = $middleware->handle($prompt, fn () => $this->response());
+
+        $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Hello']);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'content' => 'Hello back', 'status' => 'completed']);
+        $this->assertSame($response->conversationId, $prompt->agent->currentConversation());
+    }
+
     #[DataProvider('executionModes')]
     public function testUnrecordableFailuresCancelAndJoinAnUnfinishedTitle(bool $streaming): void
     {
@@ -551,6 +571,41 @@ class RememberConversationTest extends TestCase
         $this->assertNull($prompt->pendingConversationTitle());
         $this->assertDatabaseHas('agent_conversations', ['title' => 'Failed conversation']);
         $this->assertDatabaseHas('agent_conversation_messages', ['role' => 'assistant', 'status' => 'failed']);
+    }
+
+    #[DataProvider('executionModes')]
+    public function testFailedTurnPersistencePreservesCancellation(bool $streaming): void
+    {
+        $prompt = $this->prompt();
+        $cancellation = new CanceledException;
+        $storageFailure = new RuntimeException('Conversation storage failed.');
+        $store = m::mock(DatabaseConversationStore::class);
+        $store->shouldReceive('storeTurn')->once()->andThrow($storageFailure);
+        $middleware = new RememberConversation($store, $prompt->provider());
+        $generate = function () use ($prompt, $cancellation): never {
+            $prompt->setRunContext($context = $this->context($prompt));
+            $context->recordStep($this->step());
+
+            throw $cancellation;
+        };
+        $caught = null;
+
+        try {
+            if ($streaming) {
+                $prompt->markAsStreaming();
+                $stream = new StreamableAgentResponse('invocation', $generate);
+                iterator_to_array($middleware->handle($prompt, fn () => $stream));
+            } else {
+                $middleware->handle($prompt, $generate);
+            }
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($storageFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertNull($prompt->runContext());
     }
 
     /**
@@ -894,6 +949,32 @@ class RememberConversationTest extends TestCase
         $this->assertDatabaseHas('agent_conversations', ['id' => $response->conversationId, 'title' => 'Hello']);
         $this->assertDatabaseHas('agent_conversation_messages', ['id' => $response->assistantMessageId, 'content' => 'Hello back', 'status' => 'completed']);
         $this->assertSame($response->conversationId, $prompt->agent->currentConversation());
+    }
+
+    public function testStorageFailurePreservesTitleCancellation(): void
+    {
+        config(['ai.conversations.generate_title' => true]);
+        $prompt = $this->prompt();
+        $cancellation = new CanceledException('Title request canceled.');
+        $storageFailure = new RuntimeException('Conversation storage failed.');
+        $loop = m::mock(TextGenerationLoop::class);
+        $loop->shouldReceive('generate')->once()->andThrow($cancellation);
+        $prompt->provider()->shouldReceive('textGenerationLoop')->once()->andReturn($loop);
+        $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
+        $store = m::mock(DatabaseConversationStore::class);
+        $store->shouldReceive('storeTurn')->once()->andThrow($storageFailure);
+        $caught = null;
+
+        try {
+            (new RememberConversation($store, $prompt->provider()))
+                ->handle($prompt, fn () => $this->response());
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($storageFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
     }
 
     /**

@@ -131,9 +131,12 @@ trait StreamsText
                     return $streamable;
                 });
         } catch (Throwable $exception) {
-            $this->recordAgentFailure($invocationId, $prompt, $exception);
-
-            throw $exception;
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                throw $exception;
+            } finally {
+                $this->recordAgentFailure($invocationId, $prompt, $exception);
+            }
         }
 
         // Avoid retaining the response through its own failure callback.

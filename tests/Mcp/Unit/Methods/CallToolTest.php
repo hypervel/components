@@ -30,6 +30,10 @@ use Hypervel\Tests\Mcp\Fixtures\ToolWithBothMetaTool;
 use Hypervel\Tests\Mcp\Fixtures\ToolWithResultMetaTool;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CallToolTest extends TestCase
 {
@@ -776,6 +780,52 @@ class CallToolTest extends TestCase
         $this->assertSame('text', $payload['result']['content'][0]['type']);
         $this->assertSame('Processing complete with status: success', $payload['result']['content'][0]['text']);
         $this->assertFalse($payload['result']['isError']);
+    }
+
+    #[TestWith([false], 'immediate handler')]
+    #[TestWith([true], 'streamed handler')]
+    public function testCancellationThroughCleanupIsNotConvertedToAToolError(bool $streamed): void
+    {
+        $exception = new RuntimeException('Tool cleanup failed.', previous: new CanceledException);
+        $tool = new class($exception, $streamed) extends Tool {
+            /**
+             * Capture the failure and response mode.
+             */
+            public function __construct(private Throwable $exception, private bool $streamed)
+            {
+            }
+
+            /**
+             * Fail during invocation or while producing a response.
+             */
+            public function handle(): Response|Generator
+            {
+                if (! $this->streamed) {
+                    throw $this->exception;
+                }
+
+                return (function (): Generator {
+                    yield Response::text('partial');
+
+                    throw $this->exception;
+                })();
+            }
+        };
+        $this->app->instance($tool::class, $tool);
+        $request = new JsonRpcRequest(1, 'tools/call', ['name' => $tool->name()]);
+        $caught = null;
+
+        try {
+            $response = (new CallTool)->handle($request, $this->getServerContext(['tools' => [$tool::class]]));
+
+            if ($response instanceof Generator) {
+                iterator_to_array($response);
+            }
+        } catch (Throwable $failure) {
+            $caught = $failure;
+        }
+
+        $this->assertSame($exception, $caught);
     }
 
     public function testCombinesStreamedFactoriesWithOtherContentAndResultMetadata(): void

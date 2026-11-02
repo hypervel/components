@@ -18,8 +18,10 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -306,10 +308,15 @@ class ConnectionResolverTest extends TestCase
         $resolver->releaseConnections();
     }
 
-    public function testTerminalReleasePrioritizesTheFirstCancellationAndStillExhaustsConnections(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminalReleasePrioritizesTheFirstCancellationAndStillExhaustsConnections(bool $chained): void
     {
         $ordinaryFailure = new RuntimeException('First release failed.');
         $firstCancellation = new CanceledException('Second release was canceled.');
+        if ($chained) {
+            $firstCancellation = new RuntimeException('Release cleanup failed.', previous: $firstCancellation);
+        }
         $secondCancellation = new CanceledException('Third release was canceled.');
         $poolManager = m::mock(PoolManager::class);
         $resolver = $this->makeResolver('first', $poolManager);
@@ -335,7 +342,7 @@ class ConnectionResolverTest extends TestCase
         try {
             $resolver->releaseConnections();
             $this->fail('Expected release cancellation to propagate.');
-        } catch (CanceledException $throwable) {
+        } catch (Throwable $throwable) {
             $this->assertSame($firstCancellation, $throwable);
         }
 
@@ -467,10 +474,13 @@ class ConnectionResolverTest extends TestCase
         }
     }
 
-    public function testDiscardCancellationReplacesAnOrdinarySetupFailure(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testDiscardCancellationReplacesAnOrdinarySetupFailure(bool $chained): void
     {
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardCancellation = new CanceledException('Discard was canceled.');
+        $discardCancellation = $chained ? new RuntimeException('Discard cleanup failed.', previous: $discardCancellation) : $discardCancellation;
         $poolManager = m::mock(PoolManager::class);
         $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class, ['usesSessionLeases' => false]);
@@ -486,7 +496,7 @@ class ConnectionResolverTest extends TestCase
         try {
             $resolver->connection();
             $this->fail('Expected discard cancellation to propagate.');
-        } catch (CanceledException $throwable) {
+        } catch (Throwable $throwable) {
             $this->assertSame($discardCancellation, $throwable);
         }
     }
@@ -515,9 +525,12 @@ class ConnectionResolverTest extends TestCase
         }
     }
 
-    public function testSetupCancellationRemainsPrimaryOverDiscardCancellation(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'setup failure carrying cancellation')]
+    public function testSetupCancellationRemainsPrimaryOverDiscardCancellation(bool $chained): void
     {
         $setupCancellation = new CanceledException('Connection setup was canceled.');
+        $setupCancellation = $chained ? new RuntimeException('Connection setup cleanup failed.', previous: $setupCancellation) : $setupCancellation;
         $discardCancellation = new CanceledException('Discard was canceled.');
         $poolManager = m::mock(PoolManager::class);
         $pool = m::mock(DatabasePool::class);
@@ -534,7 +547,7 @@ class ConnectionResolverTest extends TestCase
         try {
             $resolver->connection();
             $this->fail('Expected setup cancellation to propagate.');
-        } catch (CanceledException $throwable) {
+        } catch (Throwable $throwable) {
             $this->assertSame($setupCancellation, $throwable);
         }
     }

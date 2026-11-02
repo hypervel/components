@@ -236,6 +236,7 @@ Version labels refer to the Inertia client-side libraries. Features marked with 
 - [Code Splitting](#code-splitting)
     - [Vite Plugin](#code-splitting-vite-plugin)
     - [Manual Vite](#code-splitting-manual-vite)
+    - [Preloading the Initial Page](#code-splitting-preloading-the-initial-page)
 - [DevTools](#devtools)
     - [Installation](#devtools-installation)
     - [The Timeline](#devtools-the-timeline)
@@ -381,7 +382,7 @@ Next, create a `resources/views/app.blade.php` file. This root template will be 
 </html>
 ```
 
-For React applications, it's recommended to include the `@viteReactRefresh` directive before the `@vite` directive to enable Fast Refresh in development. Use `resources/js/app.jsx` in the `@vite` directive when following the React setup below, or `resources/js/app.tsx` for TypeScript. The entry point must match your Vite configuration.
+For React applications, it's recommended to include the `@viteReactRefresh` directive before the `@vite` directive to enable Fast Refresh in development. You may also pass the current page component to the `@vite` directive to [preload the initial page](#code-splitting-preloading-the-initial-page). Use `resources/js/app.jsx` in the `@vite` directive when following the React setup below, or `resources/js/app.tsx` for TypeScript. The entry point must match your Vite configuration.
 
 The `<x-inertia::app>` component renders a `<div>` element with an `id` of `app`. This element serves as the mounting point for your JavaScript application. You may customize the `id` by passing a different value to the component.
 
@@ -12282,6 +12283,49 @@ resolve: name => {
     return pages[`./Pages/${name}.svelte`] // [tl! add]
 },
 ```
+
+<a name="code-splitting-preloading-the-initial-page"></a>
+
+### Preloading the Initial Page
+
+On the first visit to your application, the browser must download and execute your main JavaScript bundle before it knows which page component to load. You may avoid this extra round trip by passing the current page component to the `@vite` directive in your root template, which preloads the page component and its dependencies alongside your main bundle.
+
+```blade tab=Vue
+@vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
+```
+
+```blade tab=React
+@vite(['resources/js/app.jsx', "resources/js/Pages/{$page['component']}.jsx"])
+```
+
+```blade tab=Svelte
+@vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.svelte"])
+```
+
+The `$page` variable is available in your root template and contains the [page object](https://inertiajs.com/docs/v3/core-concepts/the-protocol#the-page-object).
+
+<a name="code-splitting-link-headers"></a>
+
+#### Link Headers
+
+Hypervel's `AddLinkHeadersForPreloadedAssets` middleware adds every preloaded asset to a `Link` response header, allowing the browser to start downloading them before parsing the HTML. Since the dependencies of the page component are included as well, this header may exceed your web server's response header buffer on larger pages, causing the initial page load to fail. Subsequent Inertia visits are not affected, as they return JSON without rendering the root template.
+
+You may limit the number of assets included in the header using the middleware's `using()` method:
+
+```php
+use App\Http\Middleware\HandleInertiaRequests;
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->web(append: [
+        HandleInertiaRequests::class,
+        AddLinkHeadersForPreloadedAssets::using(limit: 10),
+    ]);
+})
+```
+
+Assets beyond the limit are still preloaded by the `<link>` tags rendered by the `@vite` directive, so removing the middleware entirely has little impact. Alternatively, you may increase your web server's response header buffer, such as Nginx's `proxy_buffer_size` when proxying requests to Hypervel.
 
 <a name="devtools"></a>
 

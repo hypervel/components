@@ -30,8 +30,11 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 #[WithMigration]
 class EloquentUserProviderCacheTest extends TestCase
@@ -432,6 +435,43 @@ class EloquentUserProviderCacheTest extends TestCase
         }
 
         $this->assertSame($earliest, $caught);
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testModelEventInvalidationStopsOnCancellationAfterAnOrdinaryFailure(bool $wrapped): void
+    {
+        $user = User::query()->firstOrFail();
+        $failure = new CanceledException('Invalidation canceled.');
+
+        if ($wrapped) {
+            $failure = new RuntimeException('Invalidation cleanup failed.', previous: $failure);
+        }
+
+        foreach (['first', 'second', 'third'] as $name) {
+            $repository = $this->stubCache($name);
+            $expectation = $this->cacheCoordinator->shouldReceive('invalidate')
+                ->with($repository, $this->buildKey($user->getAuthIdentifier()));
+
+            if ($name === 'third') {
+                $expectation->never();
+            } else {
+                $expectation->once()->andThrow($name === 'first' ? new RuntimeException('Store unavailable.') : $failure);
+            }
+
+            (new EloquentUserProvider($this->app->make('hash'), User::class))->enableCache($name);
+        }
+
+        $caught = null;
+
+        try {
+            $user->name = 'Updated';
+            $user->save();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
     }
 
     public function testChangingProviderModelKeepsBothModelKeyspacesInvalidatable(): void

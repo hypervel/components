@@ -6909,6 +6909,65 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertEquals(['baz'], $builder->getBindings());
     }
 
+    #[DataProvider('skipLockedGrammarProvider')]
+    public function testSkipLockedUsesTheServerLockSyntax(
+        string $factory,
+        bool $supported,
+        ?bool $isMaria,
+        string $updateSql,
+        string $sharedSql,
+    ): void {
+        $builder = $this->{$factory}()->from('jobs');
+        $connection = $builder->getConnection();
+        $connection->shouldReceive('supportsSkipLocked')->andReturn($supported);
+
+        if ($isMaria !== null) {
+            $connection->shouldReceive('isMaria')->andReturn($isMaria);
+        }
+
+        $builder->lockForUpdate();
+        $this->assertSame($builder, $builder->skipLocked());
+        $this->assertSame($updateSql, $builder->toSql());
+        $this->assertSame($sharedSql, $builder->sharedLock()->toSql());
+    }
+
+    public static function skipLockedGrammarProvider(): array
+    {
+        return [
+            'MySQL' => ['getMySqlBuilder', true, false, 'select * from `jobs` for update skip locked', 'select * from `jobs` for share skip locked'],
+            'MariaDB through MySQL' => ['getMySqlBuilder', true, true, 'select * from `jobs` for update skip locked', 'select * from `jobs` lock in share mode skip locked'],
+            'older MySQL' => ['getMySqlBuilder', false, null, 'select * from `jobs` for update', 'select * from `jobs` lock in share mode'],
+            'PostgreSQL' => ['getPostgresBuilder', true, null, 'select * from "jobs" for update skip locked', 'select * from "jobs" for share skip locked'],
+            'older PostgreSQL' => ['getPostgresBuilder', false, null, 'select * from "jobs" for update', 'select * from "jobs" for share'],
+            'SQLite' => ['getSQLiteBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"'],
+            'base grammar' => ['getBuilder', false, null, 'select * from "jobs"', 'select * from "jobs"'],
+        ];
+    }
+
+    public function testSkipLockedRequiresAnExistingLock(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+
+        $this->getBuilder()->skipLocked();
+    }
+
+    public function testSkipLockedCannotFollowACustomLock(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+
+        $this->getBuilder()->lock('for update nowait')->skipLocked();
+    }
+
+    public function testCustomLockCannotFollowSkipLocked(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
+
+        $this->getBuilder()->lockForUpdate()->skipLocked()->lock('for update nowait');
+    }
+
     public function testSelectWithLockUsesWritePdo(): void
     {
         $builder = $this->getMySqlBuilderWithProcessor();
@@ -8838,6 +8897,37 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertSame(1, $builder->from('users')->forceIndex('primary')->where('id', 1)->update(['email' => 'foo']));
     }
 
+    public function testIndexHintsOnMySqlDeletes(): void
+    {
+        foreach (['useIndex' => 'use', 'forceIndex' => 'force', 'ignoreIndex' => 'ignore'] as $method => $hint) {
+            $builder = $this->getMySqlBuilder();
+            $builder->getConnection()->expects('delete')->with("delete `users` from `users` {$hint} index (test_index) where `id` = ?", [1])->andReturn(1);
+            $this->assertSame(1, $builder->from('users')->{$method}('test_index')->where('id', 1)->delete());
+        }
+
+        $builder = $this->getMySqlBuilder(prefix: 'prefix_');
+        $builder->getConnection()->expects('delete')->with('delete `prefix_u` from `prefix_users` as `prefix_u` force index (primary) where `prefix_u`.`id` = ?', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users as u')->forceIndex('primary')->where('u.id', 1)->delete());
+
+        $builder = $this->getMySqlBuilder(prefix: 'prefix_');
+        $builder->getConnection()->expects('delete')->with('delete `prefix_u` from `prefix_users` as `prefix_u` force index (primary) inner join `prefix_orders` on `prefix_u`.`id` = `prefix_orders`.`user_id` and `prefix_orders`.`status` = ? where `prefix_u`.`id` = ?', ['paid', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users as u')->forceIndex('primary')->join('orders', static function (JoinClause $join): void {
+            $join->on('u.id', '=', 'orders.user_id')->where('orders.status', 'paid');
+        })->where('u.id', 1)->delete());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('delete')->with('delete from `users` where `id` = ? order by `id` asc', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('primary')->where('id', 1)->orderBy('id')->delete());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('delete')->with('delete from `users` where `id` = ? limit 1', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('primary')->where('id', 1)->limit(1)->delete());
+
+        $builder = $this->getMariaDbBuilder();
+        $builder->getConnection()->expects('delete')->with('delete `users` from `users` force index (primary) where `id` = ?', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('primary')->where('id', 1)->delete());
+    }
+
     public function testUseIndexSqlite(): void
     {
         $builder = $this->getSQLiteBuilder();
@@ -8881,6 +8971,29 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->join('orders', static function (JoinClause $join): void {
             $join->on('users.id', '=', 'orders.user_id')->where('orders.status', '=', 'paid');
         })->where('users.id', 1)->update(['email' => 'foo']));
+    }
+
+    public function testIndexHintsOnSqliteDeletes(): void
+    {
+        $builder = $this->getSQLiteBuilder(prefix: 'prefix_');
+        $builder->getConnection()->expects('delete')->with('delete from "prefix_users" as "prefix_u" indexed by test_index where "prefix_u"."id" = ?', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users as u')->forceIndex('test_index')->where('u.id', 1)->delete());
+
+        foreach (['useIndex', 'ignoreIndex'] as $method) {
+            $builder = $this->getSQLiteBuilder();
+            $builder->getConnection()->expects('delete')->with('delete from "users" where "id" = ?', [1])->andReturn(1);
+            $this->assertSame(1, $builder->from('users')->{$method}('test_index')->where('id', 1)->delete());
+        }
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('delete')->with('delete from "users" where "rowid" in (select "users"."rowid" from "users" indexed by test_index where "id" > ? order by "id" asc limit 3)', [1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->where('id', '>', 1)->orderBy('id')->limit(3)->delete());
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('delete')->with('delete from "users" where "rowid" in (select "users"."rowid" from "users" indexed by test_index inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."status" = ? where "users"."id" = ?)', ['paid', 1])->andReturn(1);
+        $this->assertSame(1, $builder->from('users')->forceIndex('test_index')->join('orders', static function (JoinClause $join): void {
+            $join->on('users.id', '=', 'orders.user_id')->where('orders.status', 'paid');
+        })->where('users.id', 1)->delete());
     }
 
     public function testClone(): void

@@ -12,7 +12,10 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Tests\Sentry\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class AuthEventsTest extends TestCase
 {
@@ -59,26 +62,35 @@ class AuthEventsTest extends TestCase
         $this->assertSame('203.0.113.10', $ipAddress);
     }
 
-    public function testAuthenticatedEventPropagatesCancellationFromUserAccessor(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testAuthenticatedEventPropagatesCancellationFromUserAccessor(bool $wrapped): void
     {
         $cancellation = new CanceledException('Request canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Accessor cleanup failed.', previous: $cancellation);
+        }
+
         $user = new class extends AuthEventsTestUserModel {
             /**
              * Simulate cancellation during an email accessor's I/O.
              */
-            public function getEmailAttribute(CanceledException $value): never
+            public function getEmailAttribute(Throwable $value): never
             {
                 throw $value;
             }
         };
         $user->forceFill(['email' => $cancellation]);
+        $caught = null;
 
         try {
             $this->dispatchHypervelEvent(new Authenticated('test', $user));
-            $this->fail('The event handler swallowed coroutine cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testAuthenticatedEventFillsUserOnScopeWhenUsernameIsNotAString(): void

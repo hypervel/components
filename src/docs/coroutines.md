@@ -374,6 +374,8 @@ try {
 
 `Coroutine::causedByCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. Rethrowing preserves any cleanup error for the caller to report. A cancellation wrapped in `Hypervel\Coroutine\Exceptions\ForeignCancellationException` came from another coroutine, such as the owner of a shared operation this code was waiting for. If the chain reaches that exception before it reaches a cancellation, `causedByCancellation` returns `false`, so you can handle it as an ordinary failure. `ChildCancellationException` extends it for independently canceled children.
 
+When collecting failures from several cleanup steps, `Coroutine::preferCancellation($kept, $next)` keeps the first failure, replacing an ordinary failure when a later one carries this coroutine's cancellation.
+
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
 <a name="reporting-unhandled-exceptions"></a>

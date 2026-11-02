@@ -18,9 +18,12 @@ use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
+use Throwable;
 use TypeError;
 use ValueError;
 
@@ -1226,11 +1229,18 @@ class SupportStrTest extends TestCase
         $this->assertSame('?', Str::replaceArray('?', [(object) ['foo' => 'bar']], '?'));
     }
 
-    public function testReplaceArrayPreservesCancellationDuringStringConversion(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testReplaceArrayPreservesCancellationDuringStringConversion(bool $wrapped): void
     {
         $cancellation = new CanceledException('canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('String conversion cleanup failed.', previous: $cancellation);
+        }
+
         $replacement = new class($cancellation) {
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
             }
 
@@ -1244,7 +1254,7 @@ class SupportStrTest extends TestCase
             Str::replaceArray('?', [$replacement], '?');
 
             $this->fail('The cancellation was not preserved.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
     }

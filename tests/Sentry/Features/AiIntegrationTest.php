@@ -155,12 +155,15 @@ use Hypervel\Tests\Sentry\TestCase;
 use JsonSerializable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
 use Sentry\Tracing\Transaction;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class AiIntegrationTest extends TestCase
 {
@@ -664,6 +667,39 @@ class AiIntegrationTest extends TestCase
         $output = json_decode($this->findSpanByOpInSpans($spans, 'gen_ai.invoke_agent')->getData()['gen_ai.output.messages'], true, flags: JSON_THROW_ON_ERROR);
         $this->assertArrayNotHasKey('arguments', $output[0]['parts'][1]);
         $this->assertCount(1, $output);
+    }
+
+    #[TestWith([false], 'ordinary schema failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testToolSchemaCancellationEscapesTracing(bool $canceled): void
+    {
+        $this->resetApplicationWithConfig(['sentry.send_default_pii' => true]);
+        $this->startTransaction();
+        [$prompt] = $this->makePromptAndResponse();
+        $failure = new RuntimeException('Schema failed.', previous: $canceled ? new CanceledException : null);
+        $tool = m::mock(WeatherLookup::class)->makePartial();
+        $tool->shouldReceive('schema')->once()->andThrow($failure);
+        $this->dispatchHypervelEvent(new PromptingAgent('schema', $prompt));
+        $caught = null;
+
+        try {
+            $this->dispatchHypervelEvent(new StartingStep(
+                'schema',
+                0,
+                $prompt->agent,
+                $prompt->provider,
+                $prompt->model,
+                false,
+                [new UserMessage('Hello')],
+                new TextGenerationOptions,
+                'Instructions',
+                [$tool],
+            ));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
     }
 
     public function testResolvedStepMetadataIsCollectedOnceAndToolDefinitionsAreBounded(): void

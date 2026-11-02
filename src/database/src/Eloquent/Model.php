@@ -294,7 +294,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Cache of resolved custom builder classes per model.
      *
-     * @var array<class-string<static>, class-string<Builder<static>>|false>
+     * @var array<class-string<self>, class-string<Builder<*>>|false>
      */
     protected static array $resolvedBuilderClasses = [];
 
@@ -1012,7 +1012,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationships on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -1118,7 +1118,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship column aggregation on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphAggregate(string $relation, array $relations, Expression|string $column, ?string $function = null): static
     {
@@ -1136,7 +1136,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship counts on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -1146,7 +1146,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship max column values on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphMax(string $relation, array $relations, Expression|string $column): static
     {
@@ -1156,7 +1156,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship min column values on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphMin(string $relation, array $relations, Expression|string $column): static
     {
@@ -1166,7 +1166,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship column summations on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphSum(string $relation, array $relations, Expression|string $column): static
     {
@@ -1176,7 +1176,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship average column values on the polymorphic relation of a model.
      *
-     * @param array<array-key, array|string> $relations
+     * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
      */
     public function loadMorphAvg(string $relation, array $relations, Expression|string $column): static
     {
@@ -2151,7 +2151,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Resolve the custom Eloquent builder class from the model attributes.
      *
-     * @return class-string<Builder>|false
+     * @return class-string<Builder<*>>|false
      */
     protected function resolveCustomBuilderClass(): string|false
     {
@@ -2299,7 +2299,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Reload a fresh model instance from the database.
      *
-     * @param array<int, string>|string $with
+     * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $with
      */
     public function fresh(array|string $with = []): ?static
     {

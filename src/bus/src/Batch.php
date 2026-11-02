@@ -12,6 +12,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
@@ -408,6 +409,10 @@ class Batch implements Arrayable, JsonSerializable
         try {
             $handler($batch, $e);
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             if (function_exists('report')) {
                 report($e);
             }

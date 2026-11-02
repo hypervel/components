@@ -242,7 +242,10 @@ class Telescope
             $recordingPaused = static::withoutRecording(
                 fn () => cache('telescope:pause-recording', false)
             );
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
 
         CoroutineContext::set(static::SHOULD_RECORD_CONTEXT_KEY, ! $recordingPaused);
@@ -318,6 +321,10 @@ class Telescope
                     $entry->user(Auth::user());
                 }
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 // Do nothing.
             }
 
