@@ -31,6 +31,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for AllTaggedCache behavior.
@@ -1128,9 +1129,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $put = m::mock(Put::class);
         $put->shouldReceive('execute')->once()->andThrow($cancellation);
 
@@ -1142,7 +1148,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         try {
             $tagged->put('name', 'John', 60);
             $this->fail('Expected the tagged cache write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1177,9 +1183,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[2]->exception);
     }
 
-    public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('batch write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $values = ['name' => 'John', 'age' => 30];
         $putMany = m::mock(PutMany::class);
         $putMany->shouldReceive('execute')->once()->andThrow($cancellation);
@@ -1192,7 +1203,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         try {
             $tagged->putMany($values, 60);
             $this->fail('Expected the tagged cache batch write cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1236,9 +1247,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException('forever write canceled');
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $forever = m::mock(Forever::class);
         $forever->shouldReceive('execute')->once()->andThrow($cancellation);
 
@@ -1250,7 +1266,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         try {
             $tagged->forever('name', 'John');
             $this->fail('Expected the tagged forever cancellation to be rethrown.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
@@ -1348,9 +1364,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame($exception, $captured[1]->exception);
     }
 
-    public function testFlushDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFlushDoesNotDispatchFailureEventWhenTheOperationIsCanceled(bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
+        if ($cleanupThrows) {
+            $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
+        }
         $flush = m::mock(Flush::class);
         $flush->shouldReceive('execute')->once()->andThrow($cancellation);
 
@@ -1362,7 +1383,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         try {
             $tagged->flush();
             $this->fail('Expected the tagged cache flush cancellation to be rethrown.');
-        } catch (CanceledException $caught) {
+        } catch (Throwable $caught) {
             $this->assertSame($cancellation, $caught);
         }
 
