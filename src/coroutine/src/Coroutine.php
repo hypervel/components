@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
+use Google\Cloud\Core\Exception\ServiceException;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -255,9 +256,24 @@ class Coroutine
             if ($exception instanceof CanceledException) {
                 return true;
             }
-        } while (($exception = $exception->getPrevious()) !== null);
+
+            // Google Cloud stores the request failure outside PHP's previous-exception chain.
+            $exception = $exception instanceof ServiceException
+                ? $exception->getServiceException() ?? $exception->getPrevious()
+                : $exception->getPrevious();
+        } while ($exception !== null);
 
         return false;
+    }
+
+    /**
+     * Keep the first failure unless a later failure carries this coroutine's cancellation.
+     */
+    public static function preferCancellation(?Throwable $kept, Throwable $next): Throwable
+    {
+        return $kept === null || (static::causedByCancellation($next) && ! static::causedByCancellation($kept))
+            ? $next
+            : $kept;
     }
 
     /**

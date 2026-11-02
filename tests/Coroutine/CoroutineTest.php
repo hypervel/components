@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Coroutine;
 
 use Closure;
 use Exception;
+use Google\Cloud\Core\Exception\ServiceException;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -51,12 +52,46 @@ class CoroutineTest extends TestCase
             'direct cancellation' => [$cancellation, true],
             'cleanup replaced cancellation' => [$cleanup, true],
             'nested cleanup' => [new RuntimeException(previous: $cleanup), true],
+            'Google service cause' => [new ServiceException('Request failed.', 0, $cancellation), true],
+            'Google foreign cause' => [new ServiceException('Request failed.', 0, $foreign), false],
             'independent child' => [$child, false],
             'wrapped independent child' => [new RuntimeException(previous: $child), false],
             'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
             'shared operation' => [$foreign, false],
             'wrapped shared operation' => [new RuntimeException(previous: $foreign), false],
             'ordinary error' => [new RuntimeException, false],
+        ];
+    }
+
+    #[DataProvider('cancellationPrecedence')]
+    public function testFailureSelectionPreservesTheFirstFailureUnlessCancellationTakesPrecedence(
+        ?Throwable $kept,
+        Throwable $next,
+        Throwable $expected,
+    ): void {
+        $this->assertSame($expected, Coroutine::preferCancellation($kept, $next));
+    }
+
+    /**
+     * Provide primary and cleanup failures with distinct cancellation ownership.
+     */
+    public static function cancellationPrecedence(): array
+    {
+        $ordinary = new RuntimeException('Operation failed.');
+        $cleanup = new RuntimeException('Cleanup failed.');
+        $cancellation = new CanceledException;
+        $wrapped = new RuntimeException('Canceled cleanup failed.', previous: $cancellation);
+        $foreign = new ForeignCancellationException(previous: $wrapped);
+
+        return [
+            'first failure' => [null, $ordinary, $ordinary],
+            'ordinary cleanup' => [$ordinary, $cleanup, $ordinary],
+            'direct cleanup cancellation' => [$ordinary, $cancellation, $cancellation],
+            'wrapped cleanup cancellation' => [$ordinary, $wrapped, $wrapped],
+            'primary cancellation' => [$cancellation, $cleanup, $cancellation],
+            'first cancellation wins' => [$wrapped, $cancellation, $wrapped],
+            'foreign cleanup is not our cancellation' => [$ordinary, $foreign, $ordinary],
+            'own cancellation beats foreign failure' => [$foreign, $wrapped, $wrapped],
         ];
     }
 
@@ -150,6 +185,34 @@ class CoroutineTest extends TestCase
 
         $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
         $this->assertFalse(Coroutine::exists($coroutineId));
+    }
+
+    public function testTerminalBoundaryReportsCleanupFailureDuringCancellationOnce(): void
+    {
+        $container = new Container;
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $failure = new RuntimeException('Coroutine cleanup failed.');
+        $handler->shouldReceive('report')->once()->with($failure);
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        $blocker = new Channel(1);
+
+        $coroutineId = Coroutine::create(static function () use ($blocker, $failure): void {
+            try {
+                $blocker->pop();
+            } finally {
+                throw $failure;
+            }
+        });
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            $this->assertInstanceOf(CanceledException::class, $failure->getPrevious());
+        } finally {
+            $blocker->close();
+            Coroutine::join([$coroutineId], 1);
+        }
     }
 
     public function testAfterCreatedCallbacksAreExecuted(): void
