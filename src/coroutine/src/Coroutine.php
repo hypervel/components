@@ -257,10 +257,14 @@ class Coroutine
                 return true;
             }
 
-            // Google Cloud stores the request failure outside PHP's previous-exception chain.
-            $exception = $exception instanceof ServiceException
-                ? $exception->getServiceException() ?? $exception->getPrevious()
-                : $exception->getPrevious();
+            // Google's service cause is separate from the exception PHP chains during cleanup.
+            if ($exception instanceof ServiceException
+                && ($cause = $exception->getServiceException()) !== null
+                && static::causedByCancellation($cause)) {
+                return true;
+            }
+
+            $exception = $exception->getPrevious();
         } while ($exception !== null);
 
         return false;

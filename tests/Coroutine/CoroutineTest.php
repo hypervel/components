@@ -47,6 +47,17 @@ class CoroutineTest extends TestCase
         $cleanup = new RuntimeException('Cleanup failed.', previous: $cancellation);
         $child = new ChildCancellationException('The child stopped.', previous: $cleanup);
         $foreign = new ForeignCancellationException('The shared operation stopped.', previous: $cleanup);
+        $dualCause = new ServiceException('Cleanup request failed.', 0, new RuntimeException('Transport failed.'));
+
+        try {
+            try {
+                throw new CanceledException;
+            } finally {
+                throw $dualCause;
+            }
+        } catch (ServiceException) {
+            // PHP adds the unwinding cancellation separately from Google's service cause.
+        }
 
         return [
             'direct cancellation' => [$cancellation, true],
@@ -54,6 +65,7 @@ class CoroutineTest extends TestCase
             'nested cleanup' => [new RuntimeException(previous: $cleanup), true],
             'Google service cause' => [new ServiceException('Request failed.', 0, $cancellation), true],
             'Google foreign cause' => [new ServiceException('Request failed.', 0, $foreign), false],
+            'Google service cause and PHP cancellation' => [$dualCause, true],
             'independent child' => [$child, false],
             'wrapped independent child' => [new RuntimeException(previous: $child), false],
             'grandchild boundary' => [new ChildCancellationException(previous: $child), false],
