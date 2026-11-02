@@ -115,12 +115,14 @@ class AuthManager implements AuthFactoryContract
      */
     public function createJwtDriver(string $name, array $config): JwtGuard
     {
+        $ttl = $this->config->get('jwt.ttl', 120);
+
         return new JwtGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
             $this->app->get(JWTManager::class),
             $this->app->get(RequestInterface::class),
-            (int) $this->config->get('jwt.ttl', 120)
+            is_null($ttl) ? null : (int) $ttl
         );
     }
 

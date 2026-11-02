@@ -133,7 +133,8 @@ class Lcobucci extends Provider implements ProviderContract
                     $builder = $builder->issuedBy($value);
                     break;
                 case RegisteredClaims::AUDIENCE:
-                    $builder = $builder->permittedFor($value);
+                    // Decoded tokens always expose the audience claim as an array.
+                    $builder = $builder->permittedFor(...(array) $value);
                     break;
                 case RegisteredClaims::SUBJECT:
                     $builder = $builder->relatedTo((string) $value);

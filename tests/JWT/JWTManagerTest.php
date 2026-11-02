@@ -151,6 +151,7 @@ class JWTManagerTest extends TestCase
             'sub' => 1,
             'iss' => 'http://example.com',
             'iat' => $this->testNowTimestamp,
+            'exp' => $this->testNowTimestamp + 3600,
             'jti' => $refreshJti,
         ];
 
@@ -160,6 +161,8 @@ class JWTManagerTest extends TestCase
         $this->config->shouldReceive('get')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
         $this->config->shouldReceive('get')->with('jwt')->andReturn([]);
         $this->config->shouldReceive('get')->with('jwt.persistent_claims', [])->andReturn(['iss']);
+        $this->config->shouldReceive('get')->with('jwt.ttl', 120)->andReturn(60);
+        $this->config->shouldReceive('get')->with('jwt.refresh_ttl', 20160)->andReturn(20160);
         $this->provider->shouldReceive('decode')->twice()->with('foo.bar.baz')->andReturn($payload);
         $this->provider->shouldReceive('encode')->with($refreshPayload)->andReturn($refreshedToken);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);

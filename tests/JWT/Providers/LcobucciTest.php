@@ -104,6 +104,22 @@ class LcobucciTest extends TestCase
         $this->assertEquals($iat, $claims['iat']);
     }
 
+    public function testEncodeADecodedAudienceClaim()
+    {
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+
+        $claims = $provider->decode($provider->encode([
+            'sub' => 1,
+            'aud' => 'https://example.com',
+        ]));
+
+        $this->assertSame(['https://example.com'], $claims['aud']);
+
+        $claims = $provider->decode($provider->encode($claims));
+
+        $this->assertSame(['https://example.com'], $claims['aud']);
+    }
+
     public function testShouldThrowAnInvalidExceptionWhenThePayloadCouldNotBeEncoded()
     {
         $this->expectException(JWTException::class);
