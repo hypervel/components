@@ -42,8 +42,10 @@ use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisInstrumentationTest extends TestCase
 {
@@ -263,21 +265,24 @@ class RedisInstrumentationTest extends TestCase
         $this->assertCount(1, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
     }
 
-    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(bool $wrapped): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $resolver = static function () use ($cancellation): never {
             throw $cancellation;
         };
         $this->instrumentation(resolver: $resolver)->register($this->options());
+        $caught = null;
 
         try {
             $this->events->dispatch(new CommandExecuted('GET', ['customer:1'], 1, $this->connection()));
-            $this->fail('Expected the resolver cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertCount(0, $this->spanExporter->getSpans());
         $this->metricReader->collect();
         $this->assertCount(0, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
