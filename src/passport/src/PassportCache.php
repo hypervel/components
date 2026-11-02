@@ -10,10 +10,10 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -160,9 +160,11 @@ class PassportCache
             foreach ($ids as $id) {
                 try {
                     $this->coordinator->invalidate($cache, $this->getCacheKey($type, (string) $id));
-                } catch (CanceledException $canceledException) {
-                    throw $canceledException;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $exception ??= $throwable;
                 }
             }
