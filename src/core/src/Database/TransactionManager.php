@@ -72,6 +72,13 @@ class TransactionManager
     public function commit(ConnectionInterface $connection): void
     {
         $level = $connection->transactionLevel();
+
+        // Only the transaction at the level above was committed, so anything
+        // recorded deeper was dropped without a rollback event.
+        $this->discardTransactions(
+            fn (array $transaction) => $transaction['connection'] === $connection && $transaction['level'] > $level + 1
+        );
+
         $transactions = $this->getTransactions();
 
         if (is_null($committed = $this->findTransaction($transactions, $connection, $level + 1))) {

@@ -167,6 +167,25 @@ class TransactionManagerTest extends TestCase
         $this->assertSame([], $this->calls);
     }
 
+    public function testTransactionDroppedWithoutEventIsRolledBackWhenEnclosingTransactionCommits()
+    {
+        $connection = $this->connection();
+
+        $this->beginTransaction($connection);
+        $this->manager->addCallback($this->record('outer'));
+        $this->beginTransaction($connection);
+        $this->manager->addCallback($this->record('nested'));
+        $this->manager->addCallback($this->record('nested rolled back'), TransactionRolledBack::class);
+
+        // A nested deadlock lowers the level without an event.
+        --$this->levels[spl_object_id($connection)];
+
+        $this->commitTransaction($connection);
+
+        $this->assertSame(['nested rolled back', 'outer'], $this->calls);
+        $this->assertSame([], Context::get('_db.transactions'));
+    }
+
     public function testCallbackRegisteredByCommitCallbackRunsImmediately()
     {
         $connection = $this->connection();
