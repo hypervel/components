@@ -835,6 +835,20 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse($listenerTriggered);
     }
 
+    public function testDispatchWithAfterCommitWithoutTransactionManagerResolver()
+    {
+        $d = $this->getEventDispatcher();
+
+        $listenerTriggered = false;
+        $d->listen(AfterCommitEvent::class, function () use (&$listenerTriggered) {
+            $listenerTriggered = true;
+        });
+
+        $d->dispatch(new AfterCommitEvent());
+
+        $this->assertTrue($listenerTriggered);
+    }
+
     private function getEventDispatcher(): EventDispatcher
     {
         return new EventDispatcher(new ListenerProvider(), null, $this->container);

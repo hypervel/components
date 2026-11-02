@@ -62,6 +62,12 @@ class ReleaseTest(unittest.TestCase):
     def remote_git(self, package, *arguments, check=True):
         return self.run_command("git", f"--git-dir={self.remote(package)}", *arguments, check=check)
 
+    def add_skeleton(self, name="hypervel"):
+        path = self.source / "skeletons" / name
+        path.mkdir(parents=True)
+        (path / "contents").write_text(f"{name} skeleton")
+        self.run_command("git", "init", "--bare", str(self.remote(name)))
+
     def commit(self, contents, publish=True):
         for package in ("alpha", "beta"):
             (self.source / "src" / package / "contents").write_text(contents)
@@ -136,15 +142,74 @@ class ReleaseTest(unittest.TestCase):
         original = self.run_command("git", "rev-parse", "HEAD").stdout.strip()
         (self.source / "src" / "gamma").mkdir()
         (self.source / "src" / "gamma" / "contents").write_text("new package")
+        (self.source / "skeletons" / "hypervel").mkdir(parents=True)
+        (self.source / "skeletons" / "hypervel" / "contents").write_text("new skeleton")
         self.commit("later")
         result = self.run_command("bash", "bin/split.sh", "--check", check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Missing or inaccessible split repositories:", result.stdout.splitlines())
         self.assertIn("  hypervel/gamma", result.stdout.splitlines())
+        self.assertIn("  hypervel/hypervel", result.stdout.splitlines())
         self.run_command("bash", "bin/split.sh", "--ref", original, "--check")
         self.run_command("bash", "bin/split.sh", "--ref", original)
         for package in ("alpha", "beta"):
             self.assertEqual(self.remote_git(package, "show", f"refs/heads/{self.branch}:contents").stdout, "initial")
+
+    def test_release_splits_and_tags_packages_and_skeletons_together(self):
+        for name in ("hypervel", "react-starter-kit"):
+            self.add_skeleton(name)
+        commit = self.commit("release")
+        self.release()
+        self.assert_release(commit, "release")
+        for name in ("hypervel", "react-starter-kit"):
+            expected_tree = self.run_command("git", "rev-parse", f"{commit}:skeletons/{name}").stdout
+            self.assertEqual(self.remote_git(name, "rev-parse", f"refs/heads/{self.branch}^{{tree}}").stdout, expected_tree)
+            self.assertEqual(self.remote_git(name, "rev-parse", f"refs/tags/{self.version}^{{tree}}").stdout, expected_tree)
+
+    def test_selected_skeleton_does_not_require_component_repositories(self):
+        self.add_skeleton()
+        self.commit("add skeleton")
+        for name in ("alpha", "beta"):
+            self.run_command("mv", str(self.remote(name)), str(self.directory / f"{name}-unavailable.git"))
+        result = self.run_command("bash", "bin/split.sh", "hypervel", "--check")
+        self.assertIn("All 1 split repositories are accessible.", result.stdout)
+        self.run_command("bash", "bin/split.sh", "hypervel")
+        self.assertEqual(self.remote_git("hypervel", "show", f"refs/heads/{self.branch}:contents").stdout, "hypervel skeleton")
+
+    def test_missing_skeleton_repository_stops_split_and_release_before_any_push(self):
+        self.add_skeleton()
+        self.commit("add skeleton")
+        self.run_command("mv", str(self.remote("hypervel")), str(self.directory / "hypervel-unavailable.git"))
+        for script, arguments in (("split.sh", ["--check"]), ("split.sh", []), ("release.sh", [self.version])):
+            with self.subTest(script=script, arguments=arguments):
+                result = self.run_command("bash", f"bin/{script}", *arguments, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("  hypervel/hypervel", result.stdout.splitlines())
+                for name in ("alpha", "beta"):
+                    self.assertEqual(self.remote_git(name, "for-each-ref").stdout, "")
+                self.assert_no_tag("components")
+
+    def test_duplicate_names_across_roots_are_rejected_before_publishing(self):
+        self.add_skeleton("alpha")
+        self.commit("duplicate package name")
+        for arguments in ([], ["alpha"], ["--check"]):
+            with self.subTest(arguments=arguments):
+                result = self.run_command("bash", "bin/split.sh", *arguments, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Duplicate split repository name: alpha", result.stdout)
+                self.assertIn("src/alpha", result.stdout)
+                self.assertIn("skeletons/alpha", result.stdout)
+                for name in ("alpha", "beta"):
+                    self.assertEqual(self.remote_git(name, "for-each-ref").stdout, "")
+
+    def test_selected_source_commit_determines_skeleton_path_and_contents(self):
+        self.add_skeleton()
+        original = self.commit("add skeleton")
+        self.run_command("git", "mv", "skeletons/hypervel", "src/hypervel")
+        (self.source / "src" / "hypervel" / "contents").write_text("moved package")
+        self.commit("move skeleton")
+        self.run_command("bash", "bin/split.sh", "hypervel", "--ref", original)
+        self.assertEqual(self.remote_git("hypervel", "show", f"refs/heads/{self.branch}:contents").stdout, "hypervel skeleton")
 
     def test_release_refreshes_stale_splits_and_repeated_splits_are_unchanged(self):
         self.run_command("bash", "bin/split.sh")

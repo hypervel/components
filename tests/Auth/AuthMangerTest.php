@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Carbon\Carbon;
 use Hyperf\Config\Config;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
@@ -22,6 +23,7 @@ use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\JWT\JWTManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -169,6 +171,62 @@ class AuthMangerTest extends TestCase
 
         $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
         $this->assertSame($user, $guard->user());
+    }
+
+    public function testJwtGuardUsesConfiguredTtlForExpiration()
+    {
+        Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
+
+        $jwtManager = m::mock(JWTManager::class);
+        $jwtManager->shouldReceive('encode')
+            ->once()
+            ->with(m::on(fn (array $payload) => $payload['exp'] === Carbon::now()->timestamp + 3600))
+            ->andReturn('token');
+
+        $manager = $this->getJwtAuthManager($jwtManager, 60);
+
+        $this->assertSame('token', $manager->guard('foo')->login($this->getJwtUser()));
+    }
+
+    public function testJwtGuardDoesNotSetExpirationWhenTtlIsNull()
+    {
+        $jwtManager = m::mock(JWTManager::class);
+        $jwtManager->shouldReceive('encode')
+            ->once()
+            ->with(m::on(fn (array $payload) => ! array_key_exists('exp', $payload)))
+            ->andReturn('token');
+
+        $manager = $this->getJwtAuthManager($jwtManager, null);
+
+        $this->assertSame('token', $manager->guard('foo')->login($this->getJwtUser()));
+    }
+
+    protected function getJwtAuthManager(JWTManager $jwtManager, ?int $ttl): AuthManager
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'guards' => [
+                'foo' => ['driver' => 'jwt', 'provider' => 'foo'],
+            ],
+            'providers' => [
+                'foo' => ['driver' => 'foo'],
+            ],
+        ]));
+
+        $container->get(ConfigInterface::class)->set('jwt.ttl', $ttl);
+        $container->set(JWTManager::class, $jwtManager);
+        $container->set(RequestInterface::class, m::mock(RequestInterface::class));
+
+        $manager->provider('foo', fn () => m::mock(UserProvider::class));
+
+        return $manager;
+    }
+
+    protected function getJwtUser(): Authenticatable
+    {
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        return $user;
     }
 
     protected function getContainer(array $authConfig = [])

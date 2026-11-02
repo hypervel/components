@@ -15,6 +15,8 @@ CHECK_ONLY=false
 VERSION=
 TAG_PUSH_OPTIONS=()
 REPOSITORIES=()
+DISCOVERED_REPOSITORIES=()
+declare -A REPOSITORY_PATHS=()
 REPOSITORY_URLS=()
 UNAVAILABLE_REPOSITORIES=()
 SPLIT_COMMITS=()
@@ -54,13 +56,31 @@ if [[ -n "$VERSION" ]]; then
     git check-ref-format "refs/tags/$VERSION"
 fi
 
+PACKAGE_PATHS=$(git ls-tree -d --name-only "$SOURCE_COMMIT" src/ skeletons/)
+if [[ -z "$PACKAGE_PATHS" ]]; then
+    echo 'No split packages found in src/ or skeletons/.' >&2
+    exit 1
+fi
+
+while IFS= read -r PACKAGE_PATH; do
+    REPOSITORY=${PACKAGE_PATH##*/}
+    if [[ -n "${REPOSITORY_PATHS[$REPOSITORY]:-}" ]]; then
+        echo "Duplicate split repository name: $REPOSITORY (${REPOSITORY_PATHS[$REPOSITORY]} and $PACKAGE_PATH)" >&2
+        exit 1
+    fi
+    DISCOVERED_REPOSITORIES+=("$REPOSITORY")
+    REPOSITORY_PATHS[$REPOSITORY]=$PACKAGE_PATH
+done <<< "$PACKAGE_PATHS"
+
 if (( ${#REPOSITORIES[@]} == 0 )); then
-    PACKAGE_NAMES=$(git ls-tree --name-only "$SOURCE_COMMIT:src")
-    mapfile -t REPOSITORIES <<< "$PACKAGE_NAMES"
+    REPOSITORIES=("${DISCOVERED_REPOSITORIES[@]}")
 fi
 
 for REPOSITORY in "${REPOSITORIES[@]}"; do
-    git cat-file tree "$SOURCE_COMMIT:src/$REPOSITORY" > /dev/null
+    if [[ -z "${REPOSITORY_PATHS[$REPOSITORY]:-}" ]]; then
+        echo "Split repository not found in source commit: $REPOSITORY" >&2
+        exit 1
+    fi
     REPOSITORY_URL="git@github.com:hypervel/$REPOSITORY.git"
     REPOSITORY_URLS+=("$REPOSITORY_URL")
     if ! git ls-remote "$REPOSITORY_URL" > /dev/null; then
@@ -86,7 +106,7 @@ trap 'git update-ref -d "$SOURCE_REFERENCE"' EXIT
 
 for INDEX in "${!REPOSITORIES[@]}"; do
     REPOSITORY=${REPOSITORIES[$INDEX]}
-    SPLIT_COMMIT=$(./bin/splitsh-lite --prefix="src/$REPOSITORY" --origin="$SOURCE_REFERENCE")
+    SPLIT_COMMIT=$(./bin/splitsh-lite --prefix="${REPOSITORY_PATHS[$REPOSITORY]}" --origin="$SOURCE_REFERENCE")
     SPLIT_COMMITS+=("$SPLIT_COMMIT")
     git push "${REPOSITORY_URLS[$INDEX]}" "$SPLIT_COMMIT:refs/heads/$CURRENT_BRANCH" --force
 done
