@@ -21,9 +21,11 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Mcp\Fixtures\Client\FakeTransport;
 use Hypervel\Tests\Mcp\Fixtures\Client\ThrowingTransport;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Tests\Mcp\Fixtures\discoverResponse;
@@ -612,9 +614,16 @@ class ClientManagerTest extends TestCase
         }
     }
 
-    public function testTeardownVisitsEveryClientAndCancellationTakesPrecedence(): void
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['transport wrapper'])]
+    public function testTeardownVisitsEveryClientAndCancellationTakesPrecedence(string $kind): void
     {
-        $cancellation = new CanceledException('cleanup cancelled');
+        $cancellation = match ($kind) {
+            'wrapped' => new RuntimeException('Cleanup failed.', previous: new CanceledException),
+            'transport wrapper' => new ClientException('Disconnect failed.', previous: new CanceledException),
+            default => new CanceledException('cleanup cancelled'),
+        };
         $closed = [];
         $manager = app(ClientManager::class);
 
@@ -624,7 +633,7 @@ class ClientManagerTest extends TestCase
                     /**
                      * Capture the teardown outcome for this test client.
                      */
-                    public function __construct(FakeTransport $transport, private string $label, private CanceledException $cancellation, private array &$closed)
+                    public function __construct(FakeTransport $transport, private string $label, private Throwable $cancellation, private array &$closed)
                     {
                         parent::__construct($transport);
                     }
@@ -647,13 +656,15 @@ class ClientManagerTest extends TestCase
             $manager->client($name);
         }
 
+        $caught = null;
+
         try {
             $manager->disconnectAll();
-            $this->fail('Cleanup cancellation must propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertSame(['ordinary', 'cancelled', 'healthy'], $closed);
         $manager->disconnectAll();
         $this->assertCount(3, $closed);

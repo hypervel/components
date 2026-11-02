@@ -13,7 +13,6 @@ use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ClientManager
@@ -166,10 +165,7 @@ class ClientManager
             try {
                 $this->disconnect($client);
             } catch (Throwable $throwable) {
-                if ($exception === null
-                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -185,7 +181,10 @@ class ClientManager
     {
         try {
             $client->disconnect();
-        } catch (ClientException) {
+        } catch (ClientException $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 
