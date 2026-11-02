@@ -18,6 +18,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Cache\Fixtures\CanceledDeserialization;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -27,6 +28,7 @@ use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -191,6 +193,25 @@ class CacheFileStoreTest extends TestCase
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
         }
+    }
+
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup wraps cancellation')]
+    public function testCanceledDeserializationDoesNotDeleteTheCachedValue(bool $wrapped): void
+    {
+        $store = new FileStore($this->filesystem, $this->tempDir);
+        $store->put('foo', new CanceledDeserialization($wrapped), 60);
+        $caught = null;
+
+        try {
+            $store->get('foo');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+        $this->assertFileExists($store->path('foo'));
     }
 
     public function testGetPreservesCancellationFromSerializableClassPolicy(): void
