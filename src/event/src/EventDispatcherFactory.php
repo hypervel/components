@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Database\TransactionManager;
 use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
@@ -18,6 +19,12 @@ class EventDispatcherFactory
         $dispatcher = new EventDispatcher($listeners, $stdoutLogger, $container);
 
         $dispatcher->setQueueResolver(fn () => $container->get(QueueFactoryContract::class));
+
+        $dispatcher->setTransactionManagerResolver(
+            fn () => $container->has(TransactionManager::class)
+                ? $container->get(TransactionManager::class)
+                : null
+        );
 
         return $dispatcher;
     }
