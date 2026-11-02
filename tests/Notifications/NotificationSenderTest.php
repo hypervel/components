@@ -38,9 +38,11 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Throwable;
 
 class NotificationSenderTest extends TestCase
 {
@@ -177,6 +179,34 @@ class NotificationSenderTest extends TestCase
         } catch (RuntimeException $caught) {
             $this->assertSame($exception, $caught);
         }
+    }
+
+    public function testThrowingFailureObserverDoesNotAllowRetryAfterCancellation(): void
+    {
+        $cancellation = new CanceledException('Delivery canceled.');
+        $observerFailure = new RuntimeException('Failure storage unavailable.');
+        $events = new EventDispatcher(Container::getInstance());
+        $events->listen(NotificationFailed::class, static fn () => throw $observerFailure);
+        $manager = m::mock(ChannelManager::class);
+        $driver = m::mock();
+        $manager->shouldReceive('driver')->andReturn($driver);
+        $attempts = 0;
+        $driver->shouldReceive('send')->andReturnUsing(static function () use ($cancellation, &$attempts): never {
+            ++$attempts;
+            throw $cancellation;
+        });
+        $sender = new NotificationSender($manager, m::mock(BusDispatcherContract::class), $events);
+        $caught = null;
+
+        try {
+            retry(2, fn () => $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
     }
 
     public function testThrowingDeliveredListenerIsNotRelabeledAsDeliveryFailure(): void
