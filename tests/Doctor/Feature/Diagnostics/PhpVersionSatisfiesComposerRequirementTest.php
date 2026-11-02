@@ -104,6 +104,18 @@ class PhpVersionSatisfiesComposerRequirementTest extends TestCase
         $this->assertSame('pass', $diagnostic->check()->status->value);
     }
 
+    public function testRechecksRootRequirementsAfterComposerJsonChanges(): void
+    {
+        file_put_contents($this->basePath . '/composer.json', '{"require":{"php":">=8.4"}}');
+        $diagnostic = $this->app->make(PhpVersionSatisfiesComposerRequirement::class);
+
+        $this->assertSame('pass', $diagnostic->check()->status->value);
+
+        file_put_contents($this->basePath . '/composer.json', '{"require":{"php":">=99"}}');
+
+        $this->assertSame('fail', $diagnostic->check()->status->value);
+    }
+
     #[DataProvider('phpVersions')]
     public function testChecksDistributionAndPrereleaseVersions(string $version, string $constraint, string $status): void
     {
