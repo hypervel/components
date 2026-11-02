@@ -22,10 +22,16 @@ class BlacklistFactory
             default => $container->get($storageClass),
         };
 
+        // Blacklisted tokens must stay blacklisted for as long as they can be refreshed.
+        $refreshTTL = $config->get('jwt.refresh_ttl', 20160);
+        if (! is_null($refreshTTL)) {
+            $refreshTTL = max((int) $refreshTTL, (int) $config->get('jwt.blacklist_refresh_ttl', 20160));
+        }
+
         return new Blacklist(
             $storage,
             (int) $config->get('jwt.blacklist_grace_period', 0),
-            (int) $config->get('jwt.blacklist_refresh_ttl', 20160)
+            $refreshTTL
         );
     }
 }

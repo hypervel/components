@@ -26,7 +26,7 @@ class JwtGuard implements Guard
         protected UserProvider $provider,
         protected ManagerContract $jwtManager,
         protected RequestInterface $request,
-        protected int $ttl = 120
+        protected ?int $ttl = 120
     ) {
     }
 
@@ -71,11 +71,17 @@ class JwtGuard implements Guard
     {
         $now = Carbon::now();
         $claims = Context::get("auth.guards.{$this->name}.claims", []);
-        $token = $this->jwtManager->encode(array_merge([
+        $payload = [
             'sub' => $user->getAuthIdentifier(),
             'iat' => $now->copy()->timestamp,
-            'exp' => $now->copy()->addMinutes($this->ttl)->timestamp,
-        ], $claims));
+        ];
+
+        // A null ttl issues tokens without expiration, matching JWTManager::refresh().
+        if (! is_null($this->ttl)) {
+            $payload['exp'] = $now->copy()->addMinutes($this->ttl)->timestamp;
+        }
+
+        $token = $this->jwtManager->encode(array_merge($payload, $claims));
 
         // if there's no token, then set cache key to `default`
         Context::set(
