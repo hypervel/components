@@ -94,6 +94,48 @@ class BlacklistTest extends TestCase
         (new Blacklist($this->storage, 0, null))->add($payload);
     }
 
+    #[DataProvider('foreverPayloadProvider')]
+    public function testAddATokenToTheBlacklistForeverWithGracePeriod(array $payload)
+    {
+        $this->storage->shouldReceive('get')->with('foo')->once()->andReturnNull();
+        $this->storage->shouldReceive('forever')
+            ->with('foo', ['valid_until' => $this->testNowTimestamp + 30])
+            ->once();
+
+        (new Blacklist($this->storage, 30, null))->add($payload);
+    }
+
+    public static function foreverPayloadProvider(): array
+    {
+        return [
+            'token without exp' => [[
+                'sub' => 1,
+                'iat' => 946684800,
+                'jti' => 'foo',
+            ]],
+            'unlimited refresh ttl' => [[
+                'sub' => 1,
+                'iat' => 946684800,
+                'exp' => 946688400,
+                'jti' => 'foo',
+            ]],
+        ];
+    }
+
+    public function testDoNotRestartGracePeriodWhenTokenIsAlreadyBlacklisted()
+    {
+        $payload = [
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp,
+            'jti' => 'foo',
+        ];
+
+        $this->storage->shouldReceive('get')->with('foo')->once()->andReturn(['valid_until' => $this->testNowTimestamp]);
+        $this->storage->shouldNotReceive('forever');
+
+        (new Blacklist($this->storage, 30, null))->add($payload);
+    }
+
     public function testReturnTrueWhenAddingAnExpiredTokenToTheBlacklist()
     {
         $payload = [

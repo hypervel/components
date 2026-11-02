@@ -7,6 +7,7 @@ namespace Hypervel\Tests\JWT;
 use Carbon\Carbon;
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Coroutine\Coroutine;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\Exceptions\TokenExpiredException;
@@ -21,6 +22,9 @@ use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;
+
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\run;
 
 /**
  * @internal
@@ -173,6 +177,96 @@ class JWTManagerRefreshTest extends TestCase
         $manager->refresh($token);
     }
 
+    public function testRefreshRunsValidatePayloadOverrides()
+    {
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessage('Tenant is suspended');
+
+        $manager = new class($this->createContainer()) extends JWTManager {
+            protected function validatePayload(array $payload): void
+            {
+                parent::validatePayload($payload);
+
+                if (($payload['tenant'] ?? null) === 'suspended') {
+                    throw new TokenInvalidException('Tenant is suspended');
+                }
+            }
+        };
+
+        $token = $this->createToken([
+            'sub' => 1,
+            'iat' => $this->now - 7200,
+            'exp' => $this->now - 3600,
+            'tenant' => 'suspended',
+        ]);
+
+        $manager->refresh($token);
+    }
+
+    public function testRefreshDoesNotSkipExpirationValidationInOtherCoroutines()
+    {
+        $manager = $this->createManager(['blacklist_enabled' => true]);
+
+        $refreshable = $this->createToken([
+            'sub' => 1,
+            'iat' => $this->now - 7200,
+            'exp' => $this->now - 3600,
+            'jti' => 'refreshable',
+        ]);
+        $expired = $this->createToken([
+            'sub' => 2,
+            'iat' => $this->now - 7200,
+            'exp' => $this->now - 3600,
+            'jti' => 'expired',
+        ]);
+
+        // Yield during the blacklist lookup so the other coroutine decodes mid-refresh.
+        $this->blacklist->shouldReceive('has')->andReturnUsing(function () {
+            Coroutine::sleep(0.01);
+
+            return false;
+        });
+        $this->blacklist->shouldReceive('add')->andReturnTrue();
+
+        $results = [];
+        run(function () use ($manager, $refreshable, $expired, &$results) {
+            parallel([
+                function () use ($manager, $refreshable, &$results) {
+                    $results['refresh'] = $manager->refresh($refreshable);
+                },
+                function () use ($manager, $expired, &$results) {
+                    try {
+                        $manager->decode($expired);
+                        $results['decode'] = 'accepted';
+                    } catch (TokenExpiredException) {
+                        $results['decode'] = 'rejected';
+                    }
+                },
+            ]);
+        });
+
+        $this->assertIsString($results['refresh']);
+        $this->assertSame('rejected', $results['decode']);
+    }
+
+    public function testRefreshReplacesPersistentExpiration()
+    {
+        $manager = $this->createManager([
+            'ttl' => null,
+            'persistent_claims' => ['exp'],
+        ]);
+
+        $token = $this->createToken([
+            'sub' => 1,
+            'iat' => $this->now - 7200,
+            'exp' => $this->now - 3600,
+        ]);
+
+        $payload = $manager->decode($manager->refresh($token), false);
+
+        $this->assertArrayNotHasKey('exp', $payload);
+    }
+
     public function testRefreshStillVerifiesSignature()
     {
         $this->expectException(TokenInvalidException::class);
@@ -224,6 +318,11 @@ class JWTManagerRefreshTest extends TestCase
 
     private function createManager(array $config = []): JWTManager
     {
+        return new JWTManager($this->createContainer($config));
+    }
+
+    private function createContainer(array $config = []): ContainerInterface
+    {
         $config = new Config([
             'jwt' => array_merge([
                 'secret' => self::SECRET,
@@ -244,7 +343,7 @@ class JWTManagerRefreshTest extends TestCase
         $container->shouldReceive('get')->with(ConfigInterface::class)->andReturn($config);
         $container->shouldReceive('get')->with(BlacklistContract::class)->andReturn($this->blacklist);
 
-        return new JWTManager($container);
+        return $container;
     }
 
     private function createToken(array $payload, string $secret = self::SECRET): string

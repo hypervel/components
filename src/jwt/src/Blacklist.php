@@ -27,13 +27,13 @@ class Blacklist implements BlacklistContract
         // if there is no exp claim then add the jwt to
         // the blacklist indefinitely
         if (! array_key_exists('exp', $payload)) {
-            return $this->addForever($payload);
+            return $this->addForeverWithGracePeriod($payload);
         }
 
         // if there is no refresh time limit then the token can be
         // refreshed at any time, so it must stay blacklisted forever
         if (is_null($this->refreshTTL)) {
-            return $this->addForever($payload);
+            return $this->addForeverWithGracePeriod($payload);
         }
 
         // if we have already added this token to the blacklist
@@ -72,6 +72,29 @@ class Blacklist implements BlacklistContract
     public function addForever(array $payload): bool
     {
         $this->storage->forever($this->getKey($payload), 'forever');
+
+        return true;
+    }
+
+    /**
+     * Add the token (jti claim) to the blacklist indefinitely once the grace period has passed.
+     */
+    protected function addForeverWithGracePeriod(array $payload): bool
+    {
+        if ($this->gracePeriod <= 0) {
+            return $this->addForever($payload);
+        }
+
+        // if we have already added this token to the blacklist,
+        // keep the original grace period instead of restarting it
+        if (! empty($this->storage->get($this->getKey($payload)))) {
+            return true;
+        }
+
+        $this->storage->forever(
+            $this->getKey($payload),
+            ['valid_until' => $this->getGraceTimestamp()]
+        );
 
         return true;
     }

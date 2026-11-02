@@ -6,6 +6,7 @@ namespace Hypervel\JWT;
 
 use Carbon\Carbon;
 use Hyperf\Collection\Collection;
+use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Contracts\ManagerContract;
@@ -22,6 +23,8 @@ use RuntimeException;
 
 class JWTManager extends Manager implements ManagerContract
 {
+    protected const REFRESHING_CONTEXT_KEY = '__jwt.refreshing';
+
     protected ?BlacklistContract $blacklist;
 
     protected bool $blacklistEnabled = false;
@@ -91,19 +94,13 @@ class JWTManager extends Manager implements ManagerContract
 
     protected function validatePayload(array $payload): void
     {
-        foreach ($this->config->get('jwt.validations', []) as $validation) {
-            $this->getValidation($validation)
-                ->validate($payload);
-        }
-    }
+        $refreshing = Context::get(static::REFRESHING_CONTEXT_KEY, false);
 
-    protected function validateRefreshPayload(array $payload): void
-    {
         foreach ($this->config->get('jwt.validations', []) as $validation) {
             $validation = $this->getValidation($validation);
 
             // Expired tokens can still be refreshed within the refresh window.
-            if ($validation instanceof ExpiredClaim) {
+            if ($refreshing && $validation instanceof ExpiredClaim) {
                 continue;
             }
 
@@ -122,11 +119,12 @@ class JWTManager extends Manager implements ManagerContract
 
     public function refresh(string $token, bool $forceForever = false): string
     {
-        $payload = $this->decode($token, false);
-        $this->validateRefreshPayload($payload);
+        $payload = $this->decodeForRefresh($token);
         $this->validateRefreshWindow($payload);
 
+        // The refreshed token's expiration never comes from the persistent claims.
         $claims = $this->buildRefreshClaims($payload);
+        unset($claims['exp']);
         if (! is_null($expiration = $this->getRefreshExpiration())) {
             $claims['exp'] = $expiration;
         }
@@ -150,6 +148,21 @@ class JWTManager extends Manager implements ManagerContract
             [$this->blacklist, $forceForever ? 'addForever' : 'add'],
             $this->decode($token, false)
         );
+    }
+
+    /**
+     * Decode a token for refresh, allowing it to be expired.
+     */
+    protected function decodeForRefresh(string $token): array
+    {
+        // The manager is shared between coroutines, so the flag must be coroutine-local.
+        Context::set(static::REFRESHING_CONTEXT_KEY, true);
+
+        try {
+            return $this->decode($token);
+        } finally {
+            Context::destroy(static::REFRESHING_CONTEXT_KEY);
+        }
     }
 
     /**
