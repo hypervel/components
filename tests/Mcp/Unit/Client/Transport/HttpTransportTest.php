@@ -22,8 +22,10 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
+use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Tests\Mcp\Fixtures\legacyEndpoint;
@@ -732,9 +734,12 @@ class HttpTransportTest extends TestCase
         }
     }
 
-    public function testCancelledSessionTerminationStillClosesTheResponseAndForgetsTheSession(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancelledSessionTerminationStillClosesTheResponseAndForgetsTheSession(bool $wrapped): void
     {
-        $exception = new CanceledException('DELETE cancelled');
+        $cancellation = new CanceledException('DELETE cancelled');
+        $exception = $wrapped ? new RuntimeException('DELETE cleanup failed.', previous: $cancellation) : $cancellation;
         $body = Utils::streamFor('{"jsonrpc":"2.0","id":1,"result":{}}');
         $deletes = 0;
         Http::fake(function (Request $request) use ($body, $exception, &$deletes): PromiseInterface {
@@ -749,13 +754,15 @@ class HttpTransportTest extends TestCase
         $transport->useProtocol(ProtocolVersion::V2025_11_25);
         $transport->send('{"jsonrpc":"2.0","id":1,"method":"initialize"}');
 
+        $caught = null;
+
         try {
             $transport->disconnect();
-            $this->fail('Session termination should propagate cancellation.');
-        } catch (CanceledException $caught) {
-            $this->assertSame($exception, $caught);
+        } catch (Throwable $failure) {
+            $caught = $failure;
         }
 
+        $this->assertSame($exception, $caught);
         $this->assertFalse($body->isReadable());
         $transport->disconnect();
         $this->assertSame(1, $deletes);

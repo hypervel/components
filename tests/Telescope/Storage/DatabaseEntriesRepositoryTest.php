@@ -17,6 +17,11 @@ use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use JsonException;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use TypeError;
 
 class DatabaseEntriesRepositoryTest extends FeatureTestCase
@@ -124,6 +129,26 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
             ['existing', 'first', 'second'],
             DB::table('telescope_monitoring')->orderBy('tag')->pluck('tag')->all(),
         );
+    }
+
+    #[TestWith([false], 'ordinary storage failure')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testMonitoredTagFallbackPreservesCancellation(bool $canceled): void
+    {
+        $failure = new RuntimeException('Monitoring failed.', previous: $canceled ? new CanceledException : null);
+        $repository = m::mock(DatabaseEntriesRepository::class, ['testing'])->makePartial();
+        $repository->shouldReceive('monitoring')->once()->andThrow($failure);
+        $repository->setMonitorTags(['existing']);
+        $caught = null;
+
+        try {
+            $repository->loadMonitoredTags();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($canceled ? $failure : null, $caught);
+        $this->assertSame($canceled ? ['existing'] : [], $repository->getMonitorTags());
     }
 
     public function testPruneOrdersDeletesToAvoidDeadlocks(): void

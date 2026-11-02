@@ -18,6 +18,7 @@ use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\ManyKeysRetrievalFailed;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
 use OpenTelemetry\API\Metrics\CounterInterface;
@@ -25,7 +26,6 @@ use OpenTelemetry\API\Metrics\MeterProviderInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -213,9 +213,11 @@ class CacheInstrumentation extends AbstractInstrumentation
                         'The OpenTelemetry cache-key resolver must return a string or null.',
                     );
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 self::logError('OpenTelemetry cache-key resolution failed.', ['exception' => $exception]);
 
                 return null;

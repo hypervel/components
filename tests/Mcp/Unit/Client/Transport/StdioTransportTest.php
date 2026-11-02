@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mcp\Unit\Client\Transport;
 
+use Generator;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Exceptions\TimeoutException;
@@ -16,8 +17,10 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -221,10 +224,24 @@ class StdioTransportTest extends TestCase
         }
     }
 
-    public function testDisconnectDetachesOwnedStateBeforePropagatingCancellation(): void
+    #[TestWith([false, false], 'direct disconnect')]
+    #[TestWith([true, false], 'wrapped disconnect')]
+    #[TestWith([true, true], 'wrapped cleanup after failed receive')]
+    public function testDisconnectDetachesOwnedStateBeforePropagatingCancellation(bool $wrapped, bool $receive): void
     {
-        $cancellation = new CanceledException('Stop canceled.');
+        $cancellation = $wrapped
+            ? new RuntimeException('Stop cleanup failed.', previous: new CanceledException)
+            : new CanceledException('Stop canceled.');
         $process = m::mock(Process::class);
+
+        if ($receive) {
+            $process->shouldReceive('getLastOutputTime')->once()->andReturn(microtime(true));
+            $process->shouldReceive('setIdleTimeout')->once()->andReturnSelf();
+            $process->shouldReceive('getIterator')->once()->andReturnUsing(static function (): Generator {
+                yield from [];
+            });
+        }
+
         $process->shouldReceive('isRunning')->once()->andReturnTrue();
         $process->shouldReceive('stop')->once()->with(0.1, null)->ordered()->andThrow($cancellation);
         $process->shouldReceive('stop')->once()->with(0, null)->ordered()->andReturn(0);
@@ -234,8 +251,8 @@ class StdioTransportTest extends TestCase
         $caught = null;
 
         try {
-            $transport->disconnect();
-        } catch (CanceledException $exception) {
+            $receive ? $transport->receive() : $transport->disconnect();
+        } catch (Throwable $exception) {
             $caught = $exception;
         }
 

@@ -38,6 +38,7 @@ use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Tools\AgentTool;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
@@ -63,6 +64,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqResponse;
 use function Hypervel\Tests\Ai\Fixtures\fakeGroqStreamErrorResponse;
@@ -755,6 +757,31 @@ class AgentEventsTest extends TestCase
         Event::assertNotDispatched(AgentFailedOver::class);
     }
 
+    #[DataProvider('publicInvocationMethods')]
+    public function testFailureRecordingPreservesCancellationBeforeGeneration(string $method): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Agent failure observer failed.');
+        Event::listen(AgentFailed::class, static fn () => throw $observerFailure);
+        Http::preventStrayRequests();
+        $agent = (new AssistantAgent)->withMiddleware([static fn () => throw $cancellation]);
+        $caught = null;
+
+        try {
+            $response = $agent->{$method}('Hello');
+
+            if ($method === 'stream') {
+                iterator_to_array($response);
+            }
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
     public function testAFailingGatewayDispatchesStepFailedAndAgentFailedInsteadOfAgentPrompted(): void
     {
         Event::fake();
@@ -775,6 +802,98 @@ class AgentEventsTest extends TestCase
         $agentFailed = Event::dispatched(AgentFailed::class)->first()[0];
 
         $this->assertSame($agentFailed->invocationId, $stepFailed->invocationId);
+    }
+
+    #[DataProvider('publicInvocationMethods')]
+    public function testThrowingStepFailureObserverPreservesCancellation(string $method): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Step failure observer failed.');
+        AssistantAgent::fake(static fn () => throw $cancellation);
+        Event::listen(StepFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            $response = (new AssistantAgent)->{$method}('Hello');
+
+            if ($method === 'stream') {
+                iterator_to_array($response);
+            }
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingStepFailureObserverPreservesMiddlewareCancellationAfterGeneration(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Step failure observer failed.');
+        AssistantAgent::fake(['Hello']);
+        Event::listen(StepFailed::class, static fn () => throw $observerFailure);
+        $agent = (new AssistantAgent)->withMiddleware([
+            static function (PendingStep $step, Closure $next) use ($cancellation): never {
+                $next($step);
+
+                throw $cancellation;
+            },
+        ]);
+        $caught = null;
+
+        try {
+            $agent->prompt('Hello');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingToolFailureObserverPreservesToolCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Tool failure observer failed.');
+        $tool = m::mock(NamedTool::class, ['cancel_tool'])->makePartial();
+        $tool->shouldReceive('handle')->once()->andThrow($cancellation);
+        ToolUsingAgent::fake([new ToolCall('call_1', 'cancel_tool', [])]);
+        $agent = (new ToolUsingAgent)->withTools([$tool]);
+        Event::listen(ToolFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            $agent->prompt('Generate');
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
+    }
+
+    public function testThrowingStreamingToolFailureObserverPreservesCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $observerFailure = new RuntimeException('Tool failure observer failed.');
+        DelegatingAgent::fake([new ToolCall('research', 'research_agent', ['task' => 'Research'])]);
+        ResearchAgent::fake(static fn () => throw $cancellation);
+        Event::listen(ToolFailed::class, static fn () => throw $observerFailure);
+        $caught = null;
+
+        try {
+            iterator_to_array((new DelegatingAgent)->stream('Research'));
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($observerFailure, $caught);
+        $this->assertSame($cancellation, $caught->getPrevious());
+        $this->assertTrue(Coroutine::causedByCancellation($caught));
     }
 
     public function testAFailingStreamDispatchesAgentFailedInsteadOfAgentStreamed(): void

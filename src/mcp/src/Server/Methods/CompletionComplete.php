@@ -6,6 +6,7 @@ namespace Hypervel\Mcp\Server\Methods;
 
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Mcp\Exceptions\JsonRpcException;
 use Hypervel\Mcp\Server;
 use Hypervel\Mcp\Server\Completions\CompletionResponse;
@@ -21,7 +22,6 @@ use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Mcp\Transport\JsonRpcResponse;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 
 class CompletionComplete implements Method
 {
@@ -93,9 +93,11 @@ class CompletionComplete implements Method
 
         try {
             $result = $this->invokeCompletion($primitive, $argumentName, $argumentValue, $contextArguments);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $result = CompletionResponse::empty();
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\OpenTelemetry\Instrumentation;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
@@ -26,7 +27,6 @@ use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\DbIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -257,9 +257,11 @@ class RedisInstrumentation extends AbstractInstrumentation
                         'The OpenTelemetry Redis query-text resolver must return a string or null.',
                     );
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 self::logError('OpenTelemetry Redis query-text resolution failed.', ['exception' => $exception]);
 
                 return null;

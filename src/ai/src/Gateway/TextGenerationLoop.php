@@ -66,6 +66,7 @@ use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
@@ -197,9 +198,12 @@ class TextGenerationLoop
 
                 $lastResult = $stepResult->response();
             } catch (Throwable $exception) {
-                $this->stepFailed($context, $attempt, $exception);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->stepFailed($context, $attempt, $exception);
+                }
             }
 
             $prepared = $attempt->step ?? $pending;
@@ -387,9 +391,12 @@ class TextGenerationLoop
                     $result->reasoning = ReasoningDelta::combine($reasoningDeltas);
                 }
             } catch (Throwable $exception) {
-                $this->stepFailed($context, $attempt, $exception);
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $this->stepFailed($context, $attempt, $exception);
+                }
             }
 
             // A provider may report an error in the stream itself rather than throwing, which still ends the step. The error event travels on the exception so its type and metadata are not lost...
@@ -542,9 +549,12 @@ class TextGenerationLoop
         try {
             $source = $call($stepContext);
         } catch (Throwable $exception) {
-            $context?->stepFailed($stepContext, $exception, $this->elapsedMilliseconds($startedAt), $step->model);
-
-            throw $exception;
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                throw $exception;
+            } finally {
+                $context?->stepFailed($stepContext, $exception, $this->elapsedMilliseconds($startedAt), $step->model);
+            }
         }
 
         return new StepResult($source, $step, $stepContext, $startedAt);
@@ -859,9 +869,12 @@ class TextGenerationLoop
 
             $result = (string) $events->getReturn();
         } catch (Throwable $exception) {
-            $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
-
-            throw $exception;
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                throw $exception;
+            } finally {
+                $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
+            }
         }
 
         $context?->toolInvoked($tool, $arguments, $result, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
@@ -956,7 +969,9 @@ class TextGenerationLoop
                     try {
                         $runner === null ? $work() : $runner($work);
                     } catch (Throwable $exception) {
-                        $failure ??= $exception;
+                        $failure ??= Coroutine::causedByCancellation($exception)
+                            ? new ChildCancellationException('An AI tool was canceled while its owner remained active.', previous: $exception)
+                            : $exception;
                         $events->close();
                     }
                 }, [self::REPAIR_TOOL_CALLS_CONTEXT_KEY, ParentInvocation::PARENT_INVOCATION_CONTEXT_KEY, AiManager::ON_DEMAND_PROVIDERS_CONTEXT_KEY, ContextRepository::CONTEXT_KEY, ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY]);

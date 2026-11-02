@@ -32,6 +32,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
@@ -39,8 +40,10 @@ use Hypervel\Support\Facades\DB;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ConcurrentToolsTest extends TestCase
 {
@@ -137,9 +140,17 @@ class ConcurrentToolsTest extends TestCase
         (new TextGenerationLoop($gateway))->generate($provider, 'model', '', options: new TextGenerationOptions(agent: new InvalidConcurrentToolsTestAgent('', [], [])));
     }
 
-    public function testToolFailureCancelsAndJoinsTheOtherTools(): void
+    #[TestWith([false, false], 'ordinary tool failure')]
+    #[TestWith([true, false], 'direct child cancellation')]
+    #[TestWith([true, true], 'wrapped child cancellation')]
+    public function testToolFailureCancelsAndJoinsTheOtherTools(bool $canceled, bool $cleanupThrows): void
     {
-        $failure = new RuntimeException('The tool failed.');
+        $failure = $canceled ? new CanceledException : new RuntimeException('The tool failed.');
+
+        if ($cleanupThrows) {
+            $failure = new RuntimeException('Tool cleanup failed.', previous: $failure);
+        }
+
         $active = 0;
         $resumed = false;
         $tool = m::mock(Tool::class);
@@ -166,11 +177,19 @@ class ConcurrentToolsTest extends TestCase
         $provider->shouldReceive('name')->andReturn('provider');
         $results = [];
         $gateway = $this->gateway(false, [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', [])], $results, completes: false);
+        $caught = null;
 
         try {
             (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])));
-            $this->fail('The original tool failure must reach the caller.');
-        } catch (RuntimeException $caught) {
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        if ($canceled) {
+            $this->assertInstanceOf(ChildCancellationException::class, $caught);
+            $this->assertSame($failure, $caught->getPrevious());
+            $this->assertFalse(Coroutine::causedByCancellation($caught));
+        } else {
             $this->assertSame($failure, $caught);
         }
 

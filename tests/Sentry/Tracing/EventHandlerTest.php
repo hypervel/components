@@ -20,6 +20,7 @@ use Hypervel\Sentry\Tracing\EventHandler;
 use Hypervel\Tests\Sentry\TestCase;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Sentry\SentrySdk;
@@ -28,6 +29,7 @@ use Sentry\Tracing\SpanStatus;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class EventHandlerTest extends TestCase
 {
@@ -147,21 +149,31 @@ class EventHandlerTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testCancellationFromInstrumentationReachesApplicationCode(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationFromInstrumentationReachesApplicationCode(bool $wrapped): void
     {
         $this->startTransaction();
         $cancellation = new CanceledException('Request canceled');
+
+        if ($wrapped) {
+            $cancellation = new RuntimeException('Instrumentation cleanup failed.', previous: $cancellation);
+        }
+
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getName')->once()->andReturn('canceled');
         $connection->shouldReceive('getDatabaseName')->once()->andThrow($cancellation);
         $handler = new EventHandler(config()->array('sentry.tracing'));
 
+        $caught = null;
+
         try {
             $handler->queryExecuted(new QueryExecuted('select 1', [], 1.0, $connection));
-            $this->fail('The tracing event handler swallowed coroutine cancellation.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
+
+        $this->assertSame($cancellation, $caught);
     }
 
     public function testCoroutineExitFinishesOnlyAbandonedResponseAndTransactionSpans(): void

@@ -26,7 +26,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Http;
 use Psr\Http\Message\StreamInterface;
 use SensitiveParameter;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -107,14 +106,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             try {
                 $this->endExchange();
             } catch (Throwable $cleanupException) {
-                if (! isset($exception)
-                    || ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $cleanupException;
-                }
-            }
-
-            if (isset($exception)) {
-                throw $exception;
+                throw Coroutine::preferCancellation($exception ?? null, $cleanupException);
             }
         }
     }
@@ -274,9 +266,7 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             try {
                 $this->endExchange();
             } catch (Throwable $cleanupException) {
-                if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                    throw $cleanupException;
-                }
+                throw Coroutine::preferCancellation($exception, $cleanupException);
             }
 
             throw $exception;
@@ -540,9 +530,10 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             $this->request()
                 ->timeout($this->timeoutSeconds)
                 ->delete($this->url);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 

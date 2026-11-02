@@ -20,7 +20,10 @@ use Hypervel\Mcp\Support\UriTemplate;
 use Hypervel\Mcp\Transport\JsonRpcRequest;
 use Hypervel\Tests\Mcp\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class CompletionMethodTestServer extends Server
 {
@@ -478,14 +481,21 @@ class CompletionCompleteTest extends TestCase
         ];
     }
 
-    public function testCancellationIsNotConvertedToAnEmptyCompletion(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'wrapped cancellation')]
+    public function testCancellationIsNotConvertedToAnEmptyCompletion(bool $wrapped): void
     {
         $exception = new CanceledException('Completion cancelled.');
+
+        if ($wrapped) {
+            $exception = new RuntimeException('Completion cleanup failed.', previous: $exception);
+        }
+
         $prompt = new class($exception) extends CompletionMethodTestPrompt {
             /**
              * Capture the cancellation to raise during completion.
              */
-            public function __construct(private CanceledException $exception)
+            public function __construct(private Throwable $exception)
             {
             }
 

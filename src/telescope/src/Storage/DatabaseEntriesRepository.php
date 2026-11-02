@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
@@ -365,7 +366,11 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     {
         try {
             $this->setMonitorTags($this->monitoring());
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->setMonitorTags([]);
         }
     }

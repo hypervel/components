@@ -40,9 +40,12 @@ trait InvokesTools
                 // Validation failures are returned to the model so it can correct the arguments and retry...
                 $result = implode(' ', $exception->validator->errors()->all()) ?: $exception->getMessage();
             } catch (Throwable $exception) {
-                $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
-
-                throw $exception;
+                // Keep the original exception, including cancellation, as previous if failure reporting throws.
+                try {
+                    throw $exception;
+                } finally {
+                    $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
+                }
             }
 
             $context?->toolInvoked($tool, $arguments, $result, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
