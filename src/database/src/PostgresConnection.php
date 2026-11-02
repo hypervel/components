@@ -140,15 +140,13 @@ class PostgresConnection extends PdoConnection
     }
 
     /**
-     * Resolve the lock clause supported when popping queued jobs.
+     * Resolve whether the server supports skipping locked rows.
      */
-    protected function resolveLockForPopping(): bool|string
+    protected function resolveSupportsSkipLocked(): bool
     {
         $version = (string) ($this->getConfig('version') ?? $this->getServerVersion());
 
-        return version_compare($version, '9.5', '>=')
-            ? 'FOR UPDATE SKIP LOCKED'
-            : true;
+        return version_compare($version, '9.5', '>=');
     }
 
     /**

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Concerns;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DeadlockException;
 use LogicException;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -92,17 +92,21 @@ trait ManagesTransactions
                     $levelBeingCommitted,
                     $this->transactions
                 );
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception = $throwable;
             }
 
             try {
                 $this->fireConnectionEvent('committed');
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
 
@@ -124,9 +128,12 @@ trait ManagesTransactions
      */
     protected function handleTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
+        // Cleanup may report a deadlock while carrying cancellation; do not retry or reclassify it.
+        $canceled = Coroutine::causedByCancellation($e);
+
         // Roll back failed nested work before propagating it to the outer retry boundary.
         // If the server already discarded its savepoints, rollback disconnects the unusable session.
-        if ($this->causedByConcurrencyError($e)
+        if (! $canceled && $this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
             $e = new DeadlockException(
                 $e->getMessage(),
@@ -142,19 +149,17 @@ trait ManagesTransactions
 
         try {
             $this->rollBack();
-        } catch (CanceledException $cancellation) {
-            if (! $e instanceof CanceledException) {
-                throw $cancellation;
+        } catch (Throwable $cleanup) {
+            if (! $canceled && Coroutine::causedByCancellation($cleanup)) {
+                throw $cleanup;
             }
 
-            $cleanedUp = false;
-        } catch (Throwable) {
             $cleanedUp = false;
         }
 
         // Only retry after all failed work is closed; a callback may leave manual transaction levels open.
         // Nested deadlocks already passed the driver's policy, which may not recognize our wrapper.
-        if ($cleanedUp
+        if (! $canceled && $cleanedUp
             && $this->transactions === 0
             && ($e instanceof DeadlockException || $this->causedByConcurrencyError($e))
             && $currentAttempt < $maxAttempts) {
@@ -190,11 +195,11 @@ trait ManagesTransactions
         } catch (Throwable $exception) {
             try {
                 $this->rollBack($previousLevel);
-            } catch (CanceledException $cancellation) {
-                if (! $exception instanceof CanceledException) {
-                    throw $cancellation;
+            } catch (Throwable $cleanup) {
+                if (Coroutine::causedByCancellation($cleanup) && ! Coroutine::causedByCancellation($exception)) {
+                    throw $cleanup;
                 }
-            } catch (Throwable) {
+
                 // Preserve the transaction publication failure.
             }
 
@@ -263,17 +268,21 @@ trait ManagesTransactions
                 $levelBeingCommitted,
                 $this->transactions
             );
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('committed');
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception ??= $throwable;
         }
 
@@ -292,9 +301,11 @@ trait ManagesTransactions
         if ($this->causedByLostConnection($e)) {
             try {
                 $this->forgetLostConnection();
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
+            } catch (Throwable $cleanup) {
+                if (Coroutine::causedByCancellation($cleanup)) {
+                    throw $cleanup;
+                }
+
                 // Preserve the physical commit failure.
             }
 
@@ -305,17 +316,16 @@ trait ManagesTransactions
 
         try {
             $this->rollBack(0);
-        } catch (CanceledException $cancellation) {
-            if (! $e instanceof CanceledException) {
-                throw $cancellation;
+        } catch (Throwable $cleanup) {
+            if (Coroutine::causedByCancellation($cleanup) && ! Coroutine::causedByCancellation($e)) {
+                throw $cleanup;
             }
 
-            $cleanedUp = false;
-        } catch (Throwable) {
             $cleanedUp = false;
         }
 
         if ($cleanedUp
+            && ! Coroutine::causedByCancellation($e)
             && $this->causedByConcurrencyError($e)
             && $currentAttempt < $maxAttempts) {
             return;
@@ -352,11 +362,11 @@ trait ManagesTransactions
                 // A missing or failed savepoint cannot safely preserve the enclosing transaction.
                 try {
                     $this->disconnect();
-                } catch (CanceledException $cancellation) {
-                    if (! $exception instanceof CanceledException) {
-                        throw $cancellation;
+                } catch (Throwable $cleanup) {
+                    if (Coroutine::causedByCancellation($cleanup) && ! Coroutine::causedByCancellation($exception)) {
+                        throw $cleanup;
                     }
-                } catch (Throwable) {
+
                     // Preserve the rollback failure after detaching the unusable connection.
                 }
             }
@@ -372,17 +382,21 @@ trait ManagesTransactions
                 $this->getNameWithReadWriteType() ?? '',
                 $this->transactions
             );
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('rollingBack');
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $exception ??= $throwable;
         }
 
@@ -401,9 +415,11 @@ trait ManagesTransactions
         if ($this->causedByLostConnection($e)) {
             try {
                 $this->forgetLostConnection();
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
-            } catch (Throwable) {
+            } catch (Throwable $cleanup) {
+                if (Coroutine::causedByCancellation($cleanup)) {
+                    throw $cleanup;
+                }
+
                 // Preserve the physical rollback failure.
             }
         }

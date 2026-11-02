@@ -33,6 +33,11 @@ trait LazilyRefreshDatabase
      */
     protected function setUpLazilyRefreshDatabaseInCoroutine(): void
     {
+        // Restore before registering callbacks: the first query already pins its pooled session.
+        if ($this->usingInMemoryDatabases()) {
+            $this->restoreInMemoryDatabase();
+        }
+
         $database = $this->app->make('db');
 
         $callback = function (): void {

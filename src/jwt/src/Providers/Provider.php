@@ -161,7 +161,7 @@ abstract class Provider
      * Hook fired after any of algo/secret/keys is mutated.
      *
      * Subclasses that cache derived state (signers, configuration objects)
-     * override this to rebuild it so the new values actually take effect.
+     * override this to invalidate it so the new values take effect on next use.
      */
     protected function onConfigurationChanged(): void
     {

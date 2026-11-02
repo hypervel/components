@@ -11,6 +11,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool as ConnectionPoolContract;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\PoolChannel;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -104,16 +105,18 @@ abstract class ConnectionPool implements ConnectionPoolContract
             }
 
             $this->idleMonitor?->start();
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->discard($connection);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                $this->report($exception);
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                try {
+                    $this->discard($connection);
+                } catch (CanceledException) {
+                } catch (Throwable $cleanupException) {
+                    $this->report($cleanupException);
+                }
+
+                throw $exception;
             }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
             $this->report($exception);
         }
 
@@ -227,7 +230,11 @@ abstract class ConnectionPool implements ConnectionPoolContract
         while ($connection = $this->popIdleConnection()) {
             try {
                 $this->destroyConnection($connection);
-            } catch (CanceledException $exception) {
+            } catch (Throwable $exception) {
+                if (! Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $cancellation ??= $exception;
             }
         }
@@ -368,9 +375,11 @@ abstract class ConnectionPool implements ConnectionPoolContract
 
         try {
             $connection->close();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->report($exception);
         } finally {
             unset(

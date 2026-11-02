@@ -6,9 +6,9 @@ namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events\ModelsPruned;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait Prunable
@@ -32,9 +32,11 @@ trait Prunable
                         $model->prune();
 
                         ++$total;
-                    } catch (CanceledException $exception) {
-                        throw $exception;
                     } catch (Throwable $e) {
+                        if (Coroutine::causedByCancellation($e)) {
+                            throw $e;
+                        }
+
                         app(ExceptionHandler::class)->report($e);
                     }
                 });

@@ -11,6 +11,7 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -36,6 +37,11 @@ class RateLimited
      * The number of seconds before a job should be available again if the limit is exceeded.
      */
     public DateTimeInterface|int|null $releaseAfter = null;
+
+    /**
+     * The extra seconds added to the rate limiter's retry delay.
+     */
+    protected int $releasePadding = 3;
 
     /**
      * Indicates if the job should be released if the limit is exceeded.
@@ -87,8 +93,9 @@ class RateLimited
     {
         foreach ($limiter->consumeMany(array_values($limits), $this->limiterName) as $result) {
             if ($result->denied()) {
+                // An explicit zero delay requests an immediate retry rather than the calculated delay.
                 return $this->shouldRelease
-                    ? $job->release($this->releaseAfter ?? $result->retryAfter() + 3)
+                    ? $job->release($this->releaseAfter ?? $result->retryAfter() + $this->releasePadding)
                     : false;
             }
         }
@@ -102,6 +109,20 @@ class RateLimited
     public function releaseAfter(DateTimeInterface|int $releaseAfter): static
     {
         $this->releaseAfter = $releaseAfter;
+
+        return $this;
+    }
+
+    /**
+     * Set the extra seconds added to the rate limiter's retry delay.
+     */
+    public function releasePadding(int $seconds): static
+    {
+        if ($seconds < 0) {
+            throw new InvalidArgumentException('Release padding must not be negative.');
+        }
+
+        $this->releasePadding = $seconds;
 
         return $this;
     }
@@ -137,6 +158,7 @@ class RateLimited
             'limiterName',
             'storeName',
             'releaseAfter',
+            'releasePadding',
             'shouldRelease',
         ];
     }

@@ -12,12 +12,12 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\PublishesOutboxMessages;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\DetectsLostConnections;
-use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
@@ -634,8 +634,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     {
         $connection = $this->getDatabase();
 
-        return $connection instanceof PdoConnection
-            ? $connection->lockForPopping()
+        return $connection instanceof Connection && $connection->supportsSkipLocked()
+            ? 'FOR UPDATE SKIP LOCKED'
             : true;
     }
 

@@ -16,7 +16,10 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Schema;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * The fixtures are intentionally smaller than Laravel's because this suite
@@ -149,18 +152,21 @@ class EloquentPrunableTest extends DatabaseTestCase
         Exceptions::assertReported(fn (Exception $exception) => $exception->getMessage() === 'foo bar');
     }
 
-    public function testPruneRethrowsCancellationWithoutReportingIt(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'cleanup failure carrying cancellation')]
+    public function testPruneRethrowsCancellationWithoutReportingIt(bool $chained): void
     {
         Exceptions::fake();
 
-        PrunableWithCancellation::insert(array_fill(0, 10, ['name' => 'foo']));
+        PrunableWithCancellation::insert(array_fill(0, 10, ['name' => $chained ? 'chained' : 'direct']));
 
         try {
             (new PrunableWithCancellation)->pruneAll();
 
             $this->fail('The cancellation was not rethrown.');
-        } catch (CanceledException $exception) {
-            $this->assertSame('canceled', $exception->getMessage());
+        } catch (Throwable $exception) {
+            $this->assertSame($chained ? RuntimeException::class : CanceledException::class, $exception::class);
+            $this->assertSame($chained ? 'cleanup failed' : 'canceled', $exception->getMessage());
         }
 
         Exceptions::assertNothingReported();
@@ -240,7 +246,11 @@ class PrunableWithCancellation extends Model
     public function prune(): int|bool|null
     {
         if ($this->id === 5) {
-            throw new CanceledException('canceled');
+            $cancellation = new CanceledException('canceled');
+
+            throw $this->name === 'chained'
+                ? new RuntimeException('cleanup failed', previous: $cancellation)
+                : $cancellation;
         }
 
         return true;

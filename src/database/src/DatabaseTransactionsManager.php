@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Collection;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -240,9 +240,11 @@ class DatabaseTransactionsManager
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacks();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -265,10 +267,12 @@ class DatabaseTransactionsManager
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacksForRollback();
-            } catch (CanceledException $canceledException) {
-                $cancellation ??= $canceledException;
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation ??= $throwable;
+                } else {
+                    $exception ??= $throwable;
+                }
             }
         }
 

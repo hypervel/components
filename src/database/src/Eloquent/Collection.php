@@ -351,7 +351,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param array<array-key, array|string> $relations
+     * @param  array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string>  $relations
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -368,7 +368,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param array<array-key, array|string> $relations
+     * @param  array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string>  $relations
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -496,7 +496,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Reload a fresh model instance from the database for all the entities.
      *
-     * @param array<array-key, string>|string $with
+     * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $with
      *
      * @throws MissingAttributeException
      */

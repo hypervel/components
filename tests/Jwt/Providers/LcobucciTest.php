@@ -513,7 +513,7 @@ class LcobucciTest extends TestCase
         $this->assertSame($keys, $provider->getKeys());
     }
 
-    public function testSetAlgoTakesEffectOnEncoding(): void
+    public function testShouldSignWithTheNewAlgorithmAfterSettingTheAlgorithm(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
 
@@ -523,10 +523,23 @@ class LcobucciTest extends TestCase
         $token = $provider->encode($payload);
         $header = json_decode(base64_decode(explode('.', $token)[0]), true);
 
+        $this->assertEquals(Provider::ALGO_HS512, $provider->getAlgo());
         $this->assertEquals(Provider::ALGO_HS512, $header['alg']);
+        $this->assertEquals('1', $provider->decode($token)['sub']);
     }
 
-    public function testSetSecretTakesEffectOnSigning(): void
+    public function testShouldNotVerifyTokensSignedWithThePreviousSecretAfterSettingTheSecret(): void
+    {
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessageIs('Token Signature could not be verified.');
+
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+        $token = $provider->encode(['sub' => 1]);
+
+        $provider->setSecret($this->getRandomString())->decode($token);
+    }
+
+    public function testShouldSignWithTheNewSecretAfterSettingTheSecret(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
 
@@ -546,6 +559,46 @@ class LcobucciTest extends TestCase
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessageIs('Token Signature could not be verified.');
         $this->getProvider($originalSecret, Provider::ALGO_HS256)->decode($token);
+    }
+
+    public function testCanSwitchFromASymmetricToAnAsymmetricAlgorithm(): void
+    {
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256)
+            ->setAlgo(Provider::ALGO_RS256)
+            ->setKeys(['private' => $this->getDummyPrivateKey(), 'public' => $this->getDummyPublicKey()]);
+
+        $token = $provider->encode(['sub' => 1]);
+        $header = json_decode(base64_decode(explode('.', $token)[0]), true);
+
+        $this->assertEquals(Provider::ALGO_RS256, $header['alg']);
+        $this->assertEquals('1', $provider->decode($token)['sub']);
+    }
+
+    #[DataProvider('incompleteAsymmetricConfigurationProvider')]
+    public function testShouldThrowAnExceptionWhenSwitchingToAnAsymmetricAlgorithmWithoutKeys(bool $decode): void
+    {
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256)
+            ->setAlgo(Provider::ALGO_RS256);
+
+        $this->expectException(JwtException::class);
+        $this->expectExceptionMessageIs('Public key is not set.');
+
+        if ($decode) {
+            $provider->decode('foo.bar.baz');
+        } else {
+            $provider->encode(['sub' => 1]);
+        }
+    }
+
+    /**
+     * Provide operations that require a complete signing configuration.
+     */
+    public static function incompleteAsymmetricConfigurationProvider(): array
+    {
+        return [
+            'encode' => [false],
+            'decode' => [true],
+        ];
     }
 
     public function testShouldThrowAnExceptionWhenTheSecretHasBeenUpdatedAndAnOldTokenIsUsed(): void
@@ -713,14 +766,6 @@ class LcobucciTest extends TestCase
                 static fn (): Lcobucci => new Lcobucci('signing-secret', 'INVALID_ALGO', ['private' => 'private-key']),
                 '__construct',
                 [0, 2],
-            ],
-            'new keys' => [
-                static fn (): Lcobucci => (new Lcobucci('does_not_matter', Provider::ALGO_RS256, [
-                    'private' => file_get_contents("{$keys}/id_rsa"),
-                    'public' => file_get_contents("{$keys}/id_rsa.pub"),
-                ]))->setKeys(['private' => file_get_contents("{$keys}/id_rsa_alt")]),
-                'setKeys',
-                [0],
             ],
             'key file' => [
                 static fn (): Lcobucci => new Lcobucci('does_not_matter', Provider::ALGO_RS256, [
