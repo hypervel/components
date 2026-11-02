@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Traits;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -48,8 +49,8 @@ trait GuardsProcessOutput
                     }
                 }
 
-                if ($cancellation !== null && ! $exception instanceof CanceledException) {
-                    throw $cancellation;
+                if ($cancellation !== null) {
+                    throw Coroutine::preferCancellation($exception, $cancellation);
                 }
 
                 throw $exception;
