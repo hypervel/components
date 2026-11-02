@@ -217,14 +217,11 @@ class RedisProxy implements ConnectionContract
                 ? $connection->discardTransaction()
                 : $connection->{$name}(...$arguments);
         } catch (Throwable $throwable) {
-            if ($cancellation = RedisCancellation::cancellationFrom(
+            $commandException = RedisCancellation::cancellationFrom(
                 $throwable,
                 "Executing Redis command [{$name}] was canceled.",
-            )) {
-                $commandException = $cancellation;
-            } else {
-                $commandException = $throwable;
-
+            ) ?? $throwable;
+            if (! Coroutine::causedByCancellation($commandException)) {
                 try {
                     $dispatcher = $connection->getEventDispatcher();
 
@@ -289,15 +286,15 @@ class RedisProxy implements ConnectionContract
             $cleanupException = $throwable;
         }
 
-        if ($commandException instanceof CanceledException) {
+        if ($commandException !== null && Coroutine::causedByCancellation($commandException)) {
             throw $commandException;
         }
 
-        if ($eventException instanceof CanceledException) {
+        if ($eventException !== null && Coroutine::causedByCancellation($eventException)) {
             throw $eventException;
         }
 
-        if ($cleanupException instanceof CanceledException) {
+        if ($cleanupException !== null && Coroutine::causedByCancellation($cleanupException)) {
             throw $cleanupException;
         }
 
@@ -421,7 +418,7 @@ class RedisProxy implements ConnectionContract
                 try {
                     $subscriber->close();
                 } catch (Throwable $exception) {
-                    if (! $failure instanceof CanceledException) {
+                    if ($failure === null || ! Coroutine::causedByCancellation($failure)) {
                         // Required close failure is terminal unless cancellation is already primary.
                         $failure = $exception;
                     }
@@ -674,11 +671,11 @@ class RedisProxy implements ConnectionContract
 
         // Preserve discovery failures over ordinary release failures while
         // still allowing cancellation from either boundary to take precedence.
-        if ($discoveryException instanceof CanceledException) {
+        if ($discoveryException !== null && Coroutine::causedByCancellation($discoveryException)) {
             throw $discoveryException;
         }
 
-        if ($releaseException instanceof CanceledException) {
+        if ($releaseException !== null && Coroutine::causedByCancellation($releaseException)) {
             throw $releaseException;
         }
 
