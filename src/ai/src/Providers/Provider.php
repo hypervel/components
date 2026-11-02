@@ -94,14 +94,17 @@ abstract class Provider implements Stringable, ProviderContract
         try {
             return $call();
         } catch (Throwable $exception) {
-            $event = $failed($exception);
+            // Keep the original exception, including cancellation, as previous if failure reporting throws.
+            try {
+                throw $exception;
+            } finally {
+                $event = $failed($exception);
 
-            // Passive observers alone must not trigger optional failure events; hasListeners() excludes them.
-            if ($this->events->hasListeners($event::class)) {
-                $this->events->dispatch($event);
+                // Passive observers alone must not trigger optional failure events; hasListeners() excludes them.
+                if ($this->events->hasListeners($event::class)) {
+                    $this->events->dispatch($event);
+                }
             }
-
-            throw $exception;
         }
     }
 
