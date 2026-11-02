@@ -2981,7 +2981,7 @@ class Builder implements BuilderContract
     public function lock(string|bool $value = true): static
     {
         if ($this->skipLocked && is_string($value)) {
-            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock().');
         }
 
         $this->lock = $value;
@@ -3012,7 +3012,7 @@ class Builder implements BuilderContract
     public function skipLocked(): static
     {
         if (! is_bool($this->lock)) {
-            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+            throw new InvalidArgumentException('Skip locked requires lockForUpdate() or sharedLock().');
         }
 
         $this->skipLocked = true;

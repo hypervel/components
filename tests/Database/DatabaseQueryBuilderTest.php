@@ -6947,7 +6947,7 @@ SQL, ['"John"'])->andReturn(1);
     public function testSkipLockedRequiresAnExistingLock(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
 
         $this->getBuilder()->skipLocked();
     }
@@ -6955,7 +6955,7 @@ SQL, ['"John"'])->andReturn(1);
     public function testSkipLockedCannotFollowACustomLock(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
 
         $this->getBuilder()->lock('for update nowait')->skipLocked();
     }
@@ -6963,7 +6963,7 @@ SQL, ['"John"'])->andReturn(1);
     public function testCustomLockCannotFollowSkipLocked(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Skip locked requires lockForUpdate() or sharedLock(), not a custom lock clause.');
+        $this->expectExceptionMessageIs('Skip locked requires lockForUpdate() or sharedLock().');
 
         $this->getBuilder()->lockForUpdate()->skipLocked()->lock('for update nowait');
     }
