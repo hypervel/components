@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use JsonException;
 use RuntimeException;
 use Stringable;
@@ -15,6 +16,8 @@ use Symfony\Component\Process\Process;
 
 class Composer
 {
+    use GuardsProcessOutput;
+
     /**
      * The filesystem instance.
      */
@@ -73,13 +76,15 @@ class Composer
                 $command->push('--dev');
             })->all();
 
-        return $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1'])
-            ->run(
-                $output instanceof OutputInterface
-                    ? function ($type, $line) use ($output) {
-                        $output->write('    ' . $line);
-                    } : $output
-            ) === 0;
+        $process = $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1']);
+
+        return $process->run($this->guardProcessOutput(
+            $process,
+            $output instanceof OutputInterface
+                ? function ($type, $line) use ($output) {
+                    $output->write('    ' . $line);
+                } : $output
+        )) === 0;
     }
 
     /**
@@ -98,13 +103,15 @@ class Composer
                 $command->push('--dev');
             })->all();
 
-        return $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1'])
-            ->run(
-                $output instanceof OutputInterface
-                    ? function ($type, $line) use ($output) {
-                        $output->write('    ' . $line);
-                    } : $output
-            ) === 0;
+        $process = $this->getProcess($command, ['COMPOSER_MEMORY_LIMIT' => '-1']);
+
+        return $process->run($this->guardProcessOutput(
+            $process,
+            $output instanceof OutputInterface
+                ? function ($type, $line) use ($output) {
+                    $output->write('    ' . $line);
+                } : $output
+        )) === 0;
     }
 
     /**
