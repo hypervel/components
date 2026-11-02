@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Process\Concerns;
+namespace Hypervel\Support\Traits;
 
 use Closure;
-use Hypervel\Process\InvokedProcess;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -34,14 +33,23 @@ trait GuardsProcessOutput
                 return $output($type, $buffer);
             } catch (Throwable $exception) {
                 $failed = true;
+                $cancellation = null;
 
-                try {
-                    // SWOOLE_HOOK_PROC can reach an invalid native resource during coroutine teardown.
-                    (new InvokedProcess($process))->stop(0);
-                } catch (Throwable $cleanupException) {
-                    if ($cleanupException instanceof CanceledException && ! $exception instanceof CanceledException) {
-                        throw $cleanupException;
+                // Coroutine teardown can expose an invalid native resource through SWOOLE_HOOK_PROC.
+                // Retry failed cleanup while preserving the callback failure or cancellation.
+                for ($attempt = 0; $attempt < 2; ++$attempt) {
+                    try {
+                        $process->stop(0);
+
+                        break;
+                    } catch (CanceledException $cleanupException) {
+                        $cancellation ??= $cleanupException;
+                    } catch (Throwable) {
                     }
+                }
+
+                if ($cancellation !== null && ! $exception instanceof CanceledException) {
+                    throw $cancellation;
                 }
 
                 throw $exception;

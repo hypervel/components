@@ -8,12 +8,13 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\GuardsProcessOutput;
 use LogicException;
 use RuntimeException;
 use Stringable;
@@ -241,7 +242,8 @@ class PendingProcess
     /**
      * Start the process in the background.
      *
-     * The caller must wait for or stop the process before its owning coroutine exits.
+     * Start the process in the coroutine that will wait for it. It is stopped when that
+     * coroutine exits, unless the create_new_console option explicitly detaches it.
      *
      * @throws RuntimeException
      */
@@ -261,7 +263,13 @@ class PendingProcess
         }
 
         try {
-            return new InvokedProcess(tap($process)->start($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+            $process->start($this->guardProcessOutput($process, $output));
+
+            if (Coroutine::inCoroutine() && ! ($this->options['create_new_console'] ?? false)) {
+                ProcessState::current()->processes[$process] = true;
+            }
+
+            return new InvokedProcess($process);
         } catch (Throwable $exception) {
             $this->stopAfterFailure($process, $exception);
         }
