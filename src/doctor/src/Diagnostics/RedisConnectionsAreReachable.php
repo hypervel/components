@@ -52,7 +52,10 @@ class RedisConnectionsAreReachable extends Diagnostic
 
         foreach ($connections as $connection) {
             try {
-                Redis::connection($connection)->ping();
+                // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
+                if (Redis::connection($connection)->ping() === false) {
+                    $failures[$connection] = 'The Redis server returned an error for PING.';
+                }
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $e) {

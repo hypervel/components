@@ -135,7 +135,10 @@ class QueueConnectionIsReachable extends Diagnostic
     {
         $connection = $configuration['connection'] ?? 'default';
 
-        Redis::connection($connection)->ping();
+        // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
+        if (Redis::connection($connection)->ping() === false) {
+            throw new RuntimeException("Redis connection [{$connection}] returned an error for PING.");
+        }
     }
 
     /**

@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Doctor\Diagnostics\RedisConnectionsAreReachable;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Doctor\TestCase;
+use Mockery as m;
 use RuntimeException;
 
 class RedisConnectionsAreReachableTest extends TestCase
@@ -133,6 +135,23 @@ class RedisConnectionsAreReachableTest extends TestCase
         $result = (new RedisConnectionsAreReachable)->check();
 
         $this->assertSame('skip', $result->status->value);
+    }
+
+    public function testReportsConnectionsWhoseServerRejectsThePing(): void
+    {
+        config([
+            'cache.default' => 'redis',
+            'cache.stores.redis' => [
+                'driver' => 'redis',
+                'connection' => 'default',
+            ],
+        ]);
+        Redis::shouldReceive('connection')->with('default')->andReturn(m::mock(RedisProxy::class, ['ping' => false]));
+
+        $result = (new RedisConnectionsAreReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertStringContainsString('The Redis server returned an error for PING.', $result->details);
     }
 
     public function testLinksToRedisConfigurationWhenAnActiveConnectionCannotBeReached(): void
