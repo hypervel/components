@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Events;
 use Hyperf\Database\Events\ConnectionEvent;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -32,14 +31,14 @@ class TransactionListener implements ListenerInterface
             return;
         }
 
-        $transactionLevel = $this->container->get(ConnectionResolverInterface::class)
-            ->connection($event->connectionName)
-            ->transactionLevel();
-        if ($transactionLevel !== 0) {
-            return;
-        }
+        // Hyperf fires these events after the transaction level has changed.
+        $manager = $this->container->get(TransactionManager::class);
 
-        $this->container->get(TransactionManager::class)
-            ->runCallbacks(get_class($event));
+        match (true) {
+            $event instanceof Events\TransactionBeginning => $manager->begin($event->connection),
+            $event instanceof Events\TransactionCommitted => $manager->commit($event->connection),
+            $event instanceof Events\TransactionRolledBack => $manager->rollback($event->connection),
+            default => null,
+        };
     }
 }

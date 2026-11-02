@@ -42,7 +42,7 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * The database transaction manager resolver instance.
      *
-     * @var callable
+     * @var null|callable
      */
     protected $transactionManagerResolver;
 
@@ -378,6 +378,10 @@ class EventDispatcher implements EventDispatcherContract
      */
     protected function resolveTransactionManager(): ?TransactionManager
     {
+        if ($this->transactionManagerResolver === null) {
+            return null;
+        }
+
         return call_user_func($this->transactionManagerResolver);
     }
 
