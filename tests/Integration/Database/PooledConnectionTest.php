@@ -999,14 +999,16 @@ class PooledConnectionTest extends DatabaseTestCase
         $pool->close();
     }
 
-    public function testReleasePreservesTheFirstOrdinaryCleanupFailure(): void
+    #[TestWith([false], 'first ordinary failure')]
+    #[TestWith([true], 'later wrapped cancellation')]
+    public function testReleasePreservesCleanupFailurePrecedence(bool $releaseCanceled): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.events', [
             ConnectionReleasing::class,
         ]);
         $listenerFailure = new RuntimeException('Release listener failed.');
         $loggingFailure = new RuntimeException('Release failure logging failed.');
-        $poolReleaseFailure = new RuntimeException('Pool release failed.');
+        $poolReleaseFailure = new RuntimeException('Pool release failed.', previous: $releaseCanceled ? new CanceledException : null);
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('error')->once()->andThrow($loggingFailure);
         $this->app->instance(StdoutLoggerInterface::class, $logger);
@@ -1024,7 +1026,7 @@ class PooledConnectionTest extends DatabaseTestCase
             $pooledConnection->release();
             $this->fail('Expected release failure logging to fail.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($loggingFailure, $exception);
+            $this->assertSame($releaseCanceled ? $poolReleaseFailure : $loggingFailure, $exception);
         }
 
         $this->assertSame(1, $pool->getIdleCount());
