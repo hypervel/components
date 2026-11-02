@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Usage:
-# ./bin/split.sh [name]
+# ./bin/split.sh [name ...] [--ref commit] [--check] [--tag version] [--force-tag]
 #
 # Example:
 # ./bin/split.sh support
@@ -9,29 +9,111 @@
 set -e
 set -x
 
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-BASEPATH=$(cd `dirname $0`; cd ../src/; pwd)
-REPOS=$@
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD)
+SOURCE_COMMIT=HEAD
+CHECK_ONLY=false
+VERSION=
+TAG_PUSH_OPTIONS=()
+REPOSITORIES=()
+DISCOVERED_REPOSITORIES=()
+declare -A REPOSITORY_PATHS=()
+REPOSITORY_URLS=()
+UNAVAILABLE_REPOSITORIES=()
+SPLIT_COMMITS=()
 
-function split()
-{
-    SHA1=`./bin/splitsh-lite --prefix=$1`
-    git push $2 "$SHA1:refs/heads/$CURRENT_BRANCH" -f
-}
+while (( $# > 0 )); do
+    case "$1" in
+        --check)
+            CHECK_ONLY=true
+            shift
+            ;;
+        --ref)
+            SOURCE_COMMIT=${2:?A source commit is required.}
+            shift 2
+            ;;
+        --tag)
+            VERSION=${2:?A release tag is required.}
+            shift 2
+            ;;
+        --force-tag)
+            TAG_PUSH_OPTIONS=(--force)
+            shift
+            ;;
+        --*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            REPOSITORIES+=("$1")
+            shift
+            ;;
+    esac
+done
 
-function remote()
-{
-    git remote add $1 $2 || true
-}
+SOURCE_COMMIT=$(git rev-parse --verify "$SOURCE_COMMIT^{commit}")
 
-git pull origin $CURRENT_BRANCH
-
-if [[ $# -eq 0 ]]; then
-    REPOS=$(ls $BASEPATH)
+if [[ -n "$VERSION" ]]; then
+    git check-ref-format "refs/tags/$VERSION"
 fi
 
-for REPO in $REPOS ; do
-    remote $REPO git@github.com:hypervel/${REPO}.git
+PACKAGE_PATHS=$(git ls-tree -d --name-only "$SOURCE_COMMIT" src/ skeletons/)
+if [[ -z "$PACKAGE_PATHS" ]]; then
+    echo 'No split packages found in src/ or skeletons/.' >&2
+    exit 1
+fi
 
-    split "src/$REPO" $REPO
+while IFS= read -r PACKAGE_PATH; do
+    REPOSITORY=${PACKAGE_PATH##*/}
+    if [[ -n "${REPOSITORY_PATHS[$REPOSITORY]:-}" ]]; then
+        echo "Duplicate split repository name: $REPOSITORY (${REPOSITORY_PATHS[$REPOSITORY]} and $PACKAGE_PATH)" >&2
+        exit 1
+    fi
+    DISCOVERED_REPOSITORIES+=("$REPOSITORY")
+    REPOSITORY_PATHS[$REPOSITORY]=$PACKAGE_PATH
+done <<< "$PACKAGE_PATHS"
+
+if (( ${#REPOSITORIES[@]} == 0 )); then
+    REPOSITORIES=("${DISCOVERED_REPOSITORIES[@]}")
+fi
+
+for REPOSITORY in "${REPOSITORIES[@]}"; do
+    if [[ -z "${REPOSITORY_PATHS[$REPOSITORY]:-}" ]]; then
+        echo "Split repository not found in source commit: $REPOSITORY" >&2
+        exit 1
+    fi
+    REPOSITORY_URL="git@github.com:hypervel/$REPOSITORY.git"
+    REPOSITORY_URLS+=("$REPOSITORY_URL")
+    if ! git ls-remote "$REPOSITORY_URL" > /dev/null; then
+        UNAVAILABLE_REPOSITORIES+=("hypervel/$REPOSITORY")
+    fi
 done
+
+if (( ${#UNAVAILABLE_REPOSITORIES[@]} > 0 )); then
+    printf 'Missing or inaccessible split repositories:\n' >&2
+    printf '  %s\n' "${UNAVAILABLE_REPOSITORIES[@]}" >&2
+    exit 1
+fi
+
+if [[ "$CHECK_ONLY" == true ]]; then
+    printf 'All %s split repositories are accessible.\n' "${#REPOSITORIES[@]}"
+    exit 0
+fi
+
+# Splitsh requires a named reference; keep it fixed for this source commit.
+SOURCE_REFERENCE="refs/hypervel-split/$SOURCE_COMMIT"
+git update-ref "$SOURCE_REFERENCE" "$SOURCE_COMMIT"
+trap 'git update-ref -d "$SOURCE_REFERENCE"' EXIT
+
+for INDEX in "${!REPOSITORIES[@]}"; do
+    REPOSITORY=${REPOSITORIES[$INDEX]}
+    SPLIT_COMMIT=$(./bin/splitsh-lite --prefix="${REPOSITORY_PATHS[$REPOSITORY]}" --origin="$SOURCE_REFERENCE")
+    SPLIT_COMMITS+=("$SPLIT_COMMIT")
+    git push "${REPOSITORY_URLS[$INDEX]}" "$SPLIT_COMMIT:refs/heads/$CURRENT_BRANCH" --force
+done
+
+# Tag the recorded split commits, even if a destination branch moves afterwards.
+if [[ -n "$VERSION" ]]; then
+    for INDEX in "${!REPOSITORIES[@]}"; do
+        git push "${TAG_PUSH_OPTIONS[@]}" "${REPOSITORY_URLS[$INDEX]}" "${SPLIT_COMMITS[$INDEX]}:refs/tags/$VERSION"
+    done
+fi

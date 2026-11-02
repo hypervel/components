@@ -8,10 +8,16 @@ on:
         required: false
         default: ''
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   split:
     name: Split on branch ${{ github.ref }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SPLIT_PRIVATE_KEY }}
     steps:
