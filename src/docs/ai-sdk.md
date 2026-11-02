@@ -264,7 +264,7 @@ Likewise, you must configure a default transcription model to use `Transcription
 <a name="openai-compatible-classification"></a>
 #### OpenAI-Compatible Classification
 
-To use `Classification` with an OpenAI-compatible provider, configure a default classification model. Requests are sent to the endpoint's `/decisions` route in OpenAI's format, so your endpoint must support it:
+If your endpoint implements OpenAI's decisions endpoint, you may use [classification](#classification) with an OpenAI-compatible provider. The SDK sends questions to the endpoint's `/decisions` route and supports [image attachments](#classifying-images). Since the SDK does not know which models your endpoint supports, configure a default classification model or pass a model to the `classify` method:
 
 ```php
 'local' => [
@@ -273,7 +273,7 @@ To use `Classification` with an OpenAI-compatible provider, configure a default 
     'key' => env('LOCAL_AI_API_KEY'),
     'models' => [
         'classification' => [
-            'default' => 'local-classifier',
+            'default' => env('LOCAL_AI_MODEL'),
         ],
     ],
 ],
@@ -929,7 +929,7 @@ $response = (new SalesCoach)->prompt('Analyze this sales transcript...');
 return $response['score'];
 ```
 
-When a run ends without structured output, such as when it pauses for [tool approval](#human-tool-approval) or is [stopped](#stopping-a-run) before its first step, the response's `structured` property is an empty array.
+When a run ends without structured output, such as when it pauses for [tool approval](#human-tool-approval) or is [stopped](#stopping-runs) before its first step, the response's `structured` property is an empty array.
 
 <a name="structured-output-nested-objects"></a>
 #### Nested Objects
@@ -2001,7 +2001,10 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
 
-When the parent agent is [streaming](#streaming), its sub-agents stream as well, except sub-agents with [structured output](#structured-output), which return their result once complete. As a sub-agent's text grows, the parent periodically emits `ToolResult` events containing the text produced so far. These events are marked as preliminary and are followed by the tool call's final result. Short responses may only produce the final result. You may skip preliminary events when iterating manually:
+> [!WARNING]
+> Sub-agents do not currently support tools that require [human approval](#human-tool-approval). If a sub-agent's tool requires approval, the sub-agent pauses. However, the parent agent receives a normal tool result and continues its run without notifying your application of the pending approval. Register tools that require approval on the top-level agent.
+
+When the parent agent is [streaming](#streaming), its sub-agents stream as well, unless they produce [structured output](#structured-output). For streaming sub-agents, the parent agent emits preliminary `ToolResult` events containing the text the sub-agent has produced so far. The tool call's final result follows these events, so you may skip preliminary events when iterating manually. Hypervel batches progress updates as the text grows, so short responses may only produce the final result:
 
 ```php
 use Hypervel\Ai\Streaming\Events\ToolResult;
@@ -2081,7 +2084,7 @@ class LogPrompts
 }
 ```
 
-Middleware resolved from class names follows the normal container lifetime rules; shared middleware should be stateless. Middleware wraps each model step, not individual tool calls or child-agent runs. It can [end the run](#stopping-a-run) before the next model call, but does not interrupt a provider request that is already running.
+Middleware resolved from class names follows the normal container lifetime rules; shared middleware should be stateless. Middleware wraps each model step, not individual tool calls or child-agent runs. It can [end the run](#stopping-runs) before the next model call, but does not interrupt a provider request that is already running.
 
 In addition to the `provider`, `model`, `instructions`, `messages`, and `tools` that are about to be sent, the step exposes the steps that have already completed, their combined usage, and the progress of the run:
 
@@ -2148,7 +2151,7 @@ public function handle(PendingStep $step, Closure $next)
 }
 ```
 
-Middleware must return the result of `$next`, or its own `StepResponse` to answer the step without invoking the model, such as when serving a cached response. Returning any other value will throw a `LogicException`.
+Middleware must return the result of `$next`, a `StepResponse`, or `StepResult::stop()`. Return a `StepResponse` to answer the step without invoking the model, such as when serving a cached response. Return `StepResult::stop()` to end the run. Any other return value causes a `LogicException`.
 
 You may also attach middleware when invoking an agent, without changing its class. The `withMiddleware` method appends middleware that runs before the agent's declared middleware, in the order supplied:
 
@@ -2163,23 +2166,41 @@ $response = SalesCoach::make()
 
 You may pass middleware class names, instances, or closures. Middleware added this way remains on the agent instance for subsequent calls. A stream captures the added middleware when it is created, so adding more middleware afterwards does not change that stream.
 
-<a name="stopping-a-run"></a>
-#### Stopping a Run
+<a name="stopping-runs"></a>
+#### Stopping Runs
 
-The `Stop` middleware ends a run before its next model call. Its `when` and `unless` methods accept a boolean or a closure that receives the pending step:
+To end an agent's run before its next model call, use the `Stop` middleware. For example, you may stop a run when a user presses a "stop" button or the run reaches an input-token budget. The response retains the completed steps and their combined usage:
 
 ```php
+use Hypervel\Ai\Contracts\HasMiddleware;
 use Hypervel\Ai\Middleware\Stop;
 use Hypervel\Ai\PendingStep;
+use Hypervel\Support\Facades\Cache;
 
-$response = SalesCoach::make()
-    ->withMiddleware([
-        Stop::when(fn (PendingStep $step) => $step->usage->totalTokens() > 50_000),
-    ])
-    ->prompt('Review this sales call.');
+public function middleware(): array
+{
+    return [
+        // Stop when the user has pressed the "stop" button...
+        Stop::when(fn (PendingStep $step) => Cache::has("chat:{$this->user->id}:stopped")),
+
+        // Stop when the run has used at least 50,000 input tokens...
+        Stop::unless(fn (PendingStep $step) => $step->usage->inputTokens < 50_000),
+    ];
+}
 ```
 
-A stopped run returns the steps that completed before it stopped, and a remembered conversation keeps their messages. If no step completed, the response text is empty. A stopped stream ends with the `cancelled` finish reason.
+Before each step, `when` stops the run if the condition is true, and `unless` stops the run if the condition is false. Conditions may be booleans or closures that receive the pending step. A stopped streaming run has a `cancelled` finish reason. A remembered conversation keeps the completed steps' messages. If no step completed, the response text is empty.
+
+Custom middleware may also end the run by returning `StepResult::stop()` instead of the result of `$next`:
+
+```php
+use Hypervel\Ai\Gateway\StepResult;
+
+public function handle(PendingStep $step, Closure $next)
+{
+    return $this->cancelled($step) ? StepResult::stop() : $next($step);
+}
+```
 
 Queued agents and queued AI event listeners require serializable middleware, captured values, and tool instances stored on the agent. Queued prompt listeners also serialize all tools resolved through `withTools`, including declared tools retained by its closure form. For tools that contain closures, such as `SimilaritySearch`, declare them in `tools` and omit `withTools` when using queued prompt listeners.
 
@@ -3224,10 +3245,10 @@ $result = Classification::of('Inspect the product in this photo.', [
     ->classify(provider: 'openai');
 ```
 
-When images are given string keys, each image is labeled with its key, so your questions may refer to the images by name:
+To refer to a specific image in a question, attach images with string keys. The SDK labels each image with its key:
 
 ```php
-$result = Classification::of('Two product photos.', [
+$result = Classification::of('Inspect the products in these photos.', [
     'front' => Image::fromPath($front),
     'back' => Image::fromPath($back),
 ])
