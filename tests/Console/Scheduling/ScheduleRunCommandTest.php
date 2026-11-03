@@ -678,6 +678,34 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertStringContainsString('Failed', $output->fetch());
     }
 
+    public function testFailureAfterTheTaskFinishesReportsTheTaskRuntime(): void
+    {
+        $finishedEvent = null;
+        $failedEvent = null;
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $dispatcher->listen(ScheduledTaskFinished::class, function (ScheduledTaskFinished $event) use (&$finishedEvent): void {
+            $finishedEvent = $event;
+
+            // A slow listener, such as one sending an alert, is not part of the task's runtime.
+            usleep(50_000);
+        });
+        $dispatcher->listen(ScheduledTaskFailed::class, function (ScheduledTaskFailed $event) use (&$failedEvent): void {
+            $failedEvent = $event;
+        });
+        $this->dispatcher = $dispatcher;
+
+        $this->handler->shouldReceive('report')->once();
+
+        $command = $this->makeCommand();
+        $this->captureOutput($command);
+
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(m::mock(EventMutex::class), 1, 'test:slow-listener'));
+
+        $this->assertInstanceOf(ScheduledTaskFinished::class, $finishedEvent);
+        $this->assertInstanceOf(ScheduledTaskFailed::class, $failedEvent);
+        $this->assertSame($finishedEvent->runtime, $failedEvent->runtime);
+    }
+
     public function testDurationHandlerReportsAFailingCommandOnce(): void
     {
         $this->dispatcher = $this->app->make(Dispatcher::class);

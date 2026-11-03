@@ -490,16 +490,15 @@ class ScheduleRunCommand extends Command
 
         $failed = false;
         $skippedBecauseOverlapping = false;
+        $runtime = null;
 
         try {
             $event->run($this->hypervel);
+            $runtime = round(microtime(true) - $start, 2);
             $skippedBecauseOverlapping = $event->wasSkippedDueToOverlapping();
 
             if ($this->dispatcher->hasListeners(ScheduledTaskFinished::class)) {
-                $this->dispatcher->dispatch(new ScheduledTaskFinished(
-                    $event,
-                    round(microtime(true) - $start, 2)
-                ));
+                $this->dispatcher->dispatch(new ScheduledTaskFinished($event, $runtime));
             }
 
             $this->eventsRan = true;
@@ -526,10 +525,12 @@ class ScheduleRunCommand extends Command
             CoroutineContext::set(self::TASK_FAILED_CONTEXT_KEY, true);
 
             if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
+                // Unlike upstream, a run that fails after the task finished (a failing exit code or a throwing
+                // Finished listener) reports the task's own runtime, without the time its Finished listeners took.
                 $this->dispatcher->dispatch(new ScheduledTaskFailed(
                     $event,
                     $e,
-                    round(microtime(true) - $start, 2)
+                    $runtime ?? round(microtime(true) - $start, 2)
                 ));
             }
 
