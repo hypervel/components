@@ -393,7 +393,7 @@ class ScheduleRunCommandTest extends TestCase
 
         if ($onAnotherServer) {
             $this->assertStringContainsString(
-                'Skipping [test:skipped-background], as command already run on another server.',
+                'Skipping [test:skipped-background] because the command already ran on another server.',
                 $output->fetch(),
             );
         }
@@ -676,6 +676,57 @@ class ScheduleRunCommandTest extends TestCase
             $this->dispatched[2]->exception->getMessage()
         );
         $this->assertStringContainsString('Failed', $output->fetch());
+    }
+
+    public function testDurationHandlerReportsAFailingCommandOnce(): void
+    {
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->handler->shouldReceive('report')->once();
+
+        $runtimes = [];
+
+        // The fixture finishes instantly, so a negative threshold reports every run.
+        (new Schedule)->whenTaskRunsLongerThan(-1, function (Event $task, float $runtime) use (&$runtimes): void {
+            $runtimes[] = $runtime;
+        });
+
+        $command = $this->makeCommand();
+        $this->captureOutput($command);
+
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(m::mock(EventMutex::class), 1, 'test:slow-failure'));
+
+        $this->assertCount(1, $runtimes);
+    }
+
+    public function testDurationHandlerThatThrowsIsNotCalledAgainForTheFailedEvent(): void
+    {
+        $exception = new RuntimeException('Alert transport failed.');
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->handler->shouldReceive('report')->once()->with($exception);
+
+        $schedule = new Schedule;
+        $throwingCalls = 0;
+        $laterCalls = 0;
+
+        $schedule->whenTaskRunsLongerThan(-1, function () use (&$throwingCalls, $exception): void {
+            ++$throwingCalls;
+
+            throw $exception;
+        });
+
+        $schedule->whenTaskRunsLongerThan(-1, function () use (&$laterCalls): void {
+            ++$laterCalls;
+        });
+
+        $command = $this->makeCommand();
+        $this->captureOutput($command);
+
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(m::mock(EventMutex::class), 0, 'test:throwing-handler'));
+
+        $this->assertSame(1, $throwingCalls);
+
+        // The exception stops the Finished dispatch, so the later registration reports the run through ScheduledTaskFailed.
+        $this->assertSame(1, $laterCalls);
     }
 
     public function testBackgroundNonZeroExitDispatchesAndReportsFailureBeforeBackgroundCompletion(): void
@@ -1072,7 +1123,7 @@ class ScheduleRunCommandTest extends TestCase
         $display = $output->fetch();
 
         $this->assertStringContainsString(
-            'Skipping [test:single-server], as command already run on another server.',
+            'Skipping [test:single-server] because the command already ran on another server.',
             $display,
         );
         $this->assertStringNotContainsString('No scheduled commands are ready to run.', $display);
