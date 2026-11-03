@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
+use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Date;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Numeric;
@@ -88,7 +89,7 @@ class ValidationRuleParser
         }
 
         if (is_object($rule)) {
-            if ($rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
+            if ($rule instanceof ArrayRule || $rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
                 // Composite rules already separate constraints; literal parameters may contain pipes.
                 return $rule->toArray();
             }
@@ -99,7 +100,7 @@ class ValidationRuleParser
         $rules = [];
 
         foreach ($rule as $value) {
-            if ($value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
+            if ($value instanceof ArrayRule || $value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
                 $rules = array_merge($rules, $value->toArray());
             } else {
                 $rules[] = $this->prepareRule($value, $attribute);
