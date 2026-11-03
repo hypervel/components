@@ -56,7 +56,9 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
   mysql_84:
     runs-on: ubuntu-latest
@@ -104,7 +106,9 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
   mysql_97:
     runs-on: ubuntu-latest
@@ -152,7 +156,9 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: bin/run-database-tests.sh mysql
+        run: |
+          bin/run-database-tests.sh mysql
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
   mariadb_1011:
     runs-on: ubuntu-latest

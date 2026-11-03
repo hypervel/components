@@ -572,14 +572,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                 $beforeExecutingCallback($query, $bindings, $this);
             }
 
-            $this->reconnectIfMissingConnection();
-
             $start = hrtime(true) / 1e9;
 
             // Here we will run this query. If an exception occurs we'll determine if it was
             // caused by a connection that has been lost. If that is the cause, we'll try
             // to re-establish connection and re-run the query with a fresh connection.
             try {
+                if (! $this->hasDriverResources()) {
+                    $this->reconnectForQuery($query, $bindings);
+                }
+
                 try {
                     $result = $this->runQueryCallback($query, $bindings, $callback);
                 } catch (QueryException $e) {
@@ -648,8 +650,6 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                 $beforeExecutingCallback($query, $bindings, $this);
             }
 
-            $this->reconnectIfMissingConnection();
-
             $start = hrtime(true) / 1e9;
             $hasYielded = false;
 
@@ -680,6 +680,10 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             };
 
             try {
+                if (! $this->hasDriverResources()) {
+                    $this->reconnectForQuery($query, $bindings);
+                }
+
                 try {
                     yield from $execute($query, $bindings);
                 } catch (QueryException $exception) {
@@ -791,6 +795,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * Determine if the given database exception was caused by an invalid or out of range value.
      */
     protected function isDataTypeError(Exception $exception): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine if the given exception was thrown by the database driver.
+     */
+    protected function isDriverError(Exception $exception): bool
     {
         return false;
     }
@@ -933,7 +945,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             $this->reconnecting = true;
 
             try {
-                $this->reconnect();
+                $this->reconnectForQuery($query, $bindings);
             } finally {
                 $this->reconnecting = false;
             }
@@ -965,6 +977,32 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         if (! $this->hasDriverResources()) {
             $this->reconnect();
+        }
+    }
+
+    /**
+     * Reconnect for the given query, reporting driver failures as query failures.
+     *
+     * Laravel reconnects lazily, so a failed connection surfaces from the query callback
+     * as a QueryException. Driver resources are established eagerly here instead.
+     *
+     * @throws QueryException
+     */
+    protected function reconnectForQuery(string $query, array $bindings): void
+    {
+        try {
+            $this->reconnect();
+        } catch (Exception $exception) {
+            // QueryException extends PDOException, so check it before the driver classification.
+            if ($exception instanceof QueryException
+                || Coroutine::causedByCancellation($exception)
+                || ! $this->isDriverError($exception)) {
+                throw $exception;
+            }
+
+            ++$this->errorCount;
+
+            throw $this->newQueryException($query, $bindings, $exception);
         }
     }
 
