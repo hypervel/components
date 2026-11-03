@@ -43,7 +43,7 @@ class BroadcastConnectionReleaseTest extends TestCase
     {
         $observed = [];
         $pusher = m::mock(Pusher::class);
-        $pusher->shouldReceive('trigger')->times(9)->andReturnUsing(function () use (&$observed): object {
+        $pusher->shouldReceive('trigger')->times(12)->andReturnUsing(function () use (&$observed): object {
             $observed[] = $this->borrowedConnections();
             DB::connection('broadcast')->selectOne('select 1');
 
@@ -51,10 +51,11 @@ class BroadcastConnectionReleaseTest extends TestCase
         });
         $broadcaster = new PusherBroadcaster($this->app, $pusher);
 
-        $channels = array_map(static fn (int $id): string => 'orders.' . $id, range(1, 201));
+        // Encrypted channels are triggered one at a time after the chunks.
+        $channels = [...array_map(static fn (int $id): string => 'orders.' . $id, range(1, 201)), 'private-encrypted-orders'];
         $this->sendInEachScope(fn () => $broadcaster->broadcast($channels, 'created'));
 
-        $this->assertSame([0, 0, 0, 1, 1, 1, 1, 1, 1], $observed);
+        $this->assertSame([0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], $observed);
     }
 
     public function testAblyReleasesAfterPreparingTheMessage(): void
