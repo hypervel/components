@@ -13,6 +13,7 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\PaginationState;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionProperty;
@@ -62,6 +63,17 @@ class PaginationResolverTest extends TestCase
         PaginationState::resolveUsing($this->app);
 
         $this->assertSame(1, Paginator::resolveCurrentPage());
+    }
+
+    public function testCurrentPageResolverAcceptsMergedNumericStringable(): void
+    {
+        $request = Request::create('https://example.com');
+        $request->merge(['page' => new Stringable('2')]);
+        RequestContext::set($request);
+
+        PaginationState::resolveUsing($this->app);
+
+        $this->assertSame(2, Paginator::resolveCurrentPage());
     }
 
     public function testCurrentCursorResolverReadsFromRequest(): void
