@@ -20,6 +20,7 @@ assertType('ArrayIterator<int, Post>', $paginator->getIterator());
 
 assertType('string|null', $paginator->fragment());
 assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->fragment('foo'));
+assertType('Hypervel\Contracts\Support\Htmlable', $paginator->links());
 assertType('Hypervel\Pagination\Paginator<int, Post>', $paginator->loadMorph('parentable', [Post::class => ['comments' => function ($relation) {
     assertType('Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $relation);
 }]]));
