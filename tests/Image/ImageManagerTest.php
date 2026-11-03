@@ -25,6 +25,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use TypeError;
+use WeakReference;
 
 class ImageManagerTest extends TestCase
 {
@@ -431,6 +432,26 @@ class ImageManagerTest extends TestCase
         $this->assertSame('first', $first->toBytes());
         $this->assertSame('second', $second->toBytes());
         $this->assertSame('first', $first->toBytes());
+    }
+
+    public function testLazyImagesAreFreedWithoutWaitingForTheGarbageCollector(): void
+    {
+        $app = $this->makeApp([]);
+        $manager = new ImageManager($app);
+
+        gc_disable();
+
+        try {
+            $image = $manager->fromBase64(base64_encode('contents'));
+            $this->assertSame('contents', $image->toBytes());
+
+            $reference = WeakReference::create($image);
+            unset($image);
+
+            $this->assertNull($reference->get());
+        } finally {
+            gc_enable();
+        }
     }
 
     public function testFromUrlIsOnlyFetchedOnce(): void
