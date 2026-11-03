@@ -38,6 +38,9 @@ class SupportInteractsWithDataTest extends TestCase
 {
     use TestsInteractsWithDataContract;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -323,6 +326,9 @@ class SupportInteractsWithDataTest extends TestCase
     {
         $instance = static::arrayToDataFactory([
             'timezone' => new class implements Stringable {
+                /**
+                 * Get the timezone name.
+                 */
                 public function __toString(): string
                 {
                     return 'UTC';
@@ -394,15 +400,24 @@ class SupportInteractsWithDataTest extends TestCase
         $this->assertDataNestedNullValuesContract();
     }
 
+    /**
+     * Create the data instance under test from the given array.
+     */
     protected static function arrayToDataFactory(array $data): object
     {
         return new class($data) {
             use InteractsWithData;
 
+            /**
+             * Create a new data instance.
+             */
             public function __construct(protected array $attributes)
             {
             }
 
+            /**
+             * Get all of the data, or only the given keys.
+             */
             public function all(mixed $keys = null): array
             {
                 if (! $keys) {
@@ -418,6 +433,9 @@ class SupportInteractsWithDataTest extends TestCase
                 return $results;
             }
 
+            /**
+             * Retrieve data from the instance.
+             */
             protected function data(?string $key = null, mixed $default = null): mixed
             {
                 return data_get($this->attributes, $key, $default);

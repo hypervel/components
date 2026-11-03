@@ -17,8 +17,14 @@ use InvalidArgumentException;
 
 trait TestsInteractsWithDataContract
 {
+    /**
+     * Create the data instance under test from the given array.
+     */
     abstract protected static function arrayToDataFactory(array $data): object;
 
+    /**
+     * Assert the exists contract.
+     */
     protected function assertDataExistsContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'surname' => 'Otwell', 'age' => '']);
@@ -30,6 +36,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->exists(['name', 'votes']));
     }
 
+    /**
+     * Assert the exists contract for nested keys.
+     */
     protected function assertDataExistsNestedContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'foo' => ['bar' => 'bar', 'baz' => '']]);
@@ -40,6 +49,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->exists(['name', 'foo.bax']));
     }
 
+    /**
+     * Assert the has contract.
+     */
     protected function assertDataHasContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -60,6 +72,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->has('foo'));
     }
 
+    /**
+     * Assert the has contract for nested keys.
+     */
     protected function assertDataHasNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => 'bar', 'baz' => '']]);
@@ -71,6 +86,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->has(['foo.bar', 'foo.bax']));
     }
 
+    /**
+     * Assert the hasAny contract.
+     */
     protected function assertDataHasAnyContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -84,6 +102,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->hasAny(['surname', 'password']));
     }
 
+    /**
+     * Assert the hasAny contract for nested keys.
+     */
     protected function assertDataHasAnyNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => 'bar', 'baz' => '']]);
@@ -95,6 +116,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->hasAny(['votes', 'foo']));
     }
 
+    /**
+     * Assert the whenHas contract.
+     */
     protected function assertDataWhenHasContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -135,6 +159,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->whenHas('missing', fn ($value) => 'callback-' . $value, fn () => 'default'));
     }
 
+    /**
+     * Assert the whenHas contract for nested keys.
+     */
     protected function assertDataWhenHasNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => '']]);
@@ -158,6 +185,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($baz);
     }
 
+    /**
+     * Assert the filled contract.
+     */
     protected function assertDataFilledContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -181,6 +211,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->filled('foo'));
     }
 
+    /**
+     * Assert the filled contract for nested keys.
+     */
     protected function assertDataFilledNestedContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'foo' => ['bar' => '   ', 'baz' => '', 'bax' => 'bax']]);
@@ -191,6 +224,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->filled(['name', 'foo.baz']));
     }
 
+    /**
+     * Assert the isNotFilled contract.
+     */
     protected function assertDataIsNotFilledContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '0', 'whitespace' => '   ']);
@@ -207,6 +243,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->isNotFilled('age', 'city'));
     }
 
+    /**
+     * Assert the isNotFilled contract for nested keys.
+     */
     protected function assertDataIsNotFilledNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar', 'baz' => '0', 'bax' => '']]);
@@ -217,6 +256,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->isNotFilled('foo.bax'));
     }
 
+    /**
+     * Assert the anyFilled contract.
+     */
     protected function assertDataAnyFilledContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -243,6 +285,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->anyFilled('foo', 'bar'));
     }
 
+    /**
+     * Assert the anyFilled contract for nested keys.
+     */
     protected function assertDataAnyFilledNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => '', 'baz' => 'baz']]);
@@ -252,6 +297,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->anyFilled('foo.bar'));
     }
 
+    /**
+     * Assert the whenFilled contract.
+     */
     protected function assertDataWhenFilledContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -292,6 +340,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->whenFilled('age', fn ($value) => 'callback-' . $value, fn () => 'default'));
     }
 
+    /**
+     * Assert the whenFilled contract for nested keys.
+     */
     protected function assertDataWhenFilledNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => '', 'baz' => 'baz']]);
@@ -315,6 +366,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('baz', $baz);
     }
 
+    /**
+     * Assert the whenEnum contract.
+     */
     protected function assertDataWhenEnumContract(): void
     {
         $data = static::arrayToDataFactory(['status' => 'A', 'invalid' => 'invalid', 'empty' => '']);
@@ -361,6 +415,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->whenEnum('missing', TestStringBackedEnum::class, fn () => 'callback', fn () => 'default'));
     }
 
+    /**
+     * Assert the missing contract.
+     */
     protected function assertDataMissingContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'city' => '   ']);
@@ -377,6 +434,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->missing(['name', 'email']));
     }
 
+    /**
+     * Assert the missing contract for nested keys.
+     */
     protected function assertDataMissingNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => 'bar', 'baz' => '']]);
@@ -388,6 +448,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->missing(['foo.bar', 'foo.bax']));
     }
 
+    /**
+     * Assert the whenMissing contract.
+     */
     protected function assertDataWhenMissingContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'bar' => '']);
@@ -423,6 +486,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->whenMissing('name', fn () => 'callback', fn () => 'default'));
     }
 
+    /**
+     * Assert the whenMissing contract for nested keys.
+     */
     protected function assertDataWhenMissingNestedContract(): void
     {
         $data = static::arrayToDataFactory(['foo' => ['bar' => '']]);
@@ -446,6 +512,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($baz);
     }
 
+    /**
+     * Assert the str contract.
+     */
     protected function assertDataStrContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -463,6 +532,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->str('unknown_key', 'default')->value());
     }
 
+    /**
+     * Assert the string contract.
+     */
     protected function assertDataStringContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -488,6 +560,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->string('unknown_key', 'default')->value());
     }
 
+    /**
+     * Assert the strict string contract.
+     */
     protected function assertDataStringStrictContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -513,6 +588,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame('default', $data->string('array', fn () => 'default', true)->value());
     }
 
+    /**
+     * Assert the boolean contract.
+     */
     protected function assertDataBooleanContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -540,6 +618,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->boolean('some_undefined_key', true));
     }
 
+    /**
+     * Assert the strict boolean contract.
+     */
     protected function assertDataBooleanStrictContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -585,6 +666,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue($data->boolean('empty_str', fn () => true, true));
     }
 
+    /**
+     * Assert the integer contract.
+     */
     protected function assertDataIntegerContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -610,6 +694,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(123456, $data->integer('unknown_key', 123456));
     }
 
+    /**
+     * Assert the strict integer contract.
+     */
     protected function assertDataIntegerStrictContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -653,6 +740,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(7, $data->integer('mixed', fn () => 7, true));
     }
 
+    /**
+     * Assert the float contract.
+     */
     protected function assertDataFloatContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -680,6 +770,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(123.456, $data->float('unknown_key', 123.456));
     }
 
+    /**
+     * Assert the strict float contract.
+     */
     protected function assertDataFloatStrictContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -723,6 +816,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(7.5, $data->float('mixed', fn () => 7.5, true));
     }
 
+    /**
+     * Assert the strict boolean contract for native values.
+     */
     protected function assertDataBooleanStrictNativeValuesContract(): void
     {
         $data = static::arrayToDataFactory(['true' => true, 'false' => false]);
@@ -737,6 +833,9 @@ trait TestsInteractsWithDataContract
         $this->assertFalse($data->boolean('false', null, true));
     }
 
+    /**
+     * Assert the clamp contract.
+     */
     protected function assertDataClampContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -758,6 +857,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(15, $data->clamp('string', 10, 100, 15));
     }
 
+    /**
+     * Assert the date contract.
+     */
     protected function assertDataDateContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -797,6 +899,9 @@ trait TestsInteractsWithDataContract
         }
     }
 
+    /**
+     * Assert the interval contract.
+     */
     protected function assertDataIntervalContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -846,6 +951,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(1, $data->interval('normal_float', Unit::Hour)->hours);
     }
 
+    /**
+     * Assert the enum contract.
+     */
     protected function assertDataEnumContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -878,6 +986,9 @@ trait TestsInteractsWithDataContract
         $this->assertNull($data->enum('doesnt_exist', TestIntegerBackedEnum::class));
     }
 
+    /**
+     * Assert the enum contract for nested keys.
+     */
     protected function assertDataEnumNestedContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -889,6 +1000,9 @@ trait TestsInteractsWithDataContract
         $this->assertNull($data->enum('string.missing', TestStringBackedEnum::class));
     }
 
+    /**
+     * Assert the enums contract.
+     */
     protected function assertDataEnumsContract(): void
     {
         $data = static::arrayToDataFactory([
@@ -912,6 +1026,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame([TestIntegerBackedEnum::Minus1, TestIntegerBackedEnum::Zero, TestIntegerBackedEnum::Plus1], $data->enums('integer_values', TestIntegerBackedEnum::class));
     }
 
+    /**
+     * Assert the array contract.
+     */
     protected function assertDataArrayContract(): void
     {
         $data = static::arrayToDataFactory(['users' => ['1', '2', '3'], 'roles' => ['4', '5', '6'], 'email' => 'test@example.com']);
@@ -927,11 +1044,17 @@ trait TestsInteractsWithDataContract
         $this->assertSame([], static::arrayToDataFactory([])->array());
     }
 
+    /**
+     * Assert the array contract for Arrayable values.
+     */
     protected function assertDataArrayArrayableContract(): void
     {
         $this->assertSame([1, 2], static::arrayToDataFactory(['users' => new Collection([1, 2])])->array('users'));
     }
 
+    /**
+     * Assert the collect contract.
+     */
     protected function assertDataCollectContract(): void
     {
         $data = static::arrayToDataFactory(['users' => ['1', '2', '3'], 'roles' => ['4', '5', '6'], 'email' => 'test@example.com']);
@@ -950,6 +1073,9 @@ trait TestsInteractsWithDataContract
         $this->assertTrue(static::arrayToDataFactory([])->collect()->isEmpty());
     }
 
+    /**
+     * Assert the collect contract for nested keys.
+     */
     protected function assertDataCollectNestedContract(): void
     {
         $data = static::arrayToDataFactory(['authors' => ['taylor' => ['products' => ['forge', 'vapor', 'spark']]]]);
@@ -957,6 +1083,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(['forge', 'vapor', 'spark'], $data->collect('authors.taylor.products')->all());
     }
 
+    /**
+     * Assert the only contract.
+     */
     protected function assertDataOnlyContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '', 'email' => 'taylor@laravel.com']);
@@ -967,6 +1096,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame([], $data->only('missing'));
     }
 
+    /**
+     * Assert the only contract for nested keys.
+     */
     protected function assertDataOnlyNestedContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'developer' => ['name' => 'Taylor', 'age' => '']]);
@@ -977,6 +1109,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame([], $data->only('developer.skills'));
     }
 
+    /**
+     * Assert the except contract.
+     */
     protected function assertDataExceptContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'age' => '25']);
@@ -987,6 +1122,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame([], $data->except(['age', 'name']));
     }
 
+    /**
+     * Assert the except contract for nested keys.
+     */
     protected function assertDataExceptNestedContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'developer' => ['name' => 'Taylor', 'age' => '']]);
@@ -995,6 +1133,9 @@ trait TestsInteractsWithDataContract
         $this->assertEquals(['developer' => ['age' => '']], $data->except('name', 'developer.name'));
     }
 
+    /**
+     * Assert the contract for null values.
+     */
     protected function assertDataNullValuesContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'city' => null]);
@@ -1039,6 +1180,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame([], $data->enums('city', TestStringBackedEnum::class));
     }
 
+    /**
+     * Assert that null values do not use the given defaults.
+     */
     protected function assertDataNullValuesIgnoreDefaultsContract(): void
     {
         $data = static::arrayToDataFactory(['city' => null]);
@@ -1049,6 +1193,9 @@ trait TestsInteractsWithDataContract
         $this->assertSame(0.0, $data->float('city', 123.456));
     }
 
+    /**
+     * Assert the contract for nested null values.
+     */
     protected function assertDataNestedNullValuesContract(): void
     {
         $data = static::arrayToDataFactory(['name' => 'Taylor', 'foo' => ['bar' => null]]);

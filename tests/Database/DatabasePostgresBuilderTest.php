@@ -364,6 +364,9 @@ class DatabasePostgresBuilderTest extends TestCase
         $this->assertSame($expected, $this->getBuilder($connection)->getCurrentSchemaListing());
     }
 
+    /**
+     * Get the search path and schema settings with their expected schema listings.
+     */
     public static function currentSchemaListingConfigurationProvider(): array
     {
         return [

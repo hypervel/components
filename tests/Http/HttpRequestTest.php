@@ -1777,6 +1777,9 @@ class HttpRequestTest extends TestCase
         $this->assertDataClampContract();
     }
 
+    /**
+     * Create the data instance under test from the given array.
+     */
     protected static function arrayToDataFactory(array $data): object
     {
         return Request::create('/', 'GET', $data);

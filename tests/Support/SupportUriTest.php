@@ -567,6 +567,9 @@ class SupportUriTest extends TestCase
         $this->assertDataExceptNestedContract();
     }
 
+    /**
+     * Create the data instance under test from the given array.
+     */
     protected static function arrayToDataFactory(array $data): object
     {
         return Uri::of('https://hypervel.org')->withQuery($data)->query();

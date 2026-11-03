@@ -372,6 +372,9 @@ class ViewComponentAttributeBagTest extends TestCase
         $this->assertDataExistsContract();
     }
 
+    /**
+     * Create the data instance under test from the given array.
+     */
     protected static function arrayToDataFactory(array $data): object
     {
         return new ComponentAttributeBag($data);

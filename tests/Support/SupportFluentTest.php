@@ -435,6 +435,9 @@ class SupportFluentTest extends TestCase
         $this->assertDataNestedNullValuesContract();
     }
 
+    /**
+     * Create the data instance under test from the given array.
+     */
     protected static function arrayToDataFactory(array $data): object
     {
         return new Fluent($data);

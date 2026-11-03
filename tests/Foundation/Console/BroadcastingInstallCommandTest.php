@@ -19,6 +19,9 @@ class BroadcastingInstallCommandTest extends TestCase
 {
     protected string $basePath;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,6 +32,9 @@ class BroadcastingInstallCommandTest extends TestCase
         (new Filesystem)->ensureDirectoryExists($this->basePath . '/resources/js');
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         (new Filesystem)->deleteDirectory($this->basePath);
@@ -55,6 +61,9 @@ class BroadcastingInstallCommandTest extends TestCase
         );
     }
 
+    /**
+     * Get the framework packages with their application files.
+     */
     public static function frameworkFiles(): array
     {
         // REMOVED: Vue's app.ts and app.js cases. Hypervel's command configures Echo

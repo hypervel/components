@@ -22,6 +22,9 @@ class LazilyRefreshDatabaseWithoutMigrationEventsTest extends TestCase
 
     protected array $connectionsToTransact = ['testing'];
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
@@ -34,10 +37,16 @@ class LazilyRefreshDatabaseWithoutMigrationEventsTest extends TestCase
         $database = $this->app->make('db');
 
         $this->app->instance(KernelContract::class, $kernel = new class($database) extends ConsoleKernelSpy {
+            /**
+             * Create a new console kernel spy.
+             */
             public function __construct(protected DatabaseManager $database)
             {
             }
 
+            /**
+             * Run a query before calling the command.
+             */
             public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
             {
                 $this->database->connection('testing')->select('select 2');
