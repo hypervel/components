@@ -2016,6 +2016,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['Hello World'], $builder->getBindings());
 
         $builder = $this->getPostgresBuilderWithProcessor();
+        $builder->select('*')->from('users')->whereFullText('body', 'Hello World', ['language' => 'greek']);
+        $this->assertSame('select * from "users" where (to_tsvector(\'greek\', "body")) @@ plainto_tsquery(\'greek\', ?)', $builder->toSql());
+        $this->assertEquals(['Hello World'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText('body', 'Hello World', ['mode' => 'plain']);
         $this->assertSame('select * from "users" where (to_tsvector(\'english\', "body")) @@ plainto_tsquery(\'english\', ?)', $builder->toSql());
         $this->assertEquals(['Hello World'], $builder->getBindings());
@@ -6197,6 +6202,14 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([
             'delete from "my_schema".sqlite_sequence where name = ?' => ['prefix_users'],
             'delete from "my_schema"."prefix_users"' => [],
+        ], $builder->getGrammar()->compileTruncate($builder));
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('getSchemaBuilder->parseSchemaAndTable')->andReturn(['0', 'users']);
+        $builder->from('0.users');
+        $this->assertSame([
+            'delete from "0".sqlite_sequence where name = ?' => ['users'],
+            'delete from "0"."users"' => [],
         ], $builder->getGrammar()->compileTruncate($builder));
     }
 
