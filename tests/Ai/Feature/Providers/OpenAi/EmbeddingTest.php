@@ -11,6 +11,7 @@ use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 
@@ -51,6 +52,16 @@ class EmbeddingTest extends TestCase
         $this->assertSame(10, $response->usage->inputTokens);
         $this->assertSame('openai', $response->meta->provider);
         $this->assertSame('text-embedding-3-small', $response->meta->model);
+    }
+
+    public function testEmbeddingsExposeTheRawHttpResponse(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiEmbeddingResponse()]);
+
+        $response = Embeddings::for(['Hello world'])->generate(provider: 'openai', model: 'text-embedding-3-small');
+
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(10, $response->raw->json('usage.prompt_tokens'));
     }
 
     public function testMultipleInputsReturnMultipleEmbeddings(): void

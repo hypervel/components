@@ -11,6 +11,7 @@ use Hypervel\Ai\Transcription;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use LogicException;
@@ -110,6 +111,17 @@ class TranscriptionTest extends TestCase
 
         $this->assertSame(100, $response->usage->inputTokens);
         $this->assertSame(50, $response->usage->outputTokens);
+    }
+
+    public function testTheRawHttpResponseIsExposedOnTheTranscriptionResponse(): void
+    {
+        Http::fake(['*' => fakeOpenAiTranscriptionResponse()]);
+
+        $response = Transcription::fromBase64(base64_encode('fake-audio'), 'audio/mp3')
+            ->generate(provider: 'openai');
+
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame('Hello, world!', $response->raw->json('text'));
     }
 
     public function testTranscriptionSendsLanguageWhenProvided(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Responses;
 
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TranscriptionSegment;
 use Hypervel\Ai\Responses\Data\TranscriptionUsage;
@@ -12,6 +13,8 @@ use Stringable;
 
 class TranscriptionResponse implements Stringable
 {
+    use HasRawResponse;
+
     public string $text;
 
     /** @var Collection<int, TranscriptionSegment> */

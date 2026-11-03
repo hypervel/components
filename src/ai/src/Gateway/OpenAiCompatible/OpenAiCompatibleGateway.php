@@ -87,11 +87,11 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
 
         $this->validateTextResponse($data);
 
-        return new EmbeddingsResponse(
+        return (new EmbeddingsResponse(
             $this->parseEmbeddings($data, count($inputs)),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -136,7 +136,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
 
         $data = $response->json();
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             $data['text'] ?? '',
             collect($data['segments'] ?? [])->map(fn (array $segment): TranscriptionSegment => new TranscriptionSegment(
                 $segment['text'] ?? '',
@@ -150,7 +150,7 @@ class OpenAiCompatibleGateway implements EmbeddingGateway, StepTextGateway, Tran
                 audioSeconds: Arr::get($data, 'usage.seconds') ?? Arr::get($data, 'duration'),
             ),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
