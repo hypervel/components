@@ -720,7 +720,7 @@ Laravel's deprecated `InvokableRule` contract is not available. Change rules tha
 
 When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
 
-Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes. `UnserializeCast` is not included; write a custom cast that passes `allowed_classes` to `unserialize()` for trusted values. Livewire and TypeScript integrations are also not included.
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes. Livewire and TypeScript integrations are not included.
 
 In `config/data.php`, the `casts`, `transformers`, `normalizers`, and `rule_inferrers` options only hold your own extensions; remove Spatie's built-in entries, since Hypervel's built-in handling is fixed. If you enabled Spatie's optional `FormRequestNormalizer`, keep it as `Hypervel\Data\Normalizers\FormRequestNormalizer`. Typed iterable items are always cast and transformed, and an array given to a collection property becomes that collection.
 
@@ -734,6 +734,7 @@ Review these behavior differences in ported code:
 - Custom `pipeline()` overrides and `DataPipe` classes are not supported. Rebuild them with named factories, `prepareForPipeline()`, or factory hooks.
 - A value that a union property already accepts is kept, such as a string for `string|SongData` or an array for `array|Collection`, and validation applies the rules of the declared type that holds it. Declare `Collection` alone when the property should always hold a collection. See [type conversion](/docs/{{version}}/data-objects#type-conversion).
 - A model attribute holding `null` is passed as `null` instead of falling back to the property's default or `Optional`. Columns that were not selected still count as missing.
+- `UnserializeCast` restores no objects unless their classes are listed in `allowedClasses`. List the classes your stored values contain, including nested ones. See [unserializing values](/docs/{{version}}/data-objects#unserializing-values).
 - A custom cast's `$properties` contains only declared property values keyed by PHP property name, without undeclared input or raw input names.
 - `CreationContext::$dataClass` is the class the creation started with, even while nested objects are created, and the context has no `from()`, `collect()`, or `currentPath`. Replace `$context->from()` with `TargetData::factory($context)->from()`, which copies the context's options but not its hooks. A cast can read `$property->className` for the class that declares the property.
 - An array or collection cannot be collected into a paginator target or given to a paginator property. Pass a Hypervel paginator so its pagination details are kept.

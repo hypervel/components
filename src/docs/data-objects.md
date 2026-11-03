@@ -22,6 +22,7 @@
     - [Abstract Data Objects](#abstract-data-objects)
     - [Backed Enums](#backed-enums)
 - [Casts and Transformers](#casts-and-transformers)
+    - [Unserializing Values](#unserializing-values)
     - [Custom Casts](#custom-casts)
     - [Custom Transformers](#custom-transformers)
     - [Global Casts and Transformers](#global-casts-and-transformers)
@@ -896,6 +897,38 @@ class InvoiceData extends Data
     ) {
     }
 }
+```
+
+<a name="unserializing-values"></a>
+### Unserializing Values
+
+The `UnserializeCast` runs PHP's `unserialize` function on a value. This is useful when you store serialized values yourself, for example in a database column or a cache:
+
+```php
+use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Casts\UnserializeCast;
+
+class SongData extends Data
+{
+    public function __construct(
+        public string $title,
+        #[WithCast(UnserializeCast::class, allowedClasses: [SongMetadata::class])]
+        public SongMetadata $metadata,
+    ) {
+    }
+}
+```
+
+The `allowedClasses` argument lists the classes that may be created while unserializing. Any other class becomes a `__PHP_Incomplete_Class` object, so a property typed as that class fails with a `TypeError`. This also applies to nested objects: when `SongMetadata` holds a `CarbonImmutable` date, `CarbonImmutable` must be listed as well. By default, no classes are allowed, so only scalar values, arrays, and enum cases are restored. You may pass `true` to allow every class.
+
+> [!WARNING]
+> Only unserialize trusted data. Class restrictions do not make user-controlled serialized data safe. For user input, use JSON and validate the decoded values.
+
+When the value cannot be unserialized, an exception is thrown. You may make the cast fail silently instead, which leaves the value to the built-in conversion:
+
+```php
+#[WithCast(UnserializeCast::class, failSilently: true, allowedClasses: [SongMetadata::class])]
+public SongMetadata $metadata;
 ```
 
 <a name="custom-casts"></a>
