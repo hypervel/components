@@ -601,12 +601,13 @@ class DatabaseConversationStoreTest extends TestCase
         $this->assertSame(1, DB::table('agent_conversation_messages')->where('role', 'assistant')->count());
     }
 
-    public function testAResumeFoldsItsStepsTextAndUsageIntoThePausedRow(): void
+    #[DataProvider('resumeStreamingModes')]
+    public function testAResumeFoldsItsStepsTextAndUsageIntoThePausedRow(bool $streamed, string $content): void
     {
         $store = new DatabaseConversationStore;
         $conversationId = $store->storeConversation('user', 1, 'Approval conversation');
 
-        insertAssistantTurn($conversationId, 'paused-1', '', [
+        insertAssistantTurn($conversationId, 'paused-1', 'Let me check.', [
             assistantStep(
                 [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]],
                 [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => [], 'result' => 'Deleted', 'result_id' => null]],
@@ -624,15 +625,24 @@ class DatabaseConversationStoreTest extends TestCase
             approvalDecisions: Decisions::from(['call-1' => true]),
         );
 
-        $response = new AgentResponse('invocation-id', 'Done.', new TextUsage(20, 7), new Meta('openai', 'gpt-5'));
-        $response->steps = collect([new Step('Done.', [], [], FinishReason::Stop, new TextUsage(20, 7), new Meta, '', [])]);
+        $step = new Step('Done.', [], [], FinishReason::Stop, new TextUsage(20, 7), new Meta, '', []);
+
+        if ($streamed) {
+            $response = new StreamedAgentResponse('invocation-id', collect([
+                new TextDelta('event-1', 'message-1', 'Done.', 0),
+                new StreamEnd('event-2', 'stop', new TextUsage(20, 7), 0, collect([$step])),
+            ]), new Meta('openai', 'gpt-5'));
+        } else {
+            $response = new AgentResponse('invocation-id', 'Done.', new TextUsage(20, 7), new Meta('openai', 'gpt-5'));
+            $response->steps = collect([$step]);
+        }
 
         $messageId = $store->storeAssistantMessage($conversationId, 'user', 1, $prompt, $response);
 
         $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->sole();
 
         $this->assertSame('paused-1', $messageId);
-        $this->assertSame('Done.', $row->content);
+        $this->assertSame($content, $row->content);
         $steps = json_decode($row->steps, true);
         $this->assertCount(2, $steps);
         $this->assertSame('Done.', $steps[1]['content']);
@@ -640,6 +650,88 @@ class DatabaseConversationStoreTest extends TestCase
         $this->assertSame(12, json_decode($row->usage, true)['output_tokens']);
         $this->assertSame('openai', json_decode($row->meta, true)['provider']);
         $this->assertSame('gpt-5', json_decode($row->meta, true)['model']);
+    }
+
+    /**
+     * Provide the prompted and streamed resume modes with the content each stores.
+     */
+    public static function resumeStreamingModes(): array
+    {
+        return [
+            'prompted' => [false, 'Done.'],
+            'streamed' => [true, "Let me check.\n\nDone."],
+        ];
+    }
+
+    public function testAStreamedTurnThatPausesTwiceKeepsTheTextOfEveryStep(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Approval conversation');
+
+        insertAssistantTurn($conversationId, 'paused-1', 'Let me check.', [
+            assistantStep([['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]]),
+        ], ['call-1' => 'Deletes a file']);
+
+        $resume = fn (string $callId): AgentPrompt => new AgentPrompt(
+            new ToolUsingAgent,
+            '',
+            [],
+            m::mock(TextProvider::class),
+            'test-model',
+            approvalDecisions: Decisions::from([$callId => true]),
+        );
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, $resume('call-1'), new StreamedAgentResponse('invocation-1', collect([
+            new TextDelta('event-1', 'message-1', 'Deleting.', 0),
+            new ToolApprovalRequest('event-2', collect([new PendingApproval('call-2', 'DeleteFile', [], 'Deletes a file')]), 0, collect([
+                new Step('Deleting.', [new ToolCall('call-2', 'DeleteFile', [])], [], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),
+            ])),
+        ]), new Meta('openai', 'gpt-5')));
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, $resume('call-2'), new StreamedAgentResponse('invocation-2', collect([
+            new TextDelta('event-3', 'message-2', 'Done.', 0),
+            new StreamEnd('event-4', 'stop', new TextUsage, 0, collect([
+                new Step('Done.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+            ])),
+        ]), new Meta('openai', 'gpt-5')));
+
+        $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->sole();
+
+        $this->assertSame("Let me check.\n\nDeleting.\n\nDone.", $row->content);
+        $this->assertSame('completed', $row->status);
+    }
+
+    public function testAStreamedResumeKeepsAContinuedStepInOneParagraph(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Approval conversation');
+
+        // The stream displayed a continuation without tools, such as a pause_turn, as one paragraph.
+        insertAssistantTurn($conversationId, 'paused-1', 'Hello', [
+            assistantStep(content: 'Hel'),
+            assistantStep([['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]], content: 'lo'),
+        ], ['call-1' => 'Deletes a file']);
+
+        $prompt = new AgentPrompt(
+            new ToolUsingAgent,
+            '',
+            [],
+            m::mock(TextProvider::class),
+            'test-model',
+            approvalDecisions: Decisions::from(['call-1' => true]),
+        );
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, $prompt, new StreamedAgentResponse('invocation-id', collect([
+            new TextDelta('event-1', 'message-1', 'Done.', 0),
+            new StreamEnd('event-2', 'stop', new TextUsage, 0, collect([
+                new Step('Done.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+            ])),
+        ]), new Meta('openai', 'gpt-5')));
+
+        $row = DB::table('agent_conversation_messages')->where('role', 'assistant')->sole();
+
+        $this->assertSame("Hello\n\nDone.", $row->content);
+        $this->assertCount(3, json_decode($row->steps, true));
     }
 
     public function testAResumeKeepsTheCitationsThePausedHalfOfTheTurnCollected(): void
@@ -2078,7 +2170,7 @@ class DatabaseConversationStoreTest extends TestCase
         $store = new DatabaseConversationStore;
         [$conversationId, $messageId] = $this->pause($store);
         $prompt = $this->prompt(Decisions::from(['call-1' => true]));
-        $prompt->setRunContext(new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class), approvalStore: $store, conversationId: $conversationId));
+        $prompt->setRunContext((new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class)))->withApprovalStore($store, $conversationId));
         $before = DB::table('agent_conversation_messages')->where('id', $messageId)->first();
 
         try {
@@ -2259,7 +2351,7 @@ class DatabaseConversationStoreTest extends TestCase
     private function claimedPrompt(DatabaseConversationStore $store, string $conversationId): AgentPrompt
     {
         $prompt = $this->prompt(Decisions::from(['call-1' => true]));
-        $context = new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class), approvalStore: $store, conversationId: $conversationId);
+        $context = (new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class)))->withApprovalStore($store, $conversationId);
         $context->claimPendingApprovals(['call-1']);
         $prompt->setRunContext($context);
 

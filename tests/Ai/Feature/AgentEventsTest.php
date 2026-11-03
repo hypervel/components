@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
-use Exception;
+use Hypervel\Ai\AnonymousAgent;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\ConversationStore;
@@ -40,6 +40,7 @@ use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
@@ -54,8 +55,10 @@ use Hypervel\Tests\Ai\Fixtures\Agents\OrchestratorAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RateLimitedToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingThrowingApprovableAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
+use Hypervel\Tests\Ai\Fixtures\ConversationStores\InMemoryConversationStore;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
@@ -323,12 +326,119 @@ class AgentEventsTest extends TestCase
 
         $response = (new RememberingAssistantAgent)->forUser($user)->prompt('Test prompt');
 
-        // Title generation runs its own loop on the same provider, and must not be attributed to this run...
-        Event::assertDispatchedTimes(StartingStep::class, 1);
-        Event::assertDispatchedTimes(StepCompleted::class, 1);
+        $this->assertCount(1, Event::dispatched(StartingStep::class, fn (StartingStep $event): bool => $event->invocationId === $response->invocationId));
+        $this->assertCount(1, Event::dispatched(StepCompleted::class, fn (StepCompleted $event): bool => $event->invocationId === $response->invocationId));
+    }
 
-        Event::assertDispatched(StartingStep::class, fn (StartingStep $event): bool => $event->invocationId === $response->invocationId
-            && $event->stepNumber === 0);
+    public function testConversationTitleGenerationIsReportedAsItsOwnAgentRun(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushResponse(fakeGroqResponse('Greeting Conversation'));
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $title = Event::dispatched(AgentPrompted::class, fn (AgentPrompted $event): bool => $event->prompt->parentInvocationId === $response->invocationId)->sole()[0];
+
+        $this->assertNotSame($response->invocationId, $title->invocationId);
+        $this->assertSame('groq', $title->prompt->provider->name());
+        $this->assertSame('openai/gpt-oss-20b', $title->prompt->model);
+        $this->assertSame('Hello', $title->prompt->prompt);
+        $this->assertSame('Greeting Conversation', $title->response->text);
+
+        Event::assertDispatched(StepCompleted::class, fn (StepCompleted $event): bool => $event->invocationId === $title->invocationId);
+    }
+
+    public function testAFailedConversationTitleRunFallsBackToThePromptWithoutFailingTheTurn(): void
+    {
+        $store = $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushStatus(500);
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $this->assertSame('Hello there.', $response->text);
+        $this->assertSame('Hello', $store->conversations[$response->conversationId]['title']);
+
+        $failed = Event::dispatched(AgentFailed::class)->sole()[0];
+
+        $this->assertInstanceOf(AnonymousAgent::class, $failed->prompt->agent);
+        $this->assertSame($response->invocationId, $failed->prompt->parentInvocationId);
+        $this->assertInstanceOf(RequestException::class, $failed->exception);
+    }
+
+    public function testATurnThatFailsAfterAStepReportsItsTitleRunAgainstTheFailedRun(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        Event::fake();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqToolCallResponse())
+            ->pushStatus(500)
+            ->pushResponse(fakeGroqResponse('Number Report'));
+
+        $this->assertThrows(fn (): AgentResponse => (new RememberingToolUsingAgent)->forUser((object) ['id' => 1])->prompt('Generate a number', provider: 'groq'), RequestException::class);
+
+        $failedRun = Event::dispatched(AgentFailed::class)->sole()[0];
+
+        Event::assertDispatched(AgentPrompted::class, fn (AgentPrompted $event): bool => $event->prompt->parentInvocationId === $failedRun->invocationId
+            && $event->response->text === 'Number Report');
+    }
+
+    public function testAThrowingListenerOnTheTitleRunDoesNotFailTheTurn(): void
+    {
+        $store = $this->prepareConversationTitleRun();
+
+        Http::fakeSequence()
+            ->pushResponse(fakeGroqResponse('Hello there.'))
+            ->pushResponse(fakeGroqResponse('Greeting Conversation'));
+
+        Event::listen(AgentPrompted::class, function (AgentPrompted $event): void {
+            if ($event->prompt->parentInvocationId !== null) {
+                throw new RuntimeException('observability backend is down');
+            }
+        });
+
+        $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        $this->assertSame('Hello there.', $response->text);
+        $this->assertSame('Hello', $store->conversations[$response->conversationId]['title']);
+    }
+
+    public function testDisabledConversationTitleGenerationMakesNoTitleCall(): void
+    {
+        $this->prepareConversationTitleRun();
+
+        config(['ai.conversations.generate_title' => false]);
+
+        Http::fakeSequence()->pushResponse(fakeGroqResponse('Hello there.'));
+
+        (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->prompt('Hello', provider: 'groq');
+
+        Http::assertSentCount(1);
+    }
+
+    /**
+     * Remember conversations in memory against a Groq provider that must not send unexpected requests.
+     */
+    protected function prepareConversationTitleRun(): InMemoryConversationStore
+    {
+        $this->app->instance(ConversationStore::class, $store = new InMemoryConversationStore);
+
+        config(['ai.providers.groq' => [...config('ai.providers.groq'), 'key' => 'test-key']]);
+
+        Http::preventStrayRequests();
+
+        return $store;
     }
 
     public function testStepEventsAreDispatchedOnTheStreamingPath(): void
@@ -415,7 +525,7 @@ class AgentEventsTest extends TestCase
         $this->assertSame($starting->agent, $completed->agent);
     }
 
-    public function testAThrowingToolDispatchesToolFailedAndStillPropagatesTheException(): void
+    public function testAThrowingToolDispatchesToolFailedAndTheRunContinues(): void
     {
         Event::fake();
 
@@ -424,14 +534,14 @@ class AgentEventsTest extends TestCase
             ['number' => 5],
         ]);
 
-        $this->assertThrows(fn (): AgentResponse => (new ToolUsingAgent(fixed: true, toolThrowsException: true))->prompt('Generate'), Exception::class, 'Forced to throw exception.');
+        (new ToolUsingAgent(fixed: true, toolThrowsException: true))->prompt('Generate');
 
         Event::assertDispatched(ToolFailed::class, fn (ToolFailed $event): bool => $event->tool instanceof FixedNumberGenerator
             && $event->exception->getMessage() === 'Forced to throw exception.');
 
         Event::assertNotDispatched(ToolInvoked::class);
 
-        Event::assertDispatched(AgentFailed::class);
+        Event::assertNotDispatched(AgentFailed::class);
 
         $invoking = Event::dispatched(InvokingTool::class)->first()[0];
         $failed = Event::dispatched(ToolFailed::class)->first()[0];
@@ -1061,7 +1171,9 @@ class AgentEventsTest extends TestCase
 
     public function testAStreamedFailureAfterTheStreamStartedReportsTheRunAsFailed(): void
     {
-        Event::fake();
+        Event::fakeExcept([ToolFailed::class]);
+
+        Event::listen(ToolFailed::class, fn (ToolFailed $event) => throw $event->exception);
 
         config([
             'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],

@@ -46,7 +46,7 @@ class AgentPromptTest extends TestCase
         $prompt = new AgentPrompt($agent, 'Summarize this', [], $provider, 'test-model', contextRunner: $runner, conversationSelection: $selection, conversationMessages: $history);
         $claim = new ApprovalClaim('message', 'token');
         $store = self::createConfiguredStub(ClaimsPendingApprovals::class, ['claimPendingApprovals' => $claim]);
-        $context = new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner, $store, 'conversation');
+        $context = (new RunContext('invocation', $agent, $provider, 'test-model', $this->app->make('events'), $runner))->withApprovalStore($store, 'conversation');
         $context->claimPendingApprovals(['call']);
         $prompt->setRunContext($context);
         $prompt->setPendingConversationTitle($title = new PendingConversationTitle(fn (): string => 'Conversation title', $runner));

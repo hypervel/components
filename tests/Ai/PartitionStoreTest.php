@@ -93,7 +93,7 @@ class PartitionStoreTest extends TestCase
 
         CoroutineContext::set('ai-test.account', self::ACCOUNT_A);
         $prompt = $this->prompt(Decisions::from(['call-1' => true]));
-        $context = new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class), approvalStore: $store, conversationId: $conversationId);
+        $context = (new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class)))->withApprovalStore($store, $conversationId);
         $context->claimPendingApprovals(['call-1']);
         $prompt->setRunContext($context);
         $before = DB::table('agent_conversation_messages')->where('id', $messageId)->first();

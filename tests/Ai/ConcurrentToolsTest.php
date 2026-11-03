@@ -15,6 +15,8 @@ use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Events\ToolFailed;
+use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Gateway\StepResponse;
 use Hypervel\Ai\Gateway\TextGenerationLoop;
 use Hypervel\Ai\Gateway\TextGenerationOptions;
@@ -140,12 +142,18 @@ class ConcurrentToolsTest extends TestCase
         (new TextGenerationLoop($gateway))->generate($provider, 'model', '', options: new TextGenerationOptions(agent: new InvalidConcurrentToolsTestAgent('', [], [])));
     }
 
-    #[TestWith([false, false], 'ordinary tool failure')]
+    #[TestWith([false, false], 'rethrown tool failure')]
     #[TestWith([true, false], 'direct child cancellation')]
     #[TestWith([true, true], 'wrapped child cancellation')]
     public function testToolFailureCancelsAndJoinsTheOtherTools(bool $canceled, bool $cleanupThrows): void
     {
         $failure = $canceled ? new CanceledException : new RuntimeException('The tool failed.');
+        $events = $this->app->make(Dispatcher::class);
+
+        // An ordinary tool failure is returned to the model, so only a listener rethrowing it ends the run.
+        if (! $canceled) {
+            $events->listen(ToolFailed::class, fn (ToolFailed $event) => throw $event->exception);
+        }
 
         if ($cleanupThrows) {
             $failure = new RuntimeException('Tool cleanup failed.', previous: $failure);
@@ -180,7 +188,7 @@ class ConcurrentToolsTest extends TestCase
         $caught = null;
 
         try {
-            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])));
+            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])), context: new RunContext('invocation', m::mock(Agent::class), $provider, 'model', $events));
         } catch (Throwable $exception) {
             $caught = $exception;
         }

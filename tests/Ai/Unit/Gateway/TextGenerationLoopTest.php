@@ -1605,7 +1605,7 @@ class TextGenerationLoopTest extends TestCase
         });
         $gateway = m::mock(StepTextGateway::class);
         $gateway->shouldReceive('generateTextStep')->once()->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         (new TextGenerationLoop($gateway))->generate(
             $provider,
@@ -1638,7 +1638,7 @@ class TextGenerationLoopTest extends TestCase
         $store->shouldNotReceive('recordApprovalResult');
         $tool = $this->approvalTool();
         $tool->shouldNotReceive('handle');
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         $this->expectException(ApprovalMismatchException::class);
 
@@ -1670,7 +1670,7 @@ class TextGenerationLoopTest extends TestCase
         }
         $tool = $this->approvalTool();
         $tool->shouldReceive('handle')->once()->andThrow($exception);
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         try {
             (new TextGenerationLoop($gateway))->generate(

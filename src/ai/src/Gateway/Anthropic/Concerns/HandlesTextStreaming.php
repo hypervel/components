@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 
 use Generator;
+use Hypervel\Ai\Messages\AssistantMessage;
+use Hypervel\Ai\Messages\Message;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
@@ -21,19 +23,40 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Psr\Http\Message\StreamInterface;
 
 trait HandlesTextStreaming
 {
     /**
+     * Get the content of the paused steps the turn being continued is made of.
+     *
+     * @param array<int, Message> $messages
+     * @return array<int, array<string, mixed>>
+     */
+    protected function pausedContent(array $messages): array
+    {
+        /** @var Collection<int, AssistantMessage> $paused */
+        $paused = collect($messages)
+            ->reverse()
+            ->takeWhile(fn (Message $message): bool => $message instanceof AssistantMessage)
+            ->reverse();
+
+        return $paused->flatMap(fn (AssistantMessage $message): array => $message->replayBlocks)->all();
+    }
+
+    /**
      * Process a single Anthropic streaming turn and yield Hypervel stream events.
+     *
+     * @param array<int, array<string, mixed>> $pausedContent
      */
     protected function processTextStream(
         string $invocationId,
         Provider $provider,
         string $model,
         StreamInterface $streamBody,
+        array $pausedContent = [],
     ): Generator {
         $messageId = $this->generateEventId();
         $reasoningId = '';
@@ -52,6 +75,18 @@ trait HandlesTextStreaming
         $responseContent = [];
         $afterTool = false;
         $lastTextDelta = '';
+
+        // A turn resumed after pause_turn picks up where the paused content ended...
+        foreach ($pausedContent as $block) {
+            $blockType = $block['type'] ?? '';
+
+            if ($blockType === 'text' && ($block['text'] ?? '') !== '') {
+                $lastTextDelta = (string) $block['text'];
+                $afterTool = false;
+            } elseif ($this->isToolBlock($blockType)) {
+                $afterTool = true;
+            }
+        }
 
         $messageUsage = [];
         $usage = null;

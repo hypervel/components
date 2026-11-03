@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Gateway\Concerns;
 
 use Hypervel\Ai\Contracts\Tool;
+use Hypervel\Ai\Exceptions\ToolExecutionException;
 use Hypervel\Ai\Gateway\ParentInvocation;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Providers\Tools\ToolSearch;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Ai\Tools\ToolNameResolver;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Str;
 use Hypervel\Validation\ValidationException;
 use Throwable;
@@ -42,7 +44,8 @@ trait InvokesTools
             } catch (Throwable $exception) {
                 // Keep the original exception, including cancellation, as previous if failure reporting throws.
                 try {
-                    throw $exception;
+                    // Unlike upstream, cancellation is not wrapped, so the caller never recovers it as the tool's own failure.
+                    throw Coroutine::causedByCancellation($exception) ? $exception : new ToolExecutionException($exception);
                 } finally {
                     $context?->toolFailed($tool, $arguments, $exception, $toolInvocationId, $this->elapsedMilliseconds($startedAt));
                 }

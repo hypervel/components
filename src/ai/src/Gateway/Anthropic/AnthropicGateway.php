@@ -129,6 +129,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
             $provider,
             $model,
             $response->getBody(),
+            $this->pausedContent($messages),
         );
     }
 

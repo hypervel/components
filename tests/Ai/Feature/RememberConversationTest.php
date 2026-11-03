@@ -937,9 +937,7 @@ class RememberConversationTest extends TestCase
         if ($cleanupThrows) {
             $failure = new RuntimeException('Title cleanup failed.', previous: $failure);
         }
-        $loop = m::mock(TextGenerationLoop::class);
-        $loop->shouldReceive('generate')->once()->andThrow($failure);
-        $prompt->provider()->shouldReceive('textGenerationLoop')->once()->andReturn($loop);
+        $prompt->provider()->shouldReceive('prompt')->once()->andThrow($failure);
         $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
 
         $response = $this->response();
@@ -957,9 +955,7 @@ class RememberConversationTest extends TestCase
         $prompt = $this->prompt();
         $cancellation = new CanceledException('Title request canceled.');
         $storageFailure = new RuntimeException('Conversation storage failed.');
-        $loop = m::mock(TextGenerationLoop::class);
-        $loop->shouldReceive('generate')->once()->andThrow($cancellation);
-        $prompt->provider()->shouldReceive('textGenerationLoop')->once()->andReturn($loop);
+        $prompt->provider()->shouldReceive('prompt')->once()->andThrow($cancellation);
         $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
         $store = m::mock(DatabaseConversationStore::class);
         $store->shouldReceive('storeTurn')->once()->andThrow($storageFailure);
@@ -993,7 +989,9 @@ class RememberConversationTest extends TestCase
      */
     private function context(AgentPrompt $prompt, ?DatabaseConversationStore $store = null, ?string $conversationId = null): RunContext
     {
-        return new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class), approvalStore: $store, conversationId: $conversationId);
+        $context = new RunContext('invocation', $prompt->agent, $prompt->provider(), 'model', $this->app->make(Dispatcher::class));
+
+        return $store === null ? $context : $context->withApprovalStore($store, $conversationId);
     }
 
     /**
