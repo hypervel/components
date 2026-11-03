@@ -33,11 +33,10 @@ class PaginationState
                 return 1;
             }
 
-            $page = $request->input($pageName);
+            // Use the filtered value: a numeric Stringable passes the filter, but casting it to int fails.
+            $page = filter_var($request->input($pageName), FILTER_VALIDATE_INT);
 
-            return filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1
-                ? (int) $page
-                : 1;
+            return $page !== false && $page >= 1 ? $page : 1;
         });
 
         Paginator::queryStringResolver(static function (): array {

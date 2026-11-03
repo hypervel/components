@@ -572,6 +572,8 @@ If an active stream is explicitly closed, its next advancement must throw `Hyper
 
 Both execution methods construct database errors through the protected `newQueryException` method. Drivers whose parameter types need custom error formatting may override this method to return a `QueryException` subclass. Preserve the original query, bindings, and cause; exceptions that are not database failures may be rethrown unchanged. The base implementation continues to prepare bindings and enrich unique-constraint errors with the reported index or columns. It returns an `InvalidValueException` when the protected `isDataTypeError` method identifies an invalid or out-of-range value; override that method to classify your driver's errors.
 
+When a query has to re-establish a missing or lost connection first, a failure to reconnect is reported through `newQueryException` only if the protected `isDriverError` method recognizes it as your driver's exception. Override that method so connection failures reach callers as query exceptions, just like failures from the query itself. Other reconnect failures are thrown unchanged.
+
 Custom drivers used with database cache locks must identify unique-constraint violations through `isUniqueConstraintError` so lock contention can be handled without hiding other database failures.
 
 Query builders with statement-level options may override the protected `Query\Builder::prepareQueryForEmbedding` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member. Call the parent first, validate the returned query, and return it so callback preparation and the built-in rejection of embedded timeouts are preserved.

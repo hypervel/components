@@ -538,11 +538,31 @@ class MaintenanceModeTest extends TestCase
 
     public function testMaintenanceModeRetryDatetimeIsConvertedToGmt(): void
     {
-        $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+        $timezone = date_default_timezone_get();
 
-        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+        date_default_timezone_set('Europe/Berlin');
 
-        $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+        try {
+            $this->artisan(DownCommand::class, ['--retry' => '2026-12-31 15:30:00']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Thu, 31 Dec 2026 14:30:00 GMT', $data['retry']);
+
+            $this->artisan(DownCommand::class, ['--retry' => '2026-12-31T15:30:00+02:00']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Thu, 31 Dec 2026 13:30:00 GMT', $data['retry']);
+
+            $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+
+            $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+            $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+        } finally {
+            date_default_timezone_set($timezone);
+        }
     }
 
     public function testMaintenanceModeRetryWithHttpDateHeader(): void

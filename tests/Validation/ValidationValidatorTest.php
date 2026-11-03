@@ -4709,6 +4709,9 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => ['1', '11']], ['foo.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
 
+        $v = new Validator($trans, ['foo' => ['hello', "HELLO\n"]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertTrue($v->passes());
+
         $v = new Validator($trans, ['foo' => ['foo', 'bar']], ['foo.*' => 'distinct']);
         $this->assertTrue($v->passes());
 
@@ -4776,6 +4779,16 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['users' => [['name' => ['John']], ['name' => ['john']]]], ['users.*.name' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ["caf\xE9", 'bar']], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ["caf\xE9", "caf\xE9"]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
+
+        // A malformed sibling must not stop the case-insensitive search for later duplicates.
+        $v = new Validator($trans, ['foo' => ["caf\xE9", 'BAR', 'bar']], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertSame(['foo.1', 'foo.2'], $v->errors()->keys());
 
         $v = new Validator($trans, ['values' => ['hello', []]], ['values.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());

@@ -9,6 +9,7 @@ use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Unit;
+use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -242,42 +243,101 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as a Stringable instance.
      */
-    public function str(string $key, mixed $default = null): Stringable
+    public function str(string $key, mixed $default = null, bool $strict = false): Stringable
     {
-        return $this->string($key, $default);
+        return $this->string($key, $default, $strict);
     }
 
     /**
      * Retrieve data from the instance as a Stringable instance.
+     *
+     * When strict, values that are not strings, numbers, or Stringable objects return the default.
      */
-    public function string(string $key, mixed $default = null): Stringable
+    public function string(string $key, mixed $default = null, bool $strict = false): Stringable
     {
-        return new Stringable($this->data($key, $default));
+        // Strict mode resolves the default only after rejecting the value, so a lazy default runs once.
+        $value = $this->data($key, $strict ? null : $default);
+
+        if ($strict && ! is_string($value) && ! is_int($value) && ! is_float($value) && ! $value instanceof BaseStringable) {
+            $value = value($default);
+        }
+
+        return new Stringable($value);
     }
 
     /**
      * Retrieve data as a boolean value.
      *
      * Returns true when value is "1", "true", "on", and "yes". Otherwise, returns false.
+     * When strict, unrecognized or empty values return the default.
+     *
+     * @template TDefault of bool|null
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return ($strict is true ? bool|TDefault : bool)
      */
-    public function boolean(?string $key = null, bool $default = false): bool
+    public function boolean(?string $key = null, Closure|bool|null $default = false, bool $strict = false): ?bool
     {
+        if ($strict) {
+            // A null key reads all of the data, which is never a valid boolean.
+            return $key === null || $this->isNotFilled($key)
+                ? value($default)
+                : filter_var($this->data($key), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? value($default);
+        }
+
         return filter_var($this->data($key, $default), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
      * Retrieve data as an integer value.
+     *
+     * When strict, values that are not valid integers return the default.
+     *
+     * @template TDefault of int|null
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return ($strict is true ? int|TDefault : int)
      */
-    public function integer(string $key, int $default = 0): int
+    public function integer(string $key, Closure|int|null $default = 0, bool $strict = false): ?int
     {
+        if ($strict) {
+            $value = $this->data($key);
+
+            // FILTER_VALIDATE_INT returns 1 for true, but false for false, so we need to check for a bool first
+            if (is_bool($value)) {
+                return value($default);
+            }
+
+            // Return the filtered value: a numeric Stringable passes the filter, but casting it to int fails.
+            return filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? value($default);
+        }
+
         return (int) $this->data($key, $default);
     }
 
     /**
      * Retrieve data as a float value.
+     *
+     * When strict, values that are not valid numbers return the default.
+     *
+     * @template TDefault of float|null
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return ($strict is true ? float|TDefault : float)
      */
-    public function float(string $key, float $default = 0.0): float
+    public function float(string $key, Closure|float|null $default = 0.0, bool $strict = false): ?float
     {
+        if ($strict) {
+            $value = $this->data($key);
+
+            if (is_bool($value)) {
+                return value($default);
+            }
+
+            // Return the filtered value: a numeric Stringable passes the filter, but casting it to float fails.
+            return filter_var($value, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE) ?? value($default);
+        }
+
         return (float) $this->data($key, $default);
     }
 
@@ -381,7 +441,9 @@ trait InteractsWithData
      */
     public function array(array|string|null $key = null): array
     {
-        return (array) (is_array($key) ? $this->only($key) : $this->data($key));
+        $value = is_array($key) ? $this->only($key) : $this->data($key);
+
+        return is_object($value) ? Arr::from($value) : (array) $value;
     }
 
     /**

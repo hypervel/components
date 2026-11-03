@@ -7,12 +7,12 @@ namespace Hypervel\Bus;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
-use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\UniqueFor;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 
 class UniqueLock
 {
-    use ReadsQueueAttributes;
+    use ReadsClassAttributes;
 
     /**
      * Create a new unique lock manager instance.

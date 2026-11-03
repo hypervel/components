@@ -99,7 +99,7 @@ class SQLiteGrammar extends Grammar
             . ' from pragma_table_list as tl where'
             . (match (true) {
                 ! empty($schema) && is_array($schema) => ' tl.schema in (' . $this->quoteString($schema) . ') and',
-                ! empty($schema) => ' tl.schema = ' . $this->quoteString($schema) . ' and',
+                is_string($schema) => ' tl.schema = ' . $this->quoteString($schema) . ' and',
                 default => '',
             })
             . " tl.type in ('table', 'virtual') and tl.name not like 'sqlite\\_%' escape '\\' "
@@ -562,7 +562,7 @@ class SQLiteGrammar extends Grammar
 
         return sprintf(
             'create unique index %s%s on %s (%s)',
-            $schema ? $this->wrapValue($schema) . '.' : '',
+            $schema !== null ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index),
             $this->wrapTable($table),
             $this->columnizeIndexedColumns($command)
@@ -578,7 +578,7 @@ class SQLiteGrammar extends Grammar
 
         return sprintf(
             'create index %s%s on %s (%s)%s',
-            $schema ? $this->wrapValue($schema) . '.' : '',
+            $schema !== null ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index),
             $this->wrapTable($table),
             $this->columnizeIndexedColumns($command),
@@ -700,7 +700,7 @@ class SQLiteGrammar extends Grammar
 
         return sprintf(
             'drop index %s%s',
-            $schema ? $this->wrapValue($schema) . '.' : '',
+            $schema !== null ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index)
         );
     }

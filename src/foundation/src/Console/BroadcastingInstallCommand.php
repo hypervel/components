@@ -369,6 +369,9 @@ class BroadcastingInstallCommand extends Command
     protected function injectFrameworkSpecificConfiguration(): void
     {
         $files = $this->hypervel->make(Filesystem::class);
+
+        // Laravel also configures @laravel/echo-vue in app.ts or app.js. Hypervel only ships
+        // a React starter kit, so Vue apps use the standard echo.js setup instead.
         $filePaths = [
             $this->hypervel->resourcePath('js/app.tsx'),
             $this->hypervel->resourcePath('js/app.jsx'),

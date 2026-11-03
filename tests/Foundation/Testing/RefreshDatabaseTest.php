@@ -197,6 +197,23 @@ class RefreshDatabaseTest extends TestCase
         $this->assertSame([null], $kernel->setArtisanCalls);
     }
 
+    public function testTestTransactionIsRolledBackWhenTheTestLeavesATransactionOpen(): void
+    {
+        config()->set('database.default', 'testing');
+        config()->set('database.connections.testing', ['driver' => 'sqlite', 'database' => ':memory:']);
+        $this->app->instance(KernelContract::class, new ConsoleKernelSpy);
+
+        $this->refreshTestDatabase();
+
+        $pdo = $this->app->make('db')->connection()->getPdo();
+
+        $this->app->make('db')->connection()->beginTransaction();
+
+        $this->callBeforeApplicationDestroyedCallbacks();
+
+        $this->assertFalse($pdo->inTransaction());
+    }
+
     public function testRefreshTestDatabaseRestoresMockConsoleOutputAfterMigrationFailure(): void
     {
         $this->mockConsoleOutput = true;

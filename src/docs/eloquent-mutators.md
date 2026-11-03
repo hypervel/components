@@ -997,6 +997,18 @@ class AsAddress implements CastsAttributes
 }
 ```
 
+Objects you assign to the attribute are cached too, so the next read returns the same instance. If your cast accepts objects that it does not return, define a `shouldCacheObject` method on the cast class. When this method returns `false`, Eloquent builds the attribute from its stored value the next time it is read:
+
+```php
+/**
+ * Determine if the assigned object can be cached as the attribute value.
+ */
+public function shouldCacheObject(Model $model, string $key, object $value): bool
+{
+    return $value instanceof Address;
+}
+```
+
 <a name="array-json-serialization"></a>
 ### Array / JSON Serialization
 

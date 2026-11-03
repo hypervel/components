@@ -94,7 +94,9 @@ trait DatabaseTransactions
                     $connection->forgetRecordModificationState();
                 }
 
-                $connection->rollBack();
+                // Laravel disconnects after rolling back one level. Hypervel keeps the connection
+                // open, so roll back every level, including transactions the test left open.
+                $connection->rollBack(0);
             } finally {
                 if ($dispatcher !== null) {
                     $connection->setEventDispatcher($dispatcher);

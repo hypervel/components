@@ -541,6 +541,35 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(1, $connection->transactionLevel());
     }
 
+    public function testConnectionIsReestablishedAfterTheConnectionIsLostDuringRollBack(): void
+    {
+        $pdo = $this->createMock(PDOStub::class);
+        $pdo->method('inTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('beginTransaction');
+        $pdo->expects($this->once())->method('rollBack')->willThrowException(new PDOException('server has gone away'));
+
+        $newPdo = $this->createMock(PDOStub::class);
+        $newPdo->expects($this->once())->method('beginTransaction');
+
+        $connection = $this->getMockConnection([], $pdo);
+        $connection->setReconnector(fn ($connection) => $connection->setPdo($newPdo));
+
+        $connection->beginTransaction();
+
+        try {
+            $connection->rollBack();
+
+            $this->fail('A PDOException was not thrown.');
+        } catch (PDOException) {
+            $this->assertSame(0, $connection->transactionLevel());
+        }
+
+        $connection->beginTransaction();
+
+        $this->assertSame(1, $connection->transactionLevel());
+        $this->assertSame($newPdo, $connection->getPdo());
+    }
+
     public function testBeginTransactionMethodNeverRetriesIfWithinTransaction(): void
     {
         $pdo = $this->createMock(PDOStub::class);
@@ -918,6 +947,167 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame($exception, $event->exception);
     }
 
+    public function testRunReportsAMissingConnectionDriverFailureAsTheQueryFailure(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setPdo(null);
+        $driverFailure = new PDOException('SQLSTATE[HY000] [14] unable to open database file');
+        $connection->setReconnector(static function () use ($driverFailure): never {
+            throw $driverFailure;
+        });
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $event = null;
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->withArgs(
+            static function (QueryFailed $dispatched) use (&$event): bool {
+                $event = $dispatched;
+
+                return true;
+            },
+        );
+        $exception = null;
+
+        try {
+            $method->invokeArgs($connection, [
+                'select ?',
+                [1],
+                fn (): never => $this->fail('The query must not run without a connection.'),
+            ]);
+        } catch (QueryException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertInstanceOf(QueryException::class, $exception);
+        $this->assertSame($driverFailure, $exception->getPrevious());
+        $this->assertSame('select ?', $exception->getSql());
+        $this->assertSame([1], $exception->getBindings());
+        $this->assertInstanceOf(QueryFailed::class, $event);
+        $this->assertSame($exception, $event->exception);
+        $this->assertSame(1, $connection->getErrorCount());
+    }
+
+    public function testRunReportsAFailedLostConnectionReconnectAsTheQueryFailure(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $driverFailure = new PDOException('SQLSTATE[HY000] [2002] Connection refused');
+        $connection->setReconnector(static function () use ($driverFailure): never {
+            throw $driverFailure;
+        });
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $event = null;
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->withArgs(
+            static function (QueryFailed $dispatched) use (&$event): bool {
+                $event = $dispatched;
+
+                return true;
+            },
+        );
+        $exception = null;
+
+        try {
+            $method->invokeArgs($connection, [
+                'select 1',
+                [],
+                static fn (): never => throw new PDOException('server has gone away'),
+            ]);
+        } catch (QueryException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertInstanceOf(QueryException::class, $exception);
+        $this->assertSame($driverFailure, $exception->getPrevious());
+        $this->assertInstanceOf(QueryFailed::class, $event);
+        $this->assertSame($exception, $event->exception);
+        $this->assertSame(2, $connection->getErrorCount());
+    }
+
+    public function testRunRethrowsAReconnectQueryExceptionWithoutCountingItAgain(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setPdo(null);
+        // A ConnectionEstablished listener's query has already reported its own failure.
+        $listenerFailure = new QueryException('test', 'select 2', [], new PDOException('Listener query failed.'));
+        $connection->setReconnector(static function () use ($listenerFailure): never {
+            throw $listenerFailure;
+        });
+
+        try {
+            $method->invokeArgs($connection, [
+                'select 1',
+                [],
+                fn (): never => $this->fail('The query must not run without a connection.'),
+            ]);
+            $this->fail('Expected the listener query failure to be rethrown.');
+        } catch (QueryException $exception) {
+            $this->assertSame($listenerFailure, $exception);
+        }
+
+        $this->assertSame(0, $connection->getErrorCount());
+    }
+
+    #[DataProvider('driverCancellations')]
+    public function testRunPreservesCancellationDuringAQueryReconnect(Throwable $cancellation): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setPdo(null);
+        $connection->setReconnector(static function () use ($cancellation): never {
+            throw $cancellation;
+        });
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldNotReceive('hasListeners')->with(QueryFailed::class);
+        $events->shouldNotReceive('dispatch')->with(m::type(QueryFailed::class));
+
+        try {
+            $method->invokeArgs($connection, [
+                'select 1',
+                [],
+                fn (): never => $this->fail('The query must not run without a connection.'),
+            ]);
+            $this->fail('Expected the reconnect cancellation to be thrown.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(0, $connection->getErrorCount());
+    }
+
+    /**
+     * Supply direct cancellation and a driver failure carrying it.
+     */
+    public static function driverCancellations(): iterable
+    {
+        yield 'direct' => [new CanceledException('Operation canceled.')];
+        yield 'chained driver failure' => [new PDOException('Connect failed.', previous: new CanceledException('Operation canceled.'))];
+    }
+
+    #[DataProvider('pdoDriverErrors')]
+    public function testPdoConnectionClassifiesNativeDriverErrors(Exception $exception, bool $expected): void
+    {
+        $connection = $this->getMockConnection();
+
+        $this->assertSame(
+            $expected,
+            (new ReflectionClass(PdoConnection::class))->getMethod('isDriverError')->invoke($connection, $exception),
+        );
+    }
+
+    /**
+     * Supply PDO driver failures and unrelated exceptions.
+     */
+    public static function pdoDriverErrors(): iterable
+    {
+        yield 'pdo exception' => [new PDOException('SQLSTATE[HY000] [1045] Access denied for user'), true];
+        yield 'pdo warning' => [new ErrorException('PDO::__construct(): SSL operation failed with code 1.'), true];
+        yield 'mysqlnd warning' => [new ErrorException('Packets out of order. Expected 1 received 0. Packet size=23'), true];
+        yield 'unrelated warning' => [new ErrorException('Undefined array key "host"'), false];
+        yield 'reconnector failure' => [new RuntimeException('Unable to reconnect.'), false];
+    }
+
     public function testRunEmitsOnlyQueryExecutedWhenLostConnectionRetrySucceeds(): void
     {
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
@@ -1044,6 +1234,45 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(0, $reconnects);
         $this->assertSame([1], iterator_to_array($stream));
         $this->assertSame(1, $reconnects);
+    }
+
+    public function testStreamingReportsAMissingConnectionDriverFailureAsTheQueryFailure(): void
+    {
+        $connection = $this->getMockConnection();
+        $connection->setPdo(null);
+        $reconnects = 0;
+        $driverFailure = new PDOException('SQLSTATE[HY000] [14] unable to open database file');
+        $connection->setReconnector(static function () use (&$reconnects, $driverFailure): never {
+            ++$reconnects;
+
+            throw $driverFailure;
+        });
+        $event = null;
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(
+            static function (QueryFailed $dispatched) use (&$event): void {
+                $event = $dispatched;
+            },
+        );
+        $connection->setEventDispatcher($events);
+
+        $stream = $this->runStreamingQuery($connection, fn (): never => $this->fail('The query must not run without a connection.'));
+
+        $this->assertSame(0, $reconnects);
+
+        try {
+            iterator_to_array($stream);
+            $this->fail('Expected the reconnect failure to be reported.');
+        } catch (QueryException $exception) {
+            $this->assertSame($driverFailure, $exception->getPrevious());
+            $this->assertSame('select ?', $exception->getSql());
+            $this->assertInstanceOf(QueryFailed::class, $event);
+            $this->assertSame($exception, $event->exception);
+        }
+
+        $this->assertSame(1, $reconnects);
+        $this->assertSame(1, $connection->getErrorCount());
     }
 
     public function testStreamingEmptyAndPretendResultsStillLogCompletion(): void

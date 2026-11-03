@@ -15,16 +15,16 @@ use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
-use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
 {
-    use ReadsQueueAttributes;
+    use ReadsClassAttributes;
     use ResolvesQueueRoutes;
 
     /**

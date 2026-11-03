@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Commands;
 
 use Hypervel\Console\Command;
+use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Support\Facades\Date;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -36,6 +37,12 @@ class ScheduleInterruptCommand extends Command
      */
     public function handle(): int
     {
+        if (! Schedule::$interruptible) {
+            $this->components->error('Schedule interrupting is currently disabled.');
+
+            return self::FAILURE;
+        }
+
         $this->cache->forever('hypervel:schedule:interrupt', Date::now()->getTimestampMs());
 
         $this->components->info('Broadcasting schedule interrupt signal.');

@@ -55,16 +55,47 @@ class PostgresBuilder extends Builder
     }
 
     /**
+     * Determine if the given view exists.
+     */
+    #[Override]
+    public function hasView(string $view): bool
+    {
+        [$schema, $view] = $this->parseSchemaAndTable($view, withDefaultSchema: true);
+
+        // Without a current schema an unqualified view resolves to nothing, but getViews(null) would search every schema.
+        if ($schema === null) {
+            return false;
+        }
+
+        $view = $this->connection->getTablePrefix() . $view;
+
+        foreach ($this->getViews($schema) as $value) {
+            if (strtolower($view) === strtolower($value['name'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Drop all tables from the database.
      */
     #[Override]
     public function dropAllTables(): void
     {
+        $schemas = $this->getCurrentSchemaListing();
+
+        // An empty search path selects no schemas, but getTables([]) would select them all.
+        if ($schemas === []) {
+            return;
+        }
+
         $tables = [];
 
         $excludedTables = $this->connection->getConfig('dont_drop') ?? ['spatial_ref_sys'];
 
-        foreach ($this->withoutCoveredPartitions($this->getTables($this->getCurrentSchemaListing()), $excludedTables) as $table) {
+        foreach ($this->withoutCoveredPartitions($this->getTables($schemas), $excludedTables) as $table) {
             if (empty(array_intersect([$table['name'], $table['schema_qualified_name']], $excludedTables))) {
                 $tables[] = $table['schema_qualified_name'];
             }
@@ -85,7 +116,14 @@ class PostgresBuilder extends Builder
     #[Override]
     public function dropAllViews(): void
     {
-        $views = array_column($this->getViews($this->getCurrentSchemaListing()), 'schema_qualified_name');
+        $schemas = $this->getCurrentSchemaListing();
+
+        // An empty search path selects no schemas, but getViews([]) would select them all.
+        if ($schemas === []) {
+            return;
+        }
+
+        $views = array_column($this->getViews($schemas), 'schema_qualified_name');
 
         if (empty($views)) {
             return;
@@ -102,10 +140,17 @@ class PostgresBuilder extends Builder
     #[Override]
     public function dropAllTypes(): void
     {
+        $schemas = $this->getCurrentSchemaListing();
+
+        // An empty search path selects no schemas, but getTypes([]) would select them all.
+        if ($schemas === []) {
+            return;
+        }
+
         $types = [];
         $domains = [];
 
-        foreach ($this->getTypes($this->getCurrentSchemaListing()) as $type) {
+        foreach ($this->getTypes($schemas) as $type) {
             if (! $type['implicit']) {
                 if ($type['type'] === 'domain') {
                     $domains[] = $type['schema_qualified_name'];
@@ -131,6 +176,8 @@ class PostgresBuilder extends Builder
     /**
      * Get the current schemas for the connection.
      *
+     * An explicitly empty search path returns an empty list.
+     *
      * @return string[]
      */
     #[Override]
@@ -138,10 +185,12 @@ class PostgresBuilder extends Builder
     {
         return array_map(
             fn ($schema) => $schema === '$user' ? $this->connection->getConfig('username') : $schema,
+            // Match the connector's setting precedence; a truthiness check would ignore a schema
+            // named "0" and replace an explicitly empty search path.
             $this->parseSearchPath(
                 $this->connection->getConfig('search_path')
-                    ?: $this->connection->getConfig('schema')
-                    ?: 'public'
+                    ?? $this->connection->getConfig('schema')
+                    ?? 'public'
             )
         );
     }
