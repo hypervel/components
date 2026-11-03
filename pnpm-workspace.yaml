@@ -16,12 +16,16 @@ allowBuilds:
 overrides:
   'vite@*': npm:@voidzero-dev/vite-plus-core@1.4.0
   'vitest@*': 5.0.5
+  # js-beautify, used by @vue/test-utils, still requires glob and minimatch
+  # versions affected by GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249.
+  glob: ^14.0.2
+  minimatch: ^11.0.1
 
-# Supply-chain defense: require packages to be at least 7 days old before
+# Supply-chain defense: require packages to be at least 3 days old before
 # install. Compromised packages typically get yanked within hours, so this
 # buffer dramatically reduces the chance of pulling a malicious release.
-# Value is in minutes (7 days × 24h × 60min = 10080).
-minimumReleaseAge: 10080
+# Value is in minutes (3 days × 24h × 60min = 4320).
+minimumReleaseAge: 4320
 catalog:
   '@popperjs/core': ^2.11.8
   '@tailwindcss/vite': ^4.3.3
