@@ -149,6 +149,22 @@ URL::useAssetOrigin('https://cdn.example.com');
 
 The `useOrigin` and `useAssetOrigin` methods are isolated to the current request, job, or command. The `forceScheme` method configures the URL generator and is typically called from a service provider.
 
+If you need to change the origin temporarily, you may save the current value using the `getForcedOrigin` method and restore it when your work finishes:
+
+```php
+$previous = URL::getForcedOrigin();
+
+try {
+    URL::useOrigin('https://docs.example.com');
+
+    // Generate URLs using the temporary origin...
+} finally {
+    URL::useOrigin($previous);
+}
+```
+
+The method returns `null` if no origin has been set using `useOrigin`. You may use `getForcedAssetOrigin` with `useAssetOrigin` in the same way for asset URLs.
+
 If your application determines its URL origin from the current context, you may register an origin resolver in a service provider:
 
 ```php
@@ -491,9 +507,11 @@ You may also replace the defaults for the current request, job, or command using
 URL::useDefaults(['locale' => 'fr']);
 ```
 
-Calling `useDefaults` again replaces the previous values. Pass `null` to clear them.
+Calling `useDefaults` again replaces the previous values, including values registered with `URL::defaults` during the current request. Pass `null` to clear them.
 
-Defaults registered with `URL::defaults` are applied first, followed by resolved defaults and values set with `useDefaults`. Parameters passed directly to the `route` helper always take priority. During a request, `URL::defaults` merges values for that request. Outside a request, it changes the defaults for the entire worker, so jobs and commands should use `useDefaults` for temporary values.
+Before making a temporary change, you may save the current values using the `getDefaultParameterOverrides` method and pass them back to `useDefaults` when your work finishes. This method only returns the defaults set for the current request, job, or command.
+
+During a request, `URL::defaults` merges values for that request. Outside a request, it changes the defaults for the entire worker, so jobs and commands should use `useDefaults` for temporary values. Worker defaults are applied first, followed by resolved defaults, and then values set with `useDefaults` or with `URL::defaults` during a request. Parameters passed directly to the `route` helper always take priority.
 
 <a name="url-defaults-middleware-priority"></a>
 #### URL Defaults and Middleware Priority

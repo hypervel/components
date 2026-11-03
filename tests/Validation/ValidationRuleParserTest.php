@@ -198,6 +198,15 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
+    public function testExplodedClosureRulesExposeTheirCallback(): void
+    {
+        $callback = static function (): void {};
+
+        $exploded = (new ValidationRuleParser([]))->explode(['name' => [$callback]]);
+
+        $this->assertSame($callback, $exploded->rules['name'][0]->callback);
+    }
+
     public function testExplodeFailsParsingSingleRegexRuleContainingPipe(): void
     {
         $data = ['items' => [['type' => 'foo']]];
