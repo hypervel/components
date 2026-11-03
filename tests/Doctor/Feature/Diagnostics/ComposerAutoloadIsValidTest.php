@@ -108,4 +108,23 @@ class ComposerAutoloadIsValidTest extends TestCase
 
         $this->assertSame('pass', $fix->status->value);
     }
+
+    public function testExplainsComposerFailuresWithoutOutput(): void
+    {
+        $basePath = $this->basePath;
+        mkdir($basePath . '/vendor');
+        file_put_contents($basePath . '/composer.json', '{}');
+        file_put_contents($basePath . '/vendor/autoload.php', '<?php');
+
+        Process::fake([
+            '*' => Process::result(exitCode: 137),
+        ]);
+
+        $check = (new ComposerAutoloadIsValid)->check();
+        $fix = (new ComposerAutoloadIsValid)->fix($check);
+
+        $this->assertSame('fail', $check->status->value);
+        $this->assertSame('Composer exited with code 137 without output.', $check->details);
+        $this->assertSame('Composer exited with code 137 without output.', $fix->details);
+    }
 }

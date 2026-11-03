@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Contracts\Process\ProcessResult;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Composer;
+use Hypervel\Doctor\Support\Details;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\Facades\Process;
 
@@ -70,7 +72,7 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
 
         return $this->fail('invalid')
             ->fixable()
-            ->withDetails(trim($process->errorOutput() !== '' ? $process->errorOutput() : $process->output()));
+            ->withDetails($this->failureDetails($process));
     }
 
     /**
@@ -89,9 +91,21 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
 
         if (! $process->successful()) {
             return $this->fixFailed('regeneration-failed')
-                ->withDetails(trim($process->errorOutput() !== '' ? $process->errorOutput() : $process->output()));
+                ->withDetails($this->failureDetails($process));
         }
 
         return $this->fixed('regenerated');
+    }
+
+    /**
+     * Get the failure details for a Composer process.
+     */
+    private function failureDetails(ProcessResult $process): string
+    {
+        return Details::processOutput(
+            $process->output(),
+            $process->errorOutput(),
+            "Composer exited with code {$process->exitCode()} without output.",
+        );
     }
 }

@@ -10,13 +10,6 @@ use Hypervel\Support\Facades\File;
 class ComposerJson
 {
     /**
-     * The decoded composer.json payload.
-     *
-     * @var null|array<string, mixed>
-     */
-    private ?array $contents = null;
-
-    /**
      * Determine whether the application has a composer.json file.
      */
     public function exists(): bool
@@ -41,9 +34,11 @@ class ComposerJson
      */
     public function requiredExtensions(): array
     {
+        $contents = $this->contents() ?? [];
+
         return $this->extensionsFrom([
-            ...$this->packageNames(Arr::get($this->contents() ?? [], 'require', [])),
-            ...$this->packageNames(Arr::get($this->contents() ?? [], 'require-dev', [])),
+            ...$this->packageNames(Arr::get($contents, 'require', [])),
+            ...$this->packageNames(Arr::get($contents, 'require-dev', [])),
         ]);
     }
 
@@ -62,14 +57,13 @@ class ComposerJson
     /**
      * Get the decoded composer.json contents.
      *
+     * Read on every call because this class is auto-singletoned for the worker
+     * lifetime, so a memoized copy would go stale between Doctor runs.
+     *
      * @return null|array<string, mixed>
      */
     public function contents(): ?array
     {
-        if ($this->contents !== null) {
-            return $this->contents;
-        }
-
         if (! $this->exists()) {
             return null;
         }
@@ -81,7 +75,7 @@ class ComposerJson
         }
 
         /** @var array<string, mixed> $decoded */
-        return $this->contents = $decoded;
+        return $decoded;
     }
 
     /**

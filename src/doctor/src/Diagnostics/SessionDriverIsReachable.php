@@ -114,7 +114,12 @@ class SessionDriverIsReachable extends Diagnostic
      */
     private function probeRedisSessions(): void
     {
-        Redis::connection(Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION))->ping();
+        $connection = Configured::string('session.connection', SessionManager::DEFAULT_REDIS_CONNECTION);
+
+        // phpredis returns false instead of throwing for ERR replies such as "max number of clients reached".
+        if (Redis::connection($connection)->ping() === false) {
+            throw new RuntimeException("Redis connection [{$connection}] returned an error for PING.");
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Doctor\Feature\Diagnostics;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Doctor\Diagnostics\SessionDriverIsReachable;
 use Hypervel\Doctor\Results\Link;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\Facades\Schema;
@@ -114,6 +115,17 @@ class SessionDriverIsReachableTest extends TestCase
     public static function redisConnections(): array
     {
         return [[null, 'session'], ['', 'session'], ['custom', 'custom']];
+    }
+
+    public function testReportsRedisSessionsWhenTheServerRejectsThePing(): void
+    {
+        config(['session.driver' => 'redis', 'session.connection' => 'session']);
+        Redis::shouldReceive('connection')->with('session')->andReturn(m::mock(RedisProxy::class, ['ping' => false]));
+
+        $result = (new SessionDriverIsReachable)->check();
+
+        $this->assertSame('fail', $result->status->value);
+        $this->assertSame('Redis connection [session] returned an error for PING.', $result->details);
     }
 
     public function testDatabaseSessionsKeepTheDefaultSchemaConnection(): void

@@ -60,10 +60,35 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
         $required = $this->requiredValues();
 
         return [
+            ...$this->missingDefaultValues(),
             ...array_intersect_key($required, array_flip(Configured::missing(array_keys($required)))),
             ...$this->missingMercureValues(),
             ...$this->missingMailValues(),
         ];
+    }
+
+    /**
+     * Get default driver keys without a usable value, mapped to the feature that needs them.
+     *
+     * The managers read these keys with typed getters, so a blank or null
+     * value fails at runtime instead of falling back to a default driver.
+     *
+     * @return array<string, string>
+     */
+    private function missingDefaultValues(): array
+    {
+        $defaults = [
+            'broadcasting.default' => 'default broadcaster',
+            'filesystems.default' => 'default filesystem disk',
+            'mail.default' => 'default mailer',
+            'queue.default' => 'default queue connection',
+        ];
+
+        return array_filter(
+            $defaults,
+            static fn (string $key): bool => Configured::string($key) === null,
+            ARRAY_FILTER_USE_KEY,
+        );
     }
 
     /**
@@ -88,7 +113,12 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function broadcastingValues(): array
     {
-        $connection = Configured::string('broadcasting.default', 'null');
+        $connection = Configured::string('broadcasting.default');
+
+        if ($connection === null) {
+            return [];
+        }
+
         $driver = Configured::string("broadcasting.connections.{$connection}.driver", $connection);
 
         $keys = match ($driver) {
@@ -107,7 +137,12 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function missingMercureValues(): array
     {
-        $connection = Configured::string('broadcasting.default', 'null');
+        $connection = Configured::string('broadcasting.default');
+
+        if ($connection === null) {
+            return [];
+        }
+
         $prefix = "broadcasting.connections.{$connection}";
 
         if (Configured::string("{$prefix}.driver", $connection) !== 'mercure') {
@@ -140,9 +175,9 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function filesystemValues(): array
     {
-        $disk = Configured::string('filesystems.default', 'local');
+        $disk = Configured::string('filesystems.default');
 
-        if (Configured::string("filesystems.disks.{$disk}.driver", $disk) !== 's3') {
+        if ($disk === null || Configured::string("filesystems.disks.{$disk}.driver", $disk) !== 's3') {
             return [];
         }
 
@@ -156,9 +191,16 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function loggingValues(): array
     {
+        $default = Configured::string('logging.default');
+
+        // The default log channel is optional; without one, LogManager writes to its emergency logger.
+        if ($default === null) {
+            return [];
+        }
+
         $values = [];
 
-        foreach (ActiveDrivers::logChannels(Configured::string('logging.default', 'stack')) as $channel) {
+        foreach (ActiveDrivers::logChannels($default) as $channel) {
             $values = [...$values, ...$this->logChannelValues($channel)];
         }
 
@@ -204,9 +246,15 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function missingMailValues(): array
     {
+        $default = Configured::string('mail.default');
+
+        if ($default === null) {
+            return [];
+        }
+
         $values = [];
 
-        foreach (ActiveDrivers::mailers(Configured::string('mail.default', 'log')) as $mailer) {
+        foreach (ActiveDrivers::mailers($default) as $mailer) {
             $values = [...$values, ...$this->missingMailerValues($mailer)];
         }
 
@@ -263,7 +311,12 @@ class RequiredConfigurationValuesAreSet extends Diagnostic
      */
     private function queueValues(): array
     {
-        $connection = Configured::string('queue.default', 'database');
+        $connection = Configured::string('queue.default');
+
+        if ($connection === null) {
+            return [];
+        }
+
         $values = [];
 
         foreach (ActiveDrivers::queueConnections($connection) as $name) {
