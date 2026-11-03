@@ -154,7 +154,7 @@ class FakeClassificationGateway implements ClassificationGateway
     /**
      * Generate a fake score answer.
      *
-     * @param list<array<string, mixed>|string> $levels
+     * @param list<array<array-key, mixed>|string> $levels
      */
     protected function fakeScoreAnswer(array $levels): ScoreAnswer
     {

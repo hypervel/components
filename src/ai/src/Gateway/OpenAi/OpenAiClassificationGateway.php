@@ -168,7 +168,7 @@ class OpenAiClassificationGateway implements ClassificationGateway
     /**
      * Map a score level to a label, keeping the description of levels given as a label and description.
      *
-     * @param array<string, mixed>|string $level
+     * @param array<array-key, mixed>|string $level
      */
     protected function mapLevel(string|array $level): array
     {
