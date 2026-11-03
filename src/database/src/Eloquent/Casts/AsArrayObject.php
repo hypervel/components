@@ -8,6 +8,8 @@ use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
+use JsonSerializable;
+use Traversable;
 
 class AsArrayObject implements Castable
 {
@@ -49,13 +51,24 @@ class AsArrayObject implements Castable
                     return [$key => null];
                 }
 
-                $encoded = Json::encode($value);
+                // JSON encoding a plain Traversable such as a generator would discard its items.
+                $encoded = Json::encode(
+                    $value instanceof Traversable && ! $value instanceof JsonSerializable ? iterator_to_array($value) : $value
+                );
 
                 if ($encoded === false) {
                     throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
                 }
 
                 return [$key => $encoded];
+            }
+
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                return $value instanceof ArrayObject;
             }
 
             /**

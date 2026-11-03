@@ -20,6 +20,9 @@ class AsFluent implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Fluent
             {
                 if (! isset($value)) {
@@ -32,6 +35,9 @@ class AsFluent implements Castable
                 return is_array($data) || is_object($data) ? new Fluent($data) : null;
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! isset($value)) {
@@ -45,6 +51,14 @@ class AsFluent implements Castable
                 }
 
                 return [$key => $encoded];
+            }
+
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                return $value instanceof Fluent;
             }
         };
     }

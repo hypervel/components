@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentModelTest;
 use ArgumentCountError;
 use ArrayObject as NativeArrayObject;
 use Carbon\CarbonInterface;
+use Closure;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -32,6 +33,7 @@ use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
@@ -70,6 +72,7 @@ use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testbench\TestCase;
@@ -81,11 +84,13 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Stringable as NativeStringable;
+use Symfony\Component\Uid\Uuid;
 use UnitEnum;
 use WeakMap;
 
@@ -2287,6 +2292,104 @@ class DatabaseEloquentModelTest extends TestCase
         $model->settings['locale'] = 'fr';
 
         $this->assertSame(['settings' => '{"theme":"dark","locale":"fr"}'], $model->getDirty());
+    }
+
+    #[DataProvider('assignedObjectsOutsideTheCastFormProvider')]
+    public function testAssignedObjectsOutsideTheCastFormAreReadInTheCastForm(string $cast, Closure $value, string $type, ?string $itemType): void
+    {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+
+        $model = (new ModelStub)->mergeCasts(['settings' => $cast]);
+        $model->settings = $value();
+        $model->getAttributes();
+
+        $this->assertSame($type, get_debug_type($model->settings));
+
+        if ($itemType !== null) {
+            foreach ($model->settings as $item) {
+                $this->assertSame($itemType, get_debug_type($item));
+            }
+        }
+
+        $this->assertArrayHasKey('settings', $model->toArray());
+    }
+
+    /**
+     * Get the casts with assigned objects they do not read back as.
+     */
+    public static function assignedObjectsOutsideTheCastFormProvider(): array
+    {
+        return [
+            'array object from a collection' => [AsArrayObject::class, fn () => new BaseCollection(['theme' => 'dark']), ArrayObject::class, null],
+            'encrypted array object from a collection' => [AsEncryptedArrayObject::class, fn () => new BaseCollection(['theme' => 'dark']), ArrayObject::class, null],
+            'collection from a lazy collection' => [AsCollection::class, fn () => LazyCollection::make(['dark']), BaseCollection::class, null],
+            'encrypted collection from a lazy collection' => [AsEncryptedCollection::class, fn () => LazyCollection::make(['dark']), BaseCollection::class, null],
+            'custom collection from a base collection' => [AsCollection::using(CustomCollection::class), fn () => new BaseCollection(['dark']), CustomCollection::class, null],
+            'mapped collection from arrays' => [AsCollection::of(Fluent::class), fn () => new BaseCollection([['theme' => 'dark']]), BaseCollection::class, Fluent::class],
+            'enum collection from a generator' => [AsEnumCollection::of(StringStatus::class), fn () => (fn () => yield StringStatus::Draft)(), BaseCollection::class, StringStatus::class],
+            'enum collection from backing values' => [AsEnumCollection::of(StringStatus::class), fn () => new BaseCollection(['draft']), BaseCollection::class, StringStatus::class],
+            'enum array object from a collection' => [AsEnumArrayObject::of(StringStatus::class), fn () => new BaseCollection([StringStatus::Draft]), ArrayObject::class, StringStatus::class],
+            'fluent from a plain object' => [AsFluent::class, fn () => (object) ['theme' => 'dark'], Fluent::class, null],
+            'stringable from another stringable' => [AsStringable::class, fn () => new HtmlString('<b>Taylor</b>'), Stringable::class, null],
+            'binary uuid from a uuid object' => [AsBinary::uuid(), fn () => Uuid::v4(), 'string', null],
+        ];
+    }
+
+    #[DataProvider('assignedObjectsInTheCastFormProvider')]
+    public function testAssignedObjectsInTheCastFormKeepTheirIdentity(string $cast, Closure $value, Closure $edit, string $stored): void
+    {
+        $model = (new ModelStub)->mergeCasts(['settings' => $cast]);
+        $model->settings = $object = $value();
+
+        $this->assertSame($object, $model->settings);
+
+        $edit($object);
+
+        $this->assertSame($stored, $model->getAttributes()['settings']);
+    }
+
+    /**
+     * Get the casts with assigned objects they read back unchanged, and an edit to each object.
+     */
+    public static function assignedObjectsInTheCastFormProvider(): array
+    {
+        return [
+            'array object' => [AsArrayObject::class, fn () => new ArrayObject(['theme' => 'dark']), fn (ArrayObject $object) => $object['theme'] = 'light', '{"theme":"light"}'],
+            'collection' => [AsCollection::class, fn () => new BaseCollection(['dark']), fn (BaseCollection $collection) => $collection->push('light'), '["dark","light"]'],
+            'mapped collection' => [AsCollection::of(Fluent::class), fn () => new BaseCollection([new Fluent(['theme' => 'dark'])]), fn (BaseCollection $collection) => $collection->first()->theme = 'light', '[{"theme":"light"}]'],
+            'enum collection' => [AsEnumCollection::of(StringStatus::class), fn () => new BaseCollection([StringStatus::Draft]), fn (BaseCollection $collection) => $collection->push(StringStatus::Done), '["draft","done"]'],
+            'fluent' => [AsFluent::class, fn () => new Fluent(['theme' => 'dark']), fn (Fluent $fluent) => $fluent->theme = 'light', '{"theme":"light"}'],
+        ];
+    }
+
+    public function testCallbackMappedCollectionIsCachedFromItsFirstRead(): void
+    {
+        $model = (new ModelStub)->mergeCasts(['settings' => AsCollection::of([Fluent::class, 'make'])]);
+        $model->settings = new BaseCollection([new Fluent(['theme' => 'dark'])]);
+
+        $settings = $model->settings;
+
+        $this->assertInstanceOf(Fluent::class, $settings->first());
+        $this->assertSame($settings, $model->settings);
+
+        $settings->first()->theme = 'light';
+
+        $this->assertSame('[{"theme":"light"}]', $model->getAttributes()['settings']);
+    }
+
+    #[TestWith([AsArrayObject::class])]
+    #[TestWith([AsEncryptedArrayObject::class])]
+    #[TestWith([AsCollection::class])]
+    #[TestWith([AsEncryptedCollection::class])]
+    public function testGeneratorsAreStoredWithTheirItems(string $cast): void
+    {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+
+        $model = (new ModelStub)->mergeCasts(['settings' => $cast]);
+        $model->settings = (fn () => yield 'theme' => 'dark')();
+        $model->setRawAttributes($model->getAttributes());
+
+        $this->assertSame(['theme' => 'dark'], iterator_to_array($model->settings));
     }
 
     public function testUnguardAllowsAnythingToBeSet(): void

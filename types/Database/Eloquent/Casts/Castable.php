@@ -28,12 +28,12 @@ assertType(
 );
 
 assertType(
-    'Hypervel\Contracts\Database\Eloquent\CastsAttributes<Hypervel\Database\Eloquent\Casts\ArrayObject<(int|string), UserType>, iterable<UserType>>',
+    'Hypervel\Contracts\Database\Eloquent\CastsAttributes<Hypervel\Database\Eloquent\Casts\ArrayObject<(int|string), UserType>, iterable<int|string|UserType>>',
     \Hypervel\Database\Eloquent\Casts\AsEnumArrayObject::castUsing([\UserType::class]),
 );
 
 assertType(
-    'Hypervel\Contracts\Database\Eloquent\CastsAttributes<Hypervel\Support\Collection<(int|string), UserType>, iterable<UserType>>',
+    'Hypervel\Contracts\Database\Eloquent\CastsAttributes<Hypervel\Support\Collection<(int|string), UserType>, iterable<int|string|UserType>>',
     \Hypervel\Database\Eloquent\Casts\AsEnumCollection::castUsing([\UserType::class]),
 );
 

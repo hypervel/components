@@ -9,6 +9,8 @@ use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Crypt;
+use JsonSerializable;
+use Traversable;
 
 class AsEncryptedArrayObject implements Castable
 {
@@ -20,6 +22,9 @@ class AsEncryptedArrayObject implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (isset($attributes[$key])) {
@@ -31,10 +36,16 @@ class AsEncryptedArrayObject implements Castable
                 return null;
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! is_null($value)) {
-                    $encoded = Json::encode($value);
+                    // JSON encoding a plain Traversable such as a generator would discard its items.
+                    $encoded = Json::encode(
+                        $value instanceof Traversable && ! $value instanceof JsonSerializable ? iterator_to_array($value) : $value
+                    );
 
                     if ($encoded === false) {
                         throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
@@ -46,6 +57,17 @@ class AsEncryptedArrayObject implements Castable
                 return null;
             }
 
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                return $value instanceof ArrayObject;
+            }
+
+            /**
+             * Serialize the attribute for an array or JSON response.
+             */
             public function serialize(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 return ! is_null($value) ? $value->getArrayCopy() : null;
