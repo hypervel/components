@@ -227,6 +227,42 @@ class CoroutineTest extends TestCase
         }
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTerminalBoundaryContainsCancellationDuringReporting(bool $cleanupFails): void
+    {
+        $container = new Container;
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        $failure = new RuntimeException('The coroutine failed.');
+        $cleanupFailure = new RuntimeException('The reporter cleanup failed.');
+        $blocker = new Channel(1);
+        $handler->shouldReceive('report')->once()->with($failure)
+            ->andReturnUsing(static function () use ($blocker, $cleanupFails, $cleanupFailure): void {
+                try {
+                    $blocker->pop();
+                } finally {
+                    if ($cleanupFails) {
+                        throw $cleanupFailure;
+                    }
+                }
+            });
+
+        $coroutineId = Coroutine::create(static fn () => throw $failure);
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            if ($cleanupFails) {
+                $this->assertTrue(Coroutine::causedByCancellation($cleanupFailure));
+            }
+        } finally {
+            $blocker->close();
+            Coroutine::join([$coroutineId], 1);
+        }
+    }
+
     public function testAfterCreatedCallbacksAreExecuted(): void
     {
         $executed = false;
@@ -430,7 +466,9 @@ class CoroutineTest extends TestCase
         $this->assertTrue($mainCallableRan);
     }
 
-    public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(bool $cleanupFails): void
     {
         $container = new Container;
         $handler = m::mock(ExceptionHandlerContract::class);
@@ -438,6 +476,7 @@ class CoroutineTest extends TestCase
         Container::setInstance($container);
         CoroutineContext::set('request-id', 'child-request');
         $exception = new RuntimeException('The startup hook failed.');
+        $cleanupFailure = new RuntimeException('The reporter cleanup failed.');
         $reportStarted = new Channel(1);
         $releaseReport = new Channel(1);
         $reportedContext = null;
@@ -449,11 +488,21 @@ class CoroutineTest extends TestCase
         $handler->shouldReceive('report')
             ->once()
             ->with($exception)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$reportedContext): void {
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$reportedContext, $cleanupFails, $cleanupFailure): void {
                 $reportedContext = CoroutineContext::get('request-id');
                 $reportStarted->push(true);
-                $releaseReport->pop();
+                try {
+                    $releaseReport->pop();
+                } finally {
+                    if ($cleanupFails) {
+                        throw $cleanupFailure;
+                    }
+                }
             });
+
+        if ($cleanupFails) {
+            $handler->shouldReceive('report')->once()->with($cleanupFailure);
+        }
 
         Coroutine::afterCreated(static function () use ($exception): void {
             throw $exception;
@@ -488,6 +537,11 @@ class CoroutineTest extends TestCase
             $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
             $this->assertFalse(Coroutine::exists($coroutineId));
             $this->assertSame(1, $finalized);
+            $this->assertFalse($secondCallbackRan);
+            $this->assertFalse($mainCallableRan);
+            if ($cleanupFails) {
+                $this->assertTrue(Coroutine::causedByCancellation($cleanupFailure));
+            }
         } finally {
             $releaseReport->push(true, 0.001);
 
