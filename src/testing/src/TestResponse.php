@@ -32,6 +32,7 @@ use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponseAssert as PHPUnit;
 use JsonException;
 use LogicException;
+use stdClass;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -1063,15 +1064,10 @@ class TestResponse implements ArrayAccess
      */
     public function assertJsonIsArray(?string $key = null): static
     {
-        $data = $this->json($key);
+        // Associative decoding turns {} and {"0": ...} into PHP lists, so check the JSON's own types.
+        $data = $this->decodeResponseJson()->object($key);
 
-        $encodedData = json_encode($data);
-
-        PHPUnit::withResponse($this)->assertTrue(
-            is_array($data)
-            && str_starts_with($encodedData, '[')
-            && str_ends_with($encodedData, ']')
-        );
+        PHPUnit::withResponse($this)->assertTrue(is_array($data));
 
         return $this;
     }
@@ -1081,15 +1077,10 @@ class TestResponse implements ArrayAccess
      */
     public function assertJsonIsObject(?string $key = null): static
     {
-        $data = $this->json($key);
+        // Associative decoding turns {} and {"0": ...} into PHP lists, so check the JSON's own types.
+        $data = $this->decodeResponseJson()->object($key);
 
-        $encodedData = json_encode($data);
-
-        PHPUnit::withResponse($this)->assertTrue(
-            is_array($data)
-            && str_starts_with($encodedData, '{')
-            && str_ends_with($encodedData, '}')
-        );
+        PHPUnit::withResponse($this)->assertTrue($data instanceof stdClass);
 
         return $this;
     }

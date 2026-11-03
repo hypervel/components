@@ -2612,12 +2612,32 @@ EOT,
         $responseObject->assertJsonIsArray();
     }
 
+    #[TestWith(['{}', null])]
+    #[TestWith(['{"0":"value"}', null])]
+    #[TestWith(['{"data":{}}', 'data'])]
+    #[TestWith(['{"data":{"0":"value"}}', 'data'])]
+    public function testAssertJsonIsNotArrayForObjectsThatDecodeToLists(string $json, ?string $key): void
+    {
+        $this->expectException(ExpectationFailedException::class);
+
+        TestResponse::fromBaseResponse(new Response($json))->assertJsonIsArray($key);
+    }
+
     public function testAssertJsonIsObject(): void
     {
         $responseObject = TestResponse::fromBaseResponse(new Response([
             'foo' => 'bar',
         ]));
         $responseObject->assertJsonIsObject();
+    }
+
+    #[TestWith(['{}', null])]
+    #[TestWith(['{"0":"value"}', null])]
+    #[TestWith(['{"data":{}}', 'data'])]
+    #[TestWith(['{"data":{"0":"value"}}', 'data'])]
+    public function testAssertJsonIsObjectForObjectsThatDecodeToLists(string $json, ?string $key): void
+    {
+        TestResponse::fromBaseResponse(new Response($json))->assertJsonIsObject($key);
     }
 
     public function testAssertJsonIsNotObject(): void
