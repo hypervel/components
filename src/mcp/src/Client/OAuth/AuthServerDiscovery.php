@@ -25,6 +25,35 @@ class AuthServerDiscovery
 {
     use InteractsWithOAuthEndpoints;
 
+    // Upstream's discovery-time DNS cache and address checks are omitted: OAuthDestinationPolicy
+    // resolves, validates and pins each request when pin() sends it.
+
+    protected static ?Closure $hostResolver = null;
+
+    /**
+     * Resolve OAuth destination hostnames with the given callback instead of DNS.
+     *
+     * Tests only. The callback persists in a static property for the worker lifetime and supplies the addresses for every OAuth request.
+     *
+     * @param null|Closure(string): array<int, string> $callback
+     */
+    public static function resolveHostsUsing(?Closure $callback): void
+    {
+        static::$hostResolver = $callback;
+    }
+
+    /**
+     * Get the addresses the resolveHostsUsing() callback supplies for a hostname.
+     *
+     * @internal
+     *
+     * @return null|list<string>
+     */
+    public static function resolvedHostAddresses(string $host): ?array
+    {
+        return static::$hostResolver === null ? null : array_values((static::$hostResolver)($host));
+    }
+
     /**
      * Discover and validate the resource's authorization server.
      */
@@ -109,30 +138,39 @@ class AuthServerDiscovery
     }
 
     /**
+     * Validate each request hop against the OAuth destination policy and pin it to the vetted addresses.
+     */
+    public function pin(PendingRequest $request): PendingRequest
+    {
+        return $request->withMiddleware(function (callable $handler): Closure {
+            return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                // Resolve every hop here instead of through the generic destination-policy
+                // handler, which rejects the ordinary proxies OAuth requests may use.
+                $transportOptions = ['curl', 'proxy', 'timeout', 'connect_timeout'];
+                $hop = new PendingRequest(options: Arr::only($options, $transportOptions));
+                $destination = $this->resolveOAuthDestination($hop, (string) $request->getUri());
+
+                return $handler($request->withUri($destination->uri, true), array_replace(
+                    $options,
+                    Arr::only($hop->getOptions(), $transportOptions),
+                ));
+            };
+        });
+    }
+
+    /**
      * Probe the resource for its unauthenticated authorization challenge.
      *
      * @param array<string, string> $headers
      */
     protected function probe(string $resourceUrl, array $headers): Response
     {
-        try {
-            return $this->oAuthRequest()
-                ->withHeaders($headers)
-                ->withMiddleware(new RestrictHeadersToOrigin($resourceUrl, array_keys($headers)))
-                ->withMiddleware(function (callable $handler): Closure {
-                    return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-                        // Resolve every hop through the same boundary as other OAuth requests, which
-                        // preserves ordinary proxies that the generic destination-policy handler rejects.
-                        $transportOptions = ['curl', 'proxy', 'timeout', 'connect_timeout'];
-                        $hop = new PendingRequest(options: Arr::only($options, $transportOptions));
-                        $destination = $this->resolveOAuthDestination($hop, (string) $request->getUri());
+        // Compare each hop's origin before pin() replaces its URI with the normalized destination.
+        $request = $this->oAuthRequest()->withMiddleware(new RestrictHeadersToOrigin($resourceUrl, array_keys($headers)));
 
-                        return $handler($request->withUri($destination->uri, true), array_replace(
-                            $options,
-                            Arr::only($hop->getOptions(), $transportOptions),
-                        ));
-                    };
-                })
+        try {
+            return $this->pin($request)
+                ->withHeaders($headers)
                 ->withOptions(['allow_redirects' => [
                     'max' => 5,
                     'strict' => true,
@@ -158,9 +196,7 @@ class AuthServerDiscovery
      */
     protected function fetchResourceMetadata(string $metadataUrl, bool $explicit = false): array
     {
-        $request = $this->oAuthRequest();
-        $destination = $this->resolveOAuthDestination($request, $metadataUrl);
-        $response = $request->get((string) $destination->uri);
+        $response = $this->pin($this->oAuthRequest())->get($metadataUrl);
 
         if (! $response->successful()) {
             if ($explicit) {
@@ -226,9 +262,7 @@ class AuthServerDiscovery
     protected function fetchMetadata(string $issuer): AuthServerMetadata
     {
         foreach ($this->metadataUrls($issuer) as $metadataUrl) {
-            $request = $this->oAuthRequest();
-            $destination = $this->resolveOAuthDestination($request, $metadataUrl);
-            $response = $request->get((string) $destination->uri);
+            $response = $this->pin($this->oAuthRequest())->get($metadataUrl);
 
             if (! $response->successful()) {
                 continue;
@@ -303,11 +337,14 @@ class AuthServerDiscovery
     {
         $parts = $this->parse($url);
 
-        if ($parts['scheme'] === 'https') {
+        // URL schemes are case-insensitive, and Guzzle sends HTTP:// and HTTPS:// URLs as http and https.
+        $scheme = strtolower($parts['scheme']);
+
+        if ($scheme === 'https') {
             return;
         }
 
-        if ($this->isLocalhost($this->normalizedHost($parts['host']))) {
+        if ($scheme === 'http' && $this->isLocalhost($this->normalizedHost($parts['host']))) {
             return;
         }
 
@@ -317,7 +354,7 @@ class AuthServerDiscovery
     /**
      * Validate a metadata endpoint before fetching it.
      */
-    protected function requireFetchable(string $url, string $resourceUrl): void
+    public function requireFetchable(string $url, string $resourceUrl): void
     {
         $this->requireSecure($url);
         $this->requireNotInternal($url, $resourceUrl);
@@ -393,5 +430,13 @@ class AuthServerDiscovery
 
         /** @var array{scheme: string, host: string, port?: int, path?: string, query?: string} $parts */
         return $parts;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$hostResolver = null;
     }
 }

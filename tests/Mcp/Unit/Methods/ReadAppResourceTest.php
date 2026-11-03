@@ -14,6 +14,7 @@ use Hypervel\Mcp\Server\AppResource;
 use Hypervel\Mcp\Server\Attributes\Cacheable;
 use Hypervel\Mcp\Server\Contracts\HasUriTemplate;
 use Hypervel\Mcp\Server\Contracts\Transport;
+use Hypervel\Mcp\Server\Methods\ListResources;
 use Hypervel\Mcp\Server\Methods\ReadResource;
 use Hypervel\Mcp\Server\Ui\AppMeta;
 use Hypervel\Mcp\Server\Ui\Csp;
@@ -137,6 +138,46 @@ class ReadAppResourceTest extends TestCase
         $payload = $result->toArray()['result'];
 
         $this->assertArrayNotHasKey('_meta', $payload['contents'][0]);
+    }
+
+    public function testExcludesUiDomainFromReadAndListWhenAppMetaIsWithoutADomain(): void
+    {
+        $resource = new class extends AppResource {
+            /**
+             * Get the application metadata.
+             */
+            public function appMeta(): AppMeta
+            {
+                return AppMeta::make()->prefersBorder()->withoutDomain();
+            }
+
+            /**
+             * Handle the resource request.
+             */
+            public function handle(Request $request): Response
+            {
+                return Response::text('<html><body>Hello</body></html>');
+            }
+        };
+
+        $context = $this->getServerContext([
+            'resources' => [$resource],
+        ]);
+
+        $read = (new ReadResource)->handle(new JsonRpcRequest(
+            id: 1,
+            method: 'resources/read',
+            params: ['uri' => $resource->uri()]
+        ), $context)->toArray()['result'];
+
+        $list = (new ListResources)->handle(new JsonRpcRequest(
+            id: 2,
+            method: 'resources/list',
+            params: []
+        ), $context)->toArray()['result'];
+
+        $this->assertSame(['prefersBorder' => true], $read['contents'][0]['_meta']['ui']);
+        $this->assertSame(['prefersBorder' => true], $list['resources'][0]['_meta']['ui']);
     }
 
     #[DataProvider('responseModes')]

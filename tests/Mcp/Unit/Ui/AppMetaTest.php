@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mcp\Unit\Ui;
 
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Mcp\Server\Attributes\AppMeta as AppMetaAttribute;
 use Hypervel\Mcp\Server\Ui\AppMeta;
 use Hypervel\Mcp\Server\Ui\Csp;
 use Hypervel\Mcp\Server\Ui\Enums\Library;
@@ -136,5 +137,31 @@ class AppMetaTest extends TestCase
             ->libraries(Library::Tailwind, Library::Alpine);
 
         $this->assertSame([Library::Tailwind, Library::Alpine], $meta->getLibraries());
+    }
+
+    public function testUsesTheDomainByDefault(): void
+    {
+        $this->assertTrue(AppMeta::make()->usesDomain());
+    }
+
+    public function testCanBeCreatedWithoutADomain(): void
+    {
+        $meta = AppMeta::make()->domain('sandbox.example.com')->withoutDomain();
+
+        $this->assertFalse($meta->usesDomain());
+        $this->assertArrayNotHasKey('domain', $meta->toArray());
+    }
+
+    public function testUsesAnExplicitDomainSetAfterWithoutDomain(): void
+    {
+        $meta = AppMeta::make()->withoutDomain()->domain('sandbox.example.com');
+
+        $this->assertTrue($meta->usesDomain());
+        $this->assertSame('sandbox.example.com', $meta->toArray()['domain']);
+    }
+
+    public function testMapsDomainFalseOnTheAttributeToWithoutDomain(): void
+    {
+        $this->assertFalse((new AppMetaAttribute(domain: false))->toAppMeta()->usesDomain());
     }
 }
