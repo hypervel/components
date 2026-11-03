@@ -216,6 +216,8 @@ The `connection` setting may be omitted or null to use the default database conn
 
 In order to use the `redis` queue driver, you should configure a Redis database connection in your `config/database.php` configuration file. Hypervel's Redis queue driver uses the Hypervel Redis component, which is powered by the PhpRedis extension.
 
+If multiple instances of your application share a Redis server, each instance should use its own [key prefix](/docs/{{version}}/redis#key-prefixes) or Redis database. Otherwise, the queue worker of one instance may process jobs dispatched by another instance.
+
 The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs. Omitting `connection` uses the default Redis connection, omitting `retry_after` uses 60 seconds, and omitting `block_for` disables blocking.
 
 <a name="redis-cluster"></a>
