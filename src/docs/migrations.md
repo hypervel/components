@@ -1884,4 +1884,4 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 
 </div>
 
-The `MigrationStarted` and `MigrationEnded` events expose the migration filename through their `$name` property.
+The `MigrationStarted` and `MigrationEnded` events expose the migration filename through their `$name` property. The `MigrationEnded` event also exposes how long the migration took to run, in milliseconds, through its `$duration` property.
