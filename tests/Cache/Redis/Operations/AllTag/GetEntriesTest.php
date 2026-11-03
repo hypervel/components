@@ -17,9 +17,6 @@ use Mockery as m;
  */
 class GetEntriesTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testGetEntriesReturnsLazyCollection(): void
     {
         $connection = $this->mockConnection();
@@ -41,9 +38,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2'], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesWithEmptyTagReturnsEmptyCollection(): void
     {
         $connection = $this->mockConnection();
@@ -64,9 +58,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame([], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -100,9 +91,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame(['user_key1', 'user_key2', 'post_key1'], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesReturnsTheMembersInEachPage(): void
     {
         $connection = $this->mockConnection();
@@ -123,9 +111,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2'], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesHandlesNullScanResult(): void
     {
         $connection = $this->mockConnection();
@@ -143,9 +128,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame([], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesHandlesFalseScanResult(): void
     {
         $connection = $this->mockConnection();
@@ -163,9 +145,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame([], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesWithEmptyTagIdsArrayReturnsEmptyCollection(): void
     {
         $connection = $this->mockConnection();
@@ -180,9 +159,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame([], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -203,9 +179,6 @@ class GetEntriesTest extends RedisCacheTestCase
         $this->assertSame(['key1'], $entries->all());
     }
 
-    /**
-     * @test
-     */
     public function testGetEntriesHandlesPaginatedResults(): void
     {
         $connection = $this->mockConnection();
@@ -277,8 +250,6 @@ class GetEntriesTest extends RedisCacheTestCase
     }
 
     /**
-     * @test
-     *
      * If the same key exists in multiple tags, it will appear multiple times in the result.
      * This is intentional - the Flush operation handles this gracefully
      * (deleting a non-existent key is a no-op).

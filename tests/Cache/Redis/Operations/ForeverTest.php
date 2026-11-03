@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ForeverTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testStoreItemForeverProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
@@ -27,9 +24,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverWithNumericValue(): void
     {
         $connection = $this->mockConnection();

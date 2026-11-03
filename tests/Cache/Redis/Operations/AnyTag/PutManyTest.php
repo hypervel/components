@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutManyTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testPutManyWithTagsStoresMultipleItems(): void
     {
         $connection = $this->mockConnection();

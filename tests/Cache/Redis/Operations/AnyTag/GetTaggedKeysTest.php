@@ -12,9 +12,6 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
  */
 class GetTaggedKeysTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testGetTaggedKeysUsesHkeysForSmallHashes(): void
     {
         $connection = $this->mockConnection();
@@ -36,9 +33,6 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2', 'key3'], $keys);
     }
 
-    /**
-     * @test
-     */
     public function testGetTaggedKeysUsesHscanForLargeHashes(): void
     {
         $connection = $this->mockConnection();
@@ -66,9 +60,6 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2', 'key3'], $keys);
     }
 
-    /**
-     * @test
-     */
     public function testGetTaggedKeysReturnsEmptyForNonExistentTag(): void
     {
         $connection = $this->mockConnection();
@@ -90,8 +81,6 @@ class GetTaggedKeysTest extends RedisCacheTestCase
     }
 
     /**
-     * @test
-     *
      * Verifies that HSCAN correctly handles multiple batches with per-batch connection checkout.
      * The iterator must be passed by reference correctly across withConnection() calls.
      *

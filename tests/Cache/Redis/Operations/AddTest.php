@@ -14,9 +14,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class AddTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testAddReturnsTrueWhenKeyDoesNotExist(): void
     {
         $connection = $this->mockConnection();
@@ -32,9 +29,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddReturnsFalseWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
@@ -50,9 +44,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithNumericValue(): void
     {
         $connection = $this->mockConnection();
@@ -68,9 +59,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
@@ -86,9 +74,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithArrayValue(): void
     {
         $connection = $this->mockConnection();

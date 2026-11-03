@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ForgetTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testForgetReturnsTrueWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
@@ -23,9 +20,6 @@ class ForgetTest extends RedisCacheTestCase
         $this->assertTrue($redis->forget('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testForgetReturnsFalseWhenKeyDoesNotExist(): void
     {
         // Redis del() returns 0 when key doesn't exist, cast to bool = false

@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testPutWithTagsUsesLuaScriptInStandardMode(): void
     {
         $connection = $this->mockConnection();
@@ -40,9 +37,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithTagsUsesSequentialCommandsInClusterMode(): void
     {
         [$redis, , $connection] = $this->createClusterStore(tagMode: 'any');
@@ -99,9 +93,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($redis->anyTagOps()->put()->execute('foo', 'bar', -60, ['users']));
     }
 
-    /**
-     * @test
-     */
     public function testPutWithTagsHandlesEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -116,9 +107,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithTagsWithNumericValue(): void
     {
         $connection = $this->mockConnection();

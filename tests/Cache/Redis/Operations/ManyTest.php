@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ManyTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testRedisMultipleValuesAreReturned(): void
     {
         $connection = $this->mockConnection();
@@ -36,9 +33,6 @@ class ManyTest extends RedisCacheTestCase
         $this->assertNull($results['null']);
     }
 
-    /**
-     * @test
-     */
     public function testManyReturnsEmptyArrayForEmptyKeys(): void
     {
         $connection = $this->mockConnection();
@@ -49,9 +43,6 @@ class ManyTest extends RedisCacheTestCase
         $this->assertSame([], $results);
     }
 
-    /**
-     * @test
-     */
     public function testManyMaintainsKeyIndexMapping(): void
     {
         $connection = $this->mockConnection();

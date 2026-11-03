@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testSetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
@@ -27,9 +24,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testSetMethodProperlyCallsRedisForNumerics(): void
     {
         $connection = $this->mockConnection();
@@ -43,9 +37,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutPreservesArrayValues(): void
     {
         $connection = $this->mockConnection();
@@ -59,9 +50,6 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($redis->put('foo', $array, 60));
     }
 
-    /**
-     * @test
-     */
     public function testPutEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();

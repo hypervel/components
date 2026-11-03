@@ -14,9 +14,6 @@ use Mockery as m;
  */
 class FlushStaleTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesRemovesExpiredEntries(): void
     {
         $connection = $this->mockConnection();
@@ -36,9 +33,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -67,9 +61,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesWithEmptyTagIdsReturnsEarly(): void
     {
         $connection = $this->mockConnection();
@@ -83,9 +74,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute([]);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -105,9 +93,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesUsesCurrentTimestampAsUpperBound(): void
     {
         // Set a specific time so we can verify the timestamp
@@ -154,9 +139,6 @@ class FlushStaleTest extends RedisCacheTestCase
         (new FlushStale($store->getContext()))->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesDoesNotRemoveForeverItems(): void
     {
         // This test documents that the score range '0' to timestamp
@@ -186,9 +168,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -205,9 +184,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesClusterModeWithMultipleTags(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -233,9 +209,6 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushStaleEntriesClusterModeUsesCorrectPrefix(): void
     {
         [$store, , $connection] = $this->createClusterStore(prefix: 'custom_prefix:');

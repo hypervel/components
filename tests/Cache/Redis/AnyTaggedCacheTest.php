@@ -43,9 +43,6 @@ use Throwable;
  */
 class AnyTaggedCacheTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testIsInstanceOfTaggedCache(): void
     {
         $connection = $this->mockConnection();
@@ -56,9 +53,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertInstanceOf(AnyTaggedCache::class, $cache);
     }
 
-    /**
-     * @test
-     */
     public function testGetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -83,9 +77,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->getAuthoritativeRaw('key');
     }
 
-    /**
-     * @test
-     */
     public function testManyThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -98,9 +89,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->many(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testGetMultipleThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -113,9 +101,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->getMultiple(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testHasThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -128,9 +113,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->has('key');
     }
 
-    /**
-     * @test
-     */
     public function testPullThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -143,9 +125,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->pull('key');
     }
 
-    /**
-     * @test
-     */
     public function testForgetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -158,9 +137,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->forget('key');
     }
 
-    /**
-     * @test
-     */
     public function testTouchThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -173,9 +149,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->touch('key', 60);
     }
 
-    /**
-     * @test
-     */
     public function testDeleteThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -188,9 +161,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->delete('key');
     }
 
-    /**
-     * @test
-     */
     public function testDeleteMultipleThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -203,9 +173,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cache->deleteMultiple(['key1', 'key2']);
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessReadOperationsThrowBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -227,9 +194,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         }
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessUnsetThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -242,9 +206,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         unset($cache['key']);
     }
 
-    /**
-     * @test
-     */
     public function testPutStoresValueWithTags(): void
     {
         $connection = $this->mockConnection();
@@ -260,9 +221,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithNullTtlCallsForever(): void
     {
         $connection = $this->mockConnection();
@@ -278,9 +236,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutWithZeroTtlDeletesPlainKey(): void
     {
         $connection = $this->mockConnection();
@@ -311,9 +266,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         }
     }
 
-    /**
-     * @test
-     */
     public function testPutWithArrayCallsPutMany(): void
     {
         $connection = $this->mockConnection();
@@ -334,9 +286,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyStoresMultipleValues(): void
     {
         $connection = $this->mockConnection();
@@ -357,9 +306,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithNullTtlCallsForeverForEach(): void
     {
         $connection = $this->mockConnection();
@@ -375,9 +321,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithZeroTtlDeletesPlainKeys(): void
     {
         $connection = $this->mockConnection();
@@ -393,9 +336,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testSetMultipleWritesThroughTaggedPath(): void
     {
         $connection = $this->mockConnection();
@@ -416,9 +356,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($cache->setMultiple(['key1' => 'value1', 'key2' => 'value2'], 60));
     }
 
-    /**
-     * @test
-     */
     public function testArrayAccessSetWritesThroughTaggedPath(): void
     {
         $connection = $this->mockConnection();
@@ -434,9 +371,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue(true);
     }
 
-    /**
-     * @test
-     */
     public function testAddStoresValueIfNotExists(): void
     {
         $connection = $this->mockConnection();
@@ -458,9 +392,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($cache->add('mykey', 'myvalue', 60));
     }
 
-    /**
-     * @test
-     */
     public function testAddWithNullTtlStoresPermanently(): void
     {
         $connection = $this->mockConnection();
@@ -480,9 +411,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithZeroTtlReturnsFalse(): void
     {
         $connection = $this->mockConnection();
@@ -494,9 +422,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverStoresValueIndefinitely(): void
     {
         $connection = $this->mockConnection();
@@ -512,9 +437,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
@@ -530,9 +452,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(5, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
@@ -547,9 +466,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(15, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
@@ -565,9 +481,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(3, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
@@ -582,9 +495,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(0, $result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushDeletesAllTaggedItems(): void
     {
         $connection = $this->mockConnection();
@@ -610,9 +520,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testClearFlushesTaggedItems(): void
     {
         $connection = $this->mockConnection();
@@ -635,9 +542,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testRememberRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
@@ -688,9 +592,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         ], $sequence);
     }
 
-    /**
-     * @test
-     */
     public function testRememberCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
@@ -1173,9 +1074,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($invoked);
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
@@ -1221,9 +1119,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame('1', $cacheHit->key);
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
@@ -1302,9 +1197,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($invoked);
     }
 
-    /**
-     * @test
-     */
     public function testGetTagsReturnsTagSet(): void
     {
         $connection = $this->mockConnection();
@@ -1314,9 +1206,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertInstanceOf(AnyTagSet::class, $cache->getTags());
     }
 
-    /**
-     * @test
-     */
     public function testItemKeyReturnsKeyUnchanged(): void
     {
         $connection = $this->mockConnection();
@@ -1331,9 +1220,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, fn () => 'fallback');
     }
 
-    /**
-     * @test
-     */
     public function testIncrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
@@ -1348,9 +1234,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $store->setTagMode('any')->tags(['users'])->increment('counter');
     }
 
-    /**
-     * @test
-     */
     public function testDecrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
@@ -1365,9 +1248,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $store->setTagMode('any')->tags(['users'])->decrement('counter');
     }
 
-    /**
-     * @test
-     */
     public function testRememberPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
@@ -1387,9 +1267,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         });
     }
 
-    /**
-     * @test
-     */
     public function testRememberForeverPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
@@ -1409,9 +1286,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         });
     }
 
-    /**
-     * @test
-     */
     public function testRememberDoesNotCallCallbackWhenValueExists(): void
     {
         $connection = $this->mockConnection();
@@ -1434,9 +1308,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(0, $callCount, 'Callback should not be called when cache hit');
     }
 
-    /**
-     * @test
-     */
     public function testItemsReturnsGenerator(): void
     {
         $connection = $this->mockConnection();
