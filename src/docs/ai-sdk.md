@@ -1522,7 +1522,7 @@ public function handle(Request $request): Stringable|string
 
 When validation fails, the validation messages are returned to the model as the tool's result, allowing it to correct the arguments and call the tool again.
 
-Likewise, when a tool throws an exception, the run continues. The exception is reported to your application's exception handler, and the model receives "The tool call failed:" followed by the exception message as the tool's result, so it can explain the failure or try another approach.
+Likewise, when a tool throws an exception, the run continues. The exception is reported to your application's exception handler, and the model receives "The tool call failed." as the tool's result, so it can explain the failure or try another approach. When your application's `debug` configuration option is enabled, the result also includes the exception message. Exception messages may contain sensitive details such as query bindings or server paths, so return a string from your tool when the model should know why an expected failure occurred.
 
 <a name="repairing-tool-calls"></a>
 #### Repairing Tool Calls
@@ -1675,6 +1675,8 @@ use Hypervel\Ai\Tools\Filesystem\DeleteFile;
 return FileStorage::all('s3')
     ->reject(fn ($tool) => $tool instanceof DeleteFile);
 ```
+
+File storage tools return a description of the failed operation. As with other [tool failures](#validating-tool-arguments), raw exception messages are only included when your application's `debug` configuration option is enabled.
 
 <a name="mcp-tools"></a>
 ### MCP Tools
@@ -2008,6 +2010,8 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 ```
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
+
+If a sub-agent fails, the parent agent's run continues. The exception is reported to your application's exception handler, and the parent agent receives "Agent failed." as the tool's result. Like other [tool failures](#validating-tool-arguments), the result also includes the exception message when your application's `debug` configuration option is enabled.
 
 > [!WARNING]
 > Sub-agents do not currently support tools that require [human approval](#human-tool-approval). If a sub-agent's tool requires approval, the sub-agent pauses. However, the parent agent receives a normal tool result and continues its run without notifying your application of the pending approval. Register tools that require approval on the top-level agent.

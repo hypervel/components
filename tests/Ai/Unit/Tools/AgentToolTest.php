@@ -15,7 +15,9 @@ use Hypervel\Ai\Streaming\Events\StreamEnd;
 use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
-use Hypervel\Tests\TestCase;
+use Hypervel\Support\Facades\Exceptions;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -62,15 +64,60 @@ class AgentToolTest extends TestCase
         $this->assertSame('{"answer":42}', $generator->getReturn());
     }
 
+    #[WithConfig('app.debug', true)]
     public function testAFailingSubAgentSurfacesItsErrorAsTheToolResultOnTheStreamingPath(): void
     {
+        Exceptions::fake();
+        $exception = new RuntimeException('provider exploded');
+
         $agent = m::mock(Agent::class);
-        $agent->shouldReceive('stream')->once()->andThrow(new RuntimeException('provider exploded'));
+        $agent->shouldReceive('stream')->once()->andThrow($exception);
 
         $generator = (new AgentTool($agent))->stream(new Request(['task' => 'Do the thing']));
 
         $this->assertSame([], iterator_to_array($generator));
         $this->assertSame('Agent failed: provider exploded', $generator->getReturn());
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
+    }
+
+    #[DataProvider('promptedFailureModes')]
+    #[WithConfig('app.debug', false)]
+    public function testAFailingPromptedSubAgentIsReportedOnceAndHidesItsErrorOutsideDebugMode(bool $structuredStream): void
+    {
+        Exceptions::fake();
+        $exception = new RuntimeException('provider exploded');
+
+        $agent = $structuredStream ? m::mock(Agent::class, HasStructuredOutput::class) : m::mock(Agent::class);
+        $agent->shouldNotReceive('stream');
+        $agent->shouldReceive('prompt')->once()->andThrow($exception);
+
+        $tool = new AgentTool($agent);
+        $request = new Request(['task' => 'Do the thing']);
+
+        if ($structuredStream) {
+            $generator = $tool->stream($request);
+
+            $this->assertSame([], iterator_to_array($generator));
+            $this->assertSame('Agent failed.', $generator->getReturn());
+        } else {
+            $this->assertSame('Agent failed.', $tool->handle($request));
+        }
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
+    }
+
+    /**
+     * Provide the prompt path and the structured sub-agent's streaming path, which prompts.
+     */
+    public static function promptedFailureModes(): array
+    {
+        return [
+            'prompt' => [false],
+            'structured stream' => [true],
+        ];
     }
 
     #[DataProvider('deliveryModes')]

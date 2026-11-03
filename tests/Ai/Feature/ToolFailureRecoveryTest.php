@@ -13,12 +13,14 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\ToolResult;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\ThrowingToolAgent;
 use Hypervel\Tests\Ai\TestCase;
 use RuntimeException;
 
 class ToolFailureRecoveryTest extends TestCase
 {
+    #[WithConfig('app.debug', true)]
     public function testAThrowingToolReturnsAFailedResultToTheModel(): void
     {
         Exceptions::fake();
@@ -38,6 +40,26 @@ class ToolFailureRecoveryTest extends TestCase
         Exceptions::assertReported(fn (Exception $exception): bool => $exception->getMessage() === 'Forced to throw exception.');
     }
 
+    #[WithConfig('app.debug', false)]
+    public function testAThrowingToolHidesTheExceptionMessageFromTheModelOutsideDebugMode(): void
+    {
+        Exceptions::fake();
+
+        ThrowingToolAgent::fake([
+            new ToolCall('call_1', 'FixedNumberGenerator', []),
+            'The tool could not run.',
+        ]);
+
+        $response = (new ThrowingToolAgent)->prompt('Generate');
+
+        $this->assertFalse($response->toolResults[0]->successful());
+        $this->assertSame('The tool call failed.', $response->toolResults[0]->error());
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (Exception $exception): bool => $exception->getMessage() === 'Forced to throw exception.');
+    }
+
+    #[WithConfig('app.debug', true)]
     public function testAThrowingToolStreamsAFailedResult(): void
     {
         Exceptions::fake();

@@ -41,6 +41,7 @@ use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
@@ -48,6 +49,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingViaCustomToolAgent;
@@ -554,6 +556,7 @@ class AgentEventsTest extends TestCase
         $this->assertSame($invoking->invocationId, $failed->invocationId);
     }
 
+    #[WithConfig('app.debug', false)]
     public function testAToolThatFailsWhileResumingAnApprovalReportsTheFailureOnceAndContinuesTheRun(): void
     {
         Event::fake();
@@ -611,6 +614,10 @@ class AgentEventsTest extends TestCase
 
         $this->assertSame('Forced to throw exception.', $failed->exception->getMessage());
         $this->assertSame($invoking->toolInvocationId, $failed->toolInvocationId);
+
+        // Outside debug mode, the model receives the failure without the exception message...
+        Http::assertSent(fn (HttpRequest $request): bool => str_contains($request->body(), 'The tool call failed.')
+            && ! str_contains($request->body(), 'Forced to throw'));
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(fn (Exception $exception): bool => $exception === $failed->exception);

@@ -66,7 +66,7 @@ class AgentTool implements Approvable, Tool, Transient
             }
 
             // Degraded to a result so the parent run survives; the failure surfaces as the sub-agent's own AgentFailed...
-            return 'Agent failed: ' . $throwable->getMessage();
+            return $this->failedResult($throwable);
         }
     }
 
@@ -92,8 +92,22 @@ class AgentTool implements Approvable, Tool, Transient
                 throw $throwable;
             }
 
-            return 'Agent failed: ' . $throwable->getMessage();
+            return $this->failedResult($throwable);
         }
+    }
+
+    /**
+     * Report the sub-agent's failure and get the result the parent agent receives.
+     */
+    protected function failedResult(Throwable $throwable): string
+    {
+        // Unlike upstream, the failure is reported, since AgentFailed only reaches listeners and the parent run never sees the exception.
+        report($throwable);
+
+        // Unlike upstream, the exception message is only included in debug mode, matching ordinary tool failures...
+        return config()->boolean('app.debug')
+            ? 'Agent failed: ' . $throwable->getMessage()
+            : 'Agent failed.';
     }
 
     /**

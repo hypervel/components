@@ -1356,8 +1356,11 @@ class TextGenerationLoopTest extends TestCase
         $events = [
             new StreamStart('start-1', 'fake', 'model', time()),
             new TextDelta('sub-delta-1', 'sub-message-1', str_repeat('First step.', 30), time()),
+            new ToolResultEvent('sub-result', new ToolResultData('sub-call', 'lookup', [], 'found', 'sub-call'), true, null, time()),
             new StreamStart('start-2', 'fake', 'model', time()),
             new TextDelta('sub-delta-2', 'sub-message-2', str_repeat('Second step.', 30), time()),
+            new StreamStart('start-3', 'fake', 'model', time()),
+            new TextDelta('sub-delta-3', 'sub-message-3', str_repeat('Third step.', 30), time()),
             new StreamEnd('sub-end', FinishReason::Stop->value, new TextUsage, time()),
         ];
 
@@ -1369,7 +1372,10 @@ class TextGenerationLoopTest extends TestCase
         [$preliminary, $settled] = $streamed->whereInstanceOf(ToolResultEvent::class)
             ->partition(fn (ToolResultEvent $event): bool => $event->preliminary);
 
-        $this->assertSame(TextDelta::combine($events), $preliminary->last()->toolResult->result);
+        $this->assertSame(
+            str_repeat('First step.', 30) . "\n\n" . str_repeat('Second step.', 30) . str_repeat('Third step.', 30),
+            $preliminary->last()->toolResult->result,
+        );
         $this->assertSame($settled->first()->toolResult->result, $preliminary->last()->toolResult->result);
     }
 

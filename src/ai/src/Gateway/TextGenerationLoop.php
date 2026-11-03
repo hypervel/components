@@ -809,7 +809,8 @@ class TextGenerationLoop
         $reportedAt = 0;
 
         foreach ($events as $event) {
-            if ($event instanceof StreamStart) {
+            // Step starts and the sub-agent's tool results let combine() separate steps as the final result does...
+            if ($event instanceof StreamStart || $event instanceof ToolResultEvent) {
                 $deltas[] = $event;
 
                 continue;
@@ -1030,8 +1031,20 @@ class TextGenerationLoop
         } catch (ToolExecutionException $exception) {
             report($exception->exception);
 
-            return $this->toolResult($toolCall, 'The tool call failed: ' . $exception->exception->getMessage(), failed: true);
+            return $this->toolResult($toolCall, $this->failedToolResultText($exception->exception), failed: true);
         }
+    }
+
+    /**
+     * Get the result the model receives for a tool that threw.
+     */
+    protected function failedToolResultText(Throwable $exception): string
+    {
+        // Unlike upstream, the exception message is only included in debug mode. It can carry query bindings,
+        // server paths and other details that should not reach the provider, the conversation or the client...
+        return config()->boolean('app.debug')
+            ? 'The tool call failed: ' . $exception->getMessage()
+            : 'The tool call failed.';
     }
 
     /**
@@ -1196,7 +1209,7 @@ class TextGenerationLoop
                 report($exception->exception);
 
                 $failed = true;
-                $result = 'The tool call failed: ' . $exception->exception->getMessage();
+                $result = $this->failedToolResultText($exception->exception);
             }
 
             $toolResults[] = $result = new ToolResult(

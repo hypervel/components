@@ -37,7 +37,15 @@ class GetFileMetadata extends FilesystemTool
                 throw $exception;
             }
 
-            return "File [{$path}] does not exist.";
+            // Unlike upstream, a failed lookup of an existing file is reported instead of described as missing.
+            // Missing files and other failures throw the same exception, so only a failure checks existence...
+            if (! $this->fileExists($disk, $path)) {
+                return "File [{$path}] does not exist.";
+            }
+
+            report($exception);
+
+            return "Unable to get metadata for [{$path}].";
         }
 
         return (string) json_encode([

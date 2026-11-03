@@ -34,6 +34,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
@@ -472,6 +473,7 @@ class AgentTest extends TestCase
     }
 
     #[DataProviderExternal(Providers::class, 'agents')]
+    #[WithConfig('app.debug', true)]
     public function testAThrowingToolReturnsItsFailureToTheModel(string $provider, string $apiKey, string $model): void
     {
         requiresApiKey($apiKey);
