@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
-class OnceProp implements Onceable
+class OnceProp implements Onceable, SupportsLiveUpdates
 {
+    use HasLiveUpdates;
     use ResolvesCallables;
     use ResolvesOnce;
 

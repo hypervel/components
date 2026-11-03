@@ -6,6 +6,7 @@ namespace Hypervel\Inertia;
 
 use BackedEnum;
 use Closure;
+use Hypervel\Broadcasting\Channel;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
@@ -267,6 +268,17 @@ class ResponseFactory
     }
 
     /**
+     * Create a live property.
+     *
+     * @param null|array<int, class-string|object|string>|class-string|object|string $on
+     * @param null|array<int, Channel|string>|Channel|string $channel
+     */
+    public function live(mixed $value, array|object|string|null $on = null, array|Channel|string|null $channel = null, ?int $throttle = null): LiveProp
+    {
+        return new LiveProp($value, $on, $channel, $throttle);
+    }
+
+    /**
      * Create a once property.
      */
     public function once(callable $value): OnceProp
@@ -357,6 +369,23 @@ class ResponseFactory
         DevTools::recorder()?->pageRendering($component, $response);
 
         return $response;
+    }
+
+    /**
+     * Resolve props for a broadcast payload.
+     *
+     * @param array<array-key, mixed> $props
+     * @return array{__inertia: array{props: array<array-key, mixed>}}
+     */
+    public function broadcastProps(array $props): array
+    {
+        $resolver = new PropsResolver(request(), '');
+
+        return [
+            '__inertia' => [
+                'props' => $resolver->resolveBroadcastProps($props),
+            ],
+        ];
     }
 
     /**

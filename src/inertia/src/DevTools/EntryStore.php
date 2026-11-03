@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia\DevTools;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Inertia\DevTools\Data\IncomingEntry;
 use Hypervel\Support\Facades\Log;
 use Throwable;
@@ -78,6 +79,12 @@ class EntryStore
 
             static::$suppressedUntil = null;
         } catch (Throwable $e) {
+            // A canceled request is not a storage failure, so it must not suspend recording
+            // for the rest of the worker.
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $firstFailure = static::$suppressedUntil === null;
 
             static::$suppressedUntil = microtime(true) + self::SUPPRESS_SECONDS;
@@ -85,9 +92,12 @@ class EntryStore
             if ($firstFailure) {
                 try {
                     Log::warning('Inertia DevTools: failed to persist entry: ' . $e->getMessage());
-                } catch (Throwable) {
+                } catch (Throwable $exception) {
                     // The log often shares the failing storage, such as a full disk, and
                     // recording must still never break the response.
+                    if (Coroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
                 }
             }
         }

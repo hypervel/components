@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
-class AlwaysProp
+class AlwaysProp implements SupportsLiveUpdates
 {
+    use HasLiveUpdates;
     use ResolvesCallables;
 
     /**

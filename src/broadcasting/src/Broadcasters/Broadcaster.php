@@ -121,6 +121,14 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
+     * Get the registered outgoing channel formatter.
+     */
+    public static function channelFormatter(): ?Closure
+    {
+        return static::$channelFormatter;
+    }
+
+    /**
      * Register the incoming channel authorizer.
      *
      * Boot-only. The callback persists in shared static state for the worker

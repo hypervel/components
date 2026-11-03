@@ -160,6 +160,7 @@ class RequestRecorder
             $meta['deferGroup'],
             $meta['reset'],
             $meta['once'],
+            $meta['live'],
             $meta['mergeDirection'],
             $meta['deepMerge'],
             rescued: $rescued,
