@@ -76,7 +76,7 @@ export default {
 
         activateTab(tab) {
             this.currentTab = tab;
-            window.history.replaceState(window.history.state, '', '#' + this.currentTab);
+            this.$router.replace({ hash: '#' + this.currentTab });
         },
     },
 
