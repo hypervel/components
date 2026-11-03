@@ -415,6 +415,12 @@ Instead of retrieving the request's input data as a primitive `string`, you may 
 $name = $request->string('name')->trim();
 ```
 
+If the input is not a string, number, or `Stringable` instance, such as an array, you may pass `strict: true` to receive the default value instead:
+
+```php
+$name = $request->string('name', 'Guest', strict: true);
+```
+
 <a name="retrieving-integer-input-values"></a>
 #### Retrieving Integer Input Values
 
@@ -424,6 +430,12 @@ To retrieve input values as integers, you may use the `integer` method. This met
 $perPage = $request->integer('per_page');
 ```
 
+By default, the `integer` method casts whatever it receives, so a value like `"12abc"` becomes `12`. To reject values that are not valid integers, pass `strict: true`. Invalid values will then return the default value, which may be `null`. The default may also be a closure, which is only called when the default is needed:
+
+```php
+$perPage = $request->integer('per_page', default: null, strict: true);
+```
+
 <a name="retrieving-float-input-values"></a>
 #### Retrieving Float Input Values
 
@@ -431,6 +443,12 @@ Similarly, the `float` method retrieves an input value as a float. If the input 
 
 ```php
 $price = $request->float('price');
+```
+
+The `float` method also accepts `strict: true`, which returns the default value for anything that is not a valid number, such as `"1.5abc"` or `"1,000"`:
+
+```php
+$price = $request->float('price', default: null, strict: true);
 ```
 
 <a name="retrieving-clamped-input-values"></a>
@@ -445,10 +463,16 @@ $perPage = $request->clamp('per_page', min: 1, max: 100, default: 15);
 <a name="retrieving-boolean-input-values"></a>
 #### Retrieving Boolean Input Values
 
-When dealing with HTML elements like checkboxes, your application may receive "truthy" values that are actually strings. For example, "true" or "on". For convenience, you may use the `boolean` method to retrieve these values as booleans. The `boolean` method returns `true` for 1, "1", true, "true", "on", and "yes". All other values will return `false`:
+When dealing with HTML elements like checkboxes, your application may receive "truthy" values that are actually strings. For example, "true" or "on". For convenience, you may use the `boolean` method to retrieve these values as booleans. The `boolean` method returns `true` for 1, "1", true, "true", "on", and "yes", ignoring case and surrounding whitespace. All other values will return `false`:
 
 ```php
 $archived = $request->boolean('archived');
+```
+
+If you need to tell a false value apart from an invalid one, pass `strict: true`. Values such as 0, "0", false, "false", "off", and "no" will still return `false`, but unrecognized or empty input will return the default value instead:
+
+```php
+$archived = $request->boolean('archived', default: null, strict: true);
 ```
 
 <a name="retrieving-array-input-values"></a>
