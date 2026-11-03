@@ -28,7 +28,7 @@ Laravel's `Application::handleRequest()` is omitted. Hypervel's HTTP server hand
 
 The `php artisan serve` command starts Hypervel's configured Swoole servers directly instead of PHP's built-in development server.
 
-`php artisan install:broadcasting` adds Echo configuration to the application file only for React apps. Vue apps receive the standard `echo.js` setup; see the [broadcasting documentation](https://hypervel.org/docs/broadcasting#client-side-installation) to use `@laravel/echo-vue` instead.
+`php artisan install:broadcasting` adds Echo configuration to the application file only for React apps. Other apps receive a standard `echo.js` file, imported from `resources/js/bootstrap.js` or `resources/js/app.js` when either exists. Vue apps, including those with only an `app.ts` file, can configure `@laravel/echo-vue` as described in the [broadcasting documentation](https://hypervel.org/docs/broadcasting#client-side-installation).
 
 Environment detection honors startup `--env` arguments even when `runningInConsole()` is false, so server commands can select their environment while booting with HTTP semantics.
 
