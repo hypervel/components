@@ -192,6 +192,15 @@ class InertiaServiceProviderTest extends TestCase
             ->assertRedirect('/bar')
             ->assertStatus(303);
     }
+
+    public function testRedirectsFromQueryRequestsOutsideTheInertiaMiddlewareAreConvertedTo303(): void
+    {
+        Route::match(['QUERY'], '/foo', fn () => redirect('/bar'));
+
+        $this->json('QUERY', '/foo', ['search' => 'foo'], ['X-Inertia' => 'true'])
+            ->assertRedirect('/bar')
+            ->assertStatus(303);
+    }
 }
 
 class InspectableInertiaServiceProvider extends InertiaServiceProvider
