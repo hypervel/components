@@ -108,15 +108,24 @@ class HandleExceptions
     /**
      * Report PHP deprecations, or convert PHP errors to ErrorException instances.
      *
+     * Errors excluded by error_reporting(), such as those silenced with @, are passed
+     * on to PHP's standard handler so error_get_last() still reports them.
+     *
      * @throws ErrorException
      */
-    public function handleError(int $level, string $message, string $file = '', int $line = 0): void
+    public function handleError(int $level, string $message, string $file = '', int $line = 0): bool
     {
         if ($this->isDeprecation($level)) {
             $this->handleDeprecationError($message, $file, $line, $level);
-        } elseif (error_reporting() & $level) {
+
+            return true;
+        }
+
+        if (error_reporting() & $level) {
             throw new ErrorException($message, 0, $level, $file, $line);
         }
+
+        return false;
     }
 
     /**
