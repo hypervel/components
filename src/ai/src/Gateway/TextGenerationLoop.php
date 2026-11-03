@@ -1188,15 +1188,15 @@ class TextGenerationLoop
 
             $failed = false;
 
+            // Unlike upstream, only the tool's own failure is reported and returned to the model, as in executedToolResult().
+            // A listener exception or cancellation ends the run, so a tool that ran is never presented to the model as failed...
             try {
                 $result = $this->executeTool($tool, $arguments, $toolCall->id, $context);
-            } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
+            } catch (ToolExecutionException $exception) {
+                report($exception->exception);
 
                 $failed = true;
-                $result = 'The tool call failed: ' . $exception->getMessage();
+                $result = 'The tool call failed: ' . $exception->exception->getMessage();
             }
 
             $toolResults[] = $result = new ToolResult(

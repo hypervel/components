@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature;
 
 use Closure;
+use Exception;
 use Hypervel\Ai\AnonymousAgent;
 use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Contracts\Conversational;
@@ -45,6 +46,7 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingAgent;
@@ -53,6 +55,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\MiddleManagerAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\OrchestratorAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RateLimitedToolAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\RememberingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingThrowingApprovableAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingToolUsingAgent;
@@ -60,6 +63,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\ConversationStores\InMemoryConversationStore;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
+use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use Hypervel\Tests\Ai\TestCase;
@@ -553,6 +557,7 @@ class AgentEventsTest extends TestCase
     public function testAToolThatFailsWhileResumingAnApprovalReportsTheFailureOnceAndContinuesTheRun(): void
     {
         Event::fake();
+        Exceptions::fake();
 
         config(['ai.conversations.generate_title' => false]);
 
@@ -606,6 +611,53 @@ class AgentEventsTest extends TestCase
 
         $this->assertSame('Forced to throw exception.', $failed->exception->getMessage());
         $this->assertSame($invoking->toolInvocationId, $failed->toolInvocationId);
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (Exception $exception): bool => $exception === $failed->exception);
+    }
+
+    public function testAToolInvokedListenerExceptionWhileResumingAnApprovalFailsTheRunInsteadOfFailingTheTool(): void
+    {
+        config(['ai.conversations.generate_title' => false]);
+
+        ApprovableNumberGenerator::$invocations = 0;
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_tool_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [[
+                    'type' => 'tool_use',
+                    'id' => 'toolu_1',
+                    'name' => 'ApprovableNumberGenerator',
+                    'input' => (object) [],
+                ]],
+                'stop_reason' => 'tool_use',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        $user = (object) ['id' => 1];
+
+        $paused = (new RememberingApprovableAgent)->forUser($user)->prompt('Generate a number', provider: 'anthropic');
+
+        $this->assertTrue($paused->hasPendingApprovals());
+
+        Event::listen(ToolInvoked::class, fn () => throw new RuntimeException('Listener failed.'));
+
+        $this->assertThrows(
+            fn (): mixed => (new RememberingApprovableAgent)
+                ->continue($paused->conversationId, $user)
+                ->prompt(Decisions::from(['toolu_1' => true]), provider: 'anthropic'),
+            RuntimeException::class,
+            'Listener failed.',
+        );
+
+        // The tool succeeded, so the model is never told it failed...
+        $this->assertSame(1, ApprovableNumberGenerator::$invocations);
+        Http::assertSentCount(1);
     }
 
     public function testASubAgentPromptIsLinkedToTheParentInvocationAndToolInvocation(): void
