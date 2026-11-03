@@ -131,6 +131,15 @@ use Hypervel\Foundation\Configuration\Middleware;
 
 The `$middleware` object provided to the `withMiddleware` closure is an instance of `Hypervel\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
 
+To place a middleware next to an existing global middleware, you may use the `insertBefore` and `insertAfter` methods:
+
+```php
+use App\Http\Middleware\EnsureTokenIsValid;
+use Hypervel\Http\Middleware\TrustProxies;
+
+$middleware->insertAfter(TrustProxies::class, EnsureTokenIsValid::class);
+```
+
 <a name="preferring-json-responses"></a>
 #### Preferring JSON Responses
 
@@ -333,6 +342,15 @@ Or, you may remove a middleware entirely:
 $middleware->web(remove: [
     StartSession::class,
 ]);
+```
+
+The `insertBeforeInGroup` and `insertAfterInGroup` methods place middleware next to an existing entry in a group:
+
+```php
+use App\Http\Middleware\EnsureUserIsSubscribed;
+use Hypervel\Session\Middleware\StartSession;
+
+$middleware->insertAfterInGroup('web', StartSession::class, EnsureUserIsSubscribed::class);
 ```
 
 <a name="manually-managing-hypervels-default-middleware-groups"></a>

@@ -20,6 +20,7 @@ use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
 use Hypervel\Session\Middleware\AuthenticateSession;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -338,6 +339,153 @@ class MiddlewareTest extends TestCase
         $reflection = new ReflectionClass(PreventRequestForgery::class);
         $this->assertTrue($reflection->getStaticPropertyValue('originOnly'));
         $this->assertTrue($reflection->getStaticPropertyValue('allowSameSite'));
+    }
+
+    public function testReplace(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replace('FirstMiddleware', 'ReplacedMiddleware');
+
+        $this->assertSame(['ReplacedMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware', 'ThirdMiddleware']);
+        $middleware->replace('FirstMiddleware', ['FirstMiddleware', 'AfterMiddleware']);
+        $middleware->replace('ThirdMiddleware', ['BeforeMiddleware', 'ThirdMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'AfterMiddleware',
+            'SecondMiddleware',
+            'BeforeMiddleware',
+            'ThirdMiddleware',
+        ], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceDefaultMiddlewareWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->replace(TrustProxies::class, [TrustProxies::class, 'AfterMiddleware']);
+
+        $global = $middleware->getGlobalMiddleware();
+
+        $this->assertSame('AfterMiddleware', $global[array_search(TrustProxies::class, $global) + 1]);
+    }
+
+    public function testReplaceMissingMiddlewareWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware']);
+        $middleware->replace('MissingMiddleware', ['MissingMiddleware', 'AfterMiddleware']);
+
+        $this->assertSame(['FirstMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testRemoveReplacedMiddleware(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replace('FirstMiddleware', ['FirstMiddleware', 'AfterMiddleware']);
+        $middleware->remove('FirstMiddleware');
+
+        $this->assertSame(['AfterMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testReplaceInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replaceInGroup('custom', 'FirstMiddleware', 'ReplacedMiddleware');
+
+        $this->assertSame(['ReplacedMiddleware', 'SecondMiddleware'], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testReplaceInGroupWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->replaceInGroup('custom', 'FirstMiddleware', ['BeforeMiddleware', 'FirstMiddleware', 'AfterMiddleware']);
+
+        $this->assertSame([
+            'BeforeMiddleware',
+            'FirstMiddleware',
+            'AfterMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testReplaceInWebGroupWithArray(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->web(replace: [
+            StartSession::class => [StartSession::class, 'AfterMiddleware'],
+        ]);
+
+        $web = $middleware->getMiddlewareGroups()['web'];
+
+        $this->assertSame('AfterMiddleware', $web[array_search(StartSession::class, $web) + 1]);
+    }
+
+    public function testInsertBefore(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertBefore('SecondMiddleware', ['BeforeMiddleware', 'AnotherBeforeMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'BeforeMiddleware',
+            'AnotherBeforeMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getGlobalMiddleware());
+    }
+
+    public function testInsertAfter(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->use(['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertAfter('FirstMiddleware', 'AfterMiddleware');
+
+        $this->assertSame(['FirstMiddleware', 'AfterMiddleware', 'SecondMiddleware'], $middleware->getGlobalMiddleware());
+    }
+
+    public function testInsertBeforeInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertBeforeInGroup('custom', 'SecondMiddleware', ['BeforeMiddleware', 'AnotherBeforeMiddleware']);
+
+        $this->assertSame([
+            'FirstMiddleware',
+            'BeforeMiddleware',
+            'AnotherBeforeMiddleware',
+            'SecondMiddleware',
+        ], $middleware->getMiddlewareGroups()['custom']);
+    }
+
+    public function testInsertAfterInGroup(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->group('custom', ['FirstMiddleware', 'SecondMiddleware']);
+        $middleware->insertAfterInGroup('custom', 'FirstMiddleware', 'AfterMiddleware');
+
+        $this->assertSame(['FirstMiddleware', 'AfterMiddleware', 'SecondMiddleware'], $middleware->getMiddlewareGroups()['custom']);
     }
 
     public function testDefaultGlobalMiddleware(): void
