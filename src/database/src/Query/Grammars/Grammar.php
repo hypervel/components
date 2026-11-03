@@ -1072,6 +1072,14 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile an "exists" subquery as a selectable column.
+     */
+    public function compileExistsColumn(string $sql): string
+    {
+        return 'exists(' . $sql . ')';
+    }
+
+    /**
      * Compile an insert statement into SQL.
      */
     public function compileInsert(Builder $query, array $values): string
