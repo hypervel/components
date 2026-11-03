@@ -108,8 +108,9 @@ class HandleExceptions
     /**
      * Report PHP deprecations, or convert PHP errors to ErrorException instances.
      *
-     * Errors excluded by error_reporting(), such as those silenced with @, are passed
-     * on to PHP's standard handler so error_get_last() still reports them.
+     * Deprecations are handled here even when silenced with @. Other errors excluded by
+     * error_reporting() are passed on to PHP's standard handler so error_get_last() still
+     * reports them.
      *
      * @throws ErrorException
      */
