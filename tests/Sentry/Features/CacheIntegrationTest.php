@@ -220,6 +220,17 @@ class CacheIntegrationTest extends TestCase
         $this->assertEquals(99, $span->getData()['cache.ttl']);
     }
 
+    public function testCachePutSpanOmitsTtlWhenEntryNeverExpires(): void
+    {
+        $span = $this->executeAndReturnMostRecentSpan(function (): void {
+            Cache::forever('foo', 'bar');
+        });
+
+        $this->assertEquals('cache.put', $span->getOp());
+        $this->assertEquals(['foo'], $span->getData()['cache.key']);
+        $this->assertArrayNotHasKey('cache.ttl', $span->getData());
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testNestedBulkOperationsFinishOnlyAfterTheirLastResult(bool $writing): void

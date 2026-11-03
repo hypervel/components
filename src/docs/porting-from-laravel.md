@@ -555,6 +555,8 @@ Agent overrides of `Promptable::getProvidersAndModels()` must return an ordered 
 
 Remote attachments share the HTTP client's destination checks instead of `UntrustedUrl`'s protected `validate`, `resolve`, and `isBlocked` helpers and hostname-blocklist constants. Adapt subclasses that override them. URLs with embedded credentials are rejected; fetch authenticated files explicitly before attaching them. The default `ai.remote_files.max_size` is 32 MiB (`32 * 1024` kilobytes) instead of Laravel's 100 MB; raise it if your downloads are larger. See [remote attachments](/docs/{{version}}/ai-sdk#remote-attachments).
 
+Tools that throw to tell the model why they failed only pass that message along when `app.debug` is enabled; in production the model receives a generic failure such as `The tool call failed.` Return the explanation as the tool's result instead. See [validating tool arguments](/docs/{{version}}/ai-sdk#validating-tool-arguments).
+
 Skill definitions in `resources/skills` are cached across requests. If your application changes them at runtime, use a closure or an uncached directory, or set `ai.skills.cached_paths` to `[]`. See [skills](/docs/{{version}}/ai-sdk#skills).
 
 Existing conversation data needs a schema migration. Compare column types and indexes with Hypervel's migration, add the approval claim and replay columns, and resolve messages whose conversations no longer exist before adding the foreign key. See [migrating conversation data](/docs/{{version}}/ai-sdk#migrating-conversation-data).

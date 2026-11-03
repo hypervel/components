@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Responses;
 
 use Countable;
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\RankedDocument;
 use Hypervel\Ai\Responses\Data\RerankingUsage;
@@ -16,6 +17,8 @@ use Traversable;
 
 class RerankingResponse implements Arrayable, Countable, IteratorAggregate, JsonSerializable
 {
+    use HasRawResponse;
+
     /**
      * Create a new reranking response instance.
      *

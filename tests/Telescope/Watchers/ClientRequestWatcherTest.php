@@ -806,6 +806,19 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['foo' => 'bar'], $entry->content['payload']['image']['headers']);
     }
 
+    public function testClientRequestWatcherReportsTheSizeOfAnEmptyResourceFileUpload(): void
+    {
+        Http::fake([
+            '*' => Http::response(null, 204),
+        ]);
+
+        $file = UploadedFile::fake()->create('empty.txt', 0);
+
+        Http::attach('file', $file->tempFile)->post('https://hypervel.org/fake-upload-file-route');
+
+        $this->assertSame('0KB', $this->loadTelescopeEntries()->first()->content['payload']['file']['size']);
+    }
+
     public function testItStoresAndDisplaysArrayOfRequestHeaders(): void
     {
         Http::fake(['*' => '']);

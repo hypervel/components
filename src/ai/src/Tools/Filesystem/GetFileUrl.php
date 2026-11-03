@@ -48,7 +48,13 @@ class GetFileUrl extends FilesystemTool
                 throw $throwable;
             }
 
-            return "Unable to generate a URL for [{$path}]: {$throwable->getMessage()}";
+            // Unlike upstream, the failure is reported, since the tool's result keeps it from the exception handler.
+            report($throwable);
+
+            // Unlike upstream, the exception message is only included in debug mode, since it can carry server paths...
+            return config()->boolean('app.debug')
+                ? "Unable to generate a URL for [{$path}]: {$throwable->getMessage()}"
+                : "Unable to generate a URL for [{$path}].";
         }
     }
 

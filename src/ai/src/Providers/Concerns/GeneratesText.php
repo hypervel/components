@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Providers\Concerns;
 
 use Closure;
 use Hypervel\Ai\Ai;
+use Hypervel\Ai\Approvals\Decision;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\ClaimsPendingApprovals;
 use Hypervel\Ai\Contracts\Conversational;
@@ -80,6 +81,7 @@ trait GeneratesText
                     $schema = $agent instanceof HasStructuredOutput ? $agent->schema(new JsonSchemaTypeFactory) : null;
                     $instructions = (string) $agent->instructions();
                     $tools = $this->resolveTools($prompt);
+                    $approval = $this->resumableApprovalFor($prompt, $messages, $tools);
                     $options = TextGenerationOptions::forAgent($agent);
 
                     if ($prompt->middleware !== []) {
@@ -95,9 +97,9 @@ trait GeneratesText
                         $schema,
                         $options,
                         $prompt->timeout,
-                        $this->resumableApprovalFor($prompt),
-                        $this->approvalResultRecorderFor($prompt, $resolvedApprovalResults),
-                        $this->runContextFor($invocationId, $prompt),
+                        $approval,
+                        $this->approvalResultRecorderFor($prompt, $approval, $resolvedApprovalResults),
+                        $this->prepareRunContext($invocationId, $prompt, $approval),
                     );
 
                     if ($response->hasPendingApprovals()) {
@@ -224,27 +226,38 @@ trait GeneratesText
     }
 
     /**
+     * Build the run's context, letting a remembered conversation claim and record the approval decisions the run resumes.
+     *
+     * @param null|array<string, Decision> $approval
+     */
+    protected function prepareRunContext(string $invocationId, AgentPrompt $prompt, ?array $approval): RunContext
+    {
+        $conversationId = $approval !== null && RememberConversation::appliesTo($prompt->agent)
+            ? $prompt->conversationSelection()?->conversationId
+            : null;
+
+        if ($conversationId === null) {
+            return $this->runContextFor($invocationId, $prompt);
+        }
+
+        $store = resolve(ConversationStore::class);
+
+        // Checked before the context is published, so an unsupported store fails like any other pre-run error.
+        if (! $store instanceof ClaimsPendingApprovals) {
+            throw new LogicException('Conversation store [' . $store::class . '] must implement [' . ClaimsPendingApprovals::class . '] to resume stored tool approvals.');
+        }
+
+        // Unlike upstream, the resumed approvals are claimed through the store instead of a separate result recorder.
+        return $this->runContextFor($invocationId, $prompt)->withApprovalStore($store, $conversationId);
+    }
+
+    /**
      * Build the context that identifies this run and reports its step and tool events.
      */
     protected function runContextFor(string $invocationId, AgentPrompt $prompt): RunContext
     {
-        $store = null;
-        $conversationId = null;
-
-        if ($this->resumesAgainstRealGateway($prompt) && RememberConversation::appliesTo($prompt->agent)) {
-            $conversationId = $prompt->conversationSelection()?->conversationId;
-
-            if ($conversationId !== null) {
-                $store = resolve(ConversationStore::class);
-
-                if (! $store instanceof ClaimsPendingApprovals) {
-                    throw new LogicException('Conversation store [' . $store::class . '] must implement [' . ClaimsPendingApprovals::class . '] to resume stored tool approvals.');
-                }
-            }
-        }
-
         return tap(
-            new RunContext($invocationId, $prompt->agent, $this, $prompt->model, $this->events, $prompt->contextRunner(), $store, $conversationId),
+            new RunContext($invocationId, $prompt->agent, $this, $prompt->model, $this->events, $prompt->contextRunner()),
             fn (RunContext $context) => $prompt->setRunContext($context),
         );
     }

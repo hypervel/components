@@ -168,7 +168,7 @@ class OpenAiClassificationGateway implements ClassificationGateway
     /**
      * Map a score level to a label, keeping the description of levels given as a label and description.
      *
-     * @param array<string, mixed>|string $level
+     * @param array<array-key, mixed>|string $level
      */
     protected function mapLevel(string|array $level): array
     {
@@ -190,7 +190,7 @@ class OpenAiClassificationGateway implements ClassificationGateway
         $instructions = $this->toText($question->instructions);
 
         foreach ($question->criteria ?? [] as $case => $description) {
-            $instructions .= "\n\n" . ucfirst($case) . ": {$description}";
+            $instructions .= "\n\n" . ucfirst($case) . ': ' . $this->toText($description);
         }
 
         return $instructions;

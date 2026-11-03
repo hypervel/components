@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Middleware;
 use Closure;
 use Generator;
 use Hypervel\Ai\Ai;
+use Hypervel\Ai\AnonymousAgent;
 use Hypervel\Ai\Concerns\RemembersConversations as RemembersConversationsTrait;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\ConversationStore;
@@ -216,7 +217,7 @@ class RememberConversation
         if ($newConversation) {
             if (($exception === null || ! Coroutine::causedByCancellation($exception)) && ! $exception instanceof StreamAbandonedException) {
                 try {
-                    $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt->prompt);
+                    $title = $prompt->pendingConversationTitle()?->value() ?? $this->generateTitle($prompt);
                 } catch (ChildCancellationException) {
                     // An independently canceled title must not discard the caller's completed turn.
                 } catch (Throwable $caught) {
@@ -360,7 +361,7 @@ class RememberConversation
         DB::releaseIdleConnections();
 
         return new PendingConversationTitle(
-            fn (): string => $this->generateTitle($prompt->prompt),
+            fn (): string => $this->generateTitle($prompt),
             $prompt->contextRunner() ?? Ai::captureContext(),
         );
     }
@@ -368,19 +369,25 @@ class RememberConversation
     /**
      * Generate a title for the conversation.
      */
-    protected function generateTitle(string $prompt): string
+    protected function generateTitle(AgentPrompt $prompt): string
     {
         if (! config()->boolean('ai.conversations.generate_title', true)) {
-            return Str::limit($prompt, 50, preserveWords: true);
+            return Str::limit($prompt->prompt, 50, preserveWords: true);
         }
 
         try {
-            $response = $this->provider->textGenerationLoop()->generate(
+            $response = $this->provider->prompt(new AgentPrompt(
+                new AnonymousAgent(
+                    'Generate a concise 3-5 word title for a conversation that starts with the following message. Use the same language as the message. Respond with only the title, no quotes or punctuation.',
+                    [],
+                    [],
+                ),
+                Str::limit($prompt->prompt, 500),
+                [],
                 $this->provider,
                 $this->provider->cheapestTextModel(),
-                'Generate a concise 3-5 word title for a conversation that starts with the following message. Use the same language as the message. Respond with only the title, no quotes or punctuation.',
-                [new UserMessage(Str::limit($prompt, 500))],
-            );
+                parentInvocationId: $prompt->invocationId,
+            ));
 
             return Str::limit($response->text, 100);
         } catch (Throwable $exception) {
@@ -388,7 +395,7 @@ class RememberConversation
                 throw $exception;
             }
 
-            return Str::limit($prompt, 100, preserveWords: true);
+            return Str::limit($prompt->prompt, 100, preserveWords: true);
         }
     }
 }

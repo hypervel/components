@@ -192,6 +192,15 @@ class TranscriptionTest extends TestCase
         $this->assertSame('openai/gpt-transcribe', $response->meta->model);
     }
 
+    public function testTheRawTranscriptionResponseExposesProviderSpecificUsage(): void
+    {
+        Http::fake(['*' => fakeOpenRouterTranscriptionResponse()]);
+
+        $response = Transcription::fromBase64(base64_encode('fake-audio'), 'audio/mp3')->generate(provider: 'openrouter');
+
+        $this->assertSame(0.000100, $response->raw->json('usage.cost'));
+    }
+
     public function testTranscriptionUsageIsCorrectlyParsed(): void
     {
         Http::fake(['*' => Http::response([

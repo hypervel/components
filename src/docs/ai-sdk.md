@@ -536,7 +536,7 @@ foreach ($response->steps as $step) {
 }
 ```
 
-[Classification](#classification) responses also expose the provider's raw HTTP response through their `raw` property.
+[Image](#images), [transcription](#transcription), [embeddings](#embeddings), [reranking](#reranking), and [classification](#classification) responses also expose the provider's raw HTTP response through their `raw` property. Embeddings served entirely from the [cache](#caching-embeddings) have no raw response.
 
 > **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider, and on faked responses unless one is provided explicitly via `withRawResponse`.
 
@@ -676,6 +676,8 @@ The store uses your default database connection unless `ai.conversations.connect
 #### Conversation Titles
 
 The SDK generates a title when it creates a conversation. To use the opening message as the title instead, set `conversations.generate_title` to `false` in your `config/ai.php` configuration file.
+
+Title generation runs as its own agent run using the turn's provider and its cheapest model, so [agent events](#events) such as `AgentPrompted` and `AgentFailed` also report it. Its prompt's `parentInvocationId` identifies the turn that triggered it. If the title request fails, the SDK uses the start of the opening message without failing the turn.
 
 If the opening turn is canceled or abandoned, such as when the client disconnects, the SDK saves the work already done without starting or waiting for a title. It keeps a title that has already finished or uses the start of the opening message, and the title isn't generated later. Enabling concurrent titles makes a generated title more likely in this case. A turn that fails with an error is titled as usual.
 
@@ -1495,7 +1497,7 @@ class ResearchAgent implements Agent, HasTools
 }
 ```
 
-The limit applies to each group of tool calls within a generation step. Results retain the model's original call order, while sub-agent output can arrive as each sub-agent produces it. If a tool fails or the stream is abandoned, the remaining tool executions are canceled and awaited before the run ends.
+The limit applies to each group of tool calls within a generation step. Results retain the model's original call order, while sub-agent output can arrive as each sub-agent produces it. If the run ends while tools are executing, for example because the stream is abandoned, the remaining tool executions are canceled and awaited first.
 
 Concurrent tools use separate coroutines and database connections; they do not share the caller's database transaction. Each tool must be safe to run alongside the others. Resuming approved tool calls remains sequential so each outcome is stored before the next approved tool executes.
 
@@ -1519,6 +1521,8 @@ public function handle(Request $request): Stringable|string
 ```
 
 When validation fails, the validation messages are returned to the model as the tool's result, allowing it to correct the arguments and call the tool again.
+
+Likewise, when a tool throws an exception, the run continues. The exception is reported to your application's exception handler, and the model receives "The tool call failed." as the tool's result, so it can explain the failure or try another approach. When your application's `debug` configuration option is enabled, the result also includes the exception message. Exception messages may contain sensitive details such as query bindings or server paths, so return a string from your tool when the model should know why an expected failure occurred.
 
 <a name="repairing-tool-calls"></a>
 #### Repairing Tool Calls
@@ -1671,6 +1675,8 @@ use Hypervel\Ai\Tools\Filesystem\DeleteFile;
 return FileStorage::all('s3')
     ->reject(fn ($tool) => $tool instanceof DeleteFile);
 ```
+
+File storage tools return a description of the failed operation. As with other [tool failures](#validating-tool-arguments), raw exception messages are only included when your application's `debug` configuration option is enabled.
 
 <a name="mcp-tools"></a>
 ### MCP Tools
@@ -2004,6 +2010,8 @@ class RefundsAgent implements Agent, CanActAsTool, HasTools
 ```
 
 If a sub-agent does not implement `CanActAsTool`, Hypervel will use the agent's class basename as the tool name and a generic description that asks the parent agent to pass a clear, self-contained task description. Each sub-agent invocation runs in isolation and does not receive the parent agent's conversation history.
+
+If a sub-agent fails, the parent agent's run continues. The exception is reported to your application's exception handler, and the parent agent receives "Agent failed." as the tool's result. Like other [tool failures](#validating-tool-arguments), the result also includes the exception message when your application's `debug` configuration option is enabled.
 
 > [!WARNING]
 > Sub-agents do not currently support tools that require [human approval](#human-tool-approval). If a sub-agent's tool requires approval, the sub-agent pauses. However, the parent agent receives a normal tool result and continues its run without notifying your application of the pending approval. Register tools that require approval on the top-level agent.
@@ -3729,6 +3737,8 @@ $response = (new FileAssistant)->prompt('Delete the invoice.');
 
 $response->hasPendingApprovals(); // true
 ```
+
+When you resume a faked pause with [approval decisions](#human-tool-approval), approved tools run and rejected tools receive a denied result before the fake returns its next response, just as they would against a real provider.
 
 In addition, you can fake a response that includes reasoning. The fake emits reasoning events, so the reasoning is reported on streamed runs as well:
 

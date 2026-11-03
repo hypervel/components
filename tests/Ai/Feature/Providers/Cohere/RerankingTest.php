@@ -16,6 +16,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -82,6 +83,8 @@ class RerankingTest extends TestCase
         $this->assertSame(0.95, $response->first()->score);
         $this->assertSame('cohere', $response->meta->provider);
         $this->assertSame('rerank-v3.5', $response->meta->model);
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(0.95, $response->raw->json('results.0.relevance_score'));
     }
 
     public function testRerankingRequestSendsBearerToken(): void

@@ -63,6 +63,7 @@ Version labels refer to the Inertia client-side libraries. Features marked with 
     - [Data Loading Attribute](#links-data-loading-attribute)
 - [Manual Visits](#manual-visits)
     - [Method](#manual-visits-method)
+    - [QUERY Method](#manual-visits-query-method)
     - [Wayfinder](#manual-visits-wayfinder)
     - [Data](#manual-visits-data)
     - [Custom Headers](#manual-visits-custom-headers)
@@ -334,7 +335,7 @@ When Inertia makes an XHR visit, the server detects that it's an Inertia visit a
 
 **The end result is a silky smooth single-page experience.**
 
-To learn more about the nitty-gritty, technical details of how Inertia works under the hood, check out the [protocol page](https://inertiajs.com/docs/v3/core-concepts/the-protocol).
+The [protocol](https://inertiajs.com/docs/v3/core-concepts/the-protocol) page describes the requests and responses behind this exchange in detail.
 
 <a name="server-side-setup"></a>
 
@@ -1533,9 +1534,9 @@ class UsersController extends Controller
 
 ### 303 Response Code
 
-When redirecting after a `PUT`, `PATCH`, or `DELETE` request, you must use a `303` response code, otherwise the subsequent request will not be treated as a `GET` request. A `303` redirect is very similar to a `302` redirect; however, the follow-up request is explicitly changed to a `GET` request.
+You must use a `303` response code when redirecting after a `PUT`, `PATCH`, `DELETE`, or `QUERY` request. Otherwise, the browser will not issue the subsequent request as a `GET` request. A `303` redirect is very similar to a `302` redirect; however, the follow-up request is explicitly changed to a `GET` request.
 
-Hypervel's Inertia adapter automatically converts `302` redirects after `PUT`, `PATCH`, and `DELETE` requests to `303` redirects.
+Hypervel's Inertia adapter automatically converts `302` redirects after `PUT`, `PATCH`, `DELETE`, and `QUERY` requests to `303` redirects.
 
 <a name="redirects-preserving-fragments"></a>
 
@@ -2054,13 +2055,13 @@ import { Link } from '@inertiajs/svelte'
 ```
 
 > [!NOTE]
-> Creating anchor (`<a>`) links that issue `POST`, `PUT`, `PATCH`, or `DELETE` requests is discouraged because it causes accessibility issues with "Open Link in New Tab / Window". The component automatically renders a `<button>` element when using these methods.
+> Creating anchor (`<a>`) links that issue `POST`, `PUT`, `PATCH`, `DELETE`, or `QUERY` requests is discouraged because it causes accessibility issues with "Open Link in New Tab / Window". The component automatically renders a `<button>` element when using these methods.
 
 <a name="links-method"></a>
 
 ### Method
 
-You can specify the HTTP request method for an Inertia link request using the `method` prop. The default method used by links is `GET`, but you can use the `method` prop to make `POST`, `PUT`, `PATCH`, and `DELETE` requests via links.
+You may specify the HTTP request method for an Inertia link request using the `method` prop. Links use `GET` by default, but the `method` prop also accepts `POST`, `PUT`, `PATCH`, `DELETE`, and `QUERY`.
 
 ```vue tab=Vue
 import { Link } from '@inertiajs/vue3'
@@ -2082,6 +2083,30 @@ import { inertia, Link } from '@inertiajs/svelte'
 <button use:inertia={{ href: '/logout', method: 'post' }} type="button">Logout</button>
 
 <Link href="/logout" method="post">Logout</Link>
+```
+
+**v3.10.0+**
+
+Links using the `query` method send their [data](#links-data) in the request body instead of the query string. See the [QUERY method](#manual-visits-query-method) documentation for more information.
+
+```vue tab=Vue
+import { Link } from '@inertiajs/vue3'
+
+<Link href="/products" method="query" :data="{ brand: 'Acme' }">Acme products</Link>
+```
+
+```jsx tab=React
+import { Link } from "@inertiajs/react";
+
+<Link href="/products" method="query" data={{ brand: "Acme" }}>
+  Acme products
+</Link>;
+```
+
+```svelte tab=Svelte
+import { Link } from '@inertiajs/svelte'
+
+<Link href="/products" method="query" data={{ brand: 'Acme' }}>Acme products</Link>
 ```
 
 <a name="links-wayfinder"></a>
@@ -2524,6 +2549,7 @@ router.post(url, data, options);
 router.put(url, data, options);
 router.patch(url, data, options);
 router.delete(url, options);
+router.query(url, data, options);
 router.reload(options); // Uses the current URL
 ```
 
@@ -2535,6 +2561,7 @@ router.post(url, data, options);
 router.put(url, data, options);
 router.patch(url, data, options);
 router.delete(url, options);
+router.query(url, data, options);
 router.reload(options); // Uses the current URL
 ```
 
@@ -2546,6 +2573,7 @@ router.post(url, data, options);
 router.put(url, data, options);
 router.patch(url, data, options);
 router.delete(url, options);
+router.query(url, data, options);
 router.reload(options); // Uses the current URL
 ```
 
@@ -2555,7 +2583,7 @@ The `reload()` method is a convenient, shorthand method that automatically visit
 
 ### Method
 
-When making manual visits, you may use the `method` option to set the request's HTTP method to `get`, `post`, `put`, `patch` or `delete`. The default method is `get`.
+You may use the `method` option to set the request's HTTP method to `get`, `post`, `put`, `patch`, `delete`, or `query`. The default method is `get`.
 
 ```js tab=Vue
 import { router } from "@inertiajs/vue3";
@@ -2574,6 +2602,45 @@ import { router } from "@inertiajs/svelte";
 
 router.visit(url, { method: "post" });
 ```
+
+<a name="manual-visits-query-method"></a>
+
+### QUERY Method
+
+**v3.10.0+**
+
+Sometimes you may wish to send search filters that are too large or too deeply nested for a query string. Like `GET`, the `QUERY` HTTP method is safe and idempotent, but it sends its data in the request body instead of the URL. You may make a `QUERY` visit using the `router.query()` method.
+
+```js tab=Vue
+import { router } from "@inertiajs/vue3";
+
+router.query("/products", {
+  categories: ["Keyboards", "Monitors"],
+  price: { min: 100, max: 500 },
+});
+```
+
+```js tab=React
+import { router } from "@inertiajs/react";
+
+router.query("/products", {
+  categories: ["Keyboards", "Monitors"],
+  price: { min: 100, max: 500 },
+});
+```
+
+```js tab=Svelte
+import { router } from "@inertiajs/svelte";
+
+router.query("/products", {
+  categories: ["Keyboards", "Monitors"],
+  price: { min: 100, max: 500 },
+});
+```
+
+As with other non-`GET` visits, `QUERY` visits [preserve component state](#manual-visits-state-preservation) by default. The data isn't part of the URL, so refreshing the page or sharing its link loses the filters. `GET` remains the better choice for filters that users should be able to bookmark or share.
+
+Inertia remembers the request body of a page rendered by a `QUERY` visit and resends it on reloads, [partial reloads](#partial-reloads), [polling](#polling), [deferred props](#deferred-props), and [infinite scroll](#infinite-scroll) requests, so these keep returning the filtered results. Any `data` passed to `router.reload()` is merged into the remembered body.
 
 <a name="manual-visits-wayfinder"></a>
 
@@ -2673,7 +2740,7 @@ router.visit("/users", {
 });
 ```
 
-For convenience, the `get()`, `post()`, `put()`, and `patch()` methods all accept `data` as their second argument.
+For convenience, the `get()`, `post()`, `put()`, `patch()`, and `query()` methods all accept `data` as their second argument.
 
 ```js tab=Vue
 import { router } from "@inertiajs/vue3";
@@ -3079,7 +3146,7 @@ By default, page visits to the same page create a fresh page component instance.
 
 However, in some situations, it's necessary to preserve the page component state. For example, when submitting a form, you need to preserve your form data in the event that form validation fails on the server.
 
-For this reason, the `post`, `put`, `patch`, `delete`, and `reload` methods all set the `preserveState` option to `true` by default.
+For this reason, the `post`, `put`, `patch`, `delete`, `query`, and `reload` methods all set the `preserveState` option to `true` by default.
 
 You can instruct Inertia to preserve the component's state when using the `get` method by setting the `preserveState` option to `true`.
 
@@ -5057,7 +5124,7 @@ function submit(e) {
 </form>
 ```
 
-To submit the form, you may use the `get`, `post`, `put`, `patch` and `delete` methods.
+To submit the form, you may use the `get`, `post`, `put`, `patch`, `delete`, and `query` methods.
 
 ```js tab=Vue
 form.submit(method, url, options);
@@ -5066,10 +5133,11 @@ form.post(url, options);
 form.put(url, options);
 form.patch(url, options);
 form.delete(url, options);
+form.query(url, options);
 ```
 
 ```js tab=React
-const { submit, get, post, put, patch, delete: destroy } = useForm({ ... })
+const { submit, get, post, put, patch, delete: destroy, query } = useForm({ ... })
 
 submit(method, url, options)
 get(url, options)
@@ -5077,6 +5145,7 @@ post(url, options)
 put(url, options)
 patch(url, options)
 destroy(url, options)
+query(url, options)
 ```
 
 ```js tab=Svelte
@@ -5086,6 +5155,7 @@ form.post(url, options);
 form.put(url, options);
 form.patch(url, options);
 form.delete(url, options);
+form.query(url, options);
 ```
 
 The submit methods support all of the typical [visit options](#manual-visits), such as `preserveState`, `preserveScroll`, and event callbacks, which can be helpful for performing tasks on successful form submissions. For example, you might use the `onSuccess` callback to reset inputs to their original state.
@@ -6078,7 +6148,7 @@ Unlike router visits, `useHttp` requests do not trigger page navigation or inter
 
 ### Submitting Data
 
-The hook provides `get`, `post`, `put`, `patch`, and `delete` convenience methods. A generic `submit` method is also available for dynamic HTTP methods.
+The hook provides `get`, `post`, `put`, `patch`, `delete`, and `query` convenience methods. A generic `submit` method is also available for dynamic HTTP methods.
 
 ```js tab=Vue
 http.get(url, options)
@@ -6086,17 +6156,19 @@ http.post(url, options)
 http.put(url, options)
 http.patch(url, options)
 http.delete(url, options)
+http.query(url, options)
 http.submit(method, url, options)
 ```
 
 ```js tab=React
-const { get, post, put, patch, delete: destroy, submit } = useHttp({ ... })
+const { get, post, put, patch, delete: destroy, query, submit } = useHttp({ ... })
 
 get(url, options)
 post(url, options)
 put(url, options)
 patch(url, options)
 destroy(url, options)
+query(url, options)
 submit(method, url, options)
 ```
 
@@ -6106,6 +6178,7 @@ http.post(url, options)
 http.put(url, options)
 http.patch(url, options)
 http.delete(url, options)
+http.query(url, options)
 http.submit(method, url, options)
 ```
 
@@ -7183,7 +7256,7 @@ You may [configure TypeScript](#typescript-error-values) to expect arrays instea
 
 While handling errors in Inertia is similar to full page form submissions, Inertia offers even more benefits. In fact, you don't even need to manually repopulate old form input data.
 
-When validation errors occur, the user is typically redirected back to the form page they were previously on. And, by default, Inertia automatically preserves the [component state](#manual-visits-state-preservation) for `post`, `put`, `patch`, and `delete` requests. Therefore, all the old form input data remains exactly as it was when the user submitted the form.
+When validation errors occur, the user is typically redirected back to the form page they were previously on. And, by default, Inertia automatically preserves the [component state](#manual-visits-state-preservation) for `post`, `put`, `patch`, `delete`, and `query` requests. Therefore, all the old form input data remains exactly as it was when the user submitted the form.
 
 So, the only work remaining is to display any validation errors using the `errors` prop.
 
@@ -9899,6 +9972,34 @@ import { Link } from "@inertiajs/react";
 import { inertia } from '@inertiajs/svelte'
 
 <a href="/users" use:inertia={{ prefetch: ['mount', 'hover'] }}>Users</a>
+```
+
+<a name="prefetching-query-method"></a>
+
+#### QUERY Method
+
+**v3.10.0+**
+
+[`QUERY` requests](#manual-visits-query-method) are safe, so links using the `query` method may be prefetched as well. Prefetched responses are cached per request body, so links to the same URL with different data are cached separately.
+
+```vue tab=Vue
+import { Link } from '@inertiajs/vue3'
+
+<Link href="/products" method="query" :data="{ brand: 'Acme' }" prefetch>Acme products</Link>
+```
+
+```jsx tab=React
+import { Link } from "@inertiajs/react";
+
+<Link href="/products" method="query" data={{ brand: "Acme" }} prefetch>
+  Acme products
+</Link>;
+```
+
+```svelte tab=Svelte
+import { Link } from '@inertiajs/svelte'
+
+<Link href="/products" method="query" data={{ brand: 'Acme' }} prefetch>Acme products</Link>
 ```
 
 <a name="prefetching-programmatic-prefetching"></a>
@@ -14715,6 +14816,12 @@ By default, the command fails when the SSR server is not running. You may pass t
 
 ```bash
 php artisan inertia:stop-ssr --graceful
+```
+
+Before starting, the `inertia:start-ssr` command sends a shutdown request to the configured SSR URL to stop any server that is still running. Behind a load balancer, where several SSR servers share the same URL, this request may stop a different server that is still serving requests. You may pass the `--no-stop-before-start` option to skip the shutdown request.
+
+```bash
+php artisan inertia:start-ssr --no-stop-before-start
 ```
 
 You may use the `inertia:check-ssr` Artisan command to verify that the SSR server is running. This can be helpful after deployment and works well as a Docker health check to ensure the server is responding as expected.

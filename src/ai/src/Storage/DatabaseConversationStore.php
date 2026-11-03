@@ -29,6 +29,8 @@ use Hypervel\Ai\Responses\Data\Step;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
+use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Support\ConversationPartition;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Pagination\CursorPaginator;
@@ -334,10 +336,20 @@ class DatabaseConversationStore implements ClaimsPendingApprovals, ConversationS
             $steps = $this->withoutReplayBlocks($steps);
         }
 
+        // Unlike upstream, a streamed resume appends its text to the paused content instead of rejoining every
+        // step, which would split a continuation the stream displayed as one paragraph, such as a pause_turn.
+        $content = $response instanceof StreamedAgentResponse
+            ? TextDelta::join([$paused->content, $response->text])
+            : $response->text;
+
+        if (blank($content)) {
+            $content = $paused->content;
+        }
+
         $now = now();
 
         $this->table($this->messagesTable())->where('id', $paused->id)->update([
-            'content' => blank($response->text) ? $paused->content : $response->text,
+            'content' => $content,
             'steps' => $steps->toJson(),
             'usage' => json_encode(TextUsage::fromArray($this->decoded($paused->usage))->add($response->usage)),
             'meta' => json_encode($this->mergedMeta($paused, $response, $exception)),

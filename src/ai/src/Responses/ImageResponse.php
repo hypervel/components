@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Responses;
 
 use Countable;
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 use Hypervel\Ai\Responses\Data\GeneratedImage;
 use Hypervel\Ai\Responses\Data\ImageUsage;
 use Hypervel\Ai\Responses\Data\Meta;
@@ -16,6 +17,8 @@ use UnitEnum;
 
 class ImageResponse implements Stringable, Countable, Htmlable
 {
+    use HasRawResponse;
+
     /**
      * Create an image response.
      *

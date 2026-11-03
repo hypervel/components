@@ -34,6 +34,7 @@ class StreamedAgentResponse extends AgentResponse
     {
         $textParts = [];
         $stepText = '';
+        $stepRanTools = false;
         $reasoningBlocks = [];
         $usage = new TextUsage;
         $toolCalls = [];
@@ -46,12 +47,15 @@ class StreamedAgentResponse extends AgentResponse
         // Citation::combine() and StreamEnd::combineUsage() when syncing upstream changes.
         foreach ($events as $event) {
             if ($event instanceof StreamStart) {
-                // Content-block message IDs may change mid-sentence; only a new step separates text.
-                if (trim($stepText) !== '') {
-                    $textParts[] = $stepText;
-                }
+                // Content-block message IDs may change mid-sentence; only a new step after tools ran separates text.
+                if ($stepRanTools) {
+                    if (trim($stepText) !== '') {
+                        $textParts[] = $stepText;
+                    }
 
-                $stepText = '';
+                    $stepText = '';
+                    $stepRanTools = false;
+                }
             } elseif ($event instanceof TextDelta) {
                 $stepText .= $event->delta;
             } elseif ($event instanceof ReasoningDelta) {
@@ -63,6 +67,8 @@ class StreamedAgentResponse extends AgentResponse
             } elseif ($event instanceof ToolCall) {
                 $toolCalls[] = $event->toolCall;
             } elseif ($event instanceof ToolResult) {
+                $stepRanTools = true;
+
                 if (! $event->preliminary) {
                     $toolResults[] = $event->toolResult;
                 }

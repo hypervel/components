@@ -69,6 +69,19 @@ class EmbeddingsTest extends TestCase
         $this->assertSame(10, $response->usage->inputTokens);
     }
 
+    public function testEmbeddingsExposeProviderSpecificUsageFromTheRawResponse(): void
+    {
+        Http::fake(['*' => Http::response([
+            'object' => 'list',
+            'data' => [['object' => 'embedding', 'index' => 0, 'embedding' => [0.1]]],
+            'usage' => ['prompt_tokens' => 1, 'cost' => 0.000013],
+        ])]);
+
+        $response = Ai::instance('openrouter')->embeddings(['Hello']);
+
+        $this->assertSame(0.000013, $response->raw->json('usage.cost'));
+    }
+
     public function testEmbeddingsRequestSendsBearerToken(): void
     {
         Http::fake(['*' => Http::response([
