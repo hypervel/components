@@ -411,6 +411,8 @@ $users = DB::table('users')
     ->get();
 ```
 
+Because SQLite's `indexed by` clause takes a single named index, SQLite ignores a `forceIndex` hint that names `primary` or several indexes. This lets queries written with MariaDB or MySQL hints run unchanged on SQLite.
+
 Index hints apply to update statements as well. For example, MariaDB and MySQL may read a small table in full when an update names many of its rows, locking every row they read inside a transaction. Forcing the primary key keeps such an update to the rows it names:
 
 ```php
