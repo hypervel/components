@@ -7,14 +7,14 @@ namespace Hypervel\Bus;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\Attributes\DebounceFor;
-use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use Throwable;
 
 class DebounceLock
 {
-    use ReadsQueueAttributes;
+    use ReadsClassAttributes;
 
     /**
      * Create a new debounce lock manager instance.
