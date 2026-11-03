@@ -15,7 +15,7 @@ class AsFluent implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @return CastsAttributes<Fluent, string>
+     * @return CastsAttributes<Fluent, array|object>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
