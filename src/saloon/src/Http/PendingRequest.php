@@ -43,6 +43,9 @@ class PendingRequest
     use HasBody;
     use HasDebugging;
     use HasRequestProperties {
+        // HasHeaders must funnel public writes through these two methods for redirect protection.
+        withHeaders as protected addHeaders;
+        replaceHeaders as protected replaceRequestHeaders;
         withQueryParameters as protected addQueryParameters;
         withoutQueryParameters as protected removeQueryParameters;
         withQueryString as protected replaceQueryString;
@@ -91,6 +94,18 @@ class PendingRequest
      * @var list<Closure(RequestInterface, PendingRequest): void>
      */
     protected array $psrRequestObservers = [];
+
+    /**
+     * The header names restricted to the request's origin.
+     *
+     * @var array<string, true>
+     */
+    protected array $authenticationHeaderNames = [];
+
+    /**
+     * Whether header writes belong to an authenticator.
+     */
+    protected bool $authenticating = false;
 
     /**
      * The dedicated transport authentication option.
@@ -329,7 +344,7 @@ class PendingRequest
         // A later plugin may still change the URL or headers the authenticator reads, such as an API version in the
         // host, so applyAuthentication() applies the selected authenticator after the plugins boot.
         if (! $this->bootingPlugins) {
-            $authenticator->set($this);
+            $this->setAuthentication($authenticator);
         }
 
         return $this;
@@ -342,9 +357,26 @@ class PendingRequest
      */
     public function applyAuthentication(): static
     {
-        $this->authenticator?->set($this);
+        if ($this->authenticator !== null) {
+            $this->setAuthentication($this->authenticator);
+        }
 
         return $this;
+    }
+
+    /**
+     * Apply an authenticator while recording its header writes.
+     */
+    protected function setAuthentication(Authenticator $authenticator): void
+    {
+        $authenticating = $this->authenticating;
+        $this->authenticating = true;
+
+        try {
+            $authenticator->set($this);
+        } finally {
+            $this->authenticating = $authenticating;
+        }
     }
 
     /**
@@ -435,6 +467,59 @@ class PendingRequest
     public function preparedBody(): ?StreamInterface
     {
         return $this->preparedBody;
+    }
+
+    /**
+     * Add headers to the request.
+     *
+     * @param array<string, mixed> $headers
+     * @return $this
+     */
+    public function withHeaders(array $headers): static
+    {
+        $this->recordAuthenticationHeaders($headers);
+        $this->addHeaders($headers);
+
+        return $this;
+    }
+
+    /**
+     * Replace matching headers on the request.
+     *
+     * @param array<string, mixed> $headers
+     * @return $this
+     */
+    public function replaceHeaders(array $headers): static
+    {
+        $this->recordAuthenticationHeaders($headers);
+        $this->replaceRequestHeaders($headers);
+
+        return $this;
+    }
+
+    /**
+     * Record headers written during authentication, including unchanged values.
+     *
+     * @param array<string, mixed> $headers
+     */
+    protected function recordAuthenticationHeaders(array $headers): void
+    {
+        if ($this->authenticating) {
+            foreach ($headers as $name => $value) {
+                $this->authenticationHeaderNames[strtolower($name)] = true;
+            }
+        }
+    }
+
+    /**
+     * Get the authentication header names.
+     *
+     * @return list<string>
+     * @internal
+     */
+    public function authenticationHeaderNames(): array
+    {
+        return array_keys($this->authenticationHeaderNames);
     }
 
     /**

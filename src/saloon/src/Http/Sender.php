@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Saloon\Http;
 
 use GuzzleHttp\Cookie\SetCookie;
+use GuzzleHttp\Psr7\UriComparator;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\ConnectionException;
@@ -66,9 +67,22 @@ class Sender
             $httpRequest->withCookie(new SetCookie($cookie));
         }
 
+        // Saloon creates a fresh sender invocation for each retry attempt.
+        $leftOrigin = false;
+
         $httpRequest
             ->withHeaders(HeaderNormalizer::normalize($pendingRequest->headers()))
-            ->withRequestMiddleware(function (RequestInterface $request) use ($pendingRequest): RequestInterface {
+            ->withRequestMiddleware(function (RequestInterface $request) use ($pendingRequest, &$leftOrigin): RequestInterface {
+                // Upstream Saloon forwards custom authentication headers on redirects: Guzzle strips only
+                // Authorization and Cookie. Remove the remaining credentials before PSR hooks sign the request.
+                $leftOrigin = $leftOrigin || UriComparator::isCrossOrigin($pendingRequest->uri(), $request->getUri());
+
+                if ($leftOrigin) {
+                    foreach ($pendingRequest->authenticationHeaderNames() as $name) {
+                        $request = $request->withoutHeader($name);
+                    }
+                }
+
                 $request = $pendingRequest->handlePsrRequest($request);
                 $pendingRequest->notifyPsrRequestObservers($request);
                 $pendingRequest->setPsrRequest($request);

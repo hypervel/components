@@ -2085,7 +2085,7 @@ $client = Client::web('https://projects.example.com/mcp')->withHeaders([
 ]);
 ```
 
-Custom headers stay on the configured URL's origin: its scheme, host and port. Redirects to another origin are followed without those headers, so connect to the destination server's URL directly if it needs them.
+Custom headers are removed when a redirect changes the configured URL's scheme, host, or port. They remain removed for the rest of that redirect chain, even if it returns to the original origin. A new request to the configured URL sends them again. Connect to the destination server's URL directly if it needs those headers.
 
 <a name="client-oauth"></a>
 #### Linking User Accounts With OAuth

@@ -65,6 +65,18 @@ The 0.4 integration preserves both sets of supported behavior. Record further fr
 - Preserve chained cancellation through model pruning callbacks and managed connection destruction. Pruning stops without reporting cancellation; discarded connections still release pool capacity before rethrowing it.
 - Extend existing cancellation tests with chained exceptions at query, transaction callback and cleanup boundaries. Preserve public signatures and ordinary-error behavior. Validate the framework and affected database consumers together.
 
+### Authentication headers on redirects
+
+- Remove Saloon authentication headers and MCP custom headers once a redirect leaves their configured origin, keeping them removed for that chain even if it returns to the original origin. Preserve redirects, absolute endpoints and application-owned PSR hooks; a new Saloon retry attempt or MCP operation applies authentication again. Guzzle already keeps Authorization removed after cross-origin redirects, but the upstream packages forward other credential headers.
+- Record header names written through PendingRequest's existing header methods while an authenticator runs, including unchanged values and nested authentication. Keep this state on the pending request and restore the previous recording flag in `finally`. In Sender's existing per-request middleware, remove those headers for another scheme, host or port before PSR hooks and observers run. Ordinary custom headers retain their existing behavior; no opt-in authentication setter, generated-consumer changes or shared middleware API.
+- Keep MCP's existing middleware and its list of custom headers. Its closure-local state belongs to one pending request's redirect chain; both HTTP transport operations and OAuth advertisement probes create a fresh request. Preserve MCP protocol/session headers and test credential removal on return hops alongside authentication on a fresh operation.
+- Cover physical redirected requests and the response's recorded request, same-origin and cross-origin destinations, absolute endpoints, PSR hook ordering, an unauthenticated return to the original origin and restored authentication on a new retry attempt. Retain concise rationale beside the implementation.
+
+### Cancellation during coroutine error reporting
+
+- Propagate cancellation chains from exception-handler callbacks before the PHP error-log fallback. Reporting may suspend even though startup hooks themselves must not. Do not broaden the startup-hook contract or add guards for suspending hooks.
+- Contain cancellation from reporting at the terminal coroutine boundary, while continuing to report task cleanup failures that carry cancellation. Preserve ordinary startup-error continuation and native-only fallback checks. Extend the owned-startup reporting test with real cancellation and throwing cleanup; cover terminal reporting cancellation separately.
+
 ## Verification
 
 - Reuse the existing database version/override/PDO-reset and queue-hook cases; add the additive builder grammar/unsupported-path checks and real multi-connection lock contention coverage.
