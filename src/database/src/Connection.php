@@ -1922,6 +1922,38 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     abstract public function getServerVersion(): string;
 
     /**
+     * Get the ID of the last committed transaction.
+     *
+     * @throws RuntimeException
+     */
+    public function getLastCommitId(): string
+    {
+        throw new RuntimeException('The database connection does not support retrieving the last commit ID.');
+    }
+
+    /**
+     * Calculate the commit ID for a set of commit IDs that includes all of them.
+     *
+     * @param string[] $values
+     *
+     * @throws RuntimeException
+     */
+    public function mergeCommitIds(array $values): string
+    {
+        throw new RuntimeException('The database connection does not support managing commit IDs.');
+    }
+
+    /**
+     * Determine if the given commit ID has been applied.
+     *
+     * @throws RuntimeException
+     */
+    public function hasCommitId(string $value, int $wait = 0): bool
+    {
+        throw new RuntimeException('The database connection does not support checking a commit ID.');
+    }
+
+    /**
      * Determine whether the server supports skipping locked rows.
      */
     public function supportsSkipLocked(): bool

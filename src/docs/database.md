@@ -11,6 +11,7 @@
     - [Read and Write Connections](#read-and-write-connections)
         - [Preventing Stale Database Reads](#preventing-stale-database-reads)
         - [Using the Write Connection for Reads](#using-the-write-connection-for-reads)
+        - [Waiting for Read Replicas](#waiting-for-read-replicas)
     - [Connection Pooling](#connection-pooling)
         - [Releasing and Pinning Connections](#releasing-and-pinning-connections)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -290,6 +291,47 @@ $users = DB::connection()->usingWritePdo(fn ($connection) => $connection->table(
 ```
 
 This also applies to Eloquent queries and relationship queries executed within the callback using the same connection. The method returns the callback's result and restores the connection's previous read preference when the callback finishes, even if an exception is thrown.
+
+<a name="waiting-for-read-replicas"></a>
+#### Waiting for Read Replicas
+
+Read replicas apply each write shortly after it is committed. When a later read must see a particular write, you may record the write's commit ID and check it before reading. Retrieve the ID using the `getLastCommitId` method once the write's transaction has committed:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::table('orders')->insert($order);
+
+$commitId = DB::getLastCommitId();
+```
+
+Commit IDs are strings, so you may store them in the user's session or pass them to a queued job. The `hasCommitId` method determines whether the read connection has applied the commit. Its optional `wait` argument specifies how many seconds to wait for the commit to arrive. If the replica has not caught up, you may read from the write connection instead:
+
+```php
+$order = DB::hasCommitId($commitId, wait: 2)
+    ? DB::table('orders')->find($orderId)
+    : DB::connection()->usingWritePdo(fn ($connection) => $connection->table('orders')->find($orderId));
+```
+
+If you have recorded several commit IDs, the `mergeCommitIds` method combines them into one ID that is applied once all of them are:
+
+```php
+$commitId = DB::mergeCommitIds([$profileCommitId, $orderCommitId]);
+```
+
+Commit IDs require MySQL with `log_bin` and `gtid_mode` enabled, MariaDB with its binary log enabled, or PostgreSQL. Waiting on PostgreSQL requires PostgreSQL 19 or newer and should happen before you start a transaction. Commit IDs can only be compared within the same replication setup.
+
+The check applies to the database session your connection currently holds. Since Hypervel may return idle sessions to the pool during [external calls](#releasing-and-pinning-connections), a later query may use a session on another replica. If reads after an external call depend on the check, perform the check and those reads within `withPinnedSession`:
+
+```php
+$connection = DB::connection();
+
+$connection->withPinnedSession(function () use ($connection, $commitId) {
+    $applied = $connection->hasCommitId($commitId, wait: 2);
+
+    // External calls, then reads that rely on $applied...
+});
+```
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
