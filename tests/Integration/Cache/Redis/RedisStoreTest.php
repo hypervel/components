@@ -6,13 +6,17 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use BadMethodCallException;
 use DateTime;
+use Hypervel\Cache\Redis\Operations\AllTag\Flush;
+use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 use RuntimeException;
@@ -319,6 +323,77 @@ class RedisStoreTest extends TestCase
 
         $keyCount = Cache::store('redis')->connection()->keys('*');
         $this->assertCount(0, $keyCount);
+    }
+
+    public function testFlushingManyTagsOnlyPassesEachEntrysOwnTagToTheScript(): void
+    {
+        // Hypervel runs flush scripts on the raw connection, which dispatches no command events,
+        // so the per-script arguments are asserted in Cache\Redis\Operations\AllTag\FlushTest.
+        $store = Cache::store('redis');
+        $connection = $store->connection();
+
+        $store->clear();
+
+        $prefix = $store->getPrefix();
+
+        $store->tags(['people'])->put('person-1', 'Sally', 300);
+        $store->tags(['people', 'artist'])->put('person-2', 'John', 300);
+        $store->tags(['artist'])->forever('person-3', 'Taylor');
+        $store->tags(['other'])->put('person-4', 'Abigail', 300);
+
+        $store->tags(['people', 'artist', 'empty-1', 'empty-2'])->flush();
+
+        $this->assertNull($store->tags(['people'])->get('person-1'));
+        $this->assertNull($store->tags(['people', 'artist'])->get('person-2'));
+        $this->assertNull($store->tags(['artist'])->get('person-3'));
+        $this->assertSame('Abigail', $store->tags(['other'])->get('person-4'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:people:entries'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:artist:entries'));
+        $this->assertSame(1, $connection->zcard($prefix . '_all:tag:other:entries'));
+    }
+
+    public function testFlushingTagsWhileASharedKeyIsRewrittenLeavesNoLiveValueUnindexed(): void
+    {
+        $store = Cache::store('redis');
+        $connection = $store->connection();
+
+        $store->clear();
+
+        $prefix = $store->getPrefix();
+
+        $store->tags(['people', 'artist'])->forever('person', 'Sally');
+
+        // Hypervel's flush scripts dispatch no command events, so the rewrite happens when the
+        // second tag's entries are requested, after the first tag's script has run.
+        $context = $store->getStore()->getContext();
+        $scanner = new GetEntries($context);
+        $requests = 0;
+        $entries = m::mock(GetEntries::class);
+        $entries->shouldReceive('execute')
+            ->twice()
+            ->andReturnUsing(function (array $tagIds) use ($scanner, $store, &$requests): LazyCollection {
+                if (++$requests === 2) {
+                    $store->tags(['people', 'artist'])->forever('person', 'John');
+                }
+
+                return $scanner->execute($tagIds);
+            });
+
+        (new Flush($context, $entries))->execute($store->tags(['people', 'artist'])->getTags()->tagIds());
+
+        $itemKey = $store->tags(['people', 'artist'])->taggedItemKey('person');
+
+        if ($store->tags(['people', 'artist'])->get('person') !== null) {
+            $this->assertContains($itemKey, $connection->zrange($prefix . '_all:tag:people:entries', 0, -1));
+            $this->assertContains($itemKey, $connection->zrange($prefix . '_all:tag:artist:entries', 0, -1));
+        }
+
+        $store->tags(['people'])->flush();
+        $store->tags(['artist'])->flush();
+
+        $this->assertNull($store->tags(['people', 'artist'])->get('person'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:people:entries'));
+        $this->assertSame(0, $connection->zcard($prefix . '_all:tag:artist:entries'));
     }
 
     public function testLocksCanBeFlushed(): void
