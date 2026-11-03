@@ -570,6 +570,33 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame($newPdo, $connection->getPdo());
     }
 
+    public function testNestedTransactionIsRolledBackToItsSavepointOnConcurrencyError(): void
+    {
+        $pdo = $this->createMock(PDOStub::class);
+        $pdo->expects($this->once())->method('beginTransaction');
+        $pdo->expects($this->exactly(2))->method('exec')->willReturnCallback(function (string $sql): int {
+            static $calls = [];
+            $calls[] = $sql;
+            $this->assertSame(['SAVEPOINT trans2', 'ROLLBACK TO SAVEPOINT trans2'][count($calls) - 1], $sql);
+
+            return 0;
+        });
+
+        $connection = $this->getMockConnection([], $pdo);
+        $connection->setQueryGrammar(new Grammar($connection));
+        $connection->beginTransaction();
+
+        try {
+            $connection->transaction(function () {
+                throw new QueryException('conn', '', [], new PDOException('Lock wait timeout exceeded; try restarting transaction'));
+            });
+
+            $this->fail('A DeadlockException was not thrown.');
+        } catch (DeadlockException) {
+            $this->assertSame(1, $connection->transactionLevel());
+        }
+    }
+
     public function testBeginTransactionMethodNeverRetriesIfWithinTransaction(): void
     {
         $pdo = $this->createMock(PDOStub::class);
