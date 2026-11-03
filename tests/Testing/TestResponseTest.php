@@ -2623,6 +2623,11 @@ EOT,
         TestResponse::fromBaseResponse(new Response($json))->assertJsonIsArray($key);
     }
 
+    public function testAssertJsonIsArrayForWildcardSelectionOfAnObject(): void
+    {
+        TestResponse::fromBaseResponse(new Response('{"data":{"first":[]}}'))->assertJsonIsArray('data.*');
+    }
+
     public function testAssertJsonIsObject(): void
     {
         $responseObject = TestResponse::fromBaseResponse(new Response([
