@@ -886,7 +886,11 @@ trait ValidatesAttributes
             return true;
         }
 
-        if (! is_string($value) || ! in_array('ignore_case', $parameters, true)) {
+        $ignoreCase = in_array('ignore_case', $parameters, true)
+            && is_string($value)
+            && mb_check_encoding($value, 'UTF-8');
+
+        if (! $ignoreCase) {
             $primary = $this->getPrimaryAttribute($attribute);
 
             if (! array_key_exists($primary, $this->distinctValueCounts)) {
@@ -921,14 +925,17 @@ trait ValidatesAttributes
 
         $data = Arr::except($values, $attribute);
 
-        if (in_array('ignore_case', $parameters, true) && is_string($value)) {
+        if ($ignoreCase) {
             foreach ($data as $key => $other) {
-                if (! is_scalar($other) && $other !== null && ! $other instanceof Stringable) {
+                // preg_grep() stops at the first malformed UTF-8 subject, hiding any later duplicates.
+                if ((! is_scalar($other) && $other !== null && ! $other instanceof Stringable)
+                    || ! mb_check_encoding((string) $other, 'UTF-8')) {
                     unset($data[$key]);
                 }
             }
 
-            return empty(preg_grep('/^' . preg_quote($value, '/') . '$/iu', $data));
+            // \z rather than $, which also matches before a trailing newline.
+            return empty(preg_grep('/^' . preg_quote($value, '/') . '\z/iu', $data));
         }
 
         return ! in_array($value, array_values($data), in_array('strict', $parameters, true));
