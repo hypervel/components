@@ -386,10 +386,15 @@ class PendingProcess
      * Resolve the given fake handler for an asynchronous process.
      *
      * @throws LogicException
+     * @throws Throwable
      */
     protected function resolveAsynchronousFake(string $command, ?callable $output, Closure $fake): InvokedProcessContract
     {
         $result = $fake($this);
+
+        if (is_int($result)) {
+            $result = new FakeProcessResult(exitCode: $result);
+        }
 
         if (is_string($result) || is_array($result)) {
             $result = new FakeProcessResult(output: $result);
@@ -420,6 +425,9 @@ class PendingProcess
         }
         if ($result instanceof FakeProcessSequence) {
             return $this->resolveAsynchronousFake($command, $output, fn () => $result());
+        }
+        if ($result instanceof Throwable) {
+            throw $result;
         }
 
         throw new LogicException('Unsupported asynchronous process fake result provided.');
