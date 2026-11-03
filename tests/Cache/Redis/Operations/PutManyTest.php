@@ -12,9 +12,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutManyTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testPutManyUsesLuaScriptInStandardMode(): void
     {
         $connection = $this->mockConnection();
@@ -46,9 +43,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyUsesSequentialCommandsInClusterMode(): void
     {
         [$redis, , $connection] = $this->createClusterStore();
@@ -63,9 +57,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyClusterModeReturnsFalseOnFailure(): void
     {
         [$redis, , $connection] = $this->createClusterStore();
@@ -80,9 +71,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyReturnsTrueForEmptyValues(): void
     {
         $connection = $this->mockConnection();
@@ -93,9 +81,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyLuaFailureThrowsException(): void
     {
         $connection = $this->mockConnection();
@@ -114,9 +99,6 @@ class PutManyTest extends RedisCacheTestCase
         ], 60);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();

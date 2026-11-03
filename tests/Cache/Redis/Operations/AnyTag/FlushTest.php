@@ -17,9 +17,6 @@ use Mockery as m;
  */
 class FlushTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushDeletesCacheEntriesReverseIndexesAndScannedFields(): void
     {
         $connection = $this->mockConnection();
@@ -49,9 +46,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -85,9 +79,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithNoEntriesChecksForEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -124,9 +115,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($operation->execute([]));
     }
 
-    /**
-     * @test
-     */
     public function testFlushDeduplicatesKeysAcrossTags(): void
     {
         $connection = $this->mockConnection();
@@ -160,9 +148,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -188,9 +173,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
@@ -234,9 +216,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushClusterModeWithMultipleTags(): void
     {
         [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
@@ -265,9 +244,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testFlushViaRedisStoreMethod(): void
     {
         $connection = $this->mockConnection();

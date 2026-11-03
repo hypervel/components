@@ -18,9 +18,6 @@ use Mockery as m;
  */
 class FlushTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushDeletesCacheEntriesAndScannedMemberships(): void
     {
         $connection = $this->mockConnection();
@@ -42,9 +39,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithMultipleTagsDeletesAllScannedEntries(): void
     {
         $connection = $this->mockConnection();
@@ -70,9 +64,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithNoEntriesDoesNotDeleteTagSets(): void
     {
         $connection = $this->mockConnection();
@@ -93,9 +84,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushChunksLargeEntrySets(): void
     {
         $connection = $this->mockConnection();
@@ -197,9 +185,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -221,9 +206,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushWithEmptyTagIds(): void
     {
         $connection = $this->mockConnection();
@@ -244,9 +226,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute([]);
     }
 
-    /**
-     * @test
-     */
     public function testFlushTagKeyFormat(): void
     {
         $connection = $this->mockConnection();
@@ -267,9 +246,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:my-special-tag:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeUsesSequentialDel(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -297,9 +273,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeChunksLargeSets(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -350,9 +323,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeWithMultipleTags(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -383,9 +353,6 @@ class FlushTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testFlushInClusterModeWithNoEntries(): void
     {
         [$store, , $connection] = $this->createClusterStore();

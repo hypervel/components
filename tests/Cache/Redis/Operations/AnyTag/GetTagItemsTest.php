@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class GetTagItemsTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testTagItemsReturnsKeyValuePairs(): void
     {
         $connection = $this->mockConnection();
@@ -41,9 +38,6 @@ class GetTagItemsTest extends RedisCacheTestCase
         $this->assertSame(['foo' => 'value1', 'bar' => 'value2'], $items);
     }
 
-    /**
-     * @test
-     */
     public function testTagItemsSkipsNonExistentKeys(): void
     {
         $connection = $this->mockConnection();
@@ -70,9 +64,6 @@ class GetTagItemsTest extends RedisCacheTestCase
         $this->assertSame(['foo' => 'value1', 'baz' => 'value3'], $items);
     }
 
-    /**
-     * @test
-     */
     public function testTagItemsDeduplicatesAcrossTags(): void
     {
         $connection = $this->mockConnection();

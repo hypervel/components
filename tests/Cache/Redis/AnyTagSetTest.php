@@ -31,9 +31,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->setupStore();
     }
 
-    /**
-     * @test
-     */
     public function testGetNamesReturnsTagNames(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
@@ -41,9 +38,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame(['users', 'posts'], $tagSet->getNames());
     }
 
-    /**
-     * @test
-     */
     public function testGetNamesReturnsEmptyArrayWhenNoTags(): void
     {
         $tagSet = new AnyTagSet($this->store, []);
@@ -51,9 +45,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame([], $tagSet->getNames());
     }
 
-    /**
-     * @test
-     */
     public function testTagHashKeyReturnsCorrectFormat(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
@@ -63,9 +54,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame('prefix:_any:tag:users:entries', $result);
     }
 
-    /**
-     * @test
-     */
     public function testEntriesReturnsGeneratorOfKeys(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
@@ -87,9 +75,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2', 'key3'], iterator_to_array($entries));
     }
 
-    /**
-     * @test
-     */
     public function testEntriesDeduplicatesAcrossTags(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
@@ -122,9 +107,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2', 'key3'], array_values($result));
     }
 
-    /**
-     * @test
-     */
     public function testEntriesWithEmptyTagReturnsEmpty(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
@@ -143,9 +125,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame([], iterator_to_array($entries));
     }
 
-    /**
-     * @test
-     */
     public function testEntriesWithNoTagsReturnsEmpty(): void
     {
         $tagSet = new AnyTagSet($this->store, []);
@@ -155,9 +134,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame([], iterator_to_array($entries));
     }
 
-    /**
-     * @test
-     */
     public function testFlushDeletesKeysAndScannedMemberships(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
@@ -182,9 +158,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertTrue($tagSet->flush());
     }
 
-    /**
-     * @test
-     */
     public function testFlushTagDeletesSingleTag(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
@@ -211,9 +184,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->assertSame('prefix:_any:tag:users:entries', $result);
     }
 
-    /**
-     * @test
-     */
     public function testResetCallsFlush(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);

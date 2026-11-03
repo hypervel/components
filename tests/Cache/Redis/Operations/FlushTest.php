@@ -15,9 +15,6 @@ use Mockery as m;
  */
 class FlushTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testFlushesCached(): void
     {
         $connection = $this->mockConnection();

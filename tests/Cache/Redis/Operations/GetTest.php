@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class GetTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testGetReturnsNullWhenNotFound(): void
     {
         $connection = $this->mockConnection();
@@ -23,9 +20,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertNull($redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testRedisValueIsReturned(): void
     {
         $connection = $this->mockConnection();
@@ -35,9 +29,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertSame('foo', $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testRedisValueIsReturnedForNumerics(): void
     {
         $connection = $this->mockConnection();
@@ -47,9 +38,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertEquals(1, $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsFalseValueAsNull(): void
     {
         // Redis returns false for non-existent keys
@@ -60,9 +48,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertNull($redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsEmptyStringCorrectly(): void
     {
         $connection = $this->mockConnection();
@@ -72,9 +57,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertSame('', $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsZeroCorrectly(): void
     {
         $connection = $this->mockConnection();
@@ -84,9 +66,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertSame(0, $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsFloatCorrectly(): void
     {
         $connection = $this->mockConnection();
@@ -96,9 +75,6 @@ class GetTest extends RedisCacheTestCase
         $this->assertSame(3.14, $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsNegativeNumberCorrectly(): void
     {
         $connection = $this->mockConnection();

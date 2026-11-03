@@ -20,9 +20,6 @@ class AddEntryTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithTtl(): void
     {
         $connection = $this->mockConnection();
@@ -44,9 +41,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 300, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithZeroTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
@@ -68,9 +62,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithNegativeTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
@@ -92,9 +83,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', -5, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenNxCondition(): void
     {
         $connection = $this->mockConnection();
@@ -116,9 +104,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'NX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenXxCondition(): void
     {
         $connection = $this->mockConnection();
@@ -140,9 +125,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'XX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithUpdateWhenGtCondition(): void
     {
         $connection = $this->mockConnection();
@@ -164,9 +146,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, ['_all:tag:users:entries'], 'GT');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -192,9 +171,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, ['_all:tag:users:entries', '_all:tag:posts:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryWithEmptyTagsArrayDoesNothing(): void
     {
         $connection = $this->mockConnection();
@@ -209,9 +185,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, []);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -233,9 +206,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -253,9 +223,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 300, ['_all:tag:users:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithMultipleTags(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -282,9 +249,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 60, ['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithUpdateWhenFlag(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -299,9 +263,6 @@ class AddEntryTest extends RedisCacheTestCase
         $operation->execute('mykey', 0, ['_all:tag:users:entries'], 'NX');
     }
 
-    /**
-     * @test
-     */
     public function testAddEntryClusterModeWithZeroTtlStoresNegativeOne(): void
     {
         [$store, , $connection] = $this->createClusterStore();

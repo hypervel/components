@@ -401,6 +401,8 @@ Classes that use static caching need a `flushState()` method for test cleanup �
 
 ### Coroutine cancellation
 
+See [Coroutine Cancellation](src/docs/coroutines.md#coroutine-cancellation) for handling patterns and examples.
+
 - **Treat coroutine cancellation separately from errors** — Where cancellation needs different handling and the operation runs callbacks or listeners—including `releaseIdleConnections()`—use `Coroutine::causedByCancellation($exception)`. Cleanup errors can carry cancellation in their exception chain. Preserve the original exception, perform owned cleanup, and propagate cancellation instead of retrying or continuing normal work. Report genuine cleanup errors without swallowing cancellation. Add this only where cancellation can actually happen and mishandling it causes a real bug. Keep plain checks for native-only operations.
 - **Preserve cancellation ownership** — If shared work can safely be retried, allow another waiter to retry after its owner is canceled. Otherwise, share the failure behind `ForeignCancellationException`, or `ChildCancellationException` for an independently canceled child, preserving the original cause. The canceled owner propagates its own exception unchanged; waiters must not mistake it for their own cancellation.
 - **Contain cancellation in direct engine coroutines** — Callbacks passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.

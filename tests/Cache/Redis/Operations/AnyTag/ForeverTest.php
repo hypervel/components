@@ -12,9 +12,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ForeverTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testForeverWithTagsUsesLuaScript(): void
     {
         $connection = $this->mockConnection();

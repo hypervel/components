@@ -9,9 +9,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 class AddTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testAddWithTagsReturnsTrueWhenKeyAdded(): void
     {
         $connection = $this->mockConnection();
@@ -36,9 +33,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithTagsReturnsFalseWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
