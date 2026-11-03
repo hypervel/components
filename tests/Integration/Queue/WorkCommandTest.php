@@ -10,6 +10,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
@@ -365,6 +366,20 @@ class WorkCommandTest extends QueueTestCase
         $this->assertSame(2, substr_count(Artisan::output(), JobWillFail::class));
     }
 
+    public function testReleasedJobIsWrittenAsReleased(): void
+    {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
+        Queue::push(new ReleasingJob);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+        ])->expectsOutputToContain('RELEASED')
+            ->doesntExpectOutputToContain('DONE')
+            ->assertExitCode(0);
+    }
+
     public function testStopReasonIsWritten(): void
     {
         Queue::push(new FirstJob);
@@ -481,6 +496,21 @@ class ThirdJob implements ShouldQueue
         sleep(1);
 
         static::$ran = true;
+    }
+}
+
+class ReleasingJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    /**
+     * Release the job back onto the queue.
+     */
+    public function handle(): void
+    {
+        $this->release(30);
     }
 }
 
