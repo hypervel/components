@@ -199,10 +199,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             return;
         }
 
-        $method = $this->resolvePhpUnitTestMethodName();
-
-        if ($method === null
-            || (new ReflectionMethod(static::class, $method))->getAttributes(WithMigration::class) === []) {
+        if ((new ReflectionMethod(static::class, $this->name()))->getAttributes(WithMigration::class) === []) {
             return;
         }
 

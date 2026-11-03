@@ -164,15 +164,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function withoutBootingFramework(): bool
     {
-        if ($this->withoutBootingFramework !== null) {
-            return $this->withoutBootingFramework;
-        }
-
-        try {
-            return $this->withoutBootingFramework = (new ReflectionMethod(static::class, $this->name()))->getAttributes(UnitTest::class) !== [];
-        } catch (Throwable) {
-            return $this->withoutBootingFramework = false;
-        }
+        return $this->withoutBootingFramework ??= (new ReflectionMethod(static::class, $this->name()))->getAttributes(UnitTest::class) !== [];
     }
 
     /**
