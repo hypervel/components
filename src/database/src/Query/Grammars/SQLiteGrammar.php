@@ -398,7 +398,7 @@ class SQLiteGrammar extends Grammar
     {
         [$schema, $table] = $query->getConnection()->getSchemaBuilder()->parseSchemaAndTable($query->from);
 
-        $schema = $schema ? $this->wrapValue($schema) . '.' : '';
+        $schema = $schema !== null ? $this->wrapValue($schema) . '.' : '';
 
         return [
             'delete from ' . $schema . 'sqlite_sequence where name = ?' => [$query->getConnection()->getTablePrefix() . $table],

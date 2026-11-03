@@ -103,6 +103,30 @@ class DatabaseConsoleOutputTest extends TestCase
         $this->assertStringContainsString('<info>Pending</info> a\>b', $output->fetch());
     }
 
+    public function testShowCommandLabelsObjectsInSchemaNamedZero(): void
+    {
+        [$command, $output] = $this->showCommand();
+
+        $command->renderText([
+            'platform' => ['name' => 'PostgreSQL', 'version' => '17.0', 'connection' => 'pgsql', 'config' => [], 'open_connections' => null],
+            'tables' => collect([
+                ['schema' => '0', 'table' => 'orders', 'size' => null, 'engine' => null, 'comment' => null, 'rows' => null],
+            ]),
+            'views' => collect([
+                ['schema' => '0', 'view' => 'active_orders', 'rows' => 0],
+            ]),
+            'types' => collect([
+                ['schema' => '0', 'name' => 'order_status', 'type' => 'enum', 'category' => 'enum'],
+            ]),
+        ]);
+
+        $text = $output->fetch();
+
+        $this->assertStringContainsString('0 / orders', $text);
+        $this->assertStringContainsString('0 / active_orders', $text);
+        $this->assertStringContainsString('0 / order_status', $text);
+    }
+
     /**
      * Create a table command probe that writes to a buffer.
      *

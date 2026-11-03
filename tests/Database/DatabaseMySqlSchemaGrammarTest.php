@@ -1971,6 +1971,17 @@ SQL],
         $this->assertStringContainsString("and rc.constraint_schema = 'my_schema' and rc.table_name = 'users' ", $sql);
     }
 
+    public function testCompileMetadataQueriesForSchemaNamedZero(): void
+    {
+        $grammar = $this->getGrammar();
+
+        $this->assertStringContainsString("table_schema = '0' and", $grammar->compileTableExists('0', 'users'));
+        $this->assertStringEndsWith("table_schema = '0' order by table_schema, table_name", $grammar->compileTables('0'));
+        $this->assertStringContainsString("table_schema = '0' and", $grammar->compileColumns('0', 'users'));
+        $this->assertStringContainsString("table_schema = '0' and", $grammar->compileIndexes('0', 'users'));
+        $this->assertStringContainsString("where kc.table_schema = '0' and", $grammar->compileForeignKeys('0', 'users'));
+    }
+
     /**
      * Create the MySQL schema grammar.
      */

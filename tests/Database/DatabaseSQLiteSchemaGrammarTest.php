@@ -118,6 +118,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('drop index "my_schema"."foo"', $statements[0]);
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->dropIndex('foo');
+
+        $this->assertSame(['drop index "0"."foo"'], $blueprint->toSql());
     }
 
     public function testDropForeignWithColumnsAndName(): void
@@ -303,6 +308,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $blueprint->unique('foo', 'bar');
 
         $this->assertSame(['create unique index "foo"."bar" on "users" ("foo")'], $blueprint->toSql());
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->unique('foo', 'bar');
+
+        $this->assertSame(['create unique index "0"."bar" on "users" ("foo")'], $blueprint->toSql());
     }
 
     public function testAddingIndexWithSchema(): void
@@ -311,6 +321,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $blueprint->index(['foo', 'bar'], 'baz');
 
         $this->assertSame(['create index "foo"."baz" on "users" ("foo", "bar")'], $blueprint->toSql());
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->index(['foo', 'bar'], 'baz');
+
+        $this->assertSame(['create index "0"."baz" on "users" ("foo", "bar")'], $blueprint->toSql());
     }
 
     public function testAddingPartialIndexWithSchema(): void
@@ -380,6 +395,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             . 'group by name, "unique", "primary", sql, origin, partial',
             $this->getGrammar()->compileIndexes('main', 'users'),
         );
+    }
+
+    public function testCompileTablesForSchemaNamedZero(): void
+    {
+        $this->assertStringContainsString(" where tl.schema = '0' and tl.type in", $this->getGrammar()->compileTables('0'));
     }
 
     public function testAddingIncrementingID(): void
