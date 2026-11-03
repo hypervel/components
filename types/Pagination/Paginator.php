@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
+use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
@@ -113,3 +115,9 @@ $throughPaginator->through(function ($post, $key): array {
 });
 
 assertType('Hypervel\Pagination\CursorPaginator<int, array{id: int, post: Post}>', $throughPaginator);
+
+/** @var PaginatorContract<int, Post> $paginatorContract */
+assertType('Hypervel\Contracts\Support\Htmlable', $paginatorContract->render());
+
+/** @var CursorPaginatorContract<int, Post> $cursorPaginatorContract */
+assertType('Hypervel\Contracts\Support\Htmlable', $cursorPaginatorContract->render());
