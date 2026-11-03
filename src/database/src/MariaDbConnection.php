@@ -93,7 +93,8 @@ class MariaDbConnection extends MySqlConnection
             return true;
         }
 
-        $expected = array_column($this->parseCommitIds([$value]), 'sequence', 'domain');
+        $commitIds = $this->parseCommitIds([$value]);
+        $expected = array_column($commitIds, 'sequence', 'domain');
 
         foreach ($this->parseCommitIds([$check->gtid_current_pos]) as $gtid) {
             if (isset($expected[$gtid['domain']]) && $gtid['sequence']->isGreaterThanOrEqualTo($expected[$gtid['domain']])) {
@@ -105,7 +106,10 @@ class MariaDbConnection extends MySqlConnection
             return $expected === [];
         }
 
-        return (int) $this->scalar('select master_gtid_wait(?, ?)', [$value, $wait]) === 0;
+        // Wait only for the missing domains, because MASTER_GTID_WAIT would never see the server's own writes.
+        $missing = array_filter($commitIds, fn (array $gtid): bool => isset($expected[$gtid['domain']]));
+
+        return (int) $this->scalar('select master_gtid_wait(?, ?)', [implode(',', array_keys($missing)), $wait]) === 0;
     }
 
     /**
