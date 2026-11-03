@@ -19,6 +19,8 @@ use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Connectors\FailoverConnector;
 use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\Queue as BaseQueue;
@@ -177,6 +179,28 @@ class QueueManagerTest extends TestCase
         $manager->setDefaultDriver(QueueConnectionName::Sync);
 
         $this->assertSame('sync', $container->make('config')->get('queue.default'));
+    }
+
+    public function testWhenJobRunsLongerThan(): void
+    {
+        $app = new Container;
+        $app->instance('events', new Dispatcher($app));
+
+        $manager = new QueueManager($app);
+
+        $called = false;
+
+        $manager->whenJobRunsLongerThan(1000, function () use (&$called) {
+            $called = true;
+        });
+
+        $app->make('events')->dispatch(new JobAttempted('sync', new FakeJob, null, 500.0));
+
+        $this->assertFalse($called);
+
+        $app->make('events')->dispatch(new JobAttempted('sync', new FakeJob, null, 1500.0));
+
+        $this->assertTrue($called);
     }
 
     #[DataProvider('circularConnections')]
