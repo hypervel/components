@@ -788,3 +788,14 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the s
 </div>
 
 The `ScheduledTaskFailed` event's `runtime` property contains the elapsed execution time in seconds, or `null` when the runtime is unavailable.
+
+If you would like to be notified when a scheduled task takes too long to run, you may use the `whenTaskRunsLongerThan` method in your application's `routes/console.php` file. Provide a threshold in seconds, or a `CarbonInterval`, and a closure that receives the task and the number of seconds it ran. The closure is invoked once for each run that exceeds the threshold, including runs that fail:
+
+```php
+use Hypervel\Console\Scheduling\Event;
+use Hypervel\Support\Facades\Schedule;
+
+Schedule::whenTaskRunsLongerThan(60, function (Event $task, float $runtime) {
+    // Notify the development team...
+});
+```

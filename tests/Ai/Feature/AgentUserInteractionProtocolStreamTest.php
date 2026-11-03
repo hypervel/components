@@ -243,6 +243,29 @@ class AgentUserInteractionProtocolStreamTest extends TestCase
         $this->assertNotSame($response->assistantMessageId, $response->userMessageId);
     }
 
+    public function testAStoredRunAlsoReportsItsMessageIdsInTheRunFinishedMetadata(): void
+    {
+        $this->loadMigrationsFrom(__DIR__ . '/../../../src/ai/database/migrations');
+        RememberingAssistantAgent::fake(['Fake response']);
+
+        $user = new class {
+            public int $id = 1;
+        };
+
+        $response = (new RememberingAssistantAgent)->forUser($user)->stream('Hello');
+
+        $events = agUiEvents($response->usingProtocol(new AgentUserInteractionProtocol)->toResponse(request()));
+        $finished = end($events);
+
+        $this->assertSame([
+            'finishReason' => 'stop',
+            'messageId' => $response->assistantMessageId,
+            'userMessageId' => $response->userMessageId,
+        ], $finished['metadata']);
+        $this->assertSame($response->assistantMessageId, $finished['messageId']);
+        $this->assertSame($response->userMessageId, $finished['userMessageId']);
+    }
+
     public function testAStreamThatPersistsNothingOmitsTheMessageId(): void
     {
         $events = agUiProtocolEvents([

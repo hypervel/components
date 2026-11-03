@@ -1697,6 +1697,27 @@ The `Library` enum includes pre-configured CDN scripts for common front-end libr
 
 For computed or dynamic configuration, override the `appMeta` method on your resource using the fluent `AppMeta`, `Csp`, and `Permissions` builders from the `Hypervel\Mcp\Server\Ui` namespace.
 
+By default, the app's sandbox domain is derived from the current server URL in the format Claude expects. You may set the `domain` argument to use a specific sandbox domain. If the host rejects the derived domain, for example because the connector URL was saved with a trailing slash, set `domain` to `false` to leave it out so the host uses its default sandbox origin:
+
+```php
+#[AppMeta(domain: false)]
+class WeatherDashboardApp extends AppResource
+{
+    // ...
+}
+```
+
+When overriding the `appMeta` method, call `withoutDomain` on the builder instead:
+
+```php
+use Hypervel\Mcp\Server\Ui\AppMeta;
+
+public function appMeta(): AppMeta
+{
+    return AppMeta::make()->withoutDomain();
+}
+```
+
 For the complete protocol reference, including the full client-side API and schema details, see the official [MCP Apps documentation](https://modelcontextprotocol.io/extensions/apps/overview).
 
 <a name="metadata"></a>
@@ -2490,6 +2511,18 @@ $response->assertTitle('Current Weather Tool');
 $response->assertDescription('Fetches the current weather forecast for a specified location.');
 ```
 
+You may assert a tool's structured content using the `assertStructuredContent` method, which accepts the expected array or a closure that receives an `AssertableJson` instance. Structured content equivalents of the HTTP test response's JSON assertions are also available, such as `assertStructuredContentCount`, `assertStructuredContentPath`, `assertExactStructuredContent`, `assertStructuredContentFragment`, `assertStructuredContentMissingPath`, and `assertStructuredContentStructure`:
+
+```php
+$response
+    ->assertStructuredContentCount(2, 'data')
+    ->assertStructuredContentPath('data.0.id', 123)
+    ->assertStructuredContentStructure([
+        'data' => ['*' => ['id', 'status']],
+        'meta' => ['total'],
+    ]);
+```
+
 You may assert that notifications were sent using the `assertSentNotification` and `assertNotificationCount` methods:
 
 ```php
@@ -2516,23 +2549,13 @@ $response->dump();
 <a name="testing-oauth"></a>
 ### Testing OAuth Clients
 
-`Http::fake()` replaces HTTP responses, but OAuth destination validation still runs before sending. When a test uses an invented hostname, replace `OAuthDestinationPolicy` with a test policy that supplies controlled DNS answers. The normal address validation still applies:
+`Http::fake()` replaces HTTP responses, but OAuth destination validation still runs before sending. When a test uses an invented hostname, supply its DNS answers with `AuthServerDiscovery::resolveHostsUsing()`. The normal address validation still applies to the returned addresses:
 
 ```php
-use Hypervel\Mcp\Client\OAuth\OAuthDestinationPolicy;
+use Hypervel\Mcp\Client\OAuth\AuthServerDiscovery;
 use Hypervel\Support\Facades\Http;
 
-$this->app->instance(OAuthDestinationPolicy::class, new class extends OAuthDestinationPolicy {
-    /**
-     * Resolve test endpoints without external DNS.
-     *
-     * @return list<string>
-     */
-    protected function resolveHost(string $host, float $timeoutSeconds): array
-    {
-        return ['93.184.216.34'];
-    }
-});
+AuthServerDiscovery::resolveHostsUsing(fn (string $host): array => ['93.184.216.34']);
 
 Http::fake([
     'https://auth.test/token' => Http::response(['access_token' => 'test-token']),

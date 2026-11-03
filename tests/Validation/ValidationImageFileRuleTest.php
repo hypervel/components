@@ -11,6 +11,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
+use Hypervel\Validation\Rules\ImageFile;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -123,6 +124,22 @@ class ValidationImageFileRuleTest extends TestCase
         $this->passes(
             File::image()->dimensions(Rule::dimensions()->ratioBetween(1 / 3, 1 / 2)),
             UploadedFile::fake()->image('foo.png', 100, 200),
+        );
+    }
+
+    public function testDefaultReturnsImageFileInstance(): void
+    {
+        $this->assertInstanceOf(ImageFile::class, ImageFile::default());
+
+        $this->fails(
+            ImageFile::default(),
+            UploadedFile::fake()->createWithContent('foo.txt', 'Hello World!'),
+            ['validation.image'],
+        );
+
+        $this->passes(
+            ImageFile::default(),
+            UploadedFile::fake()->image('foo.png'),
         );
     }
 

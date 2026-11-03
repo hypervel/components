@@ -536,6 +536,8 @@ foreach ($response->steps as $step) {
 }
 ```
 
+[Classification](#classification) responses also expose the provider's raw HTTP response through their `raw` property.
+
 > **Note:** The `raw` property is `null` when streaming a response, when using the Bedrock provider, and on faked responses unless one is provided explicitly via `withRawResponse`.
 
 <a name="conversation-context"></a>
@@ -1207,6 +1209,8 @@ The `threadId` and `runId` arguments are optional and default to the conversatio
     runId: $request->input('runId'),
 );
 ```
+
+When the conversation is stored, the final `RUN_FINISHED` event includes the stored assistant and user message IDs as `messageId` and `userMessageId`, and repeats them in its `metadata`.
 
 To use a protocol that the AI SDK does not implement, you may pass your own `Hypervel\Ai\Streaming\Protocols\StreamProtocol` implementation to the `usingProtocol` method:
 

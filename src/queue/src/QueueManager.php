@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -16,6 +17,7 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -28,6 +30,7 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 use UnitEnum;
@@ -40,6 +43,7 @@ use function Hypervel\Support\enum_value;
 class QueueManager implements FactoryContract, MonitorContract
 {
     use HasPoolProxy;
+    use InteractsWithTime;
     use ResolvesQueueRoutes;
 
     /**
@@ -162,6 +166,30 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->app->make('events')
             ->listen(WorkerStopping::class, $callback);
+    }
+
+    /**
+     * Register a callback to be invoked when a job runs for longer than a given amount of time.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
+     */
+    public function whenJobRunsLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
+    {
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold) * 1000
+            : $threshold;
+
+        $threshold = $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : $threshold;
+
+        $this->app->make('events')
+            ->listen(JobAttempted::class, function (JobAttempted $event) use ($threshold, $handler): void {
+                if (! is_null($event->duration) && $event->duration > $threshold) {
+                    $handler($event->job, $event->duration);
+                }
+            });
     }
 
     /**

@@ -502,6 +502,12 @@ class SupportHelpersTest extends TestCase
 
         $data = collect(['foo' => 'bar']);
         $this->assertEquals(['bar'], data_get($data, '*'));
+
+        $taylor = (object) ['name' => 'Taylor'];
+        $abigail = (object) ['name' => 'Abigail'];
+        $data = (object) ['first' => $taylor, 'second' => $abigail];
+        $this->assertSame([$taylor, $abigail], data_get($data, '*'));
+        $this->assertSame(['Taylor', 'Abigail'], data_get($data, '*.name'));
     }
 
     public function testDataGetNullKey(): void
@@ -651,6 +657,11 @@ class SupportHelpersTest extends TestCase
             ['foo' => [], 'bar' => ['overwritten', 'overwritten']],
             data_set($data, 'bar.*', 'overwritten')
         );
+
+        $data = (object) ['one' => (object) ['price' => 1], 'two' => (object) ['price' => 2]];
+        data_set($data, '*.price', 0);
+
+        $this->assertEquals((object) ['one' => (object) ['price' => 0], 'two' => (object) ['price' => 0]], $data);
     }
 
     public function testDataSetWithDoubleStar(): void
@@ -714,6 +725,15 @@ class SupportHelpersTest extends TestCase
             ['one' => ['two' => ['four' => ['five']]]],
             data_forget($data, 'one.two.three')
         );
+
+        $data = (object) ['price' => null, 'name' => 'Desk'];
+        data_forget($data, 'price.amount');
+
+        $this->assertEquals((object) ['price' => null, 'name' => 'Desk'], $data);
+
+        data_forget($data, 'price');
+
+        $this->assertEquals((object) ['name' => 'Desk'], $data);
     }
 
     public function testDataRemoveWithStar(): void
@@ -740,6 +760,14 @@ class SupportHelpersTest extends TestCase
             ],
             data_forget($data, 'article.comments.*.name')
         );
+
+        $data = (object) [
+            'one' => (object) ['price' => 1, 'name' => 'Desk'],
+            'two' => (object) ['price' => null, 'name' => 'Chair'],
+        ];
+        data_forget($data, '*.price');
+
+        $this->assertEquals((object) ['one' => (object) ['name' => 'Desk'], 'two' => (object) ['name' => 'Chair']], $data);
     }
 
     public function testDataRemoveWithDoubleStar(): void

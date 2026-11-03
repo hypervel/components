@@ -51,7 +51,7 @@ class TranscriptionTest extends TestCase
         Transcription::fromBase64(base64_encode('fake-audio'), 'audio/mp3')
             ->generate(provider: 'mistral');
 
-        Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'voxtral-mini-2602'));
+        Http::assertSent(fn (Request $request): bool => str_contains($request->body(), 'voxtral-mini-transcribe-3-0'));
     }
 
     public function testTranscriptionSendsLanguageWhenProvided(): void

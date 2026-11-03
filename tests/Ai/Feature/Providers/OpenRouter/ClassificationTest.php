@@ -129,6 +129,15 @@ class ClassificationTest extends TestCase
         $this->assertSame('typesafe/jev-1.13', $response->meta->model);
     }
 
+    public function testTheRawDecisionsResponseIsExposedOnTheClassificationResponse(): void
+    {
+        Http::fake(['*' => Http::response($this->fakeDecisionsResponse())]);
+
+        $response = Classification::of('text')->question('is_urgent', new Boolean('Urgent?'))->classify(provider: 'openrouter');
+
+        $this->assertSame(0.000013, $response->raw->json('usage.cost'));
+    }
+
     public function testClassificationUsesTheDefaultDecisionsModelWhenNoneIsSpecified(): void
     {
         Http::fake(['*' => Http::response($this->fakeDecisionsResponse())]);

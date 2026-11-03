@@ -8974,6 +8974,29 @@ SQL, ['"John"'])->andReturn(1);
         $this->assertSame('select "foo" from "users" indexed by test_index', $builder->toSql());
     }
 
+    public function testForceIndexSqliteIgnoresPrimaryKey(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('foo')->from('users')->forceIndex('PRIMARY');
+        $this->assertSame('select "foo" from "users"', $builder->toSql());
+    }
+
+    public function testForceIndexSqliteIgnoresMultipleIndexes(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('foo')->from('users')->forceIndex('test_index, other_index');
+        $this->assertSame('select "foo" from "users"', $builder->toSql());
+    }
+
+    public function testForceIndexSqliteRejectsInvalidIndexNames(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Index name contains invalid characters.');
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('foo')->from('users')->forceIndex('test_index, other index')->toSql();
+    }
+
     public function testIgnoreIndexSqlite(): void
     {
         $builder = $this->getSQLiteBuilder();

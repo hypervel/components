@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Console\Scheduling;
 use DateTimeImmutable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Console\Command;
+use Hypervel\Console\Events\ScheduledTaskFailed;
+use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Scheduling\CacheAware;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
@@ -16,8 +18,10 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
@@ -29,6 +33,9 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
+
+use function Hypervel\Coroutine\parallel;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -576,6 +583,75 @@ class ScheduleTest extends TestCase
         $this->assertTrue($job->onOneServer);
         $this->assertTrue($closure->onOneServer);
         $this->assertFalse($unnamedClosure->onOneServer);
+    }
+
+    public function testWhenTaskRunsLongerThan(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $called = false;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$called) {
+            $called = true;
+        });
+
+        $events->dispatch(new ScheduledTaskFinished($task, 1.0));
+
+        $this->assertFalse($called);
+
+        $events->dispatch(new ScheduledTaskFinished($task, 10.0));
+
+        $this->assertTrue($called);
+    }
+
+    public function testWhenTaskRunsLongerThanHandlesFailedTasks(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $called = false;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$called) {
+            $called = true;
+        });
+
+        $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException));
+
+        $this->assertFalse($called);
+
+        $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException, 10.0));
+
+        $this->assertTrue($called);
+    }
+
+    public function testWhenTaskRunsLongerThanReportsEachConcurrentRunOnce(): void
+    {
+        $this->container->instance(DispatcherContract::class, $events = new EventDispatcher($this->container));
+
+        $schedule = new Schedule;
+        $task = $schedule->command('inspire');
+
+        $calls = 0;
+
+        $schedule->whenTaskRunsLongerThan(5, function () use (&$calls): void {
+            ++$calls;
+        });
+
+        // A failing run dispatches ScheduledTaskFailed after ScheduledTaskFinished.
+        $run = function () use ($events, $task): void {
+            $events->dispatch(new ScheduledTaskFinished($task, 10.0));
+            usleep(5000);
+            $events->dispatch(new ScheduledTaskFailed($task, new RuntimeException, 10.0));
+        };
+
+        parallel([$run, $run]);
+
+        $this->assertSame(2, $calls);
     }
 
     public function testWithoutInterruptionPollingDisablesPauseAndInterruptChecks(): void

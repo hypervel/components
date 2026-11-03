@@ -14,6 +14,7 @@ use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Override;
 use PDO;
+use RuntimeException;
 
 class PostgresConnection extends PdoConnection
 {
@@ -155,6 +156,57 @@ class PostgresConnection extends PdoConnection
     protected function resolveMaxBindings(): int
     {
         return 65_535;
+    }
+
+    /**
+     * Get the ID of the last committed transaction.
+     */
+    public function getLastCommitId(): string
+    {
+        // pg_current_wal_lsn() can precede an acknowledged asynchronous commit. The insert position covers it;
+        // at a page boundary it points past the next page header, which a replica passes with the next WAL record.
+        return $this->usingWritePdo(fn () => $this->scalar('select pg_current_wal_insert_lsn()'));
+    }
+
+    /**
+     * Calculate the commit ID for a set of commit IDs that includes all of them.
+     *
+     * @param string[] $values
+     *
+     * @throws RuntimeException
+     */
+    public function mergeCommitIds(array $values): string
+    {
+        if ($values === []) {
+            throw new RuntimeException("The list of commit IDs can't be empty.");
+        }
+
+        // LSNs are linear, so the newest one includes all older ones...
+        return $this->scalar('select value::pg_lsn from json_array_elements_text(?) order by 1 desc limit 1', [json_encode(array_values($values))]);
+    }
+
+    /**
+     * Determine if the given commit ID has been applied.
+     *
+     * @throws RuntimeException
+     */
+    public function hasCommitId(string $value, int $wait = 0): bool
+    {
+        if ($wait > 0) {
+            // Check the server that runs the wait; getServerVersion() would also contact the primary.
+            if (version_compare($this->getPdoForSelect()->getAttribute(PDO::ATTR_SERVER_VERSION), '19', '<')) {
+                throw new RuntimeException('The PostgreSQL version does not support waiting for a commit ID. PostgreSQL 19 or newer is required.');
+            }
+
+            $status = $this->scalar("wait for lsn {$this->escapeString($value)} with (timeout {$this->escapeString("{$wait}s")}, no_throw)");
+
+            // A primary can't wait for its own LSNs, so fall back to the immediate check...
+            if ($status !== 'not in recovery') {
+                return $status === 'success';
+            }
+        }
+
+        return (bool) $this->scalar('select case when pg_is_in_recovery() then pg_last_wal_replay_lsn() else pg_current_wal_insert_lsn() end >= ?::pg_lsn', [$value]);
     }
 
     /**

@@ -67,6 +67,7 @@ jobs:
     services:
       mysql:
         image: mysql:8.4
+        command: --gtid-mode=ON --enforce-gtid-consistency=ON
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -167,6 +168,7 @@ jobs:
     services:
       mariadb:
         image: mariadb:10.11
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -214,6 +216,7 @@ jobs:
     services:
       mariadb:
         image: mariadb:11
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -261,6 +264,7 @@ jobs:
     services:
       mariadb:
         image: mariadb:12.3
+        command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
