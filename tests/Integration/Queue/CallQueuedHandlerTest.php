@@ -14,9 +14,14 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\CallQueuedHandler;
@@ -24,9 +29,12 @@ use Hypervel\Queue\Events\JobDebounced;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\FakeJob;
+use Hypervel\Queue\Jobs\Job as BaseJob;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 use stdClass;
 
 class CallQueuedHandlerTest extends TestCase
@@ -186,7 +194,28 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testUniqueJobLockIsReleasedViaContextOnModelNotFound(): void
+    public function testBatchJobIsRecordedAsFailedWhenModelIsMissing(): void
+    {
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $exception = new ModelNotFoundException('Foo');
+
+        $batch = m::mock(Batch::class);
+        $batch->expects('recordFailedJob')->with('job-uuid', $exception);
+
+        $repository = m::mock(BatchRepository::class);
+        $repository->expects('find')->with('test-batch-id')->andReturn($batch);
+        $this->app->instance(BatchRepository::class, $repository);
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $instance->failed([
+            'batchId' => 'test-batch-id',
+            'command' => serialize((new CallQueuedHandlerBatchableExceptionThrower)->withBatchId('test-batch-id')),
+        ], $exception, 'job-uuid');
+    }
+
+    public function testUniqueJobLockIsReleasedFromPayloadWhenDeletedForMissingModel(): void
     {
         $lock = m::mock(Lock::class);
         $lock->expects('forceRelease');
@@ -198,23 +227,23 @@ class CallQueuedHandlerTest extends TestCase
         $cacheFactory->shouldReceive('store')->with('array')->andReturn($cache);
         $this->app->instance(CacheFactory::class, $cacheFactory);
 
-        ContextRepository::getInstance()->addHidden([
-            'laravel_unique_job_cache_store' => 'array',
-            'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
-        ]);
-
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
-        $job->expects('fail');
+        $job->shouldReceive('payload')->andReturn([
+            'deleteWhenMissingModels' => true,
+            'illuminate:log:context' => ['hidden' => $this->uniqueLockMetadata()],
+        ]);
+        $job->shouldReceive('attempts')->andReturn(1);
+        $job->expects('resolveQueuedJobClass')->andReturn(CallQueuedHandlerExceptionThrower::class);
+        $job->expects('delete');
 
         $instance->call($job, [
-            'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
+            'command' => serialize(new CallQueuedHandlerExceptionThrower),
         ]);
     }
 
-    public function testUniqueJobLockOwnerIsRestoredViaContextOnModelNotFound(): void
+    public function testUniqueJobLockOwnerIsRestoredFromPayloadWhenDeletedForMissingModel(): void
     {
         $lock = m::mock(Lock::class);
         $lock->expects('release');
@@ -230,21 +259,142 @@ class CallQueuedHandlerTest extends TestCase
         $cacheFactory->shouldReceive('store')->with('array')->andReturn($cache);
         $this->app->instance(CacheFactory::class, $cacheFactory);
 
-        ContextRepository::getInstance()->addHidden([
-            'laravel_unique_job_cache_store' => 'array',
-            'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
-            'laravel_unique_job_lock_owner' => 'owner-token',
-        ]);
-
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
-        $job->expects('fail');
+        $job->shouldReceive('payload')->andReturn([
+            'deleteWhenMissingModels' => true,
+            'illuminate:log:context' => ['hidden' => $this->uniqueLockMetadata('owner-token')],
+        ]);
+        $job->expects('resolveQueuedJobClass')->andReturn(CallQueuedHandlerExceptionThrower::class);
+        $job->expects('delete');
 
         $instance->call($job, [
-            'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
+            'command' => serialize(new CallQueuedHandlerExceptionThrower),
         ]);
+    }
+
+    #[TestWith([true], 'payload metadata')]
+    #[TestWith([false], 'no payload metadata')]
+    public function testUniqueJobLockIsReleasedOnlyFromThePayloadWhenFailingWithMissingModel(bool $payloadHasLockMetadata): void
+    {
+        $cache = $this->app->make(CacheFactory::class)->store('worker-array');
+        $this->assertTrue($cache->lock('laravel_unique_job:TestJob:42')->acquire());
+        $this->assertTrue($cache->lock('laravel_unique_job:Other:1')->acquire());
+
+        // Another job's metadata in the ambient context, as in the worker's timeout monitor.
+        ContextRepository::getInstance()->addHidden([
+            'laravel_unique_job_cache_store' => 'worker-array',
+            'laravel_unique_job_key' => 'laravel_unique_job:Other:1',
+        ]);
+
+        $job = new CallQueuedHandlerMissingModelQueueJob($this->app, $this->missingModelPayload(
+            CallQueuedHandlerMissingModelUniqueJob::class,
+            $payloadHasLockMetadata ? $this->uniqueLockMetadata(store: 'worker-array') : [],
+        ));
+
+        try {
+            $this->app->make(CallQueuedHandler::class)->failed($job->payload()['data'], new RuntimeException, 'job-uuid', $job);
+            $this->fail('The missing model was not reported.');
+        } catch (ModelNotFoundException) {
+        }
+
+        $this->assertSame($payloadHasLockMetadata, $cache->lock('laravel_unique_job:TestJob:42')->acquire());
+        $this->assertFalse($cache->lock('laravel_unique_job:Other:1')->acquire());
+    }
+
+    public function testOwnerlessUniqueUntilProcessingLockIsKeptWhenFailingWithMissingModelAfterProcessingMayHaveStarted(): void
+    {
+        $cache = $this->app->make(CacheFactory::class)->store('worker-array');
+
+        // A replacement dispatch holds the lock the failed job released when its attempt began processing.
+        $this->assertTrue($cache->lock('laravel_unique_job:TestJob:42')->acquire());
+
+        $job = new CallQueuedHandlerMissingModelQueueJob($this->app, $this->missingModelPayload(
+            CallQueuedHandlerMissingModelUniqueUntilProcessingJob::class,
+            $this->uniqueLockMetadata(store: 'worker-array'),
+        ));
+
+        try {
+            $this->app->make(CallQueuedHandler::class)->failed($job->payload()['data'], new RuntimeException, 'job-uuid', $job);
+            $this->fail('The missing model was not reported.');
+        } catch (ModelNotFoundException) {
+        }
+
+        $this->assertFalse($cache->lock('laravel_unique_job:TestJob:42')->acquire());
+    }
+
+    public function testOwnerlessRegularUniqueListenerLockIsReleasedWhenFailingWithMissingModel(): void
+    {
+        $cache = $this->app->make(CacheFactory::class)->store('worker-array');
+        $this->assertTrue($cache->lock('laravel_unique_job:TestJob:42')->acquire());
+
+        $payload = $this->missingModelPayload(CallQueuedListener::class, $this->uniqueLockMetadata(store: 'worker-array'));
+        $payload['displayName'] = CallQueuedHandlerUniqueListener::class;
+
+        $job = new CallQueuedHandlerMissingModelQueueJob($this->app, $payload);
+
+        try {
+            $this->app->make(CallQueuedHandler::class)->failed($payload['data'], new RuntimeException, 'job-uuid', $job);
+            $this->fail('The missing model was not reported.');
+        } catch (ModelNotFoundException) {
+        }
+
+        $this->assertTrue($cache->lock('laravel_unique_job:TestJob:42')->acquire());
+    }
+
+    #[TestWith([1, 1])]
+    #[TestWith([2, 0])]
+    public function testMissingModelFailureReleasesAnOwnerlessUniqueUntilProcessingLockOnceBeforeProcessing(int $attempts, int $releases): void
+    {
+        $lock = m::mock(Lock::class);
+        $lock->expects('forceRelease')->times($releases);
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('lock')->with('laravel_unique_job:TestJob:42')->andReturn($lock);
+
+        $cacheFactory = m::mock(CacheFactory::class);
+        $cacheFactory->shouldReceive('store')->with('array')->andReturn($cache);
+        $this->app->instance(CacheFactory::class, $cacheFactory);
+
+        $job = new CallQueuedHandlerMissingModelQueueJob($this->app, $this->missingModelPayload(
+            CallQueuedHandlerMissingModelUniqueUntilProcessingJob::class,
+            $this->uniqueLockMetadata(),
+        ), $attempts);
+
+        try {
+            $this->app->make(CallQueuedHandler::class)->call($job, $job->payload()['data']);
+            $this->fail('The missing model was not reported.');
+        } catch (ModelNotFoundException) {
+        }
+
+        $this->assertTrue($job->hasFailed());
+    }
+
+    #[TestWith([CallQueuedHandlerMissingModelUniqueJob::class, '', true], 'ownerless unique job')]
+    #[TestWith([CallQueuedHandlerMissingModelUniqueUntilProcessingJob::class, 'owner-token', true], 'owned unique until processing job')]
+    #[TestWith([CallQueuedHandlerMissingModelUniqueUntilProcessingJob::class, '', false], 'ownerless unique until processing job')]
+    public function testUniqueJobLockIsReleasedFromContextWhenFailingWithMissingModelWithoutAJob(string $commandName, string $owner, bool $released): void
+    {
+        $cache = $this->app->make(CacheFactory::class)->store('worker-array');
+        $this->assertTrue($cache->lock('laravel_unique_job:TestJob:42', 0, 'owner-token')->acquire());
+
+        ContextRepository::getInstance()->addHidden([
+            'laravel_unique_job_cache_store' => 'worker-array',
+            'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
+            'laravel_unique_job_lock_owner' => $owner,
+        ]);
+
+        try {
+            $this->app->make(CallQueuedHandler::class)->failed([
+                'commandName' => $commandName,
+                'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
+            ], new RuntimeException, 'job-uuid');
+            $this->fail('The missing model was not reported.');
+        } catch (ModelNotFoundException) {
+        }
+
+        $this->assertSame($released, $cache->lock('laravel_unique_job:TestJob:42')->acquire());
     }
 
     public function testDebouncedJobEventIsSkippedWithoutListeners(): void
@@ -302,6 +452,96 @@ class CallQueuedHandlerTest extends TestCase
                 && $event->job === $job
                 && $event->command === $command;
         });
+    }
+
+    /**
+     * Get the payload metadata of a unique job lock.
+     *
+     * @return array<string, string>
+     */
+    protected function uniqueLockMetadata(string $owner = '', string $store = 'array'): array
+    {
+        return [
+            'laravel_unique_job_cache_store' => serialize($store),
+            'laravel_unique_job_key' => serialize('laravel_unique_job:TestJob:42'),
+            'laravel_unique_job_lock_owner' => serialize($owner),
+        ];
+    }
+
+    /**
+     * Get the payload of a queued command whose model is missing.
+     *
+     * @param class-string $commandName
+     * @param array<string, string> $hidden
+     */
+    protected function missingModelPayload(string $commandName, array $hidden): array
+    {
+        return [
+            'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+            'uuid' => 'job-uuid',
+            'displayName' => $commandName,
+            'deleteWhenMissingModels' => false,
+            'data' => [
+                'commandName' => $commandName,
+                'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
+            ],
+            'illuminate:log:context' => ['hidden' => $hidden],
+        ];
+    }
+}
+
+class CallQueuedHandlerMissingModelQueueJob extends BaseJob
+{
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(ContainerContract $container, protected array $rawPayload, protected int $attemptCount = 1)
+    {
+        $this->container = $container;
+        $this->connectionName = 'sync';
+        $this->queue = 'default';
+    }
+
+    /**
+     * Get the job identifier.
+     */
+    public function getJobId(): string
+    {
+        return 'job-id';
+    }
+
+    /**
+     * Get the raw body of the job.
+     */
+    public function getRawBody(): string
+    {
+        return json_encode($this->rawPayload, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Get the number of times the job has been attempted.
+     */
+    public function attempts(): int
+    {
+        return $this->attemptCount;
+    }
+}
+
+class CallQueuedHandlerMissingModelUniqueJob implements ShouldBeUnique
+{
+}
+
+class CallQueuedHandlerMissingModelUniqueUntilProcessingJob implements ShouldBeUniqueUntilProcessing
+{
+}
+
+class CallQueuedHandlerUniqueListener implements ShouldBeUnique, ShouldQueue
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(): void
+    {
     }
 }
 
