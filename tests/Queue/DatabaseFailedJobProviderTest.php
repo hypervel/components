@@ -10,8 +10,11 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use RuntimeException;
 
 class DatabaseFailedJobProviderTest extends TestCase
@@ -59,6 +62,20 @@ class DatabaseFailedJobProviderTest extends TestCase
 
         $this->assertCount(4, $this->provider->ids());
         $this->assertSame([4, 3, 2, 1], $this->provider->ids());
+    }
+
+    public function testNonIntegerFailedJobIdsAreCastToStrings(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('when')->andReturnSelf();
+        $builder->shouldReceive('orderBy')->andReturnSelf();
+        $builder->shouldReceive('pluck')->with('id')->andReturn(new Collection([new Stringable('4'), 3]));
+
+        $provider = m::mock(DatabaseFailedJobProvider::class, [$this->resolver, null, 'failed_jobs'])
+            ->makePartial();
+        $provider->shouldReceive('getTable')->andReturn($builder);
+
+        $this->assertSame(['4', 3], $provider->ids());
     }
 
     public function testCanGetAllFailedJobs(): void
