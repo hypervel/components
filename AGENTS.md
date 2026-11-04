@@ -458,6 +458,7 @@ Package-specific tests that require one database driver go in `tests/Integration
 | `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that needs a full app skeleton / writes through `BASE_PATH`** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
 | `PHPStan\Testing\RuleTestCase` | PHPStan rule tests in `tests/PHPStan`. |
 | `PHPStan\Testing\TypeInferenceTestCase` | PHPStan type-inference tests in `tests/PHPStan`. |
+| `PHPStan\Testing\PHPStanTestCase` | PHPStan tests in `tests/PHPStan` that need PHPStan's service container. |
 
 Always call `parent::setUp()` in your setUp method.
 
