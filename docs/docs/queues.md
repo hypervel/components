@@ -160,7 +160,38 @@ class ProcessPodcast implements ShouldQueue
 
 In this example, note that we were able to pass an [Eloquent model](/docs/eloquent) directly into the queued job's constructor. Because of the `SerializesModels` trait that the job is using, Eloquent models and their loaded relationships will be gracefully serialized and unserialized when the job is processing.
 
-If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance and its loaded relationships from the database. This approach to model serialization allows for much smaller job payloads to be sent to your queue driver.
+By default, Hypervel serializes the full model instance onto the queue. This means when the job is processed, you receive the exact model state from when the job was dispatched—no additional database query is performed. This "snapshot" behavior can be useful when you want to preserve the model's state at dispatch time, or when the model may be deleted before the job runs.
+
+If you prefer Laravel-style behavior where only the model's identifier is serialized and the model is re-retrieved from the database when the job runs (ensuring fresh data), your model should implement the `Hypervel\Queue\Contracts\QueueableEntity` interface:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Hypervel\Database\Eloquent\Model as BaseModel;
+use Hypervel\Queue\Contracts\QueueableEntity;
+
+abstract class Model extends BaseModel implements QueueableEntity
+{
+    public function getQueueableId(): mixed
+    {
+        return $this->getKey();
+    }
+
+    public function getQueueableRelations(): array
+    {
+        return array_keys($this->relations);
+    }
+
+    public function getQueueableConnection(): ?string
+    {
+        return $this->getConnectionName();
+    }
+}
+```
+
+With `QueueableEntity` implemented, only the model's identifier will be serialized, resulting in smaller job payloads. The model will be re-retrieved from the database when the job is processed, ensuring you always work with the latest data.
 
 #### `handle` Method Dependency Injection
 
@@ -184,9 +215,7 @@ Binary data, such as raw image contents, should be passed through the `base64_en
 
 #### Queued Relationships
 
-Because all loaded Eloquent model relationships also get serialized when a job is queued, the serialized job string can sometimes become quite large. Furthermore, when a job is deserialized and model relationships are re-retrieved from the database, they will be retrieved in their entirety. Any previous relationship constraints that were applied before the model was serialized during the job queueing process will not be applied when the job is deserialized. Therefore, if you wish to work with a subset of a given relationship, you should re-constrain that relationship within your queued job.
-
-Or, to prevent relations from being serialized, you can call the `withoutRelations` method on the model when setting a property value. This method will return an instance of the model without its loaded relationships:
+Because all loaded Eloquent model relationships also get serialized when a job is queued, the serialized job string can sometimes become quite large. To prevent relations from being serialized, you can call the `withoutRelations` method on the model when setting a property value. This method will return an instance of the model without its loaded relationships:
 
 ```php
 /**
@@ -198,7 +227,9 @@ public function __construct(Podcast $podcast)
 }
 ```
 
-If a job receives a collection or array of Eloquent models instead of a single model, the models within that collection will not have their relationships restored when the job is deserialized and executed. This is to prevent excessive resource usage on jobs that deal with large numbers of models.
+::: note
+If you implement `QueueableCollection` on your collection class to enable identifier-based serialization for collections, the models within the collection will not have their relationships re-loaded when restored from the database. This is to prevent excessive resource usage on jobs that deal with large numbers of models.
+:::
 
 ### Unique Jobs
 
@@ -1946,7 +1977,7 @@ php artisan queue:flush
 
 ### Ignoring Missing Models
 
-When injecting an Eloquent model into a job, the model is automatically serialized before being placed on the queue and re-retrieved from the database when the job is processed. However, if the model has been deleted while the job was waiting to be processed by a worker, your job may fail with a `ModelNotFoundException`.
+If your model implements `QueueableEntity` (enabling identifier-based serialization), the model will be re-retrieved from the database when the job is processed. If the model has been deleted while the job was waiting to be processed by a worker, your job may fail with a `ModelNotFoundException`.
 
 For convenience, you may choose to automatically delete jobs with missing models by setting your job's `deleteWhenMissingModels` property to `true`. When this property is set to `true`, Hypervel will quietly discard the job without raising an exception:
 
