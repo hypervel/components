@@ -6,9 +6,9 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\Arr;
 use LogicException;
-use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -256,20 +256,12 @@ class ConfigCacheCommand extends Command
      */
     protected function resolveSubprocessAutoloadPath(): string
     {
-        $componentRoot = dirname((new ReflectionClass(Filesystem::class))->getFileName(), 4);
+        $autoloadPath = $this->hypervel->make(PackageManifest::class)->vendorPath . '/autoload.php';
 
-        $candidates = array_unique([
-            $this->hypervel->basePath('vendor/autoload.php'),
-            $componentRoot . '/vendor/autoload.php',
-            dirname($componentRoot, 2) . '/autoload.php',
-        ]);
-
-        foreach ($candidates as $candidate) {
-            if (is_file($candidate)) {
-                return $candidate;
-            }
+        if (! is_file($autoloadPath)) {
+            throw new LogicException('Unable to locate the Composer autoloader for the configuration cache subprocess.');
         }
 
-        throw new LogicException('Unable to locate the Composer autoloader for the configuration cache subprocess.');
+        return $autoloadPath;
     }
 }
