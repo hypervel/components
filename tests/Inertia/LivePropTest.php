@@ -243,6 +243,19 @@ class OrderBroadcastPerConnection
             'pusher' => [new PrivateChannel('pusher.orders.1')],
         ];
     }
+
+    /**
+     * Get the broadcaster connections the event should be broadcast on.
+     *
+     * The broadcast job only sends a connection its named channels when the event is
+     * broadcast via that connection, which upstream's fixture leaves out.
+     *
+     * @return array<int, string>
+     */
+    public function broadcastConnections(): array
+    {
+        return ['reverb', 'pusher'];
+    }
 }
 
 class OrderBroadcastOnUnnamedOrDefaultConnection
@@ -259,6 +272,7 @@ class OrderBroadcastOnUnnamedOrDefaultConnection
         return [
             '' => [new PrivateChannel('orders.1')],
             'reverb' => [new PrivateChannel('reverb.orders.1')],
+            'pusher' => [new PrivateChannel('pusher.orders.1')],
         ];
     }
 }
@@ -854,6 +868,30 @@ class LivePropTest extends TestCase
                 'events' => [OrderBroadcastOnUnnamedOrDefaultConnection::class],
             ],
         ], (new LiveProp('bar', (new OrderBroadcastOnUnnamedOrDefaultConnection)->broadcastVia('reverb')))->liveListeners());
+
+        // Both groups go out on the default connection when the event is broadcast via both
+        $this->assertSame([
+            [
+                'channel' => ['name' => 'orders.1', 'type' => 'private'],
+                'events' => [OrderBroadcastOnUnnamedOrDefaultConnection::class],
+            ],
+            [
+                'channel' => ['name' => 'reverb.orders.1', 'type' => 'private'],
+                'events' => [OrderBroadcastOnUnnamedOrDefaultConnection::class],
+            ],
+        ], (new LiveProp('bar', (new OrderBroadcastOnUnnamedOrDefaultConnection)->broadcastVia([null, 'reverb'])))->liveListeners());
+    }
+
+    public function testChannelsKeyedByConnectionForAnEventNotBroadcastOnTheDefaultConnectionThrow(): void
+    {
+        config(['broadcasting.default' => 'reverb']);
+
+        $liveProp = new LiveProp('bar', (new OrderBroadcastOnUnnamedOrDefaultConnection)->broadcastVia('pusher'));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('The [' . OrderBroadcastOnUnnamedOrDefaultConnection::class . '] event keys its channels by connection, but has none for the default [reverb] connection.');
+
+        $liveProp->liveListeners();
     }
 
     public function testChannelsKeyedByConnectionWithoutTheDefaultConnectionThrow(): void

@@ -224,20 +224,23 @@ trait HasLiveUpdates
     {
         $connection = config()->string('broadcasting.default');
 
-        // The broadcast job sends an event without a named connection on the default
-        // connection, using the channels keyed by ''. Otherwise the default connection's
-        // name selects them.
         $connections = method_exists($event, 'broadcastConnections') ? $event->broadcastConnections() : [null];
 
-        $defaultChannels = in_array(null, $connections, true) && is_array($channels[''] ?? null)
-            ? $channels['']
-            : $channels[$connection] ?? null;
+        // The broadcast job sends each connection the channels keyed by its name, or by ''
+        // when the event names no connection, which sends it on the default connection.
+        $defaultChannels = [];
 
-        if (! is_array($defaultChannels)) {
+        foreach ($connections as $name) {
+            if (($name === null || $name === $connection) && is_array($channels[$name ?? ''] ?? null)) {
+                array_push($defaultChannels, ...array_values($channels[$name ?? '']));
+            }
+        }
+
+        if ($defaultChannels === []) {
             throw new LogicException('The [' . $event::class . "] event keys its channels by connection, but has none for the default [{$connection}] connection. Pass the [channel] argument instead.");
         }
 
-        return array_values($defaultChannels);
+        return $defaultChannels;
     }
 
     /**
