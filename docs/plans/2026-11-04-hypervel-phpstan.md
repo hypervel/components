@@ -20,7 +20,7 @@ Remaining work:
 
 ## Design decisions
 
-- Port Larastan's architecture, file organization, naming, algorithms and applicable tests; track its upstream. Use `cp`, read the complete copy, then edit, one file at a time in alphabetical order. Use `mv` for existing Hypervel extensions. Preserve upstream member order and useful comments. Fix inherited defects at their owning boundary.
+- Port Larastan's architecture, file organization, naming, algorithms and applicable tests; track its upstream. Use `cp`, read the complete copy, then edit, one file at a time in alphabetical order. Use `mv` for existing Hypervel extensions. Preserve upstream member order and comments (unless incorrect). Fix inherited defects at their owning boundary.
 - Boot the actual application; use Hypervel Testbench for packages. Retain runtime discovery of container bindings, macros, facade roots, authentication configuration and console definitions. Do not build a second static service-container simulator or require an alternative no-boot mode.
 - Retain the upstream `extension.neon`, parameter schemas, PHPStan DI attributes and applicable rule switches. Select stricter Hypervel defaults. Keep settings for retained features, including paths and scanning/cache options; omit settings only when their feature is omitted. Do not implement anti-override mechanisms, non-ignorable policy errors, multiple strictness profiles, or a custom configuration language.
 - Register `extension.neon` in `extra.phpstan.includes`. Document explicit inclusion and optional discovery through `phpstan/extension-installer`; installing the analyzer alone does not install or authorize that Composer plugin.
