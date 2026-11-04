@@ -66,7 +66,7 @@ assertType('mixed', session('foo'));
 assertType('null', session(['foo' => 'bar']));
 
 assertType('Hypervel\Translation\Translator', trans());
-assertType('array|string', trans('foo'));
+assertType('(array|string)', trans('foo'));
 
 assertType('Hypervel\Contracts\Validation\Factory', validator());
 assertType('Hypervel\Contracts\Validation\Validator', validator([]));
@@ -74,7 +74,9 @@ assertType('Hypervel\Contracts\Validation\Validator', validator(null));
 assertType('Hypervel\Contracts\Validation\Validator', validator(rules: ['name' => 'required']));
 
 assertType('Hypervel\Contracts\View\Factory', view());
-assertType('Hypervel\Contracts\View\View', view('foo'));
+assertType('Hypervel\Contracts\View\View', view('welcome'));
+assertType('Hypervel\Contracts\View\View', view(null));
+assertType('Hypervel\Contracts\View\View', view(data: []));
 
 assertType('Hypervel\Contracts\Routing\UrlGenerator', url());
 assertType('string', url('foo'));

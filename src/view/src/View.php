@@ -23,6 +23,9 @@ use Hypervel\Support\ViewErrorBag;
 use Stringable;
 use Throwable;
 
+/**
+ * @implements ArrayAccess<array-key, mixed>
+ */
 class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 {
     use Macroable {

@@ -843,7 +843,7 @@ if (! function_exists('response')) {
      *
      * With no arguments, return the factory. Any argument, including null, creates a response.
      *
-     * @return ($content is null ? ResponseFactory : HypervelResponse)
+     * @return ($content is null ? HypervelResponse|ResponseFactory : HypervelResponse)
      */
     function response(mixed $content = null, int $status = 200, array $headers = []): ResponseFactory|HypervelResponse
     {
@@ -1048,7 +1048,7 @@ if (! function_exists('validator')) {
      *
      * With no arguments, return the factory. Any argument, including null, creates a validator.
      *
-     * @return ($data is null ? ValidatorFactoryContract : ValidatorContract)
+     * @return ($data is null ? ValidatorContract|ValidatorFactoryContract : ValidatorContract)
      */
     function validator(?array $data = null, array $rules = [], array $messages = [], array $attributes = []): ValidatorContract|ValidatorFactoryContract
     {
@@ -1065,6 +1065,9 @@ if (! function_exists('validator')) {
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
+     *
+     * With no arguments, return the factory. Any argument makes a view, so an explicit
+     * null view name fails in make() rather than returning the factory.
      *
      * @return ($view is null ? ViewFactory : ViewContract)
      */
