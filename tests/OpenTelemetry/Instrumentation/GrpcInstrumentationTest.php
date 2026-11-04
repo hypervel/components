@@ -177,9 +177,10 @@ class GrpcInstrumentationTest extends TestCase
         $this->assertSame($ambient->getContext()->getSpanId(), $span->getParentSpanId());
         $this->assertSame($span->getTraceId(), explode('-', $traceparent)[1]);
         $this->assertSame($span->getSpanId(), explode('-', $traceparent)[2]);
+        $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $span->getInstrumentationScope()->getSchemaUrl());
         $this->assertSame('grpc', $span->getAttributes()->get('rpc.system.name'));
         $this->assertSame('example.Echo/Say', $span->getAttributes()->get('rpc.method'));
-        $this->assertSame('OK', $span->getAttributes()->get('rpc.response.status_code'));
+        $this->assertSame('OK', $span->getAttributes()->get('rpc.status_code'));
         $this->assertSame('grpc.test', $span->getAttributes()->get(ServerAttributes::SERVER_ADDRESS));
         $this->assertSame(50051, $span->getAttributes()->get(ServerAttributes::SERVER_PORT));
         $this->assertSame(2, $span->getAttributes()->get('hypervel.grpc.attempt_count'));
@@ -187,7 +188,7 @@ class GrpcInstrumentationTest extends TestCase
         $this->metricReader->collect();
         $point = $this->histogramPoint(self::CLIENT_DURATION_METRIC);
         $this->assertSame(3, $point->sum);
-        $this->assertSame('OK', $point->attributes->get('rpc.response.status_code'));
+        $this->assertSame('OK', $point->attributes->get('rpc.status_code'));
         $this->assertNull($point->attributes->get('hypervel.grpc.attempt_count'));
     }
 
@@ -283,7 +284,7 @@ class GrpcInstrumentationTest extends TestCase
 
         $span = $this->exportedSpan('example.Echo/Say');
         $this->assertSame(TraceStatusCode::STATUS_ERROR, $span->getStatus()->getCode());
-        $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get('rpc.response.status_code'));
+        $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get('rpc.status_code'));
         $this->assertSame('INVALID_ARGUMENT', $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
 
         $this->metricReader->collect();

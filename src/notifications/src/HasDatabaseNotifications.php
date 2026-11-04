@@ -26,7 +26,7 @@ trait HasDatabaseNotifications
      */
     public function readNotifications(): MorphMany
     {
-        return $this->notifications()->read(); /* @phpstan-ignore method.notFound */
+        return $this->notifications()->read();
     }
 
     /**
@@ -36,6 +36,6 @@ trait HasDatabaseNotifications
      */
     public function unreadNotifications(): MorphMany
     {
-        return $this->notifications()->unread(); /* @phpstan-ignore method.notFound */
+        return $this->notifications()->unread();
     }
 }

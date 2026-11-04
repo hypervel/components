@@ -11,7 +11,9 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Inertia\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class EntriesRepositoryTest extends TestCase
 {
@@ -97,6 +99,28 @@ class EntriesRepositoryTest extends TestCase
         $repo = $this->makeRepository();
 
         $this->assertNull($repo->get('does-not-exist'));
+    }
+
+    public function testGetRethrowsCancellationWhileReadingTheEntry(): void
+    {
+        $payload = $this->envelope();
+        $id = $payload['__meta']['id'];
+
+        $this->makeRepository()->save($id, $payload);
+
+        $cancellation = new CanceledException('canceled');
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('get')->andThrow($cancellation);
+
+        $repo = new EntriesRepository(path: $this->storagePath, files: $files);
+
+        try {
+            $repo->get($id);
+
+            $this->fail('The cancellation was not rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testSaveRejectsInvalidEntryIds(): void

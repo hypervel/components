@@ -679,6 +679,8 @@ $request->authenticate(new MultiAuthenticator(
 ));
 ```
 
+Headers set by an authenticator are removed when a redirect changes the scheme, host, or port. They remain removed for the rest of that redirect chain, even if it returns to the original origin. A new retry attempt applies authentication again. Custom headers added through `defaultHeaders` or `withHeaders` outside an authenticator are ordinary headers and may be forwarded to another origin.
+
 Built-in NTLM authentication is not provided. Integrations requiring NTLM must supply their own authenticator and transport middleware.
 
 You may create a reusable authenticator by implementing `Hypervel\Saloon\Contracts\Authenticator`:

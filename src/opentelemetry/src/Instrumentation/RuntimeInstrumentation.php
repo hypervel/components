@@ -118,7 +118,7 @@ class RuntimeInstrumentation extends AbstractInstrumentation
             return;
         }
 
-        $meter = $this->meterProvider->getMeter('hypervel.runtime');
+        $meter = $this->meterProvider->getMeter('hypervel.runtime', schemaUrl: $this->schemaUrl());
 
         $this->registerBatch($meter, $memoryMetrics, $this->observeMemory(...));
         $this->registerBatch($meter, $garbageCollectionMetrics, $this->observeGarbageCollection(...));

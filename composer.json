@@ -80,7 +80,7 @@
         "open-telemetry/context": "^1.5",
         "open-telemetry/exporter-otlp": "^1.4",
         "open-telemetry/sdk": "^1.15",
-        "open-telemetry/sem-conv": "^1.38",
+        "open-telemetry/sem-conv": "^1.45",
         "paragonie/constant_time_encoding": "^3.1",
         "phpoption/phpoption": "^1.9",
         "phpstan/phpdoc-parser": "^2.3",

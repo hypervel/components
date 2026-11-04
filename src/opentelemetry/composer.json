@@ -68,7 +68,7 @@
         "open-telemetry/context": "^1.5",
         "open-telemetry/exporter-otlp": "^1.4",
         "open-telemetry/sdk": "^1.15",
-        "open-telemetry/sem-conv": "^1.38",
+        "open-telemetry/sem-conv": "^1.45",
         "psr/clock": "^1.0",
         "psr/http-client": "^1.0",
         "psr/http-message": "^2.0",

@@ -264,7 +264,7 @@ class HttpTransportTest extends TestCase
 
     #[TestWith([false], 'message')]
     #[TestWith([true], 'session termination')]
-    public function testRedirectsKeepCustomHeadersOnTheirOrigin(bool $disconnect): void
+    public function testRedirectsKeepCustomHeadersRemovedAfterLeavingTheirOrigin(bool $disconnect): void
     {
         $requests = [];
         Http::fake(function (Request $request) use (&$requests): PromiseInterface {
@@ -297,13 +297,22 @@ class HttpTransportTest extends TestCase
             }
 
             $this->assertCount(3, $requests);
-            foreach ([0, 2] as $index) {
-                $this->assertTrue($requests[$index]->hasHeader('X-Api-Key', 'resource-secret'));
+            $this->assertTrue($requests[0]->hasHeader('X-Api-Key', 'resource-secret'));
+            foreach ([1, 2] as $index) {
+                $this->assertFalse($requests[$index]->hasHeader('X-Api-Key'));
                 $this->assertTrue($requests[$index]->hasHeader('MCP-Session-Id', 'resource-session'));
+                $this->assertTrue($requests[$index]->hasHeader('MCP-Protocol-Version', ProtocolVersion::V2025_11_25->value));
             }
-            $this->assertFalse($requests[1]->hasHeader('X-Api-Key'));
-            $this->assertTrue($requests[1]->hasHeader('MCP-Session-Id', 'resource-session'));
-            $this->assertTrue($requests[1]->hasHeader('MCP-Protocol-Version', ProtocolVersion::V2025_11_25->value));
+            $this->assertTrue($requests[0]->hasHeader('MCP-Session-Id', 'resource-session'));
+
+            if (! $disconnect) {
+                $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'ping']));
+
+                $this->assertCount(6, $requests);
+                $this->assertTrue($requests[3]->hasHeader('X-Api-Key', 'resource-secret'));
+                $this->assertFalse($requests[4]->hasHeader('X-Api-Key'));
+                $this->assertFalse($requests[5]->hasHeader('X-Api-Key'));
+            }
         } finally {
             $transport->disconnect();
         }

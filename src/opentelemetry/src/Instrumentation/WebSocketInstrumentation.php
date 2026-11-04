@@ -85,13 +85,13 @@ class WebSocketInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.websocket');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.websocket', schemaUrl: $this->schemaUrl());
         }
 
         $meter = null;
 
         if ($this->metricEnabled(self::DURATION_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.websocket');
+            $meter = $this->meterProvider->getMeter('hypervel.websocket', schemaUrl: $this->schemaUrl());
             $this->duration = $meter->createHistogram(
                 self::DURATION_METRIC,
                 's',
@@ -101,7 +101,7 @@ class WebSocketInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::MESSAGES_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.websocket');
+            $meter ??= $this->meterProvider->getMeter('hypervel.websocket', schemaUrl: $this->schemaUrl());
             $this->messages = $meter->createCounter(
                 self::MESSAGES_METRIC,
                 '{message}',
@@ -110,7 +110,7 @@ class WebSocketInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::ACTIVE_CONNECTIONS_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.websocket');
+            $meter ??= $this->meterProvider->getMeter('hypervel.websocket', schemaUrl: $this->schemaUrl());
             $this->activeConnections = $meter->createUpDownCounter(
                 self::ACTIVE_CONNECTIONS_METRIC,
                 '{connection}',

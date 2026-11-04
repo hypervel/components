@@ -181,8 +181,6 @@ class Coroutine
         foreach (static::$afterCreatedCallbacks as $callback) {
             try {
                 $callback();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
                 static::printLog($throwable);
             }
@@ -294,7 +292,7 @@ class Coroutine
     /**
      * Report an exception through the exception handler.
      *
-     * @throws CanceledException When the failure or reporting path is canceled
+     * @throws Throwable When cancellation or its cleanup failure must propagate
      */
     protected static function printLog(Throwable $throwable): void
     {
@@ -313,9 +311,11 @@ class Coroutine
                 $container->make(ExceptionHandlerContract::class)
                     ->report($throwable);
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (static::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             try {
                 error_log((string) $throwable);
             } catch (CanceledException $exception) {
@@ -336,7 +336,10 @@ class Coroutine
 
         try {
             static::printLog($throwable);
-        } catch (CanceledException) {
+        } catch (Throwable $exception) {
+            if (! static::causedByCancellation($exception)) {
+                throw $exception;
+            }
         }
     }
 

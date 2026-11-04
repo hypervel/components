@@ -66,7 +66,6 @@ use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
 use Override;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -194,18 +193,16 @@ class QueueInstrumentationTest extends TestCase
             Span::fromContext($producerContext)->getContext()->getSpanId(),
             $span->getSpanId(),
         );
-        $this->assertSame('redis', $attributes->get(MessagingIncubatingAttributes::MESSAGING_SYSTEM));
-        $this->assertSame('emails', $attributes->get(MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME));
-        $this->assertSame('enqueue', $attributes->get(MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME));
-        $this->assertSame(
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND,
-            $attributes->get(MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE),
-        );
+        $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $span->getInstrumentationScope()->getSchemaUrl());
+        $this->assertSame('redis', $attributes->get('messaging.system.name'));
+        $this->assertSame('emails', $attributes->get('messaging.destination.name'));
+        $this->assertSame('enqueue', $attributes->get('messaging.operation.name'));
+        $this->assertSame('send', $attributes->get('messaging.operation.type'));
         $this->assertSame('redis', $attributes->get('hypervel.queue.connection'));
-        $this->assertSame('job-uuid', $attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
+        $this->assertSame('job-uuid', $attributes->get('messaging.message.id'));
         $this->assertSame(
             strlen($event->payload),
-            $attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $attributes->get('messaging.message.envelope.size'),
         );
 
         $this->metricReader->collect();
@@ -213,8 +210,27 @@ class QueueInstrumentationTest extends TestCase
         $duration = $this->histogramPoint(self::SEND_DURATION_METRIC);
         $this->assertSame(1, $sent->value);
         $this->assertSame(2, $duration->sum);
-        $this->assertNull($sent->attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
-        $this->assertNull($duration->attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE));
+        $this->assertNull($sent->attributes->get('messaging.message.id'));
+        $this->assertNull($duration->attributes->get('messaging.message.envelope.size'));
+    }
+
+    public function testMessagingSystemNameFollowsTheConnectionDriver(): void
+    {
+        $this->instrumentation(configuration: $this->configuration([
+            'jobs' => ['driver' => 'sqs'],
+            'legacy' => ['driver' => 'beanstalkd'],
+        ]))->register($this->options());
+
+        foreach (['jobs', 'legacy'] as $connection) {
+            $event = new JobPayloadFinalizing($connection, 'emails', 'SendEmail@handle', $this->payload(), null);
+            $this->events->dispatch($event);
+            $this->events->dispatch(new JobQueued($connection, 'emails', 42, 'SendEmail@handle', $event->payload, null));
+        }
+
+        $this->assertSame(['aws.sqs', 'beanstalk'], array_map(
+            static fn (SpanDataInterface $span): mixed => $span->getAttributes()->get('messaging.system.name'),
+            $this->spanExporter->getSpans(),
+        ));
     }
 
     public function testProducerWithoutUuidCompletesThroughExactPayloadCorrelation(): void
@@ -398,7 +414,7 @@ class QueueInstrumentationTest extends TestCase
         $span = $this->exportedSpan('enqueue emails');
         $this->assertSame(
             strlen($originalPayload),
-            $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $span->getAttributes()->get('messaging.message.envelope.size'),
         );
         $this->assertSame([], $this->metricExporter->collect());
     }
@@ -562,7 +578,7 @@ class QueueInstrumentationTest extends TestCase
         $span = $this->exportedSpan('enqueue emails');
         $this->assertSame(
             strlen($originalPayload),
-            $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE),
+            $span->getAttributes()->get('messaging.message.envelope.size'),
         );
         $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
     }
@@ -732,7 +748,7 @@ class QueueInstrumentationTest extends TestCase
         $producerSpanContext = Span::fromContext($producerContext)->getContext();
         $this->assertSame($producerSpanContext->getTraceId(), $span->getTraceId());
         $this->assertSame($producerSpanContext->getSpanId(), $span->getParentSpanId());
-        $this->assertSame('job-uuid', $span->getAttributes()->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID));
+        $this->assertSame('job-uuid', $span->getAttributes()->get('messaging.message.id'));
 
         $this->metricReader->collect();
         $this->assertSame(1, $this->sumPoint(self::CONSUMED_MESSAGES_METRIC)->value);
@@ -868,17 +884,17 @@ class QueueInstrumentationTest extends TestCase
         $this->assertCount(2, $sampler->samples);
 
         foreach ([
-            ['sample' => $sampler->samples[0], 'operation' => 'enqueue', 'type' => MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND],
-            ['sample' => $sampler->samples[1], 'operation' => 'process', 'type' => MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_PROCESS],
+            ['sample' => $sampler->samples[0], 'operation' => 'enqueue', 'type' => 'send'],
+            ['sample' => $sampler->samples[1], 'operation' => 'process', 'type' => 'process'],
         ] as $expected) {
             $attributes = $expected['sample']['attributes'];
-            $this->assertSame('redis', $attributes[MessagingIncubatingAttributes::MESSAGING_SYSTEM]);
-            $this->assertSame('emails', $attributes[MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME]);
-            $this->assertSame($expected['operation'], $attributes[MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME]);
-            $this->assertSame($expected['type'], $attributes[MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE]);
+            $this->assertSame('redis', $attributes['messaging.system.name']);
+            $this->assertSame('emails', $attributes['messaging.destination.name']);
+            $this->assertSame($expected['operation'], $attributes['messaging.operation.name']);
+            $this->assertSame($expected['type'], $attributes['messaging.operation.type']);
             $this->assertSame('redis', $attributes['hypervel.queue.connection']);
-            $this->assertArrayNotHasKey(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $attributes);
-            $this->assertArrayNotHasKey(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE, $attributes);
+            $this->assertArrayNotHasKey('messaging.message.id', $attributes);
+            $this->assertArrayNotHasKey('messaging.message.envelope.size', $attributes);
         }
 
         $this->assertSame(0, $instrumentation->consumerStateCount());
@@ -1052,7 +1068,7 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame('redis', $points[0]->attributes->get('hypervel.queue.connection'));
         $this->assertSame(
             'emails',
-            $points[0]->attributes->get(MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME),
+            $points[0]->attributes->get('messaging.destination.name'),
         );
     }
 
@@ -1256,7 +1272,7 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame(1_000_000_000, $span->getStartEpochNanos());
         $this->assertSame(3_000_000_000, $span->getEndEpochNanos());
         $this->assertFalse(
-            $span->getAttributes()->has(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID),
+            $span->getAttributes()->has('messaging.message.id'),
         );
         $this->assertNull(QueueProducerStateStore::current()->take($event->payload));
 

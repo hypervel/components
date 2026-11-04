@@ -8,7 +8,6 @@ use Hypervel\Contracts\Auth\Factory;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
-use OpenTelemetry\SemConv\Incubating\Attributes\UserIncubatingAttributes;
 use Throwable;
 use Traversable;
 use UnexpectedValueException;
@@ -16,6 +15,10 @@ use UnexpectedValueException;
 class UserContextResolver
 {
     use LogsMessagesTrait;
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string USER_ID_ATTRIBUTE = 'user.id';
 
     /**
      * Create an authenticated-user context resolver.
@@ -50,7 +53,7 @@ class UserContextResolver
             $identifier = $user->getAuthIdentifier();
 
             if (is_int($identifier) || is_string($identifier)) {
-                $state->userAttributes = [UserIncubatingAttributes::USER_ID => (string) $identifier];
+                $state->userAttributes = [self::USER_ID_ATTRIBUTE => (string) $identifier];
             }
 
             return $state->userAttributes;

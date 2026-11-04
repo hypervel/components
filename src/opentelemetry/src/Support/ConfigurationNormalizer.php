@@ -411,10 +411,10 @@ class ConfigurationNormalizer
             PoolInstrumentation::class => [
                 'metrics' => [
                     'db.client.connection.count' => true,
-                    'db.client.connection.max' => true,
+                    'db.client.connection.limit' => true,
                     'db.client.connection.pending_requests' => true,
                     'hypervel.object_pool.objects' => true,
-                    'hypervel.object_pool.max' => true,
+                    'hypervel.object_pool.limit' => true,
                     'hypervel.object_pool.pending_requests' => true,
                 ],
             ],

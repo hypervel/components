@@ -186,7 +186,7 @@ The shipped defaults are:
 | HTTP server | Request spans | `http.server.request.duration`; `http.server.active_requests` is off |
 | HTTP client | Physical request spans | `http.client.request.duration` |
 | Database and Redis | Client operation spans | `db.client.operation.duration` |
-| Database and Redis pools | None | `db.client.connection.count`, `db.client.connection.max`, `db.client.connection.pending_requests` |
+| Database and Redis pools | None | `db.client.connection.count`, `db.client.connection.limit`, `db.client.connection.pending_requests` |
 | Cache | Events on the current span | `hypervel.cache.operations` |
 | Queue | Producer and consumer spans | `messaging.client.sent.messages`, `messaging.client.operation.duration`, `messaging.client.consumed.messages`, `messaging.process.duration`; `hypervel.queue.jobs` is off |
 | Queue outbox | No additional spans | `hypervel.queue.outbox.delivered.messages`, `hypervel.queue.outbox.delivery.duration`, `hypervel.queue.outbox.delivery.latency` |
@@ -198,7 +198,7 @@ The shipped defaults are:
 | gRPC | Logical client and server RPC spans | `rpc.client.call.duration`, `rpc.server.call.duration` |
 | WebSockets | Message spans | `hypervel.websocket.message.duration`, `hypervel.websocket.messages`, `hypervel.websocket.active_connections` |
 | Exceptions | Error log records | `hypervel.exceptions` |
-| Object pools | None | `hypervel.object_pool.objects`, `hypervel.object_pool.max`, `hypervel.object_pool.pending_requests` |
+| Object pools | None | `hypervel.object_pool.objects`, `hypervel.object_pool.limit`, `hypervel.object_pool.pending_requests` |
 | PHP runtime | None | memory, GC, process CPU/context-switch, and OPcache metrics |
 | Swoole server and workers | None | connections, requests, task activity/queue depth, worker requests, and coroutine count |
 
@@ -653,7 +653,7 @@ class QueueDurationView implements MetricView
     public function template(): ViewTemplate
     {
         return ViewTemplate::create()->withAttributeKeys([
-            'messaging.system',
+            'messaging.system.name',
             'messaging.destination.name',
             'messaging.operation.name',
             'error.type',
@@ -800,4 +800,4 @@ Observable runtime, server, pool, and queue-depth metrics collect from existing 
 
 The package keeps bounded SDK queues and coroutine-scoped operation state. It does not store telemetry on disk or in an application database. Monitor queue loss, worker RSS, backend request volume, and dynamic metric dimensions under production-like concurrency when changing queue sizes, intervals, internal metrics, compression, or custom extensions.
 
-The database-pool and messaging metric conventions used by the current OpenTelemetry semantic-conventions package are marked development, while the RPC conventions are release candidate. Their names or attributes may change in a future framework release as the standard stabilizes.
+Built-in instrumentation follows OpenTelemetry semantic conventions 1.45 and reports that schema URL on its instrumentation scopes. Some of these conventions, including the database-pool and messaging conventions, are still marked development, so their names or attributes may change in a future framework release as the standard stabilizes.

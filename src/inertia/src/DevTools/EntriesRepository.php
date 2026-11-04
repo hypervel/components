@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia\DevTools;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -409,7 +410,11 @@ class EntriesRepository
         try {
             // Filesystem::get with a lock takes a shared (LOCK_SH) read lock.
             return $this->files->get($file, lock: true);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return null;
         }
     }
