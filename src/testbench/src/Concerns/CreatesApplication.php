@@ -28,6 +28,7 @@ use Hypervel\Http\Request;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -52,6 +53,7 @@ use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_skeleton_path;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\refresh_router_lookups;
 
 /**
@@ -268,6 +270,7 @@ trait CreatesApplication
             $this->resolveApplicationBindings($app);
             $this->resolveApplicationExceptionHandler($app);
             $this->resolveApplicationEnvironmentVariables($app);
+            $this->resolveApplicationComposerVendorDirectory();
             $app->make(ConfigureTerminalDimensions::class)->bootstrap($app);
             $this->resolveApplicationConfiguration($app);
 
@@ -422,6 +425,31 @@ trait CreatesApplication
                 $attributeCallbacks->reverse()->handle();
             });
         }
+    }
+
+    /**
+     * Make a relative COMPOSER_VENDOR_DIR from the application environment absolute.
+     *
+     * Child processes such as the skeleton's artisan resolve a relative value against
+     * their own base path rather than the package root. Bootstrapper already exported
+     * an inherited value; rewriting a loaded one through the repository keeps its
+     * putenv setting and restoration.
+     *
+     * @internal
+     */
+    protected function resolveApplicationComposerVendorDirectory(): void
+    {
+        $repository = Env::getRepository();
+        $vendorPath = $repository->get('COMPOSER_VENDOR_DIR');
+
+        if ($vendorPath === null || $vendorPath === '' || str_starts_with($vendorPath, '/')) {
+            return;
+        }
+
+        $vendorPath = Composer::vendorPath(package_path());
+
+        $repository->clear('COMPOSER_VENDOR_DIR');
+        $repository->set('COMPOSER_VENDOR_DIR', $vendorPath);
     }
 
     /**

@@ -15,10 +15,12 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 use UnexpectedValueException;
 
 use function Hypervel\Testbench\testbench_path;
@@ -772,6 +774,39 @@ class BootstrapperTest extends TestCase
             $this->assertSame($runtimePath, BASE_PATH);
             $this->assertSame('preserved', file_get_contents($runtimePath . '/sentinel.txt'));
             $this->assertSame(['APP_NAME="Second"'], Bootstrapper::getConfiguration()?->getExtraAttributes()['env']);
+        } finally {
+            $this->deleteDirectory($workingPath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    #[Test]
+    #[TestWith(['libs', '{working}/libs'])]
+    #[TestWith(['/custom/vendor', '/custom/vendor'])]
+    public function itGivesChildProcessesAnAbsoluteComposerVendorDirectory(string $value, string $expected): void
+    {
+        $workingPath = $this->temporaryDirectory('composer-vendor-working');
+        $runtimePath = $this->temporaryDirectory('composer-vendor-runtime');
+
+        mkdir($workingPath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+
+        try {
+            define('TESTBENCH_WORKING_PATH', $workingPath);
+            define('BASE_PATH', $runtimePath);
+
+            Env::deleteMany(['COMPOSER_VENDOR_DIR']);
+            Env::flushRepository();
+            Env::getRepository()->set('COMPOSER_VENDOR_DIR', $value);
+
+            Bootstrapper::bootstrap();
+
+            $process = new Process([PHP_BINARY, '-r', 'echo getenv("COMPOSER_VENDOR_DIR");'], $runtimePath);
+            $process->mustRun();
+
+            $this->assertSame(str_replace('{working}', $workingPath, $expected), $process->getOutput());
         } finally {
             $this->deleteDirectory($workingPath);
             $this->deleteDirectory($runtimePath);

@@ -7,6 +7,7 @@ namespace Hypervel\Testbench;
 use Composer\InstalledVersions;
 use FilesystemIterator;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Composer;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
@@ -42,6 +43,8 @@ class Bootstrapper
         if (! defined('TESTBENCH_WORKING_PATH')) {
             define('TESTBENCH_WORKING_PATH', $workingPath);
         }
+
+        static::exportAbsoluteComposerVendorDirectory($workingPath);
 
         static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
@@ -207,6 +210,28 @@ class Bootstrapper
     }
 
     /**
+     * Make a relative COMPOSER_VENDOR_DIR absolute against the package root.
+     *
+     * Applications run from a runtime copy or skeleton, including child processes that
+     * inherit this environment such as the skeleton's artisan, resolve a relative value
+     * against their own base path rather than the package root.
+     */
+    protected static function exportAbsoluteComposerVendorDirectory(string $workingPath): void
+    {
+        $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
+
+        if (! is_string($vendorPath) || $vendorPath === '' || str_starts_with($vendorPath, '/')) {
+            return;
+        }
+
+        $vendorPath = Composer::vendorPath($workingPath);
+
+        putenv("COMPOSER_VENDOR_DIR={$vendorPath}");
+        $_ENV['COMPOSER_VENDOR_DIR'] = $vendorPath;
+        $_SERVER['COMPOSER_VENDOR_DIR'] = $vendorPath;
+    }
+
+    /**
      * Create a disposable runtime copy of the skeleton directory.
      *
      * Tests write generated files (make:provider, make:model, etc.) and mutate
@@ -242,7 +267,7 @@ class Bootstrapper
                 throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
             }
 
-            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, join_paths($workingPath, 'vendor'))) {
+            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, Composer::vendorPath($workingPath))) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
 

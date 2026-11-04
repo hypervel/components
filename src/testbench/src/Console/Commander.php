@@ -12,6 +12,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as Testbench;
@@ -148,7 +149,7 @@ class Commander
     {
         if (! $this->app instanceof HypervelApplication) {
             $appBasePath = $this->getApplicationBasePath();
-            $vendorPath = package_path('vendor');
+            $vendorPath = Composer::vendorPath(package_path());
 
             TerminatingConsole::beforeWhen(
                 ! is_symlink(join_paths($appBasePath, 'vendor')),
