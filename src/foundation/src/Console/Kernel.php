@@ -354,6 +354,8 @@ class Kernel implements KernelContract
      * Register a Closure based command with the application.
      *
      * Boot or tests only. Commands remain registered for the kernel's lifetime.
+     *
+     * @param-closure-this ClosureCommand $callback
      */
     public function command(string $signature, Closure $callback): ClosureCommand
     {

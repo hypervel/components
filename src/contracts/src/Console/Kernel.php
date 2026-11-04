@@ -33,6 +33,8 @@ interface Kernel
 
     /**
      * Register a Closure based command with the application.
+     *
+     * @param-closure-this ClosureCommand $callback
      */
     public function command(string $signature, Closure $callback): ClosureCommand;
 
@@ -77,6 +79,8 @@ interface Kernel
 
     /**
      * Get all of the commands registered with the console.
+     *
+     * @return array<string, SymfonyCommand>
      */
     public function all(): array;
 
