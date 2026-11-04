@@ -1,0 +1,18 @@
+<?php
+
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View as ViewContract;
+
+/**
+ * Get the evaluated view contents for the given view.
+ *
+ * @param view-string|null $view
+ * @param Arrayable|array<string, mixed> $data
+ * @param array<string, mixed> $mergeData
+ */
+function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract {}
+
+// trans() and __() are omitted: their source signatures already declare the
+// conditional return, and upstream's replacement type excludes the objects
+// Hypervel's translator accepts.

@@ -1,0 +1,17 @@
+<?php
+
+namespace Hypervel\Contracts\Support;
+
+interface Htmlable
+{}
+
+// Arrayable's template comes from its source PHPDoc.
+interface Arrayable
+{}
+
+interface Jsonable
+{}
+
+interface CanBeEscapedWhenCastToString
+{}
+

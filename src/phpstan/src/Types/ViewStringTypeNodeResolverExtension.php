@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\PHPStan\Types;
+
+use PHPStan\Analyser\NameScope;
+use PHPStan\DependencyInjection\AutowiredService;
+use PHPStan\PhpDoc\TypeNodeResolverExtension;
+use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\TypeNode;
+use PHPStan\Type\Type;
+
+/**
+ * Ensures a 'view-string' type in PHPDoc is recognized to be of type ViewStringType.
+ */
+#[AutowiredService]
+class ViewStringTypeNodeResolverExtension implements TypeNodeResolverExtension
+{
+    /**
+     * Resolve a view-string PHPDoc type.
+     */
+    public function resolve(TypeNode $typeNode, NameScope $nameScope): ?Type
+    {
+        if ($typeNode instanceof IdentifierTypeNode && $typeNode->__toString() === 'view-string') {
+            return new ViewStringType;
+        }
+
+        return null;
+    }
+}

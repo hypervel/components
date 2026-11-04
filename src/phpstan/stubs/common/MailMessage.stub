@@ -1,0 +1,27 @@
+<?php
+
+namespace Hypervel\Notifications\Messages;
+
+class MailMessage
+{
+    /**
+     * @param view-string $view
+     * @param array<string, mixed> $data
+     * @return $this
+     */
+    public function markdown(string $view, array $data = []): static;
+
+    /**
+     * @param view-string|view-string[] $view
+     * @param array<string, mixed> $data
+     * @return $this
+     */
+    public function view(array|string $view, array $data = []): static;
+
+    /**
+     * @param view-string $textView
+     * @param array<string, mixed> $data
+     * @return $this
+     */
+    public function text(string $textView, array $data = []): static;
+}

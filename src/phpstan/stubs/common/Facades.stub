@@ -1,0 +1,18 @@
+<?php
+
+namespace Hypervel\Support\Facades;
+
+use Hypervel\Routing\Router;
+use Hypervel\View\Factory;
+
+abstract class Facade {}
+
+/**
+ * @mixin Factory
+ */
+class View extends Facade {}
+
+/**
+ * @mixin Router
+ */
+class Route extends Facade {}
