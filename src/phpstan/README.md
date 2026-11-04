@@ -9,6 +9,9 @@ Documentation: https://hypervel.org/docs/phpstan
 - Several checks are enabled by default, and Hypervel adds coroutine, worker-lifetime and authoring-policy checks. See the [configuration defaults](https://hypervel.org/docs/phpstan#configuration).
 - There is no Octane compatibility rule or `checkOctaneCompatibility` setting; Hypervel's worker-lifetime checks replace it. There is no deferred service provider rule, because Hypervel has no deferred providers.
 - Container ArrayAccess return types are not provided, because the Hypervel container does not support ArrayAccess.
+- Interfaces do not gain methods from their implementations. Upstream resolves an undefined method on a contract against its container binding, and on the auth user contracts against the configured auth models.
+- Without a guard name, `Auth::guard()` and `auth()->guard()` may return any configured guard, because `shouldUse()` changes the default guard per request. A guard whose type cannot be read from its driver keeps the declared `Guard` type rather than `StatefulGuard`.
+- The request-scope auth rules offer no automatic fix, because the request's user resolver can return a different user than the `Auth` facade or `auth()` helper.
 - The `generalizeEnvReturnType` and `redisDriver` settings are omitted. An `env()` default does not decide the type of the value it reads, and Redis types always describe Hypervel's phpredis connection.
 
 Ported from: https://github.com/larastan/larastan

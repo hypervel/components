@@ -18,6 +18,8 @@ use function in_array;
  * PHPStan applies this extension to the Application contract, which extends the
  * container contract. Upstream's separate ApplicationMakeDynamicReturnTypeExtension
  * is omitted because it would resolve every application call a second time.
+ * ContainerArrayAccessDynamicMethodReturnTypeExtension is omitted because the
+ * Hypervel container does not support ArrayAccess.
  */
 #[AutowiredService]
 final class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtension
