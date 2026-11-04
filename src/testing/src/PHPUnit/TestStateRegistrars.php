@@ -7,7 +7,7 @@ namespace Hypervel\Testing\PHPUnit;
 use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest;
-use Hypervel\Support\Env;
+use Hypervel\Support\Composer;
 use RuntimeException;
 
 class TestStateRegistrars
@@ -34,12 +34,8 @@ class TestStateRegistrars
     public static function forRootInstall(): static
     {
         $basePath = static::installedRootPath();
-        $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
 
-        return new static(
-            $basePath,
-            is_string($vendorPath) && $vendorPath !== '' ? $vendorPath : $basePath . '/vendor'
-        );
+        return new static($basePath, Composer::vendorPath($basePath));
     }
 
     /**

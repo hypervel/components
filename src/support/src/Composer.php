@@ -298,6 +298,53 @@ class Composer
     }
 
     /**
+     * Get the vendor directory of the Composer install rooted at the given path.
+     *
+     * The loaded install records its own root, so a vendor directory chosen through
+     * project or global configuration, or while installing, needs no Composer
+     * configuration parsing. A relative COMPOSER_VENDOR_DIR is relative to the root.
+     */
+    public static function vendorPath(string $rootPath): string
+    {
+        $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
+
+        if (is_string($vendorPath) && $vendorPath !== '') {
+            return str_starts_with($vendorPath, '/') ? $vendorPath : $rootPath . '/' . $vendorPath;
+        }
+
+        $root = realpath($rootPath);
+
+        if ($root !== false) {
+            $loaders = ClassLoader::getRegisteredLoaders();
+
+            // The default layout needs no installed.php read, which is large and runs
+            // whenever an application builds its package manifest.
+            $defaultVendorDirectory = realpath($rootPath . '/vendor');
+
+            if ($defaultVendorDirectory !== false && isset($loaders[$defaultVendorDirectory])) {
+                return $rootPath . '/vendor';
+            }
+
+            foreach (array_keys($loaders) as $vendorDirectory) {
+                $installedPath = $vendorDirectory . '/composer/installed.php';
+
+                if (! is_file($installedPath)) {
+                    continue;
+                }
+
+                /** @var array{root: array{install_path: string}} $installed */
+                $installed = require $installedPath;
+
+                if (realpath($installed['root']['install_path']) === $root) {
+                    return $vendorDirectory;
+                }
+            }
+        }
+
+        return $rootPath . '/vendor';
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void

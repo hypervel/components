@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Support;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
+use Hypervel\Support\Env;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -18,6 +20,41 @@ use function Hypervel\Support\php_binary;
 
 class SupportComposerTest extends TestCase
 {
+    protected string $tempDir;
+
+    protected ?string $originalComposerVendorDirectory = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $originalComposerVendorDirectory = Env::get('COMPOSER_VENDOR_DIR');
+        $this->originalComposerVendorDirectory = is_string($originalComposerVendorDirectory)
+            ? $originalComposerVendorDirectory
+            : null;
+
+        Env::deleteMany(['COMPOSER_VENDOR_DIR']);
+        Env::flushRepository();
+
+        $this->tempDir = ParallelTesting::tempDir('SupportComposerTest');
+        (new Filesystem)->deleteDirectory($this->tempDir);
+        mkdir($this->tempDir, 0777, true);
+    }
+
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->tempDir);
+
+        Env::deleteMany(['COMPOSER_VENDOR_DIR']);
+        Env::flushRepository();
+
+        if ($this->originalComposerVendorDirectory !== null) {
+            Env::getRepository()->set('COMPOSER_VENDOR_DIR', $this->originalComposerVendorDirectory);
+        }
+
+        parent::tearDown();
+    }
+
     public function testGetLoader(): void
     {
         $loader = Composer::getLoader();
@@ -52,6 +89,47 @@ class SupportComposerTest extends TestCase
             $auxiliary->unregister();
             Composer::setLoader($original);
         }
+    }
+
+    public function testVendorPathUsesTheLoadedInstallOwningTheRoot(): void
+    {
+        $this->assertSame(dirname(__DIR__, 2) . '/vendor', Composer::vendorPath(dirname(__DIR__, 2)));
+    }
+
+    public function testVendorPathUsesACustomVendorDirectoryOfTheLoadedInstall(): void
+    {
+        $vendorPath = $this->tempDir . '/libs';
+        mkdir($vendorPath . '/composer', 0777, true);
+        file_put_contents(
+            $vendorPath . '/composer/installed.php',
+            "<?php return ['root' => ['install_path' => __DIR__ . '/../../']];",
+        );
+
+        $loader = new ClassLoader($vendorPath);
+        $loader->register();
+
+        try {
+            $this->assertSame($vendorPath, Composer::vendorPath($this->tempDir));
+        } finally {
+            $loader->unregister();
+        }
+    }
+
+    public function testVendorPathDefaultsToTheRootVendorDirectoryWithoutALoadedInstall(): void
+    {
+        $this->assertSame($this->tempDir . '/vendor', Composer::vendorPath($this->tempDir));
+    }
+
+    #[TestWith(['/custom/vendor', '/custom/vendor'])]
+    #[TestWith(['libs', '{root}/libs'])]
+    public function testVendorPathPrefersComposerVendorDirEnvironmentVariable(string $value, string $expected): void
+    {
+        Env::getRepository()->set('COMPOSER_VENDOR_DIR', $value);
+
+        $this->assertSame(
+            str_replace('{root}', dirname(__DIR__, 2), $expected),
+            Composer::vendorPath(dirname(__DIR__, 2)),
+        );
     }
 
     public function testDumpAutoloadRunsTheCorrectCommand(): void
