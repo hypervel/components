@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 use Hypervel\OpenTelemetry\Contracts\Instrumentation;
 use Hypervel\OpenTelemetry\Support\InstrumentationOptions;
 use OpenTelemetry\API\Metrics\ObserverInterface;
+use OpenTelemetry\SemConv\Version;
 
 abstract class AbstractInstrumentation implements Instrumentation
 {
@@ -40,6 +41,16 @@ abstract class AbstractInstrumentation implements Instrumentation
     protected function metricEnabled(string $name): bool
     {
         return $this->options->metricEnabled($name);
+    }
+
+    /**
+     * Return the semantic conventions schema URL for Hypervel instrumentation scopes.
+     *
+     * Every tracer, meter and logger obtained for one scope must pass the same URL.
+     */
+    protected function schemaUrl(): string
+    {
+        return Version::VERSION_1_45_0->url();
     }
 
     /**

@@ -36,8 +36,6 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Metrics\HttpIncubatingMetrics;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
@@ -61,6 +59,10 @@ class HttpServerInstrumentation extends AbstractInstrumentation
         7.5,
         10,
     ];
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string ACTIVE_REQUESTS_METRIC = 'http.server.active_requests';
 
     /** @var array<string, true> */
     protected array $knownMethods = [];
@@ -115,7 +117,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
         $this->userContext = $this->options->enabled('user_context');
         $tracesEnabled = $this->tracesEnabled();
         $durationEnabled = $this->metricEnabled(HttpMetrics::HTTP_SERVER_REQUEST_DURATION);
-        $activeRequestsEnabled = $this->metricEnabled(HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS);
+        $activeRequestsEnabled = $this->metricEnabled(self::ACTIVE_REQUESTS_METRIC);
         $this->userContextOnly = ! $tracesEnabled
             && ! $durationEnabled
             && ! $activeRequestsEnabled
@@ -150,11 +152,11 @@ class HttpServerInstrumentation extends AbstractInstrumentation
         );
 
         if ($tracesEnabled) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.server');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.server', schemaUrl: $this->schemaUrl());
         }
 
         $meter = $durationEnabled || $activeRequestsEnabled
-            ? $this->meterProvider->getMeter('hypervel.http.server')
+            ? $this->meterProvider->getMeter('hypervel.http.server', schemaUrl: $this->schemaUrl())
             : null;
 
         if ($durationEnabled) {
@@ -168,7 +170,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
 
         if ($activeRequestsEnabled) {
             $this->activeRequests = $meter->createUpDownCounter(
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS,
+                self::ACTIVE_REQUESTS_METRIC,
                 '{request}',
                 'Number of active HTTP server requests.',
             );
@@ -419,7 +421,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
                 ),
                 ClientAttributes::CLIENT_ADDRESS => $request->getClientIp(),
                 UserAgentAttributes::USER_AGENT_ORIGINAL => $request->headers->get('User-Agent'),
-                HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
+                HttpTelemetryAttributes::REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
                     $request->headers->get('Content-Length'),
                 ),
             ],
@@ -466,7 +468,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
         }
 
         return array_filter(array_replace(
-            [HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE => $contentLength],
+            [HttpTelemetryAttributes::RESPONSE_BODY_SIZE => $contentLength],
             $this->httpAttributes->responseHeaderAttributes($response->headers->all()),
         ), static fn (mixed $value): bool => $value !== null);
     }

@@ -67,7 +67,7 @@ class ExceptionInstrumentation extends AbstractInstrumentation
         $logsEnabled = $this->options->enabled('logs');
 
         if ($logsEnabled) {
-            $this->logger = $this->loggerProvider->getLogger('hypervel.exceptions');
+            $this->logger = $this->loggerProvider->getLogger('hypervel.exceptions', schemaUrl: $this->schemaUrl());
             $this->message = $this->options->enabled('message');
             $this->stackTrace = $this->options->enabled('stack_trace');
             $this->exceptionContexts->enable();
@@ -78,7 +78,7 @@ class ExceptionInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(self::EXCEPTIONS_METRIC)) {
             $this->exceptions = $this->meterProvider
-                ->getMeter('hypervel.exceptions')
+                ->getMeter('hypervel.exceptions', schemaUrl: $this->schemaUrl())
                 ->createCounter(
                     self::EXCEPTIONS_METRIC,
                     '{exception}',

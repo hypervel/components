@@ -25,7 +25,6 @@ use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\DbIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
 use Throwable;
 use UnexpectedValueException;
@@ -35,6 +34,10 @@ class RedisInstrumentation extends AbstractInstrumentation
     use LogsMessagesTrait;
 
     protected const string CONNECTION_ATTRIBUTE = 'hypervel.redis.connection';
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string DB_SYSTEM_NAME_REDIS = 'redis';
 
     protected const array DURATION_BOUNDARIES = [
         0.001,
@@ -79,7 +82,7 @@ class RedisInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.redis');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.redis', schemaUrl: $this->schemaUrl());
             $this->queryText = $this->options->enabled('query_text');
             /** @var null|int $queryTextMaxLength */
             $queryTextMaxLength = $this->options->get('query_text_max_length');
@@ -88,7 +91,7 @@ class RedisInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(DbMetrics::DB_CLIENT_OPERATION_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.redis')
+                ->getMeter('hypervel.redis', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     DbMetrics::DB_CLIENT_OPERATION_DURATION,
                     's',
@@ -226,7 +229,7 @@ class RedisInstrumentation extends AbstractInstrumentation
     protected function attributes(string $operation, string $connection, ?string $errorType): array
     {
         return array_filter([
-            DbAttributes::DB_SYSTEM_NAME => DbIncubatingAttributes::DB_SYSTEM_NAME_VALUE_REDIS,
+            DbAttributes::DB_SYSTEM_NAME => self::DB_SYSTEM_NAME_REDIS,
             DbAttributes::DB_OPERATION_NAME => $operation,
             self::CONNECTION_ATTRIBUTE => $connection,
             ErrorAttributes::ERROR_TYPE => $errorType,

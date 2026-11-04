@@ -69,7 +69,7 @@ class CacheInstrumentation extends AbstractInstrumentation
 
         if ($this->metricEnabled(self::OPERATIONS_METRIC)) {
             $this->operations = $this->meterProvider
-                ->getMeter('hypervel.cache')
+                ->getMeter('hypervel.cache', schemaUrl: $this->schemaUrl())
                 ->createCounter(
                     self::OPERATIONS_METRIC,
                     '{operation}',

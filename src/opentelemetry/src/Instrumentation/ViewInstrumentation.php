@@ -68,12 +68,12 @@ class ViewInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.view');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.view', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(self::DURATION_METRIC)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.view')
+                ->getMeter('hypervel.view', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     self::DURATION_METRIC,
                     's',
