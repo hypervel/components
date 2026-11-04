@@ -43,6 +43,7 @@ class WorkCommandTest extends TestCase
         $job->shouldReceive('resolveName')->andReturn('App\Jobs\SendInvoice');
         $job->shouldReceive('getConnectionName')->andReturn('redis');
         $job->shouldReceive('getQueue')->andReturn('invoices');
+        $job->shouldReceive('isReleased')->andReturnFalse();
 
         $command = new WorkCommandOutputStub(
             $this->app,

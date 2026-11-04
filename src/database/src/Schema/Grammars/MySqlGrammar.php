@@ -79,7 +79,7 @@ class MySqlGrammar extends Grammar
         return sprintf(
             'select exists (select 1 from information_schema.tables where '
             . "table_schema = %s and table_name = %s and table_type in ('BASE TABLE', 'SYSTEM VERSIONED')) as `exists`",
-            $schema ? $this->quoteString($schema) : 'schema()',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -114,7 +114,7 @@ class MySqlGrammar extends Grammar
     {
         return $column . (match (true) {
             ! empty($schema) && is_array($schema) => ' in (' . $this->quoteString($schema) . ')',
-            ! empty($schema) => ' = ' . $this->quoteString($schema),
+            is_string($schema) => ' = ' . $this->quoteString($schema),
             default => " not in ('information_schema', 'mysql', 'ndbinfo', 'performance_schema', 'sys')",
         });
     }
@@ -131,7 +131,7 @@ class MySqlGrammar extends Grammar
             . 'generation_expression as `expression`, extra as `extra` '
             . 'from information_schema.columns where table_schema = %s and table_name = %s '
             . 'order by ordinal_position asc',
-            $schema ? $this->quoteString($schema) : 'schema()',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -146,7 +146,7 @@ class MySqlGrammar extends Grammar
             . 'index_type as `type`, not non_unique as `unique` '
             . 'from information_schema.statistics where table_schema = %s and table_name = %s '
             . 'group by index_name, index_type, non_unique',
-            $schema ? $this->quoteString($schema) : 'schema()',
+            $schema !== null ? $this->quoteString($schema) : 'schema()',
             $this->quoteString($table)
         );
     }
@@ -156,7 +156,7 @@ class MySqlGrammar extends Grammar
      */
     public function compileForeignKeys(?string $schema, string $table): string
     {
-        $schema = $schema ? $this->quoteString($schema) : 'schema()';
+        $schema = $schema !== null ? $this->quoteString($schema) : 'schema()';
         $table = $this->quoteString($table);
 
         return sprintf(

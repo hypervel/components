@@ -307,7 +307,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
                 return ['key1' => 0, 'key2' => 0];
             });
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], ['key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);
@@ -329,7 +329,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
                 return ['key1' => 0, 'key2' => 0];
             });
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], ['key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);

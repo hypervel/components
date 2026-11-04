@@ -153,11 +153,33 @@ class Middleware
     /**
      * Specify a middleware that should be replaced with another middleware.
      */
-    public function replace(string $search, string $replace): static
+    public function replace(string $search, array|string $replace): static
     {
         $this->replacements[$search] = $replace;
 
         return $this;
+    }
+
+    /**
+     * Insert middleware before the given middleware in the global middleware stack.
+     */
+    public function insertBefore(string $search, array|string $middleware): static
+    {
+        return $this->replace($search, array_merge(
+            Arr::wrap($middleware),
+            Arr::wrap($this->replacements[$search] ?? $search)
+        ));
+    }
+
+    /**
+     * Insert middleware after the given middleware in the global middleware stack.
+     */
+    public function insertAfter(string $search, array|string $middleware): static
+    {
+        return $this->replace($search, array_merge(
+            Arr::wrap($this->replacements[$search] ?? $search),
+            Arr::wrap($middleware)
+        ));
     }
 
     /**
@@ -222,11 +244,33 @@ class Middleware
     /**
      * Replace the given middleware in the specified group with another middleware.
      */
-    public function replaceInGroup(string $group, string $search, string $replace): static
+    public function replaceInGroup(string $group, string $search, array|string $replace): static
     {
         $this->groupReplacements[$group][$search] = $replace;
 
         return $this;
+    }
+
+    /**
+     * Insert middleware before the given middleware in the specified group.
+     */
+    public function insertBeforeInGroup(string $group, string $search, array|string $middleware): static
+    {
+        return $this->replaceInGroup($group, $search, array_merge(
+            Arr::wrap($middleware),
+            Arr::wrap($this->groupReplacements[$group][$search] ?? $search)
+        ));
+    }
+
+    /**
+     * Insert middleware after the given middleware in the specified group.
+     */
+    public function insertAfterInGroup(string $group, string $search, array|string $middleware): static
+    {
+        return $this->replaceInGroup($group, $search, array_merge(
+            Arr::wrap($this->groupReplacements[$group][$search] ?? $search),
+            Arr::wrap($middleware)
+        ));
     }
 
     /**
@@ -330,9 +374,9 @@ class Middleware
             \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
         ]));
 
-        $middleware = array_map(function ($middleware) {
+        $middleware = Arr::flatten(array_map(function ($middleware) {
             return $this->replacements[$middleware] ?? $middleware;
-        }, $middleware);
+        }, $middleware));
 
         return array_values(array_filter(
             array_diff(
@@ -368,11 +412,9 @@ class Middleware
         $middleware = array_merge($middleware, $this->groups);
 
         foreach ($middleware as $group => $groupedMiddleware) {
-            foreach ($groupedMiddleware as $index => $groupMiddleware) {
-                if (isset($this->groupReplacements[$group][$groupMiddleware])) {
-                    $middleware[$group][$index] = $this->groupReplacements[$group][$groupMiddleware];
-                }
-            }
+            $middleware[$group] = Arr::flatten(array_map(function ($groupMiddleware) use ($group) {
+                return $this->groupReplacements[$group][$groupMiddleware] ?? $groupMiddleware;
+            }, $groupedMiddleware));
         }
 
         foreach ($this->groupRemovals as $group => $removals) {

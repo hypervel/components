@@ -1261,9 +1261,12 @@ trait HasAttributes
         // A custom caster may read the accessor while preparing the new stored value.
         unset($this->attributeCastCache[$key], $this->attributeCastStoredValues[$key]);
 
+        // A caster may decline an assigned object that differs from what it reads back,
+        // so the next read builds the value from the stored attributes instead.
         if ($caster instanceof CastsInboundAttributes
             || ! is_object($value)
-            || ($caster->withoutObjectCaching ?? false)) {
+            || ($caster->withoutObjectCaching ?? false)
+            || (method_exists($caster, 'shouldCacheObject') && ! $caster->shouldCacheObject($this, $key, $value))) {
             unset($this->classCastCache[$key], $this->classCastStoredValues[$key]);
         } else {
             $this->classCastCache[$key] = $value;

@@ -148,14 +148,14 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
 
         $this->validateTextResponse($data);
 
-        return new ImageResponse(
+        return (new ImageResponse(
             collect($data['data'] ?? [])->map(fn (array $image): GeneratedImage => new GeneratedImage(
                 $image['b64_json'] ?? '',
                 $image['media_type'] ?? 'image/png',
             )),
             new ImageUsage($data['usage']['prompt_tokens'] ?? 0, $data['usage']['completion_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -291,7 +291,7 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
 
         $data = $response->json();
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             $data['text'] ?? '',
             collect(),
             new TranscriptionUsage(
@@ -300,7 +300,7 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
                 audioSeconds: Arr::get($data, 'usage.seconds'),
             ),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -350,11 +350,11 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
 
         $this->validateTextResponse($data);
 
-        return new EmbeddingsResponse(
+        return (new EmbeddingsResponse(
             $this->parseIndexedEmbeddings($data['data'] ?? [], count($inputs), $provider->name()),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -390,13 +390,13 @@ class OpenRouterGateway implements Gateway, RerankingGateway, StepTextGateway
             score: $result['relevance_score'],
         ))->all();
 
-        return new RerankingResponse(
+        return (new RerankingResponse(
             $results,
             new RerankingUsage(
                 inputTokens: $data['usage']['total_tokens'] ?? 0,
                 searchUnits: $data['usage']['search_units'] ?? null,
             ),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 }

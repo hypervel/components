@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Ai\Feature;
 
 use Exception;
 use Hypervel\Ai\Enums\MessageStatus;
+use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Messages\AssistantMessage;
 use Hypervel\Ai\Messages\ToolResultMessage;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
@@ -244,6 +246,8 @@ class FailedTurnRecordingTest extends TestCase
             'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
         ])]);
 
+        Event::listen(ToolFailed::class, fn (ToolFailed $event) => throw $event->exception);
+
         $agent = (new RememberingFailingToolAgent)->forUser((object) ['id' => 1]);
 
         $this->assertThrows(fn () => $agent->prompt('Go', provider: 'anthropic'), Exception::class, 'Forced to throw exception.');
@@ -316,6 +320,8 @@ class FailedTurnRecordingTest extends TestCase
                 'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
             ]),
         ]);
+
+        Event::listen(ToolFailed::class, fn (ToolFailed $event) => throw $event->exception);
 
         $agent = (new RememberingFailingToolAgent)->forUser((object) ['id' => 1]);
 

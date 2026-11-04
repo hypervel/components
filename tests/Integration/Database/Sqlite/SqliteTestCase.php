@@ -49,6 +49,12 @@ abstract class SqliteTestCase extends DatabaseTestCase
      */
     protected function ensureSqliteDatabaseFileExists(): void
     {
+        // This runs before the class-level RequiresDatabase skip, so another driver's
+        // database name must not be created as a file in the working directory.
+        if (env('DB_CONNECTION', 'sqlite') !== 'sqlite') {
+            return;
+        }
+
         $path = $this->getConfiguredDatabasePath();
 
         // URI names pass to SQLite unchanged and are not literal filesystem paths.

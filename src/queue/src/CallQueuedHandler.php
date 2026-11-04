@@ -11,6 +11,7 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -31,6 +32,11 @@ use Throwable;
 
 class CallQueuedHandler
 {
+    /**
+     * The context key for the job being failed because its command's models are missing.
+     */
+    protected const string MISSING_MODEL_FAILURE_CONTEXT_KEY = '__queue.missing_model_failure';
+
     /**
      * The command currently being processed.
      */
@@ -304,9 +310,10 @@ class CallQueuedHandler
      */
     protected function handleModelNotFound(Job $job, Throwable $e): void
     {
-        $this->ensureUniqueJobLockIsReleasedViaContext();
+        $payload = $job->payload();
 
-        if ($job->payload()['deleteWhenMissingModels'] ?? false) {
+        if ($payload['deleteWhenMissingModels'] ?? false) {
+            $this->ensureUniqueJobLockIsReleasedForMissingModel($job, $payload, beforeProcessing: true);
             $this->ensureSuccessfulBatchJobIsRecordedForMissingModel($job, $job->resolveQueuedJobClass());
 
             $job->delete();
@@ -314,7 +321,95 @@ class CallQueuedHandler
             return;
         }
 
-        $job->fail($e);
+        // failed() releases the unique lock; the marker tells it this attempt never began processing.
+        $previous = CoroutineContext::get(self::MISSING_MODEL_FAILURE_CONTEXT_KEY);
+        CoroutineContext::set(self::MISSING_MODEL_FAILURE_CONTEXT_KEY, $job);
+
+        try {
+            $job->fail($e);
+        } finally {
+            if ($previous === null) {
+                CoroutineContext::forget(self::MISSING_MODEL_FAILURE_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(self::MISSING_MODEL_FAILURE_CONTEXT_KEY, $previous);
+            }
+        }
+    }
+
+    /**
+     * Release the unique lock of a job whose command cannot be restored because its models are missing.
+     *
+     * @param array $payload the job's payload, or a partial payload containing only its data when the job is unavailable
+     * @param bool $beforeProcessing whether this attempt failed before its command began processing
+     */
+    protected function ensureUniqueJobLockIsReleasedForMissingModel(?Job $job, array $payload, bool $beforeProcessing): void
+    {
+        if ($job === null) {
+            $owner = ContextRepository::hasInstance()
+                ? ContextRepository::getInstance()->getHidden('laravel_unique_job_lock_owner')
+                : null;
+
+            if ((is_string($owner) && $owner !== '')
+                || $this->ownerlessUniqueLockMayBeReleasedForMissingModel(null, $payload, false)
+            ) {
+                $this->ensureUniqueJobLockIsReleasedViaContext();
+            }
+
+            return;
+        }
+
+        // The payload identifies this job's lock even when the ambient context belongs to
+        // another job, such as in the worker's timeout monitor.
+        $hidden = $payload['illuminate:log:context']['hidden'] ?? [];
+
+        [$store, $key, $owner] = array_map(
+            static fn (string $name): mixed => isset($hidden[$name])
+                ? unserialize($hidden[$name], ['allowed_classes' => false])
+                : null,
+            ['laravel_unique_job_cache_store', 'laravel_unique_job_key', 'laravel_unique_job_lock_owner'],
+        );
+
+        if (! is_string($store) || $store === ''
+            || ! is_string($key) || $key === ''
+            || ! $this->container->bound(CacheFactory::class)
+        ) {
+            return;
+        }
+
+        $owner = is_string($owner) ? $owner : '';
+
+        if ($owner === '' && ! $this->ownerlessUniqueLockMayBeReleasedForMissingModel($job, $payload, $beforeProcessing)) {
+            return;
+        }
+
+        UniqueLock::releaseOwned($this->container->make(CacheFactory::class)->store($store), $key, $owner);
+    }
+
+    /**
+     * Determine if an ownerless unique lock still belongs to a job whose models are missing.
+     *
+     * @param array $payload the job's payload, or a partial payload containing only its data when the job is unavailable
+     * @param bool $beforeProcessing whether this attempt failed before its command began processing
+     */
+    protected function ownerlessUniqueLockMayBeReleasedForMissingModel(?Job $job, array $payload, bool $beforeProcessing): bool
+    {
+        $class = $payload['data']['commandName'] ?? null;
+
+        // Queued listeners take their uniqueness from the listener class named in the payload.
+        if (is_string($class) && is_a($class, CallQueuedListener::class, true)) {
+            $class = $payload['displayName'] ?? null;
+        }
+
+        // A regular unique lock is held until the job finishes. An until-processing lock is released when
+        // an attempt begins processing, so after that an ownerless one may belong to a replacement dispatch.
+        if (is_string($class)
+            && is_a($class, ShouldBeUnique::class, true)
+            && ! is_a($class, ShouldBeUniqueUntilProcessing::class, true)
+        ) {
+            return true;
+        }
+
+        return $beforeProcessing && $job !== null && $job->attempts() <= 1;
     }
 
     /**
@@ -385,7 +480,19 @@ class CallQueuedHandler
      */
     public function failed(array $data, ?Throwable $e, string $uuid, ?Job $job = null): void
     {
-        $command = $this->getCommand($data);
+        try {
+            $command = $this->getCommand($data);
+        } catch (ModelNotFoundException $exception) {
+            $this->ensureUniqueJobLockIsReleasedForMissingModel(
+                $job,
+                $job === null ? ['data' => $data] : $job->payload(),
+                beforeProcessing: $job !== null && CoroutineContext::get(self::MISSING_MODEL_FAILURE_CONTEXT_KEY) === $job,
+            );
+
+            $this->ensureFailedBatchJobIsRecordedForMissingModel($uuid, $data, $e);
+
+            throw $exception;
+        }
 
         if (! is_null($job)) {
             $command = $this->setJobInstanceIfNecessary($job, $command);
@@ -419,6 +526,26 @@ class CallQueuedHandler
         }
 
         if ($batch = $command->batch()) {
+            $batch->recordFailedJob($uuid, $e);
+        }
+    }
+
+    /**
+     * Record a potentially batched job as failed when its models are missing.
+     */
+    protected function ensureFailedBatchJobIsRecordedForMissingModel(string $uuid, array $data, ?Throwable $e): void
+    {
+        if (! $this->container->bound(BatchRepository::class)) {
+            return;
+        }
+
+        $batchId = $data['batchId'] ?? null;
+
+        if ((! is_string($batchId) || $batchId === '') || $uuid === '') {
+            return;
+        }
+
+        if ($batch = $this->container->make(BatchRepository::class)->find($batchId)) {
             $batch->recordFailedJob($uuid, $e);
         }
     }

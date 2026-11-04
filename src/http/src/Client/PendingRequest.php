@@ -1813,22 +1813,6 @@ class PendingRequest implements Transient
     }
 
     /**
-     * Determine if a reusable client is required.
-     */
-    protected function requestsReusableClient(): bool
-    {
-        return ! is_null($this->client) || $this->async;
-    }
-
-    /**
-     * Retrieve a reusable Guzzle client.
-     */
-    protected function getReusableClient(): ClientInterface
-    {
-        return $this->client ??= $this->createClient($this->buildHandlerStack());
-    }
-
-    /**
      * Create a new Guzzle client.
      */
     public function createClient(HandlerStack $handlerStack): ClientInterface

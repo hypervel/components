@@ -1284,11 +1284,17 @@ class Str
      * Remove any occurrence of the given string in the subject.
      *
      * @param iterable<string>|string $search
+     * @param iterable<string>|string $subject
+     * @return ($subject is string ? string : string[])
      */
-    public static function remove(string|iterable $search, string $subject, bool $caseSensitive = true): string
+    public static function remove(string|iterable $search, string|iterable $subject, bool $caseSensitive = true): string|array
     {
         if ($search instanceof Traversable) {
             $search = iterator_to_array($search);
+        }
+
+        if ($subject instanceof Traversable) {
+            $subject = iterator_to_array($subject);
         }
 
         return $caseSensitive
@@ -1645,11 +1651,7 @@ class Str
      */
     public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
-        if (! is_null($length)) {
-            return substr_count($haystack, $needle, $offset, $length);
-        }
-
-        return substr_count($haystack, $needle, $offset);
+        return substr_count(static::substr($haystack, $offset, $length), $needle);
     }
 
     /**

@@ -23,18 +23,24 @@ class AsEnumCollection implements Castable
      * @template TEnum of UnitEnum
      *
      * @param array{class-string<TEnum>} $arguments
-     * @return CastsAttributes<Collection<array-key, TEnum>, iterable<TEnum>>
+     * @return CastsAttributes<Collection<array-key, TEnum>, iterable<int|string|TEnum>>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
             protected array $arguments;
 
+            /**
+             * Create a new enum collection cast instance.
+             */
             public function __construct(array $arguments)
             {
                 $this->arguments = $arguments;
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
@@ -56,6 +62,9 @@ class AsEnumCollection implements Castable
                 });
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
                 $encoded = $value !== null
@@ -71,6 +80,19 @@ class AsEnumCollection implements Castable
                 return [$key => $encoded];
             }
 
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                $enumClass = $this->arguments[0];
+
+                return $value instanceof Collection && $value->every(fn ($item) => $item instanceof $enumClass);
+            }
+
+            /**
+             * Serialize the attribute for an array or JSON response.
+             */
             public function serialize(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return (new Collection($value))
@@ -78,6 +100,9 @@ class AsEnumCollection implements Castable
                     ->toArray();
             }
 
+            /**
+             * Get the storable value of the given enum.
+             */
             protected function getStorableEnumValue(mixed $enum): string|int
             {
                 if (is_string($enum) || is_int($enum)) {

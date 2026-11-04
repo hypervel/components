@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Ai;
 
 use Closure;
-use Exception;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\Conversational;
 use Hypervel\Ai\Contracts\HasProviderOptions;
@@ -16,6 +15,7 @@ use Hypervel\Ai\Events\AgentStreamed;
 use Hypervel\Ai\Events\InvokingTool;
 use Hypervel\Ai\Events\PromptingAgent;
 use Hypervel\Ai\Events\StreamingAgent;
+use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\LocalImage;
@@ -34,6 +34,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
@@ -472,22 +473,24 @@ class AgentTest extends TestCase
     }
 
     #[DataProviderExternal(Providers::class, 'agents')]
-    public function testAgentToolExceptionHandlingIsNotMagical(string $provider, string $apiKey, string $model): void
+    #[WithConfig('app.debug', true)]
+    public function testAThrowingToolReturnsItsFailureToTheModel(string $provider, string $apiKey, string $model): void
     {
         requiresApiKey($apiKey);
 
         Event::fake();
 
-        $agent = new ToolUsingAgent(toolThrowsException: true);
-
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/^Forced to throw exception\.$/');
-
-        $agent->prompt(
+        $response = (new ToolUsingAgent(toolThrowsException: true))->prompt(
             'Can I have a random number between 1 and 1000?',
             provider: $provider,
             model: $model,
         );
+
+        $this->assertNotEmpty($response->toolResults);
+        $this->assertSame('The tool call failed: Forced to throw exception.', $response->toolResults[0]->error());
+        $this->assertNotEmpty($response->text);
+
+        Event::assertDispatched(ToolFailed::class);
     }
 
     public function testOpenAiReplaysEchoedOutputBlocksOnAStoreFalseToolCallContinuation(): void

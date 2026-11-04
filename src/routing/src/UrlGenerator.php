@@ -727,6 +727,14 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Get the default route parameter overrides for the current coroutine.
+     */
+    public function getDefaultParameterOverrides(): array
+    {
+        return CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, []);
+    }
+
+    /**
      * Force the scheme for URLs.
      *
      * Boot-only. The scheme is stored on the worker-shared URL generator
@@ -784,6 +792,14 @@ class UrlGenerator implements UrlGeneratorContract
         }
     }
 
+    /**
+     * Get the URL origin override for the current coroutine.
+     */
+    public function getForcedOrigin(): ?string
+    {
+        return CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY);
+    }
+
     // Laravel's deprecated forceRootUrl() alias is intentionally not ported.
     // Use the request-isolated useOrigin() method instead.
 
@@ -800,6 +816,14 @@ class UrlGenerator implements UrlGeneratorContract
         } else {
             CoroutineContext::forget(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
         }
+    }
+
+    /**
+     * Get the asset URL origin override for the current coroutine.
+     */
+    public function getForcedAssetOrigin(): ?string
+    {
+        return CoroutineContext::get(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
     }
 
     /**

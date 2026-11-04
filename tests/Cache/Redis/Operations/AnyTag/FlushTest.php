@@ -32,7 +32,7 @@ class FlushTest extends RedisCacheTestCase
             ->with(
                 m::type('string'),
                 ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'],
-                [1, 2, 'key1', 'key2'],
+                [2, 'key1', 'key2'],
             )->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
@@ -46,26 +46,31 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testFlushWithMultipleTags(): void
+    public function testFlushWithMultipleTagsOnlyRemovesKeysFromTheirOwnTag(): void
     {
         $connection = $this->mockConnection();
 
-        // Mock GetTaggedKeys to return keys from multiple tags
         $getTaggedKeys = m::mock(GetTaggedKeys::class);
         $getTaggedKeys->shouldReceive('execute')
             ->once()
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['user_key1']));
+            ->andReturn($this->arrayToGenerator(['shared_key', 'user_only']));
         $getTaggedKeys->shouldReceive('execute')
             ->once()
             ->with('posts')
-            ->andReturn($this->arrayToGenerator(['post_key1']));
+            ->andReturn($this->arrayToGenerator(['shared_key', 'post_only']));
 
         $connection->expects('evalWithShaCache')
             ->with(
                 m::type('string'),
-                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries', 'prefix:user_key1:_any:tags', 'prefix:post_key1:_any:tags', 'prefix:user_key1', 'prefix:post_key1'],
-                [2, 2, 'user_key1', 'post_key1'],
+                ['prefix:_any:tag:users:entries', 'prefix:shared_key:_any:tags', 'prefix:user_only:_any:tags', 'prefix:shared_key', 'prefix:user_only'],
+                [2, 'shared_key', 'user_only'],
+            )->andReturn(1)->ordered();
+        $connection->expects('evalWithShaCache')
+            ->with(
+                m::type('string'),
+                ['prefix:_any:tag:posts:entries', 'prefix:shared_key:_any:tags', 'prefix:post_only:_any:tags', 'prefix:shared_key', 'prefix:post_only'],
+                [2, 'shared_key', 'post_only'],
             )->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
@@ -115,39 +120,6 @@ class FlushTest extends RedisCacheTestCase
         $this->assertTrue($operation->execute([]));
     }
 
-    public function testFlushDeduplicatesKeysAcrossTags(): void
-    {
-        $connection = $this->mockConnection();
-
-        // Mock GetTaggedKeys - both tags have 'shared_key'
-        $getTaggedKeys = m::mock(GetTaggedKeys::class);
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
-            ->with('users')
-            ->andReturn($this->arrayToGenerator(['shared_key', 'user_only']));
-        $getTaggedKeys->shouldReceive('execute')
-            ->once()
-            ->with('posts')
-            ->andReturn($this->arrayToGenerator(['shared_key', 'post_only']));
-
-        $connection->expects('evalWithShaCache')
-            ->with(
-                m::type('string'),
-                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries', 'prefix:shared_key:_any:tags', 'prefix:user_only:_any:tags', 'prefix:post_only:_any:tags', 'prefix:shared_key', 'prefix:user_only', 'prefix:post_only'],
-                [2, 3, 'shared_key', 'user_only', 'post_only'],
-            )->andReturn(1)->ordered();
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn([2, 2])->ordered();
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
-
-        $result = $operation->execute(['users', 'posts']);
-        $this->assertTrue($result);
-    }
-
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -159,7 +131,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn($this->arrayToGenerator(['mykey']));
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['custom_prefix:_any:tag:users:entries', 'custom_prefix:mykey:_any:tags', 'custom_prefix:mykey'], [1, 1, 'mykey'])
+            ->with(m::type('string'), ['custom_prefix:_any:tag:users:entries', 'custom_prefix:mykey:_any:tags', 'custom_prefix:mykey'], [1, 'mykey'])
             ->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['custom_prefix:_any:tag:registry', 'custom_prefix:_any:tag:users:entries'], ['users'])
@@ -224,15 +196,15 @@ class FlushTest extends RedisCacheTestCase
         $getTaggedKeys->shouldReceive('execute')
             ->once()
             ->with('users')
-            ->andReturn($this->arrayToGenerator(['user_key']));
+            ->andReturn($this->arrayToGenerator(['user_key', 'shared_key']));
         $getTaggedKeys->shouldReceive('execute')
             ->once()
             ->with('posts')
-            ->andReturn($this->arrayToGenerator(['post_key']));
+            ->andReturn($this->arrayToGenerator(['shared_key', 'post_key']));
 
-        // Sequential commands for chunks
-        $connection->expects('hdel')->with('prefix:_any:tag:users:entries', 'user_key', 'post_key')->andReturn(1);
-        $connection->expects('hdel')->with('prefix:_any:tag:posts:entries', 'user_key', 'post_key')->andReturn(1);
+        // Each tag's chunk only removes fields from that tag's hash.
+        $connection->expects('hdel')->with('prefix:_any:tag:users:entries', 'user_key', 'shared_key')->andReturn(2);
+        $connection->expects('hdel')->with('prefix:_any:tag:posts:entries', 'shared_key', 'post_key')->andReturn(2);
         $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->twice()->andReturn(0);
         $connection->expects('hlen')->with('prefix:_any:tag:posts:entries')->twice()->andReturn(0);
         $connection->shouldReceive('del')->andReturn(1);
@@ -257,7 +229,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(['mykey']);
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:mykey:_any:tags', 'prefix:mykey'], [1, 1, 'mykey'])
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:mykey:_any:tags', 'prefix:mykey'], [1, 'mykey'])
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])

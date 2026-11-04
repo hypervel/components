@@ -20,6 +20,7 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use Mockery as m;
@@ -66,6 +67,19 @@ class EmbeddingsCacheTest extends TestCase
         Embeddings::for(['Hello'])->cache(3600)->generate(provider: 'cohere', model: 'embed-v4.0');
 
         $this->assertCount(1, Http::recorded());
+    }
+
+    #[DataProvider('cacheModes')]
+    public function testOnlyFreshlyGeneratedEmbeddingsExposeARawResponse(bool $individually): void
+    {
+        $fresh = Embeddings::for(['a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+        $partial = Embeddings::for(['b', 'a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+        $cached = Embeddings::for(['b', 'a'])->cache(3600, individually: $individually)->generate(provider: 'cohere', model: 'embed-v4.0');
+
+        $this->assertInstanceOf(Response::class, $fresh->raw);
+        $this->assertInstanceOf(Response::class, $partial->raw);
+        $this->assertSame($individually ? 1 : 2, $partial->raw->json('meta.billed_units.input_tokens'));
+        $this->assertNull($cached->raw);
     }
 
     public function testCacheIsUsedWhenEnabledGloballyViaConfig(): void

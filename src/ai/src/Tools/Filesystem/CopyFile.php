@@ -42,7 +42,13 @@ class CopyFile extends FilesystemTool
                 throw $throwable;
             }
 
-            return "Unable to copy [{$from}] to [{$to}]: {$throwable->getMessage()}";
+            // Unlike upstream, the failure is reported, since the tool's result keeps it from the exception handler.
+            report($throwable);
+
+            // Unlike upstream, the exception message is only included in debug mode, since it can carry server paths...
+            return config()->boolean('app.debug')
+                ? "Unable to copy [{$from}] to [{$to}]: {$throwable->getMessage()}"
+                : "Unable to copy [{$from}] to [{$to}].";
         }
 
         return $copied

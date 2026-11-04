@@ -43,7 +43,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
@@ -52,6 +51,8 @@ class QueueInstrumentation extends AbstractInstrumentation
 {
     use LogsMessagesTrait;
 
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
     protected const string SENT_MESSAGES_METRIC = 'messaging.client.sent.messages';
 
     protected const string SEND_DURATION_METRIC = 'messaging.client.operation.duration';
@@ -59,6 +60,24 @@ class QueueInstrumentation extends AbstractInstrumentation
     protected const string CONSUMED_MESSAGES_METRIC = 'messaging.client.consumed.messages';
 
     protected const string PROCESS_DURATION_METRIC = 'messaging.process.duration';
+
+    protected const string SYSTEM_NAME_ATTRIBUTE = 'messaging.system.name';
+
+    protected const string DESTINATION_NAME_ATTRIBUTE = 'messaging.destination.name';
+
+    protected const string OPERATION_NAME_ATTRIBUTE = 'messaging.operation.name';
+
+    protected const string OPERATION_TYPE_ATTRIBUTE = 'messaging.operation.type';
+
+    protected const string MESSAGE_ID_ATTRIBUTE = 'messaging.message.id';
+
+    protected const string MESSAGE_ENVELOPE_SIZE_ATTRIBUTE = 'messaging.message.envelope.size';
+
+    protected const string OPERATION_TYPE_SEND = 'send';
+
+    protected const string OPERATION_TYPE_PROCESS = 'process';
+
+    protected const string SYSTEM_NAME_AWS_SQS = 'aws.sqs';
 
     protected const string DEPTH_METRIC = 'hypervel.queue.jobs';
 
@@ -141,7 +160,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         $this->propagation = $this->options->enabled('propagation');
 
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.queue');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.queue', schemaUrl: $this->schemaUrl());
         }
 
         $this->registerMetrics();
@@ -218,7 +237,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         $meter = null;
 
         if ($this->metricEnabled(self::SENT_MESSAGES_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.queue');
+            $meter = $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->sentMessages = $meter->createCounter(
                 self::SENT_MESSAGES_METRIC,
                 '{message}',
@@ -227,7 +246,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::SEND_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->sendDuration = $meter->createHistogram(
                 self::SEND_DURATION_METRIC,
                 's',
@@ -237,7 +256,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::CONSUMED_MESSAGES_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->consumedMessages = $meter->createCounter(
                 self::CONSUMED_MESSAGES_METRIC,
                 '{message}',
@@ -246,7 +265,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::PROCESS_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->processDuration = $meter->createHistogram(
                 self::PROCESS_DURATION_METRIC,
                 's',
@@ -264,12 +283,12 @@ class QueueInstrumentation extends AbstractInstrumentation
         $meter = null;
 
         if ($this->metricEnabled(self::OUTBOX_DELIVERED_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.queue');
+            $meter = $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxDelivered = $meter->createCounter(self::OUTBOX_DELIVERED_METRIC, '{message}', 'Outbox messages confirmed by their destination queue.');
         }
 
         if ($this->metricEnabled(self::OUTBOX_DURATION_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxDuration = $meter->createHistogram(
                 self::OUTBOX_DURATION_METRIC,
                 's',
@@ -279,7 +298,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::OUTBOX_LATENCY_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.queue');
+            $meter ??= $this->meterProvider->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl());
             $this->outboxLatency = $meter->createHistogram(
                 self::OUTBOX_LATENCY_METRIC,
                 's',
@@ -333,7 +352,7 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $event->connectionName,
                 $event->queue,
                 'enqueue',
-                MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_SEND,
+                self::OPERATION_TYPE_SEND,
             )
             : [];
         $startedAt = 0;
@@ -367,11 +386,11 @@ class QueueInstrumentation extends AbstractInstrumentation
 
             if ($span?->isRecording()) {
                 if ($uuid !== null) {
-                    $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                    $span->setAttribute(self::MESSAGE_ID_ATTRIBUTE, $uuid);
                 }
 
                 $span->setAttribute(
-                    MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE,
+                    self::MESSAGE_ENVELOPE_SIZE_ATTRIBUTE,
                     strlen($finalPayload),
                 );
             }
@@ -527,7 +546,7 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $event->connectionName,
                 $queue,
                 'process',
-                MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE_VALUE_PROCESS,
+                self::OPERATION_TYPE_PROCESS,
             );
         }
 
@@ -554,11 +573,11 @@ class QueueInstrumentation extends AbstractInstrumentation
 
             if ($span->isRecording()) {
                 if (($uuid = $event->job->uuid()) !== null) {
-                    $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                    $span->setAttribute(self::MESSAGE_ID_ATTRIBUTE, $uuid);
                 }
 
                 $span->setAttribute(
-                    MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE,
+                    self::MESSAGE_ENVELOPE_SIZE_ATTRIBUTE,
                     strlen($event->job->getRawBody()),
                 );
             }
@@ -684,7 +703,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         /** @var array<string, list<string>> $targets */
         $targets = $this->options->get('depth_queues');
         $this->meterProvider
-            ->getMeter('hypervel.queue')
+            ->getMeter('hypervel.queue', schemaUrl: $this->schemaUrl())
             ->createObservableGauge(
                 self::DEPTH_METRIC,
                 '{job}',
@@ -709,7 +728,7 @@ class QueueInstrumentation extends AbstractInstrumentation
 
                             $observer->observe($size, [
                                 self::CONNECTION_ATTRIBUTE => $connection,
-                                MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME => $queue,
+                                self::DESTINATION_NAME_ATTRIBUTE => $queue,
                             ]);
                         }
                     }
@@ -729,10 +748,10 @@ class QueueInstrumentation extends AbstractInstrumentation
         string $operationType,
     ): array {
         return array_filter([
-            MessagingIncubatingAttributes::MESSAGING_SYSTEM => $this->connectionDrivers[$connection] ?? 'unknown',
-            MessagingIncubatingAttributes::MESSAGING_DESTINATION_NAME => $queue,
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_NAME => $operation,
-            MessagingIncubatingAttributes::MESSAGING_OPERATION_TYPE => $operationType,
+            self::SYSTEM_NAME_ATTRIBUTE => $this->connectionDrivers[$connection] ?? 'unknown',
+            self::DESTINATION_NAME_ATTRIBUTE => $queue,
+            self::OPERATION_NAME_ATTRIBUTE => $operation,
+            self::OPERATION_TYPE_ATTRIBUTE => $operationType,
             self::CONNECTION_ATTRIBUTE => $connection,
         ], static fn (?string $value): bool => $value !== null);
     }
@@ -752,7 +771,7 @@ class QueueInstrumentation extends AbstractInstrumentation
             if (is_string($connection) && is_string($driver)) {
                 $drivers[$connection] = match ($driver) {
                     'beanstalkd' => 'beanstalk',
-                    'sqs' => MessagingIncubatingAttributes::MESSAGING_SYSTEM_VALUE_AWS_SQS,
+                    'sqs' => self::SYSTEM_NAME_AWS_SQS,
                     default => $driver,
                 };
             }

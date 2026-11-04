@@ -11,6 +11,7 @@ use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\InvokingTool;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Events\ToolInvoked;
+use Hypervel\Ai\Exceptions\ToolExecutionException;
 use Hypervel\Ai\Gateway\Concerns\InvokesTools;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Tools\Request;
@@ -219,7 +220,7 @@ class InvokesToolsTest extends TestCase
         $this->assertSame(0, $failed);
     }
 
-    public function testAFailingToolHandlerIsReportedAsAToolFailureAndRethrown(): void
+    public function testAFailingToolHandlerIsReportedAsAToolFailureAndRethrownWrappedSoTheLoopCanRecognizeIt(): void
     {
         $failure = null;
 
@@ -236,8 +237,9 @@ class InvokesToolsTest extends TestCase
         try {
             toolInvokingGateway()->invoke($tool, ['a' => 1], stubRunContext($events));
             $this->fail('Expected the tool handler to fail.');
-        } catch (RuntimeException $caught) {
-            $this->assertSame($exception, $caught);
+        } catch (ToolExecutionException $caught) {
+            $this->assertSame($exception, $caught->exception);
+            $this->assertSame('Handler exploded.', $caught->exception->getMessage());
         }
 
         $this->assertInstanceOf(ToolFailed::class, $failure);

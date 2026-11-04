@@ -247,7 +247,7 @@ class CollectorIntegrationTest extends TestCase
     public function testRescuedDeferredPropIsFlagged(): void
     {
         Route::middleware(Middleware::class)->get('/rescue-route', fn (): Response => Inertia::render('Users/Index', [
-            'flaky' => Inertia::defer(fn (): never => throw new RuntimeException('boom'), rescue: true),
+            'flaky' => Inertia::defer(fn (): never => throw new RuntimeException('boom'), rescue: true)->live(on: 'order.updated', channel: 'orders.1'),
         ]));
 
         $this->get('/rescue-route', [
@@ -264,7 +264,55 @@ class CollectorIntegrationTest extends TestCase
 
         $this->assertSame('defer', $entry['props']['flaky']['inertiaType']);
         $this->assertTrue($entry['props']['flaky']['rescued']);
+        // The prop is still live, whatever its resolver did
+        $this->assertTrue($entry['props']['flaky']['live']);
         $this->assertArrayNotHasKey('flaky', $entry['propValues'] ?? []);
+    }
+
+    public function testOncePropsAreFlagged(): void
+    {
+        Route::middleware(Middleware::class)->get('/once-route', fn (): Response => Inertia::render('Users/Index', [
+            'config' => Inertia::once(fn (): string => 'cached'),
+            'plain' => 'nothing',
+        ]));
+
+        $this->get('/once-route', [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => '',
+        ]);
+
+        $this->app->make(EntryStore::class)->flush($this->repo);
+
+        $props = $this->latestRecordedEntry()['props'];
+
+        $this->assertTrue($props['config']['once']);
+        $this->assertArrayNotHasKey('once', $props['plain']);
+    }
+
+    public function testLivePropsAreFlaggedWithoutLosingTheirWrapperType(): void
+    {
+        Route::middleware(Middleware::class)->get('/live-route', fn (): Response => Inertia::render('Users/Index', [
+            'order' => Inertia::live('shipped', 'order.updated', 'orders.1'),
+            'stats' => Inertia::always(fn (): string => 'up')->live('order.updated', 'orders.1'),
+            'plain' => 'nothing',
+        ]));
+
+        $this->get('/live-route', [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => '',
+        ]);
+
+        $this->app->make(EntryStore::class)->flush($this->repo);
+
+        $props = $this->latestRecordedEntry()['props'];
+
+        $this->assertNull($props['order']['inertiaType']);
+        $this->assertTrue($props['order']['live']);
+
+        $this->assertSame('always', $props['stats']['inertiaType']);
+        $this->assertTrue($props['stats']['live']);
+
+        $this->assertArrayNotHasKey('live', $props['plain']);
     }
 
     public function testShareSourcesPopulateWhenShareIsCalled(): void

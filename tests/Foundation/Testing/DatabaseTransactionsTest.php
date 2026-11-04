@@ -9,9 +9,11 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 use RuntimeException;
 
 class DatabaseTransactionsTest extends TestCase
@@ -34,6 +36,22 @@ class DatabaseTransactionsTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
         }
+    }
+
+    public function testTestTransactionIsRolledBackWhenTheTestLeavesATransactionOpen(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $connection = new SQLiteConnection($pdo, ':memory:');
+        $testCase = $this->createTestCase($connection);
+
+        // The wrapper transaction, followed by one the test leaves open.
+        $connection->beginTransaction();
+        $connection->beginTransaction();
+
+        $testCase->rollbackDatabaseTransactionWork();
+
+        $this->assertFalse($pdo->inTransaction());
+        $this->assertSame(0, $connection->transactionLevel());
     }
 
     public function testRollbackRestoresTheDispatcherWhenItFails(): void

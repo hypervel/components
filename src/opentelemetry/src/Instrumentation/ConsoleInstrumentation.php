@@ -96,12 +96,12 @@ class ConsoleInstrumentation extends AbstractInstrumentation
         $this->excludedCommands = $excludedCommands;
 
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.console');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.console', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(self::DURATION_METRIC)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.console')
+                ->getMeter('hypervel.console', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     self::DURATION_METRIC,
                     's',

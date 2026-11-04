@@ -83,7 +83,6 @@ class DataCreatorTest extends TestCase
 
     // REMOVED: Configurable pipeline tests; use the fixed engine and factory hooks.
     // REMOVED: Data-specific From* injection tests; Hypervel contextual attributes cover the same outcomes directly.
-    // REMOVED: UnserializeCast tests; serialized request input is not accepted by a built-in cast.
 
     protected function getPackageProviders(Application $app): array
     {

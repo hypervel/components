@@ -22,6 +22,9 @@ class AsBinary implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
+            // Eloquent otherwise caches an assigned UUID or ULID object and returns it instead of a string.
+            public bool $withoutObjectCaching = true;
+
             protected string $format;
 
             /**

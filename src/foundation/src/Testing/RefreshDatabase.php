@@ -134,7 +134,11 @@ trait RefreshDatabase
             ) {
                 RefreshDatabaseState::$migrated = false;
 
-                $this->migrateDatabases();
+                if ($this->shouldDispatchMigrationEvents()) {
+                    $this->migrateDatabases();
+                } else {
+                    $this->migrateDatabasesWithoutEvents();
+                }
 
                 $this->app->make(Kernel::class)->setArtisan(null);
 
@@ -212,6 +216,34 @@ trait RefreshDatabase
     }
 
     /**
+     * Migrate the database without dispatching database events.
+     */
+    protected function migrateDatabasesWithoutEvents(): void
+    {
+        $database = $this->app->make('db');
+
+        $dispatchers = [];
+
+        foreach ($this->connectionsToTransact() as $name) {
+            $connection = $database->connection($name);
+
+            $dispatchers[] = [$connection, $connection->getEventDispatcher()];
+
+            $connection->unsetEventDispatcher();
+        }
+
+        try {
+            $this->migrateDatabases();
+        } finally {
+            foreach ($dispatchers as [$connection, $dispatcher]) {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
+            }
+        }
+    }
+
+    /**
      * Start database transaction in the test coroutine.
      *
      * Called by RunTestsInCoroutine before the test runs. Maintains correct
@@ -276,7 +308,7 @@ trait RefreshDatabase
                     $connection->forgetRecordModificationState();
                 }
 
-                $connection->rollBack();
+                $connection->rollBack(0);
             } finally {
                 if ($dispatcher !== null) {
                     $connection->setEventDispatcher($dispatcher);

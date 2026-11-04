@@ -216,8 +216,12 @@ class OAuthClient
         $clientId = (string) $stored['client_id'];
         $clientSecret = isset($stored['client_secret']) ? (string) $stored['client_secret'] : null;
 
+        $tokenEndpoint = (string) $stored['token_endpoint'];
+
+        $this->discovery->requireFetchable($tokenEndpoint, $this->resourceUrl);
+
         $token = $this->requestToken(
-            (string) $stored['token_endpoint'],
+            $tokenEndpoint,
             [
                 'grant_type' => 'authorization_code',
                 'code' => $code,
@@ -271,7 +275,8 @@ class OAuthClient
 
         $url = parse_url($this->clientIdMetadataUrl);
 
-        if (! is_array($url) || ($url['scheme'] ?? null) !== 'https' || ($url['path'] ?? '/') === '/') {
+        // Schemes are case-insensitive; the original URL is still sent as the exact client identifier.
+        if (! is_array($url) || strtolower($url['scheme'] ?? '') !== 'https' || ($url['path'] ?? '/') === '/') {
             return false;
         }
 
@@ -309,7 +314,7 @@ class OAuthClient
             throw new OAuthException('No client_id was configured, no https client ID metadata document URL is available, and the authorization server does not support dynamic client registration.');
         }
 
-        return (new DynamicClientRegistration)->register(
+        return (new DynamicClientRegistration($this->discovery))->register(
             $metadata->registrationEndpoint,
             $redirectUri,
             $this->authorizationScope(),
@@ -331,7 +336,7 @@ class OAuthClient
         ?string $clientSecret,
         TokenEndpointAuthMethod $authMethod,
     ): TokenSet {
-        $request = $this->oAuthRequest()->asForm();
+        $request = $this->discovery->pin($this->oAuthRequest())->asForm();
 
         $credentials = match ($authMethod) {
             TokenEndpointAuthMethod::ClientSecretBasic => [],
@@ -344,8 +349,7 @@ class OAuthClient
             $request = $request->withBasicAuth(rawurlencode((string) $clientId), rawurlencode((string) $clientSecret));
         }
 
-        $destination = $this->resolveOAuthDestination($request, $tokenEndpoint);
-        $response = $request->post((string) $destination->uri, array_filter([...$params, ...$credentials], static fn (mixed $value): bool => $value !== null));
+        $response = $request->post($tokenEndpoint, array_filter([...$params, ...$credentials], static fn (mixed $value): bool => $value !== null));
 
         if (! $response->successful()) {
             throw new OAuthException("Token request to [{$tokenEndpoint}] failed with status [{$response->status()}].");

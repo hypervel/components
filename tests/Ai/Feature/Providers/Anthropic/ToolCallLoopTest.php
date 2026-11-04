@@ -91,6 +91,57 @@ class ToolCallLoopTest extends TestCase
         $this->assertTrue($hasToolResult, 'Follow-up request should include user message with tool_result block');
     }
 
+    public function testToolCallsRunWhenTheMessageEndsWithEndTurn(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_tool_123',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Let me generate a number.'],
+                        ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'stop_reason' => 'end_turn',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $response = (new ToolUsingAgent(fixed: true))->prompt(
+            'Generate a random number',
+            provider: 'anthropic',
+        );
+
+        $this->assertCount(2, Http::recorded());
+        $this->assertSame('The number is 72019', $response->text);
+    }
+
+    public function testToolCallsDoNotRunWhenTheMessageEndsWithMaxTokens(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_tool_123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-sonnet-4-6',
+                'content' => [
+                    ['type' => 'text', 'text' => 'Let me generate a number.'],
+                    ['type' => 'tool_use', 'id' => 'toolu_123', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                ],
+                'stop_reason' => 'max_tokens',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+            ]),
+        ]);
+
+        (new ToolUsingAgent(fixed: true))->prompt('Generate a random number', provider: 'anthropic');
+
+        $this->assertCount(1, Http::recorded());
+    }
+
     public function testServerToolUseInputIsSerializedAsObjectOnFollowUpReplay(): void
     {
         Http::fake([

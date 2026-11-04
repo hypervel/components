@@ -39,6 +39,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Stringable;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -1435,6 +1436,14 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(123, $repo->integer('foo'));
     }
 
+    public function testItGetsAsIntegerFromNumericStringable(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('get')->with('foo')->andReturn(new Stringable('123'));
+
+        $this->assertSame(123, $repo->integer('foo'));
+    }
+
     public function testIntegerTypedGetterThrowsExceptionForNonInteger(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -1484,6 +1493,14 @@ class CacheRepositoryTest extends TestCase
     {
         $repo = $this->getRepository();
         $repo->getStore()->expects('get')->with('foo')->andReturn('1.5');
+
+        $this->assertSame(1.5, $repo->float('foo'));
+    }
+
+    public function testItGetsAsFloatFromNumericStringable(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('get')->with('foo')->andReturn(new Stringable('1.5'));
 
         $this->assertSame(1.5, $repo->float('foo'));
     }

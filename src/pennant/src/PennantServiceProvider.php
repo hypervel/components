@@ -65,7 +65,8 @@ class PennantServiceProvider extends ServiceProvider
      */
     protected function listenForEvents(): void
     {
-        // Laravel's Octane and JobProcessed flush listeners aren't needed: feature values are memoized per coroutine.
+        // Laravel's Octane and queued-job flush listeners (JobProcessed, JobExceptionOccurred, JobFailed) aren't needed:
+        // feature values are memoized per coroutine, and the worker runs each job in a new coroutine.
         $this->app->make('events')->listen([
             PublishingStubs::class,
         ], fn (PublishingStubs $event) => $event->add(__DIR__ . '/../stubs/feature.stub', 'feature.stub'));

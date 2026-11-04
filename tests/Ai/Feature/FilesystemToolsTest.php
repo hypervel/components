@@ -28,9 +28,12 @@ use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Http\UploadedFile;
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\TestCase;
+use League\Flysystem\PathTraversalDetected;
+use League\Flysystem\UnableToRetrieveMetadata;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -114,23 +117,58 @@ class FilesystemToolsTest extends TestCase
     }
 
     #[DataProvider('invalidSourcePaths')]
-    public function testInvalidSourcePathsBecomeToolResults(string $toolClass, string $result): void
+    public function testInvalidSourcePathsBecomeToolResults(string $toolClass, bool $debug, string $result): void
     {
+        config(['app.debug' => $debug]);
+        Exceptions::fake();
+
         $this->assertSame(
             $result,
             (new $toolClass('local'))->handle(new Request(['path' => '../report.txt', 'from' => '../report.txt', 'to' => 'copy.txt'])),
         );
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(PathTraversalDetected::class);
     }
 
     /**
-     * Provide tools whose source existence check rejects paths outside the disk root.
+     * Provide tools whose source existence check rejects paths outside the disk root, with and without debug mode.
      */
     public static function invalidSourcePaths(): array
     {
         return [
-            'copy' => [CopyFile::class, 'Unable to copy [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
-            'move' => [MoveFile::class, 'Unable to move [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
-            'URL' => [GetFileUrl::class, 'Unable to generate a URL for [../report.txt]: Path traversal detected: ../report.txt'],
+            'copy' => [CopyFile::class, false, 'Unable to copy [../report.txt] to [copy.txt].'],
+            'move' => [MoveFile::class, false, 'Unable to move [../report.txt] to [copy.txt].'],
+            'URL' => [GetFileUrl::class, false, 'Unable to generate a URL for [../report.txt].'],
+            'copy in debug mode' => [CopyFile::class, true, 'Unable to copy [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'move in debug mode' => [MoveFile::class, true, 'Unable to move [../report.txt] to [copy.txt]: Path traversal detected: ../report.txt'],
+            'URL in debug mode' => [GetFileUrl::class, true, 'Unable to generate a URL for [../report.txt]: Path traversal detected: ../report.txt'],
+        ];
+    }
+
+    #[DataProvider('existingFileLookupFailures')]
+    public function testLookupFailuresForExistingFilesAreReportedInsteadOfDescribedAsMissing(string $toolClass, string $result): void
+    {
+        Exceptions::fake();
+        $failure = UnableToRetrieveMetadata::fileSize('file.txt', 'Access denied.');
+        $disk = m::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('size')->once()->with('file.txt')->andThrow($failure);
+        $disk->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
+
+        $this->assertSame($result, (new $toolClass($disk))->handle(new Request(['path' => 'file.txt'])));
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (UnableToRetrieveMetadata $exception): bool => $exception === $failure);
+    }
+
+    /**
+     * Provide tools that look up a file's size before using it.
+     */
+    public static function existingFileLookupFailures(): array
+    {
+        return [
+            'read' => [ReadFile::class, 'Unable to read [file.txt].'],
+            'metadata' => [GetFileMetadata::class, 'Unable to get metadata for [file.txt].'],
         ];
     }
 
@@ -169,9 +207,12 @@ class FilesystemToolsTest extends TestCase
 
     public function testReadFileReportsAMissingFile(): void
     {
+        Exceptions::fake();
+
         $result = (new ReadFile('local'))->handle(new Request(['path' => 'missing.txt']));
 
         $this->assertSame('File [missing.txt] does not exist.', $result);
+        Exceptions::assertNothingReported();
     }
 
     public function testReadFileRejectsAnOversizedFile(): void
@@ -190,6 +231,17 @@ class FilesystemToolsTest extends TestCase
         $result = (new ReadFile('local'))->handle(new Request(['path' => 'image.bin']));
 
         $this->assertStringContainsString('appears to be binary', $result);
+    }
+
+    public function testReadFileReportsAnUnreadableFile(): void
+    {
+        $disk = m::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('size')->once()->with('note.txt')->andReturn(10);
+        $disk->shouldReceive('get')->once()->with('note.txt')->andReturnNull();
+
+        $result = (new ReadFile($disk))->handle(new Request(['path' => 'note.txt']));
+
+        $this->assertSame('Unable to read [note.txt].', $result);
     }
 
     public function testFileExistsReportsPresenceAndAbsence(): void
@@ -224,9 +276,12 @@ class FilesystemToolsTest extends TestCase
 
     public function testFileMetadataReportsAMissingFile(): void
     {
+        Exceptions::fake();
+
         $result = (new GetFileMetadata('local'))->handle(new Request(['path' => 'missing.txt']));
 
         $this->assertSame('File [missing.txt] does not exist.', $result);
+        Exceptions::assertNothingReported();
     }
 
     public function testFileUrlReturnsAUsableStringAndNeverThrows(): void

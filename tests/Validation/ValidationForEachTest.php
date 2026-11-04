@@ -371,6 +371,23 @@ class ValidationForEachTest extends TestCase
         ], $v->getMessageBag()->toArray());
     }
 
+    public function testForEachLeavesObjectsInTheInputUnchanged(): void
+    {
+        $listed = (object) ['price' => 2];
+        $keyed = (object) ['one' => (object) ['price' => 3]];
+
+        $v = new Validator($this->getArrayTranslator(), [
+            'items' => [
+                ['options' => [['price' => 1], $listed]],
+                ['options' => $keyed],
+            ],
+        ], ['items.*.options.*.price' => Rule::forEach(fn (): array => ['integer'])]);
+
+        $this->assertSame(['items.0.options.0.price', 'items.0.options.1.price'], array_keys($v->getRules()));
+        $this->assertSame(2, $listed->price);
+        $this->assertSame(3, $keyed->one->price);
+    }
+
     public function getArrayTranslator()
     {
         return new Translator(

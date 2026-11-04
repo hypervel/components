@@ -9,6 +9,12 @@ use Psr\Http\Message\UriInterface;
 
 class HttpTelemetryAttributes
 {
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    public const string REQUEST_BODY_SIZE = 'http.request.body.size';
+
+    public const string RESPONSE_BODY_SIZE = 'http.response.body.size';
+
     /** @var array<string, true> */
     protected array $sensitiveQueryParameters;
 

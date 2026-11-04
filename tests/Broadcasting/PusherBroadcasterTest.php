@@ -175,6 +175,19 @@ class PusherBroadcasterTest extends TestCase
         $this->assertSame('5', $boundOrder->boundValue);
     }
 
+    public function testBroadcastTriggersEncryptedChannelsSeparately(): void
+    {
+        $this->pusher->expects('trigger')->with(['private-a', 'b'], 'event', ['foo' => 'bar'], []);
+        $this->pusher->expects('trigger')->with(['private-encrypted-c'], 'event', ['foo' => 'bar'], []);
+        $this->pusher->expects('trigger')->with(['private-encrypted-d'], 'event', ['foo' => 'bar'], []);
+
+        $this->broadcaster->broadcast(
+            ['private-a', 'private-encrypted-c', 'b', 'private-encrypted-d'],
+            'event',
+            ['foo' => 'bar']
+        );
+    }
+
     public function testValidAuthenticationResponseCallPusherSocketAuthMethodWithPrivateChannel(): void
     {
         $request = $this->getMockRequestWithUserForChannel('private-test');

@@ -62,6 +62,20 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($fooCalled);
     }
 
+    public function testRedirectsFromQueryRequestsAreConvertedTo303(): void
+    {
+        Route::middleware(Middleware::class)->match(['QUERY'], '/', function () {
+            return redirect('/foo');
+        });
+
+        $response = $this->json('QUERY', '/', ['search' => 'foo'], [
+            'X-Inertia' => 'true',
+        ]);
+
+        $response->assertRedirect('/foo');
+        $response->assertStatus(303);
+    }
+
     public function testNoResponseValueCanBeCustomizedByOverridingTheMiddlewareMethod(): void
     {
         Route::middleware(ExampleMiddleware::class)->get('/', function () {

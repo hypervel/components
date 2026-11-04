@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Http\Fixtures;
+namespace Hypervel\Tests\Support\Fixtures;
 
-enum TestIntegerEnumBacked: int
+enum TestIntegerBackedEnum: int
 {
     case Minus1 = -1;
     case Zero = 0;

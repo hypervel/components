@@ -28,7 +28,6 @@ use OpenTelemetry\SDK\Metrics\MeterProvider;
 use OpenTelemetry\SDK\Metrics\MeterProviderBuilder;
 use OpenTelemetry\SDK\Metrics\MetricExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
-use OpenTelemetry\SemConv\Incubating\Metrics\DbIncubatingMetrics;
 use Swoole\Coroutine\Channel;
 use WeakReference;
 
@@ -94,6 +93,7 @@ class PoolInstrumentationTest extends TestCase
             $metrics = $this->collect();
 
             $connectionCount = $metrics['db.client.connection.count'];
+            $this->assertSame('https://opentelemetry.io/schemas/1.45.0', $connectionCount->instrumentationScope->getSchemaUrl());
             $this->assertPoint($connectionCount, 2, [
                 'db.client.connection.pool.name' => 'database:default',
                 'db.client.connection.state' => 'idle',
@@ -110,10 +110,10 @@ class PoolInstrumentationTest extends TestCase
                 'db.client.connection.pool.name' => 'redis:default',
                 'db.client.connection.state' => 'used',
             ]);
-            $this->assertPoint($metrics['db.client.connection.max'], 10, [
+            $this->assertPoint($metrics['db.client.connection.limit'], 10, [
                 'db.client.connection.pool.name' => 'database:default',
             ]);
-            $this->assertPoint($metrics['db.client.connection.max'], 8, [
+            $this->assertPoint($metrics['db.client.connection.limit'], 8, [
                 'db.client.connection.pool.name' => 'redis:default',
             ]);
             $this->assertPoint($metrics['db.client.connection.pending_requests'], 1, [
@@ -152,13 +152,13 @@ class PoolInstrumentationTest extends TestCase
                 'hypervel.object_pool.name' => 'app:reports',
                 'hypervel.object_pool.state' => 'used',
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 4, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 4, [
                 'hypervel.object_pool.name' => $autoIdentity,
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 5, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 5, [
                 'hypervel.object_pool.name' => $namedIdentity,
             ]);
-            $this->assertPoint($metrics['hypervel.object_pool.max'], 6, [
+            $this->assertPoint($metrics['hypervel.object_pool.limit'], 6, [
                 'hypervel.object_pool.name' => 'app:reports',
             ]);
             $this->assertPoint($metrics['hypervel.object_pool.pending_requests'], 0, [
@@ -260,12 +260,12 @@ class PoolInstrumentationTest extends TestCase
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $instrumentation->register($this->options(
-            enabled: [DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX],
+            enabled: ['db.client.connection.limit'],
         ));
         $metrics = $this->collect();
 
-        $this->assertSame([DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX], array_keys($metrics));
-        $this->assertPoint($metrics[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX], 12, [
+        $this->assertSame(['db.client.connection.limit'], array_keys($metrics));
+        $this->assertPoint($metrics['db.client.connection.limit'], 12, [
             'db.client.connection.pool.name' => 'database:primary',
         ]);
     }
@@ -283,11 +283,11 @@ class PoolInstrumentationTest extends TestCase
         $redisPools->shouldNotReceive('getPools');
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
-        $instrumentation->register($this->options(enabled: ['hypervel.object_pool.max']));
+        $instrumentation->register($this->options(enabled: ['hypervel.object_pool.limit']));
         $metrics = $this->collect();
 
-        $this->assertSame(['hypervel.object_pool.max'], array_keys($metrics));
-        $this->assertPoint($metrics['hypervel.object_pool.max'], 7, [
+        $this->assertSame(['hypervel.object_pool.limit'], array_keys($metrics));
+        $this->assertPoint($metrics['hypervel.object_pool.limit'], 7, [
             'hypervel.object_pool.name' => 'app:bounded',
         ]);
     }
@@ -303,7 +303,7 @@ class PoolInstrumentationTest extends TestCase
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $reference = WeakReference::create($instrumentation);
         $instrumentation->register($this->options(enabled: [
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT,
+            'db.client.connection.count',
         ]));
 
         $this->collect();
@@ -376,11 +376,11 @@ class PoolInstrumentationTest extends TestCase
     private function options(?array $enabled = null): array
     {
         $names = [
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX,
-            DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS,
+            'db.client.connection.count',
+            'db.client.connection.limit',
+            'db.client.connection.pending_requests',
             'hypervel.object_pool.objects',
-            'hypervel.object_pool.max',
+            'hypervel.object_pool.limit',
             'hypervel.object_pool.pending_requests',
         ];
 

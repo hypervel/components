@@ -26,9 +26,8 @@ use OpenTelemetry\SDK\Trace\SamplerInterface;
 use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter as InMemorySpanExporter;
 use OpenTelemetry\SDK\Trace\SpanExporterInterface;
 use OpenTelemetry\SDK\Trace\TracerProvider;
+use OpenTelemetry\SemConv\Attributes\DeploymentAttributes;
 use OpenTelemetry\SemConv\Attributes\ServiceAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\DeploymentIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\ServiceIncubatingAttributes;
 use RuntimeException;
 use stdClass;
 
@@ -96,7 +95,7 @@ class ProviderFactoryTest extends TestCase
         ];
         $configuration['resource_attributes'] = [
             ServiceAttributes::SERVICE_NAME => 'explicit-service',
-            ServiceIncubatingAttributes::SERVICE_INSTANCE_ID => 'explicit-base',
+            ServiceAttributes::SERVICE_INSTANCE_ID => 'explicit-base',
             'deployment.region' => 'eu-west',
             'hypervel.worker.type' => 'spoofed',
             'hypervel.worker.id' => 999,
@@ -116,13 +115,13 @@ class ProviderFactoryTest extends TestCase
 
         $this->assertSame('explicit-service', $attributes[ServiceAttributes::SERVICE_NAME]);
         $this->assertSame('1.2.3', $attributes[ServiceAttributes::SERVICE_VERSION]);
-        $this->assertSame('testing', $attributes[DeploymentIncubatingAttributes::DEPLOYMENT_ENVIRONMENT_NAME]);
+        $this->assertSame('testing', $attributes[DeploymentAttributes::DEPLOYMENT_ENVIRONMENT_NAME]);
         $this->assertSame('eu-west', $attributes['deployment.region']);
         $this->assertSame('task', $attributes['hypervel.worker.type']);
         $this->assertSame(5, $attributes['hypervel.worker.id']);
         $this->assertSame(
             'explicit-base:task:5:' . getmypid(),
-            $attributes[ServiceIncubatingAttributes::SERVICE_INSTANCE_ID],
+            $attributes[ServiceAttributes::SERVICE_INSTANCE_ID],
         );
         $schemaUrl = $exporters->spanExporter->getSpans()[0]->getResource()->getSchemaUrl();
 

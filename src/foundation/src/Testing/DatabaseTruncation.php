@@ -266,8 +266,10 @@ trait DatabaseTruncation
         }
 
         $schema = $connection->getSchemaBuilder();
+        $schemas = $schema->getCurrentSchemaListing();
 
-        return static::$allTables[$name] = Arr::from($schema->getTables($schema->getCurrentSchemaListing()));
+        // An empty PostgreSQL search path selects no schemas, but getTables([]) would select them all.
+        return static::$allTables[$name] = $schemas === [] ? [] : Arr::from($schema->getTables($schemas));
     }
 
     /**
@@ -275,7 +277,7 @@ trait DatabaseTruncation
      */
     protected function tableExistsIn(array $table, array $tables): bool
     {
-        return $table['schema']
+        return $table['schema'] !== null
             ? ! empty(array_intersect([$table['name'], $table['schema_qualified_name']], $tables))
             : in_array($table['name'], $tables);
     }

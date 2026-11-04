@@ -188,14 +188,20 @@ class CacheIntegration extends Feature
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
+                $data = [
+                    'cache.key' => $displayKeys,
+                ];
+
+                // A `null` TTL means the entry never expires, in which case the TTL is omitted
+                if ($event->seconds !== null) {
+                    $data['cache.ttl'] = $event->seconds;
+                }
+
                 $this->pushCacheSpan(
                     $parentSpan->startChild(
                         SpanContext::make()
                             ->setOp('cache.put')
-                            ->setData([
-                                'cache.key' => $displayKeys,
-                                'cache.ttl' => $event->seconds,
-                            ])
+                            ->setData($data)
                             ->setOrigin('auto.cache')
                             ->setDescription(implode(', ', $displayKeys))
                     ),

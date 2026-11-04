@@ -33,8 +33,6 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\UrlIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -65,6 +63,10 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     ];
 
     protected const string REDIRECT_COUNT_OPTION = '__redirect_count';
+
+    // Development-status conventions are defined here rather than imported, because
+    // the sem-conv package removes renamed incubating constants in minor releases.
+    protected const string URL_TEMPLATE = 'url.template';
 
     /** @var array<string, true> */
     protected array $knownMethods = [];
@@ -121,12 +123,12 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         );
 
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.client');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.http.client', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.http.client')
+                ->getMeter('hypervel.http.client', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     HttpMetrics::HTTP_CLIENT_REQUEST_DURATION,
                     's',
@@ -329,7 +331,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                 UrlAttributes::URL_FULL => $this->httpAttributes->fullUrl($uri),
                 UrlAttributes::URL_SCHEME => $uri->getScheme(),
                 HttpAttributes::HTTP_REQUEST_RESEND_COUNT => $resendCount > 0 ? $resendCount : null,
-                HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
+                HttpTelemetryAttributes::REQUEST_BODY_SIZE => $this->httpAttributes->contentLength(
                     $request->getHeaderLine('Content-Length'),
                 ),
             ],
@@ -372,7 +374,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         }
 
         if ($template !== null) {
-            $span->setAttribute(UrlIncubatingAttributes::URL_TEMPLATE, $template);
+            $span->setAttribute(self::URL_TEMPLATE, $template);
             $span->updateName($this->httpAttributes->spanName(
                 $methodAttributes[HttpAttributes::HTTP_REQUEST_METHOD],
                 $template,
@@ -404,7 +406,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
             $span->setAttributes(array_replace(
                 $attributes,
                 array_filter([
-                    HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE => $this->httpAttributes->contentLength(
+                    HttpTelemetryAttributes::RESPONSE_BODY_SIZE => $this->httpAttributes->contentLength(
                         $response->getHeaderLine('Content-Length'),
                     ),
                 ], static fn (mixed $value): bool => $value !== null),

@@ -78,6 +78,15 @@ class EloquentWithCountTest extends DatabaseTestCase
         $this->assertEquals(1, $result->all_fours_count);
     }
 
+    public function testWithExists(): void
+    {
+        Model1::create()->twos()->create();
+        Model1::create();
+
+        $this->assertSame([true, false], Model1::withExists('twos')->orderBy('id')->pluck('twos_exists')->all());
+        $this->assertSame([true, false], Model1::orderBy('id')->get()->loadExists('twos')->pluck('twos_exists')->all());
+    }
+
     public function testSortingScopes(): void
     {
         $one = Model1::create();

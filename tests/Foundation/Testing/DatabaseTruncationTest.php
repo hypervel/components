@@ -183,6 +183,34 @@ class DatabaseTruncationTest extends TestCase
         $this->assertEquals(['public.baz', 'private.bar'], $truncatedTables);
     }
 
+    public function testTruncateTablesWithSchemaNamedZeroAndExceptTablesProperty(): void
+    {
+        $this->exceptTables = ['0.bar'];
+
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'migrations', 'schema_qualified_name' => 'public.migrations'],
+            ['schema' => 'public', 'name' => 'bar', 'schema_qualified_name' => 'public.bar'],
+            ['schema' => '0', 'name' => 'bar', 'schema_qualified_name' => '0.bar'],
+            ['schema' => '0', 'name' => 'baz', 'schema_qualified_name' => '0.baz'],
+        ]);
+
+        $this->truncateTablesForConnection($connection, 'test');
+
+        $this->assertSame(['public.bar', '0.baz'], $truncatedTables);
+    }
+
+    public function testTruncateTablesWithAnEmptySearchPathTruncatesNothing(): void
+    {
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'foo', 'schema_qualified_name' => 'public.foo'],
+            ['schema' => 'private', 'name' => 'bar', 'schema_qualified_name' => 'private.bar'],
+        ], schemas: []);
+
+        $this->truncateTablesForConnection($connection, 'test');
+
+        $this->assertSame([], $truncatedTables);
+    }
+
     public function testTruncateTablesWithConnectionPrefix(): void
     {
         $connection = $this->arrangeConnection($truncatedTables, [
@@ -514,6 +542,9 @@ class DatabaseTruncationTest extends TestCase
     /**
      * Arrange a connection that records truncated tables.
      *
+     * A null schema listing selects every table, as on drivers without schemas. An empty
+     * listing is an empty PostgreSQL search path, which selects no tables.
+     *
      * @param null|class-string<Builder> $builder
      */
     private function arrangeConnection(
@@ -521,18 +552,24 @@ class DatabaseTruncationTest extends TestCase
         array $allTables,
         string $prefix = '',
         ?string $builder = null,
-        ?array $schemas = [],
+        ?array $schemas = null,
         ?RuntimeException $failure = null
     ): Connection {
         $actual = [];
         $allTables = array_map(fn (array $table): array => $table + ['partition_of' => null], $allTables);
 
         $schema = m::mock($builder ?? Builder::class)->makePartial();
-        $schema->expects('getTables')->with($schemas)->andReturn(
-            empty($schemas)
-                ? $allTables
-                : array_filter($allTables, fn (array $table): bool => in_array($table['schema'], $schemas, true))
-        );
+
+        if ($schemas === []) {
+            $schema->shouldNotReceive('getTables');
+        } else {
+            $schema->expects('getTables')->with($schemas)->andReturn(
+                $schemas === null
+                    ? $allTables
+                    : array_filter($allTables, fn (array $table): bool => in_array($table['schema'], $schemas, true))
+            );
+        }
+
         $schema->expects('getCurrentSchemaListing')->andReturn($schemas);
         $withoutPrefix = false;
         $schema->expects('truncateTables')->andReturnUsing(

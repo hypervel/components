@@ -150,11 +150,11 @@ class MistralGateway implements AudioGateway, EmbeddingGateway, StepTextGateway,
 
         $data = $response->json();
 
-        return new EmbeddingsResponse(
+        return (new EmbeddingsResponse(
             collect($data['data'] ?? [])->pluck('embedding')->all(),
             new Usage($data['usage']['prompt_tokens'] ?? 0),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**
@@ -190,7 +190,7 @@ class MistralGateway implements AudioGateway, EmbeddingGateway, StepTextGateway,
 
         $data = $response->json();
 
-        return new TranscriptionResponse(
+        return (new TranscriptionResponse(
             $data['text'] ?? '',
             collect($data['segments'] ?? [])->map(fn (array $segment): TranscriptionSegment => new TranscriptionSegment(
                 $segment['text'] ?? '',
@@ -204,7 +204,7 @@ class MistralGateway implements AudioGateway, EmbeddingGateway, StepTextGateway,
                 audioSeconds: $data['usage']['prompt_audio_seconds'] ?? null,
             ),
             new Meta($provider->name(), $model),
-        );
+        ))->withRawResponse($response);
     }
 
     /**

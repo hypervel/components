@@ -35,7 +35,7 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
      * @param Closure $callback the callback that validates the attribute
      */
     public function __construct(
-        protected Closure $callback
+        public Closure $callback
     ) {
     }
 

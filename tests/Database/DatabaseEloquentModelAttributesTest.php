@@ -138,6 +138,13 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertNull($model->getKeyName());
     }
 
+    public function testDisabledPrimaryKeyIsNotIncrementing(): void
+    {
+        $model = new ModelWithoutPrimaryKeyAttribute;
+
+        $this->assertFalse($model->getIncrementing());
+    }
+
     public function testPrimaryKeyCanBeDisabledByPropertyOrSetter(): void
     {
         $model = new class extends Model {

@@ -234,8 +234,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             return $value;
         }
 
-        if (filter_var($value, FILTER_VALIDATE_INT) !== false) {
-            return (int) $value;
+        // Return the filtered value: a numeric Stringable passes the filter, but casting it to int fails.
+        if (($integer = filter_var($value, FILTER_VALIDATE_INT)) !== false) {
+            return $integer;
         }
 
         throw new InvalidArgumentException(
@@ -259,8 +260,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             return $value;
         }
 
-        if (filter_var($value, FILTER_VALIDATE_FLOAT) !== false) {
-            return (float) $value;
+        // Return the filtered value: a numeric Stringable passes the filter, but casting it to float fails.
+        if (($float = filter_var($value, FILTER_VALIDATE_FLOAT)) !== false) {
+            return $float;
         }
 
         throw new InvalidArgumentException(

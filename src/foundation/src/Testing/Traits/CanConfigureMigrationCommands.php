@@ -6,7 +6,9 @@ namespace Hypervel\Foundation\Testing\Traits;
 
 use Hypervel\Foundation\Testing\Attributes\Seed;
 use Hypervel\Foundation\Testing\Attributes\Seeder;
+use Hypervel\Foundation\Testing\Attributes\WithoutMigrationEvents;
 use ReflectionClass;
+use ReflectionMethod;
 
 trait CanConfigureMigrationCommands
 {
@@ -56,6 +58,26 @@ trait CanConfigureMigrationCommands
         } while ($class = $class->getParentClass());
 
         return property_exists($this, 'seed') ? $this->seed : false;
+    }
+
+    /**
+     * Determine if database events should be dispatched while migrating the database.
+     */
+    protected function shouldDispatchMigrationEvents(): bool
+    {
+        if ((new ReflectionMethod(static::class, $this->name()))->getAttributes(WithoutMigrationEvents::class) !== []) {
+            return false;
+        }
+
+        $class = new ReflectionClass($this);
+
+        do {
+            if ($class->getAttributes(WithoutMigrationEvents::class) !== []) {
+                return false;
+            }
+        } while ($class = $class->getParentClass());
+
+        return true;
     }
 
     /**

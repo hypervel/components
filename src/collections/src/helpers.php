@@ -91,9 +91,10 @@ if (! function_exists('data_get')) {
             }
 
             if ($segment === '*') {
+                // Unlike upstream, wildcards also select stdClass properties, since they may target any key of an array or object.
                 if ($target instanceof Collection) {
                     $target = $target->all();
-                } elseif (! is_iterable($target)) {
+                } elseif (! is_iterable($target) && ! $target instanceof stdClass) {
                     return value($default);
                 }
 
@@ -143,7 +144,8 @@ if (! function_exists('data_set')) {
         $segments = is_array($key) ? $key : explode('.', (string) $key);
 
         if (($segment = array_shift($segments)) === '*') {
-            if (! Arr::accessible($target)) {
+            // Unlike upstream, wildcards also set stdClass properties instead of replacing the object with an array.
+            if (! Arr::accessible($target) && ! $target instanceof stdClass) {
                 $target = [];
             }
 
@@ -202,7 +204,8 @@ if (! function_exists('data_forget')) {
     {
         $segments = is_array($key) ? $key : explode('.', (string) $key);
 
-        if (($segment = array_shift($segments)) === '*' && Arr::accessible($target)) {
+        // Unlike upstream, wildcards also remove values from stdClass properties.
+        if (($segment = array_shift($segments)) === '*' && (Arr::accessible($target) || $target instanceof stdClass)) {
             if ($segments) {
                 foreach ($target as &$inner) {
                     data_forget($inner, $segments);
@@ -217,7 +220,8 @@ if (! function_exists('data_forget')) {
         } elseif (is_object($target)) {
             if ($segments && isset($target->{$segment})) {
                 data_forget($target->{$segment}, $segments);
-            } elseif (isset($target->{$segment})) {
+            } elseif (! $segments) {
+                // Unlike upstream, this does not check isset(), so null properties are removed too.
                 unset($target->{$segment});
             }
         }

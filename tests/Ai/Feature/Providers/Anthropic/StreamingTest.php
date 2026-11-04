@@ -18,6 +18,7 @@ use Hypervel\Ai\Streaming\Events\TextDelta;
 use Hypervel\Ai\Streaming\Events\TextEnd;
 use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\ProviderOptionsWithToolsAgent;
 use Hypervel\Tests\Ai\Fixtures\AnthropicHelpers;
@@ -179,6 +180,55 @@ class StreamingTest extends TestCase
         $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
         $this->assertSame('toolu_1', $toolCallEvents[0]->toolCall->id);
         $this->assertSame('The number is 72019', TextDelta::combine($events));
+    }
+
+    public function testStreamingRunsToolCallsWhenTheMessageEndsWithEndTurn(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Let me generate two numbers.']),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        $this->contentBlockDelta(1, ['type' => 'input_json_delta', 'partial_json' => '{}']),
+                        $this->contentBlockStop(1),
+                        $this->contentBlockStart(2, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(2, ['type' => 'text_delta', 'text' => 'And another one.']),
+                        $this->contentBlockStop(2),
+                        $this->contentBlockStart(3, ['type' => 'tool_use', 'id' => 'toolu_2', 'name' => 'FixedNumberGenerator', 'input' => '']),
+                        $this->contentBlockDelta(3, ['type' => 'input_json_delta', 'partial_json' => '{}']),
+                        $this->contentBlockStop(3),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Both numbers are 72019']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 10),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $toolResultEvents = array_values(array_filter($events, fn ($e): bool => $e instanceof ToolResultEvent));
+
+        $this->assertCount(2, Http::recorded());
+        $this->assertCount(2, $toolResultEvents);
+        $this->assertSame('toolu_1', $toolResultEvents[0]->toolResult->id);
+        $this->assertSame('toolu_2', $toolResultEvents[1]->toolResult->id);
+        $this->assertStringEndsWith('Both numbers are 72019', TextDelta::combine($events));
     }
 
     public function testStreamingHandlesThinkingBlocks(): void
@@ -378,6 +428,135 @@ class StreamingTest extends TestCase
         $textDeltas = array_values(array_filter($this->collectStreamEvents(), fn ($e): bool => $e instanceof TextDelta));
 
         $this->assertSame(["First\n", 'Second'], array_map(fn (TextDelta $e): string => $e->delta, $textDeltas));
+    }
+
+    public function testStreamingContinuesAPausedStepThatRanNoToolsWithoutASeparator(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'The latest figures show that']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('pause_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => ' revenue grew.']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents();
+
+        $textDeltas = array_values(array_filter($events, fn ($e): bool => $e instanceof TextDelta));
+
+        $this->assertSame('The latest figures show that revenue grew.', implode('', array_map(fn (TextDelta $e): string => $e->delta, $textDeltas)));
+        $this->assertSame('The latest figures show that revenue grew.', TextDelta::combine($events));
+    }
+
+    public function testStreamingSeparatesTextResumedAfterAPausedServerTool(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Let me check.']),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'web_search']),
+                        $this->contentBlockStop(1),
+                        $this->messageDelta('pause_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Revenue grew.']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents();
+
+        $textDeltas = array_values(array_filter($events, fn ($e): bool => $e instanceof TextDelta));
+
+        $this->assertSame("Let me check.\n\nRevenue grew.", implode('', array_map(fn (TextDelta $e): string => $e->delta, $textDeltas)));
+        $this->assertSame("Let me check.\n\nRevenue grew.", TextDelta::combine($events));
+    }
+
+    public function testStreamingSeparatesTextResumedAfterATurnPausedTwice(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'Let me check.']),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'server_tool_use', 'id' => 'srvtoolu_1', 'name' => 'web_search']),
+                        $this->contentBlockStop(1),
+                        $this->messageDelta('pause_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'web_search_tool_result', 'tool_use_id' => 'srvtoolu_1', 'content' => []]),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'server_tool_use', 'id' => 'srvtoolu_2', 'name' => 'web_search']),
+                        $this->contentBlockStop(1),
+                        $this->messageDelta('pause_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'web_search_tool_result', 'tool_use_id' => 'srvtoolu_2', 'content' => []]),
+                        $this->contentBlockStop(0),
+                        $this->contentBlockStart(1, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(1, ['type' => 'text_delta', 'text' => 'Revenue grew.']),
+                        $this->contentBlockStop(1),
+                        $this->messageDelta('end_turn', 5),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents();
+
+        $textDeltas = array_values(array_filter($events, fn ($e): bool => $e instanceof TextDelta));
+
+        $this->assertSame("Let me check.\n\nRevenue grew.", implode('', array_map(fn (TextDelta $e): string => $e->delta, $textDeltas)));
+        $this->assertSame("Let me check.\n\nRevenue grew.", TextDelta::combine($events));
     }
 
     public function testStreamingErrorEventStopsStream(): void

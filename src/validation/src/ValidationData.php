@@ -155,7 +155,12 @@ class ValidationData
             return $data;
         }
 
-        return data_set($data, $attribute, null, true);
+        // Unlike upstream, fill only the copied arrays. data_set() would write through objects shared with the caller's input.
+        foreach (static::expandWildcardKeys($attribute, $data) as $key) {
+            Arr::set($data, $key, null);
+        }
+
+        return $data;
     }
 
     /**

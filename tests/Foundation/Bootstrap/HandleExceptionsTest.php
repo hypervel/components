@@ -442,6 +442,22 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
+    public function testSuppressedErrorsAreAvailableViaErrorGetLast(): void
+    {
+        set_error_handler([$this->handleExceptions(), 'handleError']);
+
+        try {
+            error_clear_last();
+
+            $result = @file_get_contents(__DIR__ . '/missing-file.txt');
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertFalse($result);
+        $this->assertStringContainsString('Failed to open stream: No such file or directory', error_get_last()['message'] ?? '');
+    }
+
     public function testConsoleThrowableRendersToStandardError(): void
     {
         $exception = new RuntimeException('Test exception');
@@ -847,9 +863,11 @@ class RecordingHandleExceptions extends HandleExceptions
     /**
      * Record a PHP error.
      */
-    public function handleError(int $level, string $message, string $file = '', int $line = 0): void
+    public function handleError(int $level, string $message, string $file = '', int $line = 0): bool
     {
         $this->errors[] = $message;
+
+        return true;
     }
 
     /**

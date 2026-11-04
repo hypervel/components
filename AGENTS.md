@@ -121,11 +121,11 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 Do not routinely run formatting or PHPStan during edits. Run targeted PHPStan earlier only when investigating a typing issue or when its feedback is needed to guide implementation.
 
-**At the end of a coherent implementation slice**, run `composer analyse` and the affected tests, in that order. Use PHPUnit for one test file or `composer test:parallel -- --processes=4 tests/PackageName` for multiple files. Use `--filter` when needed to narrow the selection.
+At the end of a coherent implementation slice, run `composer analyse` and any outstanding tests needed to verify the changed behavior and affected callers. Use PHPUnit for one test file or `composer test:parallel -- --processes=4` for multiple files, selecting the relevant files or using `--filter`. Reuse passing results unless subsequent changes invalidate them.
 
 Run `composer lint:fix` before a scheduled code review or commit checkpoint, not after individual changes within a batch.
 
-Run the full test suite only when the change has framework-wide impact. In that case, use `composer fix`, which includes formatting, analysis and all test suites; do not run those checks separately first. For focused changes, include separate Testbench or dogfood checks when the changed behavior affects those workflows.
+Run only the local tests needed to give strong confidence in the change. Leave full suites and CI matrices to CI, unless a specific unresolved issue requires broader local testing.
 
 After a failure or review correction, fix the cause, repeat only checks affected by the correction, and finish any outstanding verification. Do not restart the entire sequence merely because another review round occurred.
 
@@ -145,6 +145,7 @@ Apply approved adaptations when porting or modifying code. Do not expand a chang
 - **Copy before splitting** — When a new file or class is primarily extracted from existing code, use `cp` to copy the primary source first and then update the copy rather than rebuilding it from individual pieces. Copy any additional blocks, including comments and docblocks, into the destination before removing them from their source.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
+- **Swoole references** — Use the [official Swoole documentation on GitHub](https://github.com/swoole/docs/tree/main/public/en). Do not use OpenSwoole documentation: the runtimes have diverged.
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Check dependency versions before adding them** — Before adding a package dependency to the root `composer.json`, check Packagist for the latest compatible stable version. The root `composer.lock` is intentionally untracked; run `composer update` after adding or merging dependency changes, do not treat an outdated local lock as a repository defect, and never commit it.
@@ -154,7 +155,7 @@ Apply approved adaptations when porting or modifying code. Do not expand a chang
 ### Documentation
 
 - **Use one source of truth** — Put all user documentation in `src/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
-- **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Before drafting, read and match the surrounding prose; for new pages, use `src/docs/processes.md` as a style reference. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
+- **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Before drafting, read and match the surrounding prose; for new pages, use `src/docs/processes.md` as a style reference. Explain how to use the API in natural prose and examples. Only include implementation details when they affect how the reader must use it. Before finishing, remove repeated guidance, unnecessary caveats, and explanations already clear from the example.
 - **Keep the Laravel porting guide current and focused** — Whenever a framework change means existing Laravel application or package code, configuration, integrations, or data require adaptation or a compatibility check, update `src/docs/porting-from-laravel.md` in the same change. Before adding an entry, ask: “What existing Laravel usage would someone port incorrectly without this entry?” Purely additive, opt-in enhancements belong in feature documentation, not this guide. An enhancement that also changes compatibility qualifies because of that difference, not because it adds functionality. Do not document bug fixes, internal implementation differences, performance work, incidental source drift, or narrow edge cases unless they change what a porter needs to do. Briefly identify the affected usage and required action or risk, then link to the relevant canonical documentation instead of repeating its detail. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or feature catalogue. Treat its context size as a design constraint, and remove stale or duplicated guidance whenever editing it.
 
 #### Package READMEs

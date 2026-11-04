@@ -23,18 +23,24 @@ class AsEnumArrayObject implements Castable
      * @template TEnum of UnitEnum
      *
      * @param array{class-string<TEnum>} $arguments
-     * @return CastsAttributes<ArrayObject<array-key, TEnum>, iterable<TEnum>>
+     * @return CastsAttributes<ArrayObject<array-key, TEnum>, iterable<int|string|TEnum>>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
             protected array $arguments;
 
+            /**
+             * Create a new enum array object cast instance.
+             */
             public function __construct(array $arguments)
             {
                 $this->arguments = $arguments;
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (! isset($attributes[$key])) {
@@ -56,6 +62,9 @@ class AsEnumArrayObject implements Castable
                 })->toArray());
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
                 if ($value === null) {
@@ -77,6 +86,29 @@ class AsEnumArrayObject implements Castable
                 return [$key => $encoded];
             }
 
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                if (! $value instanceof ArrayObject) {
+                    return false;
+                }
+
+                $enumClass = $this->arguments[0];
+
+                foreach ($value as $item) {
+                    if (! $item instanceof $enumClass) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            /**
+             * Serialize the attribute for an array or JSON response.
+             */
             public function serialize(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return (new Collection($value->getArrayCopy()))
@@ -84,6 +116,9 @@ class AsEnumArrayObject implements Castable
                     ->toArray();
             }
 
+            /**
+             * Get the storable value of the given enum.
+             */
             protected function getStorableEnumValue(mixed $enum): string|int
             {
                 if (is_string($enum) || is_int($enum)) {

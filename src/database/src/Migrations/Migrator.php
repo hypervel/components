@@ -440,10 +440,14 @@ class Migrator
                     $this->fireMigrationEvent(new MigrationStarted($migration, $method, $name));
                 }
 
+                $startedAt = microtime(true);
+
                 $this->runMethod($connection, $migration, $method);
 
                 if ($this->hasMigrationEventListeners(MigrationEnded::class)) {
-                    $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name));
+                    $duration = round((microtime(true) - $startedAt) * 1000, 2);
+
+                    $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name, $duration));
                 }
             }
         };

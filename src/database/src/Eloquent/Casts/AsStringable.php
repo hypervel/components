@@ -35,6 +35,14 @@ class AsStringable implements Castable
             {
                 return isset($value) ? (string) $value : null;
             }
+
+            /**
+             * Determine if the assigned object can be cached as the attribute value.
+             */
+            public function shouldCacheObject(Model $model, string $key, object $value): bool
+            {
+                return $value instanceof Stringable;
+            }
         };
     }
 }

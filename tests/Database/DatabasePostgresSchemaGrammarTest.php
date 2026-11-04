@@ -281,6 +281,25 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "foo"', $statements[0]);
     }
 
+    public function testDropIndexOnSchemaQualifiedTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'tenant.users');
+        $blueprint->dropIndex(['email']);
+        $blueprint->dropIndex('foo');
+        $blueprint->dropIndex('other.bar');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(3, $statements);
+        $this->assertSame('drop index "tenant"."tenant_users_email_index"', $statements[0]);
+        $this->assertSame('drop index "tenant"."foo"', $statements[1]);
+        $this->assertSame('drop index "other"."bar"', $statements[2]);
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->dropIndex('foo');
+
+        $this->assertSame(['drop index "0"."foo"'], $blueprint->toSql());
+    }
+
     public function testDropSpatialIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
@@ -370,6 +389,21 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter index "foo" rename to "bar"', $statements[0]);
+    }
+
+    public function testRenameIndexOnSchemaQualifiedTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'tenant.users');
+        $blueprint->renameIndex('foo', 'bar');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter index "tenant"."foo" rename to "bar"', $statements[0]);
+
+        $blueprint = new Blueprint($this->getConnection(), '0.users');
+        $blueprint->renameIndex('foo', 'bar');
+
+        $this->assertSame(['alter index "0"."foo" rename to "bar"'], $blueprint->toSql());
     }
 
     public function testAddingPrimaryKey(): void
@@ -1601,6 +1635,20 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertStringNotContainsString('a.attgenerated', $statement);
     }
 
+    public function testCompileMetadataQueriesForSchemaNamedZero(): void
+    {
+        $connection = $this->getConnection();
+        $connection->expects('getServerVersion')->andReturn('12.0.0');
+        $grammar = $connection->getSchemaGrammar();
+
+        $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileTableExists('0', 'users'));
+        $this->assertStringEndsWith("n.nspname = '0' order by n.nspname, c.relname", $grammar->compileTables('0'));
+        $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileColumns('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' group", $grammar->compileIndexes('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' group", $grammar->compileForeignKeys('0', 'users'));
+        $this->assertStringContainsString("pn.nspname = '0' order", $grammar->compilePartitions('0', 'users'));
+    }
+
     public function testAddUsingKeywordToColumnOnChange(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'currency_rates');
@@ -1660,7 +1708,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
      */
     public function getBuilder(): PostgresBuilder
     {
-        return mock(PostgresBuilder::class);
+        return m::mock(PostgresBuilder::class)->makePartial();
     }
 
     public function testGrammarsAreMacroable(): void

@@ -1740,6 +1740,22 @@ Validator::make($input, [
 
 In general, you should always specify the array keys that are allowed to be present within your array.
 
+For convenience, array rules may also be constructed using the fluent `Rule::array()` rule builder. You may pass the allowed keys to the `array` method, and use the `min`, `max`, `between`, and `exactly` methods to limit the number of items in the array:
+
+```php
+use Hypervel\Validation\Rule;
+
+'user' => [
+    'required',
+    Rule::array(['name', 'username', 'email'])->min(2),
+],
+
+'tags' => [
+    'required',
+    Rule::array()->between(1, 5),
+],
+```
+
 <a name="rule-array-keys"></a>
 #### array_keys:_foo_,_bar_,...
 

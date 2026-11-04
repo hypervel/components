@@ -198,6 +198,15 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
+    public function testExplodedClosureRulesExposeTheirCallback(): void
+    {
+        $callback = static function (): void {};
+
+        $exploded = (new ValidationRuleParser([]))->explode(['name' => [$callback]]);
+
+        $this->assertSame($callback, $exploded->rules['name'][0]->callback);
+    }
+
     public function testExplodeFailsParsingSingleRegexRuleContainingPipe(): void
     {
         $data = ['items' => [['type' => 'foo']]];
@@ -584,6 +593,48 @@ class ValidationRuleParserTest extends TestCase
             'number' => [
                 'numeric',
                 'max:100',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesArrayRuleWithAdditionalRules(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo'],
+        ]));
+
+        $rules = [
+            'items' => Rule::array()->min(1)->max(5),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'array',
+                'min:1',
+                'max:5',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesArrayRuleWithAdditionalRulesInAnArray(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['key_1' => 'foo'],
+        ]));
+
+        $rules = [
+            'items' => ['required', Rule::array(['key_1', 'key_2'])->between(1, 2)],
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'required',
+                'array:"key_1","key_2"',
+                'between:1,2',
             ],
         ], $results->rules);
     }

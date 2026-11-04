@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Integration\Console\Scheduling;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
+use Hypervel\Console\Events\ScheduledTaskSkipped;
 use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\Event as ScheduledEvent;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
@@ -16,6 +18,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use ReflectionMethod;
@@ -210,6 +213,36 @@ class ScheduleRunCommandTest extends TestCase
                    && $event->task->skippedBecauseOverlapping === true;
         });
         Event::assertNotDispatched(ScheduledTaskFailed::class);
+        $this->assertFalse($ran);
+    }
+
+    // The array store is coroutine-local, so the other server's mutex would be invisible to the task's coroutine.
+    #[WithConfig('cache.default', 'worker-array')]
+    public function testTaskSkippedEventIsDispatchedWhenTaskRanOnAnotherServer(): void
+    {
+        Event::fake([
+            ScheduledTaskStarting::class,
+            ScheduledTaskFinished::class,
+            ScheduledTaskSkipped::class,
+        ]);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfMinute());
+
+        $ran = false;
+        $schedule = $this->app->make(Schedule::class);
+        $task = $schedule->call(function () use (&$ran): void {
+            $ran = true;
+        })->name('test')->onOneServer()->everyMinute();
+
+        $this->app->make(CacheSchedulingMutex::class)->create($task, CarbonImmutable::now());
+
+        $this->runSchedule($task);
+
+        Event::assertDispatched(ScheduledTaskSkipped::class, function (ScheduledTaskSkipped $event) use ($task): bool {
+            return $event->task === $task;
+        });
+        Event::assertNotDispatched(ScheduledTaskStarting::class);
+        Event::assertNotDispatched(ScheduledTaskFinished::class);
         $this->assertFalse($ran);
     }
 

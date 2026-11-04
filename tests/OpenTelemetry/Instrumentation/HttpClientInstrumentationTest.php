@@ -45,8 +45,6 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\UrlIncubatingAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -182,9 +180,9 @@ class HttpClientInstrumentationTest extends TestCase
             $attributes[UrlAttributes::URL_FULL],
         );
         $this->assertSame('https', $attributes[UrlAttributes::URL_SCHEME]);
-        $this->assertSame('/users/{user}', $attributes[UrlIncubatingAttributes::URL_TEMPLATE]);
-        $this->assertSame(12, $attributes[HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE]);
-        $this->assertSame(5, $attributes[HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE]);
+        $this->assertSame('/users/{user}', $attributes['url.template']);
+        $this->assertSame(12, $attributes['http.request.body.size']);
+        $this->assertSame(5, $attributes['http.response.body.size']);
         $this->assertSame(201, $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE]);
         $this->assertSame('2', $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION]);
         $this->assertArrayNotHasKey(NetworkAttributes::NETWORK_PROTOCOL_NAME, $attributes);
@@ -207,7 +205,7 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame('2', $points[0]->attributes->get(NetworkAttributes::NETWORK_PROTOCOL_VERSION));
         $this->assertNull($points[0]->attributes->get(UrlAttributes::URL_FULL));
         $this->assertNull($points[0]->attributes->get(UrlAttributes::URL_SCHEME));
-        $this->assertNull($points[0]->attributes->get(UrlIncubatingAttributes::URL_TEMPLATE));
+        $this->assertNull($points[0]->attributes->get('url.template'));
     }
 
     public function testUsesTheExactMethodExposedAtEachSupportedClientBoundary(): void

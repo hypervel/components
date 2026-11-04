@@ -1356,8 +1356,11 @@ class TextGenerationLoopTest extends TestCase
         $events = [
             new StreamStart('start-1', 'fake', 'model', time()),
             new TextDelta('sub-delta-1', 'sub-message-1', str_repeat('First step.', 30), time()),
+            new ToolResultEvent('sub-result', new ToolResultData('sub-call', 'lookup', [], 'found', 'sub-call'), true, null, time()),
             new StreamStart('start-2', 'fake', 'model', time()),
             new TextDelta('sub-delta-2', 'sub-message-2', str_repeat('Second step.', 30), time()),
+            new StreamStart('start-3', 'fake', 'model', time()),
+            new TextDelta('sub-delta-3', 'sub-message-3', str_repeat('Third step.', 30), time()),
             new StreamEnd('sub-end', FinishReason::Stop->value, new TextUsage, time()),
         ];
 
@@ -1369,7 +1372,10 @@ class TextGenerationLoopTest extends TestCase
         [$preliminary, $settled] = $streamed->whereInstanceOf(ToolResultEvent::class)
             ->partition(fn (ToolResultEvent $event): bool => $event->preliminary);
 
-        $this->assertSame(TextDelta::combine($events), $preliminary->last()->toolResult->result);
+        $this->assertSame(
+            str_repeat('First step.', 30) . "\n\n" . str_repeat('Second step.', 30) . str_repeat('Third step.', 30),
+            $preliminary->last()->toolResult->result,
+        );
         $this->assertSame($settled->first()->toolResult->result, $preliminary->last()->toolResult->result);
     }
 
@@ -1605,7 +1611,7 @@ class TextGenerationLoopTest extends TestCase
         });
         $gateway = m::mock(StepTextGateway::class);
         $gateway->shouldReceive('generateTextStep')->once()->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         (new TextGenerationLoop($gateway))->generate(
             $provider,
@@ -1638,7 +1644,7 @@ class TextGenerationLoopTest extends TestCase
         $store->shouldNotReceive('recordApprovalResult');
         $tool = $this->approvalTool();
         $tool->shouldNotReceive('handle');
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         $this->expectException(ApprovalMismatchException::class);
 
@@ -1670,7 +1676,7 @@ class TextGenerationLoopTest extends TestCase
         }
         $tool = $this->approvalTool();
         $tool->shouldReceive('handle')->once()->andThrow($exception);
-        $context = new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher, approvalStore: $store, conversationId: 'conversation');
+        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         try {
             (new TextGenerationLoop($gateway))->generate(

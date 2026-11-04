@@ -281,6 +281,41 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertFalse($this->anyModeRegistryHasTag('interrupted'));
     }
 
+    public function testAnyModeFlushingTagsWhileASharedKeyIsRewrittenLeavesNoLiveValueUnindexed(): void
+    {
+        $this->setTagMode(TagMode::Any);
+        $cache = Cache::tags(['people', 'artist']);
+        $cache->forever('person', 'Sally');
+
+        $context = $this->store()->getContext();
+        $scanner = new GetTaggedKeys($context);
+        $reader = m::mock(GetTaggedKeys::class);
+        $reader->expects('execute')->with('people')->andReturnUsing(fn (): Generator => $scanner->execute('people'));
+        $reader->expects('execute')->with('artist')->andReturnUsing(function () use ($cache, $scanner): Generator {
+            // Rewrite the shared key after the first tag's pass, before the second tag is scanned.
+            $cache->forever('person', 'John');
+
+            yield from $scanner->execute('artist');
+        });
+
+        (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['people', 'artist']);
+
+        // The second tag's pass deletes the rewritten value with its reverse index. Only the
+        // rewrite's membership in the already-flushed first tag remains until it is flushed again.
+        $this->assertNull(Cache::get('person'));
+        $this->assertSame([], $this->getAnyModeReverseIndex('person'));
+        $this->assertTrue($this->anyModeTagHasEntry('people', 'person'));
+
+        Cache::tags(['people'])->flush();
+        Cache::tags(['artist'])->flush();
+
+        $this->assertNull(Cache::get('person'));
+        $this->assertSame([], $this->getAnyModeTagEntries('people'));
+        $this->assertSame([], $this->getAnyModeTagEntries('artist'));
+        $this->assertFalse($this->anyModeRegistryHasTag('people'));
+        $this->assertFalse($this->anyModeRegistryHasTag('artist'));
+    }
+
     // =========================================================================
     // OPERATIONS ON DIFFERENT TAGS - BOTH MODES
     // =========================================================================

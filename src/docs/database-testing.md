@@ -127,6 +127,21 @@ class ExampleTest extends TestCase
 
 The trait monitors every connection returned by your test's `connectionsToTransact` method. The first query or transaction on any of these connections refreshes the database once and starts the test transactions.
 
+Since the database may be migrated in the middle of a test, your query listeners could receive the migration's queries. To migrate without dispatching database events on these connections, add the `WithoutMigrationEvents` attribute to the test class or test method. The attribute also works with the `RefreshDatabase` trait:
+
+```php
+use Hypervel\Foundation\Testing\Attributes\WithoutMigrationEvents;
+use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
+
+#[WithoutMigrationEvents]
+class ExampleTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    // ...
+}
+```
+
 <a name="refresh-hooks"></a>
 ### Refresh Hooks
 

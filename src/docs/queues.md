@@ -216,6 +216,8 @@ The `connection` setting may be omitted or null to use the default database conn
 
 In order to use the `redis` queue driver, you should configure a Redis database connection in your `config/database.php` configuration file. Hypervel's Redis queue driver uses the Hypervel Redis component, which is powered by the PhpRedis extension.
 
+If multiple instances of your application share a Redis server, each instance should use its own [key prefix](/docs/{{version}}/redis#key-prefixes) or Redis database. Otherwise, the queue worker of one instance may process jobs dispatched by another instance.
+
 The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs. Omitting `connection` uses the default Redis connection, omitting `retry_after` uses 60 seconds, and omitting `block_for` disables blocking.
 
 <a name="redis-cluster"></a>
@@ -4143,6 +4145,17 @@ class AppServiceProvider extends ServiceProvider
 ```
 
 The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run. It is `null` when the worker skips the job because it was already deleted, such as by a `JobProcessing` listener.
+
+If you would like to be notified when a job takes too long to run, you may use the `whenJobRunsLongerThan` method. Provide a threshold in milliseconds, or a `CarbonInterval`, and a closure that receives the job and the number of milliseconds the attempt took. The closure is invoked for each attempt that exceeds the threshold, whether or not the attempt succeeds:
+
+```php
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Support\Facades\Queue;
+
+Queue::whenJobRunsLongerThan(1000, function (Job $job, float $duration) {
+    // Notify the development team...
+});
+```
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. This event is not dispatched when coroutine cancellation interrupts the attempt, including when the exception was caused by cancellation. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 

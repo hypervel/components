@@ -508,7 +508,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->andReturn(['key1', 'key2']);
 
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
@@ -530,7 +530,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->once()
             ->andReturn(['key1', 'key2']);
         $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])

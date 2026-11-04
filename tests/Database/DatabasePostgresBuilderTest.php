@@ -15,6 +15,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class DatabasePostgresBuilderTest extends TestCase
@@ -352,6 +353,43 @@ class DatabasePostgresBuilderTest extends TestCase
         $this->assertSame('public', $builder->getCurrentSchemaName());
     }
 
+    #[DataProvider('currentSchemaListingConfigurationProvider')]
+    public function testCurrentSchemaListingFollowsTheConnectorSettingPrecedence(?string $searchPath, ?string $schema, array $expected): void
+    {
+        $connection = $this->getConnection();
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
+        $connection->shouldReceive('getConfig')->with('search_path')->andReturn($searchPath);
+        $connection->shouldReceive('getConfig')->with('schema')->andReturn($schema);
+
+        $this->assertSame($expected, $this->getBuilder($connection)->getCurrentSchemaListing());
+    }
+
+    /**
+     * Get the search path and schema settings with their expected schema listings.
+     */
+    public static function currentSchemaListingConfigurationProvider(): array
+    {
+        return [
+            'search path named zero' => ['0', 'tenant', ['0']],
+            'schema fallback' => [null, 'tenant', ['tenant']],
+            'public default' => [null, null, ['public']],
+            'empty search path' => ['', 'tenant', []],
+        ];
+    }
+
+    public function testHasViewIsFalseWithoutACurrentSchema(): void
+    {
+        $connection = $this->getConnection();
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
+        $connection->shouldReceive('scalar')
+            ->once()
+            ->with('select current_schema()', [], false)
+            ->andReturnNull();
+        $connection->shouldNotReceive('selectFromWriteConnection');
+
+        $this->assertFalse($this->getBuilder($connection)->hasView('active_users'));
+    }
+
     public function testHasViewUsesTheActualCurrentSchema(): void
     {
         $connection = $this->getConnection();
@@ -363,8 +401,8 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->shouldReceive('scalar')
             ->once()
             ->with('select current_schema()', [], false)
-            ->andReturn('public');
-        $grammar->shouldReceive('compileViews')->once()->with('public')->andReturn('sql');
+            ->andReturn('tenant.example');
+        $grammar->shouldReceive('compileViews')->once()->with('tenant.example')->andReturn('sql');
         $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([
             ['name' => 'active_users'],
         ]);
@@ -440,6 +478,20 @@ class DatabasePostgresBuilderTest extends TestCase
         $builder = $this->getBuilder($connection);
 
         $builder->dropAllTables();
+    }
+
+    public function testDropAllObjectsWithAnEmptySearchPathLeavesEverySchemaUntouched(): void
+    {
+        $connection = $this->getConnection();
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
+        $connection->shouldReceive('getConfig')->times(3)->with('search_path')->andReturn('');
+        $connection->shouldNotReceive('selectFromWriteConnection');
+        $connection->shouldNotReceive('statement');
+        $builder = $this->getBuilder($connection);
+
+        $builder->dropAllTables();
+        $builder->dropAllViews();
+        $builder->dropAllTypes();
     }
 
     public function testDropAllTablesPropagatesAFalseStatementResult(): void

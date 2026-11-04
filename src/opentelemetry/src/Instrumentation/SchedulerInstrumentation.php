@@ -84,13 +84,13 @@ class SchedulerInstrumentation extends AbstractInstrumentation
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.scheduler');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.scheduler', schemaUrl: $this->schemaUrl());
         }
 
         $meter = null;
 
         if ($this->metricEnabled(self::DURATION_METRIC)) {
-            $meter = $this->meterProvider->getMeter('hypervel.scheduler');
+            $meter = $this->meterProvider->getMeter('hypervel.scheduler', schemaUrl: $this->schemaUrl());
             $this->duration = $meter->createHistogram(
                 self::DURATION_METRIC,
                 's',
@@ -100,7 +100,7 @@ class SchedulerInstrumentation extends AbstractInstrumentation
         }
 
         if ($this->metricEnabled(self::EXECUTIONS_METRIC)) {
-            $meter ??= $this->meterProvider->getMeter('hypervel.scheduler');
+            $meter ??= $this->meterProvider->getMeter('hypervel.scheduler', schemaUrl: $this->schemaUrl());
             $this->executions = $meter->createCounter(
                 self::EXECUTIONS_METRIC,
                 '{execution}',

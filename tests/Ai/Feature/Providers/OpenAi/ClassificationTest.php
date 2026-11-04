@@ -12,6 +12,7 @@ use Hypervel\Ai\Classification\Score;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
@@ -65,6 +66,31 @@ class ClassificationTest extends TestCase
                     ],
                 ];
         });
+    }
+
+    public function testBooleanCriteriaGivenAsArraysAreSentAsJsonText(): void
+    {
+        Http::fake(['*' => Http::response($this->fakeOpenAiDecisionsResponse())]);
+
+        Classification::of('I was charged twice for my order.')
+            ->question('is_urgent', new Boolean('Is this urgent?', [
+                'true' => ['Money was lost.', 'The customer is blocked.'],
+                'false' => 'A question only.',
+            ]))
+            ->classify(provider: 'openai');
+
+        Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['questions'][0]['instructions']
+            === "Is this urgent?\n\nTrue: [\"Money was lost.\",\"The customer is blocked.\"]\n\nFalse: A question only.");
+    }
+
+    public function testTheRawDecisionsResponseIsExposedOnTheClassificationResponse(): void
+    {
+        Http::fake(['*' => Http::response($this->fakeOpenAiDecisionsResponse())]);
+
+        $response = Classification::of('text')->question('is_urgent', new Boolean('Is this urgent?'))->classify(provider: 'openai');
+
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame('gpt-6-luna', $response->raw->json('model'));
     }
 
     public function testStructuredStateIsSentAsJsonText(): void

@@ -178,7 +178,7 @@ class ClientRequestWatcher extends Watcher
 
                 $value = [
                     'name' => $part['filename'] ?? null,
-                    'size' => $size ? ($size / 1000) . 'KB' : null,
+                    'size' => $size !== null ? ($size / 1000) . 'KB' : null,
                     'headers' => $part['headers'] ?? [],
                 ];
             } elseif (json_encode($part['contents']) === false) {

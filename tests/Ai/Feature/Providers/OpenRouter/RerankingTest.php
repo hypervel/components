@@ -10,6 +10,7 @@ use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Reranking;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -131,12 +132,14 @@ class RerankingTest extends TestCase
     {
         Http::fake(['*' => Http::response([
             'results' => [['index' => 0, 'relevance_score' => 0.95]],
-            'usage' => ['total_tokens' => 320, 'search_units' => 1],
+            'usage' => ['total_tokens' => 320, 'search_units' => 1, 'cost' => 0.001],
         ])]);
 
         $response = Reranking::of(['Doc A'])->rerank('query', provider: 'openrouter', model: 'cohere/rerank-v3.5');
 
         $this->assertSame(320, $response->usage->inputTokens);
         $this->assertSame(1.0, $response->usage->searchUnits);
+        $this->assertInstanceOf(Response::class, $response->raw);
+        $this->assertSame(0.001, $response->raw->json('usage.cost'));
     }
 }

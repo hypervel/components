@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Closure;
+use ErrorException;
+use Exception;
 use Generator;
 use Hypervel\Database\Events\StatementPrepared;
+use Hypervel\Support\Str;
 use PDO;
+use PDOException;
 use PDOStatement;
 use RuntimeException;
 use stdClass;
@@ -331,6 +335,21 @@ class PdoConnection extends Connection
         }
 
         return $escaped;
+    }
+
+    /**
+     * Determine if the given exception was thrown by the database driver.
+     */
+    protected function isDriverError(Exception $exception): bool
+    {
+        // Error handlers convert native PDO and mysqlnd warnings into ErrorException.
+        return $exception instanceof PDOException
+            || ($exception instanceof ErrorException && Str::startsWith($exception->getMessage(), [
+                'PDO::',
+                'PDOStatement::',
+                'Packets out of order. Expected',
+                'Error while sending',
+            ]));
     }
 
     /**

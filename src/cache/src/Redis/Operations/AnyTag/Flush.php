@@ -40,24 +40,27 @@ class Flush
         }
 
         $tags = array_map(strval(...), $tags);
-        $tagKeys = array_map($this->context->tagHashKey(...), $tags);
         $isCluster = $this->context->isCluster();
 
-        $buffer = [];
-
+        // Flush one tag at a time so each chunk is only removed from the tag it was scanned
+        // from. Removing every chunk from every requested tag multiplies the work by the tag
+        // count and blocks Redis when many tags are flushed together.
         foreach ($tags as $tag) {
+            $tagKey = $this->context->tagHashKey($tag);
+            $buffer = [];
+
             foreach ($this->getTaggedKeys->execute($tag) as $key) {
-                $buffer[$key] = true;
+                $buffer[] = $key;
 
                 if (count($buffer) === self::CHUNK_SIZE) {
-                    $this->flushChunk(array_keys($buffer), $tagKeys, $isCluster);
+                    $this->flushChunk($buffer, $tagKey, $isCluster);
                     $buffer = [];
                 }
             }
-        }
 
-        if ($buffer !== []) {
-            $this->flushChunk(array_keys($buffer), $tagKeys, $isCluster);
+            if ($buffer !== []) {
+                $this->flushChunk($buffer, $tagKey, $isCluster);
+            }
         }
 
         $this->context->withConnection(
@@ -71,23 +74,19 @@ class Flush
      * Delete a bounded chunk of values and their scanned memberships.
      *
      * @param array<int, int|string> $keys Cache keys without the store prefix
-     * @param array<int, string> $tagKeys
      */
-    private function flushChunk(array $keys, array $tagKeys, bool $isCluster): void
+    private function flushChunk(array $keys, string $tagKey, bool $isCluster): void
     {
         $keys = array_map(strval(...), $keys);
         $prefix = $this->context->prefix();
         $reverseIndexKeys = array_map($this->context->reverseIndexKey(...), $keys);
         $valueKeys = array_map(fn (string $key): string => $prefix . $key, $keys);
 
-        $this->context->withConnection(function (RedisConnection $connection) use ($keys, $tagKeys, $reverseIndexKeys, $valueKeys, $isCluster): void {
+        $this->context->withConnection(function (RedisConnection $connection) use ($keys, $tagKey, $reverseIndexKeys, $valueKeys, $isCluster): void {
             if ($isCluster) {
                 // Remove memberships before values so racing writers leave only
                 // orphaned metadata for Prune, never unindexed live values.
-                foreach ($tagKeys as $tagKey) {
-                    $connection->hdel($tagKey, ...$keys);
-                }
-
+                $connection->hdel($tagKey, ...$keys);
                 $connection->del(...$reverseIndexKeys);
                 $connection->unlink(...$valueKeys);
 
@@ -96,8 +95,8 @@ class Flush
 
             $connection->evalWithShaCache(
                 $this->flushChunkScript(),
-                [...$tagKeys, ...$reverseIndexKeys, ...$valueKeys],
-                [count($tagKeys), count($keys), ...$keys],
+                [$tagKey, ...$reverseIndexKeys, ...$valueKeys],
+                [count($keys), ...$keys],
             );
         });
     }
@@ -108,15 +107,11 @@ class Flush
     protected function flushChunkScript(): string
     {
         return <<<'LUA'
-            local tagCount = tonumber(ARGV[1])
-            local keyCount = tonumber(ARGV[2])
+            local keyCount = tonumber(ARGV[1])
 
-            for i = 1, tagCount do
-                redis.call('HDEL', KEYS[i], unpack(ARGV, 3, #ARGV))
-            end
-
-            redis.call('DEL', unpack(KEYS, tagCount + 1, tagCount + keyCount))
-            redis.call('UNLINK', unpack(KEYS, tagCount + keyCount + 1, #KEYS))
+            redis.call('HDEL', KEYS[1], unpack(ARGV, 2, #ARGV))
+            redis.call('DEL', unpack(KEYS, 2, keyCount + 1))
+            redis.call('UNLINK', unpack(KEYS, keyCount + 2, #KEYS))
 
             return 1
             LUA;

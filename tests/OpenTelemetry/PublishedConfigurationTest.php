@@ -36,7 +36,7 @@ class PublishedConfigurationTest extends TestCase
 
         $this->assertSame([
             'db.client.connection.count' => true,
-            'db.client.connection.max' => true,
+            'db.client.connection.limit' => true,
             'db.client.connection.pending_requests' => true,
             'db.client.operation.duration' => true,
             'http.client.request.duration' => true,
@@ -45,7 +45,7 @@ class PublishedConfigurationTest extends TestCase
             'hypervel.cache.operations' => true,
             'hypervel.console.command.duration' => true,
             'hypervel.exceptions' => true,
-            'hypervel.object_pool.max' => true,
+            'hypervel.object_pool.limit' => true,
             'hypervel.object_pool.objects' => true,
             'hypervel.object_pool.pending_requests' => true,
             'hypervel.queue.jobs' => false,

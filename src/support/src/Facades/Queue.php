@@ -44,6 +44,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Queue\QueueManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static void starting(mixed $callback)
  * @method static void stopping(mixed $callback)
+ * @method static void whenJobRunsLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
  * @method static void withoutInterruptionPolling()
  * @method static mixed bulk(array $jobs, mixed $data = '', \UnitEnum|string|null $queue = null)
  * @method static int|null creationTimeOfOldestPendingJob(\UnitEnum|string|null $queue = null)

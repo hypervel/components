@@ -94,6 +94,45 @@ class ToolCallLoopTest extends TestCase
         $this->assertCount(2, $response->steps);
     }
 
+    public function testToolCallsRunWhenTheMessageEndsWithEndTurn(): void
+    {
+        $client = $this->fakeBedrockConverseSequence([
+            ['stopReason' => 'end_turn'] + bedrockToolCallResponse('t1'),
+            bedrockTextResponse('The number is 72019'),
+        ]);
+
+        $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
+            $this->bedrockProvider(),
+            'anthropic.claude-opus-4-7-v1:0',
+            null,
+            messages: [new UserMessage('Generate a number')],
+            tools: [new FixedNumberGenerator],
+            options: new TextGenerationOptions(maxSteps: 5),
+        );
+
+        $this->assertSame('The number is 72019', (string) $response);
+        $this->assertCount(1, $response->toolResults);
+    }
+
+    public function testToolCallsDoNotRunWhenTheMessageEndsWithMaxTokens(): void
+    {
+        $client = $this->fakeBedrockConverseSequence([
+            ['stopReason' => 'max_tokens'] + bedrockToolCallResponse('t1'),
+        ]);
+
+        $response = (new TextGenerationLoop($this->gatewayWithClient($client)))->generate(
+            $this->bedrockProvider(),
+            'anthropic.claude-opus-4-7-v1:0',
+            null,
+            messages: [new UserMessage('Generate a number')],
+            tools: [new FixedNumberGenerator],
+            options: new TextGenerationOptions(maxSteps: 5),
+        );
+
+        $this->assertCount(1, $response->steps);
+        $this->assertCount(0, $response->toolResults);
+    }
+
     public function testUnknownToolCallThrowsNoSuchToolException(): void
     {
         $client = $this->fakeBedrockConverse([

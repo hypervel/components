@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Responses;
 
 use Countable;
+use Hypervel\Ai\Responses\Concerns\HasRawResponse;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\Usage;
 use Hypervel\Contracts\Support\Arrayable;
@@ -14,6 +15,8 @@ use Traversable;
 
 class EmbeddingsResponse implements Arrayable, Countable, IteratorAggregate, JsonSerializable
 {
+    use HasRawResponse;
+
     /**
      * Create a new embeddings response instance.
      *

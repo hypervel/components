@@ -50,8 +50,6 @@ use OpenTelemetry\SemConv\Attributes\HttpAttributes;
 use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\HttpIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Metrics\HttpIncubatingMetrics;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use RuntimeException;
 
@@ -121,7 +119,7 @@ class HttpServerInstrumentationTest extends TestCase
             'response_headers' => ['x-response'],
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => true,
+                'http.server.active_requests' => true,
             ],
         ]));
 
@@ -176,8 +174,8 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertSame('/users/{user}', $attributes[HttpAttributes::HTTP_ROUTE]);
         $this->assertSame(201, $attributes[HttpAttributes::HTTP_RESPONSE_STATUS_CODE]);
         $this->assertSame('safe=yes&token=REDACTED', $attributes[UrlAttributes::URL_QUERY]);
-        $this->assertSame(12, $attributes[HttpIncubatingAttributes::HTTP_REQUEST_BODY_SIZE]);
-        $this->assertSame(5, $attributes[HttpIncubatingAttributes::HTTP_RESPONSE_BODY_SIZE]);
+        $this->assertSame(12, $attributes['http.request.body.size']);
+        $this->assertSame(5, $attributes['http.response.body.size']);
         $this->assertArrayNotHasKey(NetworkAttributes::NETWORK_PROTOCOL_NAME, $attributes);
         $this->assertSame('1.1', $attributes[NetworkAttributes::NETWORK_PROTOCOL_VERSION]);
         $this->assertArrayNotHasKey(ServerAttributes::SERVER_ADDRESS, $attributes);
@@ -199,7 +197,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertNull($durationPoints[0]->attributes->get(ServerAttributes::SERVER_ADDRESS));
         $this->assertNull($durationPoints[0]->attributes->get(ServerAttributes::SERVER_PORT));
 
-        $activeRequests = $this->metric(HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS);
+        $activeRequests = $this->metric('http.server.active_requests');
         $this->assertInstanceOf(Sum::class, $activeRequests->data);
         $activePoints = $activeRequests->data->dataPoints;
         $this->assertIsArray($activePoints);
@@ -350,7 +348,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options([
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => false,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => true,
+                'http.server.active_requests' => true,
             ],
         ]));
         $request = CompletionDetailTrapRequest::create('/users', 'GET');
@@ -361,7 +359,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->assertSame([], $this->spanExporter->getSpans());
         $this->assertSame(3_000_000_000, $this->clock->timestamp);
         $this->metricReader->collect();
-        $activeRequests = $this->metric(HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS);
+        $activeRequests = $this->metric('http.server.active_requests');
         $this->assertSame(0, $activeRequests->data->dataPoints[0]->value);
     }
 
@@ -422,7 +420,7 @@ class HttpServerInstrumentationTest extends TestCase
             'response_headers' => [],
             'metrics' => [
                 HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
-                HttpIncubatingMetrics::HTTP_SERVER_ACTIVE_REQUESTS => false,
+                'http.server.active_requests' => false,
             ],
         ], $overrides);
     }

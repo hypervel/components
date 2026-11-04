@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\DevTools\DevTools;
 use Hypervel\Inertia\DevTools\RequestRecorder;
@@ -114,16 +115,23 @@ class PropsResolver
     /**
      * The scroll pagination metadata for each scroll prop.
      *
-     * @var array<string, array<string, mixed>>
+     * @var array<string, array{pageName: string, previousPage: null|int|string, nextPage: null|int|string, currentPage: null|int|string, reset: bool}>
      */
     protected array $scrollProps = [];
 
     /**
      * The once-prop metadata for each once prop.
      *
-     * @var array<string, array<string, mixed>>
+     * @var array<string, array{prop: string, expiresAt: null|int}>
      */
     protected array $onceProps = [];
+
+    /**
+     * The live update listeners for each live prop.
+     *
+     * @var array<string, array{listeners: array<int, array{channel: array{name: string, type: string}, events: array<int, string>}>, throttle?: int}>
+     */
+    protected array $liveProps = [];
 
     /**
      * The top-level keys of shared props.
@@ -172,6 +180,45 @@ class PropsResolver
             $this->resolveProps($this->unpackDotProps($props)),
             $this->buildMetadata(),
         ];
+    }
+
+    /**
+     * Resolve the given broadcast props. Dot-notation keys stay flat and literal,
+     * since only a page response unpacks them into nested arrays.
+     *
+     * @param array<array-key, mixed> $props
+     * @return array<array-key, mixed>
+     */
+    public function resolveBroadcastProps(array $props, string $prefix = ''): array
+    {
+        $props = $this->resolvePropertyProviders($props);
+        $result = [];
+
+        foreach ($props as $key => $value) {
+            $path = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
+
+            // Resolution mutates a scroll prop, so a reused one resolves through its own copy,
+            // as it does for a page response.
+            $prop = $value instanceof ScrollProp ? clone $value : $value;
+
+            $value = $this->resolveValue($prop, $path, $props);
+
+            if ($value !== $prop && $this->isPropType($value)) {
+                $value = $this->resolveValue($value instanceof ScrollProp ? clone $value : $value, $path, $props);
+            }
+
+            // A rescued prop resolved to null, so leave it out rather than
+            // broadcasting null over data the client already has.
+            if (in_array($path, $this->rescuedProps, true)) {
+                continue;
+            }
+
+            $result[$key] = is_array($value)
+                ? $this->resolveBroadcastProps($value, $path)
+                : $value;
+        }
+
+        return $result;
     }
 
     /**
@@ -244,6 +291,7 @@ class PropsResolver
             'rescuedProps' => $this->rescuedProps,
             'scrollProps' => $this->scrollProps,
             'onceProps' => $this->onceProps,
+            'liveProps' => $this->liveProps,
         ], fn ($value) => count($value) > 0);
     }
 
@@ -281,12 +329,6 @@ class PropsResolver
 
             $value = $this->resolveValue($prop, $path, $props);
 
-            if (in_array($path, $this->rescuedProps, true)) {
-                $this->recorder?->propRescued($path, $prop);
-
-                continue;
-            }
-
             // A closure may return a prop type instead of a plain value. When
             // this happens, we unwrap it one more level so the prop type can
             // participate in filtering and metadata collection below.
@@ -302,7 +344,15 @@ class PropsResolver
                 $value = $this->resolveValue($prop, $path, $props);
             }
 
-            $this->collectMetadata($prop, $path);
+            // Checked after unwrapping, so a rescued prop returned from a closure
+            // is left out with its metadata too, instead of resolving to null.
+            if (in_array($path, $this->rescuedProps, true)) {
+                $this->recorder?->propRescued($path, $prop);
+
+                continue;
+            }
+
+            $this->collectMetadata($prop, $path, $parentWasResolved);
             $this->recorder?->propResolved($path, $prop);
 
             // When the resolved value is an array, we recurse into it. If the
@@ -322,7 +372,7 @@ class PropsResolver
      */
     protected function shouldIncludeInPartialResponse(mixed $prop, string $path, bool $parentWasResolved): bool
     {
-        if (! $this->isPartial || $prop instanceof AlwaysProp || $parentWasResolved) {
+        if (! $this->isPartial || $this->bypassesPartialFiltering($prop, $parentWasResolved)) {
             return true;
         }
 
@@ -331,6 +381,14 @@ class PropsResolver
         }
 
         return is_array($prop) && $this->containsAlwaysProp($prop);
+    }
+
+    /**
+     * Determine if a prop is resolved independently of partial request filters.
+     */
+    protected function bypassesPartialFiltering(mixed $prop, bool $parentWasResolved): bool
+    {
+        return $prop instanceof AlwaysProp || $parentWasResolved;
     }
 
     /**
@@ -373,6 +431,11 @@ class PropsResolver
      */
     protected function excludeFromInitialResponse(mixed $prop, string $path): bool
     {
+        // Excluding a prop from the initial response never removes its live listeners.
+        if ($prop instanceof SupportsLiveUpdates && $prop->isLive()) {
+            $this->collectLiveMetadata($path, $prop, false);
+        }
+
         // OptionalProp and DeferProp implement IgnoreFirstLoad and are never
         // sent on the initial page load. They still contribute deferred,
         // merge, and once metadata for the client to act on.
@@ -498,7 +561,8 @@ class PropsResolver
 
             return $value;
         } catch (Throwable $e) {
-            if (! $shouldRescue) {
+            // Rescuing covers failures of the prop itself, never the canceled request around it.
+            if (! $shouldRescue || Coroutine::causedByCancellation($e)) {
                 throw $e;
             }
 
@@ -519,6 +583,7 @@ class PropsResolver
         return $value instanceof AlwaysProp
             || $value instanceof Deferrable
             || $value instanceof IgnoreFirstLoad
+            || $value instanceof SupportsLiveUpdates
             || $value instanceof Mergeable
             || $value instanceof Onceable;
     }
@@ -526,7 +591,7 @@ class PropsResolver
     /**
      * Collect metadata for a prop that will be included in the response.
      */
-    protected function collectMetadata(mixed $prop, string $path): void
+    protected function collectMetadata(mixed $prop, string $path, bool $parentWasResolved): void
     {
         if ($prop instanceof Mergeable && $prop->shouldMerge()) {
             $this->collectMergeableMetadata($path, $prop);
@@ -538,6 +603,13 @@ class PropsResolver
 
         if ($prop instanceof Onceable && $prop->shouldResolveOnce()) {
             $this->collectOnceMetadata($path, $prop);
+        }
+
+        // On an initial load, excludeFromInitialResponse() has already collected the
+        // listeners of every prop that reaches here. Collecting them again would call
+        // each event's broadcastOn() a second time for the same result.
+        if ($this->isPartial && $prop instanceof SupportsLiveUpdates && $prop->isLive()) {
+            $this->collectLiveMetadata($path, $prop, $parentWasResolved);
         }
     }
 
@@ -615,6 +687,25 @@ class PropsResolver
     }
 
     /**
+     * Collect the live update listeners for a live prop. Emitted on every
+     * response, so a partial reload keeps the listeners it refreshed up to date.
+     */
+    protected function collectLiveMetadata(string $path, SupportsLiveUpdates $prop, bool $parentWasResolved): void
+    {
+        // A partial reload only reaches here for a live prop it sends, and sends it whole,
+        // even when the request names one of its descendants or the prop resolves outside
+        // the filters. Its listeners go with it, since model-bound channels may change.
+        // $parentWasResolved keeps upstream's signature for resolvers that override this.
+        $this->liveProps[$path] = [
+            'listeners' => $prop->liveListeners(),
+        ];
+
+        if ($prop->liveThrottle() !== null) {
+            $this->liveProps[$path]['throttle'] = $prop->liveThrottle();
+        }
+    }
+
+    /**
      * Determine if the path should contribute metadata during a partial request.
      */
     protected function isIncludedInPartialMetadata(string $path): bool
@@ -636,7 +727,7 @@ class PropsResolver
     protected function matchesOnly(string $path): bool
     {
         foreach ($this->only as $onlyPath) {
-            if ($path === $onlyPath || str_starts_with($path, "{$onlyPath}.")) {
+            if ($this->pathIsSameOrDescendant($path, $onlyPath)) {
                 return true;
             }
         }
@@ -664,12 +755,20 @@ class PropsResolver
     protected function matchesExcept(string $path): bool
     {
         foreach ($this->except as $exceptPath) {
-            if ($path === $exceptPath || str_starts_with($path, "{$exceptPath}.")) {
+            if ($this->pathIsSameOrDescendant($path, $exceptPath)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Determine if a dot path matches another path or belongs to its subtree.
+     */
+    protected function pathIsSameOrDescendant(string $path, string $parent): bool
+    {
+        return $path === $parent || str_starts_with($path, "{$parent}.");
     }
 
     /**

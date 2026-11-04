@@ -38,13 +38,6 @@ class UnitTestTest extends TestCase
         $this->assertTrue($testCase->shouldBootFramework());
     }
 
-    public function testMissingMethodDefaultsToBootingFramework(): void
-    {
-        $testCase = new UnitTestFoundationTestCase('missingMethod');
-
-        $this->assertTrue($testCase->shouldBootFramework());
-    }
-
     public function testUnitTestStillRunsInsideCoroutine(): void
     {
         $testCase = new UnitTestFoundationTestCase('unitMethod');

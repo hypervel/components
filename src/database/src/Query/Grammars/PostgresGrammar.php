@@ -176,12 +176,17 @@ class PostgresGrammar extends Grammar
         return [
             'simple',
             'arabic',
+            'armenian',
+            'basque',
+            'catalan',
             'danish',
             'dutch',
             'english',
             'finnish',
             'french',
             'german',
+            'greek',
+            'hindi',
             'hungarian',
             'indonesian',
             'irish',
@@ -192,10 +197,12 @@ class PostgresGrammar extends Grammar
             'portuguese',
             'romanian',
             'russian',
+            'serbian',
             'spanish',
             'swedish',
             'tamil',
             'turkish',
+            'yiddish',
         ];
     }
 

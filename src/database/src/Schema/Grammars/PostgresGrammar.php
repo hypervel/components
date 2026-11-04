@@ -70,7 +70,7 @@ class PostgresGrammar extends Grammar
         return sprintf(
             'select exists (select 1 from pg_class c, pg_namespace n where '
             . "n.nspname = %s and c.relname = %s and c.relkind in ('r', 'p') and n.oid = c.relnamespace)",
-            $schema ? $this->quoteString($schema) : 'current_schema()',
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()',
             $this->quoteString($table)
         );
     }
@@ -125,7 +125,7 @@ class PostgresGrammar extends Grammar
     {
         return $column . (match (true) {
             ! empty($schema) && is_array($schema) => ' in (' . $this->quoteString($schema) . ')',
-            ! empty($schema) => ' = ' . $this->quoteString($schema),
+            is_string($schema) => ' = ' . $this->quoteString($schema),
             default => " <> 'information_schema' and {$column} not like 'pg\\_%'",
         });
     }
@@ -150,7 +150,7 @@ class PostgresGrammar extends Grammar
             . 'where c.relname = %s and n.nspname = %s and a.attnum > 0 and a.attrelid = c.oid and a.atttypid = t.oid and n.oid = c.relnamespace '
             . 'order by a.attnum',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -173,7 +173,7 @@ class PostgresGrammar extends Grammar
             . 'where tc.relname = %s and tn.nspname = %s '
             . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -199,7 +199,7 @@ class PostgresGrammar extends Grammar
             . "where c.contype = 'f' and tc.relname = %s and tn.nspname = %s "
             . 'group by c.conname, fn.nspname, fc.relname, c.confupdtype, c.confdeltype',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -218,7 +218,7 @@ class PostgresGrammar extends Grammar
             . 'where c.relispartition and pc.relname = %s and pn.nspname = %s '
             . 'order by n.nspname, c.relname',
             $this->quoteString($table),
-            $schema ? $this->quoteString($schema) : 'current_schema()'
+            $schema !== null ? $this->quoteString($schema) : 'current_schema()'
         );
     }
 
@@ -606,7 +606,7 @@ class PostgresGrammar extends Grammar
      */
     public function compileDropIndex(Blueprint $blueprint, Fluent $command): string
     {
-        return "drop index {$this->wrap($command->index)}";
+        return "drop index {$this->wrapIndex($blueprint, $command->index)}";
     }
 
     /**
@@ -660,9 +660,21 @@ class PostgresGrammar extends Grammar
     {
         return sprintf(
             'alter index %s rename to %s',
-            $this->wrap($command->from),
+            $this->wrapIndex($blueprint, $command->from),
             $this->wrap($command->to)
         );
+    }
+
+    /**
+     * Wrap an index name, qualifying it with the schema of the blueprint's table.
+     */
+    protected function wrapIndex(Blueprint $blueprint, string $index): string
+    {
+        [$schema] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
+
+        return $schema !== null && ! str_contains($index, '.')
+            ? $this->wrapValue($schema) . '.' . $this->wrap($index)
+            : $this->wrap($index);
     }
 
     /**

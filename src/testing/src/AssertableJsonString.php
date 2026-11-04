@@ -62,6 +62,20 @@ class AssertableJsonString implements ArrayAccess, Countable
     }
 
     /**
+     * Return the decoded JSON with objects as stdClass instances.
+     *
+     * Unlike json(), this keeps empty and numeric-key JSON objects distinct from arrays.
+     *
+     * @throws JsonException
+     */
+    public function object(?string $key = null): mixed
+    {
+        $json = is_string($this->json) ? $this->json : Json::encode($this->json);
+
+        return data_get(Json::decode($json, false), $key);
+    }
+
+    /**
      * Assert that the response JSON has the expected count of items at the given key.
      */
     public function assertCount(int $count, ?string $key = null): static

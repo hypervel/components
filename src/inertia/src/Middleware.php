@@ -189,7 +189,7 @@ class Middleware
         // Back redirects must read the previous location before this visit replaces it.
         $this->storeCurrentUrl($request, $originalResponse);
 
-        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'], true)) {
+        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE', 'QUERY'], true)) {
             $response->setStatusCode(303);
         }
 

@@ -46,7 +46,7 @@ Spatie's data-specific `From*` attributes are not included. Use Hypervel's conte
 
 With `withoutOptionalValues()`, a missing `Optional` property that cannot hold `null` keeps `Optional`, where Spatie leaves it uninitialized. A missing nullable `Optional` property receives `null`, as in Spatie.
 
-Spatie's `UnserializeCast` is not included because it unserializes property input, which may come from a request, without restricting the classes it creates. Write a custom cast that passes `allowed_classes` to `unserialize()` when a property holds trusted serialized values.
+`UnserializeCast` restores no objects unless their classes are listed in `allowedClasses`, where Spatie allows every class by default. List the classes your trusted serialized values contain, including nested ones, or pass `true`. See [unserializing values](https://hypervel.org/docs/data-objects#unserializing-values).
 
 Named `collect*` methods receive the source's own array, collection, or paginator shape after its values have been converted to data objects, rather than the original source values. An Eloquent collection source is provided as a base `Hypervel\Support\Collection`. When you pass an explicit `$into` target, the method's declared return type must also match that target.
 

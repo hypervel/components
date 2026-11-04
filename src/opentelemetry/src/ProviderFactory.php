@@ -40,10 +40,8 @@ use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
 use OpenTelemetry\SDK\Trace\SpanProcessorInterface;
 use OpenTelemetry\SDK\Trace\TracerProviderBuilder;
 use OpenTelemetry\SDK\Trace\TracerProviderInterface;
+use OpenTelemetry\SemConv\Attributes\DeploymentAttributes;
 use OpenTelemetry\SemConv\Attributes\ServiceAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\DeploymentIncubatingAttributes;
-use OpenTelemetry\SemConv\Incubating\Attributes\ServiceIncubatingAttributes;
-use OpenTelemetry\SemConv\Version;
 use RuntimeException;
 
 class ProviderFactory
@@ -250,7 +248,7 @@ class ProviderFactory
     {
         $service = $configuration['service'];
         $explicit = $configuration['resource_attributes'];
-        $baseInstanceId = $explicit[ServiceIncubatingAttributes::SERVICE_INSTANCE_ID]
+        $baseInstanceId = $explicit[ServiceAttributes::SERVICE_INSTANCE_ID]
             ?? $service['instance_id']
             ?? gethostname();
 
@@ -267,10 +265,10 @@ class ProviderFactory
         $attributes = array_filter([
             ServiceAttributes::SERVICE_NAME => $service['name'],
             ServiceAttributes::SERVICE_VERSION => $service['version'],
-            DeploymentIncubatingAttributes::DEPLOYMENT_ENVIRONMENT_NAME => $service['environment'],
+            DeploymentAttributes::DEPLOYMENT_ENVIRONMENT_NAME => $service['environment'],
         ], static fn (mixed $value): bool => $value !== null);
         $attributes = array_replace($attributes, $explicit, $identity->resourceAttributes());
-        $attributes[ServiceIncubatingAttributes::SERVICE_INSTANCE_ID] = sprintf(
+        $attributes[ServiceAttributes::SERVICE_INSTANCE_ID] = sprintf(
             '%s:%s:%s:%d',
             $baseInstanceId,
             $identity->type,
@@ -278,10 +276,11 @@ class ProviderFactory
             $processId,
         );
 
-        return ResourceInfoFactory::defaultResource()->merge(ResourceInfo::create(
-            Attributes::create($attributes),
-            Version::VERSION_1_38_0->url(),
-        ));
+        // Hypervel adds only stable and hypervel.* names, so it keeps the schema URL of the
+        // SDK's detected resource. A different URL would make the merge drop both.
+        return ResourceInfoFactory::defaultResource()->merge(
+            ResourceInfo::create(Attributes::create($attributes)),
+        );
     }
 
     /**

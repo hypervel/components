@@ -61,12 +61,12 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
     protected function registerInstrumentation(): void
     {
         if ($this->tracesEnabled()) {
-            $this->tracer = $this->tracerProvider->getTracer('hypervel.scout');
+            $this->tracer = $this->tracerProvider->getTracer('hypervel.scout', schemaUrl: $this->schemaUrl());
         }
 
         if ($this->metricEnabled(DbMetrics::DB_CLIENT_OPERATION_DURATION)) {
             $this->duration = $this->meterProvider
-                ->getMeter('hypervel.scout')
+                ->getMeter('hypervel.scout', schemaUrl: $this->schemaUrl())
                 ->createHistogram(
                     DbMetrics::DB_CLIENT_OPERATION_DURATION,
                     's',
