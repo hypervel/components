@@ -33,6 +33,7 @@
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
         "hypervel/collections": "^0.4",
+        "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
