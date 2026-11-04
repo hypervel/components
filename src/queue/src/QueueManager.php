@@ -360,12 +360,13 @@ class QueueManager implements FactoryContract, MonitorContract
             return array_values($queues);
         }
 
+        // A list keeps keyed input from being read as key/default pairs.
         $keys = array_map(
             static fn (string $queue): string => "illuminate:queue:paused:{$connection}:{$queue}",
-            $queues,
+            array_values($queues),
         );
 
-        $states = $cache->many($keys);
+        $states = $cache->get($keys);
 
         return array_values(array_filter(
             $queues,

@@ -8,6 +8,7 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Console\Concerns\ParsesQueue;
@@ -18,6 +19,7 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnitEnum;
@@ -45,7 +47,7 @@ class QueuePauseResumeTest extends TestCase
     /**
      * Create a queue manager using the given cache repository.
      */
-    protected function createManager(CacheRepository $cache): QueueManager
+    protected function createManager(CacheContract $cache): QueueManager
     {
         $container = new Container;
         $this->events = new Dispatcher($container);
@@ -64,14 +66,14 @@ class QueuePauseResumeTest extends TestCase
              * Create a cache manager fixture.
              */
             public function __construct(
-                private readonly CacheRepository $repository,
+                private readonly CacheContract $repository,
             ) {
             }
 
             /**
              * Get the cache repository.
              */
-            public function store(?string $name = null): CacheRepository
+            public function store(?string $name = null): CacheContract
             {
                 return $this->repository;
             }
@@ -265,6 +267,25 @@ class QueuePauseResumeTest extends TestCase
             ['emails', 'notifications'],
             $this->manager->getPausedQueues(['default', 'emails', 'notifications'], 'redis'),
         );
+        $this->assertSame(
+            ['emails'],
+            $this->manager->getPausedQueues(['mail' => 'emails', 'fallback' => 'default'], 'redis'),
+        );
+    }
+
+    public function testGetPausedQueuesUsesTheCacheRepositoryContract(): void
+    {
+        $cache = m::mock(CacheContract::class);
+        $cache->shouldReceive('get')->once()->with('illuminate:queues:paused', false)->andReturn(false);
+        $cache->shouldReceive('get')->once()->with([
+            'illuminate:queue:paused:redis:default',
+            'illuminate:queue:paused:redis:emails',
+        ])->andReturn([
+            'illuminate:queue:paused:redis:default' => null,
+            'illuminate:queue:paused:redis:emails' => true,
+        ]);
+
+        $this->assertSame(['emails'], $this->createManager($cache)->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
     public function testPauseAllPausesEveryQueueAndResumeAllResumesThem(): void
