@@ -11,14 +11,14 @@ use Hypervel\Testbench\Bootstrapper;
 
 try {
     $applicationPath = getcwd() . '/bootstrap/app.php';
-    if (file_exists($applicationPath)) {
+    if (file_exists($applicationPath)) { // Applications and Local Dev
         $app = require $applicationPath;
     } else {
         // Composer's root package path also covers custom vendor directories.
         $applicationPath = InstalledVersions::getRootPackage()['install_path'] . '/bootstrap/app.php';
         if (file_exists($applicationPath)) {
             $app = require $applicationPath;
-        } elseif (class_exists(Bootstrapper::class)) {
+        } elseif (class_exists(Bootstrapper::class)) { // Packages
             $app = ApplicationResolver::resolve();
         } else {
             // Upstream continues without an application, which silently drops every

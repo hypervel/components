@@ -14,11 +14,8 @@ use function defined;
 use function getcwd;
 
 /**
- * Upstream links the package's vendor directory into the Testbench skeleton and
- * rebuilds a missing package manifest. Hypervel's Testbench bootstrapper already
- * links the package's actual Composer vendor directory into its disposable runtime
- * copy, and the package manifest rebuilds itself when missing, so neither step is
- * repeated here.
+ * Upstream's vendor symlink and manifest rebuild are omitted: Hypervel's Testbench
+ * bootstrapper links the package's vendor directory, and the manifest rebuilds itself.
  *
  * @internal
  */
@@ -41,10 +38,8 @@ final class ApplicationResolver
         /** @var Config $config bootstrap() always loads the configuration. */
         $config = Bootstrapper::getConfiguration();
 
-        // Boot the disposable runtime copy rather than a configured skeleton, so
-        // analysis never writes caches into committed files. The analyzed package's
-        // own providers and aliases are discovered like an installing application's;
-        // the configuration's dont-discover list still decides package discovery.
+        // Boot the disposable runtime copy, so analysis never writes caches into committed files, and
+        // discover the package's own providers and aliases as an installing application would.
         return Testbench::create(options: [
             'extra' => $config->getExtraAttributes(),
             'discovers_root_package' => true,

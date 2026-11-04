@@ -50,12 +50,12 @@ final class UsedViewFunctionCollector implements Collector
             return null;
         }
 
-        // Function names are case-insensitive.
+        // Upstream compares the name as written, but function names are case-insensitive.
         if (strtolower((string) $this->reflectionProvider->resolveFunctionName($funcName, $scope)) !== 'view') {
             return null;
         }
 
-        // Named arguments can be reordered, so the view is matched by name or position.
+        // Upstream reads the first argument by position, which misses reordered named arguments.
         $template = $node->getArg('view', 0)?->value;
 
         if ($template instanceof String_) {

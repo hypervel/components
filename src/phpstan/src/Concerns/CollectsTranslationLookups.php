@@ -15,10 +15,8 @@ use PHPStan\Type\TypeCombinator;
 use function array_map;
 
 /**
- * Upstream collects only the translation key and checks it against every locale's
- * files. The missing-translation rule resolves each lookup through the booted
- * translator instead, so the locale, fallback and operation the call actually uses
- * are collected with the key. A lookup whose locale cannot be known is not collected.
+ * Upstream collects only the key. The missing-translation rule resolves each lookup through the
+ * booted translator, so the call's locale, fallback and operation are collected with it.
  *
  * @internal
  *

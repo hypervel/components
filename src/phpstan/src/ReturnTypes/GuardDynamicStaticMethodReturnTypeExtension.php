@@ -48,9 +48,8 @@ class GuardDynamicStaticMethodReturnTypeExtension implements DynamicStaticMethod
         StaticCall $methodCall,
         Scope $scope,
     ): ?Type {
-        // Upstream falls back to StatefulGuard and types a missing name as the configured
-        // default. Only the session guard is stateful, and shouldUse() changes the default
-        // per coroutine, so unresolved guards keep the declared Guard|StatefulGuard.
+        // Upstream falls back to StatefulGuard, which only the session guard is, and types a missing
+        // name as the configured default, which shouldUse() changes per coroutine.
         return $this->authGuardHelper->getGuardType(
             $methodCall->getArgs()[0] ?? null,
             $scope,

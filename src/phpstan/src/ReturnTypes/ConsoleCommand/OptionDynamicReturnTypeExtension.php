@@ -43,7 +43,7 @@ class OptionDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtensi
      */
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A command's own override keeps its declaration.
+        // Unlike upstream, a command's own override keeps its declaration.
         return in_array($methodReflection->getName(), ['option', 'options'], true)
             && $methodReflection->getDeclaringClass()->getName() === Command::class;
     }
@@ -97,7 +97,7 @@ class OptionDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtensi
 
                     $argTypes[] = $this->consoleApplicationHelper->getOptionType($scope, $argument);
                 } catch (InvalidArgumentException) {
-                    // A command without the option throws rather than returning a value.
+                    // noop
                 }
             }
 

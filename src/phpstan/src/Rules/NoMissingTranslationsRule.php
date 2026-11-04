@@ -34,11 +34,8 @@ use function is_array;
 use function sprintf;
 
 /**
- * Upstream compares each key with every key it finds in the application's lang
- * files. This rule asks the booted translator instead, so fallback locales, JSON
- * translations, namespaces with their vendor overrides and lines added during boot
- * all count. It only reports structured keys whose group exists for the lookup's
- * locales: a key such as "Welcome back." is ordinary text that no group defines.
+ * Upstream compares each key with the keys in the lang files. This rule asks the booted translator,
+ * so fallbacks, JSON, namespaces and boot-added lines count, and reports only keys whose group exists.
  *
  * @phpstan-import-type TranslationLookup from CollectsTranslationLookups
  *

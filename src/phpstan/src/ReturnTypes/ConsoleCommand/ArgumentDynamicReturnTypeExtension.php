@@ -43,7 +43,7 @@ class ArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeExten
      */
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A command's own override keeps its declaration.
+        // Unlike upstream, a command's own override keeps its declaration.
         return in_array($methodReflection->getName(), ['argument', 'arguments'], true)
             && $methodReflection->getDeclaringClass()->getName() === Command::class;
     }
@@ -93,7 +93,7 @@ class ArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeExten
 
                     $argTypes[] = $this->consoleApplicationHelper->getArgumentType($scope, $argument);
                 } catch (InvalidArgumentException) {
-                    // A command without the argument throws rather than returning a value.
+                    // noop
                 }
             }
 

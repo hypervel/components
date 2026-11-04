@@ -40,7 +40,7 @@ class HasOptionDynamicReturnTypeExtension implements DynamicMethodReturnTypeExte
      */
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A command's own override keeps its declaration.
+        // Unlike upstream, a command's own override keeps its declaration.
         return $methodReflection->getName() === 'hasOption'
             && $methodReflection->getDeclaringClass()->getName() === Command::class;
     }

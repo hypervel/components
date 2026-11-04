@@ -14,10 +14,8 @@ use PHPStan\Type\DynamicMethodReturnTypeExtension;
 use PHPStan\Type\Type;
 
 /**
- * Types guard() on the auth factory the way the Auth facade's guard() is typed.
- *
- * Upstream types only the facade, leaving auth()->guard('web') with the
- * declared Guard while Auth::guard('web') resolves the session guard.
+ * Types guard() on the auth factory like the Auth facade's guard(). Upstream types only
+ * the facade, so auth()->guard('web') kept the declared Guard.
  */
 #[AutowiredService]
 class GuardDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeExtension

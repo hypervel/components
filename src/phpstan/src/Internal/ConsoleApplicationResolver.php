@@ -64,9 +64,8 @@ final class ConsoleApplicationResolver
                 continue;
             }
 
-            // Upstream merges the application definition only for single-name lookups, so the
-            // shared command's bulk argument and option shapes depended on analysis order.
-            // Merge it once here, as run() does before binding the input.
+            // Upstream merges the application definition only for single-name lookups, so bulk
+            // shapes depended on analysis order. Merge it once, as run() does before binding input.
             $command->mergeApplicationDefinition();
 
             $commands[$id] = $command;
@@ -120,9 +119,8 @@ final class ConsoleApplicationResolver
             try {
                 return $this->commands = $kernel->all();
             } catch (Throwable) {
-                // The kernel cannot be asked for its commands, e.g. because one of them cannot be resolved
-                // in the analysis environment. Fall back to a standalone Artisan application, which only
-                // sees the commands registered through Artisan::starting().
+                // A command that cannot be resolved during analysis stops the kernel listing any. A
+                // standalone application still sees the commands registered through Artisan::starting().
             }
         }
 

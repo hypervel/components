@@ -38,7 +38,7 @@ final class AuthManagerExtension implements DynamicMethodReturnTypeExtension
      */
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A subclass's own user() method keeps its declaration.
+        // Unlike upstream, a subclass's own user() method keeps its declaration.
         return $methodReflection->getName() === 'user'
             && $methodReflection->getDeclaringClass()->getName() === Guard::class;
     }

@@ -15,11 +15,9 @@ use PHPStan\Type\Type;
 use function in_array;
 
 /**
- * PHPStan applies this extension to the Application contract, which extends the
- * container contract. Upstream's separate ApplicationMakeDynamicReturnTypeExtension
- * is omitted because it would resolve every application call a second time.
- * ContainerArrayAccessDynamicMethodReturnTypeExtension is omitted because the
- * Hypervel container does not support ArrayAccess.
+ * This also covers the Application contract, which extends the container contract, so upstream's
+ * ApplicationMakeDynamicReturnTypeExtension is omitted. Upstream's ContainerArrayAccessDynamicMethodReturnTypeExtension
+ * is omitted because the container does not support ArrayAccess.
  */
 #[AutowiredService]
 final class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtension
@@ -46,8 +44,7 @@ final class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodRetu
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
         // Hypervel's get() and makeTransient() resolve the same bindings as make(), and
-        // factory() returns a closure that does. Booted facade aliases otherwise give
-        // their keys the facade's type through the class-string return declarations.
+        // factory() returns a closure that does.
         return in_array($methodReflection->getName(), ['make', 'makeWith', 'makeTransient', 'get', 'resolve', 'factory'], true);
     }
 

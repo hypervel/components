@@ -73,7 +73,7 @@ final class UsedEmailViewCollector implements Collector
             return null;
         }
 
-        // Named arguments can be reordered, so the view is matched by name or position. The
+        // Upstream reads the first argument by position, which misses reordered named arguments. The
         // mailable and mail message text() methods name it textView; the others name it view.
         $parameter = $name->name === 'text' && ! $isContent ? 'textView' : 'view';
 

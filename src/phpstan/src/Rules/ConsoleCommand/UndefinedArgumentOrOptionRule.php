@@ -63,7 +63,7 @@ final class UndefinedArgumentOrOptionRule implements Rule
 
         $methodName = $node->name->toLowerString();
 
-        // A command's own override decides which names it accepts.
+        // Unlike upstream, a command's own override decides which names it accepts.
         if ($scope->getMethodReflection($receiverType, $methodName)?->getDeclaringClass()->getName() !== Command::class) {
             return [];
         }
@@ -76,9 +76,8 @@ final class UndefinedArgumentOrOptionRule implements Rule
             return [];
         }
 
-        // A hasArgument() or hasOption() guard that is definitely true, or unreachable because
-        // no command defines the name, keeps the call from commands without it. The scope keys
-        // the guard as written, so check its positional and named forms.
+        // A definitely true or unreachable hasArgument()/hasOption() guard keeps the call from commands
+        // without the name. The scope keys the guard as written, so check its positional and named forms.
         $guardMethod = $methodName === 'argument' ? 'hasArgument' : 'hasOption';
 
         foreach ([new Arg($value), new Arg($value, name: new Identifier('name'))] as $guardArg) {

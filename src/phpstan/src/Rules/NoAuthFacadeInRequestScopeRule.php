@@ -70,10 +70,8 @@ class NoAuthFacadeInRequestScopeRule implements Rule
             'guest' => 'Do not use Auth::guest() in a class that has access to the request. Use $%s->user() === null instead.',
         };
 
-        // Upstream offers an automatic fix for both cases below. Hypervel omits it:
-        // Auth::resolveUsersUsing() or a request's own resolver changes what the
-        // request returns, so the replacement is not proven equivalent. Upstream
-        // also suggests $this->user() in static contexts, which have no $this.
+        // Upstream's automatic fix is omitted: a custom user resolver can make the request return another
+        // user. Upstream also suggests $this->user() in static contexts, which have no $this.
         if (
             $scope->isInClass()
             && $scope->getClassReflection()->is(Request::class)

@@ -151,10 +151,8 @@ final class BootstrapErrorHandler
     /**
      * Format a bootstrap failure.
      *
-     * Upstream blames the application or the framework depending on whether the failing
-     * file is under a /vendor/ path. That misreports custom vendor directories and
-     * path-repository installs, and a dependency's exception rarely means the
-     * framework is at fault, so every failure gets the same guidance.
+     * Upstream blames the framework for failures under a /vendor/ path, which misreports custom
+     * vendor directories and path repositories, so every failure gets the same guidance.
      */
     private function formatError(Throwable $throwable, bool $includeErrorDetails = true, bool $decorated = true): string
     {

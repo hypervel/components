@@ -14,15 +14,11 @@ use function is_array;
 use function is_string;
 
 /**
- * Infers user types from the configured guard providers.
+ * Infers user types from the configured guard providers, assuming a guard returns its
+ * provider's users. Requires the HasContainer concern.
  *
- * This is provider-based inference: a guard is assumed to return its configured
- * provider's users, although a request guard's callback or setUser() may return
- * another Authenticatable. Requires the HasContainer concern.
- *
- * Upstream's AuthsMethodsExtension also uses these models to give the auth user
- * contracts their models' methods. It is omitted so contracts stay honest; the
- * user() return types carry the model instead.
+ * Upstream's AuthsMethodsExtension, which gives the auth user contracts their models'
+ * methods, is omitted so contracts stay honest; user() return types carry the model.
  */
 trait LoadsAuthModel
 {

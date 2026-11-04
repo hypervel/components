@@ -39,7 +39,7 @@ final class AuthExtension implements DynamicStaticMethodReturnTypeExtension
      */
     public function isStaticMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A facade subclass's own user() method keeps its declaration.
+        // Unlike upstream, a facade subclass's own user() method keeps its declaration.
         return $methodReflection->getName() === 'user'
             && $methodReflection->getDeclaringClass()->getName() === Guard::class;
     }

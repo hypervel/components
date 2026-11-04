@@ -40,7 +40,7 @@ class HasArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeEx
      */
     public function isMethodSupported(MethodReflection $methodReflection): bool
     {
-        // A command's own override keeps its declaration.
+        // Unlike upstream, a command's own override keeps its declaration.
         return $methodReflection->getName() === 'hasArgument'
             && $methodReflection->getDeclaringClass()->getName() === Command::class;
     }

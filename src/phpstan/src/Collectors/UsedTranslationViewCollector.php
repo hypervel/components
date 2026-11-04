@@ -60,9 +60,6 @@ final class UsedTranslationViewCollector
      */
     private const string PHP_BLOCK_REGEX = '/(?<!@)@php(.*?)@endphp/s';
 
-    /**
-     * Blade comments.
-     */
     private const string COMMENT_REGEX = '/\{\{--.*?--\}\}/s';
 
     /**
@@ -144,12 +141,8 @@ final class UsedTranslationViewCollector
      * Get the translations looked up by the given view source.
      *
      * Upstream matches translation calls anywhere in a view's text, so literal text,
-     * JavaScript and string literals count as lookups, while native PHP does not. Only
-     * the code Blade runs is read here, in the order of Blade's own passes. Verbatim
-     * blocks, @php blocks and comments are blanked across the whole source, keeping its
-     * lines, and bound component attributes are read in place. The remaining source is
-     * then parsed: its PHP runs as written, and Blade compiles the directives and echoes
-     * in the text between PHP tags.
+     * JavaScript and string literals count as lookups, while native PHP does not. This
+     * reads only the code Blade runs, following Blade's own passes.
      *
      * @return list<TranslationLookup>
      */

@@ -13,6 +13,5 @@ use Hypervel\Contracts\View\View as ViewContract;
  */
 function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract {}
 
-// trans() and __() are omitted: their source signatures already declare the
-// conditional return, and upstream's replacement type excludes the objects
-// Hypervel's translator accepts.
+// Upstream's trans() and __() are omitted: the source already declares their conditional
+// return, and upstream's replacement type rejects objects Hypervel's translator accepts.

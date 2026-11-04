@@ -44,7 +44,7 @@ final class UsedViewMakeCollector implements Collector
             return null;
         }
 
-        // Named arguments can be reordered, so the view is matched by name or position.
+        // Upstream reads the first argument by position, which misses reordered named arguments.
         $template = $node->getArg('view', 0)?->value;
 
         if (! $template instanceof String_) {

@@ -14,10 +14,8 @@ final class HypervelStubFilesExtension implements StubFilesExtension
     /**
      * Get the stub files to load.
      *
-     * Upstream selects stub directories by Laravel version and Redis stubs by client,
-     * configured through its redisDriver parameter. Hypervel has one supported
-     * framework version and only the phpredis client, so every stub applies and
-     * that parameter is omitted.
+     * Upstream selects stubs by Laravel version and by its redisDriver parameter. Hypervel has
+     * one supported version and only the phpredis client, so every stub applies.
      */
     public function getFiles(): array
     {

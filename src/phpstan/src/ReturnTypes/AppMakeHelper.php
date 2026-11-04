@@ -68,10 +68,8 @@ final class AppMakeHelper
             // Not every class-string has a reflection; PHPStan reports a missing class itself.
             $class = $constantString->getClassStringObjectType()->getObjectClassReflections()[0] ?? null;
 
-            // A class whose binding needs runtime context keeps its declared type. Upstream
-            // falls back for any class-string, but booted facade aliases make service keys
-            // such as 'session' class names, so only a key naming the class itself qualifies.
-            // Unknown keys, unknown classes and scalar bindings are mixed, as the container declares.
+            // A class that does not resolve to an object keeps its type. Upstream applies this to any class-string,
+            // but facade aliases make keys such as 'session' class names, so only the class's own name qualifies.
             if ($class === null || strcasecmp(ltrim($constantString->getValue(), '\\'), $class->getName()) !== 0) {
                 return new MixedType;
             }

@@ -50,16 +50,14 @@ final class AuthExtension implements DynamicFunctionReturnTypeExtension
     ): ?Type {
         $guard = $functionCall->getArgs()[0] ?? null;
 
-        // Unlike guard(null), which selects the default guard, auth() returns the factory
-        // for a null guard, whether omitted or passed explicitly.
+        // Unlike guard(null), auth() and auth(null) return the factory rather than the default guard.
         if ($guard === null || (! $guard->unpack && $scope->getType($guard->value)->isNull()->yes())) {
             $factory = $this->resolve(Factory::class);
 
             return is_object($factory) ? new ObjectType($factory::class) : null;
         }
 
-        // A guard that may be null, or an unpacked argument that may be empty, can still
-        // return the factory, so the declared conditional return applies.
+        // A maybe-null or unpacked guard can still return the factory, so the declared conditional applies.
         if ($guard->unpack || ! $scope->getType($guard->value)->isNull()->no()) {
             return null;
         }
