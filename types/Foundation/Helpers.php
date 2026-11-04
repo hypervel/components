@@ -7,8 +7,12 @@ use Hypervel\Config\Repository;
 use function PHPStan\Testing\assertType;
 
 assertType('Hypervel\Foundation\Application', app());
+assertType('Hypervel\Foundation\Application', app(null));
+assertType('Hypervel\Foundation\Application', app(abstract: null));
+assertType('Hypervel\Foundation\Application', app(parameters: []));
 assertType('mixed', app('foo'));
 assertType('Hypervel\Config\Repository', app(Repository::class));
+assertType('Hypervel\Config\Repository', app('config'));
 
 assertType('Hypervel\Contracts\Auth\Factory', auth());
 assertType('Hypervel\Contracts\Auth\Guard', auth('foo'));
@@ -46,6 +50,7 @@ assertType('Hypervel\Http\RedirectResponse', redirect('foo'));
 
 assertType('mixed', resolve('foo'));
 assertType('Hypervel\Config\Repository', resolve(Repository::class));
+assertType('Hypervel\Config\Repository', resolve('config'));
 
 assertType('Hypervel\Http\Request', request());
 assertType('mixed', request('foo'));

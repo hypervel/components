@@ -4,10 +4,7 @@
 # limitations.
 
 includes:
-  - src/database/extension.neon
-  - src/foundation/extension.neon
-  - src/head/extension.neon
-  - src/scout/extension.neon
+  - src/phpstan/extension.neon
 
 parameters:
   tmpDir: .cache/phpstan

@@ -1,0 +1,61 @@
+{
+    "name": "hypervel/phpstan",
+    "type": "phpstan-extension",
+    "description": "Framework-aware PHPStan type inference and rules for Hypervel applications and packages.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "phpstan",
+        "static analysis",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\PHPStan\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "composer-runtime-api": "^2.2",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/support": "^0.4",
+        "phpstan/phpstan": "^2.3.5",
+        "phpstan/phpstan-deprecation-rules": "^2.0.5",
+        "symfony/console": "^8.1.10"
+    },
+    "suggest": {
+        "hypervel/testbench": "Required to analyse packages with a Testbench-booted application (^0.4)."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "phpstan": {
+            "includes": [
+                "extension.neon"
+            ]
+        }
+    }
+}

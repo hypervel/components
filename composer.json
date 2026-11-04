@@ -134,6 +134,7 @@
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
         "phpstan/phpstan": "^2.3.5",
+        "phpstan/phpstan-deprecation-rules": "^2.0.5",
         "phpunit/phpunit": "~13.4.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
@@ -205,6 +206,7 @@
         "hypervel/passport": "self.version",
         "hypervel/pennant": "self.version",
         "hypervel/permission": "self.version",
+        "hypervel/phpstan": "self.version",
         "hypervel/pipeline": "self.version",
         "hypervel/process": "self.version",
         "hypervel/prompts": "self.version",
@@ -301,6 +303,7 @@
             "Hypervel\\Passport\\Database\\Factories\\": "src/passport/database/factories/",
             "Hypervel\\Pennant\\": "src/pennant/src/",
             "Hypervel\\Permission\\": "src/permission/src/",
+            "Hypervel\\PHPStan\\": "src/phpstan/src/",
             "Hypervel\\Pipeline\\": "src/pipeline/src/",
             "Hypervel\\Process\\": "src/process/src/",
             "Hypervel\\Prompts\\": "src/prompts/src/",
@@ -476,6 +479,7 @@
         "check": [
             "@check:skeleton-config",
             "@test",
+            "@test:phpstan",
             "@test:testbench",
             "@test:dogfood",
             "@analyse",
@@ -488,6 +492,7 @@
             "@sync:skeleton-config",
             "@analyse",
             "@test:parallel",
+            "@test:phpstan",
             "@test:testbench",
             "@test:dogfood"
         ],
@@ -518,6 +523,10 @@
         "test:parallel": [
             "Composer\\Config::disableProcessTimeout",
             "paratest"
+        ],
+        "test:phpstan": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest -c phpunit.phpstan.xml.dist"
         ],
         "test:profile": [
             "Composer\\Config::disableProcessTimeout",

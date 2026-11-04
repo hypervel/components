@@ -63,11 +63,6 @@
             "aliases": {
                 "Head": "Hypervel\\Head\\Facades\\Head"
             }
-        },
-        "phpstan": {
-            "includes": [
-                "extension.neon"
-            ]
         }
     }
 }

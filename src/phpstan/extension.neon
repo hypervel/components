@@ -1,0 +1,103 @@
+attributeServicesDirectories:
+    - src
+
+parameters:
+    universalObjectCratesClasses:
+        - Hypervel\Http\Request
+        - Hypervel\Support\Optional
+    # abort() and dd() declare native never returns, so they need no earlyTerminatingFunctionCalls entries.
+    mixinExcludeClasses:
+        - Eloquent
+    bootstrapFiles:
+        - bootstrap.php
+    noEnvCallsOutsideOfConfig: true
+    noModelMake: true
+    noImplicitQueryBuilderCall: false
+    noUnnecessaryCollectionCall: true
+    noUnnecessaryCollectionCallOnly: []
+    noUnnecessaryCollectionCallExcept: []
+    noUnnecessaryEnumerableToArrayCalls: true
+    squashedMigrationsPath: []
+    databaseMigrationsPath: []
+    disableMigrationScan: false
+    disableSchemaScan: false
+    configDirectories: []
+    viewDirectories: []
+    translationDirectories: []
+    checkModelProperties: true
+    checkUnusedViews: false
+    checkMissingTranslations: true
+    checkModelAppends: true
+    checkModelMethodVisibility: true
+    checkConfigTypes: true
+    checkAuthCallsWhenInRequestScope: false
+    parseModelCastsMethod: true
+    enableMigrationCache: true
+    checkUniqueJobUniqueFor: false
+    checkUniqueJobUniqueId: true
+    noBatchedUniqueJob: true
+    checkJobSerializesModels: true
+    checkBatchedJobIsBatchable: true
+    checkBatchableJobChecksCancellation: false
+    checkDispatchInTransactionAfterCommit: true
+    checkCancellationHandling: true
+    checkCancellationPrecedence: true
+    checkWorkerSharedState: true
+    checkStaticStateMutation: true
+    checkUnboundedWorkerCaches: true
+    noRuntimeConfigMutation: true
+    noCoroutinesInTransactions: true
+    noRawSleepCalls: true
+    noLegacyModelScopes: true
+    noLegacyModelProperties: true
+    noLegacyQueueProperties: true
+    noPipeSeparatedValidationRules: true
+    # Builder macros added by model traits' global scopes: trait => interface declaring the macros.
+    eloquentBuilderMacros:
+        Hypervel\Database\Eloquent\SoftDeletes: Hypervel\PHPStan\Methods\Macros\SoftDeletingMacros
+        Hypervel\Scout\Searchable: Hypervel\PHPStan\Methods\Macros\SearchableMacros
+
+parametersSchema:
+    noEnvCallsOutsideOfConfig: bool()
+    noModelMake: bool()
+    noImplicitQueryBuilderCall: bool()
+    noUnnecessaryCollectionCall: bool()
+    noUnnecessaryCollectionCallOnly: listOf(string())
+    noUnnecessaryCollectionCallExcept: listOf(string())
+    noUnnecessaryEnumerableToArrayCalls: bool()
+    databaseMigrationsPath: listOf(string())
+    disableMigrationScan: bool()
+    configDirectories: listOf(string())
+    viewDirectories: listOf(string())
+    translationDirectories: listOf(string())
+    squashedMigrationsPath: listOf(string())
+    disableSchemaScan: bool()
+    checkModelProperties: bool()
+    checkUnusedViews: bool()
+    checkMissingTranslations: bool()
+    checkModelAppends: bool()
+    checkModelMethodVisibility: bool()
+    checkConfigTypes: bool()
+    checkAuthCallsWhenInRequestScope: bool()
+    parseModelCastsMethod: bool()
+    enableMigrationCache: bool()
+    checkUniqueJobUniqueFor: bool()
+    checkUniqueJobUniqueId: bool()
+    noBatchedUniqueJob: bool()
+    checkJobSerializesModels: bool()
+    checkBatchedJobIsBatchable: bool()
+    checkBatchableJobChecksCancellation: bool()
+    checkDispatchInTransactionAfterCommit: bool()
+    checkCancellationHandling: bool()
+    checkCancellationPrecedence: bool()
+    checkWorkerSharedState: bool()
+    checkStaticStateMutation: bool()
+    checkUnboundedWorkerCaches: bool()
+    noRuntimeConfigMutation: bool()
+    noCoroutinesInTransactions: bool()
+    noRawSleepCalls: bool()
+    noLegacyModelScopes: bool()
+    noLegacyModelProperties: bool()
+    noLegacyQueueProperties: bool()
+    noPipeSeparatedValidationRules: bool()
+    eloquentBuilderMacros: arrayOf(string(), string())

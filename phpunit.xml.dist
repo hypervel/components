@@ -17,6 +17,8 @@
     <testsuites>
         <testsuite name="Hypervel Packages Test Suite">
             <directory suffix="Test.php">./tests</directory>
+            <!-- PHPStan analyzer tests run through phpunit.phpstan.xml.dist. -->
+            <exclude>./tests/PHPStan</exclude>
         </testsuite>
     </testsuites>
     <extensions>

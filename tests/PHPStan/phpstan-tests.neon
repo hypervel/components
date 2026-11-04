@@ -1,0 +1,5 @@
+includes:
+    - ../../src/phpstan/extension.neon
+parameters:
+    checkExplicitMixed: true
+
