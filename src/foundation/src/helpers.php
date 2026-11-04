@@ -343,7 +343,9 @@ if (! function_exists('config')) {
         }
 
         if (is_array($key)) {
-            return $config->set($key);
+            $config->set($key);
+
+            return null;
         }
 
         return $config->get($key, $default);
@@ -904,7 +906,9 @@ if (! function_exists('session')) {
         }
 
         if (is_array($key)) {
-            return $session->put($key);
+            $session->put($key);
+
+            return null;
         }
 
         return $session->get($key, $default);

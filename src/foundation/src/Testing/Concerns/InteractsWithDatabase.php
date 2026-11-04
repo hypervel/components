@@ -331,6 +331,8 @@ trait InteractsWithDatabase
             $connection = $database->getDefaultConnection();
         }
 
+        // ConnectionFactory makes every managed connection, including extended drivers, a Connection.
+        /** @var Connection */
         return $database->connection($connection);
     }
 
