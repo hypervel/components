@@ -26,6 +26,7 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.register');
     }
 

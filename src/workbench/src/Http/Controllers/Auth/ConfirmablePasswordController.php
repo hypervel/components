@@ -18,6 +18,7 @@ class ConfirmablePasswordController extends Controller
      */
     public function show(): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.confirm-password');
     }
 

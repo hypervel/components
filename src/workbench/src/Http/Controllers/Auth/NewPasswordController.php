@@ -26,6 +26,7 @@ class NewPasswordController extends Controller
      */
     public function create(Request $request): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.reset-password', ['request' => $request]);
     }
 
