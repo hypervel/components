@@ -32,18 +32,24 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "hypervel/collections": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
+        "hypervel/translation": "^0.4",
+        "hypervel/view": "^0.4",
         "phpstan/phpstan": "^2.3.5",
         "phpstan/phpstan-deprecation-rules": "^2.0.5",
-        "symfony/console": "^8.1.10"
+        "symfony/console": "^8.1.10",
+        "symfony/finder": "^8.1"
     },
     "suggest": {
-        "hypervel/testbench": "Required to analyse packages with a Testbench-booted application (^0.4)."
+        "hypervel/testbench": "Required to analyze packages with a Testbench-booted application (^0.4)."
     },
     "config": {
         "sort-packages": true

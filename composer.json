@@ -371,6 +371,10 @@
             "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/"
         },
+        "classmap": [
+            "tests/PHPStan/Integration/data",
+            "tests/PHPStan/Rules/data"
+        ],
         "files": [
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
         ]

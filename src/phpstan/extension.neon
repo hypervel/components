@@ -101,3 +101,8 @@ parametersSchema:
     noLegacyQueueProperties: bool()
     noPipeSeparatedValidationRules: bool()
     eloquentBuilderMacros: arrayOf(string(), string())
+
+services:
+    -
+        class: Hypervel\Filesystem\Filesystem
+        autowired: self
