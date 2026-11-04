@@ -42,7 +42,7 @@ final class ApplicationResolver
         $config = Bootstrapper::getConfiguration();
 
         // Boot the disposable runtime copy rather than a configured skeleton, so
-        // analysis never writes caches into committed files. The analysed package's
+        // analysis never writes caches into committed files. The analyzed package's
         // own providers and aliases are discovered like an installing application's;
         // the configuration's dont-discover list still decides package discovery.
         return Testbench::create(options: [

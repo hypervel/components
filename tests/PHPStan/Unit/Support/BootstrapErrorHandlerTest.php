@@ -22,7 +22,6 @@ class BootstrapErrorHandlerTest extends TestCase
 
         $exception = new Exception('User code error');
 
-        // Mock getFile to return a path that looks like user code (not in vendor)
         $reflection = new ReflectionClass($exception);
         $fileProperty = $reflection->getProperty('file');
         $fileProperty->setValue($exception, getcwd() . '/app/Providers/AppServiceProvider.php');
@@ -45,7 +44,6 @@ class BootstrapErrorHandlerTest extends TestCase
 
         $exception = new Exception('Framework error');
 
-        // Mock getFile to return a path that looks like framework code (in vendor)
         $reflection = new ReflectionClass($exception);
         $fileProperty = $reflection->getProperty('file');
         $fileProperty->setValue($exception, getcwd() . '/vendor/hypervel/foundation/src/Application.php');
@@ -109,7 +107,6 @@ class BootstrapErrorHandlerTest extends TestCase
 
         $exception = new Exception('User code error');
 
-        // Mock getFile to return a path that looks like user code
         $reflection = new ReflectionClass($exception);
         $fileProperty = $reflection->getProperty('file');
         $fileProperty->setValue($exception, getcwd() . '/app/Providers/AppServiceProvider.php');
@@ -131,7 +128,6 @@ class BootstrapErrorHandlerTest extends TestCase
 
         $exception = new Exception('User code error');
 
-        // Mock getFile to return a path that looks like user code
         $reflection = new ReflectionClass($exception);
         $fileProperty = $reflection->getProperty('file');
         $fileProperty->setValue($exception, getcwd() . '/app/Providers/AppServiceProvider.php');
