@@ -706,8 +706,9 @@ assertType('Hypervel\Support\LazyCollection<int, User>', $collection->skipWhile(
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->slice(1));
 assertType('Hypervel\Support\LazyCollection<int, User>', $collection->slice(1, 2));
 
-assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\LazyCollection<int, User>>', $collection->split(3));
-assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\LazyCollection<int, int>>', $collection::make([1])->split(3));
+assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\Collection<int, User>>', $collection->split(3));
+assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\Collection<int, int>>', $collection::make([1])->split(3));
+assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\Collection<string, User>>', $associativeCollection->split(2));
 
 assertType('string', $collection::make(['string' => 'string'])->sole('string', 'string'));
 assertType('string', $collection::make(['string' => 'string'])->sole('string', '=', 'string'));

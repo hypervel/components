@@ -862,7 +862,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Split a collection into a certain number of groups.
      *
-     * @return static<int, static>
+     * @return static<int, Collection<(TKey is int ? int : TKey), TValue>>
      */
     public function split(int $numberOfGroups): static;
 

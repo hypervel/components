@@ -831,6 +831,10 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->slice(1, 2));
 
 assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, User>>', $collection->split(3));
 assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, int>>', $collection::make([1])->split(3));
+assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<string, User>>', $associativeCollection->split(2));
+/** @var Collection<5|8, User> $nonSequentialCollection */
+$nonSequentialCollection = new Collection([5 => new User, 8 => new User]);
+assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, User>>', $nonSequentialCollection->split(2));
 
 assertType('string', $collection::make(['string' => 'string'])->sole('string', 'string'));
 assertType('string', $collection::make(['string' => 'string'])->sole('string', '=', 'string'));

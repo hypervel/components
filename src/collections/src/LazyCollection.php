@@ -1331,6 +1331,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Split a collection into a certain number of groups.
      *
+     * @return ($numberOfGroups is positive-int ? static<int, Collection<(TKey is int ? int : TKey), TValue>> : never)
+     *
      * @throws InvalidArgumentException
      */
     #[Override]
@@ -1480,7 +1482,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             $chunk = new Collection;
 
             if ($iterator->valid()) {
-                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+                // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();
@@ -1493,7 +1495,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
                     $chunk = new Collection;
                 }
 
-                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+                // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();

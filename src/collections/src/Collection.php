@@ -363,7 +363,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             if ($uniqueItems->isNotEmpty() && $compare($value, $uniqueItems->first())) {
                 $uniqueItems->shift();
             } else {
-                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+                // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
                 $duplicates[$key] = $value;
             }
         }
@@ -1334,7 +1334,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Split a collection into a certain number of groups.
      *
-     * @return ($numberOfGroups is positive-int ? static<int, static> : never)
+     * @return ($numberOfGroups is positive-int ? static<int, static<(TKey is int ? int : TKey), TValue>> : never)
      *
      * @throws InvalidArgumentException
      */
@@ -1348,8 +1348,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             return $this->newInstance();
         }
 
-        /** @var static<int, static<TKey, TValue>> $groups */
-        $groups = $this->newInstance();
+        /** @var static<int, static<(TKey is int ? int : TKey), TValue>> $groups */
+        $groups = $this->newInstance(); // @phpstan-ignore varTag.nativeType (@TODO: Remove once PHPStan stops applying receiver generics to the factory's native static return type.)
 
         $groupSize = (int) floor($this->count() / $numberOfGroups);
 
@@ -1491,7 +1491,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     public function chunkWhile(callable $callback): static
     {
         /** @var static<int, static<TKey, TValue>> $chunks */
-        $chunks = $this->newInstance();
+        $chunks = $this->newInstance(); // @phpstan-ignore varTag.nativeType (@TODO: Remove once PHPStan stops applying receiver generics to the factory's native static return type.)
 
         /** @var static<TKey, TValue> $chunk */
         $chunk = $this->newInstance();
@@ -1504,7 +1504,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $chunk = $this->newInstance();
             }
 
-            // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+            // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
             $chunk[$key] = $value;
         }
 
