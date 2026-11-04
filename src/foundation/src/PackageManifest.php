@@ -7,7 +7,7 @@ namespace Hypervel\Foundation;
 use Exception;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Env;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Json;
 use RuntimeException;
 use UnexpectedValueException;
@@ -66,7 +66,7 @@ class PackageManifest
         $this->files = $files;
         $this->basePath = $basePath;
         $this->manifestPath = $manifestPath;
-        $this->vendorPath = Env::get('COMPOSER_VENDOR_DIR') ?: $basePath . '/vendor';
+        $this->vendorPath = Composer::vendorPath($basePath);
     }
 
     /**
@@ -164,9 +164,17 @@ class PackageManifest
                 $this->build();
             }
 
-            $this->rawManifest = is_file($this->manifestPath)
+            $manifest = is_file($this->manifestPath)
                 ? $this->files->getRequire($this->manifestPath)
                 : [];
+
+            $this->rawManifest = $this->prepareManifest($manifest);
+
+            // A cached manifest can predate the current discovery settings. Keep the
+            // file in step for other processes that read it.
+            if ($this->rawManifest !== $manifest) {
+                $this->write($this->rawManifest);
+            }
         }
 
         $ignore = static::$packagesToIgnore;
@@ -266,16 +274,27 @@ class PackageManifest
      */
     public function build(): void
     {
-        $manifest = static::discoverInstalledPackages(
+        $manifest = $this->prepareManifest(static::discoverInstalledPackages(
             $this->files,
             $this->vendorPath,
             $this->packagesToIgnore()
-        );
+        ));
 
         $this->write($manifest);
 
         $this->manifest = $manifest;
         $this->rawManifest = $manifest;
+    }
+
+    /**
+     * Prepare a built or cached manifest before it is stored or used.
+     *
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, array<string, mixed>>
+     */
+    protected function prepareManifest(array $manifest): array
+    {
+        return $manifest;
     }
 
     /**

@@ -129,6 +129,22 @@ class RemoteCommandTest extends TestCase
     }
 
     #[Test]
+    public function itForwardsTheRootDiscoveryDecisionOnlyToChildrenSharingTheRuntime(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $this->withInheritedEnvironment(['TESTBENCH_PACKAGE_TESTER' => null], function (): void {
+                // An explicit false keeps a root-off decision; Process removes false values.
+                $this->assertSame('false', $this->processEnvironment(remote('about --json'))['TESTBENCH_DISCOVERS_ROOT_PACKAGE']);
+                $this->assertFalse($this->processEnvironment(remote('serve --help'))['TESTBENCH_DISCOVERS_ROOT_PACKAGE']);
+            });
+
+            $this->withInheritedEnvironment(['TESTBENCH_PACKAGE_TESTER' => '(true)'], function (): void {
+                $this->assertSame('true', $this->processEnvironment(remote('about --json'))['TESTBENCH_DISCOVERS_ROOT_PACKAGE']);
+            });
+        });
+    }
+
+    #[Test]
     public function itOnlyMarksABasePathItKnowsIsADisposableCopy(): void
     {
         $this->withoutSqliteDatabase(function (): void {
@@ -202,9 +218,11 @@ class RemoteCommandTest extends TestCase
     }
 
     /**
-     * Run the callback with the given $_SERVER values, restoring the originals afterwards.
+     * Run the callback with the given inherited values, restoring the originals afterwards.
      *
-     * @param array<string, string> $values
+     * A null value removes an inherited variable, such as one a package:test worker received.
+     *
+     * @param array<string, null|string> $values
      * @param Closure(): void $callback
      */
     private function withInheritedEnvironment(array $values, Closure $callback): void
@@ -212,18 +230,38 @@ class RemoteCommandTest extends TestCase
         $originals = [];
 
         foreach ($values as $key => $value) {
-            $originals[$key] = [array_key_exists($key, $_SERVER), $_SERVER[$key] ?? null];
-            $_SERVER[$key] = $value;
+            $originals[$key] = [
+                array_key_exists($key, $_SERVER),
+                $_SERVER[$key] ?? null,
+                array_key_exists($key, $_ENV),
+                $_ENV[$key] ?? null,
+                getenv($key),
+            ];
+
+            if ($value === null) {
+                unset($_SERVER[$key], $_ENV[$key]);
+                putenv($key);
+            } else {
+                $_SERVER[$key] = $value;
+            }
         }
 
         try {
             $callback();
         } finally {
-            foreach ($originals as $key => [$existed, $original]) {
-                if ($existed) {
-                    $_SERVER[$key] = $original;
-                } else {
-                    unset($_SERVER[$key]);
+            foreach ($originals as $key => [$existedInServer, $server, $existedInEnvironment, $environment, $process]) {
+                unset($_SERVER[$key], $_ENV[$key]);
+
+                if ($existedInServer) {
+                    $_SERVER[$key] = $server;
+                }
+
+                if ($existedInEnvironment) {
+                    $_ENV[$key] = $environment;
+                }
+
+                if ($process !== false) {
+                    putenv("{$key}={$process}");
                 }
             }
         }

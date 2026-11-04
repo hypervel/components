@@ -22,7 +22,8 @@ use Throwable;
  * @phpstan-type TConfig array{
  *   extra?: TOptionalExtraConfig,
  *   load_environment_variables?: bool,
- *   enables_package_discoveries?: bool
+ *   enables_package_discoveries?: bool,
+ *   discovers_root_package?: bool
  * }
  */
 class Application
@@ -68,6 +69,11 @@ class Application
      * Load environment variables from disk.
      */
     protected bool $loadEnvironmentVariables = false;
+
+    /**
+     * Discover the package's own Composer metadata outside the Testbench CLI.
+     */
+    protected bool $discoversRootPackage = false;
 
     /**
      * Create a new application resolver.
@@ -186,6 +192,10 @@ class Application
             Arr::set($options, 'extra.dont-discover', $options['enables_package_discoveries'] ? [] : ['*']);
         }
 
+        if (isset($options['discovers_root_package']) && \is_bool($options['discovers_root_package'])) {
+            $this->discoversRootPackage = $options['discovers_root_package'];
+        }
+
         $config = Arr::only($options['extra'] ?? [], array_keys($this->config));
 
         /** @var array{
@@ -218,6 +228,14 @@ class Application
     public function ignorePackageDiscoveriesFrom(): array
     {
         return $this->config['dont-discover'];
+    }
+
+    /**
+     * Determine if package discovery includes the package's own Composer metadata.
+     */
+    public function discoversRootPackage(): bool
+    {
+        return $this->discoversRootPackage;
     }
 
     /**
