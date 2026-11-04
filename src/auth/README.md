@@ -13,5 +13,6 @@ Documentation: https://hypervel.org/docs/authentication
 - `guest:{guard}` selects the first named guard as the request's default guard on pass-through, mirroring how `auth:{guard}` selects on success.
 - Password confirmation is scoped to the current guard, and each guard may define its own `password_timeout`.
 - Remember cookies require a password HMAC; the legacy raw-password-hash fallback is intentionally omitted.
+- `CacheTokenRepository` accepts any `Hypervel\Contracts\Cache\Repository`, because cache stores, including custom drivers, only promise that contract. Subclasses that redeclare its promoted `$cache` property must use the contract type.
 
 Ported from: https://github.com/laravel/framework

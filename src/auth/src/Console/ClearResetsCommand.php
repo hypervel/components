@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Console;
 
+use Hypervel\Auth\Passwords\PasswordBroker;
 use Hypervel\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -25,7 +26,10 @@ class ClearResetsCommand extends Command
      */
     public function handle(): void
     {
-        $this->hypervel->make('auth.password')->broker($this->argument('name'))->getRepository()->deleteExpired();
+        /** @var PasswordBroker $broker */
+        $broker = $this->hypervel->make('auth.password')->broker($this->argument('name'));
+
+        $broker->getRepository()->deleteExpired();
 
         $this->components->info('Expired reset tokens cleared successfully.');
     }
