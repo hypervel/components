@@ -2,10 +2,16 @@
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Routing\Router;
 use Hypervel\View\Factory;
 
 abstract class Facade {}
+
+/**
+ * @mixin Kernel
+ */
+class Artisan extends Facade {}
 
 /**
  * @mixin Factory
