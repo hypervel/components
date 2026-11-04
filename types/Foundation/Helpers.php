@@ -14,7 +14,9 @@ assertType('mixed', app('foo'));
 assertType('Hypervel\Config\Repository', app(Repository::class));
 assertType('Hypervel\Config\Repository', app('config'));
 
-assertType('Hypervel\Contracts\Auth\Factory', auth());
+assertType('Hypervel\Auth\AuthManager', auth());
+assertType('Hypervel\Auth\AuthManager', auth(null));
+assertType('Hypervel\Auth\AuthManager', auth(guard: null));
 assertType('Hypervel\Contracts\Auth\Guard', auth('foo'));
 
 assertType('Hypervel\Cache\CacheManager', cache());

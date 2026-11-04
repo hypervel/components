@@ -23,8 +23,13 @@ class GeneralTypeTest extends TypeInferenceTestCase
     {
         yield from self::gatherAssertTypes(__DIR__ . '/data/app-make.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/application-make.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/auth.php');
         // REMOVED: container-array-access.php; container ArrayAccess is unsupported.
         yield from self::gatherAssertTypes(__DIR__ . '/data/container-make.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/contracts.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/gate-facade.php');
+        // Upstream never registers request-user.php, which shares request-object.php's namespace.
+        yield from self::gatherAssertTypes(__DIR__ . '/data/request-user.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translate.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translator.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/view-exists.php');
