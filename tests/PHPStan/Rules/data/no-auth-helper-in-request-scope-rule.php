@@ -65,6 +65,14 @@ class MixedCaseMethod
     }
 }
 
+class MixedCaseFunction
+{
+    public function check(Request $request): bool
+    {
+        return Auth()->check();
+    }
+}
+
 namespace Hypervel\Tests\PHPStan\Rules\Data\NoAuthHelperInRequestScope\NamespacedHelper;
 
 use Hypervel\Auth\AuthManager;

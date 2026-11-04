@@ -24,6 +24,7 @@ class NoAuthHelperInRequestScopeRuleTest extends RuleTestCase
             ['Do not use auth()->guest() in a class that has access to the request. Use $request->user() === null instead.', 33],
             ['Do not use auth()->check() in a class that has access to the request. Use $this->user() !== null instead.', 51],
             ['Do not use auth()->check() in a class that has access to the request. Use $request->user() !== null instead.', 64],
+            ['Do not use auth()->check() in a class that has access to the request. Use $request->user() !== null instead.', 72],
         ]);
     }
 

@@ -21,6 +21,7 @@ use PHPStan\Type\ObjectType;
 
 use function in_array;
 use function sprintf;
+use function strtolower;
 
 /** @implements Rule<MethodCall> */
 #[Conditional(attribute: new AutowiredService, if: '%checkAuthCallsWhenInRequestScope%')]
@@ -67,9 +68,9 @@ class NoAuthHelperInRequestScopeRule implements Rule
             return [];
         }
 
-        // Upstream matches the written name, which also matches a namespaced auth() function.
+        // Upstream compares the written name, which matches a namespaced auth() function and misses a miscased call.
         if (! $node->var->name instanceof Name
-            || $this->reflectionProvider->resolveFunctionName($node->var->name, $scope) !== 'auth'
+            || strtolower((string) $this->reflectionProvider->resolveFunctionName($node->var->name, $scope)) !== 'auth'
         ) {
             return [];
         }
@@ -86,10 +87,8 @@ class NoAuthHelperInRequestScopeRule implements Rule
             'guest' => 'Do not use auth()->guest() in a class that has access to the request. Use $%s->user() === null instead.',
         };
 
-        // Upstream offers an automatic fix for both cases below. Hypervel omits it:
-        // Auth::resolveUsersUsing() or a request's own resolver changes what the
-        // request returns, so the replacement is not proven equivalent. Upstream
-        // also suggests $this->user() in static contexts, which have no $this.
+        // Upstream's automatic fix is omitted: a custom user resolver can make the request return another
+        // user. Upstream also suggests $this->user() in static contexts, which have no $this.
         if (
             $scope->isInClass()
             && $scope->getClassReflection()->is(Request::class)

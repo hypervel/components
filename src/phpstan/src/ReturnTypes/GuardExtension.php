@@ -28,6 +28,7 @@ use PHPStan\Type\TypeCombinator;
 
 use function array_map;
 use function count;
+use function strtolower;
 
 #[AutowiredService]
 final class GuardExtension implements DynamicMethodReturnTypeExtension
@@ -70,7 +71,7 @@ final class GuardExtension implements DynamicMethodReturnTypeExtension
     ): ?Type {
         $declaredType = ParametersAcceptorSelector::selectFromArgs($scope, $methodCall->getArgs(), $methodReflection->getVariants())->getReturnType();
 
-        // A guard declaring a narrower user() than the contract keeps its declaration.
+        // Unlike upstream, a guard declaring a narrower user() than the contract keeps its declaration.
         if (! $declaredType->isSuperTypeOf(TypeCombinator::addNull(new ObjectType(Authenticatable::class)))->yes()) {
             return null;
         }
@@ -124,7 +125,7 @@ final class GuardExtension implements DynamicMethodReturnTypeExtension
 
         if ($call instanceof FuncCall
             && $call->name instanceof Name
-            && $this->reflectionProvider->resolveFunctionName($call->name, $scope) === 'auth'
+            && strtolower((string) $this->reflectionProvider->resolveFunctionName($call->name, $scope)) === 'auth'
         ) {
             return $this->authGuardHelper->getGuardNames($this->getArgument($call, 'guard'), $scope, acceptsEnums: false);
         }

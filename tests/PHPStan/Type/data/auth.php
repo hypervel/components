@@ -63,9 +63,8 @@ function test(
     assertType('App\Admin|App\User|null', Auth::user());
     assertType('bool', Auth::check());
     assertType('int|string|null', Auth::id());
-    // Upstream types the default guard from auth.defaults.guard. shouldUse() changes the
-    // default per coroutine, so Hypervel types it as any configured guard, and this app
-    // has no passport driver, so the default keeps the declared Guard without logout().
+    // Upstream types the default from auth.defaults.guard, but shouldUse() changes it per coroutine,
+    // and this app's untyped passport guard makes the union of every guard the declared Guard.
     assertType(Guard::class, Auth::guard());
     assertType('null', Auth::guard('web')->logout());
     assertType(SessionGuard::class, Auth::guard('web'));
@@ -81,7 +80,6 @@ function test(
     assertType('App\Admin|null', Auth::guard('admin')->user());
     assertType('null', Auth::guard('web')->login($user));
 
-    // A guard name may be an enum case, as AuthManager::guard() reads it with enum_value().
     assertType(SessionGuard::class, Auth::guard(GuardName::Admin));
     assertType('App\Admin|null', Auth::guard(GuardName::Admin)->user());
     assertType(SessionGuard::class, Auth::guard(UnitGuardName::admin));
@@ -95,14 +93,13 @@ function test(
     assertType(Guard::class, auth('passport'));
     assertType('App\Admin|null', auth('admin')->user());
     assertType('App\Admin|null', auth(guard: 'admin')->user());
+    assertType('App\Admin|null', Auth('admin')->user());
     assertType(TokenGuard::class, auth()->guard('api'));
     assertType('App\Admin|null', auth()->guard(GuardName::Admin)->user());
 
-    // A known set of names gives each named guard.
     assertType('Hypervel\Auth\SessionGuard|Hypervel\Auth\TokenGuard', Auth::guard($adminOrApi));
     assertType('App\Admin|App\User|null', Auth::guard($adminOrApi)->user());
 
-    // Narrower or explicit declarations keep their types.
     assertType(SessionGuard::class, $sessionGuardFactory->guard('api'));
     assertType('App\Admin|null', $adminGuard->user());
     assertType('App\User|null', $userAuthManager->user());
