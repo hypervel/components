@@ -65,7 +65,6 @@ class RedirectResponseMethodsClassReflectionExtensionTest extends PHPStanTestCas
         $this->assertFalse($methodReflection->isStatic());
         $this->assertFalse($methodReflection->isPrivate());
         $this->assertTrue($methodReflection->isPublic());
-        // The call stores the value on the response, so an unused result is not a useless statement.
         $this->assertTrue($methodReflection->hasSideEffects()->yes());
         $this->assertCount(1, $parametersAcceptor->getParameters());
         $this->assertSame('mixed', $parametersAcceptor->getParameters()[0]->getType()->describe(VerbosityLevel::value()));

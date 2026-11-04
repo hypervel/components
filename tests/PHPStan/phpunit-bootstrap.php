@@ -25,7 +25,6 @@ Bootstrapper::bootstrap();
 
 $filesystem = new Filesystem;
 
-// The console kernel discovers app/Console/Commands, as it does for an application.
 foreach (['app/Console/Commands', 'lang', 'resources/views'] as $directory) {
     $filesystem->deleteDirectory(BASE_PATH . '/' . $directory);
     $filesystem->copyDirectory(__DIR__ . '/application/' . $directory, BASE_PATH . '/' . $directory);
@@ -34,8 +33,7 @@ foreach (['app/Console/Commands', 'lang', 'resources/views'] as $directory) {
 // Fixture config files replace the skeleton's files of the same name; the rest stay.
 $filesystem->copyDirectory(__DIR__ . '/application/config', BASE_PATH . '/config');
 
-// Providers register package commands through Application::starting(). These fixtures are
-// registered only that way, in this order, which the command lookup tests rely on.
+// Registered only as a provider would, in this order, which the command lookup tests rely on.
 Application::starting(static function (Application $artisan): void {
     $artisan->resolveCommands([WithoutArgumentCommand::class, WithArgumentCommand::class]);
     $artisan->resolve(new ClosureCommand('lookup:closure', static function (): void {}));
@@ -45,7 +43,6 @@ Application::starting(static function (Application $artisan): void {
 // AUTH_MODEL names one, which would override the fixture auth configuration.
 $_SERVER['AUTH_MODEL'] = $_ENV['AUTH_MODEL'] = 'App\User';
 
-// PHPStan boots the analyzed application once per process when a test first loads
-// the extension's bootstrap file. Booting it before any test runs keeps its error
-// and exception handlers out of PHPUnit's per-test handler checks.
+// Boot the analyzed application before any test, so its error and exception handlers
+// stay out of PHPUnit's per-test handler checks.
 require_once __DIR__ . '/../../src/phpstan/bootstrap.php';

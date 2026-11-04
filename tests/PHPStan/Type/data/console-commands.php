@@ -16,7 +16,6 @@ function test(FooCommand $foo, Command $command, FooCommand|ClosureCommand $fooO
     assertType('string', $foo->argument('argument'));
     assertType('true', $foo->hasOption('option'));
 
-    // The base command stands for every registered command, so it keeps the declaration.
     assertType('mixed', $command->argument('argument'));
 
     // The closure alternative could define any name, so the union keeps the declaration.

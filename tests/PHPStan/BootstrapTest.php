@@ -52,7 +52,6 @@ class BootstrapTest extends TestCase
 
         $evidence = $this->evidence();
 
-        // The main process and its workers each boot their own application.
         $this->assertGreaterThanOrEqual(2, count($evidence));
         $this->assertCount(count($evidence), array_unique(array_column($evidence, 'pid')));
 

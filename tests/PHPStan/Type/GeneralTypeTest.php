@@ -45,7 +45,7 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/../application/app/Console/Commands/BazCommand.php');
         yield from self::gatherAssertTypes(__DIR__ . '/../application/app/Console/Commands/FooCommand.php');
         yield from self::gatherAssertTypes(__DIR__ . '/../application/app/Console/Commands/RegisteredInKernelCommand.php');
-        // Hypervel's kernel loads commands from the discovered app/Console/Commands directory.
+        // Moved from upstream's LoadedCommands directory: Hypervel's kernel discovers app/Console/Commands.
         yield from self::gatherAssertTypes(__DIR__ . '/../application/app/Console/Commands/LoadedByKernelCommand.php');
         yield from self::gatherAssertTypes(__DIR__ . '/../Fixtures/Console/LookupCommand.php');
         yield from self::gatherAssertTypes(__DIR__ . '/../Fixtures/Console/WithArgumentCommand.php');

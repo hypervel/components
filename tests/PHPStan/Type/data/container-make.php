@@ -28,7 +28,6 @@ function test(
     assertType('mixed', $container->makeWith($foo));
     assertType('mixed', $container->resolve($foo));
 
-    // Hypervel's other resolution methods.
     assertType('Hypervel\Config\Repository', $container2->get(Repository::class));
     assertType('Hypervel\Config\Repository', $container2->makeTransient(Repository::class));
     assertType('Closure(): Hypervel\Config\Repository', $container2->factory(Repository::class));

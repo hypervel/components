@@ -17,7 +17,6 @@ function test(?string $key): void
     assertType('(array|string)', __('foo'));
     assertType('(array|string)', __('Hi :name', ['name' => 'Niek']));
 
-    // An explicit or possibly null key keeps the declared conditional return.
     assertType('Hypervel\Translation\Translator', trans(null));
     assertType('array|Hypervel\Translation\Translator|string', trans($key));
     assertType('null', __(null));

@@ -15,7 +15,6 @@ function test(Translator $trans, TranslatorContract $transContract, StringTransl
     assertType('(array|string)', $trans->get('language.string'));
     assertType('(array|string)', $transContract->get('language.string'));
     assertType('(array|string)', Lang::get('language.string'));
-    // A narrower declared return is kept.
     assertType('string', $stringTranslator->get('language.string'));
     assertType('string', StringLang::get('language.string'));
 }

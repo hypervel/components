@@ -12,7 +12,6 @@ function test(): void
     assertType(ApplicationResolver::class, App::make(ApplicationResolver::class));
     assertType(ApplicationResolver::class, App::makeWith(ApplicationResolver::class));
 
-    // Hypervel's other resolution methods.
     assertType(ApplicationResolver::class, App::makeTransient(ApplicationResolver::class));
     assertType(ApplicationResolver::class, App::get(ApplicationResolver::class));
     assertType('Closure(): Hypervel\PHPStan\ApplicationResolver', App::factory(ApplicationResolver::class));

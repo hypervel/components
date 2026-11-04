@@ -63,9 +63,8 @@ class AuthGuardTypeTest extends TypeInferenceTestCase
         $manager->provider('remote', static fn () => throw new LogicException('Analysis never creates providers.'));
         $app->instance('auth', $manager);
 
-        // These services read the application's auth setup. This test's own config file gives
-        // it its own service instances, so their swapped container and cached guard types
-        // never reach other tests.
+        // This test's own config file gives it its own instances of these services, so the
+        // swapped container and their cached guard types never reach other tests.
         foreach ([AuthGuardHelper::class, GuardExtension::class, AuthExtension::class] as $service) {
             self::getContainer()->getByType($service)->setContainer($app);
         }

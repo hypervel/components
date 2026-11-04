@@ -188,22 +188,15 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
             ['Translation "lookups.missing" has not been found.', 10],
             ['Translation "lookups.missing" has not been found.', 11],
             ['Translation "lookups.missing" has not been found.', 12],
-            // Blade comments, verbatim blocks, escaped echoes and directives, and other objects'
-            // trans() methods are not translator lookups; directives in HTML comments still run.
             ['Translation "lookups.missing" has not been found.', 21],
-            // Literal text, JavaScript, string literals and attributes bound outside components do not run as PHP.
             ['Translation "lookups.missing" has not been found.', 26],
             ['Translation "lookups.missing" has not been found.', 27],
             ['Translation "lookups.missing" has not been found.', 28],
             ['Translation "lookups.missing" has not been found.', 29],
             ['Translation "lookups.missing" has not been found.', 30],
             ['Translation "lookups.missing" has not been found.', 32],
-            // Line 34's @lang is text inside another directive's arguments, and Blade leaves line 35's unknown directive as text.
             ['Translation "lookups.missing" has not been found.', 36],
-            // Line 37 creates a closure rather than looking a key up.
             ['Translation "lookups.missing" has not been found.', 38],
-            // Blade removes line 39's comment, PHP tags included, and line 40's @push is the custom directive.
-            // A comment removes the blocks inside it on lines 41 and 43; a verbatim block's PHP still runs.
             ['Translation "lookups.missing" has not been found.', 42],
         ];
 
@@ -224,7 +217,6 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
                 ['Translation "lookups.missing" has not been found for locale "fr".', 36],
                 ['Translation "lookups.missing" has not been found for locale "fr".', 37],
                 ['Translation "lookups.missing" has not been found for locale "fr".', 38],
-                // trans_choice() falls back to the en.json line; __() reads JSON only for the requested locale.
                 ['Translation "lookups.apples" has not been found for locale "fr".', 42],
             ]);
         } finally {

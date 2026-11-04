@@ -6,7 +6,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Str;
 
-// Record what the analyzer bootstrap left behind in this PHPStan process.
 $app = Container::getInstance();
 
 file_put_contents(

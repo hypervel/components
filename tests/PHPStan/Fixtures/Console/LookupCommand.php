@@ -19,8 +19,6 @@ abstract class LookupCommand extends Command
         // WithArgumentCommand's definition supplies the type.
         assertType('string', $this->argument('argument'));
 
-        // A passed guard keeps each call from the commands without the name, and the
-        // last one is never reached.
         if ($this->hasArgument('argument')) {
             $this->argument('argument');
         }
