@@ -166,6 +166,13 @@ class EntryStoreTest extends TestCase
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
         }
+
+        $repo = new RecorderSpyRepo;
+
+        $recorder->record(new IncomingEntry);
+        $recorder->flush($repo);
+
+        $this->assertCount(0, $repo->saved, 'The storage failure must still suspend recording when logging it is canceled.');
     }
 }
 

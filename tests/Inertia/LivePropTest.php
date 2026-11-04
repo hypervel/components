@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Inertia\LivePropTest;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\EncryptedPrivateChannel;
+use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
@@ -188,6 +189,30 @@ class OrderRefunded
     }
 }
 
+enum OrderEventCode: int
+{
+    case Escalated = 42;
+}
+
+class OrderEscalated
+{
+    /**
+     * Get the channel the event should broadcast on.
+     */
+    public function broadcastOn(): PrivateChannel
+    {
+        return new PrivateChannel('orders.1');
+    }
+
+    /**
+     * Get the event's broadcast name.
+     */
+    public function broadcastAs(): OrderEventCode
+    {
+        return OrderEventCode::Escalated;
+    }
+}
+
 class OrderNoted
 {
     /**
@@ -216,6 +241,24 @@ class OrderBroadcastPerConnection
         return [
             'reverb' => [new PrivateChannel('orders.1')],
             'pusher' => [new PrivateChannel('pusher.orders.1')],
+        ];
+    }
+}
+
+class OrderBroadcastOnUnnamedOrDefaultConnection
+{
+    use InteractsWithBroadcasting;
+
+    /**
+     * Get the channels the event should broadcast on, keyed by connection.
+     *
+     * @return array<string, array<int, Channel>>
+     */
+    public function broadcastOn(): array
+    {
+        return [
+            '' => [new PrivateChannel('orders.1')],
+            'reverb' => [new PrivateChannel('reverb.orders.1')],
         ];
     }
 }
@@ -349,6 +392,24 @@ class OrderRoutedDuringCancellation
     public function broadcastOn(): PrivateChannel
     {
         throw LivePropTest::$cancellation;
+    }
+}
+
+class OrderRoutedOnCount
+{
+    /**
+     * The number of times the channels were read.
+     */
+    public int $reads = 0;
+
+    /**
+     * Get the channel the event should broadcast on.
+     */
+    public function broadcastOn(): PrivateChannel
+    {
+        ++$this->reads;
+
+        return new PrivateChannel('orders');
     }
 }
 
@@ -678,6 +739,12 @@ class LivePropTest extends TestCase
         $this->assertSame(['order.refunded'], (new LiveProp('bar', OrderRefunded::class))->liveListeners()[0]['events']);
     }
 
+    public function testAnIntegerBackedEnumBroadcastNameResolvesToItsValueAsAString(): void
+    {
+        $this->assertSame(['42'], (new LiveProp('bar', new OrderEscalated))->liveListeners()[0]['events']);
+        $this->assertSame(['42'], (new LiveProp('bar', OrderEscalated::class))->liveListeners()[0]['events']);
+    }
+
     public function testAnEventClassNameThatDoesNotExistThrows(): void
     {
         $liveProp = new LiveProp('bar', 'App\Events\OrderUpdated', 'orders.1');
@@ -767,6 +834,26 @@ class LivePropTest extends TestCase
                 'events' => [OrderBroadcastPerConnection::class],
             ],
         ], (new LiveProp('bar', new OrderBroadcastPerConnection))->liveListeners());
+    }
+
+    public function testChannelsKeyedByConnectionFollowTheConnectionTheEventIsBroadcastVia(): void
+    {
+        config(['broadcasting.default' => 'reverb']);
+
+        // Without a named connection, the broadcast job sends the '' channels on the default connection
+        $this->assertSame([
+            [
+                'channel' => ['name' => 'orders.1', 'type' => 'private'],
+                'events' => [OrderBroadcastOnUnnamedOrDefaultConnection::class],
+            ],
+        ], (new LiveProp('bar', new OrderBroadcastOnUnnamedOrDefaultConnection))->liveListeners());
+
+        $this->assertSame([
+            [
+                'channel' => ['name' => 'reverb.orders.1', 'type' => 'private'],
+                'events' => [OrderBroadcastOnUnnamedOrDefaultConnection::class],
+            ],
+        ], (new LiveProp('bar', (new OrderBroadcastOnUnnamedOrDefaultConnection)->broadcastVia('reverb')))->liveListeners());
     }
 
     public function testChannelsKeyedByConnectionWithoutTheDefaultConnectionThrow(): void
@@ -1063,6 +1150,27 @@ class LivePropTest extends TestCase
         $this->assertArrayHasKey('orders', $page['liveProps']);
     }
 
+    public function testASentLivePropReadsItsChannelsOncePerResponse(): void
+    {
+        $initial = new OrderRoutedOnCount;
+        $page = $this->renderPage([
+            'order' => Inertia::live(fn () => 'bar', on: $initial),
+        ]);
+
+        $partial = new OrderRoutedOnCount;
+        $this->renderPage([
+            'order' => Inertia::live(fn () => 'bar', on: $partial),
+        ], [
+            'X-Inertia' => 'true',
+            'X-Inertia-Partial-Component' => 'User/Edit',
+            'X-Inertia-Partial-Data' => 'order',
+        ]);
+
+        $this->assertArrayHasKey('order', $page['liveProps']);
+        $this->assertSame(1, $initial->reads);
+        $this->assertSame(1, $partial->reads);
+    }
+
     public function testTheLiveManifestIsSerializedIntoThePage(): void
     {
         $page = $this->renderPage([
@@ -1193,6 +1301,26 @@ class LivePropTest extends TestCase
 
         $this->assertSame(['order' => 'bar'], $page['props']);
         $this->assertSame(['order'], array_keys($page['liveProps']));
+    }
+
+    public function testALivePropResolvedForANestedPartialRequestSendsItsListeners(): void
+    {
+        $page = $this->renderPage([
+            'order' => Inertia::live(fn () => ['id' => 2, 'total' => 200], on: new OrderUpdated(2)),
+            'metrics' => Inertia::live(fn () => 'baz', on: new OrderShipped),
+            'status' => Inertia::live(fn () => 'ready', on: new OrderCreated),
+        ], [
+            'X-Inertia' => 'true',
+            'X-Inertia-Partial-Component' => 'User/Edit',
+            'X-Inertia-Partial-Data' => 'order.total,status',
+            'X-Inertia-Partial-Except' => 'status',
+        ]);
+
+        // The live prop resolves whole for its nested path, so the listeners for
+        // its new channel are sent with it
+        $this->assertSame(['order' => ['id' => 2, 'total' => 200]], $page['props']);
+        $this->assertSame(['order'], array_keys($page['liveProps']));
+        $this->assertSame([['channel' => ['name' => 'orders.2', 'type' => 'private'], 'events' => [OrderUpdated::class]]], $page['liveProps']['order']['listeners']);
     }
 
     public function testLiveAlwaysPropsKeepMetadataOnUnrelatedPartialRequests(): void

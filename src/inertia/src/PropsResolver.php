@@ -196,12 +196,15 @@ class PropsResolver
 
         foreach ($props as $key => $value) {
             $path = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
-            $prop = $value;
+
+            // Resolution mutates a scroll prop, so a reused one resolves through its own copy,
+            // as it does for a page response.
+            $prop = $value instanceof ScrollProp ? clone $value : $value;
 
             $value = $this->resolveValue($prop, $path, $props);
 
             if ($value !== $prop && $this->isPropType($value)) {
-                $value = $this->resolveValue($value, $path, $props);
+                $value = $this->resolveValue($value instanceof ScrollProp ? clone $value : $value, $path, $props);
             }
 
             // A rescued prop resolved to null, so leave it out rather than
@@ -602,7 +605,10 @@ class PropsResolver
             $this->collectOnceMetadata($path, $prop);
         }
 
-        if ($prop instanceof SupportsLiveUpdates && $prop->isLive()) {
+        // On an initial load, excludeFromInitialResponse() has already collected the
+        // listeners of every prop that reaches here. Collecting them again would call
+        // each event's broadcastOn() a second time for the same result.
+        if ($this->isPartial && $prop instanceof SupportsLiveUpdates && $prop->isLive()) {
             $this->collectLiveMetadata($path, $prop, $parentWasResolved);
         }
     }
@@ -686,15 +692,10 @@ class PropsResolver
      */
     protected function collectLiveMetadata(string $path, SupportsLiveUpdates $prop, bool $parentWasResolved): void
     {
-        // Props that resolve outside partial filters, whether because they are
-        // always props or because their parent already resolved, must refresh
-        // their listeners with them when model-bound channels or events change.
-        if ($this->isPartial
-            && ! $this->bypassesPartialFiltering($prop, $parentWasResolved)
-            && ! $this->isIncludedInPartialMetadata($path)) {
-            return;
-        }
-
+        // A partial reload only reaches here for a live prop it sends, and sends it whole,
+        // even when the request names one of its descendants or the prop resolves outside
+        // the filters. Its listeners go with it, since model-bound channels may change.
+        // $parentWasResolved keeps upstream's signature for resolvers that override this.
         $this->liveProps[$path] = [
             'listeners' => $prop->liveListeners(),
         ];

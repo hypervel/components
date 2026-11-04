@@ -166,6 +166,20 @@ class BroadcastPropsTest extends TestCase
         ], $payload['__inertia']['props']);
     }
 
+    public function testAReusedScrollPropResolvesAgainOnEachBroadcast(): void
+    {
+        $callCount = 0;
+        $feed = Inertia::scroll(function () use (&$callCount) {
+            return ['data' => [['id' => ++$callCount]]];
+        });
+
+        $first = $this->broadcastProps(['feed' => $feed]);
+        $second = $this->broadcastProps(['feed' => $feed]);
+
+        $this->assertSame([['id' => 1]], $first['__inertia']['props']['feed']['data']);
+        $this->assertSame([['id' => 2]], $second['__inertia']['props']['feed']['data']);
+    }
+
     public function testARescuedPropIsLeftOutOfThePayload(): void
     {
         $payload = $this->broadcastProps([

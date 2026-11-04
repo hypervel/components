@@ -127,9 +127,10 @@ trait HasLiveUpdates
      */
     protected function resolveEventName(object|string $event): string
     {
+        // Broadcast names are cast like the broadcast job casts them, so an integer-backed enum works.
         if (is_object($event)) {
             return method_exists($event, 'broadcastAs')
-                ? enum_value($event->broadcastAs())
+                ? (string) enum_value($event->broadcastAs())
                 : $event::class;
         }
 
@@ -143,7 +144,7 @@ trait HasLiveUpdates
         // built without its payload, which is all a fixed name needs.
         if (class_exists($event) && (new ReflectionClass($event))->hasMethod('broadcastAs')) {
             try {
-                return enum_value((new ReflectionClass($event))->newInstanceWithoutConstructor()->broadcastAs());
+                return (string) enum_value((new ReflectionClass($event))->newInstanceWithoutConstructor()->broadcastAs());
             } catch (Throwable $exception) {
                 if (Coroutine::causedByCancellation($exception)) {
                     throw $exception;
@@ -223,11 +224,20 @@ trait HasLiveUpdates
     {
         $connection = config()->string('broadcasting.default');
 
-        if (! is_array($channels[$connection] ?? null)) {
+        // The broadcast job sends an event without a named connection on the default
+        // connection, using the channels keyed by ''. Otherwise the default connection's
+        // name selects them.
+        $connections = method_exists($event, 'broadcastConnections') ? $event->broadcastConnections() : [null];
+
+        $defaultChannels = in_array(null, $connections, true) && is_array($channels[''] ?? null)
+            ? $channels['']
+            : $channels[$connection] ?? null;
+
+        if (! is_array($defaultChannels)) {
             throw new LogicException('The [' . $event::class . "] event keys its channels by connection, but has none for the default [{$connection}] connection. Pass the [channel] argument instead.");
         }
 
-        return array_values($channels[$connection]);
+        return array_values($defaultChannels);
     }
 
     /**
