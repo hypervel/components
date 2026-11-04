@@ -456,6 +456,8 @@ Package-specific tests that require one database driver go in `tests/Integration
 |-------|----------|
 | `Hypervel\Tests\TestCase` | Unit tests, mocks only, no container needed. Tests that only need an isolated scratch directory stay here — use `ParallelTesting::tempDir()` (see Temp directories below). |
 | `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that needs a full app skeleton / writes through `BASE_PATH`** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
+| `PHPStan\Testing\RuleTestCase` | PHPStan rule tests in `tests/PHPStan`. |
+| `PHPStan\Testing\TypeInferenceTestCase` | PHPStan type-inference tests in `tests/PHPStan`. |
 
 Always call `parent::setUp()` in your setUp method.
 
@@ -509,7 +511,7 @@ The Testbench skeleton clone is shared for the whole worker, so tests that write
 
 ### Coroutine support
 
-All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
+Tests using Hypervel's base classes run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
 
 **Never add `use RunTestsInCoroutine;` to individual test classes.** It's inherited from the base class. If you encounter a test extending raw `PHPUnit\Framework\TestCase`, change it to extend `Hypervel\Tests\TestCase` instead.
 
@@ -959,7 +961,7 @@ Tests for these features should be **removed** (not commented out) without askin
 1. Update namespace to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
-4. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
+4. Extend the appropriate test base listed under [Base classes](#base-classes)
 5. Ensure `parent::setUp()` is called
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
