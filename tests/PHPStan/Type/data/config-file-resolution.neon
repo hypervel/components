@@ -1,0 +1,8 @@
+includes:
+    - ../../phpstan-tests.neon
+parameters:
+    checkConfigTypes: true
+    configDirectories:
+        - %rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/config
+        - %rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/modules/*/config
+        - '%rootDir%/../../../tests/PHPStan/Type/data/config-file-resolution/literal[1]/config'

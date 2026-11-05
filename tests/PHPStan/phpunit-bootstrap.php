@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use Composer\Autoload\ClassLoader;
 use Hypervel\Console\Application;
+use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Testbench\Bootstrapper;
+use Hypervel\Tests\PHPStan\Fixtures\Config\ConfigFixtureServiceProvider;
+use Hypervel\Tests\PHPStan\Fixtures\Config\OverlappingConfigServiceProvider;
 use Hypervel\Tests\PHPStan\Fixtures\Console\WithArgumentCommand;
 use Hypervel\Tests\PHPStan\Fixtures\Console\WithoutArgumentCommand;
 
@@ -32,6 +35,7 @@ foreach (['app/Console/Commands', 'lang', 'resources/views'] as $directory) {
 
 // Fixture config files replace the skeleton's files of the same name; the rest stay.
 $filesystem->copyDirectory(__DIR__ . '/application/config', BASE_PATH . '/config');
+$filesystem->copyDirectory(__DIR__ . '/Fixtures/Config/application', BASE_PATH . '/config');
 
 // Registered only as a provider would, in this order, which the command lookup tests rely on.
 Application::starting(static function (Application $artisan): void {
@@ -46,3 +50,7 @@ $_SERVER['AUTH_MODEL'] = $_ENV['AUTH_MODEL'] = 'App\User';
 // Boot the analyzed application before any test, so its error and exception handlers
 // stay out of PHPUnit's per-test handler checks.
 require_once __DIR__ . '/../../src/phpstan/bootstrap.php';
+
+// Package configuration sources, which the config analysis reads from the loaded providers.
+Container::getInstance()->register(ConfigFixtureServiceProvider::class);
+Container::getInstance()->register(OverlappingConfigServiceProvider::class);

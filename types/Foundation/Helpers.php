@@ -25,7 +25,10 @@ assertType('mixed', cache('foo', 42));
 
 assertType('Hypervel\Config\Repository', config());
 assertType('null', config(['foo' => 'bar']));
-assertType('mixed', config('foo'));
+// Unlike upstream, the PHPStan extension types an absent key as its null default.
+assertType('null', config('foo'));
+/** @var string $key */
+assertType('mixed', config($key));
 
 assertType('Hypervel\Log\Context\Repository', context());
 assertType('Hypervel\Log\Context\Repository', context(['foo' => 'bar']));
