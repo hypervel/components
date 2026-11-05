@@ -73,7 +73,7 @@ class RedisWorkloadRepository implements WorkloadRepository
                     'processes' => $totalProcesses,
                     'split_queues' => $splitQueues,
                 ];
-            })->values()->toArray();
+            })->values()->all();
     }
 
     /**

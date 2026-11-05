@@ -333,7 +333,7 @@ class Middleware
         return (object) collect($bags)->map(function ($bag) {
             return (object) collect($bag->messages())->map(function ($errors) {
                 return $this->withAllErrors ? $errors : $errors[0];
-            })->toArray();
+            })->all();
         })->pipe(function ($bags) use ($request) {
             $errorBag = $request->header(Header::ERROR_BAG);
 

@@ -39,7 +39,7 @@ class ExceptionWatcher extends Watcher
 
         $trace = Collection::make($exception->getTrace())->map(function ($item) {
             return Arr::only($item, ['file', 'line']);
-        })->toArray();
+        })->all();
 
         $content = [
             'class' => get_class($exception),
