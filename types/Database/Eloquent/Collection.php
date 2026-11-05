@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Support\Stringable;
 
 use function PHPStan\Testing\assertType;
 
@@ -226,6 +227,11 @@ assertType('array<User>', $collection->getDictionary([new User]));
 
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck('string'));
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck(['string']));
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->pluck(fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user): string => 'key'));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user) => 'key'));
+assertType('Hypervel\Support\Collection<int, string>', $collection->pluck(fn (User $user): string => 'value', fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, int>', $collection->pluck(fn (User $user): int => 1, fn (User $user): Stringable => new Stringable('key')));
 
 assertType('Hypervel\Support\Collection<int, int>', $collection->keys());
 

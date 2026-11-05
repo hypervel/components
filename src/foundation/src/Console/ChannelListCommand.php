@@ -92,7 +92,7 @@ class ChannelListCommand extends Command
         return $lines
             ->prepend('')
             ->push('')->push($channelCount)->push('')
-            ->toArray();
+            ->all();
     }
 
     /**

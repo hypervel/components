@@ -230,7 +230,7 @@ class PendingProcess
 
             ConnectionResolver::releaseIdleConnections();
 
-            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output)));
         } catch (SymfonyTimeoutException $e) {
             throw ProcessTimedOutException::make($e, new ProcessResult($process));
         } catch (Throwable $exception) {

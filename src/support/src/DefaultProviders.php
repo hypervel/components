@@ -94,7 +94,7 @@ class DefaultProviders
             $current = is_int($key) ? $current->replace([$key => $to]) : $current;
         }
 
-        return new static($current->values()->toArray());
+        return new static($current->values()->all());
     }
 
     /**
@@ -107,7 +107,7 @@ class DefaultProviders
         return new static((new Collection($this->providers))
             ->diff($providers)
             ->values()
-            ->toArray());
+            ->all());
     }
 
     /**

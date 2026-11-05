@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 use Override;
+use Stringable;
 
 /**
  * @template TKey of array-key
@@ -861,7 +862,12 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Get the values of a given key.
      *
-     * @return BaseCollection<array-key, mixed>
+     * @template TPluckValue
+     * @template TPluckKey of array-key|Stringable
+     *
+     * @param null|array<array-key, string>|(Closure(TModel): TPluckValue)|int|string $value
+     * @param null|array<array-key, string>|(Closure(TModel): TPluckKey)|int|string $key
+     * @return BaseCollection<($key is Closure ? (TPluckKey is int ? int : string) : array-key), ($value is Closure ? TPluckValue : mixed)>
      */
     #[Override]
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): BaseCollection
@@ -1012,7 +1018,6 @@ class Collection extends BaseCollection implements QueueableCollection
             return [];
         }
 
-        // @phpstan-ignore method.nonObject (HigherOrderProxy returns Collection, not array)
         $relations = $this->map->getQueueableRelations()->all();
 
         if (count($relations) === 0 || $relations === [[]]) {

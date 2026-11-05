@@ -113,7 +113,7 @@ class AsEnumArrayObject implements Castable
             {
                 return (new Collection($value->getArrayCopy()))
                     ->map(fn ($enum) => $this->getStorableEnumValue($enum))
-                    ->toArray();
+                    ->all();
             }
 
             /**

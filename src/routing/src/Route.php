@@ -1245,7 +1245,7 @@ class Route
             })
             ->map
             ->middleware
-            ->flatten() // @phpstan-ignore method.nonObject (HigherOrderCollectionProxy result can't be statically typed)
+            ->flatten()
             ->values()
             ->all();
     }

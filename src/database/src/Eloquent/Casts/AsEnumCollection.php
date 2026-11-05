@@ -97,7 +97,7 @@ class AsEnumCollection implements Castable
             {
                 return (new Collection($value))
                     ->map(fn ($enum) => $this->getStorableEnumValue($enum))
-                    ->toArray();
+                    ->all();
             }
 
             /**

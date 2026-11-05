@@ -621,7 +621,7 @@ class ComponentTagCompiler
             }
 
             return [$attribute => $value];
-        })->toArray();
+        })->all();
     }
 
     /**
