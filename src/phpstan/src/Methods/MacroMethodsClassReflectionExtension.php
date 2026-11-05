@@ -30,6 +30,7 @@ use Throwable;
 use function array_any;
 use function array_key_exists;
 use function array_keys;
+use function class_exists;
 use function explode;
 use function in_array;
 use function is_array;
@@ -142,6 +143,13 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
                 }
 
                 $refProperty = $macroClassReflection->getNativeReflection()->getProperty($macroTraitProperty);
+
+                // Hypervel: macros are registered at runtime, so the registry of an owner the booted application
+                // never loaded, such as a class that only analysed files declare, is unavailable.
+                if (! class_exists($refProperty->getDeclaringClass()->getName(), false)) {
+                    continue;
+                }
+
                 $macros = $refProperty->getValue();
 
                 if (! array_key_exists($methodName, $macros)) {

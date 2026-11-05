@@ -90,54 +90,16 @@ class PackageMetadataTest extends TestCase
         }
     }
 
-    public function testCaseInsensitiveCommandAliasesHaveIdenticalSignatures(): void
+    public function testCommandsAreDocumentedOncePerCaseInsensitiveName(): void
     {
         $docblock = (new ReflectionClass(RedisConnection::class))->getDocComment();
         $this->assertIsString($docblock);
-        preg_match_all(
-            '/@method\s+(\S+)\s+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)/',
-            $docblock,
-            $matches,
-            PREG_SET_ORDER,
-        );
+        preg_match_all('/@method\s+\S+\s+([A-Za-z_][A-Za-z0-9_]*)\(/', $docblock, $matches);
 
-        $methods = [];
+        // Commands are case-insensitive, and the static analysis matches every casing to the one tag.
+        $counts = array_count_values(array_map(strtolower(...), $matches[1]));
 
-        foreach ($matches as $match) {
-            $methods[strtolower($match[2])][] = "{$match[1]}({$match[3]})";
-        }
-
-        foreach ([
-            'setnx',
-            'hmget',
-            'hmset',
-            'hsetnx',
-            'hget',
-            'hset',
-            'llen',
-            'blpop',
-            'brpop',
-            'spop',
-            'srem',
-            'zadd',
-            'zcard',
-            'zcount',
-            'zrangebyscore',
-            'zrevrangebyscore',
-            'flushdb',
-            'smembers',
-            'hdel',
-            'zrem',
-            'hlen',
-            'hkeys',
-        ] as $method) {
-            $this->assertCount(2, $methods[$method] ?? [], "Expected two case variants for [{$method}].");
-            $this->assertCount(
-                1,
-                array_unique($methods[$method]),
-                "Expected both case variants of [{$method}] to have the same signature.",
-            );
-        }
+        $this->assertSame([], array_keys(array_filter($counts, static fn (int $count): bool => $count > 1)));
     }
 
     public function testFacadeDocumentsManagerAndMacroSurfaces(): void
