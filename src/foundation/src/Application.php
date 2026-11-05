@@ -793,7 +793,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         if ($environments !== []) {
-            $patterns = is_array($environments[0]) ? $environments[0] : $environments;
+            // Hypervel: a named environments: argument is keyed by name, so read the first value, not key 0.
+            $first = $environments[array_key_first($environments)];
+            $patterns = is_array($first) ? $first : $environments;
 
             return Str::is(array_map(enum_value(...), $patterns), $this->make('env'));
         }
