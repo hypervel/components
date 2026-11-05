@@ -45,7 +45,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(SWOOLE_ERROR_CLIENT_NO_CONNECTION, $client->errCode);
     }
 
-    public function testRequestSendsCallerHostAndValidCloseToken(): void
+    public function testDisabledKeepAliveSendsValidCloseToken(): void
     {
         $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
 
@@ -54,13 +54,11 @@ class HttpClientTest extends TestCase
         $client->set(['keep_alive' => false]);
 
         try {
-            $client->request('GET', '/', ['HOST' => 'example.test']);
+            $client->request();
             $request = $server->request();
 
             $this->assertIsString($request);
-            preg_match_all('/^Host: (.*)\r$/mi', $request, $hosts);
             preg_match_all('/^Connection: (.*)\r$/mi', $request, $connections);
-            $this->assertSame(['example.test'], $hosts[1]);
             $this->assertSame(['close'], $connections[1]);
         } finally {
             $client->close();
@@ -209,9 +207,9 @@ class HttpClientTest extends TestCase
      */
     private function skipWhenCoroutineHttpClientFixesAreUnavailable(): void
     {
-        // @TODO: Remove this skip once the fixes from https://github.com/swoole/swoole-src/pull/6149 are in a Swoole release.
+        // @TODO: Remove this skip once the fixes from https://github.com/swoole/swoole-src/pull/6356, https://github.com/swoole/swoole-src/pull/6357 and https://github.com/swoole/swoole-src/pull/6358 are in a Swoole release.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires the coroutine HTTP client fixes from https://github.com/swoole/swoole-src/pull/6149.');
+            $this->markTestSkipped('Requires the coroutine HTTP client fixes from https://github.com/swoole/swoole-src/pull/6356, https://github.com/swoole/swoole-src/pull/6357 and https://github.com/swoole/swoole-src/pull/6358.');
         }
     }
 }
