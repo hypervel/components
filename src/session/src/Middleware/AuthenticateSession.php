@@ -57,7 +57,7 @@ class AuthenticateSession implements AuthenticatesSessions
         }
 
         return tap($next($request), function () use ($request) {
-            if (! is_null($this->guard()->user())) { // @phpstan-ignore method.notFound
+            if (! is_null($this->guard()->user())) {
                 $this->storePasswordHashInSession($request);
             }
         });

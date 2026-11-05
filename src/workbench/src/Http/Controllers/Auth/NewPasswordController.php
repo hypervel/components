@@ -50,7 +50,7 @@ class NewPasswordController extends Controller
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (Authenticatable&CanResetPassword&Model $user) use ($request): void {
                 $user->forceFill([
-                    'password' => Hash::make($request->password), // @phpstan-ignore property.notFound
+                    'password' => Hash::make($request->password),
                 ]);
 
                 // The model names its remember token column, or has none.

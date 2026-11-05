@@ -29,7 +29,7 @@ class ConfirmablePasswordController extends Controller
     {
         if (! Auth::guard()->validate([
             'email' => $request->user()->email,
-            'password' => $request->password, // @phpstan-ignore property.notFound
+            'password' => $request->password,
         ])) {
             throw ValidationException::withMessages([
                 'password' => __('auth.password'),

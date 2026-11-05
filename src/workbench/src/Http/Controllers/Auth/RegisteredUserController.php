@@ -49,9 +49,9 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = $userModel::forceCreate([
-            'name' => $request->name, // @phpstan-ignore property.notFound
-            'email' => $request->email, // @phpstan-ignore property.notFound
-            'password' => Hash::make($request->password), // @phpstan-ignore property.notFound
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
         ]);
 
         if (Event::hasListeners(Registered::class)) {

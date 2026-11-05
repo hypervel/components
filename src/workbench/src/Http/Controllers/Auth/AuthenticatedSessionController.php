@@ -39,7 +39,6 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
-        /* @phpstan-ignore method.notFound */
         Auth::guard()->logout();
 
         $request->session()->invalidate();
