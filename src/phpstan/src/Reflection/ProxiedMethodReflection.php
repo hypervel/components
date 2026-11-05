@@ -10,7 +10,6 @@ use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\ExtendedParametersAcceptor;
 use PHPStan\Reflection\FunctionVariant;
 use PHPStan\Reflection\MethodReflection;
-use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptor;
 use PHPStan\TrinaryLogic;
 use PHPStan\Type\StaticType;
@@ -100,21 +99,26 @@ final class ProxiedMethodReflection implements MethodReflection
     public function getVariants(): array
     {
         return array_map(
-            fn (ParametersAcceptor $variant): FunctionVariant => new FunctionVariant(
-                $variant->getTemplateTypeMap(),
-                $variant->getResolvedTemplateTypeMap(),
-                // Other parameters stay as they are, keeping PHPStan's extended metadata such as closure-this types.
-                array_map(
-                    static fn (ParameterReflection $parameter): ParameterReflection => $parameter->passedByReference()->no()
-                        ? $parameter
-                        : new ProxiedParameterReflection($parameter),
-                    $variant->getParameters(),
-                ),
-                $variant->isVariadic(),
-                self::resolveStaticTypes(($this->returnType)($variant->getReturnType())),
-                $variant instanceof ExtendedParametersAcceptor ? $variant->getCallSiteVarianceMap() : null,
+            fn (ParametersAcceptor $variant): FunctionVariant => self::proxyVariant(
+                $variant,
+                ($this->returnType)($variant->getReturnType()),
             ),
             $this->targetMethod->getVariants(),
+        );
+    }
+
+    /**
+     * Describe a target method's variant as a proxy receives it, returning the given type.
+     */
+    public static function proxyVariant(ParametersAcceptor $variant, Type $returnType): FunctionVariant
+    {
+        return new FunctionVariant(
+            $variant->getTemplateTypeMap(),
+            $variant->getResolvedTemplateTypeMap(),
+            ProxiedParameterReflection::fromTargetParameters($variant->getParameters()),
+            $variant->isVariadic(),
+            self::resolveStaticTypes($returnType),
+            $variant instanceof ExtendedParametersAcceptor ? $variant->getCallSiteVarianceMap() : null,
         );
     }
 

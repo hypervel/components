@@ -8,6 +8,8 @@ use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\PassedByReference;
 use PHPStan\Type\Type;
 
+use function array_map;
+
 /**
  * Describe a target method's by-reference parameter as a proxy receives it. A proxy's __call()
  * gets the argument values, so the caller's variable is never passed by reference.
@@ -20,6 +22,24 @@ final class ProxiedParameterReflection implements ParameterReflection
     public function __construct(
         private readonly ParameterReflection $parameter,
     ) {
+    }
+
+    /**
+     * Describe a target's parameters as a proxy receives them.
+     *
+     * Other parameters stay as they are, keeping PHPStan's extended metadata such as closure-this types.
+     *
+     * @param list<ParameterReflection> $parameters
+     * @return list<ParameterReflection>
+     */
+    public static function fromTargetParameters(array $parameters): array
+    {
+        return array_map(
+            static fn (ParameterReflection $parameter): ParameterReflection => $parameter->passedByReference()->no()
+                ? $parameter
+                : new self($parameter),
+            $parameters,
+        );
     }
 
     /**
