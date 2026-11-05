@@ -7,6 +7,7 @@ use DateTimeImmutable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\Stringable;
 use SortDirection;
 use Traversable;
 
@@ -262,7 +263,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->when(
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->when(true, function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->when(true, function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->when(true, function ($collection) {
@@ -276,7 +277,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->whenE
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->whenEmpty(function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->whenEmpty(function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->whenEmpty(function ($collection) {
@@ -290,7 +291,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->whenN
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->whenNotEmpty(function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->whenNotEmpty(function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->whenNotEmpty(function ($collection) {
@@ -304,7 +305,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->unles
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->unless(true, function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->unless(true, function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->unless(true, function ($collection) {
@@ -318,7 +319,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->unles
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->unlessEmpty(function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->unlessEmpty(function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->unlessEmpty(function ($collection) {
@@ -332,7 +333,7 @@ assertType('Hypervel\Support\LazyCollection<int, User>|true', $collection->unles
 
     return true;
 }));
-assertType('Hypervel\Support\LazyCollection<int, User>|null', $collection->unlessNotEmpty(function ($collection) {
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->unlessNotEmpty(function ($collection) {
     assertType('Hypervel\Support\LazyCollection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\LazyCollection<int, User>", $collection->unlessNotEmpty(function ($collection) {
@@ -611,6 +612,14 @@ assertType('Hypervel\Support\LazyCollection<int<0, 1>, Hypervel\Support\LazyColl
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->concat([2]));
 assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['string'])->concat(['string']));
 assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make([1])->concat(['string']));
+assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['first' => 'string'])->concat(['key' => 'string']));
+
+// Merging, multiplying and shuffling renumber integer keys, and flatMap() drops every key.
+assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make([10 => 'string'])->merge([10 => 'string']));
+assertType('Hypervel\Support\LazyCollection<string, string>', $collection::make(['first' => 'string'])->merge(['first' => 'string']));
+assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['first' => 'string'])->multiply(2));
+assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['first' => 'string'])->shuffle());
+assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->flatMap(fn (int $value): array => ['key' => $value]));
 
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->random(2));
 assertType('string', $collection::make(['string'])->random());
@@ -853,8 +862,14 @@ assertType('User', $collection->pipeInto(User::class));
 
 assertType('Hypervel\Support\LazyCollection<(int|string), mixed>', $collection::make(['string' => 'string'])->pluck('string'));
 assertType('Hypervel\Support\LazyCollection<(int|string), mixed>', $collection::make(['string' => 'string'])->pluck('string', 'string'));
+assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection->pluck(fn (User $user): int => 1));
+assertType('Hypervel\Support\LazyCollection<string, mixed>', $collection->pluck('string', fn (User $user): string => 'key'));
+assertType('Hypervel\Support\LazyCollection<string, mixed>', $collection->pluck('string', fn (User $user) => 'key'));
+assertType('Hypervel\Support\LazyCollection<int, string>', $collection->pluck(fn (User $user): string => 'value', fn (User $user): int => 1));
+assertType('Hypervel\Support\LazyCollection<string, int>', $collection->pluck(fn (User $user): int => 1, fn (User $user): Stringable => new Stringable('key')));
 
-assertType('Hypervel\Support\LazyCollection<int, User>', $collection->reject());
+// Without a callback, reject() keeps only falsy items, and objects are never falsy.
+assertType('Hypervel\Support\LazyCollection<int, *NEVER*>', $collection->reject());
 assertType('Hypervel\Support\LazyCollection<int, User>', $collection->reject(function ($user) {
     assertType('User', $user);
 

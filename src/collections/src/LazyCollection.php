@@ -739,9 +739,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Get the values of a given key.
      *
-     * @param null|array<array-key, string>|Closure|int|string $value
-     * @param null|array<array-key, string>|Closure|int|string $key
-     * @return static<array-key, mixed>
+     * @template TPluckValue
+     * @template TPluckKey of array-key|BaseStringable
+     *
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckValue)|int|string $value
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckKey)|int|string $key
+     * @return static<($key is Closure ? (TPluckKey is int ? int : string) : array-key), ($value is Closure ? TPluckValue : mixed)>
      */
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): static
     {
@@ -851,7 +854,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
-     * @return static<TFlatMapKey, TFlatMapValue>
+     * @return static<int, TFlatMapValue>
      */
     public function flatMap(callable $callback): static
     {
@@ -891,9 +894,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Multiply the items in the collection by the multiplier.
+     *
+     * @return static<int, TValue>
      */
     public function multiply(int $multiplier): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -903,8 +909,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TCombineValue = mixed
      *
      * @param Arrayable<array<array-key, TCombineValue>>|(callable(): iterable<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
-     * @return static<TValue, TCombineValue>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<(TValue is array-key ? TValue : array-key), TCombineValue>
      */
     public function combine(Arrayable|iterable|callable $values): static
     {
@@ -1058,11 +1063,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Push all of the given items onto the collection.
      *
-     * @template TConcatKey of array-key
      * @template TConcatValue
      *
-     * @param iterable<TConcatKey, TConcatValue> $source
-     * @return static<TConcatKey|TKey, TConcatValue|TValue>
+     * @param iterable<array-key, TConcatValue> $source
+     * @return static<int, TConcatValue|TValue>
      */
     public function concat(iterable $source): static
     {
@@ -1209,6 +1213,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     #[Override]
     public function shuffle(): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, []);
     }
 
@@ -1331,7 +1336,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Split a collection into a certain number of groups.
      *
-     * @return ($numberOfGroups is positive-int ? static<int, Collection<(TKey is int ? int : TKey), TValue>> : never)
+     * @return ($numberOfGroups is positive-int ? static<int, Collection<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TValue>> : never)
      *
      * @throws InvalidArgumentException
      */

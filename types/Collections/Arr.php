@@ -230,6 +230,8 @@ assertType('mixed', Arr::random($array));
 assertType('array', Arr::random($array, 2));
 
 assertType('array<0|1, mixed>', Arr::mapSpread([[0, 1], [2, 3]], fn (int $even, int $odd): int => $even + $odd));
+assertType("array<'first'|'last', int<0, max>>", Arr::map(['first' => 'taylor', 'last' => 'otwell'], fn (string $value, string $key): int => strlen($value)));
+assertType("array<'name', 0>", Arr::mapWithKeys([new User], fn (User $user, int $key): array => ['name' => $key]));
 
 // Numeric prefixes can produce integer array keys.
 assertType('array<User>', Arr::prependKeysWith($array, 'user_'));
