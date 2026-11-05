@@ -13,5 +13,17 @@ use Hypervel\Contracts\View\View as ViewContract;
  */
 function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract {}
 
+// Upstream's optional() stub is omitted: it types an Optional as mixed to accept any method call,
+// while the source declares Optional<TValue>, whose calls OptionalExtension passes to the value.
+
 // Upstream's trans() and __() are omitted: the source already declares their conditional
 // return, and upstream's replacement type rejects objects Hypervel's translator accepts.
+
+// Upstream's blank(), filled(), rescue(), retry(), tap() and transform() stubs and its TapExtension
+// are omitted: the source declares their types.
+
+// Upstream's config() and env() stubs and EnvFunctionDynamicFunctionReturnTypeExtension are omitted:
+// the source declares their types, and an env() default does not decide the type of the value read.
+
+// Upstream's NowAndTodayExtension and DateExtension are omitted: they type dates as the class of
+// now() when analysis runs, while now(), today() and the Date facade declare CarbonInterface.

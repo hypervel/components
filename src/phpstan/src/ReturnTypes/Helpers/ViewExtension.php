@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\PHPStan\ReturnTypes\Helpers;
+
+use Hypervel\Contracts\View\Factory;
+use Hypervel\Contracts\View\View;
+use Hypervel\PHPStan\Concerns\InfersFactoryHelperCalls;
+use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\Scope;
+use PHPStan\DependencyInjection\AutowiredService;
+use PHPStan\Reflection\FunctionReflection;
+use PHPStan\Type\DynamicFunctionReturnTypeExtension;
+use PHPStan\Type\ObjectType;
+use PHPStan\Type\Type;
+
+/**
+ * Upstream's view() stub returns the factory for an explicit null view name, which
+ * makes a view and fails. view() returns its factory only when called without arguments.
+ *
+ * @internal
+ */
+#[AutowiredService]
+final class ViewExtension implements DynamicFunctionReturnTypeExtension
+{
+    use InfersFactoryHelperCalls;
+
+    private ?ObjectType $factoryType = null;
+
+    private ?ObjectType $viewType = null;
+
+    /**
+     * Determine whether the function is view().
+     */
+    public function isFunctionSupported(FunctionReflection $functionReflection): bool
+    {
+        return $functionReflection->getName() === 'view';
+    }
+
+    /**
+     * Get the factory for a call without arguments, and otherwise the view.
+     */
+    public function getTypeFromFunctionCall(
+        FunctionReflection $functionReflection,
+        FuncCall $functionCall,
+        Scope $scope,
+    ): Type {
+        return $this->getFactoryHelperType(
+            $functionCall,
+            $this->factoryType ??= new ObjectType(Factory::class),
+            $this->viewType ??= new ObjectType(View::class),
+        );
+    }
+}
