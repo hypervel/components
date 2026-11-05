@@ -1425,6 +1425,9 @@ class SupportStringableTest extends TestCase
 
         $this->assertInstanceOf(Collection::class, $chunks);
         $this->assertSame(['foo', 'bar', 'baz'], $chunks->all());
+
+        // Hypervel: strict types would otherwise reject a numeric string length that Laravel accepts.
+        $this->assertSame(['foo', 'bar', 'baz'], $this->stringable('foobarbaz')->split('3')->all());
     }
 
     public function testJsonSerialize(): void
