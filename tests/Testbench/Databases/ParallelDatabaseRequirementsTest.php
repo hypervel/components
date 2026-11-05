@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testbench\Databases;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Support\Env;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -23,7 +24,7 @@ class ParallelDatabaseRequirementsTest extends TestCase
         touch($database);
 
         $environment = [
-            'TEST_TOKEN' => (string) (env('TEST_TOKEN') ?? 'requirements'),
+            'TEST_TOKEN' => (string) (Env::get('TEST_TOKEN') ?? 'requirements'),
             'DB_CONNECTION' => 'sqlite',
             'DB_DATABASE' => $database,
         ];

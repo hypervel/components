@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Factories;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Auth\User;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Str;
 
@@ -57,7 +58,8 @@ class UserFactory extends Factory
      */
     public function modelName(): string
     {
-        return $this->model ?? config('auth.providers.users.model') ?? env('AUTH_MODEL', User::class);
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (falls back to the variable the auth configuration reads when that key is missing)
+        return $this->model ?? config('auth.providers.users.model') ?? Env::get('AUTH_MODEL', User::class);
     }
 
     /**

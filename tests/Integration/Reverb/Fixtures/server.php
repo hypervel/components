@@ -27,6 +27,7 @@ use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Server\ServerFactory;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\Bootstrapper;
@@ -53,9 +54,9 @@ Bootstrapper::bootstrap();
 $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
 // Read port, scaling flag, and worker count from environment.
-$port = (string) (env('REVERB_SERVER_PORT') ?: '19510');
-$scaling = env('REVERB_SCALING_ENABLED') === true;
-$workerNum = (int) (env('REVERB_TEST_WORKER_NUM') ?: 1);
+$port = (string) (Env::get('REVERB_SERVER_PORT') ?: '19510');
+$scaling = Env::get('REVERB_SCALING_ENABLED') === true;
+$workerNum = (int) (Env::get('REVERB_TEST_WORKER_NUM') ?: 1);
 $label = $scaling ? 'Reverb Redis test server' : ($workerNum > 1 ? "Reverb multi-worker test server ({$workerNum} workers)" : 'Reverb test server');
 
 // Set Reverb app env vars BEFORE boot so the config file picks them up.
@@ -77,7 +78,7 @@ $defaults = [
 ];
 
 foreach ($defaults as $key => $value) {
-    if (env($key) === null) {
+    if (Env::get($key) === null) {
         putenv("{$key}={$value}");
         $_ENV[$key] = $value;
         $_SERVER[$key] = $value;
@@ -288,7 +289,7 @@ $app->singleton(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, funct
     };
 });
 
-$port = env('REVERB_SERVER_PORT', 19510);
+$port = Env::get('REVERB_SERVER_PORT', 19510);
 
 echo "Starting {$label} on 0.0.0.0:{$port}...\n";
 

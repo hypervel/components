@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Support\Env;
 use Typesense\Client as TypesenseClient;
 
 /**
@@ -33,7 +34,8 @@ trait InteractsWithTypesense
      */
     protected function setUpInteractsWithTypesense(): void
     {
-        if (env('TYPESENSE_HOST') === null) {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        if (Env::get('TYPESENSE_HOST') === null) {
             $this->markTestSkipped(
                 'Set TYPESENSE_HOST to run Typesense integration tests for ' . static::class
             );
@@ -80,12 +82,16 @@ trait InteractsWithTypesense
     protected function getTypesenseClientSettings(): array
     {
         return [
-            'api_key' => env('TYPESENSE_API_KEY', ''),
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+            'api_key' => Env::get('TYPESENSE_API_KEY', ''),
             'nodes' => [
                 [
-                    'host' => env('TYPESENSE_HOST', '127.0.0.1'),
-                    'port' => (string) env('TYPESENSE_PORT', '8108'),
-                    'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+                    // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+                    'host' => Env::get('TYPESENSE_HOST', '127.0.0.1'),
+                    // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+                    'port' => (string) Env::get('TYPESENSE_PORT', '8108'),
+                    // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+                    'protocol' => Env::get('TYPESENSE_PROTOCOL', 'http'),
                 ],
             ],
             'connection_timeout_seconds' => 2,
@@ -98,7 +104,8 @@ trait InteractsWithTypesense
     protected function computeTypesenseTestPrefix(): void
     {
         $base = 'test_';
-        $token = env('TEST_TOKEN', '');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN', '');
 
         $this->typesenseTestPrefix = $token !== '' ? "{$base}{$token}_" : $base;
     }

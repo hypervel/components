@@ -134,6 +134,7 @@ trait HandlesRoutes
         if ($this->app instanceof HypervelApplication) {
             $cachedRoutesPath = $this->app->getCachedRoutesPath();
         } else {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (cache paths are read before configuration loads, as Application::normalizeCachePath() does)
             $configuredCachedRoutesPath = Env::get('APP_ROUTES_CACHE');
 
             $cachedRoutesPath = $configuredCachedRoutesPath === null

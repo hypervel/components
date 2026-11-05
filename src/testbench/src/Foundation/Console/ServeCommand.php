@@ -38,6 +38,7 @@ class ServeCommand extends Command
         // Like Laravel's development server, listen on the loopback address unless
         // SERVER_HOST or --host says otherwise. The framework default listens on
         // every interface, which would expose the Workbench login helpers.
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the development server reads its host from the process environment, as Laravel's does)
         $this->getDefinition()->getOption('host')->setDefault(Env::get('SERVER_HOST', '127.0.0.1'));
     }
 

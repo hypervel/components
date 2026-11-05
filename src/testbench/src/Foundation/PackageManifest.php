@@ -132,6 +132,7 @@ class PackageManifest extends FoundationPackageManifest
         // A child sharing its parent's runtime follows the parent's decision, so its own
         // CLI identity cannot change the manifest the parent and its subprocesses read.
         if (Bootstrapper::isRuntimeCopy($basePath) && ! Bootstrapper::ownsRuntimePath($basePath)) {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent process passes its decision to child processes through the environment)
             return Env::get('TESTBENCH_DISCOVERS_ROOT_PACKAGE') === true;
         }
 

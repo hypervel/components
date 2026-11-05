@@ -142,6 +142,7 @@ class Bootstrapper
      */
     public static function explicitApplicationBasePath(): ?string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the base path is needed before the application exists)
         $basePath = $_ENV['APP_BASE_PATH'] ?? $_SERVER['APP_BASE_PATH'] ?? Env::get('APP_BASE_PATH');
 
         return is_string($basePath) && $basePath !== '' ? $basePath : null;
@@ -218,6 +219,7 @@ class Bootstrapper
      */
     protected static function exportAbsoluteComposerVendorDirectory(string $workingPath): void
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Composer sets this in the process environment)
         $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
 
         if (! is_string($vendorPath) || $vendorPath === '' || str_starts_with($vendorPath, '/')) {
@@ -437,6 +439,7 @@ class Bootstrapper
      */
     protected static function testbenchEnvironmentFile(): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file before it loads)
         $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
 
         return is_string($environmentFile) && $environmentFile !== ''

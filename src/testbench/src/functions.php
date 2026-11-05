@@ -301,6 +301,7 @@ function package_path(array|string $path = ''): string
     $argumentCount = func_num_args();
 
     $workingPath = once(static function (): string {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test process sets the package working path in its environment)
         $configuredWorkingPath = Env::get('TESTBENCH_WORKING_PATH');
 
         $resolvedPath = realpath(match (true) {

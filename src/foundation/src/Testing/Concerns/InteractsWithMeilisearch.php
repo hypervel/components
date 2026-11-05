@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Support\Env;
 use Meilisearch\Client as MeilisearchClient;
 use RuntimeException;
 
@@ -34,7 +35,8 @@ trait InteractsWithMeilisearch
      */
     protected function setUpInteractsWithMeilisearch(): void
     {
-        if (env('MEILISEARCH_HOST') === null) {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        if (Env::get('MEILISEARCH_HOST') === null) {
             $this->markTestSkipped(
                 'Set MEILISEARCH_HOST to run Meilisearch integration tests for ' . static::class
             );
@@ -74,7 +76,8 @@ trait InteractsWithMeilisearch
     {
         $this->meilisearch = new MeilisearchClient(
             $this->getMeilisearchHost(),
-            env('MEILISEARCH_KEY', '')
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+            Env::get('MEILISEARCH_KEY', '')
         );
     }
 
@@ -84,7 +87,8 @@ trait InteractsWithMeilisearch
     protected function computeMeilisearchTestPrefix(): void
     {
         $base = 'test_';
-        $token = env('TEST_TOKEN', '');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN', '');
 
         $this->meilisearchTestPrefix = $token !== '' ? "{$base}{$token}_" : $base;
     }
@@ -96,8 +100,10 @@ trait InteractsWithMeilisearch
      */
     protected function getMeilisearchHost(): string
     {
-        $host = env('MEILISEARCH_HOST', '127.0.0.1');
-        $port = env('MEILISEARCH_PORT', '7700');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        $host = Env::get('MEILISEARCH_HOST', '127.0.0.1');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        $port = Env::get('MEILISEARCH_PORT', '7700');
 
         return "http://{$host}:{$port}";
     }

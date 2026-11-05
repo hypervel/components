@@ -23,6 +23,7 @@ class ParallelRunner extends BaseParallelRunner
     protected function createApplication(): ApplicationContract
     {
         if (! defined('TESTBENCH_WORKING_PATH')) {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent test process passes its working path through the environment)
             $workingPath = Env::get('TESTBENCH_WORKING_PATH');
 
             if (is_string($workingPath) && $workingPath !== '') {

@@ -22,7 +22,7 @@ class UserFactoryTest extends TestCase
     public function itHasTheDefaultConfiguration(): void
     {
         $this->assertSame(User::class, config('auth.providers.users.model'));
-        $this->assertNull(env('AUTH_MODEL'));
+        $this->assertNull(Env::get('AUTH_MODEL'));
     }
 
     #[Test]

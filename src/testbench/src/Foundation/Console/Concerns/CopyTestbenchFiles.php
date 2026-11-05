@@ -123,6 +123,7 @@ trait CopyTestbenchFiles
     {
         return match (true) {
             property_exists($this, 'environmentFile') => $this->environmentFile, /* @phpstan-ignore function.alreadyNarrowedType */
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file to copy)
             Env::has('TESTBENCH_ENVIRONMENT_FILENAME') => Env::get('TESTBENCH_ENVIRONMENT_FILENAME'),
             default => '.env',
         };
