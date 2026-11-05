@@ -6,10 +6,13 @@ use Hypervel\Auth\RequestGuard;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Optional;
 use Hypervel\Support\Str;
 use Hypervel\Tests\PHPStan\Fixtures\Macros\InvokableMacro;
@@ -19,8 +22,12 @@ use Hypervel\Tests\PHPStan\Fixtures\Managers\ChildExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\CsvDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\ExtendedExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\JsonDriver;
+use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedChildDriverManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedExportManager;
+use Hypervel\Tests\PHPStan\Fixtures\Managers\TabbedCsvDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\WrappedCreatorManager;
+use League\Flysystem\Filesystem as Flysystem;
+use League\Flysystem\Local\LocalFilesystemAdapter as LocalFlysystemAdapter;
 
 Builder::macro('globalCustomMacro', static function (string $arg = 'foobar', int $b = 5): string {
     return $arg;
@@ -80,7 +87,23 @@ app()->singleton(ResolvedExportManager::class);
 app(ResolvedExportManager::class)->driver();
 app(ResolvedExportManager::class)->extend('csv', static fn (): JsonDriver => new JsonDriver);
 
+app()->singleton(ResolvedChildDriverManager::class);
+app(ResolvedChildDriverManager::class)->driver();
+app(ResolvedChildDriverManager::class)->extend('csv', static fn (): TabbedCsvDriver => new TabbedCsvDriver);
+
 app()->singleton(BoundExportManager::class, ChildExportManager::class);
+
+// Hypervel: Redis connection macros, one under a command's lowercase name, which runs instead of the command.
+RedisConnection::macro('zrank', static fn (): string => 'macro');
+RedisConnection::macro('customCommand', static fn (): int => 1);
+
+// Hypervel: filesystem creators for the storage disk fixtures, and a configured local
+// disk replaced with another filesystem, which disk() then returns instead.
+Storage::extend('custom', static fn (): FilesystemAdapter => Storage::createLocalDriver(['root' => sys_get_temp_dir()]));
+Storage::extend('pooled-custom', static fn (): FilesystemAdapter => Storage::createLocalDriver(['root' => sys_get_temp_dir()]), poolable: true);
+
+$replacedDiskAdapter = new LocalFlysystemAdapter(sys_get_temp_dir());
+Storage::set('replaced', new FilesystemAdapter(new Flysystem($replacedDiskAdapter), $replacedDiskAdapter));
 
 class CustomCollectionMacro
 {

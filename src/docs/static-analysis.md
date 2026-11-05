@@ -16,6 +16,7 @@
     - [Views](#views)
     - [Console Input](#console-input)
     - [Authentication in Requests](#authentication-in-requests)
+    - [Redis Connections](#redis-connections)
     - [Deprecations](#deprecations)
 
 <a name="introduction"></a>
@@ -79,6 +80,10 @@ The facts your application registers come from the booted application: container
 A value typed as an interface only has the interface's methods, even when the container binds a class with more of them or macros are registered on that class. When your code needs a specific implementation, type it as that implementation. Resolving a service from the container, such as `app(Repository::class)`, is typed as the class the booted application binds. So are the factories that helpers such as `response()`, `view()`, `validator()`, `url()` and `logger()` resolve, which is why `response()` has your response macros and `url()->full()` is available.
 
 Calls a manager forwards to its default driver are typed from the return type declared by whatever creates the driver the booted application selects, such as its `create...Driver()` method or an `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Analysis never builds the driver, so give `extend()` callbacks a return type. Like container bindings, the selected driver can depend on your environment.
+
+Filesystem disks work the same way. `Storage::disk('s3')` is typed from your `filesystems` configuration as the disk Hypervel builds for it, such as `ClientPooledFilesystem` for a pooled S3 disk or `LocalFilesystemAdapter` for a local one. Calls the `Storage` facade forwards to the default disk are typed from that disk. An unknown or non-constant disk name keeps the `Filesystem` contract type.
+
+Request input is typed as what the request can hold. A keyed `query()`, `post()` or `cookie()` value may be a string, number, boolean or array from the client, or a `Stringable` your code stored, so check or cast it before relying on one type. Whole input arrays may have integer keys, such as from a JSON list body. By default, typed helpers such as `$request->string()`, `integer()` and `boolean()` return a single type.
 
 Dates are different: `now()`, `today()` and the `Date` facade return `CarbonInterface`, as they are declared, even when your application configures a specific date class. When your code needs a specific class, convert the value, such as with `toImmutable()`.
 
@@ -262,6 +267,22 @@ if ($this->hasOption('force') && $this->option('force')) {
 ### Authentication in Requests
 
 When the `checkAuthCallsWhenInRequestScope` parameter is enabled, the analysis recommends `$request->user()` over `Auth::user()` and `auth()->user()` where a request is available. The facade and helper remain fully supported. Since a request's user resolver may return a different user than the `Auth` facade, review each change instead of replacing calls mechanically.
+
+<a name="redis-connections"></a>
+### Redis Connections
+
+`Redis::connection()` returns a proxy that runs each command on a pooled connection, so methods that act on one connection, such as `client()`, `auth()` or `release()`, are reported. Call them on a held connection instead:
+
+```php
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Facades\Redis;
+
+Redis::withConnection(function (RedisConnection $connection) {
+    $client = $connection->client();
+});
+```
+
+These checks may be disabled using the `checkRedisConnectionBoundMethods` parameter.
 
 <a name="deprecations"></a>
 ### Deprecations

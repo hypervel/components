@@ -53,6 +53,7 @@ parameters:
     noLegacyModelProperties: true
     noLegacyQueueProperties: true
     noPipeSeparatedValidationRules: true
+    checkRedisConnectionBoundMethods: true
     # Builder macros added by model traits' global scopes: trait => interface declaring the macros.
     eloquentBuilderMacros:
         Hypervel\Database\Eloquent\SoftDeletes: Hypervel\PHPStan\Methods\Macros\SoftDeletingMacros
@@ -101,9 +102,64 @@ parametersSchema:
     noLegacyModelProperties: bool()
     noLegacyQueueProperties: bool()
     noPipeSeparatedValidationRules: bool()
+    checkRedisConnectionBoundMethods: bool()
     eloquentBuilderMacros: arrayOf(string(), string())
 
 services:
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: 'abort'
+            negate: false
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: 'abort'
+            negate: true
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: throw
+            negate: false
+
+    -
+        class: Hypervel\PHPStan\Types\AbortIfFunctionTypeSpecifyingExtension
+        tags:
+            - phpstan.typeSpecifier.functionTypeSpecifyingExtension
+        arguments:
+            methodName: throw
+            negate: true
+
+    # The contract also covers the concrete application, so upstream's second entry is omitted.
+    -
+        class: Hypervel\PHPStan\ReturnTypes\AppEnvironmentReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Contracts\\Foundation\\Application"
+
+    -
+        class: Hypervel\PHPStan\ReturnTypes\FormRequestSafeDynamicMethodReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Foundation\\Http\\FormRequest"
+
+    -
+        class: Hypervel\PHPStan\ReturnTypes\FormRequestSafeDynamicMethodReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicMethodReturnTypeExtension
+        arguments:
+            class: "Hypervel\\Contracts\\Validation\\Validator"
+
     -
         class: Hypervel\Filesystem\Filesystem
         autowired: self
