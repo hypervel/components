@@ -32,7 +32,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @mixin PendingRequest
+ * @mixin PendingRequest<false>
  */
 class Factory
 {

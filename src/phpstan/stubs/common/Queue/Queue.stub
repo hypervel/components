@@ -1,0 +1,7 @@
+<?php
+
+namespace Hypervel\Queue;
+
+abstract class Queue {}
+
+class QueueManager {}

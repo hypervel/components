@@ -18,7 +18,7 @@ foreach (['get', 'post', 'put', 'patch', 'delete', 'head', 'query'] as $method) 
 // Keep the state and callback checks below in separate scopes from that loop.
 function (bool $async): void {
     assertType('Hypervel\Http\Client\Response', Http::createPendingRequest()->withHeaders([])->get('/foo'));
-    assertType('GuzzleHttp\Promise\PromiseInterface|Hypervel\Http\Client\Response', Http::async()->get('/foo'));
+    assertType('GuzzleHttp\Promise\PromiseInterface', Http::async()->get('/foo'));
 
     $request = Http::createPendingRequest();
     assertType('Hypervel\Http\Client\Response', $request->send('GET', '/foo'));

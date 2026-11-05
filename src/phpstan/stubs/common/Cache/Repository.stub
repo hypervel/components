@@ -1,0 +1,6 @@
+<?php
+
+namespace Hypervel\Cache;
+
+class Repository
+{}

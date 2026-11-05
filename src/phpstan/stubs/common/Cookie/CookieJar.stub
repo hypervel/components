@@ -1,0 +1,6 @@
+<?php
+
+namespace Hypervel\Cookie;
+
+class CookieJar
+{}

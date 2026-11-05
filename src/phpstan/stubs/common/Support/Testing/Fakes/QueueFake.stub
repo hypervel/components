@@ -1,0 +1,6 @@
+<?php
+
+namespace Hypervel\Support\Testing\Fakes;
+
+class QueueFake
+{}

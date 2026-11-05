@@ -1,0 +1,6 @@
+<?php
+
+namespace Hypervel\Contracts\Events;
+
+interface Dispatcher
+{}

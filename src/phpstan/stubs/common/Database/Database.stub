@@ -1,0 +1,10 @@
+<?php
+
+namespace Hypervel\Database;
+
+abstract class Connection implements ConnectionInterface
+{}
+
+interface ConnectionInterface {}
+
+class DatabaseManager {}
