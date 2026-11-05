@@ -39,6 +39,7 @@ assertType(
     'Hypervel\Support\Collection<class-string<ReflectionTypeTarget>, Hypervel\Support\Collection<int, ReflectionTypeAttribute>>',
     Reflector::getClassAttributes(ReflectionTypeTarget::class, ReflectionTypeAttribute::class, true)
 );
+assertType('list<string>', Reflector::getParameterClassNames(new ReflectionParameter([ReflectionTypeTarget::class, 'method'], 0)));
 
 assertType('ReflectionClass<object>', ClassMetadataCache::reflectClass(ReflectionTypeTarget::class));
 assertType('ReflectionClass<object>', ClassMetadataCache::reflectClass(new ReflectionTypeTarget));

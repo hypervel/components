@@ -64,7 +64,9 @@ if (! Str::doesntStartWith($number, '1')) {
  * @var string $subject
  */
 assertType('string', Str::replace($search, $replace, $subject));
-assertType('array<string>', Str::replace($search, $replace, [$subject]));
+assertType('array<0, string>', Str::replace($search, $replace, [$subject]));
+assertType("array<'name', string>", Str::replace($search, $replace, ['name' => $subject]));
+assertType('array<int, string>', Str::replace($search, $replace, collect([$subject])));
 
 assertType('\'\'', Str::camel(''));
 assertType('string', Str::camel('Taylor Otwell'));
