@@ -371,6 +371,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the local driver.
+     *
+     * @return LocalFilesystemAdapter
      */
     public function createLocalDriver(array $config, string $name = 'local'): Filesystem
     {
@@ -405,6 +407,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the ftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createFtpDriver(array $config): Filesystem
     {
@@ -422,6 +426,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the sftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createSftpDriver(array $config): Filesystem
     {
@@ -445,6 +451,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the Amazon S3 driver.
+     *
+     * @return AwsS3V3Adapter
      */
     public function createS3Driver(array $config): Cloud
     {
@@ -456,6 +464,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the read-through driver.
+     *
+     * @return ReadThroughFilesystem
      */
     public function createReadThroughDriver(array $config, string $name = 'read-through'): Filesystem
     {
@@ -669,6 +679,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the Google Cloud Storage driver.
+     *
+     * @return GoogleCloudStorageAdapter
      */
     public function createGcsDriver(array $config): Cloud
     {

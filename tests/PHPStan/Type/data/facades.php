@@ -39,9 +39,9 @@ function test(): void
 
     assertType('Psr\Log\LoggerInterface', Log::getLogger());
 
-    // Hypervel: disk() declares the filesystem contract, which a custom driver may implement.
-    assertType('Hypervel\Contracts\Filesystem\Filesystem', Storage::disk());
-    assertType('Hypervel\Contracts\Filesystem\Filesystem', Storage::drive());
+    // Hypervel: each disk is typed from the booted configuration, where the default disk is local.
+    assertType('Hypervel\Filesystem\LocalFilesystemAdapter', Storage::disk());
+    assertType('Hypervel\Filesystem\LocalFilesystemAdapter', Storage::drive());
     // REMOVED: Storage::cloud() cases; Hypervel omits the default-cloud shortcut.
     assertType('bool', Storage::disk()->deleteDirectory('foo'));
     assertType('bool', Storage::drive()->deleteDirectory('foo'));
