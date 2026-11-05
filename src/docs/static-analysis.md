@@ -5,6 +5,7 @@
     - [Analyzing Packages](#analyzing-packages)
     - [Runtime Requirements](#runtime-requirements)
 - [What the Analysis Knows](#what-the-analysis-knows)
+    - [Collection Types](#collection-types)
 - [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics)
     - [Environment Variables](#environment-variables)
     - [Configuration Values](#configuration-values)
@@ -82,6 +83,26 @@ Dates are different: `now()`, `today()` and the `Date` facade return `CarbonInte
 Some facts cannot be known statically. When the analysis cannot tell what a configuration key holds, such as a value that provider code writes in a way the analysis does not recognize and that did not run while your application booted, it uses the declared return type instead of guessing.
 
 Calling `str()` without arguments returns an object that passes method calls to `Str`. The analysis does not check those calls.
+
+<a name="collection-types"></a>
+### Collection Types
+
+Collections keep Laravel's declared types, so a collection of users may be passed where a collection of models is expected. Writes through the wider reference are checked against its model type, so the analysis can miss a value that violates the original collection's narrower user type.
+
+If you enable PHPStan's [bleeding edge](https://phpstan.org/blog/what-is-bleeding-edge) mode, PHPStan keeps the value type it infers for a new collection, so adding or searching for a value of another type is reported:
+
+```php
+$ids = collect([1, 2, 3]);
+
+$ids->push(4); // Reported with bleeding edge...
+```
+
+Declare the type the collection is meant to hold when you create it:
+
+```php
+/** @var Collection<int, int> $ids */
+$ids = collect([1, 2, 3]);
+```
 
 <a name="fixing-and-ignoring-diagnostics"></a>
 ## Fixing and Ignoring Diagnostics
