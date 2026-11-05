@@ -95,13 +95,24 @@ abstract class Manager
             return $this->callCustomCreator($driver);
         }
 
-        $method = 'create' . Str::studly($driver) . 'Driver';
+        $method = $this->getCreatorMethod($driver);
 
-        if (method_exists($this, $method)) {
+        if ($method !== null) {
             return $this->{$method}();
         }
 
         throw new InvalidArgumentException("Driver [{$driver}] not supported.");
+    }
+
+    /**
+     * Get the name of the manager's creator method for the given driver.
+     */
+    protected function getCreatorMethod(string $driver): ?string
+    {
+        $method = 'create' . Str::studly($driver) . 'Driver';
+
+        // Hypervel: a name that studly-cases to nothing, such as '' or '-', would resolve to createDriver() itself.
+        return $method !== 'createDriver' && method_exists($this, $method) ? $method : null;
     }
 
     /**
