@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 use Hypervel\Contracts\Validation\Factory;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\PHPStan\Concerns\InfersFactoryHelperCalls;
+use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -21,9 +22,17 @@ final class ValidatorExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 
-    private ?ObjectType $factoryType = null;
+    private ?Type $factoryType = null;
 
     private ?ObjectType $validatorType = null;
+
+    /**
+     * Create a validator() return type extension.
+     */
+    public function __construct(
+        private readonly AppMakeHelper $appMakeHelper,
+    ) {
+    }
 
     /**
      * Determine whether the function is validator().
@@ -44,9 +53,10 @@ final class ValidatorExtension implements DynamicFunctionReturnTypeExtension
         // Upstream counts arguments, so it types every call with unpacked arguments as a validator, though they may be empty.
         // It also claims the concrete validator, but the helper makes one through the bound factory
         // contract, whose make() promises only the validator contract.
+        // Hypervel: the factory is the booted binding, as for app(Factory::class), rather than the contract.
         return $this->getFactoryHelperType(
             $functionCall,
-            $this->factoryType ??= new ObjectType(Factory::class),
+            $this->factoryType ??= $this->appMakeHelper->resolveAbstractType(Factory::class),
             $this->validatorType ??= new ObjectType(Validator::class),
         );
     }

@@ -10,7 +10,8 @@ use function PHPStan\Testing\assertType;
 function test(View $view, CustomView $customView): void
 {
     // Upstream narrows view() to the concrete view; Hypervel's helper returns the contract.
-    assertType('Hypervel\Contracts\View\Factory', view());
+    // Its factory is the booted binding, as for app(Factory::class).
+    assertType('Hypervel\View\Factory', view());
     assertType('Hypervel\Contracts\View\View', view('foo'));
     assertType('Hypervel\Contracts\View\View', view('foo')->with('bar', 'baz'));
     // The contract does not promise the view's dynamic with*() methods.

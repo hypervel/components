@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Http\Response;
 use Hypervel\PHPStan\Concerns\InfersFactoryHelperCalls;
+use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -21,9 +22,17 @@ final class ResponseExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 
-    private ?ObjectType $responseFactoryType = null;
+    private ?Type $responseFactoryType = null;
 
     private ?ObjectType $responseType = null;
+
+    /**
+     * Create a response() return type extension.
+     */
+    public function __construct(
+        private readonly AppMakeHelper $appMakeHelper,
+    ) {
+    }
 
     /**
      * Determine whether the function is response().
@@ -42,9 +51,10 @@ final class ResponseExtension implements DynamicFunctionReturnTypeExtension
         Scope $scope,
     ): Type {
         // Upstream counts arguments, so it types every call with unpacked arguments as a response, though they may be empty.
+        // Hypervel: the factory is the booted binding, as for app(ResponseFactory::class), rather than the contract.
         return $this->getFactoryHelperType(
             $functionCall,
-            $this->responseFactoryType ??= new ObjectType(ResponseFactory::class),
+            $this->responseFactoryType ??= $this->appMakeHelper->resolveAbstractType(ResponseFactory::class),
             $this->responseType ??= new ObjectType(Response::class),
         );
     }

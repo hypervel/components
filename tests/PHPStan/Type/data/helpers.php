@@ -4,6 +4,7 @@ namespace Helpers;
 
 use App\User;
 use Exception;
+use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\PHPStan\ApplicationResolver;
 use Hypervel\Support\Str;
 use Throwable;
@@ -96,7 +97,8 @@ function test(?int $value = 0, int|\Closure $intOrClosure = 0, int|\Closure $int
     }, 'failed', false));
 
     assertType('Hypervel\Http\Response', response('foo'));
-    assertType('Hypervel\Contracts\Routing\ResponseFactory', response());
+    // Hypervel: the factory helpers return the booted binding, as app() does, rather than its contract.
+    assertType('Hypervel\Routing\ResponseFactory', response());
 
     assertType('null', retry(3, function () {
     }));
@@ -136,9 +138,11 @@ function test(?int $value = 0, int|\Closure $intOrClosure = 0, int|\Closure $int
     assertType('Hypervel\Contracts\Validation\Validator', tap(validator([], []))->after(fn () => null));
 
     assertType('string', url('/path'));
-    assertType('Hypervel\Contracts\Routing\UrlGenerator', url());
+    // Hypervel: the booted binding, as for response().
+    assertType('Hypervel\Routing\UrlGenerator', url());
 
-    assertType('Hypervel\Contracts\Validation\Factory', validator());
+    // Hypervel: the booted binding, as for response().
+    assertType('Hypervel\Validation\Factory', validator());
     assertType('Hypervel\Contracts\Validation\Validator', validator(['foo' => 'bar'], ['foo' => 'required']));
     assertType('array', validator(['foo' => 'bar'], ['foo' => 'required'])->validated());
 
@@ -227,10 +231,31 @@ function testHypervelArguments(array $closures, array $arguments): void
     assertType('Hypervel\Support\Collection<int, int>', collect(...[[1, 2]]));
     assertType('mixed', literal(...$arguments));
     // An unpacked list may be empty, so these may return the factory or the result.
-    assertType('Hypervel\Contracts\Routing\ResponseFactory|Hypervel\Http\Response', response(...$arguments));
+    assertType('Hypervel\Http\Response|Hypervel\Routing\ResponseFactory', response(...$arguments));
     assertType('mixed', str(...$arguments));
-    assertType('Hypervel\Contracts\Validation\Factory|Hypervel\Contracts\Validation\Validator', validator(...$arguments));
-    assertType('Hypervel\Contracts\View\Factory|Hypervel\Contracts\View\View', view(...$arguments));
+    assertType('Hypervel\Contracts\Validation\Validator|Hypervel\Validation\Factory', validator(...$arguments));
+    assertType('Hypervel\Contracts\View\View|Hypervel\View\Factory', view(...$arguments));
+}
+
+/**
+ * The factory helpers resolve their factory from the container, so it is the booted binding.
+ */
+function testBoundHelpers(ResponseFactory $factory, ?string $path, ?string $message, array $arguments): void
+{
+    assertType('string', response()->caps('foo'));
+    // A contract value does not gain the macros of its current binding.
+    assertType('*ERROR*', $factory->caps('foo'));
+
+    assertType('string', url()->full());
+    assertType('Hypervel\Routing\UrlGenerator', url(null));
+    assertType('Hypervel\Routing\UrlGenerator|string', url($path));
+    assertType('Hypervel\Routing\UrlGenerator', url(parameters: ['foo' => 'bar']));
+    assertType('Hypervel\Routing\UrlGenerator|string', url(...$arguments));
+
+    assertType('Hypervel\Log\LogManager', logger());
+    assertType('Hypervel\Log\LogManager', logger(null));
+    assertType('null', logger('message'));
+    assertType('Hypervel\Log\LogManager|null', logger($message));
 }
 
 /**

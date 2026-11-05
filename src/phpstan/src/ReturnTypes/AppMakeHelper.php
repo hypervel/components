@@ -11,6 +11,7 @@ use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Type\ClosureType;
+use PHPStan\Type\Constant\ConstantStringType;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
@@ -57,27 +58,33 @@ final class AppMakeHelper
         $types = [];
 
         foreach ($constantStrings as $constantString) {
-            $resolved = $this->resolve($constantString->getValue());
-
-            if (is_object($resolved)) {
-                $types[] = new ObjectType($resolved::class);
-
-                continue;
-            }
-
-            // Not every class-string has a reflection; PHPStan reports a missing class itself.
-            $class = $constantString->getClassStringObjectType()->getObjectClassReflections()[0] ?? null;
-
-            // A class that does not resolve to an object keeps its type. Upstream applies this to any class-string,
-            // but facade aliases make keys such as 'session' class names, so only the class's own name qualifies.
-            if ($class === null || strcasecmp(ltrim($constantString->getValue(), '\\'), $class->getName()) !== 0) {
-                return new MixedType;
-            }
-
-            $types[] = new ObjectType($class->getName());
+            $types[] = $this->resolveAbstractType($constantString->getValue());
         }
 
         return TypeCombinator::union(...$types);
+    }
+
+    /**
+     * Resolve the type of the container entry for the given abstract.
+     */
+    public function resolveAbstractType(string $abstract): Type
+    {
+        $resolved = $this->resolve($abstract);
+
+        if (is_object($resolved)) {
+            return new ObjectType($resolved::class);
+        }
+
+        // Not every class-string has a reflection; PHPStan reports a missing class itself.
+        $class = (new ConstantStringType($abstract))->getClassStringObjectType()->getObjectClassReflections()[0] ?? null;
+
+        // A class that does not resolve to an object keeps its type. Upstream applies this to any class-string,
+        // but facade aliases make keys such as 'session' class names, so only the class's own name qualifies.
+        if ($class === null || strcasecmp(ltrim($abstract, '\\'), $class->getName()) !== 0) {
+            return new MixedType;
+        }
+
+        return new ObjectType($class->getName());
     }
 
     /**

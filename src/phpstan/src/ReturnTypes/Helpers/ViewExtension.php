@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 use Hypervel\Contracts\View\Factory;
 use Hypervel\Contracts\View\View;
 use Hypervel\PHPStan\Concerns\InfersFactoryHelperCalls;
+use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -26,9 +27,17 @@ final class ViewExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 
-    private ?ObjectType $factoryType = null;
+    private ?Type $factoryType = null;
 
     private ?ObjectType $viewType = null;
+
+    /**
+     * Create a view() return type extension.
+     */
+    public function __construct(
+        private readonly AppMakeHelper $appMakeHelper,
+    ) {
+    }
 
     /**
      * Determine whether the function is view().
@@ -46,9 +55,10 @@ final class ViewExtension implements DynamicFunctionReturnTypeExtension
         FuncCall $functionCall,
         Scope $scope,
     ): Type {
+        // The factory is the booted binding, as for app(Factory::class), rather than the contract.
         return $this->getFactoryHelperType(
             $functionCall,
-            $this->factoryType ??= new ObjectType(Factory::class),
+            $this->factoryType ??= $this->appMakeHelper->resolveAbstractType(Factory::class),
             $this->viewType ??= new ObjectType(View::class),
         );
     }
