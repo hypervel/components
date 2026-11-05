@@ -23,16 +23,25 @@ class GeneralTypeTest extends TypeInferenceTestCase
     {
         yield from self::gatherAssertTypes(__DIR__ . '/data/app-make.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/application-make.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/arr-get-pull.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/arr-map.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/arrayable.php');
         // Upstream never registers artisan.php.
         yield from self::gatherAssertTypes(__DIR__ . '/data/artisan.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/auth.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/benchmark.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/conditionable.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/console-commands.php');
         // REMOVED: container-array-access.php; container ArrayAccess is unsupported.
         yield from self::gatherAssertTypes(__DIR__ . '/data/container-make.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/contracts.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/gate-facade.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/helpers.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/higher-order-collection-proxies.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/optional-helper.php');
         // Upstream never registers request-user.php, which shares request-object.php's namespace.
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-user.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/tappable.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translate.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translator.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/view-exists.php');
