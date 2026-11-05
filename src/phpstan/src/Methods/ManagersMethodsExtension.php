@@ -180,9 +180,10 @@ final class ManagersMethodsExtension implements MethodsClassReflectionExtension
         }
 
         // Manager::driver() keeps returning a driver it already created, even after extend() registers another creator.
+        // Its class is exact, so a parent of the computed type does not fit either.
         $cached = $manager->getDrivers()[$driver] ?? null;
 
-        if ($cached !== null && $type->isSuperTypeOf(ConstantTypeHelper::getTypeFromValue($cached))->no()) {
+        if ($cached !== null && ! $type->isSuperTypeOf(ConstantTypeHelper::getTypeFromValue($cached))->yes()) {
             return null;
         }
 

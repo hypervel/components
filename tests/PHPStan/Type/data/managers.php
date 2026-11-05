@@ -12,6 +12,7 @@ use Hypervel\Tests\PHPStan\Fixtures\Managers\GenericManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\JsonDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\MacroableExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\RenamingManager;
+use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedChildDriverManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\SelectingManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\UnconfiguredManager;
@@ -60,6 +61,7 @@ function unforwardedCalls(
     MacroableExportManager $macroable,
     UnconfiguredManager $unconfigured,
     ResolvedExportManager $resolved,
+    ResolvedChildDriverManager $resolvedChild,
     RenamingManager $renaming,
 ): void {
     // Macroable's __call() only runs macros.
@@ -70,6 +72,9 @@ function unforwardedCalls(
 
     // Manager::driver() keeps returning the CSV driver it created before the JSON creator was registered.
     assertType('*ERROR*', $resolved->toJson());
+
+    // The cached plain CSV driver is not the subclass the later creator declares.
+    assertType('*ERROR*', $resolvedChild->exportTabbed());
 
     // Analysis never calls an overriding getCreatorMethod(), so it cannot tell which creator runs.
     assertType('*ERROR*', $renaming->export([]));
