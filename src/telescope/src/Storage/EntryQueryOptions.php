@@ -49,12 +49,12 @@ class EntryQueryOptions
     public static function fromRequest(Request $request): static
     {
         return (new static)
-            ->batchId($request->batch_id) // @phpstan-ignore property.notFound
-            ->uuids($request->uuids) // @phpstan-ignore property.notFound
-            ->beforeSequence($request->before) // @phpstan-ignore property.notFound
-            ->tag($request->tag) // @phpstan-ignore property.notFound
+            ->batchId($request->batch_id)
+            ->uuids($request->uuids)
+            ->beforeSequence($request->before)
+            ->tag($request->tag)
             ->exactTag($request->boolean('exact_tag'))
-            ->familyHash($request->family_hash) // @phpstan-ignore property.notFound
+            ->familyHash($request->family_hash)
             ->limit((int) ($request->take ?? 50));
     }
 

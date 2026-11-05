@@ -638,7 +638,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             'compression' => Redis::OPT_COMPRESSION,
             'reply_literal' => Redis::OPT_REPLY_LITERAL,
             'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
-            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS, // @phpstan-ignore classConstant.notFound (setOptions() guards this option before resolving the constant)
+            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS,
             'max_retries' => Redis::OPT_MAX_RETRIES,
             'backoff_algorithm' => Redis::OPT_BACKOFF_ALGORITHM,
             'backoff_base' => Redis::OPT_BACKOFF_BASE,

@@ -16,7 +16,7 @@ final class NativeScalar
      */
     public static function int(mixed $value): int
     {
-        return $value; // @phpstan-ignore return.type
+        return $value;
     }
 
     /**
@@ -24,7 +24,7 @@ final class NativeScalar
      */
     public static function float(mixed $value): float
     {
-        return $value; // @phpstan-ignore return.type
+        return $value;
     }
 
     /**
@@ -32,7 +32,7 @@ final class NativeScalar
      */
     public static function string(mixed $value): string
     {
-        return $value; // @phpstan-ignore return.type
+        return $value;
     }
 
     /**
@@ -40,6 +40,6 @@ final class NativeScalar
      */
     public static function bool(mixed $value): bool
     {
-        return $value; // @phpstan-ignore return.type
+        return $value;
     }
 }
