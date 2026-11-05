@@ -29,6 +29,7 @@ parameters:
     checkMissingTranslations: true
     checkModelAppends: true
     checkModelMethodVisibility: true
+    # generalizeEnvReturnType is omitted: env() declares its return type, which a default does not decide.
     checkConfigTypes: true
     checkAuthCallsWhenInRequestScope: false
     parseModelCastsMethod: true

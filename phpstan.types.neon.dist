@@ -15,3 +15,4 @@ parameters:
     noPipeSeparatedValidationRules: false
     checkModelMethodVisibility: false
     noUnnecessaryEnumerableToArrayCalls: false
+    noEnvCallsOutsideOfConfig: false
