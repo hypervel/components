@@ -87,7 +87,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * All of the converted files for the request.
      *
-     * @var null|array<string, UploadedFile|UploadedFile[]>
+     * @var null|array<array-key, null|array<mixed>|UploadedFile>
      */
     protected ?array $convertedFiles = null;
 
@@ -1249,7 +1249,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Get the route handling the request.
      *
-     * @return ($param is null ? null|Route : null|object|string)
+     * @return ($param is null ? null|Route : mixed)
      */
     public function route(?string $param = null, mixed $default = null): mixed
     {

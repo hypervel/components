@@ -29,7 +29,7 @@ assertType('bool', $request->boolean('key'));
 assertType('bool|null', $request->boolean('key', null, true));
 
 assertType('Hypervel\Routing\Route|null', $request->route());
-assertType('object|string|null', $request->route('key'));
+assertType('mixed', $request->route('key'));
 
 assertType('Symfony\Component\HttpFoundation\InputBag', $request->json());
 assertType('mixed', $request->json('key'));

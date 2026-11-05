@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Concerns;
 
+use Closure;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Support\Arr;
@@ -11,6 +12,7 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\InteractsWithData;
 use SplFileInfo;
+use Stringable;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\InputBag;
 
@@ -21,8 +23,10 @@ trait InteractsWithInput
 
     /**
      * Retrieve a server variable from the request.
+     *
+     * @return ($key is null ? array<string, mixed> : mixed)
      */
-    public function server(?string $key = null, string|array|int|float|null $default = null): string|array|int|float|null
+    public function server(?string $key = null, mixed $default = null): mixed
     {
         return $this->retrieveItem('server', $key, $default);
     }
@@ -37,6 +41,10 @@ trait InteractsWithInput
 
     /**
      * Retrieve a header from the request.
+     *
+     * A header stored with a null value returns null even when a default is given.
+     *
+     * @return ($key is null ? array<string, list<null|string>> : null|string)
      */
     public function header(?string $key = null, string|array|null $default = null): string|array|null
     {
@@ -48,7 +56,7 @@ trait InteractsWithInput
      */
     public function bearerToken(): ?string
     {
-        $header = $this->header('Authorization', '');
+        $header = $this->header('Authorization') ?? '';
 
         $position = strripos($header, 'Bearer ');
 
@@ -115,16 +123,26 @@ trait InteractsWithInput
 
     /**
      * Retrieve a query string item from the request.
+     *
+     * @template TDefault
+     *
+     * @param TDefault $default
+     * @return ($key is null ? array<array-key, mixed> : array<mixed>|bool|float|int|string|Stringable|TDefault)
      */
-    public function query(?string $key = null, string|array|null $default = null): string|array|null
+    public function query(?string $key = null, mixed $default = null): mixed
     {
         return $this->retrieveItem('query', $key, $default);
     }
 
     /**
      * Retrieve a request payload item from the request.
+     *
+     * @template TDefault
+     *
+     * @param TDefault $default
+     * @return ($key is null ? array<array-key, mixed> : array<mixed>|bool|float|int|string|Stringable|TDefault)
      */
-    public function post(?string $key = null, string|array|null $default = null): string|array|null
+    public function post(?string $key = null, mixed $default = null): mixed
     {
         return $this->retrieveItem('request', $key, $default);
     }
@@ -139,8 +157,13 @@ trait InteractsWithInput
 
     /**
      * Retrieve a cookie from the request.
+     *
+     * @template TDefault
+     *
+     * @param TDefault $default
+     * @return ($key is null ? array<array-key, mixed> : array<mixed>|bool|float|int|string|Stringable|TDefault)
      */
-    public function cookie(?string $key = null, string|array|null $default = null): string|array|null
+    public function cookie(?string $key = null, mixed $default = null): mixed
     {
         return $this->retrieveItem('cookies', $key, $default);
     }
@@ -148,7 +171,9 @@ trait InteractsWithInput
     /**
      * Get an array of all of the files on the request.
      *
-     * @return array<string, UploadedFile|UploadedFile[]>
+     * Nested inputs give nested arrays, and an input submitted without a file is null.
+     *
+     * @return array<array-key, null|array<mixed>|UploadedFile>
      */
     public function allFiles(): array
     {
@@ -160,13 +185,15 @@ trait InteractsWithInput
     /**
      * Convert the given array of Symfony UploadedFiles to custom Hypervel UploadedFiles.
      *
-     * @param array<string, SymfonyUploadedFile|SymfonyUploadedFile[]> $files
-     * @return array<string, UploadedFile|UploadedFile[]>
+     * @template TKey of array-key
+     *
+     * @param array<TKey, null|array<mixed>|SymfonyUploadedFile> $files
+     * @return array<TKey, null|array<mixed>|UploadedFile>
      */
     protected function convertUploadedFiles(array $files): array
     {
         return array_map(function ($file) {
-            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) { /* @phpstan-ignore function.impossibleType, arrayFilter.same (PHP's $_FILES can produce null entries despite the docblock type) */
+            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) {
                 return $file;
             }
 
@@ -206,9 +233,12 @@ trait InteractsWithInput
     /**
      * Retrieve a file from the request.
      *
-     * @return ($key is null ? array<string, UploadedFile|UploadedFile[]> : null|UploadedFile|UploadedFile[])
+     * @template TDefault
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return ($key is null ? array<array-key, null|array<mixed>|UploadedFile> : null|array<mixed>|TDefault|UploadedFile)
      */
-    public function file(?string $key = null, mixed $default = null): UploadedFile|array|null
+    public function file(?string $key = null, mixed $default = null): mixed
     {
         return data_get($this->allFiles(), $key, $default);
     }
@@ -238,7 +268,7 @@ trait InteractsWithInput
     /**
      * Retrieve a parameter item from a given source.
      */
-    protected function retrieveItem(string $source, ?string $key, string|array|int|float|null $default): string|array|int|float|null
+    protected function retrieveItem(string $source, ?string $key, mixed $default): mixed
     {
         if (is_null($key)) {
             return $this->{$source}->all();
