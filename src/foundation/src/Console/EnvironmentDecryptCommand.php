@@ -44,6 +44,7 @@ class EnvironmentDecryptCommand extends Command
      */
     public function handle(): void
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the key decrypts the environment file, so configuration cannot hold it)
         $key = $this->option('key') ?: Env::get('HYPERVEL_ENV_ENCRYPTION_KEY');
 
         if (! $key && $this->input->isInteractive()) {

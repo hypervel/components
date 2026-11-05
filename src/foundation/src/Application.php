@@ -250,6 +250,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return match (true) {
             isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
             isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the base path is needed before the environment file and configuration load)
             is_string($basePath = Env::get('APP_BASE_PATH')) => $basePath,
             default => dirname(array_values(array_filter(
                 array_keys(ClassLoader::getRegisteredLoaders()),
@@ -753,6 +754,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function normalizeCachePath(string $key, string $default): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (cache paths are read before configuration loads, including the configuration cache's own)
         if (is_null($env = Env::get($key))) {
             return $this->bootstrapPath($default);
         }
@@ -839,6 +841,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return $this->isRunningInConsole;
         }
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the server command sets this in the process environment its workers inherit)
         return $this->isRunningInConsole = (bool) (Env::get('APP_RUNNING_IN_CONSOLE') ?? true);
     }
 

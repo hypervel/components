@@ -306,6 +306,7 @@ class Composer
      */
     public static function vendorPath(string $rootPath): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Composer sets this in the process environment)
         $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
 
         if (is_string($vendorPath) && $vendorPath !== '') {

@@ -191,6 +191,7 @@ class HandleExceptions
         return ! class_exists(LogManager::class)
             || static::$app === null
             || ! static::$app->hasBeenBootstrapped()
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test runner sets this for the test process)
             || (static::$app->runningUnitTests() && ! Env::get('LOG_DEPRECATIONS_WHILE_TESTING'));
     }
 
