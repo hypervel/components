@@ -116,7 +116,11 @@ class TinkerCommand extends Command
 
         $config = $this->getHypervel()->make('config');
 
-        foreach ($config->array('tinker.commands', []) as $command) {
+        // Published configuration may list more commands; the default lists none.
+        /** @var list<class-string<Command>> $configuredCommands */
+        $configuredCommands = $config->array('tinker.commands', []);
+
+        foreach ($configuredCommands as $command) {
             if (($command = $this->getApplication()->addCommand(
                 $this->getHypervel()->make($command)
             )) !== null) {

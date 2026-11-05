@@ -45,6 +45,7 @@ class PruneExpired extends Command
         $expiration = config()->get('sanctum.expiration');
 
         if ($expiration !== null) {
+            // @phpstan-ignore hypervel.configType (published configuration may set minutes; the null default is handled above)
             $expiration = config()->integer('sanctum.expiration');
         }
 

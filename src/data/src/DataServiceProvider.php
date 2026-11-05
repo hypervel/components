@@ -47,7 +47,11 @@ class DataServiceProvider extends ServiceProvider
             });
         }
 
-        $enableVarDumperCaster = match ($config->string('data.var_dumper_caster_mode')) {
+        // Published configuration may set any mode, which the match validates.
+        /** @var string $varDumperCasterMode */
+        $varDumperCasterMode = $config->string('data.var_dumper_caster_mode');
+
+        $enableVarDumperCaster = match ($varDumperCasterMode) {
             'enabled' => true,
             'development' => $this->app->environment('local', 'testing'),
             'disabled' => false,
