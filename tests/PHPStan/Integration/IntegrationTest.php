@@ -89,6 +89,18 @@ class IntegrationTest extends PHPStanTestCase
                 13 => ['Parameter #1 $view of function view expects view-string|null, string given.'],
             ],
         ];
+
+        // Hypervel: optional() passes its callback only values that are not null.
+        yield [__DIR__ . '/data/optional-callbacks.php'];
+
+        // Hypervel: a higher-order proxy runs outside the item's class, so it reaches only public members.
+        yield [
+            __DIR__ . '/data/proxied-members.php',
+            [
+                30 => ['Call to private method secret() of class ProxiedMembers\Score.'],
+                31 => ['Access to protected property Hypervel\Support\HigherOrderCollectionProxy<string, ProxiedMembers\Score, Hypervel\Support\Collection<int, ProxiedMembers\Score>>::$rank.'],
+            ],
+        ];
     }
 
     /**
