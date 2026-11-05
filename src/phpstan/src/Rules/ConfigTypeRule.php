@@ -78,9 +78,10 @@ final class ConfigTypeRule implements Rule
 
         return [
             RuleErrorBuilder::message(sprintf(
-                'Config key %s is not %s.',
+                'Config key %s is not %s, so %s() throws. Correct the config value or use the getter that matches its type.',
                 $scope->getType($key->value)->describe(VerbosityLevel::value()),
                 self::GETTER_TYPES[$methodName],
+                $methodName,
             ))
                 ->identifier('hypervel.configType')
                 ->build(),

@@ -19,11 +19,11 @@ class ConfigTypeRuleTest extends RuleTestCase
     public function testRule(): void
     {
         $this->analyse([__DIR__ . '/data/config-type-rule.php'], [
-            ["Config key 'test.foo' is not an integer.", 14],
-            ["Config key 'test.foo' is not an array.", 16],
-            ["Config key 'auth.defaults.guard' is not a float.", 17],
-            ["Config key 'test.missing' is not a boolean.", 31],
-            ["Config key 'test.foo' is not an integer.", 40],
+            ["Config key 'test.foo' is not an integer, so integer() throws. Correct the config value or use the getter that matches its type.", 14],
+            ["Config key 'test.foo' is not an array, so array() throws. Correct the config value or use the getter that matches its type.", 16],
+            ["Config key 'auth.defaults.guard' is not a float, so float() throws. Correct the config value or use the getter that matches its type.", 17],
+            ["Config key 'test.missing' is not a boolean, so boolean() throws. Correct the config value or use the getter that matches its type.", 31],
+            ["Config key 'test.foo' is not an integer, so integer() throws. Correct the config value or use the getter that matches its type.", 40],
         ]);
     }
 

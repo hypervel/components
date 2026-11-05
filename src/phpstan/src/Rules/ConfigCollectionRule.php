@@ -64,7 +64,10 @@ final class ConfigCollectionRule implements Rule
         }
 
         return [
-            RuleErrorBuilder::message(sprintf('Config key %s is not an array.', $scope->getType($key->value)->describe(VerbosityLevel::value())))
+            RuleErrorBuilder::message(sprintf(
+                'Config key %s is not an array, so collection() throws. Correct the config value or use the getter that matches its type.',
+                $scope->getType($key->value)->describe(VerbosityLevel::value()),
+            ))
                 ->identifier('hypervel.configCollection')
                 ->build(),
         ];

@@ -210,8 +210,6 @@ final class ConfigParser
         private ScopeFactory $scopeFactory,
         private NodeScopeResolver $nodeScopeResolver,
         private ConfigSourceResolver $configSourceResolver,
-        #[AutowiredParameter]
-        private bool $treatPhpDocTypesAsCertain,
     ) {
     }
 
@@ -918,10 +916,12 @@ final class ConfigParser
 
         [$return] = $parsedConfigFile;
 
-        // Check if we have a type from the docblock
+        // Check if we have a type from the docblock. Upstream reads it only when
+        // treatPhpDocTypesAsCertain is on, but that setting only relaxes always-true
+        // checks; PHPStan still infers from PHPDoc types when it is off.
         $docComment = $return->getDocComment();
 
-        if ($docComment !== null && $this->treatPhpDocTypesAsCertain) {
+        if ($docComment !== null) {
             // Names in the docblock are resolved with the config file's imports
             $resolvedPhpDoc = $this->fileTypeMapper->getResolvedPhpDoc(
                 $path,
