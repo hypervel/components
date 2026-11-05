@@ -284,8 +284,8 @@ if (! function_exists('optional')) {
      * @template TReturn
      *
      * @param TValue $value
-     * @param null|(callable(TValue): TReturn) $callback
-     * @return ($callback is null ? Optional : ($value is null ? null : TReturn))
+     * @param null|(callable((TValue is null ? never : TValue)): TReturn) $callback
+     * @return ($callback is null ? Optional<TValue> : ($value is null ? null : TReturn))
      */
     function optional($value = null, ?callable $callback = null)
     {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Localizable;
 use Hypervel\Support\UriQueryString;
 
@@ -18,6 +19,18 @@ $localizable = new class {
         assertType("'foo'", $this->withLocale('en', fn () => 'foo'));
     }
 };
+
+$conditionable = function (ConditionableTarget $target, bool $condition): void {
+    // A callback without a result gives the instance back.
+    assertType('ConditionableTarget', $target->when($condition, function (): void {
+    }));
+    assertType('1|ConditionableTarget', $target->unless($condition, fn () => 1));
+};
+
+final class ConditionableTarget
+{
+    use Conditionable;
+}
 
 $interactsWithData = function (UriQueryString $query): void {
     assertType('1|2|Hypervel\Support\UriQueryString', $query->whenEnum('foo', TestIntEnum::class, function ($enum) {
@@ -67,6 +80,11 @@ $interactsWithData = function (UriQueryString $query): void {
     assertType('3|Hypervel\Support\UriQueryString', $query->whenMissing('foo', function ($value) {
         return 3;
     }));
+
+    // A callback without a result gives the instance back.
+    assertType('Hypervel\Support\UriQueryString', $query->whenHas('foo', function ($value): void {
+    }));
+    assertType('Hypervel\Support\UriQueryString', $query->whenEnum('foo', TestIntEnum::class, fn ($enum) => null));
 };
 
 enum TestIntEnum: int

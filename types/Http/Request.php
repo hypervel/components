@@ -17,6 +17,7 @@ $request = Request::create('/', 'GET', [
 
 assertType('TestEnum|null', $request->enum('key', TestEnum::class));
 assertType('TestEnum|TestEnum::Foo', $request->enum('key', TestEnum::class, TestEnum::Foo));
+assertType('TestEnum|TestEnum::Foo', $request->enum('key', TestEnum::class, fn () => TestEnum::Foo));
 
 assertType('int', $request->integer('key'));
 assertType('int', $request->integer('key', 5, true));
