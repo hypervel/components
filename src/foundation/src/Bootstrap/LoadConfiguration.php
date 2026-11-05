@@ -111,7 +111,9 @@ class LoadConfiguration
             ? $this->getBaseConfiguration()
             : [];
 
-        foreach ((new Collection($base))->diffKeys($files) as $name => $config) {
+        $baseOnly = (new Collection($base))->diffKeys($files)->all();
+
+        foreach ($baseOnly as $name => $config) {
             $repository->set($name, $config);
         }
 
@@ -119,8 +121,13 @@ class LoadConfiguration
             $base = $this->loadConfigurationFile($repository, $name, $path, $base);
         }
 
+        // Unlike Laravel, an unchanged base-only entry is not set again: it is already set,
+        // and setting it again discards the nested files loaded below it. Entries an
+        // overridden loadConfigurationFile() adds or changes still apply.
         foreach ($base as $name => $config) {
-            $repository->set($name, $config);
+            if (! array_key_exists($name, $baseOnly) || $baseOnly[$name] !== $config) {
+                $repository->set($name, $config);
+            }
         }
     }
 
@@ -224,6 +231,15 @@ class LoadConfiguration
         }
 
         return $path;
+    }
+
+    /**
+     * Get the directory of the templates config:publish uses in place of framework
+     * configuration files when the framework configuration is merged.
+     */
+    public static function frameworkConfigStubPath(): string
+    {
+        return dirname(__DIR__, 2) . '/config-stubs';
     }
 
     /**

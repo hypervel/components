@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -103,11 +104,11 @@ class ConfigPublishCommand extends Command
 
         $shouldMergeConfiguration = $this->hypervel->shouldMergeFrameworkConfiguration();
 
-        foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
+        foreach (Finder::create()->files()->name('*.php')->in(LoadConfiguration::frameworkConfigPath()) as $file) {
             $path = $file->getPathname();
             $name = basename($path, '.php');
 
-            $config[$name] = ($shouldMergeConfiguration === true && file_exists($stubPath = (__DIR__ . '/../../config-stubs/' . $name . '.php')))
+            $config[$name] = ($shouldMergeConfiguration === true && file_exists($stubPath = LoadConfiguration::frameworkConfigStubPath() . '/' . $name . '.php'))
                 ? $stubPath
                 : $path;
         }
