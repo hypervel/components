@@ -140,10 +140,16 @@ if (! function_exists('e')) {
 
 if (! function_exists('env')) {
     /**
-     * Gets the value of an environment variable.
+     * Get the value of an environment variable.
+     *
+     * @template TDefault
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return null|bool|string|TDefault
      */
     function env(string $key, mixed $default = null): mixed
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (env() is the helper for Env::get())
         return Env::get($key, $default);
     }
 }
@@ -157,6 +163,7 @@ if (! function_exists('env_array')) {
      */
     function env_array(string $key, array $default = []): array
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (env_array() is the helper for Env::getArray())
         return Env::getArray($key, $default);
     }
 }
@@ -169,6 +176,7 @@ if (! function_exists('env_or_fail')) {
      */
     function env_or_fail(string $key): mixed
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (env_or_fail() is the helper for Env::getOrFail())
         return Env::getOrFail($key);
     }
 }

@@ -43,6 +43,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Session\SessionManager;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
@@ -161,7 +162,8 @@ if (! function_exists('app_id')) {
      */
     function app_id(): string
     {
-        $id = env('APP_ID');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (app_id() supplies configuration defaults while configuration loads)
+        $id = Env::get('APP_ID');
 
         if ($id !== null && $id !== '') {
             $id = (string) $id;
@@ -175,7 +177,8 @@ if (! function_exists('app_id')) {
             return $id;
         }
 
-        return Str::slug(Str::snake((string) env('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (app_id() supplies configuration defaults while configuration loads)
+        return Str::slug(Str::snake((string) Env::get('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
     }
 }
 

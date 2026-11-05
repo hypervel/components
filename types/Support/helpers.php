@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use DateTimeImmutable;
 use Exception;
+use Hypervel\Support\Env;
 use Throwable;
 
 use function PHPStan\Testing\assertType;
@@ -20,6 +21,12 @@ if (blank($value)) {
 } else {
     assertType('bool|float|int|non-empty-string', $value);
 }
+
+// The default does not decide the type of a value that is set.
+assertType('bool|string|null', env('FOO'));
+assertType('1|bool|string|null', env('FOO', 1));
+assertType('1|bool|string|null', env('FOO', fn () => 1));
+assertType('1|bool|string|null', Env::get('FOO', fn () => 1));
 
 assertType('User', object_get(new User, null));
 assertType('User', object_get(new User, ''));
