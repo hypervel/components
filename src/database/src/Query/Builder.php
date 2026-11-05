@@ -508,7 +508,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->addBinding(
@@ -1097,7 +1097,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->whereVectorDistanceLessThan($column, $vector, 1 - $minSimilarity);
@@ -1121,7 +1121,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         return $this->whereRaw(
@@ -2636,7 +2636,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->addBinding(
