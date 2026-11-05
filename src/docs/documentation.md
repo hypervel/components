@@ -99,6 +99,7 @@
     - [Console Tests](/docs/{{version}}/console-tests)
     - [Database](/docs/{{version}}/database-testing)
     - [Mocking](/docs/{{version}}/mocking)
+    - [Static Analysis](/docs/{{version}}/static-analysis)
 - ## Packages
     - [API Client](/docs/{{version}}/api-client)
     - [Doctor](/docs/{{version}}/doctor)
