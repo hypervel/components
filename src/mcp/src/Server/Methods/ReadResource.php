@@ -89,7 +89,6 @@ class ReadResource implements Method
             CoroutineContext::set(RequestContext::LIBRARY_SCRIPTS_CONTEXT_KEY, $resource->libraryScripts());
         }
 
-        // @phpstan-ignore-next-line
         return Container::getInstance()->call([$resource, 'handle']);
     }
 

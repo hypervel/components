@@ -33,7 +33,6 @@ class ToolInvoker implements Errable
      */
     public function invoke(Tool $tool, JsonRpcRequest $request): Generator|JsonRpcResponse
     {
-        // @phpstan-ignore-next-line
         $response = $this->callHandler(fn (): mixed => Container::getInstance()->call([$tool, 'handle']), $request);
 
         return is_iterable($response)
