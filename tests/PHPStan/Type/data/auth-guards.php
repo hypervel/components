@@ -58,4 +58,10 @@ function test(string $name, ?string $maybeName, array $names): void
     assertType(Authenticatable::class . '|null', Auth::guard('providerless')->user());
     assertType(Authenticatable::class . '|null', Auth::guard()->user());
     assertType(Authenticatable::class . '|null', Auth::user());
+
+    // A guard macro is only callable through AuthManager when every configured guard registers it.
+    assertType('int', Auth::guardMacro());
+    assertType('int', auth()->guardMacro());
+    assertType('*ERROR*', Auth::sessionGuardMacro());
+    assertType('*ERROR*', auth()->sessionGuardMacro());
 }

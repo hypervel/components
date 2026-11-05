@@ -338,7 +338,7 @@ class FoundationServiceProvider extends ServiceProvider
         Request::macro('validateWithBag', function (string $errorBag, array $rules, ...$params) {
             try {
                 return $this->validate($rules, ...$params);
-            } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown ($this->validate() is a macro that throws ValidationException)
+            } catch (ValidationException $e) {
                 $e->errorBag = $errorBag;
 
                 throw $e;

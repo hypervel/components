@@ -31,8 +31,10 @@ final class OptionalExtension implements MethodsClassReflectionExtension
     {
         $targetType = $this->getTargetType($classReflection);
 
-        // The Optional calls the method from outside the object's class.
+        // Optional::__call() runs a macro before the held object's method, so the macro extension
+        // resolves it. The Optional calls the held object's method from outside the object's class.
         return $targetType !== null
+            && ! Optional::hasMacro($methodName)
             && $targetType->hasMethod($methodName)->yes()
             && $targetType->getMethod($methodName, new OutOfClassScope)->isPublic();
     }

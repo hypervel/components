@@ -28,6 +28,11 @@ class Bar
     {
         return '';
     }
+
+    public function optionalMacro(): string
+    {
+        return '';
+    }
 }
 
 function test(?Bar $maybeBar, Bar|string $barOrString, mixed $mixed): void
@@ -56,6 +61,10 @@ function test(?Bar $maybeBar, Bar|string $barOrString, mixed $mixed): void
     $value = 1;
     optional(new Bar)->fill($value);
     assertType('1', $value);
+
+    // Hypervel: an Optional macro runs before the held object's method of the same name, whatever the value.
+    assertType('int', optional(new Bar)->optionalMacro());
+    assertType('int', optional(null)->optionalMacro());
 }
 
 /**

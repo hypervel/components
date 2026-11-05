@@ -21,7 +21,9 @@ class MethodsClassReflectionExtensionTest extends TypeInferenceTestCase
     /** @return iterable<mixed> */
     public static function dataFileAsserts(): iterable
     {
+        yield from self::gatherAssertTypes(__DIR__ . '/data/macros.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/redirect-response.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/macros-php-81.php');
     }
 
     /** @return string[] */

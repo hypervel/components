@@ -59,10 +59,37 @@ class AuthGuardHelper
      */
     public function getGuardType(?Arg $name, Scope $scope, Type $declaredType, bool $acceptsEnums = true): ?Type
     {
+        $guardType = $this->getGuardsType($this->getGuardNames($name, $scope, $acceptsEnums));
+
+        if ($guardType === null) {
+            return null;
+        }
+
+        // A factory or facade declaring a narrower guard keeps its declaration.
+        return $declaredType->isSuperTypeOf($guardType)->yes() ? $guardType : null;
+    }
+
+    /**
+     * Get the type of the current default guard, which shouldUse() can set to any configured guard.
+     *
+     * Returns null when a configured guard's type is unknown.
+     */
+    public function getDefaultGuardType(): ?Type
+    {
+        return $this->getGuardsType($this->getConfiguredGuardNames());
+    }
+
+    /**
+     * Get the union of the given configured guards' types, or null when one of them is unknown.
+     *
+     * @param list<string> $names
+     */
+    private function getGuardsType(array $names): ?Type
+    {
         $types = [];
 
-        foreach ($this->getGuardNames($name, $scope, $acceptsEnums) as $guardName) {
-            $type = $this->getConfiguredGuardType($guardName);
+        foreach ($names as $name) {
+            $type = $this->getConfiguredGuardType($name);
 
             if ($type === null) {
                 return null;
@@ -71,14 +98,7 @@ class AuthGuardHelper
             $types[] = $type;
         }
 
-        if ($types === []) {
-            return null;
-        }
-
-        $guardType = TypeCombinator::union(...$types);
-
-        // A factory or facade declaring a narrower guard keeps its declaration.
-        return $declaredType->isSuperTypeOf($guardType)->yes() ? $guardType : null;
+        return $types === [] ? null : TypeCombinator::union(...$types);
     }
 
     /**
