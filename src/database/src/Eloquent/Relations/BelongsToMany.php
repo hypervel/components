@@ -1026,7 +1026,7 @@ class BelongsToMany extends Relation
 
         $models = $builder->addSelect(
             $this->shouldSelect($columns)
-        )->getModels(); // @phpstan-ignore method.notFound (addSelect returns Eloquent\Builder, not Query\Builder)
+        )->getModels();
 
         $this->hydratePivotRelation($models);
 
@@ -1296,7 +1296,6 @@ class BelongsToMany extends Relation
      */
     protected function prepareQueryBuilder(): Builder
     {
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $this->query->addSelect($this->shouldSelect());
     }
 

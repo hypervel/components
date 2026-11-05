@@ -156,7 +156,7 @@ class Collection extends BaseCollection implements QueueableCollection
         $models = $model->newModelQuery()
             ->whereKey(array_values($modelKeys))
             ->select($keyName)
-            ->withAggregate($relations, $column, $function) // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
+            ->withAggregate($relations, $column, $function)
             ->get();
 
         if ($models->isEmpty()) {
@@ -533,7 +533,7 @@ class Collection extends BaseCollection implements QueueableCollection
             ->with(is_string($with) ? func_get_args() : $with)
             ->whereIn($model->getKeyName(), array_values($modelKeys))
             ->get()
-            ->getDictionary(); // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
+            ->getDictionary();
 
         $freshItems = [];
 
@@ -855,7 +855,6 @@ class Collection extends BaseCollection implements QueueableCollection
     #[Override]
     public function partition(mixed $key, mixed $operator = null, mixed $value = null): BaseCollection
     {
-        // @phpstan-ignore return.type (parent returns base Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
     }
 

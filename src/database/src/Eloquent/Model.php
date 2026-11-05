@@ -1937,7 +1937,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $count = 0;
 
-        foreach ($instance->whereIn($key, $ids)->get() as $model) { // @phpstan-ignore method.notFound (Eloquent __call forwarding)
+        foreach ($instance->whereIn($key, $ids)->get() as $model) {
             if ($model->delete()) {
                 ++$count;
             }

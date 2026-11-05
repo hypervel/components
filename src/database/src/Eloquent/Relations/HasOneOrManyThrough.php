@@ -790,7 +790,6 @@ abstract class HasOneOrManyThrough extends Relation
     {
         $builder = $this->query->applyScopes();
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $builder->addSelect(
             $this->shouldSelect($builder->getQuery()->columns ? [] : $columns)
         );
@@ -810,7 +809,6 @@ abstract class HasOneOrManyThrough extends Relation
 
         $this->performJoin($query);
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedLocalKeyName(),
             '=',
@@ -837,7 +835,6 @@ abstract class HasOneOrManyThrough extends Relation
 
         $query->getModel()->setTable($hash);
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $parentQuery->getQuery()->from . '.' . $this->localKey,
             '=',
@@ -862,7 +859,6 @@ abstract class HasOneOrManyThrough extends Relation
             $query->whereNull($hash . '.' . $this->throughParent->getDeletedAtColumn());
         }
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $parentQuery->getQuery()->from . '.' . $this->localKey,
             '=',

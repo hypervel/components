@@ -1609,7 +1609,7 @@ class QueryBuilder extends EloquentBuilder
                         $childrenByParent,
                         $parentOrder,
                         $existingModel,
-                        $existingModel->getParentId(), /* @phpstan-ignore method.notFound */
+                        $existingModel->getParentId(),
                     );
                 }
             }
@@ -1692,7 +1692,7 @@ class QueryBuilder extends EloquentBuilder
             $model->fill($itemData);
 
             static::saveRepairNode($model);
-            static::addRepairNode($roots, $childrenByParent, $parentOrder, $model, $model->getParentId()); /* @phpstan-ignore method.notFound */
+            static::addRepairNode($roots, $childrenByParent, $parentOrder, $model, $model->getParentId());
 
             if ($children === null) {
                 continue;

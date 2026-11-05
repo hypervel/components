@@ -132,8 +132,8 @@ class AncestorsRelation extends BaseRelation
             $rgts = [];
 
             foreach ($group as $model) {
-                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
-                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $lfts[] = $model->getLft();
+                $rgts[] = $model->getRgt();
             }
 
             $positions = array_keys($group);
@@ -168,7 +168,7 @@ class AncestorsRelation extends BaseRelation
             $scope = $this->scopeKey($model);
             $key = $this->matchKey($model);
             /** @var int $lft */
-            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $model->getLft();
             $found = [];
 
             foreach ($results as $related) {

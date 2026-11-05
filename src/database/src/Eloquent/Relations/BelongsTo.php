@@ -223,7 +223,6 @@ class BelongsTo extends Relation
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);
         }
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedForeignKeyName(),
             '=',
@@ -246,7 +245,6 @@ class BelongsTo extends Relation
 
         $query->getModel()->setTable($hash);
 
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->whereColumn(
             $hash . '.' . $this->ownerKey,
             '=',

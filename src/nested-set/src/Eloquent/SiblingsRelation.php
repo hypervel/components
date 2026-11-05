@@ -160,7 +160,7 @@ class SiblingsRelation extends BaseRelation
                 continue;
             }
 
-            $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $model->getParentId();
             $siblings = $parentId === null ? ($scope['roots'] ?? []) : ($scope['parents'][$parentId] ?? []);
 
             if ($this->andSelf) {

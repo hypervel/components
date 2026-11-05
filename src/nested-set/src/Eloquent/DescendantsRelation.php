@@ -70,9 +70,7 @@ class DescendantsRelation extends BaseRelation
 
         foreach (parent::prepareEagerModels($models) as $model) {
             // Without a bound strictly between the parent's bounds, no node can be its descendant.
-            if ($model->getRgt() /* @phpstan-ignore method.notFound */
-                <= $model->getLft() + 1 /* @phpstan-ignore method.notFound */
-            ) {
+            if ($model->getRgt() <= $model->getLft() + 1) {
                 continue;
             }
 
@@ -86,8 +84,8 @@ class DescendantsRelation extends BaseRelation
             $rgts = [];
 
             foreach ($group as $model) {
-                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
-                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $lfts[] = $model->getLft();
+                $rgts[] = $model->getRgt();
             }
 
             $positions = array_keys($group);
@@ -122,9 +120,9 @@ class DescendantsRelation extends BaseRelation
             $scope = $this->scopeKey($model);
             $key = $this->matchKey($model);
             /** @var int $lft */
-            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $model->getLft();
             /** @var int $rgt */
-            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $rgt = $model->getRgt();
             $found = [];
 
             foreach ($results as $related) {
@@ -154,9 +152,9 @@ class DescendantsRelation extends BaseRelation
 
             $key = $this->matchKey($model);
             /** @var int $rgt */
-            $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+            $rgt = $model->getRgt();
             $found = [];
-            $index = static::lowerBound($bucket['lfts'], $model->getLft() + 1); /* @phpstan-ignore method.notFound */
+            $index = static::lowerBound($bucket['lfts'], $model->getLft() + 1);
 
             for ($count = count($bucket['lfts']); $index < $count && $bucket['lfts'][$index] < $rgt; ++$index) {
                 if ($key === null || $bucket['keys'][$index] !== $key) {
