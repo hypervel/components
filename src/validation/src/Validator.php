@@ -1059,7 +1059,7 @@ class Validator implements ValidatorContract
      * Get a validated input container for the validated input.
      *
      * @param null|array<int, string> $keys
-     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     * @return ($keys is array ? array<array-key, mixed> : ValidatedInput)
      *
      * @throws ValidationException
      */
