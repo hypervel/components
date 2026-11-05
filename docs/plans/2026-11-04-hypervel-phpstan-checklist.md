@@ -23,12 +23,10 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - copy: `ClosureTypes/RelationshipQueryCallbackExtension.php`
 - copy with the queue rules: `Concerns/InspectsQueuedJobs.php`
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)
-- copy: `Methods/{BuilderHelper,FacadesMethodsExtension,Macro,MacroMethodsClassReflectionExtension,ManagersMethodsExtension,ModelFactoryMethodsClassReflectionExtension,StorageMethodsClassReflectionExtension}.php`
-  - `Optional::__call()` runs a macro before the held object's method, so a macro sharing a held object's method name must take precedence over `OptionalExtension` (by extension order, or by `OptionalExtension` skipping macro names). Cover it in the Optional fixture.
+- copy: `Methods/{BuilderHelper,ModelFactoryMethodsClassReflectionExtension}.php`
 - merge into moved forwarding extensions: `Methods/{EloquentBuilderForwardsCallsExtension,ModelForwardsCallsExtension,RelationForwardsCallsExtension}.php`
-- omit: `Methods/ContractsMethodsExtension.php` (interfaces stay honest; README and `REMOVED:` recorded, so add its source comment to `ManagersMethodsExtension`'s class docblock, the sibling container-forwarding extension, when that ports)
 - copy: `Properties/*` except the ported `HigherOrderCollectionProxyPropertyExtension` (16 files, including `Schema/MySqlDataTypeToPhpTypeConverter.php`)
-- copy: `Reflection/{AnnotationScopeMethodParameterReflection,AnnotationScopeMethodReflection,DynamicWhereParameterReflection,EloquentBuilderMethodReflection,ReflectionHelper,StaticMethodReflection}.php`
+- copy: `Reflection/{AnnotationScopeMethodParameterReflection,AnnotationScopeMethodReflection,DynamicWhereParameterReflection,EloquentBuilderMethodReflection}.php`
 - merge into moved scope reflections: `Reflection/ModelScopeMethodReflection.php`
 - copy: `ReturnTypes/{AppFacadeEnvironmentReturnTypeExtension,EloquentBuilderExtension,FactoryDynamicMethodReturnTypeExtension,FormRequestSafeDynamicMethodReturnTypeExtension,ModelDynamicStaticMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension,ModelOnlyDynamicMethodReturnTypeExtension,ModelSerializationDynamicMethodReturnTypeExtension,RelationCollectionExtension,RequestFileExtension,RequestRouteExtension,StorageDynamicStaticMethodReturnTypeExtension,TestCaseExtension}.php`
 - copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source
@@ -47,20 +45,19 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 ## stubs
 
 - copy: `common/*` except below, the ported view stubs, `Foundation/Console/Kernel.stub` (its `command()` closure type moved to source; the stub keeps only the empty declaration the `Artisan` mixin needs for stub validation) and the stubs whose types are now in source: `Collection` (except below), `Conditionable`, `Enumerable`, `EnumeratesValues`, `HigherOrderProxies` and `Support/{Arr,Benchmark,Reflector,Str,Tappable}` (60 files)
-- merge into `common/Facades.stub` and `common/Helpers.stub` with their topics: the remaining facade entries, and the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only Artisan, View, Route and `view()` are ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
-- omit: `common/Config/Repository.stub` (only upstream's omitted `config()` helper stub references it)
+- merge into `common/Helpers.stub` with their topics: the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only `view()` is ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
+- merge with their topic flows: the upstream typing for the declaration-only stubs that `common/Facades.stub`'s mixins need for stub validation: Events `dispatch()`/`until()` conditionals, `Connection::getQueryLog()` shape, Schema `getColumnListing()`, the `Request::header()` conditional, and the Cache `Repository` `ArrayAccess` implements (check Hypervel's enum keys)
 - add to source with the routing stubs: upstream `common/Route.stub`'s `methods()` and `middleware()` element types as `Route` PHPDoc in `src/routing`, with a `types/` fixture (the stub keeps only the empty declaration stub validation needs)
 - omit: `common/Redis/{PredisConnection,PredisFacade}.stub`, `common/Gate.stub` (Hypervel's `Gate::forUser()` and its contract already return `static`)
 - add to source: upstream `common/MailMessage.stub`'s property shapes (`$view`, `$from`, `$replyTo`, `$attachments`, `$rawAttachments`) as `MailMessage` PHPDoc in `src/notifications`, with a `types/` fixture
 - omit: `common/Contracts/Translation.stub` (only upstream's omitted `trans()` helper stub references it)
-- merge into `common/`: `12.41.0/Http/PendingRequest.stub`, `13.3.0/{EloquentBuilder,Model}.stub`, `13.35.0/{BelongsToMany,HasOneOrMany}.stub`, `13.37.0/HasOneOrManyThrough.stub`
+- merge into `common/`: `13.3.0/{EloquentBuilder,Model}.stub`, `13.35.0/{BelongsToMany,HasOneOrMany}.stub`, `13.37.0/HasOneOrManyThrough.stub`
 
 ## tests
 
-- copy: `bootstrap.php`, `enum-definition.php`, then add the test bootstrap to `tests/PHPStan/phpstan-tests.neon`; omit `laravel-test.sh`
+- omit: `laravel-test.sh`
 - copy: the remaining `application/` fixture app (app, config, factories, migrations, schema dump)
 - merge into `Integration/IntegrationTest.php`: the remaining upstream entries with `Integration/data/*` (46 files), switching its config to `Type/data/config-check-model-properties.neon` with model properties
-- copy: `Reflection/MacroMethodsClassReflectionExtensionTest.php`
 - copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection and config tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
@@ -68,7 +65,6 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - merge into `Type/CollectionDynamicReturnTypeExtensionsTest.php` with the Eloquent collection port, switching it to `config-with-migrations.neon` (they need model properties and the custom collections): `collection-generic-static-methods{,-l12}.php`, `eloquent-collection-map.php`
 - merge into `Type/CollectionDynamicReturnTypeExtensionTest.php` with the model fixtures: `collection-filter.php`, `collection-reject.php`, `collection-where.php` (they need `accounts()->active()->get()` to return `AccountCollection`)
 - omit: `Type/data/collection-generic-static-methods-l11.php` (Laravel 11's Eloquent `partition()` returned `static`; Hypervel follows the Laravel 12 base collection)
-- merge into `Type/MethodsClassReflectionExtensionTest.php` with the macro port: `macros.php` and `macros-php-81.php` (unconditional; Hypervel requires PHP 8.4)
 - merge: the remaining `Type/GeneralTypeTest.php` data entries, and its `data/config-with-migrations.neon` configuration once migrations are ported; `higher-order-collection-proxy-methods.php` needs model properties and Hypervel's proxy results (`avg` is `float|int|null`, `max`/`min` include `null`)
-- merge: `Type/{RedisDriverNullTypeTest,RedisDriverPhpRedisTypeTest}.php` and their data into one phpredis test; omit `Type/RedisDriverPredisTypeTest.php` with `redis-driver-predis.*`
+- merge: `Type/{RedisDriverNullTypeTest,RedisDriverPhpRedisTypeTest}.php` and their data into one phpredis test, with the Redis stubs; recheck `Type/data/facades.php`'s Redis expectations, which reflect the current source types; omit `Type/RedisDriverPredisTypeTest.php` with `redis-driver-predis.*`
 - copy: `Unit/*Test.php` except `Support/{BootstrapErrorHandlerTest,RecursiveDirectoryIteratorTest}.php` (11 classes, including `SQL/` and `Support/`), `Unit/data/*`
