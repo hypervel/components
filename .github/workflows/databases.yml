@@ -68,6 +68,8 @@ jobs:
       mysql:
         image: mysql:8.4
         command: --gtid-mode=ON --enforce-gtid-consistency=ON
+        volumes:
+          - schema-tls:/tmp/hypervel-schema-tls
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -80,6 +82,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - schema-tls:/tmp/hypervel-schema-tls
 
     strategy:
       fail-fast: false
@@ -110,6 +114,18 @@ jobs:
         run: |
           bin/run-database-tests.sh mysql
           vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
+
+      - name: Verify schema dump and load TLS
+        if: matrix.php == '8.4'
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: mysql
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: password
+          DB_TEST_SCHEMA_TLS_DIRECTORY: /tmp/hypervel-schema-tls
+        run: vendor/bin/phpunit --no-progress tests/Integration/Database/MySql/SchemaStateTlsTest.php
 
   mysql_97:
     runs-on: ubuntu-latest
