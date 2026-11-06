@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
+use PDO;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 use function Hypervel\Testbench\remote;
@@ -93,6 +95,37 @@ class SchemaStateTest extends SqliteTestCase
         $this->assertFileNotContains([
             'INSERT INTO "migrations"',
         ], 'database/schema/sqlite-schema.sql');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testMigrationTableNameIsLiteralAcrossShellAndDumpPatternParsing(): void
+    {
+        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+            $this->markTestSkipped('Schema dumping requires a file-backed SQLite connection.');
+        }
+
+        $connection = DB::connection();
+        $migrationTable = 'app_"migrations$tag';
+        $neighborTable = 'appX"migrations$tag';
+
+        foreach ([$migrationTable, $neighborTable] as $table) {
+            $connection->getSchemaBuilder()->create($table, static function (Blueprint $blueprint): void {
+                $blueprint->id();
+                $blueprint->string('migration');
+                $blueprint->integer('batch');
+            });
+            $connection->table($table)->insert(['migration' => 'example_migration', 'batch' => 1]);
+        }
+
+        $this->app->make('files')->ensureDirectoryExists(database_path('schema'));
+        $path = database_path('schema/sqlite-schema.sql');
+        $connection->getSchemaState()->withMigrationTable($migrationTable)->dump($connection, $path);
+
+        $restored = new PDO('sqlite::memory:');
+        $restored->exec($this->app->make('files')->get($path));
+
+        $this->assertSame('example_migration', $restored->query('SELECT migration FROM "app_""migrations$tag"')->fetchColumn());
+        $this->assertSame(0, $restored->query('SELECT count(*) FROM "appX""migrations$tag"')->fetchColumn());
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]

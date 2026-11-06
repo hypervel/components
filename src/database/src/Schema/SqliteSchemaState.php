@@ -55,9 +55,15 @@ class SqliteSchemaState extends SchemaState
      */
     protected function appendMigrationData(string $path): void
     {
+        // Escape the LIKE pattern first, then SQLite's double-quoted dot-command argument.
+        $pattern = strtr($this->getMigrationTable(), ['\\' => '\\\\', '%' => '\%', '_' => '\_']);
+        $command = '.dump "' . strtr($pattern, ['\\' => '\\\\', '"' => '\"']) . '"';
+
         $process = $this->makeProcess(
-            $this->baseCommand() . ' ".dump \'' . $this->getMigrationTable() . '\'"'
-        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
+            $this->baseCommand() . ' "${:HYPERVEL_LOAD_MIGRATION_COMMAND}"'
+        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
+            'HYPERVEL_LOAD_MIGRATION_COMMAND' => $command,
+        ]));
 
         $migrations = (new Collection(preg_split("/\r\n|\n|\r/", $process->getOutput())))
             ->filter(fn ($line) => preg_match('/^\s*(--|INSERT\s)/iu', $line) === 1)
