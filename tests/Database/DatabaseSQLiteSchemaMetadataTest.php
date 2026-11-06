@@ -47,22 +47,25 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
         $grammar->shouldReceive('compileViews')->once()->with('main')->andReturn('views sql');
         $grammar->shouldReceive('compileColumns')->once()->with('main', 'app_users')->andReturn('columns sql');
         $grammar->shouldReceive('compileIndexes')->once()->with('main', 'app_users')->andReturn('indexes sql');
+        $grammar->shouldReceive('compileForeignKeys')->once()->with('main', 'app_users')->andReturn('foreign keys sql');
         $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'app_users')->andReturn('definition sql');
         $connection->shouldNotReceive('scalar');
         $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn([(object) ['sql' => 'create table app_users (id integer)']]);
 
-        foreach (['views', 'columns', 'indexes'] as $kind) {
+        foreach (['views', 'columns', 'indexes', 'foreign keys'] as $kind) {
             $connection->shouldReceive('selectFromWriteConnection')->once()->with($kind . ' sql')->andReturn([(object) ['name' => $kind]]);
         }
 
         $processor->shouldReceive('processViews')->once()->with([(object) ['name' => 'views']])->andReturn([['name' => 'active_users']]);
         $processor->shouldReceive('processColumns')->once()->with([(object) ['name' => 'columns']], 'create table app_users (id integer)')->andReturn([['name' => 'id']]);
         $processor->shouldReceive('processIndexesForSchemaState')->once()->with([(object) ['name' => 'indexes']])->andReturn([['name' => 'primary']]);
+        $processor->shouldReceive('processForeignKeysForSchemaState')->once()->with([(object) ['name' => 'foreign keys']])->andReturn([['implicit' => true]]);
 
         $this->assertSame([['name' => 'active_users']], $builder->getViews('main'));
         $this->assertSame(['columns' => [['name' => 'id']], 'sql' => 'create table app_users (id integer)'], $builder->getColumnsForSchemaState('main.users'));
         $this->assertSame([['name' => 'primary']], $builder->getIndexesForSchemaState('main.users'));
-        $this->assertSame(['views sql', 'columns sql', 'definition sql', 'indexes sql'], $builder->metadataQueries);
+        $this->assertSame([['implicit' => true]], $builder->getForeignKeysForSchemaState('main.users'));
+        $this->assertSame(['views sql', 'columns sql', 'definition sql', 'indexes sql', 'foreign keys sql'], $builder->metadataQueries);
     }
 
     #[DataProvider('storedDefinitions')]

@@ -383,9 +383,9 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     public function testCompileIndexesIncludesPartialMetadata(): void
     {
         $this->assertSame(
-            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
+            'select \'primary\' as name, group_concat(hex(col)) as columns, group_concat(hex(col)) as key_columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
             . 'from (select name as col from pragma_table_xinfo(\'users\', \'main\') where pk > 0 order by pk, cid) group by name '
-            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
+            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, group_concat(coalesce(col, \'-\')) as key_columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
             . 'case when count(*) = count(col) then group_concat(collation) end as collations, '
             . 'case when count(*) = count(col) then group_concat("descending") end as "descending" '
             . 'from (select il.*, case when ii.name is not null then hex(ii.name) end as col, hex(ii.coll) as collation, ii."desc" as "descending", '
@@ -1213,7 +1213,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             'sql' => 'CREATE TABLE users (name varchar, age varchar)',
         ]);
         $builder->expects('getIndexesForSchemaState')->andReturn([]);
-        $builder->expects('getForeignKeys')->andReturn([]);
+        $builder->expects('getForeignKeysForSchemaState')->andReturn([]);
 
         $connection = $this->getConnection(builder: $builder);
         $connection->expects('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
@@ -1242,7 +1242,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             'sql' => 'CREATE TABLE users (name varchar, age varchar)',
         ]);
         $builder->expects('getIndexesForSchemaState')->andReturn([]);
-        $builder->expects('getForeignKeys')->andReturn([]);
+        $builder->expects('getForeignKeysForSchemaState')->andReturn([]);
 
         $connection = $this->getConnection(builder: $builder);
         $connection->expects('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
@@ -1300,7 +1300,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             'sql' => 'CREATE TABLE users ()',
         ]);
         $builder->shouldReceive('getIndexesForSchemaState')->andReturn([]);
-        $builder->shouldReceive('getForeignKeys')->andReturn([]);
+        $builder->shouldReceive('getForeignKeysForSchemaState')->andReturn([]);
 
         return $builder;
     }
