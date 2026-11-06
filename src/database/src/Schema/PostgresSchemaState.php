@@ -7,6 +7,7 @@ namespace Hypervel\Database\Schema;
 use Hypervel\Database\Connection;
 use Hypervel\Support\Collection;
 use Override;
+use Symfony\Component\Process\Process;
 
 class PostgresSchemaState extends SchemaState
 {
@@ -17,19 +18,19 @@ class PostgresSchemaState extends SchemaState
     public function dump(Connection $connection, string $path): void
     {
         $commands = new Collection([
-            $this->baseDumpCommand() . ' --schema-only > ' . $path,
+            $this->baseDumpCommand() . ' --schema-only > "${:HYPERVEL_LOAD_PATH}"',
         ]);
+        $variables = ['HYPERVEL_LOAD_PATH' => $path];
 
         if ($this->hasMigrationTable()) {
-            $commands->push($this->baseDumpCommand() . ' -t ' . $this->getMigrationTable() . ' --data-only >> ' . $path);
+            $commands->push($this->baseDumpCommand() . ' -t "${:HYPERVEL_LOAD_MIGRATION_TABLE}" --data-only >> "${:HYPERVEL_LOAD_PATH}"');
+            $variables['HYPERVEL_LOAD_MIGRATION_TABLE'] = $this->getMigrationTable();
         }
 
-        $commands->map(function ($command) use ($path) {
+        $commands->map(function ($command) use ($variables) {
             $process = $this->makeProcess($command);
 
-            $process->mustRun($this->guardProcessOutput($process, $this->output), array_merge($this->baseVariables($this->connection->getConfig()), [
-                'HYPERVEL_LOAD_PATH' => $path,
-            ]));
+            $process->mustRun($this->guardProcessOutput($process, $this->output), array_merge($this->baseVariables($this->connection->getConfig()), $variables));
         });
     }
 
@@ -40,14 +41,22 @@ class PostgresSchemaState extends SchemaState
     public function load(string $path): void
     {
         $command = 'pg_restore --no-owner --no-acl --clean --if-exists --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --username="${:HYPERVEL_LOAD_USER}" --dbname="${:HYPERVEL_LOAD_DATABASE}" "${:HYPERVEL_LOAD_PATH}"';
+        $output = null;
 
         if (str_ends_with($path, '.sql')) {
             $command = 'psql --file="${:HYPERVEL_LOAD_PATH}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --username="${:HYPERVEL_LOAD_USER}" --dbname="${:HYPERVEL_LOAD_DATABASE}"';
+
+            // psql continues after statement errors with exit code 0; stderr carries the diagnostics.
+            $output = function (string $type, string $buffer): void {
+                if ($type === Process::ERR) {
+                    ($this->output)($type, $buffer);
+                }
+            };
         }
 
         $process = $this->makeProcess($command);
 
-        $process->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
+        $process->mustRun($this->guardProcessOutput($process, $output), array_merge($this->baseVariables($this->connection->getConfig()), [
             'HYPERVEL_LOAD_PATH' => $path,
         ]));
     }
@@ -60,7 +69,9 @@ class PostgresSchemaState extends SchemaState
     {
         [$schema, $table] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($this->migrationTable, withDefaultSchema: true);
 
-        return $schema . '.' . $this->connection->getTablePrefix() . $table;
+        // pg_dump folds unquoted names and treats unquoted dots and pattern characters specially.
+        return '"' . str_replace('"', '""', $schema) . '"."'
+            . str_replace('"', '""', $this->connection->getTablePrefix() . $table) . '"';
     }
 
     /**
