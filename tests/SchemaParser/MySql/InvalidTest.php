@@ -107,4 +107,30 @@ class InvalidTest extends TestCase
             ['CREATE TABLE broken (id int) PHYSICAL_OPTION='],
         ];
     }
+
+    public function testDiagnosticLinesAdvanceWithinTablesAndResetForTheNextParse(): void
+    {
+        $parser = new SqlParser;
+        $tables = $parser->parse(<<<'SQL'
+            CREATE TABLE bookings (
+                starts_at date, ends_at date,
+                PERIOD FOR validity (starts_at, ends_at)
+            );
+            -- keep original source positions
+            ALTER TABLE bookings ADD COLUMN extra int;
+            SQL);
+
+        $this->assertSame([3, 6], array_column(array_values($tables)[0]['issues'], 'line'));
+        $next = $parser->parse("\nALTER TABLE another ADD COLUMN extra int;");
+        $this->assertSame([2], array_column(array_values($next)[0]['issues'], 'line'));
+
+        try {
+            $parser->parse("\n\nCREATE TABLE broken (id int DEFAULT);");
+        } catch (ParseException $exception) {
+            $this->assertSame(3, $exception->sqlLine);
+            return;
+        }
+
+        $this->fail('The malformed default must report its original source line.');
+    }
 }

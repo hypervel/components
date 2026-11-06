@@ -95,7 +95,7 @@ class MySqlParser implements Parser
             }
 
             if ($index['type'] === 'CHECK') {
-                $checks[] = new CheckConstraint($index['constraint_name'] ?? null, $index['expression'], enforced: $index['enforced']);
+                $checks[] = new CheckConstraint($index['constraint_name'] ?? null, $index['expression'], valid: $index['enforced'], enforced: $index['enforced']);
             } elseif ($index['type'] === 'FOREIGN') {
                 $foreignColumns = array_column($index['ref_cols'] ?? [], 'name');
                 $foreignSchema = $index['ref_database'] ?? $definition['database'];

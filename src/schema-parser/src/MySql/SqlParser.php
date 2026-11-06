@@ -52,6 +52,10 @@ class SqlParser
     /** @var list<array{int, int}> */
     private array $definitionSourceMap = [];
 
+    private int $diagnosticOffset = 0;
+
+    private int $diagnosticLine = 1;
+
     /**
      * Parse the dump into the tracked reader's intermediate representation.
      *
@@ -301,7 +305,7 @@ class SqlParser
      */
     private function syntaxError(string $message, ?int $offset): ParseException
     {
-        return new ParseException($message, $offset === null ? null : $this->line($offset));
+        return new ParseException($message, $offset === null ? null : substr_count($this->sql, "\n", 0, $offset) + 1);
     }
 
     /**
@@ -309,7 +313,10 @@ class SqlParser
      */
     private function line(int $offset): int
     {
-        return substr_count($this->sql, "\n", 0, $offset) + 1;
+        $this->diagnosticLine += substr_count($this->sql, "\n", $this->diagnosticOffset, $offset - $this->diagnosticOffset);
+        $this->diagnosticOffset = $offset;
+
+        return $this->diagnosticLine;
     }
 
     /**
@@ -321,6 +328,8 @@ class SqlParser
      */
     public function walk(array $tokens, string $sql, array $source_map): array
     {
+        $this->diagnosticOffset = 0;
+        $this->diagnosticLine = 1;
         $tables = [];
         $views = [];
         $database = null;

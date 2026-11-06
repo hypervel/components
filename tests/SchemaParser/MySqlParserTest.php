@@ -185,6 +185,7 @@ class MySqlParserTest extends TestCase
         $this->assertSame('positive', $table->checks[0]->name);
         $this->assertSame('(id > 0)', $table->checks[0]->expression);
         $this->assertFalse($table->checks[0]->enforced);
+        $this->assertFalse($table->checks[0]->valid);
     }
 
     public function testOmittedForeignColumnsResolveAgainstTheQualifiedPrimaryKey(): void
