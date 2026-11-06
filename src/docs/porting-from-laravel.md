@@ -816,6 +816,8 @@ Custom non-PDO drivers that relied on generic exception messages for recovery mu
 
 MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
 
+For schema dumps and loads over TLS, use MySQL command-line tools version 5.7.11 or later. When using MariaDB tools, enable certificate verification and configure a trusted CA; TLS with verification disabled is rejected. See [schema dump TLS connections](/docs/{{version}}/migrations#schema-dump-tls).
+
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
