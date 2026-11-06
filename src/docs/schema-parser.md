@@ -98,6 +98,8 @@ $email->default;
 
 Defaults, generated expressions and `onUpdate` expressions remain SQL text. For example, an explicit `DEFAULT NULL` has the string value `'NULL'`, while a `null` default property means no expression was supplied or resolved. Enum labels and comments are decoded strings.
 
+A PostgreSQL domain's `nullable` flag describes its conversion restriction. It does not make columns of that domain non-null: PostgreSQL can store already-domain-typed null values. A column's `nullable` flag reflects its own validated not-null guarantee, including primary keys and identity columns. Unvalidated not-null constraints leave the column nullable and add a table issue.
+
 <a name="indexes-and-constraints"></a>
 ### Indexes and Constraints
 

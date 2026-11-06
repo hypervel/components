@@ -846,6 +846,10 @@ Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connecti
 
 Custom base query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
 
+Custom metadata extensions must port `compileIndexes` with `processIndexes`, and `compileForeignKeys` with `processForeignKeys`, as matching pairs. MySQL/MariaDB and PostgreSQL use ordered rows instead of comma-joined names; SQLite foreign-key lists are hexadecimal. SQLite's column query also supplies native automatic-key metadata to its processor. Follow the [metadata row formats](/docs/{{version}}/database#extending-database-connections) rather than copying Laravel's aggregation or splitting logic.
+
+An index's `columns` list is empty when any key is an expression. Use `key_columns` for positional checks such as identifying a leading column; expression positions contain null. See [inspecting your databases](/docs/{{version}}/database#inspecting-your-databases).
+
 Use named connections instead of Laravel's nested `direct` endpoint, `::direct` suffix and direct-PDO methods such as `getDirectPdo()`. Select the migration connection with `migrations_connection`.
 
 Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
