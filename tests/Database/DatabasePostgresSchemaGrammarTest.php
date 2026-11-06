@@ -457,6 +457,29 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add constraint "users_foo_unique" unique using index "users_foo_unique"', $statements[1]);
     }
 
+    #[TestWith([true, null, true, ' concurrently', '', 'not distinct'])]
+    #[TestWith([false, 'btree', false, '', ' using btree', 'distinct'])]
+    public function testUniqueIndexCreationPreservesNullSemanticsAndDeferral(
+        bool $online,
+        ?string $algorithm,
+        bool $nullsNotDistinct,
+        string $onlineSql,
+        string $algorithmSql,
+        string $nullsSql,
+    ): void {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->unique('foo', 'bar', $algorithm)
+            ->online($online)
+            ->nullsNotDistinct($nullsNotDistinct)
+            ->deferrable()
+            ->initiallyImmediate(false);
+
+        $this->assertSame([
+            'create unique index' . $onlineSql . ' "bar" on "users"' . $algorithmSql . ' ("foo") nulls ' . $nullsSql,
+            'alter table "users" add constraint "bar" unique using index "bar" deferrable initially deferred',
+        ], $blueprint->toSql());
+    }
+
     public function testAddingIndex(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -513,10 +536,14 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         );
     }
 
-    public function testCompileIndexesIncludesPartialMetadata(): void
+    #[TestWith(['10.23', 'true'])]
+    #[TestWith(['11.22', 'indseq.ord <= i.indnkeyatts'])]
+    public function testCompileIndexesIncludesOnlyKeysAndPartialMetadata(string $version, string $keyCondition): void
     {
+        $connection = $this->getConnection();
+        $connection->expects('getServerVersion')->andReturn($version);
         $this->assertSame(
-            'select ic.relname as name, string_agg(a.attname, \',\' order by indseq.ord) as columns, '
+            'select ic.relname as name, a.attname as column_name, '
             . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
             . 'i.indpred is not null as "partial" '
             . 'from pg_index i '
@@ -524,11 +551,11 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             . 'join pg_namespace tn on tn.oid = tc.relnamespace '
             . 'join pg_class ic on ic.oid = i.indexrelid '
             . 'join pg_am am on am.oid = ic.relam '
-            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on true '
+            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on ' . $keyCondition . ' '
             . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = indseq.num '
             . 'where tc.relname = \'users\' and tn.nspname = \'public\' '
-            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
-            $this->getGrammar()->compileIndexes('public', 'users'),
+            . 'order by ic.relname, indseq.ord',
+            $connection->getSchemaGrammar()->compileIndexes('public', 'users'),
         );
     }
 
@@ -1619,33 +1646,34 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
         $this->assertStringContainsString('pg_catalog.pg_collation', $statement);
         $this->assertStringContainsString('a.attgenerated as generated', $statement);
+        $this->assertStringContainsString('a.attidentity as identity', $statement);
     }
 
-    public function testCompileColumnsOnLegacyServer(): void
+    public function testCompileColumnsOnPostgresTen(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('8.0.2');
+        $connection->expects('getServerVersion')->andReturn('10.23');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
         $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
-        $this->assertStringContainsString('null as collation', $statement);
+        $this->assertStringContainsString('pg_catalog.pg_collation', $statement);
+        $this->assertStringContainsString('a.attidentity as identity', $statement);
         $this->assertStringContainsString("'' as generated", $statement);
-        $this->assertStringNotContainsString('pg_catalog.pg_collation', $statement);
         $this->assertStringNotContainsString('a.attgenerated', $statement);
     }
 
     public function testCompileMetadataQueriesForSchemaNamedZero(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('12.0.0');
+        $connection->expects('getServerVersion')->twice()->andReturn('12.0.0');
         $grammar = $connection->getSchemaGrammar();
 
         $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileTableExists('0', 'users'));
         $this->assertStringEndsWith("n.nspname = '0' order by n.nspname, c.relname", $grammar->compileTables('0'));
         $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileColumns('0', 'users'));
-        $this->assertStringContainsString("tn.nspname = '0' group", $grammar->compileIndexes('0', 'users'));
-        $this->assertStringContainsString("tn.nspname = '0' group", $grammar->compileForeignKeys('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' order", $grammar->compileIndexes('0', 'users'));
+        $this->assertStringContainsString("tn.nspname = '0' order", $grammar->compileForeignKeys('0', 'users'));
         $this->assertStringContainsString("pn.nspname = '0' order", $grammar->compilePartitions('0', 'users'));
     }
 
